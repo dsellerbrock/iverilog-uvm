@@ -1,0 +1,915 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 286  of event 'task-clock:u'
+# Event count (approx.): 2888888860
+#
+# Overhead  Command  Shared Object        Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+# ........  .......  ...................  ...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+    10.49%  vvp      vvp                  [.] vvp_event_callback_begin()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+               boundary_s (inlined)
+               vvp_event_callback_begin (inlined)
+               |          
+               |--4.90%--operator= (inlined)
+               |          operator= (inlined)
+               |          |          
+               |          |--4.20%--_M_move_assign (inlined)
+               |          |          _M_swap_data (inlined)
+               |          |          _M_copy_data (inlined)
+               |          |          
+               |           --0.70%--operator= (inlined)
+               |                     _M_move_assign (inlined)
+               |                     clear (inlined)
+               |          
+               |--4.20%--push_back (inlined)
+               |          emplace_back<(anonymous namespace)::event_source_saved_s> (inlined)
+               |          construct<(anonymous namespace)::event_source_saved_s, (anonymous namespace)::event_source_saved_s> (inlined)
+               |          construct<(anonymous namespace)::event_source_saved_s, (anonymous namespace)::event_source_saved_s> (inlined)
+               |          event_source_saved_s (inlined)
+               |          |          
+               |           --1.40%--event_source_transaction_s (inlined)
+               |                     |          
+               |                      --1.05%--vector (inlined)
+               |                                _Vector_base (inlined)
+               |                                _Vector_impl (inlined)
+               |                                _Vector_impl_data (inlined)
+               |          
+                --1.05%--event_source_saved_s (inlined)
+                          event_source_transaction_s (inlined)
+                          map (inlined)
+                          _Rb_tree (inlined)
+                          _Rb_tree_impl (inlined)
+                          _Rb_tree_header (inlined)
+                          |          
+                           --0.70%--_M_reset (inlined)
+
+     5.59%  vvp      vvp                  [.] format_vpiBinStrVal(vvp_signal_value const*, int, unsigned int, t_vpi_value*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               vpi_get_value
+               format_vpiBinStrVal (inlined)
+               |          
+                --1.05%--vvp_bit4_to_ascii (inlined)
+
+     5.24%  vvp      libc.so.6            [.] __printf_buffer
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               |          
+               |--2.80%--show_this_item
+               |          fprintf (inlined)
+               |          ___fprintf_chk (inlined)
+               |          __vfprintf_internal
+               |          __printf_buffer
+               |          
+                --2.45%--fprintf (inlined)
+                          ___fprintf_chk (inlined)
+                          __vfprintf_internal
+                          __printf_buffer
+
+     5.24%  vvp      vvp                  [.] vvp_event_callback_end()
+            |          
+             --4.90%--_start
+                       __libc_start_main_impl (inlined)
+                       __libc_start_call_main
+                       main
+                       vvp_run
+                       schedule_simulate (inlined)
+                       vthread_run (inlined)
+                       of_STORE_VEC4 (inlined)
+                       vvp_send_vec4 (inlined)
+                       send_vec4 (inlined)
+                       filter_mask_<vvp_vector4_t> (inlined)
+                       run_vpi_callbacks_in_boundary (inlined)
+                       ~boundary_s (inlined)
+                       vvp_event_callback_end (inlined)
+                       |          
+                       |--2.45%--operator= (inlined)
+                       |          operator= (inlined)
+                       |          |          
+                       |           --2.10%--_M_move_assign (inlined)
+                       |                     _M_swap_data (inlined)
+                       |                     _M_copy_data (inlined)
+                       |          
+                       |--0.70%--pop_back (inlined)
+                       |          destroy<(anonymous namespace)::event_source_saved_s> (inlined)
+                       |          destroy<(anonymous namespace)::event_source_saved_s> (inlined)
+                       |          ~event_source_saved_s (inlined)
+                       |          ~event_source_transaction_s (inlined)
+                       |          ~map (inlined)
+                       |          ~_Rb_tree (inlined)
+                       |          
+                        --0.70%--event_source_saved_s (inlined)
+                                  event_source_transaction_s (inlined)
+
+     3.50%  vvp      libc.so.6            [.] __strcmp_avx2
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               |          
+                --3.15%--vpi_get
+                          vpi_get
+                          vpi_get (inlined)
+                          signal_get (inlined)
+                          __dynamic_cast
+                          __strcmp_avx2
+
+     3.50%  vvp      vvp                  [.] non-virtual thunk to vvp_wire_vec4::value(unsigned int) const
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               vpi_get_value
+               format_vpiBinStrVal (inlined)
+               non-virtual thunk to vvp_wire_vec4::value(unsigned int) const
+
+     3.15%  vvp      vvp                  [.] of_LOAD_VEC4(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_LOAD_VEC4 (inlined)
+               |          
+                --1.05%--vvp_vector4_t (inlined)
+
+     2.45%  vvp      libstdc++.so.6.0.35  [.] __dynamic_cast
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               vpi_get
+               vpi_get
+               vpi_get (inlined)
+               signal_get (inlined)
+               __dynamic_cast
+
+     2.10%  vvp      libc.so.6            [.] _itoa_word
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer
+               _itoa_word
+
+     2.10%  vvp      vvp                  [.] of_STORE_VEC4(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+
+     2.10%  vvp      vvp                  [.] std::_Rb_tree<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()> >, std::_Select1st<std::pair<std::pair<void*, void**> const, std::function<void ()> > >, std::less<std::pair<void*, void**> >, std::allocator<std::pair<std::pair<void*, void**> const, std::function<void ()> > > >::_M_erase(std::_Rb_tree_node<std::pair<std::pair<void*, void**> const, std::function<void ()> > >*) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+               |          
+               |--1.40%--boundary_s (inlined)
+               |          vvp_event_callback_begin (inlined)
+               |          |          
+               |           --1.05%--operator= (inlined)
+               |                     operator= (inlined)
+               |                     operator= (inlined)
+               |                     _M_move_assign (inlined)
+               |                     clear (inlined)
+               |                     _M_erase (inlined)
+               |          
+                --0.70%--~boundary_s (inlined)
+                          vvp_event_callback_end (inlined)
+
+     1.75%  vvp      libc.so.6            [.] __printf_buffer_to_file_done
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               |          
+                --1.40%--show_this_item
+                          fprintf (inlined)
+                          ___fprintf_chk (inlined)
+                          __vfprintf_internal
+                          __printf_buffer_to_file_done
+                          __printf_buffer_flush_to_file (inlined)
+
+     1.75%  vvp      libstdc++.so.6.0.35  [.] __cxxabiv1::__si_class_type_info::__do_dyncast(long, __cxxabiv1::__class_type_info::__sub_kind, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info::__dyncast_result&) const
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               |          
+               |--1.05%--vpi_get
+               |          vpi_get
+               |          vpi_get (inlined)
+               |          signal_get (inlined)
+               |          __dynamic_cast
+               |          __cxxabiv1::__si_class_type_info::__do_dyncast(long, __cxxabiv1::__class_type_info::__sub_kind, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info::__dyncast_result&) const
+               |          
+                --0.70%--vpi_get_value
+                          signal_get_value (inlined)
+                          __dynamic_cast
+                          __cxxabiv1::__si_class_type_info::__do_dyncast(long, __cxxabiv1::__class_type_info::__sub_kind, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info const*, void const*, __cxxabiv1::__class_type_info::__dyncast_result&) const
+
+     1.75%  vvp      system.vpi           [.] show_this_item
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               |          
+                --1.05%--truncate_bitvec (inlined)
+
+     1.75%  vvp      vvp                  [.] of_CONCAT_VEC4(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_CONCAT_VEC4 (inlined)
+               |          
+                --0.70%--peek_vec4 (inlined)
+
+     1.75%  vvp      vvp                  [.] schedule_simulate()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --0.70%--run_rosync (inlined)
+
+     1.40%  vvp      vvp                  [.] of_XOR(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_XOR (inlined)
+               pop_vec4 (inlined)
+               |          
+                --0.70%--vvp_vector4_t (inlined)
+                          copy_from_ (inlined)
+                          copy_from_ (inlined)
+
+     1.40%  vvp      vvp                  [.] resize_rval_vec(vvp_vector4_t&, long&, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               resize_rval_vec (inlined)
+
+     1.40%  vvp      vvp                  [.] schedule_event_(event_s*, unsigned long, event_queue_e)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+                --1.05%--of_DELAY (inlined)
+                          schedule_event_ (inlined)
+                          |          
+                           --0.70%--event_time_s (inlined)
+
+     1.40%  vvp      vvp                  [.] vthread_run(vthread_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+
+     1.40%  vvp      vvp                  [.] vvp_fun_signal4_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               recv_vec4 (inlined)
+
+     1.40%  vvp      vvp                  [.] vvp_vector4_t::set_vec(unsigned int, vvp_vector4_t const&)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_CONCAT_VEC4 (inlined)
+               set_vec (inlined)
+
+     1.40%  vvp      vvp                  [.] vvp_vector4_t::setarray(unsigned int, unsigned int, unsigned long const*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+                --1.05%--of_MULI (inlined)
+                          get_immediate_rval (inlined)
+                          setarray (inlined)
+
+     1.40%  vvp      vvp                  [.] vvp_vpi_callback::run_vpi_callbacks_in_boundary()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+
+     1.05%  vvp      libc.so.6            [.] __memmove_avx_unaligned_erms
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer
+               __printf_buffer_write
+               memcpy (inlined)
+               __memmove_avx_unaligned_erms
+
+     1.05%  vvp      libc.so.6            [.] __printf_buffer_to_file_init
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer_to_file_init
+
+     1.05%  vvp      libc.so.6            [.] __printf_buffer_write
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               |          
+                --0.70%--show_this_item
+                          fprintf (inlined)
+                          ___fprintf_chk (inlined)
+                          __vfprintf_internal
+                          __printf_buffer
+                          __printf_buffer_write
+
+     1.05%  vvp      system.vpi           [.] variable_cb_1
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+               callback_execute (inlined)
+               variable_cb_1
+
+     1.05%  vvp      vvp                  [.] of_JMP(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_JMP (inlined)
+
+     1.05%  vvp      vvp                  [.] set_callback_time(t_cb_data*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               |          
+                --0.70%--vthread_run (inlined)
+                          of_STORE_VEC4 (inlined)
+                          vvp_send_vec4 (inlined)
+                          send_vec4 (inlined)
+                          filter_mask_<vvp_vector4_t> (inlined)
+                          run_vpi_callbacks_in_boundary (inlined)
+                          callback_execute (inlined)
+                          set_callback_time (inlined)
+
+     1.05%  vvp      vvp                  [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+
+     1.05%  vvp      vvp                  [.] vvp_vpi_callback::run_vpi_callbacks()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+               run_vpi_callbacks (inlined)
+
+     1.05%  vvp      vvp                  [.] vvp_wire_base::as_signal_value()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               |          
+                --0.70%--of_LOAD_VEC4_PARTI (inlined)
+                          load_vec4_part_ (inlined)
+                          as_signal_value (inlined)
+
+     0.70%  vvp      libc.so.6            [.] __strchrnul_avx2
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer
+               __find_specmb (inlined)
+               __strchrnul_avx2
+
+     0.70%  vvp      libc.so.6            [.] __strchrnul_ifunc@plt
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer
+               __find_specmb (inlined)
+               __strchrnul_ifunc@plt
+
+     0.70%  vvp      libc.so.6            [.] __vfprintf_internal
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+
+     0.70%  vvp      libc.so.6            [.] strlen@plt
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               fprintf (inlined)
+               ___fprintf_chk (inlined)
+               __vfprintf_internal
+               __printf_buffer
+               strlen@plt
+
+     0.70%  vvp      libstdc++.so.6.0.35  [.] strcmp@plt
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               vpi_get
+               vpi_get
+               vpi_get (inlined)
+               signal_get (inlined)
+               __dynamic_cast
+
+     0.70%  vvp      system.vpi           [.] variable_cb_2
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+
+     0.70%  vvp      vvp                  [.] (anonymous namespace)::flush_event_source_transaction_()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               ~vvp_event_source_guard_s (inlined)
+               flush_event_source_transaction_ (inlined)
+
+     0.70%  vvp      vvp                  [.] __vpiSignal::vpi_get(int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_rosync (inlined)
+               run_run (inlined)
+               run_run (inlined)
+               variable_cb_2
+               show_this_item
+               vpi_get
+               vpi_get
+               vpi_get (inlined)
+
+     0.70%  vvp      vvp                  [.] load_vec4_part_(vthread_s*, vvp_net_t*, unsigned int, long)
+     0.70%  vvp      vvp                  [.] of_DELAY(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_DELAY (inlined)
+
+     0.70%  vvp      vvp                  [.] of_LOAD_VEC4_PARTI(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_LOAD_VEC4_PARTI (inlined)
+
+     0.70%  vvp      vvp                  [.] of_MULI(vthread_s*, vvp_code_s*)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_MULI (inlined)
+
+     0.70%  vvp      vvp                  [.] schedule_generic(vvp_gen_event_s*, unsigned long, bool, bool, bool)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+               run_vpi_callbacks_in_boundary (inlined)
+               callback_execute (inlined)
+               variable_cb_1
+               make_sync (inlined)
+               schedule_generic (inlined)
+
+     0.70%  vvp      vvp                  [.] vthread_event_s::run_run()
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               run_run (inlined)
+
+     0.70%  vvp      vvp                  [.] vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_mask_<vvp_vector4_t> (inlined)
+
+     0.70%  vvp      vvp                  [.] vvp_send_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+
+     0.70%  vvp      vvp                  [.] vvp_vector4_t::eeq(vvp_vector4_t const&) const
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_vec4 (inlined)
+               eeq (inlined)
+
+     0.70%  vvp      vvp                  [.] vvp_vector4_t::operator=(vvp_vector4_t const&) [clone .isra.0]
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+
+     0.70%  vvp      vvp                  [.] vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)
+            |
+            ---_start
+               __libc_start_main_impl (inlined)
+               __libc_start_call_main
+               main
+               vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_STORE_VEC4 (inlined)
+               vvp_send_vec4 (inlined)
+               send_vec4 (inlined)
+               filter_vec4 (inlined)
+
+     0.35%  python3  python3.12           [.] siphash13
+     0.35%  vvp      libc.so.6            [.] __fprintf_chk
+     0.35%  vvp      libc.so.6            [.] __printf_buffer_to_file_switch
+     0.35%  vvp      libc.so.6            [.] malloc
+     0.35%  vvp      libc.so.6            [.] memcpy@@GLIBC_2.14@plt
+     0.35%  vvp      system.vpi           [.] timerec_to_time64
+     0.35%  vvp      system.vpi           [.] vpi_get@plt
+     0.35%  vvp      system.vpi           [.] vpi_register_cb@plt
+     0.35%  vvp      vvp                  [.] __dynamic_cast@plt
+     0.35%  vvp      vvp                  [.] check_callback_time(t_cb_data*, bool)
+     0.35%  vvp      vvp                  [.] get_immediate_rval(vvp_code_s*, vvp_vector4_t&) [clone .isra.0]
+     0.35%  vvp      vvp                  [.] get_sync_cb_time(sync_callback*)
+     0.35%  vvp      vvp                  [.] non-virtual thunk to vvp_wire_vec4::value_size() const
+     0.35%  vvp      vvp                  [.] non-virtual thunk to vvp_wire_vec4::vec4_part_value(vvp_vector4_t&, unsigned int, unsigned int) const
+     0.35%  vvp      vvp                  [.] non-virtual thunk to vvp_wire_vec4::vec4_value(vvp_vector4_t&) const
+     0.35%  vvp      vvp                  [.] of_CMPIS(vthread_s*, vvp_code_s*)
+     0.35%  vvp      vvp                  [.] schedule_vthread(vthread_s*, unsigned long, bool)
+     0.35%  vvp      vvp                  [.] signal_get_value(__vpiHandle*, t_vpi_value*)
+     0.35%  vvp      vvp                  [.] signal_reg::get_type_code() const
+     0.35%  vvp      vvp                  [.] std::_Rb_tree<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()> >, std::_Select1st<std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()> > >, std::less<std::pair<std::pair<void*, void**>, unsigned int> >, std::allocator<std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()> > > >::_M_erase(std::_Rb_tree_node<std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()> > >*) [clone .isra.0]
+     0.35%  vvp      vvp                  [.] sync_cb::run_run()
+     0.35%  vvp      vvp                  [.] vpi_get
+     0.35%  vvp      vvp                  [.] vpi_register_cb
+     0.35%  vvp      vvp                  [.] vthread_event_s::~vthread_event_s()
+     0.35%  vvp      vvp                  [.] vthread_s::pop_vec4(unsigned int)
+     0.35%  vvp      vvp                  [.] vthread_s::push_vec4(vvp_vector4_t const&)
+     0.35%  vvp      vvp                  [.] vvp_event_source_begin()
+     0.35%  vvp      vvp                  [.] vvp_event_source_end()
+     0.35%  vvp      vvp                  [.] vvp_sub_pointer_t<vvp_net_t>::vvp_sub_pointer_t(vvp_net_t*, unsigned int)
+     0.35%  vvp      vvp                  [.] vvp_vector4_t::invert()
+     0.35%  vvp      vvp                  [.] vvp_vector4_t::mul(vvp_vector4_t const&)
+     0.35%  vvp      vvp                  [.] vvp_vector4_t::operator^=(vvp_vector4_t const&)
+     0.35%  vvp      vvp                  [.] vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)
+     0.35%  vvp      vvp                  [.] vvp_wire_vec4::vec4_part_value(vvp_vector4_t&, unsigned int, unsigned int) const
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

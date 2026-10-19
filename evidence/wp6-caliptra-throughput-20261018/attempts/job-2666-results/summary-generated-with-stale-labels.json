@@ -1,0 +1,262 @@
+{
+  "campaign_base": "f9f8e0a79f230f38da6cbb4445994ad1075ad531",
+  "main_before_601": "631b7a869faaa05216d8749224520227b4b23d43",
+  "pr_601_candidate": "3b620c5ea5857ba7c022a7fba058f8a31b7ac564",
+  "window": {
+    "start": 100,
+    "end": 2100,
+    "cycles": 2000
+  },
+  "tests": {
+    "smoke_test_dma_aes_gcm_short_1_dword": {
+      "base": {
+        "median_cycles_per_second": 8.35459810129128,
+        "min_cycles_per_second": 8.32416202366435,
+        "max_cycles_per_second": 8.612365117598626,
+        "spread_percent": 3.449634446087025,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 232224246498,
+            "cycles_per_second": 8.612365117598626,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 240264424733,
+            "cycles_per_second": 8.32416202366435,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 239389133475,
+            "cycles_per_second": 8.35459810129128,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 10.778648003872501,
+        "min_cycles_per_second": 10.503628532583397,
+        "max_cycles_per_second": 11.12306582935434,
+        "spread_percent": 5.746892342605444,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 179806541711,
+            "cycles_per_second": 11.12306582935434,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 190410389495,
+            "cycles_per_second": 10.503628532583397,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 185552028351,
+            "cycles_per_second": 10.778648003872501,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 10.781864107026712,
+        "min_cycles_per_second": 10.470497805447245,
+        "max_cycles_per_second": 11.061517908541227,
+        "spread_percent": 5.481613357645683,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 180807011889,
+            "cycles_per_second": 11.061517908541227,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 191012885649,
+            "cycles_per_second": 10.470497805447245,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 185496680365,
+            "cycles_per_second": 10.781864107026712,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "smoke_test_sha256": {
+      "base": {
+        "median_cycles_per_second": 8.271592556152996,
+        "min_cycles_per_second": 8.045328913610472,
+        "max_cycles_per_second": 8.57934533989664,
+        "spread_percent": 6.456029146272796,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 233118020171,
+            "cycles_per_second": 8.57934533989664,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 248591452441,
+            "cycles_per_second": 8.045328913610472,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 241791406724,
+            "cycles_per_second": 8.271592556152996,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 10.376381774372582,
+        "min_cycles_per_second": 10.359663517134228,
+        "max_cycles_per_second": 10.635447190578967,
+        "spread_percent": 2.6578019144001113,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 188050390751,
+            "cycles_per_second": 10.635447190578967,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 192745413911,
+            "cycles_per_second": 10.376381774372582,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 193056463339,
+            "cycles_per_second": 10.359663517134228,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 10.659910523454181,
+        "min_cycles_per_second": 10.463977412535037,
+        "max_cycles_per_second": 10.672835138577202,
+        "spread_percent": 1.959282168294298,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 191131911046,
+            "cycles_per_second": 10.463977412535037,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 187618835599,
+            "cycles_per_second": 10.659910523454181,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 187391632498,
+            "cycles_per_second": 10.672835138577202,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "cptra_ss_test_rom": {
+      "base": {
+        "median_cycles_per_second": 8.250370603695949,
+        "min_cycles_per_second": 7.658121283155714,
+        "max_cycles_per_second": 8.283103390836379,
+        "spread_percent": 7.575200408581513,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 241455394872,
+            "cycles_per_second": 8.283103390836379,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 242413352814,
+            "cycles_per_second": 8.250370603695949,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 261160658868,
+            "cycles_per_second": 7.658121283155714,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 10.449888159087598,
+        "min_cycles_per_second": 10.42142793413715,
+        "max_cycles_per_second": 10.752176499548817,
+        "spread_percent": 3.1650919165487594,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 191912280413,
+            "cycles_per_second": 10.42142793413715,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 186008851332,
+            "cycles_per_second": 10.752176499548817,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 191389608152,
+            "cycles_per_second": 10.449888159087598,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 10.113604817706022,
+        "min_cycles_per_second": 9.196691382717923,
+        "max_cycles_per_second": 10.682012203842804,
+        "spread_percent": 14.686364040292643,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 187230641740,
+            "cycles_per_second": 10.682012203842804,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 197753425811,
+            "cycles_per_second": 10.113604817706022,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 217469513412,
+            "cycles_per_second": 9.196691382717923,
+            "runner_exit": 1
+          }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "main_vs_base_geometric_mean_percent": 27.0314455126043,
+    "candidate_vs_base_geometric_mean_percent": 26.80072781135856,
+    "candidate_vs_main_geometric_mean_percent": -0.18162251111503158,
+    "base_pooled_cycles_per_second": 8.291943945265173,
+    "main_pooled_cycles_per_second": 10.532098273323417,
+    "candidate_pooled_cycles_per_second": 10.510293275623349
+  },
+  "all_inputs_identical": true,
+  "all_normalized_logs_identical": true
+}

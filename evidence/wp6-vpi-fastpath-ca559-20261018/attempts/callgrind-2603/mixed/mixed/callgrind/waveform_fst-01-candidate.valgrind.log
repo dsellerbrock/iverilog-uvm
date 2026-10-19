@@ -1,0 +1,11 @@
+==3480993== 
+==3480993== Process terminating with default action of signal 11 (SIGSEGV)
+==3480993==  Access not within mapped region at address 0x6864D73
+==3480993==    at 0x6864D73: ???
+==3480993==    by 0x6658DF9: start_thread (pthread_create.c:454)
+==3480993==    by 0x66EC3D3: clone (clone.S:100)
+==3480993==  If you believe this happened as a result of a stack
+==3480993==  overflow in your program's main thread (unlikely but
+==3480993==  possible), you can try to increase the size of the
+==3480993==  main thread stack using the --main-stacksize= flag.
+==3480993==  The main thread stack size used in this run was 8388608.

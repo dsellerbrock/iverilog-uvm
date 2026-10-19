@@ -1,0 +1,12 @@
+3f590c65a98ab8aa25a333294f4dbd01cdaddd581fb9f62e9f398cf0878469db  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/gates-provenance.txt
+a8fde3e9021e21fadcab4880ce7c7a1525ad8b6438e74ac09024cdadf2f2f338  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/gates/stage-status.tsv
+f36d4528f21357e00073697b35369f1874ad2245c1111f68b94d1b60c9e5e203  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/ivtest-gate.log
+d8f8c8c915e477a916f8c9091c2c9b679b11366820076357b43e5f1237381d3a  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/make-check.log
+d04443ae242689c329e50bcdc75aa8d17ee555bd054d69c6c0f6f64a5e087199  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/tgt-fpga-install.log
+24e08ab2ddcd9cf6b09baaddd6b56d462a70973e5d7db7cdf945054cd60418b9  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/uvm-real-dpi.log
+ea7dbc0334093ed677184e1f8aa09b6b4c665e5d717b921438a95ed5a3d72fcc  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/vpi-intval-semantics.log
+a5e7bd11b0ea8a998ecc1f9f510097b490e3867c77f747b90c7666bdf8d05bb5  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/ivtest-gate.time
+4d49a23b7a9228eefb13a985591795361835682bfbd805ea7748aa4971de0933  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/make-check.time
+3e4cafc659151cf00bbf59a38ea5452caf349cf36582c9058b0b77defc166ae3  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/tgt-fpga-install.time
+1600ed3802a2eaac83314d9435536f61fd76eeaf8abc776b2812208f5a8101b2  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/uvm-real-dpi.time
+b63b648174e067c797fa7be214c477fb08ef837259f4746fdc0f1a90e92e2505  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/logs/gates/vpi-intval-semantics.time

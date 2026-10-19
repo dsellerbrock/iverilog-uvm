@@ -1,0 +1,6 @@
+measurement_base=d9caaaea5b410ed14e7ca14be828fc2f2c9fea44
+candidate_source_commit=498bf0826b810d5fe8ae560b02903c7bb5558c36
+expected_fail_list_sha256=b22c9f7b117ea0b1644155c2673f27944da404a7b92c0f52a50998f29712c357
+5aba06d48f154bf271e8c43a56f066d0a9e606d723391bfdf1171d6c95da5f45  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/install/candidate/bin/vvp
+994df06f537318986f7fe944c139c6197f54257307c671838c47e181cfab3ce0  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/install/candidate/bin/iverilog
+b22c9f7b117ea0b1644155c2673f27944da404a7b92c0f52a50998f29712c357  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-d9caa-20261018-r2/input/ivtest_expected_fails.list

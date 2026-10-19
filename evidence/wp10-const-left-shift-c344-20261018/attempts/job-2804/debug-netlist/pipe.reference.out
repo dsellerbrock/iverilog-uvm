@@ -1,0 +1,2 @@
+acc=9b4fabc1 lfsr=4261e9bf
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/source/candidate/benchmarks/sim-hotspots/rtl_pipe.sv:24: $finish called at 2400020 (1s)

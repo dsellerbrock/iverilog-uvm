@@ -153,9 +153,11 @@ struct systask_def : public __vpiSysTaskCall {
 struct sysfunc_def : public systask_def {
       virtual int get_type_code(void) const override { return vpiSysFuncCall; }
       virtual int vpi_get(int code) override { return sysfunc_get(code, this); }
+      virtual void push_return(vthread_t) const { }
 };
 
 struct sysfunc_real : public sysfunc_def {
+      void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline double return_value() const { return return_value_; }
 
@@ -181,6 +183,7 @@ vpiHandle sysfunc_real::vpi_put_value(p_vpi_value vp, int)
 }
 
 struct sysfunc_str : public sysfunc_def {
+      void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline const std::string& return_value() const { return return_value_; };
@@ -225,6 +228,7 @@ vpiHandle sysfunc_str::vpi_put_value(p_vpi_value vp, int)
 class sysfunc_vec4 : public sysfunc_def {
     public:
       explicit inline sysfunc_vec4(unsigned wid): return_value_(wid, BIT4_X) { }
+      void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline const vvp_vector4_t& return_value() const { return return_value_; }
@@ -1002,17 +1006,9 @@ void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
       if (vpip_cur_task->object_stack > 0)
 	    vthread_pop_obj(thr, vpip_cur_task->object_stack);
 
-	/* If the function returns a value, then push the value
-	   to the appropriate thread stack. */
-      if (const sysfunc_real*func_real = dynamic_cast<sysfunc_real*>(ref)) {
-	    vthread_push(thr, func_real->return_value());
-      }
-      else if (const sysfunc_str*func_string = dynamic_cast<sysfunc_str*>(ref)) {
-	    vthread_push(thr, func_string->return_value());
-      }
-      else if (const sysfunc_vec4*func_vec4 = dynamic_cast<sysfunc_vec4*>(ref)) {
-	    vthread_push(thr, func_vec4->return_value());
-      }
+	/* If the function returns a value, push it to the appropriate stack. */
+      if (vpip_cur_task->get_type_code() == vpiSysFuncCall)
+	    static_cast<sysfunc_def*>(vpip_cur_task)->push_return(thr);
       vpip_cur_task = 0;
 }
 

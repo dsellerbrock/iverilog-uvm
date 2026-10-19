@@ -1,0 +1,65 @@
+#! /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/bin/vvp
+:ivl_version "13.0 (devel)" "(c344d2019)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r1/install/reference/lib/ivl/v2009.vpi";
+S_0x7f747d79f010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x7f747d79f070 .scope module, "shift_semantics" "shift_semantics" 3 1;
+ .timescale 0 0;
+L_0x7f747d6b4080 .functor BUFT 1, C4<00000>, C4<0>, C4<0>, C4<0>;
+v0x7f747dea3010_0 .net/2u *"_ivl_14", 4 0, L_0x7f747d6b4080;  1 drivers
+v0x7f747dea3030_0 .net *"_ivl_2", 26 0, L_0x7f747d6ed010;  1 drivers
+L_0x7f747d6b4010 .functor BUFT 1, C4<00000>, C4<0>, C4<0>, C4<0>;
+v0x7f747dea3050_0 .net *"_ivl_4", 4 0, L_0x7f747d6b4010;  1 drivers
+v0x7f747dea3070_0 .net *"_ivl_7", 26 0, L_0x7f747d6ed130;  1 drivers
+L_0x7f747d6b4048 .functor BUFT 1, C4<00000>, C4<0>, C4<0>, C4<0>;
+v0x7f747dea3090_0 .net/2u *"_ivl_8", 4 0, L_0x7f747d6b4048;  1 drivers
+v0x7f747dea30b0_0 .net "concat_shifted", 31 0, L_0x7f747d6ed1c0;  1 drivers
+v0x7f747dea30b0_0 .vpi_source_location 3 4;
+v0x7f747dea30d0_0 .var "din", 31 0;
+v0x7f747dea30d0_0 .vpi_source_location 3 2;
+v0x7f747dea30f0_0 .net "shifted", 31 0, L_0x7f747d6ed0a0;  1 drivers
+v0x7f747dea30f0_0 .vpi_source_location 3 3;
+v0x7f747dea3110_0 .net "visible_part", 26 0, L_0x7f747d6ed250;  1 drivers
+v0x7f747dea3110_0 .vpi_source_location 3 5;
+v0x7f747dea3130_0 .net "visible_result", 31 0, L_0x7f747d6ed2e0;  1 drivers
+v0x7f747dea3130_0 .vpi_source_location 3 6;
+L_0x7f747d6ed010 .part v0x7f747dea30d0_0, 0, 27;
+L_0x7f747d6ed0a0 .concat [ 5 27 0 0], L_0x7f747d6b4010, L_0x7f747d6ed010;
+L_0x7f747d6ed130 .part v0x7f747dea30d0_0, 0, 27;
+L_0x7f747d6ed1c0 .concat [ 5 27 0 0], L_0x7f747d6b4048, L_0x7f747d6ed130;
+L_0x7f747d6ed250 .part v0x7f747dea30d0_0, 0, 27;
+L_0x7f747d6ed2e0 .concat [ 5 27 0 0], L_0x7f747d6b4080, L_0x7f747d6ed250;
+    .scope S_0x7f747d79f070;
+T_0 ;
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7f747dea30d0_0, 0, 32;
+    %delay 1, 0;
+    %vpi_call/w 3 9 "$display", "%b %b %b", v0x7f747dea30f0_0, v0x7f747dea30b0_0, v0x7f747dea3130_0 {0 0 0 0};
+    %pushi/vec4 2147483649, 0, 32;
+    %store/vec4 v0x7f747dea30d0_0, 0, 32;
+    %delay 1, 0;
+    %vpi_call/w 3 10 "$display", "%b %b %b", v0x7f747dea30f0_0, v0x7f747dea30b0_0, v0x7f747dea3130_0 {0 0 0 0};
+    %pushi/vec4 251658255, 251719680, 32;
+    %store/vec4 v0x7f747dea30d0_0, 0, 32;
+    %delay 1, 0;
+    %vpi_call/w 3 11 "$display", "%b %b %b", v0x7f747dea30f0_0, v0x7f747dea30b0_0, v0x7f747dea3130_0 {0 0 0 0};
+    %pushi/vec4 0, 4294967295, 32;
+    %store/vec4 v0x7f747dea30d0_0, 0, 32;
+    %delay 1, 0;
+    %vpi_call/w 3 12 "$display", "%b %b %b", v0x7f747dea30f0_0, v0x7f747dea30b0_0, v0x7f747dea3130_0 {0 0 0 0};
+    %vpi_call/w 3 13 "$finish" {0 0 0 0};
+    %end;
+    .thread T_0, $function_background_ok;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-const-left-shift-c344-20261018/source/candidate/evidence/wp10-const-left-shift-c344-20261018/input/semantic/shift_semantics.sv";

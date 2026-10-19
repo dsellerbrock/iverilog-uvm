@@ -1,0 +1,505 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 400  of event 'task-clock:u'
+# Event count (approx.): 4040404000
+#
+# Overhead  Command  Shared Object         Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+# ........  .......  ....................  .................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+    15.50%  vvp      libz3.so.4            [.] 0x00000000003a1b47
+            |
+            ---vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_RANDOMIZE (inlined)
+               vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_mk_context
+               |          
+               |--5.50%--0x7d541cb944d0
+               |          0x7d541c4226f5
+               |          0x7d541bfa21c7
+               |          0x7d541bfa1b47
+               |          
+               |--5.00%--0x7b49ab5944d0
+               |          0x7b49aae226f5
+               |          0x7b49aa9a21c7
+               |          0x7b49aa9a1b47
+               |          
+                --5.00%--0x779ebf7944d0
+                          0x779ebf0226f5
+                          0x779ebeba21c7
+                          0x779ebeba1b47
+
+     8.50%  vvp      libz3.so.4            [.] 0x00000000003a1e87
+            |
+            ---vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_RANDOMIZE (inlined)
+               vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_mk_context
+               |          
+               |--3.25%--0x7b49ab5944d0
+               |          0x7b49aae226f5
+               |          0x7b49aa9a1e87
+               |          
+               |--2.75%--0x779ebf7944d0
+               |          0x779ebf0226f5
+               |          0x779ebeba1e87
+               |          
+                --2.50%--0x7d541cb944d0
+                          0x7d541c4226f5
+                          0x7d541bfa1e87
+
+     7.25%  vvp      libz3.so.4            [.] 0x00000000003a1e93
+            |
+            ---vvp_run
+               schedule_simulate (inlined)
+               vthread_run (inlined)
+               of_RANDOMIZE (inlined)
+               vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_mk_context
+               |          
+               |--3.50%--0x7b49ab5944d0
+               |          0x7b49aae226f5
+               |          0x7b49aa9a1e93
+               |          
+               |--3.00%--0x779ebf7944d0
+               |          0x779ebf0226f5
+               |          0x779ebeba1e93
+               |          
+                --0.75%--0x7d541cb944d0
+                          0x7d541c4226f5
+                          0x7d541bfa1e93
+
+     4.25%  vvp      libc.so.6             [.] __strcmp_avx2
+            |          
+            |--2.00%--of_RANDOMIZE (inlined)
+            |          vvp_z3_randomize_graph (inlined)
+            |          z3_solve_pass_ (inlined)
+            |          |          
+            |           --1.75%--Z3_solver_check_assumptions
+            |                     |          
+            |                     |--0.75%--0x7d541cbc5096
+            |                     |          0x7d541c3f9ad5
+            |                     |          0x7d541c3f1753
+            |                     |          0x7d541c66bcff
+            |                     |          |          
+            |                     |           --0.50%--0x7d541c65e877
+            |                     |                     0x7d541c656c70
+            |                     |                     0x7d541c4645a2
+            |                     |                     0x7d541c44f120
+            |                     |          
+            |                      --0.75%--0x779ebf7c5096
+            |                                0x779ebeff9ad5
+            |                                0x779ebeff1753
+            |                                0x779ebf26bcff
+            |                                |          
+            |                                 --0.50%--0x779ebf25e6f8
+            |                                           0x779ebf06b390
+            |          
+            |--1.00%--vvp_z3_randomize_graph (inlined)
+            |          z3_solve_pass_ (inlined)
+            |          |          
+            |           --0.75%--Z3_optimize_check
+            |          
+            |--0.50%--z3_solve_pass_ (inlined)
+            |          
+             --0.50%--vvp_run
+                       schedule_simulate (inlined)
+                       vthread_run (inlined)
+                       of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       Z3_mk_context
+
+     4.25%  vvp      libc.so.6             [.] _int_malloc
+            |          
+            |--2.00%--z3_solve_pass_ (inlined)
+            |          |          
+            |          |--1.50%--Z3_optimize_check
+            |          |          |          
+            |          |          |--0.50%--0x7b49ab556a0e
+            |          |          |          0x7b49aadf0be6
+            |          |          |          0x7b49ab063087
+            |          |          |          0x7b49ab06446f
+            |          |          |          
+            |          |           --0.50%--0x7b49ab555cbf
+            |          |                     0x7b49ab54acbd
+            |          |                     0x7b49aac27028
+            |          |                     0x7b49aac274b2
+            |          |                     0x7b49aac274b2
+            |          |                     0x7b49aac27028
+            |          |                     0x7b49aac5a1d2
+            |          |                     0x7b49aafbe830
+            |          |          
+            |           --0.50%--Z3_solver_check
+            |          
+            |--1.25%--vvp_z3_randomize_graph (inlined)
+            |          z3_solve_pass_ (inlined)
+            |          |          
+            |           --0.75%--operator() (inlined)
+            |                     operator() (inlined)
+            |                     operator() (inlined)
+            |                     operator() (inlined)
+            |                     Z3_solver_assert
+            |                     |          
+            |                      --0.50%--0x779ebf7c70a8
+            |                                0x779ebf2b4375
+            |                                0x779ebf2b40bb
+            |          
+             --1.00%--of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                        --0.50%--Z3_solver_check_assumptions
+
+     2.50%  vvp      libc.so.6             [.] __libc_malloc2
+            |          
+            |--2.00%--vvp_z3_randomize_graph (inlined)
+            |          z3_solve_pass_ (inlined)
+            |          |          
+            |          |--1.00%--Z3_optimize_check
+            |          |          |          
+            |          |           --0.50%--0x7b49ab555ad9
+            |          |          
+            |           --0.50%--operator() (inlined)
+            |                     operator() (inlined)
+            |                     operator() (inlined)
+            |                     operator() (inlined)
+            |                     Z3_solver_assert
+            |          
+             --0.50%--z3_solve_pass_ (inlined)
+                       Z3_optimize_check
+
+     1.75%  vvp      libz3.so.4            [.] 0x000000000039776b
+            |          
+            |--1.00%--z3_solve_pass_ (inlined)
+            |          |          
+            |           --0.75%--Z3_solver_check
+            |                     |          
+            |                      --0.50%--0x7b49ab5c5096
+            |                                0x7b49aadf9ad5
+            |                                0x7b49aadf1753
+            |                                0x7b49ab06bcbc
+            |                                0x7b49ab056d0b
+            |          
+             --0.50%--of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+
+     1.50%  vvp      libc.so.6             [.] __malloc_usable_size
+            |          
+            |--0.50%--z3_solve_pass_ (inlined)
+            |          
+             --0.50%--vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+
+     1.50%  vvp      libc.so.6             [.] __memset_avx2_unaligned_erms
+            |          
+             --1.25%--vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                        --1.00%--operator() (inlined)
+                                  operator() (inlined)
+                                  operator() (inlined)
+                                  operator() (inlined)
+                                  Z3_solver_assert
+                                  |          
+                                  |--0.50%--0x7d541cbc70a8
+                                  |          0x7d541c6b4375
+                                  |          0x7d541c6b40bb
+                                  |          0x7d541c64f5eb
+                                  |          0x7d541c6a1d3e
+                                  |          
+                                   --0.50%--0x7b49ab5c70a8
+                                             0x7b49ab0b4375
+                                             0x7b49ab0b40bb
+                                             0x7b49ab04f5eb
+                                             0x7b49ab0a1d3e
+                                             0x7b49ab0177ed
+                                             __memset_avx2_unaligned_erms
+
+     1.50%  vvp      libc.so.6             [.] _int_free_merge_chunk
+            |          
+             --1.00%--vvp_run
+                       schedule_simulate (inlined)
+                       vthread_run (inlined)
+                       of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                        --0.75%--Z3_del_context
+                                  |          
+                                   --0.50%--0x7d541cb95741
+                                             0x7d541bf9e27d
+
+     1.25%  vvp      libc.so.6             [.] _int_free_chunk
+            |          
+             --1.00%--vvp_run
+                       schedule_simulate (inlined)
+                       vthread_run (inlined)
+                       of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                       |--0.50%--Z3_solver_dec_ref
+                       |          0x7d541cb94db7
+                       |          0x7d541cbceac7
+                       |          0x7d541c6a8162
+                       |          
+                        --0.50%--Z3_optimize_dec_ref
+
+     1.25%  vvp      libz3.so.4            [.] strcmp@plt
+            |          
+             --1.00%--vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                       |--0.50%--operator() (inlined)
+                       |          operator() (inlined)
+                       |          operator() (inlined)
+                       |          operator() (inlined)
+                       |          Z3_solver_assert
+                       |          
+                        --0.50%--Z3_optimize_check
+
+     1.00%  vvp      libc.so.6             [.] malloc
+            |          
+             --0.75%--vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+                       |          
+                        --0.50%--Z3_optimize_check
+                                  0x779ebf7574b2
+                                  0x779ebf6e6777
+
+     1.00%  vvp      libc.so.6             [.] pthread_mutex_lock@@GLIBC_2.2.5
+            |          
+             --0.50%--of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+
+     0.75%  vvp      libc.so.6             [.] realloc
+     0.75%  vvp      libc.so.6             [.] unlink_chunk.isra.0
+            |          
+             --0.50%--vvp_run
+                       schedule_simulate (inlined)
+                       vthread_run (inlined)
+                       of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+
+     0.75%  vvp      libstdc++.so.6.0.35   [.] std::basic_ios<char, std::char_traits<char> >::_M_cache_locale(std::locale const&)
+            |
+            ---z3_solve_pass_ (inlined)
+
+     0.75%  vvp      libz3.so.4            [.] 0x0000000000258c75
+            |          
+             --0.50%--of_RANDOMIZE (inlined)
+                       vvp_z3_randomize_graph (inlined)
+                       z3_solve_pass_ (inlined)
+
+     0.75%  vvp      libz3.so.4            [.] 0x000000000038fbda
+     0.50%  vvp      libc.so.6             [.] __memmove_avx_unaligned_erms
+     0.50%  vvp      libc.so.6             [.] __strlen_avx2
+     0.50%  vvp      libc.so.6             [.] alloc_perturb
+            |
+            ---vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_optimize_check
+
+     0.50%  vvp      libc.so.6             [.] cfree@GLIBC_2.2.5
+     0.50%  vvp      libz3.so.4            [.] 0x0000000000279de0
+     0.50%  vvp      libz3.so.4            [.] 0x00000000002811ea
+            |
+            ---vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+
+     0.50%  vvp      libz3.so.4            [.] 0x0000000000290357
+            |
+            ---of_RANDOMIZE (inlined)
+               vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_solver_check_assumptions
+               0x779ebf7c5096
+               0x779ebeff9ad5
+               0x779ebeff1753
+               0x779ebf26bcff
+
+     0.50%  vvp      libz3.so.4            [.] 0x000000000037d26c
+     0.50%  vvp      libz3.so.4            [.] 0x000000000037d26f
+            |
+            ---of_RANDOMIZE (inlined)
+               vvp_z3_randomize_graph (inlined)
+               z3_solve_pass_ (inlined)
+               Z3_solver_check_assumptions
+               0x7d541cbc5096
+               0x7d541c3f9ad5
+               0x7d541c3f1753
+               0x7d541c66bcff
+
+     0.25%  vvp      [vdso]                [.] __vdso_clock_gettime
+     0.25%  vvp      ld-linux-x86-64.so.2  [.] __tls_get_addr
+     0.25%  vvp      libc.so.6             [.] __memcmp_avx2_movbe
+     0.25%  vvp      libc.so.6             [.] __mpn_cmp
+     0.25%  vvp      libc.so.6             [.] _itoa_word
+     0.25%  vvp      libc.so.6             [.] getenv
+     0.25%  vvp      libc.so.6             [.] pthread_mutex_unlock@@GLIBC_2.2.5
+     0.25%  vvp      libstdc++.so.6.0.35   [.] __dynamic_cast
+     0.25%  vvp      libstdc++.so.6.0.35   [.] std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::overflow(int)
+     0.25%  vvp      libstdc++.so.6.0.35   [.] std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+     0.25%  vvp      libstdc++.so.6.0.35   [.] std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_pad(char, long, std::ios_base&, char*, char const*, int&) const
+     0.25%  vvp      libz3.so.4            [.] Z3_get_decl_kind
+     0.25%  vvp      libz3.so.4            [.] Z3_get_sort
+     0.25%  vvp      libz3.so.4            [.] Z3_get_sort_kind
+     0.25%  vvp      libz3.so.4            [.] Z3_mk_and
+     0.25%  vvp      libz3.so.4            [.] Z3_mk_unsigned_int64
+     0.25%  vvp      libz3.so.4            [.] Z3_solver_assert
+     0.25%  vvp      libz3.so.4            [.] Z3_to_app
+     0.25%  vvp      libz3.so.4            [.] __tls_get_addr@plt
+     0.25%  vvp      libz3.so.4            [.] malloc@plt
+     0.25%  vvp      libz3.so.4            [.] pthread_mutex_lock@plt
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257b79
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257ce0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257e1c
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257e6b
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257e72
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000257e90
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258a30
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258d90
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258e30
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258e57
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258e5f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258e69
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258ea0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258eaa
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000258ec0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000259cbc
+     0.25%  vvp      libz3.so.4            [.] 0x000000000025aac0
+     0.25%  vvp      libz3.so.4            [.] 0x000000000025aae5
+     0.25%  vvp      libz3.so.4            [.] 0x000000000025aca0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000263194
+     0.25%  vvp      libz3.so.4            [.] 0x00000000002658f6
+     0.25%  vvp      libz3.so.4            [.] 0x00000000002658fa
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000265f90
+     0.25%  vvp      libz3.so.4            [.] 0x000000000026714f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000278170
+     0.25%  vvp      libz3.so.4            [.] 0x000000000027823f
+     0.25%  vvp      libz3.so.4            [.] 0x000000000027aac4
+     0.25%  vvp      libz3.so.4            [.] 0x000000000027b520
+     0.25%  vvp      libz3.so.4            [.] 0x000000000028118e
+     0.25%  vvp      libz3.so.4            [.] 0x00000000002816cf
+     0.25%  vvp      libz3.so.4            [.] 0x000000000029032f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000290610
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000290634
+     0.25%  vvp      libz3.so.4            [.] 0x000000000037d3e0
+     0.25%  vvp      libz3.so.4            [.] 0x000000000037e947
+     0.25%  vvp      libz3.so.4            [.] 0x000000000037f48d
+     0.25%  vvp      libz3.so.4            [.] 0x000000000037f4d1
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000383d5d
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000383d7e
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000383da0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000392370
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000392378
+     0.25%  vvp      libz3.so.4            [.] 0x000000000039602c
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000396235
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000396876
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000397066
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003977d0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000397998
+     0.25%  vvp      libz3.so.4            [.] 0x000000000039a67f
+     0.25%  vvp      libz3.so.4            [.] 0x000000000039a72c
+     0.25%  vvp      libz3.so.4            [.] 0x000000000039cc82
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003a09d9
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003a1b53
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003a6713
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003a7eb7
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003adf53
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003c3d90
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003c42b9
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003c8330
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003e87f0
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003ec987
+     0.25%  vvp      libz3.so.4            [.] 0x00000000003eca5e
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000404cb1
+     0.25%  vvp      libz3.so.4            [.] 0x000000000043320b
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000438bf2
+     0.25%  vvp      libz3.so.4            [.] 0x000000000043a3c5
+     0.25%  vvp      libz3.so.4            [.] 0x000000000044d82b
+     0.25%  vvp      libz3.so.4            [.] 0x000000000047e8df
+     0.25%  vvp      libz3.so.4            [.] 0x00000000004ad162
+     0.25%  vvp      libz3.so.4            [.] 0x00000000004aea3b
+     0.25%  vvp      libz3.so.4            [.] 0x00000000004f4dcc
+     0.25%  vvp      libz3.so.4            [.] 0x00000000004f9715
+     0.25%  vvp      libz3.so.4            [.] 0x00000000004fa030
+     0.25%  vvp      libz3.so.4            [.] 0x00000000005017f0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000501d81
+     0.25%  vvp      libz3.so.4            [.] 0x000000000050341d
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000508567
+     0.25%  vvp      libz3.so.4            [.] 0x000000000050a1ca
+     0.25%  vvp      libz3.so.4            [.] 0x000000000050a525
+     0.25%  vvp      libz3.so.4            [.] 0x000000000055166c
+     0.25%  vvp      libz3.so.4            [.] 0x000000000059a03f
+     0.25%  vvp      libz3.so.4            [.] 0x00000000005d3c90
+     0.25%  vvp      libz3.so.4            [.] 0x00000000005e7af0
+     0.25%  vvp      libz3.so.4            [.] 0x000000000061364f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000658886
+     0.25%  vvp      libz3.so.4            [.] 0x00000000006697b7
+     0.25%  vvp      libz3.so.4            [.] 0x00000000006778d1
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000679a01
+     0.25%  vvp      libz3.so.4            [.] 0x00000000006e2eb0
+     0.25%  vvp      libz3.so.4            [.] 0x00000000007f9ac0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000805ad7
+     0.25%  vvp      libz3.so.4            [.] 0x000000000084c7a0
+     0.25%  vvp      libz3.so.4            [.] 0x000000000084e825
+     0.25%  vvp      libz3.so.4            [.] 0x00000000008630ec
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000863d43
+     0.25%  vvp      libz3.so.4            [.] 0x000000000086e048
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000898590
+     0.25%  vvp      libz3.so.4            [.] 0x00000000008a8100
+     0.25%  vvp      libz3.so.4            [.] 0x00000000008a9346
+     0.25%  vvp      libz3.so.4            [.] 0x00000000008af1d5
+     0.25%  vvp      libz3.so.4            [.] 0x00000000009ff330
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a1786a
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a18747
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a21620
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a3d8fb
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a4660f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a550f3
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a5c2ed
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a5ee45
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000a6af9e
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000aa41a0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000ab2e50
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b59b75
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b6a040
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b6c2b3
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b724e3
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b728c0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000b78be6
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000bd84e2
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000bff0e0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000eceae0
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000ee836f
+     0.25%  vvp      libz3.so.4            [.] 0x0000000000fce950
+     0.25%  vvp      vvp                   [.] build_z3_atom_impl_(IRParser&, Z3Builder&, Z3_lbool*)
+     0.25%  vvp      vvp                   [.] class_type::constraint_ir[abi:cxx11](unsigned long) const
+     0.25%  vvp      vvp                   [.] of_CMPIS(vthread_s*, vvp_code_s*)
+     0.25%  vvp      vvp                   [.] of_POP_OBJ(vthread_s*, vvp_code_s*)
+     0.25%  vvp      vvp                   [.] resolve_context_scope(__vpiScope*)
+     0.25%  vvp      vvp                   [.] std::_Rb_tree<unsigned long, unsigned long, std::_Identity<unsigned long>, std::less<unsigned long>, std::allocator<unsigned long> >::_M_erase(std::_Rb_tree_node<unsigned long>*) [clone .isra.0]
+     0.25%  vvp      vvp                   [.] std::vector<Z3Builder::DynForeach, std::allocator<Z3Builder::DynForeach> >::operator=(std::vector<Z3Builder::DynForeach, std::allocator<Z3Builder::DynForeach> > const&) [clone .isra.0]
+     0.25%  vvp      vvp                   [.] vvp_cobject::set_vec4(unsigned long, vvp_vector4_t const&, unsigned long)
+     0.25%  vvp      vvp                   [.] vvp_net_t::send_vec4(vvp_vector4_t const&, void**)
+     0.25%  vvp      vvp                   [.] vvp_z3_randomize_graph(std::vector<vvp_z3_object_s, std::allocator<vvp_z3_object_s> > const&)
+     0.25%  vvp      vvp                   [.] z3_joint_components_(_Z3_context*, _Z3_solver*, std::vector<_Z3_ast*, std::allocator<_Z3_ast*> > const&, std::vector<std::vector<_Z3_ast*, std::allocator<_Z3_ast*> >, std::allocator<std::vector<_Z3_ast*, std::allocator<_Z3_ast*> > > >&, std::vector<std::pair<_Z3_ast*, _Z3_ast*>, std::allocator<std::pair<_Z3_ast*, _Z3_ast*> > > const&, std::set<_Z3_ast*, std::less<_Z3_ast*>, std::allocator<_Z3_ast*> > const*)::{lambda(_Z3_ast*)#1}::operator()(_Z3_ast*) const
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

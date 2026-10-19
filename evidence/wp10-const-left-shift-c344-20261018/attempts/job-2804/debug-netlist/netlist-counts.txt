@@ -1,0 +1,12 @@
+shift reference: part=3
+shift reference: concat=3
+shift reference: shift/l=0
+shift candidate: part=3
+shift candidate: concat=3
+shift candidate: shift/l=0
+rtl_pipe reference: part=128
+rtl_pipe reference: concat=128
+rtl_pipe reference: shift/l=0
+rtl_pipe candidate: part=128
+rtl_pipe candidate: concat=128
+rtl_pipe candidate: shift/l=0

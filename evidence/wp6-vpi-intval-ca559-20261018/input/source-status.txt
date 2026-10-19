@@ -1,0 +1,3 @@
+ M .ai/ACTIVE_WORK.yaml
+ M vvp/vpi_priv.cc
+?? evidence/wp6-vpi-intval-ca559-20261018/

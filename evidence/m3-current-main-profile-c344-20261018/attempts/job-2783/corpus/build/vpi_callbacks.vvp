@@ -1,0 +1,49 @@
+#! /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/bin/vvp
+:ivl_version "13.0 (devel)" "(c344d2019)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision - 12;
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/system.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/va_math.vpi";
+:vpi_module "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/install/lib/ivl/v2009.vpi";
+S_0x7df7aecdd010 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x7df7aecdd070 .scope module, "top" "top" 3 2;
+ .timescale -9 -12;
+v0x7df7aecbc010_0 .var/i "i", 31 0;
+v0x7df7aecbc010_0 .vpi_source_location 3 4;
+v0x7df7aecbc030_0 .var "signal", 0 0;
+v0x7df7aecbc030_0 .vpi_source_location 3 3;
+    .scope S_0x7df7aecdd070;
+T_0 ;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0x7df7aecbc030_0, 0, 1;
+    %vpi_call/w 3 7 "$watch_value_changes", v0x7df7aecbc030_0 {0 0 0 0};
+    %pushi/vec4 0, 0, 32;
+    %store/vec4 v0x7df7aecbc010_0, 0, 32;
+T_0.0 ; Top of for-loop
+    %load/vec4 v0x7df7aecbc010_0;
+    %cmpi/s 32000000, 0, 32;
+	  %jmp/0xz T_0.1, 5;
+    %delay 1000, 0;
+    %load/vec4 v0x7df7aecbc030_0;
+    %inv;
+    %store/vec4 v0x7df7aecbc030_0, 0, 1;
+T_0.2 ; for-loop step statement
+    %load/vec4 v0x7df7aecbc010_0;
+    %addi 1, 0, 32;
+    %store/vec4 v0x7df7aecbc010_0, 0, 32;
+    %jmp T_0.0;
+T_0.1 ; for-loop exit label
+    %vpi_call/w 3 11 "$report_value_changes" {0 0 0 0};
+    %vpi_call/w 3 12 "$finish" {0 0 0 0};
+    %end;
+    .thread T_0, $function_background_ok;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source/benchmarks/sim-hotspots/vpi_callbacks.sv";

@@ -1,0 +1,4 @@
+cpu=6
+cpus_per_task=4
+memory=8G
+window=100:2100

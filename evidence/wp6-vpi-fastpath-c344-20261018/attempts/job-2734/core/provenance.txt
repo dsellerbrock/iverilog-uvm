@@ -1,0 +1,3 @@
+measurement_base=c344d20197a569dea8936bad95de3d185b1e78dc
+group=core
+benchmarks=rtl_pipe randomize_dv_txn uvm_traffic multi_clock io_text fork_heavy
