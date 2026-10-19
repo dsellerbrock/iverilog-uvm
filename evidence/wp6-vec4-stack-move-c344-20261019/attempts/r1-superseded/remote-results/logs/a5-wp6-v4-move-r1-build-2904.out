@@ -1,0 +1,12 @@
+candidate.commit: OK
+candidate.patch: OK
+measurement-base.txt: OK
+run_corpus_screen.py: OK
+source-provenance.txt: OK
+iverilog-uvm-c344-sourceonly.tar.gz: OK
+uvm-2020.2.0.tar.gz: OK
+uvm-2020.3.0.tar.gz: OK
+uvm-core-78c0654.tar.gz: OK
+../submit/build-pair.sbatch: OK
+../submit/screen-pair.sbatch: OK
+[2026-10-19T00:26:15.714] error: *** JOB 2904 ON DAN-DESKTOP CANCELLED AT 2026-10-19T00:26:15 DUE to SIGNAL Terminated ***

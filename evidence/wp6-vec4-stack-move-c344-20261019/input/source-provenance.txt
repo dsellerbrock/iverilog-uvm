@@ -1,0 +1,6 @@
+measurement_base=c344d20197a569dea8936bad95de3d185b1e78dc
+source_archive=iverilog-uvm-c344-sourceonly.tar.gz
+candidate_id=vec4-stack-move-prototype-r2
+candidate_revision=9a06b0b8a
+candidate_change=vvp/vvp_net.h vvp/vthread.cc
+UVM_sources=2020.2.0,2020.3.0,core-78c0654

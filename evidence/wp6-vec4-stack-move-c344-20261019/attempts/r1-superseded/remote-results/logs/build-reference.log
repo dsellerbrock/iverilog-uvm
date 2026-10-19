@@ -1,0 +1,1581 @@
+Autoconf in root...
+Precompiling lexor_keyword.gperf
+Precompiling vhdlpp/lexor_keyword.gperf
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking how to run the C preprocessor... gcc -E
+checking for x86_64-pc-linux-gnu-gcc... no
+checking for gcc... gcc
+checking whether the compiler supports GNU C... (cached) yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... (cached) none needed
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking how to run the C preprocessor... gcc -E
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking for ranlib... ranlib
+checking for ld... ld
+checking for ar... ar
+checking for strip... strip
+checking for windres... no
+checking for gperf... gperf
+checking for man... man
+checking for ps2pdf... no
+checking for groff... groff
+checking for git... git
+checking for flex... flex
+checking for bison... bison
+checking for Microsoft Windows... no
+checking for gcc options needed to detect all undeclared functions... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking whether __SUNPRO_C is declared... no
+checking if gcc supports -Wextra... yes
+checking for g++ options needed to detect all undeclared functions... none needed
+checking whether __SUNPRO_CC is declared... no
+checking for getopt.h... yes
+checking for inttypes.h... (cached) yes
+checking for libiberty.h... no
+checking for iosfwd... yes
+checking for sys/wait.h... yes
+checking for execinfo.h... yes
+checking size of unsigned long long... 8
+checking size of unsigned long... 8
+checking size of unsigned... 4
+checking size of void *... 8
+checking for tputs in -ltermcap... yes
+checking for readline in -lreadline... yes
+checking for add_history in -lreadline... yes
+checking for readline/readline.h... yes
+checking for readline/history.h... yes
+checking for sys/resource.h... yes
+checking for pthread_create in -lpthread... yes
+checking for gzwrite in -lz... yes
+checking for gzwrite in -lz... (cached) yes
+checking for BZ2_bzdopen in -lbz2... yes
+checking for BZ2_bzdopen in -lbz2... (cached) yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for declarations of fseeko and ftello... yes
+configure: Not using valgrind hooks
+checking for sys/times... yes
+checking for dlfcn.h... yes
+checking for dlopen in -ldl... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether byte ordering is bigendian... no
+checking for extra libs needed... 
+checking for flag to make position independent code... -fPIC
+checking for realpath... yes
+checking for fopen64... yes
+checking for library containing lround... -lm
+checking for library containing llround... none required
+checking for library containing nan... none required
+checking for library containing fmin... none required
+checking for library containing fmax... none required
+checking if uint64_t and unsigned long are identical... yes
+checking for -rdynamic compiler flag... -rdynamic
+checking for shared library link flag... -shared
+checking for leading underscores... no
+checking for trailing underscores... no
+checking for sanity of prefix... ok
+checking for sanity of exec_prefix... ok
+checking for sanity of libdir... ok
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating ivlpp/Makefile
+config.status: creating vhdlpp/Makefile
+config.status: creating vvp/Makefile
+config.status: creating vpi/Makefile
+config.status: creating driver/Makefile
+config.status: creating driver-vpi/Makefile
+config.status: creating cadpli/Makefile
+config.status: creating libveriuser/Makefile
+config.status: creating tgt-null/Makefile
+config.status: creating tgt-stub/Makefile
+config.status: creating tgt-vvp/Makefile
+config.status: creating tgt-vhdl/Makefile
+config.status: creating tgt-fpga/Makefile
+config.status: creating tgt-verilog/Makefile
+config.status: creating tgt-pal/Makefile
+config.status: creating tgt-vlog95/Makefile
+config.status: creating tgt-pcb/Makefile
+config.status: creating tgt-blif/Makefile
+config.status: creating tgt-sizer/Makefile
+config.status: creating config.h
+config.status: creating _pli_types.h
+config.status: creating vhdlpp/vhdlpp_config.h
+config.status: creating vvp/config.h
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+mkdir dep
+Using empty VERSION_TAG
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c async.cc -o async.o
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c design_dump.cc -o design_dump.o
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c discipline.cc -o discipline.o
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c dup_expr.cc -o dup_expr.o
+mv discipline.d dep/discipline.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elaborate.cc -o elaborate.o
+In file included from async.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from dup_expr.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from design_dump.cc:29:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from pform.h:22,
+                 from elaborate.cc:46:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv async.d dep/async.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sv_edition.cc -o sv_edition.o
+In file included from elaborate.cc:56:
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+mv dup_expr.d dep/dup_expr.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_expr.cc -o elab_expr.o
+In file included from compiler.h:26,
+                 from sv_edition.cc:20:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from elab_expr.cc:37:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv sv_edition.d dep/sv_edition.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elaborate_analog.cc -o elaborate_analog.o
+elaborate.cc: In function ‘std::string pexpr_to_constraint_ir(const PExpr*, const netclass_t*, std::vector<const PExpr*>*, const NetScope*, const std::map<perm_string, long unsigned int>*)’:
+elaborate.cc:34871:41: warning: comparison of integer expressions of different signedness: ‘unsigned int’ and ‘const int’ [-Wsign-compare]
+34871 |                       && (unsigned)qidx == dynforeach_emit_ctx_->prop_idx) {
+      |                          ~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from AStatement.h:26,
+                 from elaborate_analog.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+elaborate.cc: In lambda function:
+elaborate.cc:36590:41: warning: declaration of ‘cast’ shadows a previous local [-Wshadow]
+36590 |             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+      |                                         ^~~~
+elaborate.cc:36565:34: note: shadowed declaration is here
+36565 |             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+      |                                  ^~~~
+elaborate.cc: In member function ‘void netclass_t::elaborate(Design*, PClass*)’:
+elaborate.cc:42956:50: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
+42956 |                                         if (prop < 0) continue;
+      |                                             ~~~~~^~~
+elaborate.cc: In lambda function:
+elaborate.cc:43976:46: warning: enumeration value ‘SEL_WITH’ not handled in switch [-Wswitch]
+43976 |                                       switch (s->op) {
+      |                                              ^
+mv elaborate_analog.d dep/elaborate_analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_lval.cc -o elab_lval.o
+mv design_dump.d dep/design_dump.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_net.cc -o elab_net.o
+In file included from PExpr.h:28,
+                 from elab_lval.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from elab_net.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv elab_net.d dep/elab_net.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_scope.cc -o elab_scope.o
+In file included from compiler.h:26,
+                 from elab_scope.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+elab_scope.cc: In function ‘void complete_class_scope_in_place_(Design*, NetScope*, PClass*, netclass_t*, NetScope*)’:
+elab_scope.cc:5150:65: warning: unused parameter ‘scope’ [-Wunused-parameter]
+ 5150 | static void complete_class_scope_in_place_(Design*des, NetScope*scope,
+      |                                                        ~~~~~~~~~^~~~~
+elab_scope.cc: In member function ‘bool Module::elaborate_scope(Design*, NetScope*, const replace_t&)’:
+elab_scope.cc:5386:49: warning: declaration of ‘ports’ shadows a member of ‘Module’ [-Wshadow]
+ 5386 |                   NetScope::modport_port_list_t ports;
+      |                                                 ^~~~~
+In file included from elab_scope.cc:46:
+Module.h:168:28: note: shadowed declaration is here
+  168 |       std::vector<port_t*> ports;
+      |                            ^~~~~
+mv elab_lval.d dep/elab_lval.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_sig.cc -o elab_sig.o
+In file included from Module.h:32,
+                 from elab_sig.cc:31:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv elab_sig.d dep/elab_sig.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_sig_analog.cc -o elab_sig_analog.o
+mv elab_scope.d dep/elab_scope.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c elab_type.cc -o elab_type.o
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from AStatement.h:26,
+                 from elab_sig_analog.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from elab_type.cc:20:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv elab_sig_analog.d dep/elab_sig_analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c emit.cc -o emit.o
+In file included from target.h:22,
+                 from emit.cc:29:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+elab_type.cc:2770:13: warning: ‘bool finite_enum_index_range_(const netenum_t*, long int&, long int&)’ defined but not used [-Wunused-function]
+ 2770 | static bool finite_enum_index_range_(const netenum_t*enum_type,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~
+mv emit.d dep/emit.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c eval_attrib.cc -o eval_attrib.o
+In file included from PExpr.h:28,
+                 from eval_attrib.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv eval_attrib.d dep/eval_attrib.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c eval_tree.cc -o eval_tree.o
+In file included from compiler.h:26,
+                 from eval_tree.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv eval_tree.d dep/eval_tree.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expr_synth.cc -o expr_synth.o
+mv elab_type.d dep/elab_type.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c functor.cc -o functor.o
+In file included from compiler.h:26,
+                 from expr_synth.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from functor.cc:25:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv functor.d dep/functor.d
+flex -s -t lexor.lex > lexor.cc
+bison --verbose -t -p VL --defines=parse.h -o parse.cc parse.y
+parse.y:2757.5: warning: empty rule without %empty [-Wempty-rule]
+ 2757 |    | /* empty */
+      |     ^
+      |     %empty
+parse.y:2875.7-51: warning: empty rule without %empty [-Wempty-rule]
+ 2875 |       { pform_sva_set_assertion_label(0); $$ = 0; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:2890.5-19: warning: empty rule without %empty [-Wempty-rule]
+ 2890 |   | { $$ = false; }
+      |     ^~~~~~~~~~~~~~~
+      |     %empty
+parse.y:2982.7-2984.7: warning: empty rule without %empty [-Wempty-rule]
+ 2982 |       { clear_pending_class_params();
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:3141.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 3141 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:3149.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 3149 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+parse.y:3191.11-3192.7: warning: empty rule without %empty [-Wempty-rule]
+ 3191 | 	  { $$ = {nullptr, nullptr, false};
+      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |           %empty
+parse.y:3212.7-43: warning: empty rule without %empty [-Wempty-rule]
+ 3212 |       { $$ = new std::list<data_type_t*>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:3219.7-43: warning: empty rule without %empty [-Wempty-rule]
+ 3219 |       { $$ = new std::list<data_type_t*>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:3267.7-17: warning: empty rule without %empty [-Wempty-rule]
+ 3267 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:3275.4: warning: empty rule without %empty [-Wempty-rule]
+ 3275 |   |
+      |    ^
+      |    %empty
+parse.y:4204.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 4204 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:4399.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4399 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:4410.7-44: warning: empty rule without %empty [-Wempty-rule]
+ 4410 |       { $$ = new std::list<perm_string>(); }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:4420.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4420 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:4763.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4763 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:4951.4: warning: empty rule without %empty [-Wempty-rule]
+ 4951 |   :
+      |    ^
+      |    %empty
+parse.y:4957.32-48: warning: empty rule without %empty [-Wempty-rule]
+ 4957 |   :                            { $$ = nullptr; }
+      |                                ^~~~~~~~~~~~~~~~~
+      |                                %empty
+parse.y:4963.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4963 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:4995.36-52: warning: empty rule without %empty [-Wempty-rule]
+ 4995 |   :                                { $$ = nullptr; }
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    %empty
+parse.y:5000.36-52: warning: empty rule without %empty [-Wempty-rule]
+ 5000 |   :                                { $$ = nullptr; }
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    %empty
+parse.y:5177.4: warning: empty rule without %empty [-Wempty-rule]
+ 5177 |   : /* empty */
+      |    ^
+      |    %empty
+parse.y:5673.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 5673 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+parse.y:5687.7-22: warning: empty rule without %empty [-Wempty-rule]
+ 5687 |       { /* Ignore */ }
+      |       ^~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:5692.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 5692 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:5715.7-5719.7: warning: empty rule without %empty [-Wempty-rule]
+ 5715 |       { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nu...
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:6108.25: warning: empty rule without %empty [-Wempty-rule]
+ 6108 | endnew_opt : ':' K_new | ;
+      |                         ^
+      |                         %empty
+parse.y:6159.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 6159 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:6483.14-46: warning: empty rule without %empty [-Wempty-rule]
+ 6483 |   |          { $$ = LexicalScope::INHERITED; }
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |              %empty
+parse.y:6530.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 6530 |   : { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+parse.y:7063.4-20: warning: empty rule without %empty [-Wempty-rule]
+ 7063 |  | { $$ = nullptr; }
+      |    ^~~~~~~~~~~~~~~~~
+      |    %empty
+parse.y:7178.7-7181.7: warning: empty rule without %empty [-Wempty-rule]
+ 7178 |       { std::list<perm_string>*tmp = new std::list<perm_string>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:7185.4: warning: empty rule without %empty [-Wempty-rule]
+ 7185 |   : /* explicit virtual task/function forms are parsed directly */
+      |    ^
+      |    %empty
+parse.y:7189.4: warning: empty rule without %empty [-Wempty-rule]
+ 7189 |   :
+      |    ^
+      |    %empty
+parse.y:7652.7-17: warning: empty rule without %empty [-Wempty-rule]
+ 7652 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:7657.19-29: warning: empty rule without %empty [-Wempty-rule]
+ 7657 |   |               { $$ = 0; }
+      |                   ^~~~~~~~~~~
+      |                   %empty
+parse.y:7667.4: warning: empty rule without %empty [-Wempty-rule]
+ 7667 |   |
+      |    ^
+      |    %empty
+parse.y:7724.4: warning: empty rule without %empty [-Wempty-rule]
+ 7724 |   :
+      |    ^
+      |    %empty
+parse.y:7745.25-39: warning: empty rule without %empty [-Wempty-rule]
+ 7745 |   :                     { $$ = false; }
+      |                         ^~~~~~~~~~~~~~~
+      |                         %empty
+parse.y:8394.44: warning: empty rule without %empty [-Wempty-rule]
+ 8394 | package_item_list_opt : package_item_list | ;
+      |                                            ^
+      |                                            %empty
+parse.y:8415.20-46: warning: empty rule without %empty [-Wempty-rule]
+ 8415 |   |                { $$ = NetNet::PIMPLICIT; }
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                    %empty
+parse.y:8636.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 8636 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:9433.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9433 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:9453.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9453 |   | %prec sva_decl_expr_start { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:9463.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9463 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:10004.27-56: warning: empty rule without %empty [-Wempty-rule]
+10004 |   : /* empty */           %prec no_timeunits_declaration
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                           %empty
+parse.y:10118.5-10120.7: warning: empty rule without %empty [-Wempty-rule]
+10118 |   | { var_lifetime = LexicalScope::INHERITED;
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:10130.7-17: warning: empty rule without %empty [-Wempty-rule]
+10130 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:10455.5-47: warning: empty rule without %empty [-Wempty-rule]
+10455 |   | %prec block_item_decls_done { $$ = false; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:10671.7-10673.7: warning: empty rule without %empty [-Wempty-rule]
+10671 |       { $$ = new atom_type_t(atom_type_t::INT, true);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:10739.7-10741.7: warning: empty rule without %empty [-Wempty-rule]
+10739 |       { $$.packed_flag = false;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:11120.4: warning: empty rule without %empty [-Wempty-rule]
+11120 |   |
+      |    ^
+      |    %empty
+parse.y:11187.12-28: warning: empty rule without %empty [-Wempty-rule]
+11187 |   |        { $$ = nullptr; }
+      |            ^~~~~~~~~~~~~~~~~
+      |            %empty
+parse.y:11223.12-22: warning: empty rule without %empty [-Wempty-rule]
+11223 |   |        { $$ = 0; }
+      |            ^~~~~~~~~~~
+      |            %empty
+parse.y:11306.27: warning: empty rule without %empty [-Wempty-rule]
+11306 | optional_semicolon : ';' | ;
+      |                           ^
+      |                           %empty
+parse.y:11387.4: warning: empty rule without %empty [-Wempty-rule]
+11387 |   : /* The BNF implies this can be blank, but I'm not sure exactly what
+      |    ^
+      |    %empty
+parse.y:11393.4: warning: empty rule without %empty [-Wempty-rule]
+11393 |   : /* config rules are optional. */
+      |    ^
+      |    %empty
+parse.y:11408.4: warning: empty rule without %empty [-Wempty-rule]
+11408 |   : /* The use clause takes an optional :config. */
+      |    ^
+      |    %empty
+parse.y:11420.4: warning: empty rule without %empty [-Wempty-rule]
+11420 |   : /* A NULL library means use the parents cell library. */
+      |    ^
+      |    %empty
+parse.y:11456.7-59: warning: empty rule without %empty [-Wempty-rule]
+11456 |       { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:11475.5-47: warning: empty rule without %empty [-Wempty-rule]
+11475 |   | %prec sva_decl_expr_start { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:11860.5-21: warning: empty rule without %empty [-Wempty-rule]
+11860 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:12171.7-12173.7: warning: empty rule without %empty [-Wempty-rule]
+12171 |       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:12204.7-12208.7: warning: empty rule without %empty [-Wempty-rule]
+12204 |       { named_pexpr_t *tmp = new named_pexpr_t;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:12242.7-44: warning: empty rule without %empty [-Wempty-rule]
+12242 |       { $$ = new std::list<named_pexpr_t>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:12251.7-17: warning: empty rule without %empty [-Wempty-rule]
+12251 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:14398.5-14399.17: warning: empty rule without %empty [-Wempty-rule]
+14398 |   | %prec block_item_decls_done
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:15282.16-30: warning: empty rule without %empty [-Wempty-rule]
+15282 |   |            { $$ = false; }
+      |                ^~~~~~~~~~~~~~~
+      |                %empty
+parse.y:15288.16-29: warning: empty rule without %empty [-Wempty-rule]
+15288 |   |            { $$ = true; }
+      |                ^~~~~~~~~~~~~~
+      |                %empty
+parse.y:15501.25-35: warning: empty rule without %empty [-Wempty-rule]
+15501 |   |                     { $$ = 0; }
+      |                         ^~~~~~~~~~~
+      |                         %empty
+parse.y:15506.5-15: warning: empty rule without %empty [-Wempty-rule]
+15506 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+parse.y:15515.7-17: warning: empty rule without %empty [-Wempty-rule]
+15515 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:15527.4: warning: empty rule without %empty [-Wempty-rule]
+15527 |   :
+      |    ^
+      |    %empty
+parse.y:15535.4: warning: empty rule without %empty [-Wempty-rule]
+15535 |   :
+      |    ^
+      |    %empty
+parse.y:16416.7-17: warning: empty rule without %empty [-Wempty-rule]
+16416 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:16454.4: warning: empty rule without %empty [-Wempty-rule]
+16454 |   |
+      |    ^
+      |    %empty
+parse.y:16508.4: warning: empty rule without %empty [-Wempty-rule]
+16508 |   |
+      |    ^
+      |    %empty
+parse.y:16587.14-39: warning: empty rule without %empty [-Wempty-rule]
+16587 |   |          { $$ = NetNet::IMPLICIT; }
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~
+      |              %empty
+parse.y:16647.68-78: warning: empty rule without %empty [-Wempty-rule]
+16647 | parameter_value_ranges_opt : parameter_value_ranges { $$ = $1; } | { ...
+      |                                                                    ^~
+      |                                                                    %empty
+parse.y:16735.7-17: warning: empty rule without %empty [-Wempty-rule]
+16735 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:16937.10-20: warning: empty rule without %empty [-Wempty-rule]
+16937 |   |      { $$ = 0; }
+      |          ^~~~~~~~~~~
+      |          %empty
+parse.y:17008.7-17011.7: warning: empty rule without %empty [-Wempty-rule]
+17008 |       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:17109.16-26: warning: empty rule without %empty [-Wempty-rule]
+17109 |   :            { $$ = 0; }
+      |                ^~~~~~~~~~~
+      |                %empty
+parse.y:17426.7-10: warning: empty rule without %empty [-Wempty-rule]
+17426 |       {  }
+      |       ^~~~
+      |       %empty
+parse.y:17591.10-22: warning: empty rule without %empty [-Wempty-rule]
+17591 |   |      { $$ = 0;   }
+      |          ^~~~~~~~~~~~~
+      |          %empty
+parse.y:17695.5-47: warning: empty rule without %empty [-Wempty-rule]
+17695 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:17702.5-47: warning: empty rule without %empty [-Wempty-rule]
+17702 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:17809.5-47: warning: empty rule without %empty [-Wempty-rule]
+17809 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:17816.5-47: warning: empty rule without %empty [-Wempty-rule]
+17816 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:17879.7-23: warning: empty rule without %empty [-Wempty-rule]
+17879 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+parse.y:20006.28-44: warning: empty rule without %empty [-Wempty-rule]
+20006 |   |                        { $$ = nullptr; }
+      |                            ^~~~~~~~~~~~~~~~~
+      |                            %empty
+parse.y:20128.24-40: warning: empty rule without %empty [-Wempty-rule]
+20128 |   |                    { $$ = nullptr; }
+      |                        ^~~~~~~~~~~~~~~~~
+      |                        %empty
+parse.y:20189.5-21: warning: empty rule without %empty [-Wempty-rule]
+20189 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+parse.y:20216.7-17: warning: empty rule without %empty [-Wempty-rule]
+20216 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+parse.y:20261.18-28: warning: empty rule without %empty [-Wempty-rule]
+20261 |   |              { $$ = 0; }
+      |                  ^~~~~~~~~~~
+      |                  %empty
+parse.y:20269.30-40: warning: empty rule without %empty [-Wempty-rule]
+20269 |   |                          { $$ = 0; }
+      |                              ^~~~~~~~~~~
+      |                              %empty
+parse.y:20368.17-27: warning: empty rule without %empty [-Wempty-rule]
+20368 |   |             { $$ = 0; }
+      |                 ^~~~~~~~~~~
+      |                 %empty
+parse.y:20485.12-26: warning: empty rule without %empty [-Wempty-rule]
+20485 |   |        { $$ = false; };
+      |            ^~~~~~~~~~~~~~~
+      |            %empty
+parse.y:20532.17-48: warning: empty rule without %empty [-Wempty-rule]
+20532 |   :             { $$ = IVL_CASE_QUALITY_BASIC; }
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                 %empty
+parse.y:20550.12-26: warning: empty rule without %empty [-Wempty-rule]
+20550 |  |         { $$ = false; }
+      |            ^~~~~~~~~~~~~~~
+      |            %empty
+parse.y:20555.13-27: warning: empty rule without %empty [-Wempty-rule]
+20555 |  |          { $$ = false; }
+      |             ^~~~~~~~~~~~~~~
+      |             %empty
+parse.y:20560.13-27: warning: empty rule without %empty [-Wempty-rule]
+20560 |  |          { $$ = false; }
+      |             ^~~~~~~~~~~~~~~
+      |             %empty
+parse.y:20565.15-29: warning: empty rule without %empty [-Wempty-rule]
+20565 |   |           { $$ = false; }
+      |               ^~~~~~~~~~~~~~~
+      |               %empty
+parse.y:20570.4: warning: empty rule without %empty [-Wempty-rule]
+20570 |   |
+      |    ^
+      |    %empty
+parse.y: warning: 3 nonterminals useless in grammar [-Wother]
+parse.y: warning: 5 rules useless in grammar [-Wother]
+parse.y:7184.1-16: warning: nonterminal useless in grammar: method_qualifier [-Wother]
+ 7184 | method_qualifier /* IEEE1800-2005: A.1.8 */
+      | ^~~~~~~~~~~~~~~~
+parse.y:7691.1-15: warning: nonterminal useless in grammar: open_range_list [-Wother]
+ 7691 | open_range_list /* IEEE1800-2005 A.2.11 */
+      | ^~~~~~~~~~~~~~~
+parse.y:10009.1-11: warning: nonterminal useless in grammar: value_range [-Wother]
+10009 | value_range /* IEEE1800-2005: A.8.3 */
+      | ^~~~~~~~~~~
+parse.y: warning: 589 shift/reduce conflicts [-Wconflicts-sr]
+parse.y: warning: 1156 reduce/reduce conflicts [-Wconflicts-rr]
+parse.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+parse.y:4097.7-4099.56: warning: rule useless in parser due to conflicts [-Wother]
+ 4097 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+parse.y:8029.7-8030.103: warning: rule useless in parser due to conflicts [-Wother]
+ 8029 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+parse.y:18003.40-67: warning: rule useless in parser due to conflicts [-Wother]
+18003 |   | package_scope hierarchy_identifier { lex_in_package_scope(0); } a...
+      |                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+parse.y: warning: fix-its can be applied.  Rerun with option '--update'. [-Wother]
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c link_const.cc -o link_const.o
+mv expr_synth.d dep/expr_synth.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c load_module.cc -o load_module.o
+In file included from link_const.cc:24:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from load_module.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv link_const.d dep/link_const.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netlist.cc -o netlist.o
+mv load_module.d dep/load_module.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netmisc.cc -o netmisc.o
+In file included from compiler.h:26,
+                 from netlist.cc:28:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from netmisc.cc:30:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv elab_expr.d dep/elab_expr.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c nettypes.cc -o nettypes.o
+mv nettypes.d dep/nettypes.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_analog.cc -o net_analog.o
+mv netlist.d dep/netlist.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_assign.cc -o net_assign.o
+In file included from compiler.h:26,
+                 from net_analog.cc:25:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from net_assign.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+net_assign.cc: In member function ‘const ivl_type_s* NetAssign_::lval_type() const’:
+net_assign.cc:348:42: warning: declaration of ‘struct_type’ shadows a previous local [-Wshadow]
+  348 |                   if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(etype)) {
+      |                                          ^~~~~~~~~~~
+net_assign.cc:326:43: note: shadowed declaration is here
+  326 |             } else if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(ntype)) {
+      |                                           ^~~~~~~~~~~
+mv net_analog.d dep/net_analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_design.cc -o net_design.o
+mv netmisc.d dep/netmisc.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netclass.cc -o netclass.o
+In file included from net_design.cc:35:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_assign.d dep/net_assign.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netdarray.cc -o netdarray.o
+mv netdarray.d dep/netdarray.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netenum.cc -o netenum.o
+In file included from netclass.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from netenum.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv netenum.d dep/netenum.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netparray.cc -o netparray.o
+mv netparray.d dep/netparray.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netqueue.cc -o netqueue.o
+mv netqueue.d dep/netqueue.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netscalar.cc -o netscalar.o
+mv netscalar.d dep/netscalar.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netstruct.cc -o netstruct.o
+In file included from netstruct.cc:20:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv netstruct.d dep/netstruct.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c netvector.cc -o netvector.o
+mv netclass.d dep/netclass.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_event.cc -o net_event.o
+In file included from compiler.h:26,
+                 from netvector.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_design.d dep/net_design.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_expr.cc -o net_expr.o
+In file included from compiler.h:26,
+                 from net_event.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv netvector.d dep/netvector.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_func.cc -o net_func.o
+In file included from net_expr.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from net_func.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_func.d dep/net_func.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_func_eval.cc -o net_func_eval.o
+mv net_event.d dep/net_event.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_link.cc -o net_link.o
+In file included from net_func_eval.cc:20:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_expr.d dep/net_expr.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_modulo.cc -o net_modulo.o
+net_func_eval.cc: In member function ‘virtual bool NetSTask::evaluate_function(const LineInfo&, std::map<perm_string, LocalVar>&) const’:
+net_func_eval.cc:1352:46: warning: declaration of ‘value’ shadows a previous local [-Wshadow]
+ 1352 |                   } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
+      |                                              ^~~~~
+net_func_eval.cc:1346:39: note: shadowed declaration is here
+ 1346 |                   if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg)) {
+      |                                       ^~~~~
+net_func_eval.cc:1360:44: warning: declaration of ‘value’ shadows a previous local [-Wshadow]
+ 1360 |                   else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
+      |                                            ^~~~~
+net_func_eval.cc:1358:39: note: shadowed declaration is here
+ 1358 |                   if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg))
+      |                                       ^~~~~
+net_func_eval.cc: In lambda function:
+net_func_eval.cc:1397:46: warning: declaration of ‘number’ shadows a previous local [-Wshadow]
+ 1397 |                   } else if (const NetECReal*number =
+      |                                              ^~~~~~
+net_func_eval.cc:1390:39: note: shadowed declaration is here
+ 1390 |                   if (const NetEConst*number = dynamic_cast<const NetEConst*>(evaluated)) {
+      |                                       ^~~~~~
+In file included from net_link.cc:27:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from net_modulo.cc:27:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_modulo.d dep/net_modulo.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_nex_input.cc -o net_nex_input.o
+In file included from compiler.h:26,
+                 from net_nex_input.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_link.d dep/net_link.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_nex_output.cc -o net_nex_output.o
+In file included from net_nex_output.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_func_eval.d dep/net_func_eval.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_proc.cc -o net_proc.o
+mv net_nex_input.d dep/net_nex_input.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_scope.cc -o net_scope.o
+mv net_nex_output.d dep/net_nex_output.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_tran.cc -o net_tran.o
+In file included from compiler.h:26,
+                 from net_proc.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from net_scope.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from net_tran.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_proc.d dep/net_proc.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c net_udp.cc -o net_udp.o
+mv net_tran.d dep/net_tran.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c map_named_args.cc -o map_named_args.o
+In file included from compiler.h:26,
+                 from net_udp.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from map_named_args.cc:4:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv net_udp.d dep/net_udp.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pad_to_width.cc -o pad_to_width.o
+mv map_named_args.d dep/map_named_args.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c parse.cc -o parse.o
+In file included from pad_to_width.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from parse_misc.h:24,
+                 from parse.y:27:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pad_to_width.d dep/pad_to_width.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c parse_misc.cc -o parse_misc.o
+parse.cc:21654:18: warning: missing initializer for member ‘vlltype::lexical_pos’ [-Wmissing-field-initializers]
+21654 |   = { 1, 1, 1, 1 }
+      |                  ^
+parse.cc:21654:18: warning: missing initializer for member ‘vlltype::text’ [-Wmissing-field-initializers]
+In file included from compiler.h:26,
+                 from parse_misc.h:24,
+                 from parse_misc.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv parse_misc.d dep/parse_misc.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform.cc -o pform.o
+mv net_scope.d dep/net_scope.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_sva_nfa.cc -o pform_sva_nfa.o
+parse.y:274:19: warning: ‘recently_completed_class_method_’ defined but not used [-Wunused-variable]
+  274 | static PTaskFunc* recently_completed_class_method_ = 0;
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from compiler.h:26,
+                 from pform.cc:25:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from parse_misc.h:24,
+                 from pform_sva_nfa.cc:18:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from pform.cc:39:
+pform_sva_nfa.h: In member function ‘void sva_nfa_t::tick(unsigned int, unsigned int, PExpr*, bool)’:
+pform_sva_nfa.h:56:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   56 |         if (g) e.guards.push_back(g); e.first_match_exit=fm_exit;
+      |         ^~
+pform_sva_nfa.h:56:39: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   56 |         if (g) e.guards.push_back(g); e.first_match_exit=fm_exit;
+      |                                       ^
+pform.cc: In function ‘typedef_t* pform_find_potential_imported_type(const vlltype&, LexicalScope*, perm_string)’:
+pform.cc:1614:75: warning: unused parameter ‘loc’ [-Wunused-parameter]
+ 1614 | static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
+      |                                                      ~~~~~~~~~~~~~~~~~~~~~^~~
+In file included from pform_sva_nfa.cc:20:
+pform_sva_nfa.h: In member function ‘void sva_nfa_t::tick(unsigned int, unsigned int, PExpr*, bool)’:
+pform_sva_nfa.h:56:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   56 |         if (g) e.guards.push_back(g); e.first_match_exit=fm_exit;
+      |         ^~
+pform_sva_nfa.h:56:39: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   56 |         if (g) e.guards.push_back(g); e.first_match_exit=fm_exit;
+      |                                       ^
+pform.cc: In function ‘void pform_set_clocking_default_skews(const vlltype&, const pform_clocking_skew_t*, const pform_clocking_skew_t*)’:
+pform.cc:7504:60: warning: unused parameter ‘loc’ [-Wunused-parameter]
+ 7504 | void pform_set_clocking_default_skews(const struct vlltype&loc,
+      |                                       ~~~~~~~~~~~~~~~~~~~~~^~~
+pform.cc: In function ‘void pform_end_clocking_block(const vlltype&)’:
+pform.cc:8295:52: warning: unused parameter ‘loc’ [-Wunused-parameter]
+ 8295 | void pform_end_clocking_block(const struct vlltype&loc)
+      |                               ~~~~~~~~~~~~~~~~~~~~~^~~
+pform.cc: In function ‘bool pform_sva_const_long_(PExpr*, long int&, std::set<const PExpr*>&, LexicalScope*)’:
+pform.cc:8999:27: warning: this ‘else’ clause does not guard... [-Wmisleading-indentation]
+ 8999 |                           else ok = false; break;
+      |                           ^~~~
+pform.cc:8999:44: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘else’
+ 8999 |                           else ok = false; break;
+      |                                            ^~~~~
+pform.cc:9003:27: warning: this ‘else’ clause does not guard... [-Wmisleading-indentation]
+ 9003 |                           else ok = false; break;
+      |                           ^~~~
+pform.cc:9003:44: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘else’
+ 9003 |                           else ok = false; break;
+      |                                            ^~~~~
+pform.cc:9006:27: warning: this ‘else’ clause does not guard... [-Wmisleading-indentation]
+ 9006 |                           else ok = false; break;
+      |                           ^~~~
+pform.cc:9006:44: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘else’
+ 9006 |                           else ok = false; break;
+      |                                            ^~~~~
+pform.cc: In function ‘std::vector<sva_seq_step_t>* pform_sva_repeat(const vlltype&, std::vector<sva_seq_step_t>*, PExpr*, PExpr*, bool)’:
+pform.cc:13990:39: warning: unused parameter ‘loc’ [-Wunused-parameter]
+13990 | pform_sva_repeat(const struct vlltype&loc,
+      |                  ~~~~~~~~~~~~~~~~~~~~~^~~
+pform.cc: In function ‘sva_property_t* pform_sva_comb_consequent_sorry(const vlltype&, int, std::vector<sva_seq_step_t>*, sva_property_t*)’:
+pform.cc:16203:62: warning: unused parameter ‘loc’ [-Wunused-parameter]
+16203 |                                         const struct vlltype&loc, int op_type,
+      |                                         ~~~~~~~~~~~~~~~~~~~~~^~~
+pform.cc: In function ‘bool pform_sva_nfa_try_assertion(const vlltype&, sva_property_t*, Statement*, Statement*, int)’:
+pform.cc:18736:20: warning: declaration of ‘spawn’ shadows a previous local [-Wshadow]
+18736 |             PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+      |                    ^~~~~
+pform.cc:18146:32: note: shadowed declaration is here
+18146 |       std::vector<perm_string> spawn (endpoint_fanout ? K : 0);
+      |                                ^~~~~
+pform.cc: In lambda function:
+pform.cc:20653:51: warning: declaration of ‘unsigned int kind’ shadows a parameter [-Wshadow]
+20653 |                   auto emit_record = [&](unsigned kind, PExpr*parent,
+      |                                          ~~~~~~~~~^~~~
+pform.cc:20076:71: note: shadowed declaration is here
+20076 |                                              Statement*pass_stmt, int kind)
+      |                                                                   ~~~~^~~~
+mv pform_sva_nfa.d dep/pform_sva_nfa.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_analog.cc -o pform_analog.o
+In file included from compiler.h:26,
+                 from pform_analog.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_analog.d dep/pform_analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_disciplines.cc -o pform_disciplines.o
+In file included from compiler.h:26,
+                 from pform_disciplines.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_disciplines.d dep/pform_disciplines.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_dump.cc -o pform_dump.o
+In file included from pform.h:22,
+                 from pform_dump.cc:28:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_dump.d dep/pform_dump.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_package.cc -o pform_package.o
+In file included from pform.h:22,
+                 from pform_package.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_package.d dep/pform_package.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_pclass.cc -o pform_pclass.o
+In file included from pform.h:22,
+                 from pform_pclass.cc:27:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_pclass.d dep/pform_pclass.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c pform_types.cc -o pform_types.o
+In file included from pform.h:22,
+                 from pform_types.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform_types.d dep/pform_types.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c symbol_search.cc -o symbol_search.o
+In file included from symbol_search.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv symbol_search.d dep/symbol_search.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sync.cc -o sync.o
+In file included from sync.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv sync.d dep/sync.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sys_funcs.cc -o sys_funcs.o
+In file included from compiler.h:26,
+                 from sys_funcs.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv sys_funcs.d dep/sys_funcs.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c verinum.cc -o verinum.o
+mv verinum.d dep/verinum.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c verireal.cc -o verireal.o
+In file included from compiler.h:26,
+                 from verireal.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv verireal.d dep/verireal.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vpi_modules.cc -o vpi_modules.o
+In file included from compiler.h:26,
+                 from vpi_modules.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv vpi_modules.d dep/vpi_modules.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c target.cc -o target.o
+In file included from target.h:22,
+                 from target.cc:24:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+mv target.d dep/target.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c Attrib.cc -o Attrib.o
+mv Attrib.d dep/Attrib.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c HName.cc -o HName.o
+mv HName.d dep/HName.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c Module.cc -o Module.o
+In file included from Module.h:32,
+                 from Module.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv Module.d dep/Module.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PClass.cc -o PClass.o
+mv PClass.d dep/PClass.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PDelays.cc -o PDelays.o
+In file included from PExpr.h:28,
+                 from PDelays.cc:25:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv parse.d dep/parse.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PEvent.cc -o PEvent.o
+mv elaborate.d dep/elaborate.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PExpr.cc -o PExpr.o
+mv PEvent.d dep/PEvent.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PFunction.cc -o PFunction.o
+mv PDelays.d dep/PDelays.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PGate.cc -o PGate.o
+In file included from compiler.h:26,
+                 from PExpr.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from PFunction.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PGate.h:26,
+                 from PGate.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PFunction.d dep/PFunction.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PGenerate.cc -o PGenerate.o
+mv PGate.d dep/PGate.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PModport.cc -o PModport.o
+In file included from PWire.h:22,
+                 from PGenerate.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PModport.h:25,
+                 from PModport.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PGenerate.d dep/PGenerate.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PNamedItem.cc -o PNamedItem.o
+mv PNamedItem.d dep/PNamedItem.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PPackage.cc -o PPackage.o
+mv PExpr.d dep/PExpr.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PScope.cc -o PScope.o
+mv PModport.d dep/PModport.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PSpec.cc -o PSpec.o
+mv PSpec.d dep/PSpec.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PTimingCheck.cc -o PTimingCheck.o
+mv PPackage.d dep/PPackage.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PTask.cc -o PTask.o
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from PScope.cc:21:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from PTimingCheck.h:23,
+                 from PTimingCheck.cc:20:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from PTask.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PTimingCheck.d dep/PTimingCheck.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PUdp.cc -o PUdp.o
+mv PScope.d dep/PScope.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c PWire.cc -o PWire.o
+mv PUdp.d dep/PUdp.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c Statement.cc -o Statement.o
+mv PTask.d dep/PTask.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c AStatement.cc -o AStatement.o
+In file included from PWire.h:22,
+                 from PWire.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv pform.d dep/pform.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c ./libmisc/LineInfo.cc -o LineInfo.o
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from Statement.cc:27:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from PExpr.h:28,
+                 from Statement.h:30,
+                 from AStatement.h:26,
+                 from AStatement.cc:22:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv LineInfo.d dep/LineInfo.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c ./libmisc/StringHeap.cc -o StringHeap.o
+mv StringHeap.d dep/StringHeap.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c cprop.cc -o cprop.o
+mv PWire.d dep/PWire.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c exposenodes.cc -o exposenodes.o
+mv AStatement.d dep/AStatement.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c nodangle.cc -o nodangle.o
+In file included from cprop.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from exposenodes.cc:24:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from nodangle.cc:30:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv exposenodes.d dep/exposenodes.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c synth.cc -o synth.o
+mv cprop.d dep/cprop.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c synth2.cc -o synth2.o
+mv nodangle.d dep/nodangle.d
+bison --verbose -t -p syn_ -o syn-rules.cc syn-rules.y
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c t-dll.cc -o t-dll.o
+In file included from synth.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from synth2.cc:23:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+synth2.cc: In function ‘NetNet* synth_blocking_read_signal(Design*, NetScope*, NetNet*)’:
+synth2.cc:402:43: warning: unused parameter ‘des’ [-Wunused-parameter]
+  402 | NetNet* synth_blocking_read_signal(Design*des, NetScope*scope, NetNet*sig)
+      |                                    ~~~~~~~^~~
+In file included from compiler.h:26,
+                 from t-dll.cc:28:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv synth.d dep/synth.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c t-dll-api.cc -o t-dll-api.o
+In file included from t-dll.h:22,
+                 from t-dll.cc:30:
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+In file included from target.h:22,
+                 from t-dll.h:22,
+                 from t-dll-api.cc:24:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+t-dll-api.cc: In function ‘ivl_variable_type_t ivl_signal_data_type(ivl_signal_t)’:
+t-dll-api.cc:3354:33: warning: type qualifiers ignored on cast result type [-Wignored-qualifiers]
+ 3354 |       { const uintptr_t vtbl = *reinterpret_cast<const uintptr_t* const>(net_type);
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv Statement.d dep/Statement.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c t-dll-expr.cc -o t-dll-expr.o
+In file included from target.h:22,
+                 from t-dll.h:22,
+                 from t-dll-expr.cc:25:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+mv t-dll.d dep/t-dll.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c t-dll-proc.cc -o t-dll-proc.o
+mv t-dll-api.d dep/t-dll-api.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c t-dll-analog.cc -o t-dll-analog.o
+mv t-dll-expr.d dep/t-dll-expr.d
+gcc -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -fno-omit-frame-pointer -rdynamic   -o version.exe -I. -I. ./version.c
+In file included from target.h:22,
+                 from t-dll-proc.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+sed -e 's;@SHARED@;-shared;' -e 's;@PIC@;-fPIC;' \
+    -e 's;@ENABLE_PLI1@;yes;' \
+    -e 's;@SUFFIX@;;' \
+    -e 's;@IVCC@;gcc;' \
+    -e 's;@IVCXX@;g++;' \
+    -e 's;@IVCFLAGS@;-Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -fno-omit-frame-pointer;' \
+    -e 's;@IVCXXFLAGS@;-Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11;' \
+    -e 's;@IVCTARGETFLAGS@;;' \
+    -e 's;@INCLUDEDIR@;/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vec4-stack-move-c344-20261019-r1/install/reference/include/iverilog;' \
+    -e 's;@LIBDIR@;/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vec4-stack-move-c344-20261019-r1/install/reference/lib;' iverilog-vpi.sh > iverilog-vpi
+chmod +x iverilog-vpi
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c main.cc -o main.o
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+In file included from target.h:22,
+                 from t-dll-analog.cc:26:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+In file included from pform.h:22,
+                 from main.cc:58:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv t-dll-analog.d dep/t-dll-analog.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c lexor.cc -o lexor.o
+In file included from main.cc:63:
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetProcTop*)’:
+target.h:28:48: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   28 |       explicit target_process_ref_t(NetProcTop*net)
+      |                                     ~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+target.h: In constructor ‘target_process_ref_t::target_process_ref_t(NetAnalogTop*)’:
+target.h:30:50: warning: declaration of ‘net’ shadows a member of ‘target_process_ref_t’ [-Wshadow]
+   30 |       explicit target_process_ref_t(NetAnalogTop*net)
+      |                                     ~~~~~~~~~~~~~^~~
+target.h:33:18: note: shadowed declaration is here
+   33 |       NetProcTop*net;
+      |                  ^~~
+mv t-dll-proc.d dep/t-dll-proc.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c lexor_keyword.cc -o lexor_keyword.o
+In file included from compiler.h:26,
+                 from lexor.lex:32:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from compiler.h:26,
+                 from parse_misc.h:24,
+                 from ./lexor_keyword.gperf:14:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv lexor_keyword.d dep/lexor_keyword.d
+g++ -DHAVE_CONFIG_H -I. -Ilibmisc  -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c syn-rules.cc -o syn-rules.o
+In file included from syn-rules.y:34:
+netlist.h:1089:29: warning: default member initializers for bit-fields only available with ‘-std=c++20’ or ‘-std=gnu++20’ [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv main.d dep/main.d
+./version.exe `head -1 iverilog-vpi.man.in`'\n' > iverilog-vpi.man
+tail -n +2 iverilog-vpi.man.in >> iverilog-vpi.man
+mv syn-rules.d dep/syn-rules.d
+mv lexor.d dep/lexor.d
+mv synth2.d dep/synth2.d
+g++ -rdynamic   -o ivl main.o async.o design_dump.o discipline.o dup_expr.o elaborate.o sv_edition.o elab_expr.o elaborate_analog.o elab_lval.o elab_net.o elab_scope.o elab_sig.o elab_sig_analog.o elab_type.o emit.o eval_attrib.o eval_tree.o expr_synth.o functor.o lexor.o lexor_keyword.o link_const.o load_module.o netlist.o netmisc.o nettypes.o net_analog.o net_assign.o net_design.o netclass.o netdarray.o netenum.o netparray.o netqueue.o netscalar.o netstruct.o netvector.o net_event.o net_expr.o net_func.o net_func_eval.o net_link.o net_modulo.o net_nex_input.o net_nex_output.o net_proc.o net_scope.o net_tran.o net_udp.o map_named_args.o pad_to_width.o parse.o parse_misc.o pform.o pform_sva_nfa.o pform_analog.o pform_disciplines.o pform_dump.o pform_package.o pform_pclass.o pform_types.o symbol_search.o sync.o sys_funcs.o verinum.o verireal.o vpi_modules.o target.o Attrib.o HName.o Module.o PClass.o PDelays.o PEvent.o PExpr.o PFunction.o PGate.o PGenerate.o PModport.o PNamedItem.o PPackage.o PScope.o PSpec.o PTimingCheck.o PTask.o PUdp.o PWire.o Statement.o AStatement.o LineInfo.o StringHeap.o cprop.o exposenodes.o nodangle.o synth.o synth2.o syn-rules.o t-dll.o t-dll-api.o t-dll-expr.o t-dll-proc.o t-dll-analog.o -ldl
+make -C ivlpp all &&  make -C vhdlpp all &&  make -C vvp all &&  make -C vpi all &&  make -C tgt-null all &&  make -C tgt-stub all &&  make -C tgt-vvp all &&  make -C tgt-vhdl all &&  make -C tgt-vlog95 all &&  make -C tgt-pcb all &&  make -C tgt-blif all &&  make -C tgt-sizer all &&  make -C driver all &&  make -C libveriuser all &&  make -C cadpli all &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vec4-stack-move-c344-20261019-r1/source/reference/ivlpp'
+gcc -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -fno-omit-frame-pointer -I. -I..  -DHAVE_CONFIG_H  -c -o main.o main.c
+flex -t lexor.lex > lexor.c
+gcc -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -fno-omit-frame-pointer -I. -I..  -DHAVE_CONFIG_H  -c -o lexor.o lexor.c
+gcc  main.o lexor.o -o ivlpp 
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vec4-stack-move-c344-20261019-r1/source/reference/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vec4-stack-move-c344-20261019-r1/source/reference/vhdlpp'
+mkdir dep
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c main.cc -o main.o
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c architec.cc -o architec.o
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c compiler.cc -o compiler.o
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c entity.cc -o entity.o
+mv compiler.d dep/compiler.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c std_funcs.cc -o std_funcs.o
+mv main.d dep/main.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c std_types.cc -o std_types.o
+mv entity.d dep/entity.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression.cc -o expression.o
+mv architec.d dep/architec.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c package.cc -o package.o
+mv std_funcs.d dep/std_funcs.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c scope.cc -o scope.o
+mv std_types.d dep/std_types.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sequential.cc -o sequential.o
+mv package.d dep/package.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c subprogram.cc -o subprogram.o
+mv sequential.d dep/sequential.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vsignal.cc -o vsignal.o
+mv expression.d dep/expression.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vtype.cc -o vtype.o
+mv subprogram.d dep/subprogram.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vtype_match.cc -o vtype_match.o
+mv vsignal.d dep/vsignal.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c architec_elaborate.cc -o architec_elaborate.o
+mv vtype_match.d dep/vtype_match.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c entity_elaborate.cc -o entity_elaborate.o
+mv vtype.d dep/vtype.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression_elaborate.cc -o expression_elaborate.o
+mv scope.d dep/scope.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression_evaluate.cc -o expression_evaluate.o
+mv architec_elaborate.d dep/architec_elaborate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sequential_elaborate.cc -o sequential_elaborate.o
+mv entity_elaborate.d dep/entity_elaborate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vtype_elaborate.cc -o vtype_elaborate.o
+mv expression_evaluate.d dep/expression_evaluate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c entity_stream.cc -o entity_stream.o
+mv vtype_elaborate.d dep/vtype_elaborate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression_stream.cc -o expression_stream.o
+mv sequential_elaborate.d dep/sequential_elaborate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vtype_stream.cc -o vtype_stream.o
+mv entity_stream.d dep/entity_stream.d
+flex -s -olexor.cc ./lexor.lex
+bison --verbose -t --defines=parse.h -o parse.cc parse.y
+mv expression_stream.d dep/expression_stream.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c parse_misc.cc -o parse_misc.o
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c library.cc -o library.o
+mv vtype_stream.d dep/vtype_stream.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vhdlreal.cc -o vhdlreal.o
+mv expression_elaborate.d dep/expression_elaborate.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vhdlint.cc -o vhdlint.o
+mv vhdlreal.d dep/vhdlreal.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c architec_emit.cc -o architec_emit.o
+mv vhdlint.d dep/vhdlint.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c entity_emit.cc -o entity_emit.o
+mv parse_misc.d dep/parse_misc.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression_emit.cc -o expression_emit.o
+mv entity_emit.d dep/entity_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c package_emit.cc -o package_emit.o
+mv architec_emit.d dep/architec_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sequential_emit.cc -o sequential_emit.o
+mv library.d dep/library.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c subprogram_emit.cc -o subprogram_emit.o
+mv package_emit.d dep/package_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c vtype_emit.cc -o vtype_emit.o
+mv expression_emit.d dep/expression_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c debug.cc -o debug.o
+mv subprogram_emit.d dep/subprogram_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c architec_debug.cc -o architec_debug.o
+mv vtype_emit.d dep/vtype_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c expression_debug.cc -o expression_debug.o
+mv sequential_emit.d dep/sequential_emit.d
+g++ -I. -I.. -I../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -fno-omit-frame-pointer -std=c++11 -MD -c sequential_debug.cc -o sequential_debug.o
