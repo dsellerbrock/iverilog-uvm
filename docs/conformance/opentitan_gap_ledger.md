@@ -2719,6 +2719,12 @@ The aggregate builder also reloads each destination index after evaluating
 the source leaf, preventing nonzero source indices from clobbering vector,
 real, string, or object placement.
 
+Follow-up on 2026-10-19 (#671): the same typed-pattern path accepts a constant
+colon slice from a direct one-dimensional dynamic-array signal, including a
+method argument, when assigning to a simple one-hop dynamic-array class
+property. Nested property destinations and property-based slice sources remain
+outside this subset.
+
 Generated source coordinates are exact signed 64-bit constants rather than
 normal 32-bit integer-width constants. The fixed aggregate uses canonical
 `[0:count-1]`, since only its sequence and count are observable at the dynamic
@@ -2761,10 +2767,11 @@ Follow-up on 2026-08-24: G80 fixes that next VVP frontier. The exact HMAC
 `RspZero_A`/`BUILDERR` startup failure is gone; this does not change G79's
 historical compile/runtime evidence or broaden its dynamic-array-slice subset.
 
-Indexed `+:`/`-:` slices, property/nested receivers, fixed targets, standalone
-and type-query contexts, multidimensional shapes, delayed/event/NBA forms, and
-compound assignments remain explicit loud or unclaimed work. Unpacked-union
-elements likewise remain an exact loud boundary.
+Indexed `+:`/`-:` slices, property/nested slice sources, nested property
+destinations, fixed targets, standalone and type-query contexts,
+multidimensional shapes, delayed/event/NBA forms, and compound assignments
+remain explicit loud or unclaimed work. Unpacked-union elements likewise
+remain an exact loud boundary.
 
 ---
 

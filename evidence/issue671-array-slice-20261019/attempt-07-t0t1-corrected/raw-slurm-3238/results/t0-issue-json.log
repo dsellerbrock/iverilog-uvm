@@ -1,0 +1,14 @@
+=== sv_dynamic_array_slice_class_property vvp_tests/sv_dynamic_array_slice_class_property.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-t0t1-20261019-07/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_class_property: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_dynamic_array_slice_class_property_2023 vvp_tests/sv_dynamic_array_slice_class_property_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-t0t1-20261019-07/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_class_property_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
