@@ -1,0 +1,7 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+     sv_generic_master_static_init: ==> Failed - running vvp.
+sv_generic_master_static_init_2023: ==> Failed - running vvp.
+============================================================================
+Test results:
+  Total=2, Passed=0, Failed=2, Not Implemented=0, Expected Fail=0

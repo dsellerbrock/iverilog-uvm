@@ -1,0 +1,2 @@
+legacy_exit=2
+json_exit=8

@@ -40276,7 +40276,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // see the spec's `static = 0` reset wipe state set by a
 		    // user-class static initializer that called into the spec.
 		    // Still elaborate generic initializers for const-init diagnostics.
-		    bool deferred_init = defer_parameterized_body;
+		    bool deferred_init = (pclass->has_parameter_port_list
+			  && !specialized_instance()) || defer_parameterized_body;
 		    // A generic-body-only class can still be reached by a
 		    // concrete context later; release_deferred_static_inits
 		    // decides once elaboration is complete.
