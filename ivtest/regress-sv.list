@@ -904,8 +904,8 @@ sv_queue_slice_nonintegral_bound_fail CE,-g2012	ivltests gold=sv_queue_slice_non
 sv_queue_slice_variable_bounds normal,-g2012	ivltests gold=sv_queue_slice_variable_bounds.gold
 sv_packed_part_select_variable_bound_fail CE,-g2012	ivltests gold=sv_packed_part_select_variable_bound_fail.gold
 sv_dynamic_array_slice_rvalue normal,-g2012	ivltests gold=sv_dynamic_array_slice_rvalue.gold
-sv_dynamic_array_slice_class_property normal,-g2017,-s,sv_dynamic_array_slice_class_property ivltests gold=sv_dynamic_array_slice_class_property.gold
-sv_dynamic_array_slice_class_property_2023 normal,-g2023,-s,sv_dynamic_array_slice_class_property ivltests gold=sv_dynamic_array_slice_class_property.gold
+sv_dynamic_array_slice_class_property normal,-g2017,-s,test ivltests gold=sv_dynamic_array_slice_class_property.gold
+sv_dynamic_array_slice_class_property_2023 normal,-g2023,-s,test ivltests gold=sv_dynamic_array_slice_class_property.gold
 sv_dynamic_array_slice_variable_bound_fail CE,-g2012	ivltests gold=sv_dynamic_array_slice_variable_bound_fail.gold
 sv_associative_array_slice_fail CE,-g2012	ivltests gold=sv_associative_array_slice_fail.gold
 sv_queue_string		normal,-g2009,-pfileline=1	ivltests gold=sv_queue_string.gold
