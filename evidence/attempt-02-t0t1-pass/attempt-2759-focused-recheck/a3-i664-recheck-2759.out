@@ -1,0 +1,225 @@
+CANDIDATE_SOURCE_HEAD=c344d20197a569dea8936bad95de3d185b1e78dc
+BUILT_TOOLCHAIN=/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install
+8dad4f65dcac521d59db6199b7438a0f7f0a8df676fb83d7ed6b66780151454e  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install/bin/iverilog
+cfd826b8500b130cd823fb45b05fe2b11fce1043f140daadb2fd701f0aa1f329  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install/bin/vvp
+5d3e6b9415a9dbfc27db0bd0d6c72e6be31d4bc1b6a6ddcdaa3a5da3f935acbe  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/ivtest/ivltests/sv_class_method_noarg_string_concat.v
+Icarus Verilog version 13.0 (devel) ()
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install/lib/ivl/ivl -V -C"/tmp/ivrlhc8c2412" -C"/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-t0t1-20261018-02/install/lib/ivl/vvp.conf""
+=== T0 issue reproducer: legacy ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2017: Passed.
+sv_class_method_noarg_string_concat_2023: Passed.
+============================================================================
+Test results:
+  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0
+=== T0 issue reproducer: JSON ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/focus/t0-json.list
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2017: Passed.
+sv_class_method_noarg_string_concat_2023: Passed.
+============================================================================
+Test results: Ran 2, Failed 0.
+=== T0 smoke ===
+  vif_explicit_interface_class_missing     PASS (rejected with diagnostic)
+  vif_explicit_interface_class_modport_unlisted PASS (rejected with diagnostic)
+  vif_explicit_interface_class_noninterface PASS (rejected with diagnostic)
+  vif_forbidden_interface_item_direct_typedef PASS (rejected with diagnostic)
+  vif_forbidden_interface_item_type_parameter PASS (rejected with diagnostic)
+  vif_forbidden_port_direct_typedef        PASS (rejected with diagnostic)
+  vif_forbidden_union_member_direct_typedef PASS (rejected with diagnostic)
+  vif_modport_input_write                  PASS (rejected with diagnostic)
+  vif_modport_unlisted_member              PASS (rejected with diagnostic)
+
+Negative tests: 152 passed, 0 failed
+=== run_array_lifetime_legacy.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_array_slice_marshal_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_assoc_set_default_malformed_width.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_assoc_traversal_key_width.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_boolean_automatic_history.sh ===
+=== run_bounded_queue_metadata_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_concat_malformed_arity.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_container_conversion.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_copyout_context.py ===
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_copyout_context.py", line 39, in <module>
+    result = subprocess.run([runtime, str(fixture)], capture_output=True,
+                            text=True, timeout=10)
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1875, in _execute_child
+    self._posix_spawn(args, executable, env, restore_signals, close_fds,
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      p2cread, p2cwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      c2pread, c2pwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      errread, errwrite)
+                      ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1819, in _posix_spawn
+    self.pid = os.posix_spawn(executable, args, env, **kwargs)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp'
+=== run_covergroup_extension_implicit_cross.sh ===
+PASS implicit cross: base=80.000 flat=80.000 direct=80.000 flat-direct=80.000
+PASS unsupported indexed cross rejected during elaboration
+PASS 2017 extension edition diagnostic
+=== run_covgrp_exports.py ===
+PASS: all 74 covergroup API functions exported
+=== run_covgrp_metadata.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_covgrp_options_report.sh ===
+PASS covergroup procedural option/report invariants (3/3)
+=== run_cross_product_limit.sh ===
+PASS cross product limit (-g2017)
+PASS cross product limit (-g2023)
+=== run_darray_default_fill_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_dist_ir_compat.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_dpi_disable_protocol.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-disable-protocol.isBvxX/dpi_disable_protocol.dpiexport.c (compile it into your DPI object).
+In file included from /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/m10l_dpi_disable_protocol_test.c:2:
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vpi_user.h:47:12: fatal error: _pli_types.h: No such file or directory
+   47 | # include  "_pli_types.h"
+      |            ^~~~~~~~~~~~~~
+compilation terminated.
+=== run_dpi_disable_protocol_negatives.sh ===
+error: missing executable compiler/runtime
+=== run_dpi_export_fixed_array.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.eO86dA/export-fixed-array-2017.dpiexport.c (compile it into your DPI object).
+=== run_dpi_export_output_logic_default.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-output-logic.C4kIYQ/output_logic.dpiexport.c (compile it into your DPI object).
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_dpi_export_output_logic_default.sh: line 34: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp: No such file or directory
+FAIL DPI export scalar output logic default-X reducer
+=== run_dpi_legacy_task_void_compat.sh ===
+error: compiler/runtime is not executable
+=== run_dpi_narrow_return_metadata.sh ===
+PASS exact narrow DPI return metadata (9/9)
+=== run_dpi_plain_char_abi.sh ===
+PASS plain-char DPI ABI (flags=default)
+=== run_dpi_prefixless_vec4_compat.sh ===
+PASS prefixless DPI vec4 call compatibility
+=== run_dpi_return_prefix_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_dpi_scalar_inout_logic_actual.sh ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_dpi_scalar_inout_logic_actual.sh: line 40: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp: No such file or directory
+=== run_dpi_scope_instance.sh ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_dpi_scope_instance.sh: line 40: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp: No such file or directory
+=== run_dpi_shortreal_array.sh ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_dpi_shortreal_array.sh: line 41: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp: No such file or directory
+=== run_force_array_runtime.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_indexed_darray_slice.py ===
+indexed dynamic-array slice: PASS 16/16
+=== run_merged_transition_cardinality.sh ===
+PASS merged transition cardinality (-g2017)
+PASS merged transition cardinality (-g2023)
+=== run_mixed_wait_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_process_kill_call_context.sh ===
+PASS process-kill automatic call-context release (modern + legacy)
+=== run_prop_const_init_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_property_index_metadata_malformed.sh ===
+PASS malformed property-index descriptor (16/16 X results)
+=== run_queue_slice_legacy.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_rand_mode_stack_underflow.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_scope_solver_unknown.py ===
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_scope_solver_unknown.py", line 36, in <module>
+    result = subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1875, in _execute_child
+    self._posix_spawn(args, executable, env, restore_signals, close_fds,
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      p2cread, p2cwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      c2pread, c2pwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      errread, errwrite)
+                      ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1819, in _posix_spawn
+    self.pid = os.posix_spawn(executable, args, env, **kwargs)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp'
+=== run_state_foreach_invariants.py ===
+Traceback (most recent call last):
+  File "/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/tests/vvp_runtime/run_state_foreach_invariants.py", line 80, in <module>
+    run = subprocess.run([vvp, str(path)], capture_output=True, text=True, timeout=10)
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1875, in _execute_child
+    self._posix_spawn(args, executable, env, restore_signals, close_fds,
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      p2cread, p2cwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      c2pread, c2pwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      errread, errwrite)
+                      ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1819, in _posix_spawn
+    self.pid = os.posix_spawn(executable, args, env, **kwargs)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp'
+=== run_static_property_binding.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_stream_target_split_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_string_repeat_ir_compat.sh ===
+error: Icarus compiler/runtime is not executable
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_vif_indexed_wait_malformed.sh ===
+error: VVP runtime is not executable: /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-recheck-20261018-03/src/vvp/vvp
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
