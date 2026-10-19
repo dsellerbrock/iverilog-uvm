@@ -40155,8 +40155,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	    should_lazy_specialized_class_body_(this);
       // IEEE 1800-2017 8.25: generic masters and specializations that still
       // forward an unresolved type parameter are not concrete class types.
-      bool defer_parameterized_body = pclass->has_parameter_port_list
-	    && !specialized_instance();
+      bool defer_parameterized_body = false;
       for (perm_string name : pclass->parameter_order) {
 	    if (class_type_parameter_is_deferred(des, class_scope_, name)) {
 		  defer_parameterized_body = true;
