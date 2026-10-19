@@ -41,6 +41,7 @@ module test;
     handle_random_member_item handle_item;
     dynamic_random_member_item dynamic_item;
     enum_random_member_item enum_item;
+    bit [7:0] row0[], row1[];
     bit enum_cycle_seen[8];
     bit seen_a, seen_b, seen_c;
 
@@ -55,23 +56,24 @@ module test;
 
     dynamic_item = new;
     dynamic_item.srandom(32'h4190_1804);
+    row0 = new[2];
+    row1 = new[2];
+    row0[0] = 8'h12;
+    row0[1] = 8'h34;
+    row1[0] = 8'h56;
+    row1[1] = 8'h78;
     dynamic_item.record.dynamic_values = new[2];
-    dynamic_item.record.dynamic_values[0] = new[2];
-    dynamic_item.record.dynamic_values[1] = new[2];
-    dynamic_item.record.dynamic_values[0][0] = 8'h12;
-    dynamic_item.record.dynamic_values[0][1] = 8'h34;
-    dynamic_item.record.dynamic_values[1][0] = 8'h56;
-    dynamic_item.record.dynamic_values[1][1] = 8'h78;
+    dynamic_item.record.dynamic_values[0] = row0;
+    dynamic_item.record.dynamic_values[1] = row1;
     if (dynamic_item.randomize() !== 1)
       $fatal(1, "struct dynamic-array randomization failed");
+    row0 = dynamic_item.record.dynamic_values[0];
+    row1 = dynamic_item.record.dynamic_values[1];
     if (dynamic_item.record.dynamic_values.size() != 2
-        || dynamic_item.record.dynamic_values[0].size() != 2
-        || dynamic_item.record.dynamic_values[1].size() != 2)
+        || row0.size() != 2 || row1.size() != 2)
       $fatal(1, "randomization changed pre-sized struct dynamic arrays");
-    if (dynamic_item.record.dynamic_values[0][0] == 8'h12
-        && dynamic_item.record.dynamic_values[0][1] == 8'h34
-        && dynamic_item.record.dynamic_values[1][0] == 8'h56
-        && dynamic_item.record.dynamic_values[1][1] == 8'h78)
+    if (row0[0] == 8'h12 && row0[1] == 8'h34
+        && row1[0] == 8'h56 && row1[1] == 8'h78)
       $fatal(1, "struct dynamic-array elements were not randomized");
 
     enum_item = new;
