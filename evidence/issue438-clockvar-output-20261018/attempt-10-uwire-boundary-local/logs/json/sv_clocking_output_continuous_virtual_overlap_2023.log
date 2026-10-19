@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue438-clockvar-output-20261018/evidence/issue438-clockvar-output-20261018/attempt-10-uwire-boundary-local/results/json/sv_clocking_output_continuous_virtual_overlap_2023.list
+----------------------------------------------------------------------------
+sv_clocking_output_continuous_virtual_overlap_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+        0.15 real         0.08 user         0.04 sys
+            21676032  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                6754  page reclaims
+                  70  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  12  voluntary context switches
+                 151  involuntary context switches
+           388830149  instructions retired
+           146560540  cycles elapsed
+            13287952  peak memory footprint
