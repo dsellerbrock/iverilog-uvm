@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue438-clockvar-output-20261018/evidence/issue438-clockvar-output-20261018/attempt-10-uwire-boundary-local/results/json/sv_clocking_selected_output_dynamic_capture_2023.list
+----------------------------------------------------------------------------
+sv_clocking_selected_output_dynamic_capture_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+        0.18 real         0.09 user         0.05 sys
+            21594112  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                7816  page reclaims
+                  78  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  13  voluntary context switches
+                 361  involuntary context switches
+           394398569  instructions retired
+           177986481  cycles elapsed
+            13189624  peak memory footprint

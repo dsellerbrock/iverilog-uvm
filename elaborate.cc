@@ -27368,12 +27368,13 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       overwrite, or corrupt, the net's existing driver. Drive the
 		       net from a hidden variable through a continuous buffer. The
 		       variable holds 'z until the first clocking drive. A
-		       variable, including one with a continuous assignment
-		       (UNRESOLVED_WIRE), keeps the procedural clocking write. */
+		       variable, including one with a continuous assignment that was
+		       coerced to UNRESOLVED_WIRE, keeps the procedural clocking write. */
 		  if (raw->unpacked_dimensions() > 0
 		      && raw->type() != NetNet::REG
 		      && raw->type() != NetNet::IMPLICIT_REG
-		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
+		      && (raw->type() != NetNet::UNRESOLVED_WIRE
+			  || !raw->coerced_to_uwire())) {
 		    cerr << cb->get_fileline() << ": sorry: a clocking "
 			 << "output array of nets requires per-word net "
 			 << "drivers." << endl;

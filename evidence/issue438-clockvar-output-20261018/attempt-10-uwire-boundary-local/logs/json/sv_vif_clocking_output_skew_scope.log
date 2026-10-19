@@ -1,0 +1,24 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue438-clockvar-output-20261018/evidence/issue438-clockvar-output-20261018/attempt-10-uwire-boundary-local/results/json/sv_vif_clocking_output_skew_scope.list
+----------------------------------------------------------------------------
+sv_vif_clocking_output_skew_scope: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+        0.26 real         0.10 user         0.05 sys
+            21790720  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                7873  page reclaims
+                  78  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  13  voluntary context switches
+                 362  involuntary context switches
+           397702506  instructions retired
+           170776104  cycles elapsed
+            13386232  peak memory footprint
