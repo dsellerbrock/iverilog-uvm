@@ -1,0 +1,2 @@
+ivltests/sv_sampled_value_event_past_unsupported.v:8: sorry: procedural event control on `$past' is not supported.
+Elaboration failed

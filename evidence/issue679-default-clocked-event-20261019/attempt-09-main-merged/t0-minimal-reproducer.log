@@ -1,0 +1,22 @@
+changed at 5
+evidence/issue679-default-clocked-event-20261019/attempt-07-mac-local/minimal-reproducer.sv:6: $finish called at 12 (1s)
+changed at 5
+evidence/issue679-default-clocked-event-20261019/attempt-07-mac-local/minimal-reproducer.sv:6: $finish called at 12 (1s)
+        1.47 real         0.20 user         0.13 sys
+            10600448  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               13950  page reclaims
+                 117  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  53  voluntary context switches
+                 877  involuntary context switches
+            69110328  instructions retired
+            25760390  cycles elapsed
+             2474464  peak memory footprint
