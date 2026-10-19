@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t1-json-cases/026-sv_modport_tf_prototype_recovery_fail_2023.list
+----------------------------------------------------------------------------
+sv_modport_tf_prototype_recovery_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.

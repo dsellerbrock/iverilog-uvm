@@ -1,0 +1,328 @@
+--- host ---
+hostname=DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-18T23:16:37-06:00
+2
+               total        used        free      shared  buff/cache   available
+Mem:            38Gi        11Gi       5.3Gi       9.5Gi        31Gi        26Gi
+Swap:          8.0Gi       4.4Gi       3.6Gi
+
+=== configure-script (timeout 120s) ===
+step_exit=0
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 120 -- autoconf"
+	User time (seconds): 0.13
+	System time (seconds): 0.00
+	Percent of CPU this job got: 76%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.17
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 14200
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 9364
+	Voluntary context switches: 37
+	Involuntary context switches: 1
+	Swaps: 0
+	File system inputs: 24
+	File system outputs: 1280
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== configure (timeout 300s) ===
+step_exit=0
+config.status: creating tgt-pcb/Makefile
+config.status: creating tgt-blif/Makefile
+config.status: creating tgt-sizer/Makefile
+config.status: creating config.h
+config.status: creating _pli_types.h
+config.status: creating vhdlpp/vhdlpp_config.h
+config.status: creating vvp/config.h
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 300 -- ./configure --enable-libveriuser --prefix=/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install"
+	User time (seconds): 1.52
+	System time (seconds): 0.53
+	Percent of CPU this job got: 101%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.03
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 38184
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 564463
+	Voluntary context switches: 3774
+	Involuntary context switches: 520
+	Swaps: 0
+	File system inputs: 424
+	File system outputs: 3440
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== build (timeout 1200s) ===
+step_exit=0
+ld  -r -o libveriuser.o asynch.o delay.o exprinfo.o finish.o getcstringp.o getinstance.o getlongp.o getp.o getsimtime.o io_print.o math.o mc_scan_plusargs.o nodeinfo.o nump.o putlongp.o putp.o spname.o typep.o workarea.o veriusertfs.o priv.o a_close.o a_compare_handles.o a_configure.o a_fetch_argc.o a_fetch_argv.o a_fetch_dir.o a_fetch_fullname.o a_fetch_location.o a_fetch_param.o a_fetch_range.o a_fetch_tfarg.o a_fetch_time.o a_fetch_type.o a_fetch_type_str.o a_fetch_value.o a_handle_by_name.o a_handle_hiconn.o a_handle_object.o a_handle_parent.o a_handle_simulated_net.o a_handle_tfarg.o a_initialize.o a_next.o a_next_bit.o a_next_port.o a_next_topmod.o a_object_of_type.o a_product_version.o a_set_value.o a_vcl.o a_version.o
+rm -f libveriuser.a
+ar cvq libveriuser.a libveriuser.o
+a - libveriuser.o
+ranlib libveriuser.a
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/cadpli'
+mkdir dep
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cadpli.c
+mv cadpli.d dep
+gcc -shared  -o cadpli.vpl cadpli.o ../libveriuser/libveriuser.o -L../vpi -lvpi
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/cadpli'
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 1200 -- make -j2"
+	User time (seconds): 331.31
+	System time (seconds): 21.62
+	Percent of CPU this job got: 197%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:59.09
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1662372
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 16690021
+	Voluntary context switches: 11468
+	Involuntary context switches: 8402
+	Swaps: 0
+	File system inputs: 16
+	File system outputs: 1325640
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== install (timeout 240s) ===
+step_exit=0
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/cadpli'
+make installuvm
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source'
+./mkinstalldirs "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install/bin" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install/include/iverilog" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install/lib/ivl" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install/lib/ivl/include" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install/share/man/man1" \
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install"
+note: uvm-core submodule not checked out; skipping UVM install.
+      run 'git submodule update --init' to enable 'iverilog -uvm'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source'
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 240 -- make install"
+	User time (seconds): 0.27
+	System time (seconds): 0.11
+	Percent of CPU this job got: 91%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.42
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 11988
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 46011
+	Voluntary context switches: 544
+	Involuntary context switches: 17
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 376528
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+t0-sv.list: 2 tests
+t0-json.list: 2 tests
+
+=== t0-legacy (timeout 900s) ===
+step_exit=0
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+sv_param_config_seed_deferral_2017: Passed.
+sv_param_config_seed_deferral_2023: Passed.
+============================================================================
+Test results:
+  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 900 -- perl ./vvp_reg.pl /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t0-sv.list"
+	User time (seconds): 0.07
+	System time (seconds): 0.01
+	Percent of CPU this job got: 70%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.12
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 12104
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 13065
+	Voluntary context switches: 89
+	Involuntary context switches: 4
+	Swaps: 0
+	File system inputs: 8
+	File system outputs: 64
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== t0-json (timeout 1800s) ===
+step_exit=0
+sv_param_config_seed_deferral_2017: PASS exit=0
+sv_param_config_seed_deferral_2023: PASS exit=0
+JSON_RESULT: 2/2 passed
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 1800 -- python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_json_manifest.py /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t0-json.list /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t0-json-cases 300 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source"
+	User time (seconds): 0.10
+	System time (seconds): 0.02
+	Percent of CPU this job got: 55%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.22
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 16520
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 15068
+	Voluntary context switches: 98
+	Involuntary context switches: 3
+	Swaps: 0
+	File system inputs: 152
+	File system outputs: 144
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== t0-smoke (timeout 3600s) ===
+step_exit=0
+=== run_string_repeat_ir_compat.sh ===
+PASS string-repeat VVP compatibility and typed opcodes (6/6)
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+PASS ufunc resolver malformed metadata invariants (2/2)
+=== run_vif_indexed_wait_malformed.sh ===
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 3600 -- bash ./ci/run-smoke.sh"
+	User time (seconds): 30.25
+	System time (seconds): 5.31
+	Percent of CPU this job got: 90%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:39.30
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 109236
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 4319122
+	Voluntary context switches: 20194
+	Involuntary context switches: 1731
+	Swaps: 0
+	File system inputs: 288
+	File system outputs: 21672
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== t1-legacy (timeout 3600s) ===
+step_exit=0
+                          sv_vif_task_scalar_copyback_2023: Passed.
+                          sv_vif_task_scalar_copyback_fail: Passed - CE.
+                     sv_vif_task_scalar_copyback_fail_2023: Passed - CE.
+                         sv_fixed_container_array_elements: Passed.
+                    sv_fixed_container_array_elements_2023: Passed.
+                          sv_param_config_nested_path_2017: Passed.
+                          sv_param_config_nested_path_2023: Passed.
+                        sv_param_config_seed_deferral_2017: Passed.
+                        sv_param_config_seed_deferral_2023: Passed.
+============================================================================
+Test results:
+  Total=72, Passed=72, Failed=0, Not Implemented=0, Expected Fail=0
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 3600 -- perl ./vvp_reg.pl /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/ivtest/regress-vif-parameter-specialization-focus-legacy.list"
+	User time (seconds): 1.27
+	System time (seconds): 0.37
+	Percent of CPU this job got: 92%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:01.78
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 12312
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 260764
+	Voluntary context switches: 1622
+	Involuntary context switches: 146
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 1712
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== t1-json (timeout 3600s) ===
+step_exit=0
+sv_vif_local_nominal_function_result_fail_2023: PASS exit=0
+sv_vif_task_scalar_copyback: PASS exit=0
+sv_vif_task_scalar_copyback_2023: PASS exit=0
+sv_vif_task_scalar_copyback_fail: PASS exit=0
+sv_vif_task_scalar_copyback_fail_2023: PASS exit=0
+sv_fixed_container_array_elements: PASS exit=0
+sv_fixed_container_array_elements_2023: PASS exit=0
+sv_param_config_nested_path_2017: PASS exit=0
+sv_param_config_nested_path_2023: PASS exit=0
+sv_param_config_seed_deferral_2017: PASS exit=0
+sv_param_config_seed_deferral_2023: PASS exit=0
+JSON_RESULT: 72/72 passed
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 3600 -- python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_json_manifest.py /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/ivtest/regress-vif-parameter-specialization-focus-vvp.list /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t1-json-cases 300 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source"
+	User time (seconds): 2.75
+	System time (seconds): 0.59
+	Percent of CPU this job got: 72%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.64
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 16616
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 402344
+	Voluntary context switches: 3099
+	Involuntary context switches: 121
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 2880
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+GATE_RESULT=PASS

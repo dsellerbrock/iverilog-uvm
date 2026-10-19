@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/results/t1-json-cases/059-sv_vif_local_nominal_function_result.list
+----------------------------------------------------------------------------
+sv_vif_local_nominal_function_result: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
