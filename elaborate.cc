@@ -37600,18 +37600,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    }
 
-	      /* Inline randomize calls sample permitted caller-state methods after
-	       * pre_randomize through the ordinary scalar-slot evaluation path.
-	       * Only a dotted caller receiver is accepted here: target lookup wins
-	       * before this branch, so a colliding target property can never fall
-	       * through to the caller. Explicit caller-local arguments are accepted
-	       * only when their formal is input or const ref; random-dependent
-	       * arguments require the staged priority path.
+	      /* Inline randomize calls sample permitted caller-state functions after
+	       * pre_randomize. Target lookup wins before this branch; arguments that
+	       * depend on a randomized property require the staged priority path.
 	       */
 	    if (cls && constraint_inline_function_slots_ && value_slots
 		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
-		&& !call->path().package && !call->has_scoped_type_prefix()
-		&& cpath.size() >= 2
+		&& !call->has_scoped_type_prefix() && !cpath.empty()
 		&& all_of(cpath.begin(), cpath.end(),
 		  [](const name_component_t&part) { return part.index.empty(); })
 		&& call->with_constraints().empty()) {
@@ -37619,18 +37614,30 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  pform_name_t::const_iterator target_component;
 		  if (!constraint_target_path_begin_(call->path(), cls,
 			 target_owner, target_component)) {
-			pform_name_t receiver_path = cpath;
-			receiver_path.pop_back();
-			unique_ptr<PEIdent>receiver(new PEIdent(receiver_path, UINT_MAX));
-			constraint_source_type_t receiver_type =
-			      constraint_source_expr_type_(receiver.get(), cls,
-						   value_slots, scope);
-			const netclass_t*receiver_class =
-			      !receiver_type.unpacked_dimensions
-			      ? dynamic_cast<const netclass_t*>(receiver_type.type) : nullptr;
-			NetScope*method = receiver_class
-			      ? receiver_class->resolve_method_call_scope(
-				    constraint_ir_design_ctx_, cpath.back().name) : nullptr;
+			NetScope*method = nullptr;
+			if (cpath.size() >= 2 && !call->path().package) {
+			      pform_name_t receiver_path = cpath;
+			      receiver_path.pop_back();
+			      unique_ptr<PEIdent>receiver(new PEIdent(receiver_path, UINT_MAX));
+			      constraint_source_type_t receiver_type =
+				    constraint_source_expr_type_(receiver.get(), cls,
+							 value_slots, scope);
+			      const netclass_t*receiver_class =
+				    !receiver_type.unpacked_dimensions
+				    ? dynamic_cast<const netclass_t*>(receiver_type.type) : nullptr;
+			      if (receiver_class)
+				    method = receiver_class->resolve_method_call_scope(
+					  constraint_ir_design_ctx_, cpath.back().name);
+			}
+			if (!method) {
+			      symbol_search_results found;
+			      if (symbol_search(call, constraint_ir_design_ctx_,
+				    const_cast<NetScope*>(scope), call->path(), UINT_MAX,
+				    &found)
+				  && found.scope && found.scope->type() == NetScope::FUNC
+				  && found.path_tail.empty())
+				    method = found.scope;
+			}
 			if (method && method->type() == NetScope::FUNC) {
 			      const PFunction*pfunc = method->func_pform();
 			      if (pfunc && (!method->func_def() || !method->func_def()->proc()))
@@ -37681,8 +37688,22 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  }
 					  const PExpr*actual = call->get_parms()[arg].parm;
 					  const PEIdent*id = dynamic_cast<const PEIdent*>(actual);
-					  if (!id || id->path().name.empty()
-						|| !id->path().name.front().local_scope) {
+					  bool arg_ok = false;
+					  if (id && !id->path().name.empty()) {
+						const name_component_t& root = id->path().name.front();
+						if (id->path().package || root.local_scope) {
+						      arg_ok = true;
+						} else if (id->path().name.size() == 1
+							&& !constraint_this_name_(root.name)
+							&& !constraint_super_name_(root.name)
+							&& (!cls || cls->property_idx_from_name(root.name) < 0)) {
+						      arg_ok = true;
+						}
+					  } else if (dynamic_cast<const PEString*>(actual)
+						  || dynamic_cast<const PENumber*>(actual)) {
+						arg_ok = true;
+					  }
+					  if (!arg_ok) {
 						cerr << call->get_fileline() << ": error: Function call '"
 						     << call->path()
 						     << "' with random-dependent arguments in an inline "
