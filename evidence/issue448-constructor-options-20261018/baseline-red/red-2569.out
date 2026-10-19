@@ -1,0 +1,10 @@
+c99ee9c08468fb20f7635fb3380adb0d620c9037c19c02236a435a61c7be0130  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/iverilog
+01ab4aec7220761157afa00b19074da9ce6f3f261279fcb39d319865a09056a4  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/vvp
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-a/source/issue448-red.sv:14: $finish called at 0 (1s)
+covergroup test.cg type_coverage 100.00
+    bin __bin_cp_zero count 1 hit
+    bin __bin_cp_one count 1 hit
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue448-red-20261018-a/source/issue448-red.sv:14: $finish called at 0 (1s)
+covergroup test.cg type_coverage 100.00
+    bin __bin_cp_zero count 1 hit
+    bin __bin_cp_one count 1 hit

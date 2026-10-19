@@ -9208,6 +9208,13 @@ static size_t covgrp_cp_count_(const class_type*defn)
       return count;
 }
 
+// Keep the synthetic per_instance slot out of stable bin-property diagnostics.
+static unsigned covgrp_diag_prop_idx_(const class_type*defn, unsigned prop)
+{
+      int per_instance = defn->covgrp_options().per_instance_prop;
+      return per_instance >= 0 && (size_t)per_instance < prop ? prop - 1 : prop;
+}
+
 static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
 {
       unsigned guard_flags = cp->bit_idx[0];
@@ -9589,7 +9596,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (auto&t : tuple_ok) if (t.second) { hit = true; break; }
 	    if (hit) {
 		  std::cerr << "ERROR: covergroup illegal_bin matched"
-			    << " (prop_idx=" << kv.first << ")" << std::endl;
+			    << " (prop_idx=" << covgrp_diag_prop_idx_(defn, kv.first)
+			    << ")" << std::endl;
 		  covgrp_bump_count_(cobj, kv.first);
 		    // An illegal coverpoint bin carves that coverpoint out for this
 		    // sample. An illegal CROSS bin belongs only to its cross item:
@@ -9651,7 +9659,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (unsigned prop : illegal_hits) {
 		  cerr << "ERROR: covergroup illegal cross bin matched"
 		       << " (family=" << entry.first << ", prop_idx="
-		       << prop << ")" << endl;
+		       << covgrp_diag_prop_idx_(defn, prop) << ")" << endl;
 		  covgrp_bump_count_(cobj, prop);
 	    }
       }
@@ -9865,7 +9873,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (di.cp >= ncp || !cp_sampled[di.cp] || cp_suppressed[di.cp])
 		  continue;
 	    std::cerr << "ERROR: covergroup illegal_bins default matched"
-		      << " (prop_idx=" << di.prop << ")" << std::endl;
+		      << " (prop_idx=" << covgrp_diag_prop_idx_(defn, di.prop)
+		      << ")" << std::endl;
 	    covgrp_bump_count_(cobj, di.prop);
 	    cp_suppressed[di.cp] = true;
       }

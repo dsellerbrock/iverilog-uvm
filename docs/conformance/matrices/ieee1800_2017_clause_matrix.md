@@ -5,6 +5,25 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### October 18, 2026 — §19.7 constructor-captured `option.per_instance`
+
+IEEE 1800-2017/2023 §19.7 says definition option assignments are evaluated at
+covergroup instantiation and that `per_instance == 1` retains that instance's
+coverage information for the report. IMPLEMENTED for constructor-formal
+`option.per_instance` expressions: default false, explicit true/false, captured
+readback after the actual changes, procedural-write rejection, and report rows
+for enabled live and retired instances. The new hidden property is allocated
+after existing bin and parent properties so their IDs and diagnostics remain
+stable. Paired `-g2017`/`-g2023` tests pass in the legacy and JSON runners; the
+report reducer also checks only enabled instances, percentages, and static-bin
+counts. T0 smoke and T1 covergroup selections pass on Slurm job 2588: 250/250
+legacy and 237/237 JSON T1 cases. Tool hashes and full logs are in the
+[candidate evidence](../../../evidence/issue448-constructor-options-20261018/candidate-green/job-2588/).
+Dynamic-bin contribution is included in the existing per-instance percentage
+calculation, but this report format does not list dynamic-bin counts. This is
+a bounded #448 qualification, not full §19 support; Windows CI and batch T2
+remain pending.
+
 ### October 17, 2026 — coupled parent/child class constraints (#418)
 
 IEEE 1800-2017/2023 §18.4 requires variables and constraints reached through a
@@ -35,9 +54,12 @@ are checked in both editions. IEEE
 automatic-lifetime behavior is not qualified here. Paired regressions cover
 independent live bindings, X/Z and signed samples, input snapshots, type
 equivalence, read-only rejection, net rejection, and both implementation
-limits. T0/T1 results are pending. Per-instance option expressions and other
-§19 behavior remain open,
-so this does not close issue #448.
+limits. The paired 2017/2023 `ref` regressions passed in the Oct 18 covergroup
+T1 run on Slurm job 2588 (250/250 legacy and 237/237 JSON selected cases; see
+the [candidate evidence](../../../evidence/issue448-constructor-options-20261018/candidate-green/job-2588/)).
+Per-instance option expressions and other §19 behavior were still open on the
+date of this record; see the Oct 18 §19.7 entry above. This §19.3 subset alone
+did not close issue #448.
 
 ### October 14, 2026 — §8.20 method override specifiers
 

@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_per_instance_ctor_2023.v",
+    "iverilog-args": [
+        "-g2023"
+    ]
+}
