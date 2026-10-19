@@ -1,0 +1,96 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                          sv_queue_slice_dollar_offset: Passed.
+              sv_queue_slice_dollar_offset_lvalue_fail: Passed - CE.
+                            sv_queue_slice_dollar_left: Passed.
+                       sv_queue_slice_dollar_left_2023: Passed.
+                       sv_queue_slice_dollar_left_fail: Passed - CE.
+                  sv_queue_slice_dollar_left_fail_2023: Passed - CE.
+                sv_queue_slice_dollar_left_lvalue_fail: Passed - CE.
+           sv_queue_slice_dollar_left_lvalue_fail_2023: Passed - CE.
+                 sv_queue_slice_nonintegral_bound_fail: Passed - CE.
+                        sv_queue_slice_variable_bounds: Passed.
+             sv_packed_part_select_variable_bound_fail: Passed - CE.
+                         sv_dynamic_array_slice_rvalue: Passed.
+                 sv_dynamic_array_slice_class_property: Passed.
+            sv_dynamic_array_slice_class_property_2023: Passed.
+            sv_dynamic_array_slice_variable_bound_fail: Passed - CE.
+                       sv_associative_array_slice_fail: Passed - CE.
+                              sv_queue_ref_persistence: Passed.
+                         sv_ref_arg_object_fork_detach: ==> Failed - running iverilog.
+                 sv_ref_arg_inside_storage_adversarial: ==> Failed - running iverilog.
+                        sv_ref_arg_inside_storage_bind: Passed.
+                        sv_ref_argument_is_a_reference: Passed.
+                                sv_queue_slice_to_last: Passed.
+                            sv_queue_dollar_arithmetic: Passed.
+                          sv_queue_darray_state_compat: Passed.
+                     sv_queue_darray_state_compat_2023: Passed.
+                     sv_queue_darray_state_compat_fail: Passed - CE.
+                sv_queue_darray_state_compat_fail_2023: Passed - CE.
+                             sv_commercial_unsafe_fail: Passed - CE.
+                        sv_commercial_unsafe_fail_2023: Passed - CE.
+                      sv_commercial_unsafe_strict_fail: Passed - CE.
+                 sv_commercial_unsafe_strict_fail_2023: Passed - CE.
+                   sv_bounded_queue_same_kind_contexts: Passed.
+              sv_bounded_queue_same_kind_contexts_2023: Passed.
+                   sv_container_cross_kind_destination: Passed.
+              sv_container_cross_kind_destination_2023: Passed.
+                      sv_container_cross_kind_contexts: Passed.
+                 sv_container_cross_kind_contexts_2023: Passed.
+                     sv_task_output_container_lifetime: Passed.
+                sv_task_output_container_lifetime_2023: Passed.
+            sv_task_output_container_untouched_default: Passed.
+       sv_task_output_container_untouched_default_2023: Passed.
+                sv_task_output_container_formal_compat: Passed.
+           sv_task_output_container_formal_compat_2023: Passed.
+                  sv_task_output_container_formal_fail: Passed - CE.
+             sv_task_output_container_formal_fail_2023: Passed - CE.
+           sv_nonvoid_function_container_formal_compat: Passed.
+      sv_nonvoid_function_container_formal_compat_2023: Passed.
+                        sv_fixed_output_copyback_shape: Passed.
+                   sv_fixed_output_copyback_shape_2023: Passed.
+             sv_nonvoid_function_container_formal_fail: Passed - CE.
+        sv_nonvoid_function_container_formal_fail_2023: Passed - CE.
+            sv_subroutine_nested_container_formal_fail: Passed - CE.
+       sv_subroutine_nested_container_formal_fail_2023: Passed - CE.
+       sv_subroutine_fixed_container_state_formal_fail: Passed - CE.
+  sv_subroutine_fixed_container_state_formal_fail_2023: Passed - CE.
+                       sv_empty_task_input_side_effect: Passed.
+                  sv_empty_task_input_side_effect_2023: Passed.
+                      sv_static_task_output_auto_frame: Passed.
+                 sv_static_task_output_auto_frame_2023: Passed.
+                      sv_container_cross_kind_builders: Passed.
+                 sv_container_cross_kind_builders_2023: Passed.
+        sv_selected_container_struct_fixed_member_read: Passed.
+   sv_selected_container_struct_fixed_member_read_2023: Passed.
+                 sv_unpacked_concat_nested_scalar_fail: Passed - CE.
+            sv_unpacked_concat_nested_scalar_fail_2023: Passed - CE.
+                    sv_container_cross_kind_provenance: Passed.
+               sv_container_cross_kind_provenance_2023: Passed.
+                            sv_container_explicit_cast: Passed.
+                       sv_container_explicit_cast_2023: Passed.
+                sv_positional_container_bitstream_cast: Passed.
+           sv_positional_container_bitstream_cast_2023: Passed.
+      sv_positional_container_bitstream_cast_size_fail: Passed - RE.
+ sv_positional_container_bitstream_cast_size_fail_2023: Passed - RE.
+     sv_positional_container_bitstream_cast_bound_fail: Passed - RE.
+sv_positional_container_bitstream_cast_bound_fail_2023: Passed - RE.
+                sv_container_conditional_explicit_cast: Passed.
+           sv_container_conditional_explicit_cast_2023: Passed.
+           sv_container_conditional_explicit_cast_fail: Passed - CE.
+      sv_container_conditional_explicit_cast_fail_2023: Passed - CE.
+                 sv_positional_assoc_element_same_type: Passed.
+            sv_positional_assoc_element_same_type_2023: Passed.
+                 sv_positional_assoc_element_cast_fail: Passed - CE.
+            sv_positional_assoc_element_cast_fail_2023: Passed - CE.
+         sv_nonvoid_function_assoc_element_formal_fail: Passed - CE.
+    sv_nonvoid_function_assoc_element_formal_fail_2023: Passed - CE.
+                       sv_container_explicit_cast_fail: Passed - CE.
+                  sv_container_explicit_cast_fail_2023: Passed - CE.
+               sv_container_explicit_cast_fail_reverse: Passed - CE.
+          sv_container_explicit_cast_fail_reverse_2023: Passed - CE.
+                                sv_darray_assign_fail1: Passed - CE.
+                                 sv_queue_assign_fail1: Passed - CE.
+============================================================================
+Test results:
+  Total=91, Passed=89, Failed=2, Not Implemented=0, Expected Fail=0
