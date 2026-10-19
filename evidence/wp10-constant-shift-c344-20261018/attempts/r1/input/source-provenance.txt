@@ -1,0 +1,4 @@
+measurement_base=c344d20197a569dea8936bad95de3d185b1e78dc
+source_commit=c344d20197a569dea8936bad95de3d185b1e78dc
+candidate=wp10-constant-shift-prototype
+target=benchmarks/sim-hotspots/rtl_pipe.sv

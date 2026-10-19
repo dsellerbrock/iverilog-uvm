@@ -1,0 +1,2 @@
+reference_shift_functors=0
+candidate_shift_functors=128

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name=$(basename "$(dirname "$PWD")")-$(basename "$PWD")
+exec /usr/bin/valgrind --quiet --tool=callgrind \
+  --callgrind-out-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-constant-shift-c344-20261018-r4/profiles/$name.callgrind" \
+  --log-file="/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-constant-shift-c344-20261018-r4/profiles/$name.valgrind.log" "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp10-constant-shift-c344-20261018-r4/install/reference/bin/vvp" "$@"

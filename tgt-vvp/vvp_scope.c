@@ -34,6 +34,44 @@ struct deferred_array_decl_s {
 
 static struct deferred_array_decl_s*deferred_array_decls = 0;
 
+struct constant_shift_concat_s {
+      ivl_lpm_t concat;
+      ivl_lpm_t part;
+      ivl_nexus_t input;
+      ivl_signal_t part_signal;
+      unsigned shift;
+      struct constant_shift_concat_s*next;
+};
+
+static struct constant_shift_concat_s*constant_shift_concats = 0;
+
+static void clear_constant_shift_concats(void)
+{
+      while (constant_shift_concats) {
+	    struct constant_shift_concat_s*match = constant_shift_concats;
+	    constant_shift_concats = match->next;
+	    free(match);
+      }
+}
+
+static struct constant_shift_concat_s*find_constant_shift_concat(ivl_lpm_t lpm)
+{
+      struct constant_shift_concat_s*match;
+      for (match = constant_shift_concats; match; match = match->next)
+	    if (match->concat == lpm || match->part == lpm)
+		  return match;
+      return 0;
+}
+
+static int is_constant_shift_part_signal(ivl_signal_t sig)
+{
+      struct constant_shift_concat_s*match;
+      for (match = constant_shift_concats; match; match = match->next)
+	    if (match->part_signal == sig)
+		  return 1;
+      return 0;
+}
+
 static struct deferred_array_decl_s*find_deferred_array_decl_(ivl_signal_t sig)
 {
       struct deferred_array_decl_s*cur;
@@ -228,6 +266,182 @@ ivl_variable_type_t data_type_of_nexus(ivl_nexus_t nex)
       return IVL_VT_NO_TYPE;
 }
 
+
+static int constant_shift_temp_signal(ivl_signal_t sig)
+{
+      const char*name = sig ? ivl_signal_basename(sig) : 0;
+      return sig && ivl_signal_local(sig) && name
+	    && strncmp(name, "_ivl_", 5) == 0
+	    && ivl_signal_type(sig) != IVL_SIT_REG
+	    && ivl_signal_port(sig) == IVL_SIP_NONE
+	    && !ivl_signal_forced_net(sig);
+}
+
+static int constant_shift_has_no_delay(ivl_lpm_t lpm)
+{
+      if (ivl_lpm_event_synchronous(lpm))
+	    return 0;
+      for (unsigned idx = 0; idx < 3; idx += 1)
+	    if (ivl_lpm_delay(lpm, idx))
+		  return 0;
+      return 1;
+}
+
+static int constant_shift_zero_pad(ivl_nexus_t nex, ivl_lpm_t consumer,
+				   unsigned*width)
+{
+      unsigned idx, aliases = 0, consumers = 0;
+      ivl_net_const_t found = 0;
+      if (!nex)
+	    return 0;
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_net_const_t con = ivl_nexus_ptr_con(ivl_nexus_ptr(nex, idx));
+	    if (!con)
+		  continue;
+	    if (found)
+		  return 0;
+	    found = con;
+      }
+      if (!found || (ivl_const_type(found) != IVL_VT_BOOL
+		     && ivl_const_type(found) != IVL_VT_LOGIC))
+	    return 0;
+      if (ivl_const_event_synchronous(found))
+	    return 0;
+
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    ivl_net_logic_t logic = ivl_nexus_ptr_log(ptr);
+	    ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+	    if (sig) {
+		  if (!constant_shift_temp_signal(sig) || ++aliases > 1)
+			return 0;
+	    } else if (logic) {
+		  return 0;
+	    } else if (lpm) {
+		  if (ivl_lpm_q(lpm) == nex || lpm != consumer)
+			return 0;
+		  consumers += 1;
+	    }
+      }
+      if (consumers != 1)
+	    return 0;
+      for (idx = 0; idx < 3; idx += 1)
+	    if (ivl_const_delay(found, idx))
+		  return 0;
+
+      const char*bits = ivl_const_bits(found);
+      *width = ivl_const_width(found);
+      if (!bits || !*width)
+	    return 0;
+      for (idx = 0; idx < *width; idx += 1)
+	    if (bits[idx] != '0')
+		  return 0;
+      return 1;
+}
+
+static int constant_shift_private_part(ivl_nexus_t nex, ivl_lpm_t part,
+				       ivl_lpm_t concat, ivl_signal_t*alias)
+{
+      unsigned idx, drivers = 0, consumers = 0, aliases = 0;
+      *alias = 0;
+      if (!nex)
+	    return 0;
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    ivl_net_logic_t logic = ivl_nexus_ptr_log(ptr);
+	    ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+	    if (sig) {
+		  if (!constant_shift_temp_signal(sig) || ++aliases > 1)
+			return 0;
+		  *alias = sig;
+	    } else if (logic || ivl_nexus_ptr_con(ptr)) {
+		  return 0;
+	    } else if (lpm && ivl_lpm_q(lpm) == nex) {
+		  if (lpm != part)
+			return 0;
+		  drivers += 1;
+	    } else if (lpm) {
+		  if (lpm != concat)
+			return 0;
+		  consumers += 1;
+	    }
+      }
+      return drivers == 1 && consumers == 1;
+}
+
+static void prepare_constant_shift_concats(ivl_scope_t scope)
+{
+      for (unsigned idx = 0; idx < ivl_scope_lpms(scope); idx += 1) {
+	    ivl_lpm_t concat = ivl_scope_lpm(scope, idx);
+	    if (ivl_lpm_type(concat) != IVL_LPM_CONCAT
+		|| ivl_lpm_size(concat) != 2
+		|| !constant_shift_has_no_delay(concat))
+		  continue;
+
+	    unsigned width = ivl_lpm_width(concat), shift = 0;
+	    ivl_nexus_t pad = ivl_lpm_data(concat, 0);
+	    ivl_nexus_t part_nex = ivl_lpm_data(concat, 1);
+	    if (!part_nex || !constant_shift_zero_pad(pad, concat, &shift)
+		|| !shift || shift >= width
+		|| shift >= sizeof(unsigned long) * 8
+		|| width_of_nexus(part_nex) != width - shift)
+		  continue;
+
+	    ivl_lpm_t part = 0;
+	    for (unsigned ptr_idx = 0; ptr_idx < ivl_nexus_ptrs(part_nex); ptr_idx += 1) {
+		  ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ivl_nexus_ptr(part_nex, ptr_idx));
+		  if (!lpm || ivl_lpm_q(lpm) != part_nex)
+			continue;
+		  if (part) {
+			part = 0;
+			break;
+		  }
+		  part = lpm;
+	    }
+	    if (!part || ivl_lpm_type(part) != IVL_LPM_PART_VP
+		|| ivl_lpm_base(part) != 0 || ivl_lpm_data(part, 1)
+		|| ivl_lpm_width(part) != width - shift
+		|| !constant_shift_has_no_delay(part))
+		  continue;
+
+	    ivl_nexus_t input = ivl_lpm_data(part, 0);
+	    ivl_signal_t part_signal = 0;
+	    if (width_of_nexus(input) != width
+		|| !constant_shift_private_part(part_nex, part, concat, &part_signal))
+		  continue;
+
+	    struct constant_shift_concat_s*match = calloc(1, sizeof(*match));
+	    match->concat = concat;
+	    match->part = part;
+	    match->input = input;
+	    match->part_signal = part_signal;
+	    match->shift = shift;
+	    match->next = constant_shift_concats;
+	    constant_shift_concats = match;
+      }
+}
+
+static void draw_constant_shift_concat(struct constant_shift_concat_s*match)
+{
+      unsigned long value = match->shift;
+      char bits[sizeof(value) * 8 + 1];
+      unsigned count = 0;
+      do {
+	    bits[count++] = (value & 1) ? '1' : '0';
+	    value >>= 1;
+      } while (value);
+      for (unsigned idx = 0; idx < count / 2; idx += 1) {
+	    char tmp = bits[idx];
+	    bits[idx] = bits[count - idx - 1];
+	    bits[count - idx - 1] = tmp;
+      }
+      bits[count] = 0;
+      fprintf(vvp_out, "L_%p .shift/l %u, %s, C4<%s>;\n",
+	      match->concat, ivl_lpm_width(match->concat),
+	      draw_net_input(match->input), bits);
+}
 
 static ivl_nexus_ptr_t ivl_logic_pin_ptr(ivl_net_logic_t net, unsigned pin)
 {
@@ -1036,6 +1250,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
  */
 static void draw_net_in_scope(ivl_signal_t sig)
 {
+      if (is_constant_shift_part_signal(sig))
+	    return;
       int msb;
       int lsb;
       switch (ivl_signal_packed_dimensions(sig)) {
@@ -2825,6 +3041,13 @@ static void draw_lpm_vif_proxy(ivl_lpm_t net)
 
 static void draw_lpm_in_scope(ivl_lpm_t net)
 {
+      struct constant_shift_concat_s*match = find_constant_shift_concat(net);
+      if (match) {
+	    if (match->part == net)
+		  return;
+	    draw_constant_shift_concat(match);
+	    return;
+      }
       switch (ivl_lpm_type(net)) {
           case IVL_LPM_VIF_PROXY:
             draw_lpm_vif_proxy(net);
@@ -3105,6 +3328,8 @@ int scope_needs_call_frame(ivl_scope_t net)
 
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 {
+      clear_constant_shift_concats();
+      prepare_constant_shift_concats(net);
       unsigned idx;
       const char *dumpports_flag =
             ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
@@ -3505,6 +3730,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    note_dpi_export(net);
 
       ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
+      clear_constant_shift_concats();
       return 0;
 }
 
