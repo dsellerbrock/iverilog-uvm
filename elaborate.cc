@@ -27354,9 +27354,13 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  auto da = cb->decl_assigns.find(*sig_it);
 		  if (da != cb->decl_assigns.end()) {
 			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
-			if (id)
+			if (id && !id->path().name.empty()
+			    && !id->path().name.back().index.empty()
+			    && !raw->coerced_to_uwire())
 			      target_shape.reset(id->elaborate_lval(
 				    des, scope, false, false, false));
+			else
+			      target_shape.reset(new NetAssign_(raw));
 		  } else {
 			target_shape.reset(new NetAssign_(raw));
 		  }
