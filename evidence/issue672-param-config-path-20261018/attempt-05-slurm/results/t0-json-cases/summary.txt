@@ -1,0 +1,2 @@
+sv_param_config_seed_deferral_2017 exit=0
+sv_param_config_seed_deferral_2023 exit=0

@@ -67,3 +67,7 @@ sv_vif_task_scalar_copyback_fail CE,-g2017,-s,sv_vif_task_scalar_copyback_fail i
 sv_vif_task_scalar_copyback_fail_2023 CE,-g2023,-s,sv_vif_task_scalar_copyback_fail ivltests gold=sv_vif_task_scalar_copyback_fail.gold
 sv_fixed_container_array_elements normal,-g2017,-s,sv_fixed_container_array_elements ivltests gold=sv_fixed_container_array_elements.gold
 sv_fixed_container_array_elements_2023 normal,-g2023,-s,sv_fixed_container_array_elements ivltests gold=sv_fixed_container_array_elements.gold
+sv_param_config_nested_path_2017 normal,-g2017,-s,sv_param_config_nested_path ivltests
+sv_param_config_nested_path_2023 normal,-g2023,-s,sv_param_config_nested_path ivltests
+sv_param_config_seed_deferral_2017 normal,-g2017,-s,sv_param_config_seed_deferral ivltests
+sv_param_config_seed_deferral_2023 normal,-g2023,-s,sv_param_config_seed_deferral ivltests
