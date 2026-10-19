@@ -1,0 +1,2 @@
+source/sv_class_method_noarg_string_concat.v:13: error: String concatenation operand 2 must be a string literal or an expression of string type: child.convert2string
+1 error(s) during elaboration.
