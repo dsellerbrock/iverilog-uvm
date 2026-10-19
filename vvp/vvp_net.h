@@ -337,7 +337,9 @@ class vvp_vector4_t {
 
       vvp_vector4_t(const vvp_vector4_t&that);
       vvp_vector4_t(const vvp_vector4_t&that, bool invert_flag);
+      vvp_vector4_t(vvp_vector4_t&&that) noexcept;
       vvp_vector4_t& operator= (const vvp_vector4_t&that);
+      vvp_vector4_t& operator= (vvp_vector4_t&&that) noexcept;
 
       ~vvp_vector4_t();
 
@@ -490,6 +492,19 @@ inline vvp_vector4_t::vvp_vector4_t(const vvp_vector4_t&that, bool invert_flag)
 	    copy_from_(that);
 }
 
+inline vvp_vector4_t::vvp_vector4_t(vvp_vector4_t&&that) noexcept
+: size_(that.size_)
+{
+      if (size_ > BITS_PER_WORD) {
+	    abits_ptr_ = that.abits_ptr_;
+	    bbits_ptr_ = that.bbits_ptr_;
+      } else {
+	    abits_val_ = that.abits_val_;
+	    bbits_val_ = that.bbits_val_;
+      }
+      that.size_ = 0;
+}
+
 inline vvp_vector4_t::vvp_vector4_t(unsigned size__, vvp_bit4_t val)
 : size_(size__)
 {
@@ -532,6 +547,26 @@ inline vvp_vector4_t& vvp_vector4_t::operator= (const vvp_vector4_t&that)
 
       copy_from_(that);
 
+      return *this;
+}
+
+inline vvp_vector4_t& vvp_vector4_t::operator= (vvp_vector4_t&&that) noexcept
+{
+      if (this == &that)
+	    return *this;
+
+      if (size_ > BITS_PER_WORD)
+	    delete[] abits_ptr_;
+
+      size_ = that.size_;
+      if (size_ > BITS_PER_WORD) {
+	    abits_ptr_ = that.abits_ptr_;
+	    bbits_ptr_ = that.bbits_ptr_;
+      } else {
+	    abits_val_ = that.abits_val_;
+	    bbits_val_ = that.bbits_val_;
+      }
+      that.size_ = 0;
       return *this;
 }
 

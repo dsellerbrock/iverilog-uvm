@@ -521,7 +521,7 @@ struct vthread_s {
       inline vvp_vector4_t pop_vec4(void)
       {
 	    assert(! stack_vec4_.empty());
-	    vvp_vector4_t val = stack_vec4_.back();
+	    vvp_vector4_t val = std::move(stack_vec4_.back());
 	    stack_vec4_.pop_back();
 	    return val;
       }
@@ -533,6 +533,12 @@ struct vthread_s {
 	    if (push1_trace_ != 0 && val.size() == 1)
 		  push1_trace_note_();
 	    stack_vec4_.push_back(val);
+      }
+      inline void push_vec4(vvp_vector4_t&&val)
+      {
+	    if (push1_trace_ != 0 && val.size() == 1)
+		  push1_trace_note_();
+	    stack_vec4_.push_back(std::move(val));
       }
       static int push1_trace_;
       void push1_trace_note_(void);
