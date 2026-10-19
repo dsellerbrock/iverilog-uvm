@@ -1,0 +1,1 @@
+job 3107 exited before configure because configure is generated from configure.ac by autoconf; no build or tests ran. Treat as a harness setup error, not a code result.

@@ -40651,6 +40651,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  std::vector<std::pair<uint64_t,uint64_t>> ranges;
 		  std::vector<std::vector<uint64_t>> wide_values;
 		  std::vector<std::vector<uint64_t>> xz_values;
+		  bool wide_auto = false;
+		  uint64_t wide_auto_value = 0;
+		  unsigned wide_auto_bits = 0;
 		  bool wildcard = false;
 			    // Counter property for an ordinary fixed value bin. Dynamic
 			    // crosses use this stable identity instead of repeating the
@@ -41906,6 +41909,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				&& (cp_base == IVL_VT_BOOL || cp_base == IVL_VT_LOGIC)
 				&& !cp_value_signed && cp_value_width > 64
 				&& cp_value_width <= 256;
+		  bool cp_wide_auto_supported = cp_type && cp_type->packed()
+			&& (cp_base == IVL_VT_BOOL || cp_base == IVL_VT_LOGIC)
+			&& !cp_value_signed && cp_value_width > 64;
 			  cp_value_widths.push_back(cp_value_width);
 			  cp_value_signedness.push_back(cp_value_signed);
 			  int parent_prop = -1;
@@ -43581,12 +43587,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // Automatic bins (19.5.1): no explicit value
 			    // bins => min(auto_bin_max, 2**M) uniform bins
 			    // over the coverpoint's bit-pattern space.
-			  if (!has_value_bins && cp_value_width > 64) {
-				cerr << pclass->get_fileline()
-				     << ": error: automatic bins for a coverpoint wider "
-					"than 64 bits are not represented." << endl;
-				des->errors += 1;
-			  } else if (!has_value_bins) {
+			  if (!has_value_bins) {
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,
@@ -43735,8 +43736,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      if (src_w > 0) w = src_w;
 				}
-				if (w > 64) w = 64;
-				if (src_enum) {
+				if (cp_value_width > w) w = cp_value_width;
+				if (src_enum && cp_value_width > 64) {
+				      cerr << pclass->get_fileline()
+					   << ": error: automatic bins for a wide enum coverpoint "
+					      "are not represented." << endl;
+				      des->errors += 1;
+				} else if (src_enum) {
 				      for (size_t k = 0; k < src_enum->size(); k++) {
 					    uint64_t vv = src_enum->value_at(k).as_ulong64();
 					    std::vector<std::pair<uint64_t,uint64_t>> rr1;
@@ -43753,6 +43759,52 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    d.wildcard = false;
 					    d.source_prop = (int)source_prop;
 					    vbins.push_back(d);
+				      }
+				} else if (cp_value_width > 64 || w > 64) {
+				      uint64_t nb = cp_abm ? cp_abm : 1;
+				      static const uint64_t wide_auto_bin_limit = 65536;
+				      if (!cp_wide_auto_supported) {
+					    cerr << pclass->get_fileline()
+						 << ": error: automatic bins for this wide coverpoint "
+						    "type are not represented." << endl;
+					    des->errors += 1;
+				      } else if (nb > wide_auto_bin_limit) {
+					    nb = wide_auto_bin_limit;
+				      }
+				      // shortcut: wide auto bins use high-bit routing for power-of-two
+				      // counts; add wide range metadata for other counts.
+				      if (cp_wide_auto_supported && nb <= wide_auto_bin_limit) {
+					    if ((nb & (nb - 1)) != 0) {
+						  cerr << pclass->get_fileline()
+						       << ": error: wide automatic bins currently require "
+							  "a power-of-two auto_bin_max." << endl;
+						  des->errors += 1;
+					    } else {
+						  unsigned prefix_bits = 0;
+						  for (uint64_t count = nb; count > 1; count >>= 1)
+							prefix_bits += 1;
+						  uint64_t meta = ((uint64_t)cp_value_width << 32)
+							| prefix_bits;
+						  for (uint64_t k = 0; k < nb; k++) {
+							std::string bn = std::string("__bin_")
+							      + std::string(cp.label.str())
+							      + "_auto_" + std::to_string(k);
+							int added = add_unique_cov_counter(bn);
+							if (added < 0) continue;
+							cg_class->add_covgrp_bin(cp_idx,
+							      (unsigned)added, k, meta, 512u,
+							      0, cp_idx);
+							xbin_desc_t d;
+							d.name = lex_strings.make((std::string("auto[")
+							      + std::to_string(k) + "]").c_str());
+							d.wide_auto = true;
+							d.wide_auto_value = k;
+							d.wide_auto_bits = prefix_bits;
+							d.source_prop = added;
+							vbins.push_back(d);
+						  }
+						  has_value_bins = true;
+					    }
 				      }
 				} else {
 				uint64_t nb = cp_abm;
@@ -43917,7 +43969,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (const xbin_desc_t&desc : cp_value_bins[cpi])
 				      {
 					if (desc.dyn_family >= 0) has_dynamic_family = true;
-					if (!desc.wide_values.empty()) has_wide_bin = true;
+					if (desc.wide_auto || !desc.wide_values.empty())
+					      has_wide_bin = true;
 				      }
 			  if (has_dynamic_family && has_wide_bin) {
 				cerr << pclass->get_fileline()
@@ -44602,7 +44655,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  if (desc.wildcard || desc.dyn_family >= 0
 						      || desc.transition_prop >= 0
 						      || desc.transition_family >= 0
-						      || !desc.wide_values.empty()) {
+							  || desc.wide_auto || !desc.wide_values.empty()) {
 							cerr << cb.set_expr->get_fileline()
 							     << ": error: cross bin '" << cb.name
 							     << "' CrossQueueType selection requires fixed "
@@ -44861,6 +44914,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 									d.guard_idx);
 								      continue;
 								}
+								if (d.wide_auto) {
+							      unsigned width = cp_value_widths[cp_indexes[k]];
+							      uint64_t meta = ((uint64_t)width << 32)
+								    | d.wide_auto_bits;
+							      cg_class->add_covgrp_bin(cp_indexes[k],
+								    tgt.first, d.wide_auto_value, meta,
+								    tgt.second | 512u, tup, item_idx);
+							      cg_class->set_last_covgrp_bin_guard(
+								    d.guard_idx);
+							      continue;
+							}
 								if (!d.wide_values.empty()) {
 								      const auto&words = d.wide_values[ridx[k]];
 								      unsigned width = cp_value_widths[cp_indexes[k]];

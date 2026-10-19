@@ -1,0 +1,5 @@
+job=3107
+source_base=cae035642e056644274a01e98d4422ce286685b4
+resources=3 CPUs, 3 GiB RAM, 2 h wall limit
+resource_basis=analogous Icarus T0/T1 job 2188 used 1,758,964 KiB; 1.25x rounded up to 3 GiB
+source_archive_sha256=79be9ed4a6d3d3d6549a6623b7f4d5c06be7c9b42d136f46276179c755f3e744

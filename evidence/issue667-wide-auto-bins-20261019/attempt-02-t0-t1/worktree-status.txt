@@ -1,0 +1,12 @@
+ M elaborate.cc
+ M ivtest/regress-sv.list
+ M ivtest/regress-vvp.list
+ M vvp/class_type.h
+ M vvp/vthread.cc
+?? evidence/issue667-wide-auto-bins-20261019/
+?? ivtest/gold/sv_covergroup_wide_auto_bins-vvp-stdout.gold
+?? ivtest/gold/sv_covergroup_wide_auto_bins.gold
+?? ivtest/ivltests/sv_covergroup_wide_auto_bins.v
+?? ivtest/ivltests/sv_covergroup_wide_auto_bins_2023.v
+?? ivtest/vvp_tests/sv_covergroup_wide_auto_bins.json
+?? ivtest/vvp_tests/sv_covergroup_wide_auto_bins_2023.json

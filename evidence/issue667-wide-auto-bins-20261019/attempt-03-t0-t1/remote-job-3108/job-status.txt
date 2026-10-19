@@ -1,0 +1,28 @@
+JobId=3108 JobName=a3-667-t0t1-r2
+   UserId=dsell(1000) GroupId=dsell(1000) MCS_label=N/A
+   Priority=1 Nice=0 Account=(null) QOS=(null)
+   JobState=FAILED Reason=NonZeroExitCode Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=2:0
+   RunTime=00:02:12 TimeLimit=02:00:00 TimeMin=N/A
+   SubmitTime=2026-10-19T10:14:07 EligibleTime=2026-10-19T10:14:07
+   AccrueTime=2026-10-19T10:14:07
+   StartTime=2026-10-19T10:14:07 EndTime=2026-10-19T10:16:19 Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-10-19T10:14:07 Scheduler=Backfill
+   Partition=verilog AllocNode:Sid=localhost:2109959
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=DAN-DESKTOP
+   BatchHost=DAN-DESKTOP
+   NumNodes=1 NumCPUs=3 NumTasks=1 CPUs/Task=3 ReqB:S:C:T=0:0:*:*
+   ReqTRES=cpu=3,mem=3G,node=1,billing=3
+   AllocTRES=cpu=3,mem=3G,node=1,billing=3
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=3 MinMemoryNode=3G MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null)
+   Command=/home/dsell/slurm-runs/iverilog-uvm/A3/issue667-wide-auto-bins-20261019-t0t1-r2/run.sbatch
+   SubmitLine=sbatch --parsable run.sbatch
+   WorkDir=/home/dsell/slurm-runs/iverilog-uvm/A3/issue667-wide-auto-bins-20261019-t0t1-r2
+   StdErr=
+   StdIn=/dev/null
+   StdOut=/home/dsell/slurm-runs/iverilog-uvm/A3/issue667-wide-auto-bins-20261019-t0t1-r2/logs/a3-667-t0t1-r2-3108.out
+   TresPerTask=cpu=3
