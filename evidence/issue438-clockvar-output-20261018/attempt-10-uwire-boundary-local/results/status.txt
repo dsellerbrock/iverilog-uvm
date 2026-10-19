@@ -1,0 +1,3 @@
+legacy_exit=0
+focus_status=0
+smoke_exit=1

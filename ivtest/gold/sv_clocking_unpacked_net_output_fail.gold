@@ -1,0 +1,2 @@
+./ivltests/sv_clocking_unpacked_net_output_fail.v:4: sorry: a clocking output array of nets requires per-word net drivers.
+1 error(s) during elaboration.

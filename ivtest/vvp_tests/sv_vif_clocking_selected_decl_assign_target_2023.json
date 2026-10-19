@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_clocking_selected_decl_assign_target_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_clocking_selected_decl_assign_target" ],
+    "gold"          : "sv_vif_clocking_selected_decl_assign_target_2023"
+}

@@ -251,7 +251,6 @@ class Module : public PScopeExtra, public PNamedItem {
 class Design;
 extern NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 				    const Module::PClocking*cb,
-				    perm_string sig_name,
-				    bool input_select = false);
+				    perm_string sig_name);
 
 #endif /* IVL_Module_H */
