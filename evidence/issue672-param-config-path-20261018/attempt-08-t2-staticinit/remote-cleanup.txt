@@ -1,0 +1,6 @@
+before_bytes=1277413492
+after_bytes=0
+freed_bytes=1277413492
+238808	/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-staticinit-20261019-01/results
+0	/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-staticinit-20261019-01/logs
+2176	/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-staticinit-20261019-01/run.sbatch
