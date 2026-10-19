@@ -1,0 +1,19 @@
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-gates-ca559-20261018-r1/install/candidate/lib/ivl/ivl -V -C"/tmp/ivrlh63d2615f" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-gates-ca559-20261018-r1/install/candidate/lib/ivl/vvp.conf""
+Icarus Verilog runtime version 13.0 (devel) (ca559fd97-dirty)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+

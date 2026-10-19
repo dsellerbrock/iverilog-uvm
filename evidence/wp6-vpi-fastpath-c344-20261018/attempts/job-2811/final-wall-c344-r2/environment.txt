@@ -1,0 +1,14 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+measurement_base=c344d20197a569dea8936bad95de3d185b1e78dc
+runs_per_side=3
+pinned_wp6_base=d9caaaea5b410ed14e7ca14be828fc2f2c9fea44
+remeasurement_main=c344d20197a569dea8936bad95de3d185b1e78dc
+candidate_code_commit=3b9101a810714c0abd81c3fb66c4b4a2976cac0d
+rebase_count=1 (already performed at d9caaaea; no further rebase)
+reason_for_remeasurement=d9caa..c344 runtime-path diff touches ten vvp files
+be7989341e0d4bd5ca0643941e70ed03761d77958eec4576e580c3bb35de8a49  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/source/candidate/benchmarks/sim-hotspots/run_json_m3_final.py
+6f3ffccb5b09fa261823668dbc4de7d20125608bd60c5df8ee85b27dffee9559  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/install/reference/bin/vvp
+2545bb53f5d6ab408dfca5638c239a6fbe3b76ffecb84888f46eb7e25ab86cdb  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/install/candidate/bin/vvp
+ade9623d20b0ab951e0c735dea27a31fceb7e13ceef2fc85c4b7fb7dbb55c330  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/install/reference/bin/iverilog
+b74067bf4f0f524f81a465b14540815b8e0d99111d2ece93cf3275e622bb6b38  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-fastpath-c344-20261018-r3/install/candidate/bin/iverilog

@@ -1,0 +1,12 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+measurement_base=ca559fd97b19bd6a56cc10f0faf8583b4077975f
+runs=3
+ M vvp/vpi_priv.cc
+?? benchmarks/sim-hotspots/run_json_m3_final.py
+01ab4aec7220761157afa00b19074da9ce6f3f261279fcb39d319865a09056a4  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/vvp
+4461d3361dc1cf46e355a66ea740ce2c10f4389e300e2cbd759baf258d15c189  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-gates-ca559-20261018-r1/install/candidate/bin/vvp
+c99ee9c08468fb20f7635fb3380adb0d620c9037c19c02236a435a61c7be0130  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/iverilog
+0570c587b0b71dc8cef00bc9635a411f927e890349187898c3571bc717cd05a6  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/bin/iverilog-vpi
+e5b4976428847a761f264197c8581123c04323e2b2b37c184b196e165da40de4  /home/dsell/toolchains/iverilog-uvm-ca559fd97b19bd6a56cc10f0faf8583b4077975f-m3-profile/lib/ivl/uvm_dpi.vpi
+be7989341e0d4bd5ca0643941e70ed03761d77958eec4576e580c3bb35de8a49  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp6-vpi-intval-wall-ca559-20261018-r1/input/run_json_callgrind.py

@@ -1,0 +1,192 @@
+{
+  "benchmarks": {
+    "behav": {
+      "artifacts": {
+        "stdout.bin": "73d77c98af567f90cdaaf13ca68cf814cd25a59ec58fb9133be097f3f123ac34"
+      },
+      "output_sha256": "fd198772f506379e2a51b9975512996bf3caaa7c3011c116b9bc5d3872e1c706",
+      "profile_gzip": "behav.data.gz",
+      "report": "behav.txt",
+      "return_code": 0,
+      "wall_seconds": 9.31
+    },
+    "classq": {
+      "artifacts": {
+        "stdout.bin": "6669912393bd56a78e76fb53a98b00761f7b917f66c1536ad5a563a3e0cf9473"
+      },
+      "output_sha256": "6ce1cb065ae4c9071a1fce83c8fe6977492c42940105300715b44eb235aef32b",
+      "profile_gzip": "classq.data.gz",
+      "report": "classq.txt",
+      "return_code": 0,
+      "wall_seconds": 14.43
+    },
+    "fork_heavy": {
+      "artifacts": {
+        "stdout.bin": "3700e8d21429ccba37eedb0d1300d555764b36a93733249a45e7aa103034fa28"
+      },
+      "output_sha256": "1a1cfae9304372587b497d9d2a7253ff4d4d1b6e05c162921b18d4bf68dbe962",
+      "profile_gzip": "fork_heavy.data.gz",
+      "report": "fork_heavy.txt",
+      "return_code": 0,
+      "wall_seconds": 6.117
+    },
+    "gate_strength": {
+      "artifacts": {
+        "stdout.bin": "70f262dfaf0f40ea0f98e94d70dc4384ddbdab795b37081265ae9d168d775e69"
+      },
+      "output_sha256": "9e984c90cbc79c81890383117d0872e7a56538d68fd76cdd896e171d5ef8f117",
+      "profile_gzip": "gate_strength.data.gz",
+      "report": "gate_strength.txt",
+      "return_code": 0,
+      "wall_seconds": 5.798
+    },
+    "io_text": {
+      "artifacts": {
+        "stdout.bin": "668af53f0c7519f9393fbdf932fc8a5832f658a4e08d0ff90e889bd4e12ca5a3",
+        "trace.txt": "82817ce6166fff31968778d88ef904c7e4beb63ef2b8b7a95e974f4d455e74fb"
+      },
+      "output_sha256": "56e45a27dcb2c08ed15e9442cf732f444ae06d744c819eedee4e77161e5394b3",
+      "profile_gzip": "io_text.data.gz",
+      "report": "io_text.txt",
+      "return_code": 0,
+      "wall_seconds": 4.713
+    },
+    "large_memory": {
+      "artifacts": {
+        "stdout.bin": "7438a4a4dd28c23f4be89007b5423cf61236bd46d18fb4de2a055a80c7289990"
+      },
+      "output_sha256": "d1d10110e365b84e36fc9ec2e32d9e32ab331ba5fe31ebc8293bdd03f8916d6f",
+      "profile_gzip": "large_memory.data.gz",
+      "report": "large_memory.txt",
+      "return_code": 0,
+      "wall_seconds": 5.655
+    },
+    "multi_clock": {
+      "artifacts": {
+        "stdout.bin": "6009266cc6a8c4602f5b4a6b9f653d68a3c81a0bb18667afaf2f46fdeca9d5a1"
+      },
+      "output_sha256": "8335875d6f854eec5edf8f20d2213a37363297b8b5e3e3da89425db59b00fc9d",
+      "profile_gzip": "multi_clock.data.gz",
+      "report": "multi_clock.txt",
+      "return_code": 0,
+      "wall_seconds": 5.898
+    },
+    "randomize_dv_txn": {
+      "artifacts": {
+        "stdout.bin": "1bba20d97e754de12bdd188db57d46e364c5512c6864c306b5432582ca34a001"
+      },
+      "output_sha256": "41f8cdf7d94782246d270f8f9d48a3cc8826e986d7b64e6ffb737b98a7c9eb87",
+      "profile_gzip": "randomize_dv_txn.data.gz",
+      "report": "randomize_dv_txn.txt",
+      "return_code": 0,
+      "wall_seconds": 6.264
+    },
+    "randomize_z3": {
+      "artifacts": {
+        "stdout.bin": "7045c460733e061913c067ed99bc0d398472cc9380740a3962d1fa09a7333161"
+      },
+      "output_sha256": "292d59f732c7820c609d02fc082af0b88738707cca59b90066302bbc904a8372",
+      "profile_gzip": "randomize_z3.data.gz",
+      "report": "randomize_z3.txt",
+      "return_code": 0,
+      "wall_seconds": 5.665
+    },
+    "rtl_alu": {
+      "artifacts": {
+        "stdout.bin": "c6a1ad0a8f1a76766f990ffd9bbcacefb3801da30f3ec103d3164753ae7fb6ed"
+      },
+      "output_sha256": "7a8aaaa835a2332c085fd799a1d42ea5df090ee5898845e308a5a6138667e05e",
+      "profile_gzip": "rtl_alu.data.gz",
+      "report": "rtl_alu.txt",
+      "return_code": 0,
+      "wall_seconds": 5.802
+    },
+    "rtl_pipe": {
+      "artifacts": {
+        "stdout.bin": "1245e369537e5d27bf797c41dcc6b137730c67207a309bc2c3932013fba50837"
+      },
+      "output_sha256": "f158ad8df1c475fae11c2afa41260416044ceb3732f9e3208c2c85815e6417be",
+      "profile_gzip": "rtl_pipe.data.gz",
+      "report": "rtl_pipe.txt",
+      "return_code": 0,
+      "wall_seconds": 10.293
+    },
+    "strings_aa_queue": {
+      "artifacts": {
+        "stdout.bin": "8d187191d1c8e7ec2d4451cb688ca4daf1f30e79114df0bd18846764e0ef312c"
+      },
+      "output_sha256": "9c78ea319a6feb95513911733a515f2e166cdbb0f1b96d8c9fffcf1229e9612b",
+      "profile_gzip": "strings_aa_queue.data.gz",
+      "report": "strings_aa_queue.txt",
+      "return_code": 0,
+      "wall_seconds": 6.612
+    },
+    "uvm_config_factory": {
+      "artifacts": {
+        "stdout.bin": "ee81e53298e24bcf45dd867b0f713795d5f2e51bedc20d20d9220ce3593b83a4"
+      },
+      "output_sha256": "3096c23c5d4de6089aa40485c85c791fcf631984ae42a0d02974284981d21b3f",
+      "profile_gzip": "uvm_config_factory.data.gz",
+      "report": "uvm_config_factory.txt",
+      "return_code": 0,
+      "wall_seconds": 6.81
+    },
+    "uvm_traffic": {
+      "artifacts": {
+        "stdout.bin": "de8b098f86394d198929097380a57b6d8448e351d2e410d9f8fbc346677532a5"
+      },
+      "output_sha256": "7626ea485ec76b2ca27da0cb35ef4b513ae369d9b64962282ab34e1e97fae15e",
+      "profile_gzip": "uvm_traffic.data.gz",
+      "report": "uvm_traffic.txt",
+      "return_code": 0,
+      "wall_seconds": 10.215
+    },
+    "vpi_callbacks": {
+      "artifacts": {
+        "stdout.bin": "604066f7aeb0b06e7008d9efe3815875457ac47d2cf739736632f0a1b28379f5"
+      },
+      "output_sha256": "f67c65f1e33f3ee447e1e50165e3d60e6d39beb958c12a69b0208acb8d03182f",
+      "profile_gzip": "vpi_callbacks.data.gz",
+      "report": "vpi_callbacks.txt",
+      "return_code": 0,
+      "wall_seconds": 7.915
+    },
+    "waveform_fst": {
+      "artifacts": {
+        "stdout.bin": "311fe80d910a1e1da17eb87501ab1a6bf60e6cb90ddf812cecf1d22b6f07cea8",
+        "waveform.fst": "9f2dbd85f0e9da58c92b3c99bb7610dcc1ce51232733199a953dc821955708cd"
+      },
+      "output_sha256": "f46146072a38dc98d84509c03a024b1706a8a06f5406eedbd3615c3f9b84f669",
+      "profile_gzip": "waveform_fst.data.gz",
+      "report": "waveform_fst.txt",
+      "return_code": 0,
+      "wall_seconds": 4.951
+    },
+    "waveform_vcd": {
+      "artifacts": {
+        "stdout.bin": "426aa93543963a4b2643dd7531cf30b52e1a4d247667e7bb56261c88047f533d",
+        "waveform.vcd": "6649fae2b77b5033976b20a6af59882ab3fe2abc41998d0bbce29316e2d0a879"
+      },
+      "output_sha256": "ae2a9686ddf6c54337e51032bcd566e6988e6083f130ab75b33546f81e87cd52",
+      "profile_gzip": "waveform_vcd.data.gz",
+      "report": "waveform_vcd.txt",
+      "return_code": 0,
+      "wall_seconds": 5.193
+    },
+    "wide_vectors": {
+      "artifacts": {
+        "stdout.bin": "6b58576b2385257e74e3b53dcd030769341b811599f5116636f4093609fadc13"
+      },
+      "output_sha256": "21faa6faafc8caa897f198b355109661774c0994654c7816f8371297d1df7f36",
+      "profile_gzip": "wide_vectors.data.gz",
+      "report": "wide_vectors.txt",
+      "return_code": 0,
+      "wall_seconds": 4.795
+    }
+  },
+  "cpu_affinity": [
+    15
+  ],
+  "perf_version": "perf version 7.0.14",
+  "source": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/source"
+}

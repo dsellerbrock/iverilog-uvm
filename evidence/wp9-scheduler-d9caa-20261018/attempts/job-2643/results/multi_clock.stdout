@@ -1,0 +1,2 @@
+ticks=160000,160000,80000,40000
+/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-d9caa-20261018/source/benchmarks/sim-hotspots/multi_clock.sv:15: $finish called at 320000000 (1ps)

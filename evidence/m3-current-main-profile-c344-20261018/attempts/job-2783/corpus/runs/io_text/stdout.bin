@@ -1,0 +1,2 @@
+[ perf record: Woken up 12 times to write data ]
+[ perf record: Captured and wrote 2.917 MB /home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-c344-20261018/corpus/profiles/io_text.data (272 samples) ]
