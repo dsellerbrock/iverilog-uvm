@@ -1,0 +1,155 @@
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking how to run the C preprocessor... gcc -E
+checking for x86_64-pc-linux-gnu-gcc... no
+checking for gcc... gcc
+checking whether the compiler supports GNU C... (cached) yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... (cached) none needed
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking how to run the C preprocessor... gcc -E
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking for ranlib... ranlib
+checking for ld... ld
+checking for ar... ar
+checking for strip... strip
+checking for windres... no
+checking for gperf... gperf
+checking for man... man
+checking for ps2pdf... no
+checking for groff... groff
+checking for git... git
+checking for flex... flex
+checking for bison... bison
+checking for Microsoft Windows... no
+checking for gcc options needed to detect all undeclared functions... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking whether __SUNPRO_C is declared... no
+checking if gcc supports -Wextra... yes
+checking for g++ options needed to detect all undeclared functions... none needed
+checking whether __SUNPRO_CC is declared... no
+checking for getopt.h... yes
+checking for inttypes.h... (cached) yes
+checking for libiberty.h... no
+checking for iosfwd... yes
+checking for sys/wait.h... yes
+checking for execinfo.h... yes
+checking size of unsigned long long... 8
+checking size of unsigned long... 8
+checking size of unsigned... 4
+checking size of void *... 8
+checking for tputs in -ltermcap... yes
+checking for readline in -lreadline... yes
+checking for add_history in -lreadline... yes
+checking for readline/readline.h... yes
+checking for readline/history.h... yes
+checking for sys/resource.h... yes
+checking for pthread_create in -lpthread... yes
+checking for gzwrite in -lz... yes
+checking for gzwrite in -lz... (cached) yes
+checking for BZ2_bzdopen in -lbz2... yes
+checking for BZ2_bzdopen in -lbz2... (cached) yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for declarations of fseeko and ftello... yes
+configure: Not using valgrind hooks
+checking for sys/times... yes
+checking for dlfcn.h... yes
+checking for dlopen in -ldl... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether byte ordering is bigendian... no
+checking for extra libs needed... 
+checking for flag to make position independent code... -fPIC
+checking for realpath... yes
+checking for fopen64... yes
+checking for library containing lround... -lm
+checking for library containing llround... none required
+checking for library containing nan... none required
+checking for library containing fmin... none required
+checking for library containing fmax... none required
+checking if uint64_t and unsigned long are identical... yes
+checking for -rdynamic compiler flag... -rdynamic
+checking for shared library link flag... -shared
+checking for leading underscores... no
+checking for trailing underscores... no
+checking for sanity of prefix... ok
+checking for sanity of exec_prefix... ok
+checking for sanity of libdir... ok
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating ivlpp/Makefile
+config.status: creating vhdlpp/Makefile
+config.status: creating vvp/Makefile
+config.status: creating vpi/Makefile
+config.status: creating driver/Makefile
+config.status: creating driver-vpi/Makefile
+config.status: creating cadpli/Makefile
+config.status: creating libveriuser/Makefile
+config.status: creating tgt-null/Makefile
+config.status: creating tgt-stub/Makefile
+config.status: creating tgt-vvp/Makefile
+config.status: creating tgt-vhdl/Makefile
+config.status: creating tgt-fpga/Makefile
+config.status: creating tgt-verilog/Makefile
+config.status: creating tgt-pal/Makefile
+config.status: creating tgt-vlog95/Makefile
+config.status: creating tgt-pcb/Makefile
+config.status: creating tgt-blif/Makefile
+config.status: creating tgt-sizer/Makefile
+config.status: creating config.h
+config.status: creating _pli_types.h
+config.status: creating vhdlpp/vhdlpp_config.h
+config.status: creating vvp/config.h
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+	Command being timed: "python3 /home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/scripts/run_with_timeout.py 300 -- ./configure --enable-libveriuser --prefix=/home/dsell/slurm-runs/iverilog-uvm/A3/issue672-config-path-20261018-02/source/local-install"
+	User time (seconds): 1.52
+	System time (seconds): 0.53
+	Percent of CPU this job got: 101%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.03
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 38184
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 564463
+	Voluntary context switches: 3774
+	Involuntary context switches: 520
+	Swaps: 0
+	File system inputs: 424
+	File system outputs: 3440
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
