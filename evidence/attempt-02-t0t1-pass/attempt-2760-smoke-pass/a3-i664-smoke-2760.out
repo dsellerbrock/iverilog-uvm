@@ -1,0 +1,58 @@
+CANDIDATE_SOURCE_HEAD=c344d20197a569dea8936bad95de3d185b1e78dc
+IVERILOG=/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/src/local-install/bin/iverilog
+VVP=/home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/src/local-install/bin/vvp
+8dad4f65dcac521d59db6199b7438a0f7f0a8df676fb83d7ed6b66780151454e  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/src/local-install/bin/iverilog
+cfd826b8500b130cd823fb45b05fe2b11fce1043f140daadb2fd701f0aa1f329  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/src/local-install/bin/vvp
+cfd826b8500b130cd823fb45b05fe2b11fce1043f140daadb2fd701f0aa1f329  /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/src/vvp/vvp
+=== T0 issue reproducer: legacy ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2017: Passed.
+sv_class_method_noarg_string_concat_2023: Passed.
+============================================================================
+Test results:
+  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0
+=== T0 issue reproducer: JSON ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue664-noarg-concat-smoke-20261018-04/focus/t0-json.list
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2017: Passed.
+sv_class_method_noarg_string_concat_2023: Passed.
+============================================================================
+Test results: Ran 2, Failed 0.
+=== T0 smoke ===
+PASS instance-constant guard malformed-stack invariant (1/1)
+=== run_property_index_metadata_malformed.sh ===
+PASS malformed property-index descriptor (16/16 X results)
+=== run_queue_slice_legacy.sh ===
+PASS legacy queue-slice bytecode compatibility (3/3)
+=== run_rand_mode_stack_underflow.sh ===
+PASS rand_mode malformed-stack invariants (13/13)
+=== run_scope_solver_unknown.py ===
+PASS 2017 scope_solver_sat_unsat normal
+PASS 2017 scope_solver_unknown normal
+PASS 2017 scope_solver_unknown injected
+PASS 2023 scope_solver_sat_unsat normal
+PASS 2023 scope_solver_unknown normal
+PASS 2023 scope_solver_unknown injected
+=== run_state_foreach_invariants.py ===
+PASS state foreach runtime invariants (15/15)
+=== run_static_property_binding.sh ===
+PASS missing-label rc=134
+PASS wrong-kind rc=134
+PASS wrong-width rc=134
+PASS static property binding invariants (3/3)
+=== run_stream_target_split_malformed.sh ===
+PASS stream target split malformed/exact-width invariants (4/4)
+=== run_string_repeat_ir_compat.sh ===
+PASS string-repeat VVP compatibility and typed opcodes (6/6)
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+PASS ufunc resolver malformed metadata invariants (2/2)
+=== run_vif_indexed_wait_malformed.sh ===
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
