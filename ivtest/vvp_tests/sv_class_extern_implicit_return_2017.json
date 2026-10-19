@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_extern_implicit_return.v",
+    "iverilog-args" : [ "-g2017", "-s", "test" ],
+    "gold"           : "sv_class_extern_implicit_return"
+}
