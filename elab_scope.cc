@@ -4057,6 +4057,11 @@ static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
       if (!class_scope)
 	    return;
 
+      for (perm_string name : pclass->parameter_order) {
+	    if (class_type_parameter_is_deferred(des, class_scope, name))
+		  return;
+      }
+
       cls->set_body_elaborating(true);
 
 	// Seed the always-needed housekeeping methods (new/get_type/...)

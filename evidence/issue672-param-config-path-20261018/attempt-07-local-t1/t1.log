@@ -1,0 +1,175 @@
+=== focused legacy ivtest: regress-vif-parameter-specialization-focus-legacy.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                   sv_vif_parameter_specialization_members: Passed.
+              sv_vif_parameter_specialization_members_2023: Passed.
+               sv_vif_parameter_specialization_class_cache: Passed.
+          sv_vif_parameter_specialization_class_cache_2023: Passed.
+          sv_vif_parameter_specialization_cache_provenance: Passed.
+     sv_vif_parameter_specialization_cache_provenance_2023: Passed.
+                   sv_vif_parameter_specialization_methods: Passed.
+              sv_vif_parameter_specialization_methods_2023: Passed.
+                      sv_vif_parameter_specialization_pins: Passed.
+                 sv_vif_parameter_specialization_pins_2023: Passed.
+                             sv_vif_modport_prototype_fail: Passed - CE.
+                        sv_vif_modport_prototype_fail_2023: Passed - CE.
+           sv_vif_parameter_specialization_assignment_fail: Passed - CE.
+      sv_vif_parameter_specialization_assignment_fail_2023: Passed - CE.
+           sv_vif_parameter_specialization_comparison_fail: Passed - CE.
+      sv_vif_parameter_specialization_comparison_fail_2023: Passed - CE.
+             sv_vif_parameter_specialization_defparam_fail: Passed - CE.
+        sv_vif_parameter_specialization_defparam_fail_2023: Passed - CE.
+                 sv_vif_parameter_specialization_null_fail: Passed - RE.
+            sv_vif_parameter_specialization_null_fail_2023: Passed - RE.
+      sv_interface_port_selected_actual_unqualified_formal: Passed.
+ sv_interface_port_selected_actual_unqualified_formal_2023: Passed.
+                          sv_vif_modport_identifier_import: Passed.
+                     sv_vif_modport_identifier_import_2023: Passed.
+                     sv_modport_tf_prototype_recovery_fail: Passed - CE.
+                sv_modport_tf_prototype_recovery_fail_2023: Passed - CE.
+                            sv_modport_export_missing_fail: Passed - CE.
+                       sv_modport_export_missing_fail_2023: Passed - CE.
+           sv_vif_parameter_specialization_allocator_reuse: Passed.
+      sv_vif_parameter_specialization_allocator_reuse_2023: Passed.
+        sv_vif_parameter_specialization_queue_bound_layout: Passed.
+   sv_vif_parameter_specialization_queue_bound_layout_2023: Passed.
+                            sv_typed_mailbox_type_identity: Passed.
+                       sv_typed_mailbox_type_identity_2023: Passed.
+                     sv_typed_mailbox_expression_type_fail: Passed - CE.
+                sv_typed_mailbox_expression_type_fail_2023: Passed - CE.
+                           sv_typed_mailbox_statement_type: Passed.
+                      sv_typed_mailbox_statement_type_2023: Passed.
+                      sv_typed_mailbox_statement_type_fail: Passed - CE.
+                 sv_typed_mailbox_statement_type_fail_2023: Passed - CE.
+              sv_modport_tf_prototype_syntax_recovery_fail: Passed - CE.
+         sv_modport_tf_prototype_syntax_recovery_fail_2023: Passed - CE.
+             sv_interface_port_selected_actual_access_fail: Passed - CE.
+        sv_interface_port_selected_actual_access_fail_2023: Passed - CE.
+                         sv_vif_modport_hidden_method_fail: Passed - CE.
+                    sv_vif_modport_hidden_method_fail_2023: Passed - CE.
+             sv_vif_modport_prototype_earlier_default_fail: Passed - CE.
+        sv_vif_modport_prototype_earlier_default_fail_2023: Passed - CE.
+               sv_vif_modport_prototype_type_mismatch_fail: Passed - CE.
+          sv_vif_modport_prototype_type_mismatch_fail_2023: Passed - CE.
+     sv_interface_port_selected_actual_export_missing_fail: Passed - CE.
+sv_interface_port_selected_actual_export_missing_fail_2023: Passed - CE.
+                  sv_modport_function_implicit_return_fail: Passed - CE.
+             sv_modport_function_implicit_return_fail_2023: Passed - CE.
+                              sv_modport_tf_duplicate_fail: Passed - CE.
+                         sv_modport_tf_duplicate_fail_2023: Passed - CE.
+                sv_modport_tf_prototype_file_recovery_fail: Passed - CE.
+           sv_modport_tf_prototype_file_recovery_fail_2023: Passed - CE.
+                      sv_vif_local_nominal_function_result: Passed.
+                 sv_vif_local_nominal_function_result_2023: Passed.
+                 sv_vif_local_nominal_function_result_fail: Passed - CE.
+            sv_vif_local_nominal_function_result_fail_2023: Passed - CE.
+                               sv_vif_task_scalar_copyback: Passed.
+                          sv_vif_task_scalar_copyback_2023: Passed.
+                          sv_vif_task_scalar_copyback_fail: Passed - CE.
+                     sv_vif_task_scalar_copyback_fail_2023: Passed - CE.
+                         sv_fixed_container_array_elements: Passed.
+                    sv_fixed_container_array_elements_2023: Passed.
+                          sv_param_config_nested_path_2017: Passed.
+                          sv_param_config_nested_path_2023: Passed.
+                        sv_param_config_seed_deferral_2017: Passed.
+                        sv_param_config_seed_deferral_2023: Passed.
+============================================================================
+Test results:
+  Total=72, Passed=72, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== focused JSON/VVP ivtest: regress-vif-parameter-specialization-focus-vvp.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-vif-parameter-specialization-focus-vvp.list
+----------------------------------------------------------------------------
+                         sv_fixed_container_array_elements: Passed.
+                    sv_fixed_container_array_elements_2023: Passed.
+             sv_interface_port_selected_actual_access_fail: Passed - CE.
+        sv_interface_port_selected_actual_access_fail_2023: Passed - CE.
+     sv_interface_port_selected_actual_export_missing_fail: Passed - CE.
+sv_interface_port_selected_actual_export_missing_fail_2023: Passed - CE.
+      sv_interface_port_selected_actual_unqualified_formal: Passed.
+ sv_interface_port_selected_actual_unqualified_formal_2023: Passed.
+                            sv_modport_export_missing_fail: Passed - CE.
+                       sv_modport_export_missing_fail_2023: Passed - CE.
+                  sv_modport_function_implicit_return_fail: Passed - CE.
+             sv_modport_function_implicit_return_fail_2023: Passed - CE.
+                              sv_modport_tf_duplicate_fail: Passed - CE.
+                         sv_modport_tf_duplicate_fail_2023: Passed - CE.
+                sv_modport_tf_prototype_file_recovery_fail: Passed - CE.
+           sv_modport_tf_prototype_file_recovery_fail_2023: Passed - CE.
+                     sv_modport_tf_prototype_recovery_fail: Passed - CE.
+                sv_modport_tf_prototype_recovery_fail_2023: Passed - CE.
+              sv_modport_tf_prototype_syntax_recovery_fail: Passed - CE.
+         sv_modport_tf_prototype_syntax_recovery_fail_2023: Passed - CE.
+                          sv_param_config_nested_path_2017: Passed.
+                          sv_param_config_nested_path_2023: Passed.
+                        sv_param_config_seed_deferral_2017: Passed.
+                        sv_param_config_seed_deferral_2023: Passed.
+                     sv_typed_mailbox_expression_type_fail: Passed - CE.
+                sv_typed_mailbox_expression_type_fail_2023: Passed - CE.
+                           sv_typed_mailbox_statement_type: Passed.
+                      sv_typed_mailbox_statement_type_2023: Passed.
+                      sv_typed_mailbox_statement_type_fail: Passed - CE.
+                 sv_typed_mailbox_statement_type_fail_2023: Passed - CE.
+                            sv_typed_mailbox_type_identity: Passed.
+                       sv_typed_mailbox_type_identity_2023: Passed.
+                      sv_vif_local_nominal_function_result: Passed.
+                 sv_vif_local_nominal_function_result_2023: Passed.
+                 sv_vif_local_nominal_function_result_fail: Passed - CE.
+            sv_vif_local_nominal_function_result_fail_2023: Passed - CE.
+                         sv_vif_modport_hidden_method_fail: Passed - CE.
+                    sv_vif_modport_hidden_method_fail_2023: Passed - CE.
+                          sv_vif_modport_identifier_import: Passed.
+                     sv_vif_modport_identifier_import_2023: Passed.
+             sv_vif_modport_prototype_earlier_default_fail: Passed - CE.
+        sv_vif_modport_prototype_earlier_default_fail_2023: Passed - CE.
+                             sv_vif_modport_prototype_fail: Passed - CE.
+                        sv_vif_modport_prototype_fail_2023: Passed - CE.
+               sv_vif_modport_prototype_type_mismatch_fail: Passed - CE.
+          sv_vif_modport_prototype_type_mismatch_fail_2023: Passed - CE.
+           sv_vif_parameter_specialization_allocator_reuse: Passed.
+      sv_vif_parameter_specialization_allocator_reuse_2023: Passed.
+           sv_vif_parameter_specialization_assignment_fail: Passed - CE.
+      sv_vif_parameter_specialization_assignment_fail_2023: Passed - CE.
+          sv_vif_parameter_specialization_cache_provenance: Passed.
+     sv_vif_parameter_specialization_cache_provenance_2023: Passed.
+               sv_vif_parameter_specialization_class_cache: Passed.
+          sv_vif_parameter_specialization_class_cache_2023: Passed.
+           sv_vif_parameter_specialization_comparison_fail: Passed - CE.
+      sv_vif_parameter_specialization_comparison_fail_2023: Passed - CE.
+             sv_vif_parameter_specialization_defparam_fail: Passed - CE.
+        sv_vif_parameter_specialization_defparam_fail_2023: Passed - CE.
+                   sv_vif_parameter_specialization_members: Passed.
+              sv_vif_parameter_specialization_members_2023: Passed.
+                   sv_vif_parameter_specialization_methods: Passed.
+              sv_vif_parameter_specialization_methods_2023: Passed.
+                 sv_vif_parameter_specialization_null_fail: Passed.
+            sv_vif_parameter_specialization_null_fail_2023: Passed.
+                      sv_vif_parameter_specialization_pins: Passed.
+                 sv_vif_parameter_specialization_pins_2023: Passed.
+        sv_vif_parameter_specialization_queue_bound_layout: Passed.
+   sv_vif_parameter_specialization_queue_bound_layout_2023: Passed.
+                               sv_vif_task_scalar_copyback: Passed.
+                          sv_vif_task_scalar_copyback_2023: Passed.
+                          sv_vif_task_scalar_copyback_fail: Passed - CE.
+                     sv_vif_task_scalar_copyback_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 72, Failed 0.
+       18.23 real         6.45 user         4.25 sys
+            22790144  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              664717  page reclaims
+                8249  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   2  signals received
+                1183  voluntary context switches
+               19953  involuntary context switches
+            66521270  instructions retired
+            27387456  cycles elapsed
+             2343392  peak memory footprint
