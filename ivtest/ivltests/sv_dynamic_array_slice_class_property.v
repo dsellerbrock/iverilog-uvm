@@ -8,8 +8,8 @@ class configuration;
   activity_t interface_activity[];
 
   function void copy_from(input string names[], input activity_t activity[]);
-    interface_names = new[1];
-    interface_activity = new[1];
+    interface_names = new[2];
+    interface_activity = new[2];
     interface_names = names[0:0];
     interface_activity = activity[0:0];
   endfunction
@@ -30,6 +30,8 @@ module test;
 
     cfg = new;
     cfg.copy_from(names, activity);
+    names[0] = "changed";
+    activity[0] = IDLE;
     if (cfg.interface_names.size() != 1
         || cfg.interface_names[0] != "ahb_slave"
         || cfg.interface_activity.size() != 1

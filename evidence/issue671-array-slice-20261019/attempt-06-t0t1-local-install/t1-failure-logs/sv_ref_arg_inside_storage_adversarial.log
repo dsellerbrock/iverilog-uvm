@@ -1,0 +1,2 @@
+./ivltests/sv_ref_arg_inside_storage_adversarial.v:23: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_inside_storage_adversarial.v:27: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).

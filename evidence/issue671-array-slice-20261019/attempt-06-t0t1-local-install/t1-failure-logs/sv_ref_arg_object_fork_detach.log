@@ -1,0 +1,6 @@
+./ivltests/sv_ref_arg_object_fork_detach.v:92: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_object_fork_detach.v:102: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_object_fork_detach.v:108: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_object_fork_detach.v:166: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_object_fork_detach.v:193: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_ref_arg_object_fork_detach.v:215: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
