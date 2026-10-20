@@ -115,10 +115,11 @@ static bool z3_solve_trace(const class_type*defn)
 #ifdef VVP_PERF_STATS
 static bool z3_t4_ir_(const string&ir)
 {
+      // `order` is the IR form of solve-before; dist needs full semantics until T1/T2 land.
       static const char*features[] = {
-            "soft", "solvebefore", "solve-before", "solve_before",
-            "unique", "distinct",
-            "dynforeach", "qforeach", "assocforeach"
+            "(soft ", "(disable-soft ", "(order ", "(dist ",
+            "(unique ", "(distinct ", "(dynforeach ", "(qforeach ",
+            "(assocforeach "
       };
       for (size_t idx = 0; idx < sizeof(features) / sizeof(features[0]); ++idx)
             if (ir.find(features[idx]) != string::npos) return true;

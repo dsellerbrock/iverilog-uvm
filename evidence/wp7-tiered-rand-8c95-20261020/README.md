@@ -2,7 +2,9 @@
 
 Pinned measurement base: `8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1`.
 Measured candidate patch SHA-256: `4655a50f6b1700060dd87b92db87966ecb2112366a7d47323f9070b3d1447754`.
-The final `SOLVER.md` was filled in after timing; no runtime code changed.
+The final `SOLVER.md` was filled in after timing. A later correction to the
+opt-in tier classifier changes only `VVP_PERF_STATS` builds; it does not change
+the stats-off runtime measured below.
 
 The current prototype adds only T0 for a class whose declared constraints are
 all disabled. The five-tier counters are opt-in instrumentation. It does not
@@ -20,14 +22,20 @@ output SHA-256 was
 The isolated T4 soft-only run also matched byte-for-byte; its output SHA-256
 was `360f2bc1511a8440d1c28d1eb53ce364b0f12c06516ef07a5bc865fe611edd13`.
 
-Opt-in tier-counter runs on the same local host reported; T3 denotes ordinary
-hard constraints eligible for the proposed incremental path, but still using
-a fresh Z3 context per call. Classification is not cached yet.
+The corrected opt-in histogram from Slurm job 3394 reports the counts below;
+the raw JSON is in
+[`the recheck evidence`](attempts/tier-classifier-fix-recheck-20261020/results/histogram.json).
+T3 denotes ordinary hard constraints eligible for the proposed incremental
+path, but still using a fresh Z3 context per call. The transaction's `dist`
+clause falls back to T4 until an exact native sampler exists. A solve-before
+fixture was also asserted as T4. Classification is not cached yet; the earlier
+histogram that labeled `randomize_dv_txn` as T3 is retained in its original
+attempt directory and superseded by the corrected result.
 
 | Workload | Calls T0/T1/T2/T3/T4 | Z3 contexts |
 | --- | ---: | ---: |
 | `randomize_z3` (400 draws per class) | 0/0/0/800/0 | 800 |
-| `randomize_dv_txn` (400 draws) | 0/0/0/400/0 | 400 |
+| `randomize_dv_txn` (400 draws) | 0/0/0/0/400 | 400 |
 | UVM `uvm_traffic` (5,000 items) | 5,000/0/0/0/0 | 0 |
 | Disabled-constraint fixture (400 calls) | 400/0/0/0/0 | 0 |
 | Soft-only fixture (400 calls) | 0/0/0/0/400 | 400 |

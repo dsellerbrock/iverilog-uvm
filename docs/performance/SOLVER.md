@@ -62,7 +62,7 @@ path.
 | Workload | T0 / T1 / T2 / T3-eligible / T4 calls | Z3 contexts |
 | --- | ---: | ---: |
 | `randomize_z3` (400 draws per class) | 0 / 0 / 0 / 800 / 0 | 800 |
-| `randomize_dv_txn` (400 draws) | 0 / 0 / 0 / 400 / 0 | 400 |
+| `randomize_dv_txn` (400 draws) | 0 / 0 / 0 / 0 / 400 | 400 |
 | UVM `uvm_traffic` sequence (5,000 items) | 5,000 / 0 / 0 / 0 / 0 | 0 |
 | Caliptra `smoke_test_dma_aes_gcm_short_1_dword` | 0 / 0 / 0 / 0 / 0 | 0 |
 | Caliptra `smoke_test_sha256` | 0 / 0 / 0 / 0 / 0 | 0 |
@@ -72,8 +72,13 @@ path.
 
 The UVM sequence's 5,000 T0 calls were already handled by main's no-declared-
 constraint return. None of the three Caliptra windows called `randomize()`.
-The constrained corpus stayed on the ordinary Z3 path; its simple-looking
-constraints have not been proved safe for a native tier.
+`randomize_z3` stayed on the ordinary hard-constraint Z3 path. The transaction
+workload uses a constant `dist`; until an exact native sampler exists, it
+falls back to the full Z3 path to preserve the weighted distribution. The
+corrected opt-in histogram from Slurm job 3394 is preserved at
+[`histogram.json`](../../evidence/wp7-tiered-rand-8c95-20261020/attempts/tier-classifier-fix-recheck-20261020/results/histogram.json); it
+supersedes the earlier T3 label for `randomize_dv_txn` without changing the
+stats-off measurements.
 
 ### Callgrind speedup and seeded-value identity
 
@@ -90,7 +95,7 @@ was `classq` at 0.001328%, below the 2% regression ceiling.
 | T1 | not implemented | not measured | n/a | unchanged; no T1 path |
 | T2 | not implemented | not measured | n/a | unchanged; no T2 path |
 | Fresh Z3, T3-eligible: `randomize_z3` (800 calls) | 13,024,383,760 | 13,024,382,258 | 1.0000001x | byte-identical |
-| Fresh Z3, T3-eligible: `randomize_dv_txn` (400 calls) | 42,298,006,676 | 42,298,005,881 | 1.00000002x | byte-identical |
+| Fresh Z3, T4 distribution fallback: `randomize_dv_txn` (400 calls) | 42,298,006,676 | 42,298,005,881 | 1.00000002x | byte-identical |
 | T0 existing return, `uvm_traffic` (5,000 calls) | 40,374,257,609 | 40,374,320,247 | 0.9999984x | byte-identical; path already existed on main |
 | T4, soft-only (400 calls) | 3,208,441,785 | 3,208,441,124 | 1.0000002x | byte-identical |
 

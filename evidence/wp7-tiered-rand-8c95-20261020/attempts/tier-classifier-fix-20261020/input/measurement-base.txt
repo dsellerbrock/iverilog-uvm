@@ -1,0 +1,4 @@
+Pinned measurement base: 8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1
+Candidate parent commit: fdb1fd05c26536c79b40bfa30c0c0988c1b768ae
+Uncommitted correction patch SHA-256: f15da682278c1866f8fc4e0c25440a37d8c65fae650a99c58d98c9624eb78e6a
+The patch changes only opt-in IVL_PERF_STATS tier classification, its test, and documentation.

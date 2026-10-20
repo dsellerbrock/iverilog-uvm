@@ -66,6 +66,21 @@ assert stats["z3"]["checks"] > 0
 assert stats["z3"]["model_evaluations"] > 0
 assert stats["randomize_tiers"]["T3"] > 0
 PY
+"${TIMEOUT[@]}" "$IVERILOG" -g2017 -s main -o "$WORK/dv.vvp" \
+      "$HERE/randomize_dv_txn.sv"
+"${TIMEOUT[@]}" "$DEFAULT_VVP" -n "$WORK/dv.vvp" +runs=1 \
+      >"$WORK/dv-default.out" 2>"$WORK/dv-default.err"
+IVL_PERF_STATS=1 "${TIMEOUT[@]}" "$STATS_VVP" -n "$WORK/dv.vvp" +runs=1 \
+      >"$WORK/dv-enabled.out" 2>"$WORK/dv-enabled.err"
+cmp "$WORK/dv-default.out" "$WORK/dv-enabled.out"
+grep '^VVP_PERF_STATS ' "$WORK/dv-enabled.err" | sed 's/^VVP_PERF_STATS //' \
+      | python3 -c 'import json,sys; s=json.load(sys.stdin); assert s["randomize_tiers"]["T3"] == 0; assert s["randomize_tiers"]["T4"] == 1; assert s["z3"]["contexts"] == 1'
+"${TIMEOUT[@]}" "$IVERILOG" -g2017 -s main -o "$WORK/order.vvp" \
+      "$HERE/randomize_t4_order.sv"
+IVL_PERF_STATS=1 "${TIMEOUT[@]}" "$STATS_VVP" -n "$WORK/order.vvp" \
+      >"$WORK/order-enabled.out" 2>"$WORK/order-enabled.err"
+grep '^VVP_PERF_STATS ' "$WORK/order-enabled.err" | sed 's/^VVP_PERF_STATS //' \
+      | python3 -c 'import json,sys; s=json.load(sys.stdin); assert s["randomize_tiers"]["T3"] == 0; assert s["randomize_tiers"]["T4"] == 1; assert s["z3"]["contexts"] == 1'
 "${TIMEOUT[@]}" "$IVERILOG" -g2017 -s main -o "$WORK/t0.vvp" \
       "$HERE/randomize_t0_disabled.sv"
 "${TIMEOUT[@]}" "$DEFAULT_VVP" -n "$WORK/t0.vvp" \

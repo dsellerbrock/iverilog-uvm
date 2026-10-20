@@ -1,0 +1,4 @@
+input/measurement-base.txt: OK
+input/source.commit: OK
+input/classifier.patch: OK
+submit/classifier-check.sbatch: OK
