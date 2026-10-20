@@ -160,6 +160,8 @@ class vvp_cobject : public vvp_object {
 
       bool constraint_mode(size_t cid) const;
       void set_constraint_mode(size_t cid, bool mode);
+      bool has_active_constraints(void) const
+            { return active_constraints_ != 0; }
 
       // R1: randc changes are transactional. Each randomize entry pushes
       // a frame; tentative choices only replace the staged entry in that
@@ -323,6 +325,7 @@ class vvp_cobject : public vvp_object {
       std::vector<bool> rand_mode_;
       std::map<randc_key_t, bool> rand_mode_leaves_;
       std::vector<bool> constraint_mode_;
+      size_t active_constraints_;
       randc_history_state_t randc_history_;
       struct randc_pending_t {
 	    uint64_t staged_value = 0;

@@ -1,0 +1,14 @@
+{
+  "candidate": {
+    "files": {
+      "waveform.fst": "b1bb7505b1e6c53449b0fde574419912cfbd84da8a88beac1080e3cf557ddfea"
+    },
+    "sha256": "11c96813c2d50802aedf2f4409d4f8e9eeee87be594f49d14c3125a5085b3e29"
+  },
+  "reference": {
+    "files": {
+      "waveform.fst": "b1bb7505b1e6c53449b0fde574419912cfbd84da8a88beac1080e3cf557ddfea"
+    },
+    "sha256": "11c96813c2d50802aedf2f4409d4f8e9eeee87be594f49d14c3125a5085b3e29"
+  }
+}

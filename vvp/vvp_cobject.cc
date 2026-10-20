@@ -40,7 +40,8 @@ vvp_cobject::vvp_cobject(const class_type*defn)
   instance_constant_initialized_(defn->property_count(), false),
   instance_constant_reassignment_reported_(defn->property_count(), false),
   rand_mode_(defn->property_count(), true),
-  constraint_mode_(defn->constraint_count(), true)
+  constraint_mode_(defn->constraint_count(), true),
+  active_constraints_(defn->constraint_count())
 {
       unsigned union_width = defn_->union_vec4_width();
       if (union_width)
@@ -406,7 +407,11 @@ bool vvp_cobject::constraint_mode(size_t cid) const
 
 void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
 {
-      if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
+      if (cid >= constraint_mode_.size() || constraint_mode_[cid] == mode)
+            return;
+      constraint_mode_[cid] = mode;
+      if (mode) ++active_constraints_;
+      else --active_constraints_;
 }
 
 // Dense randc cycle history is capped at 20 bits (128KB per property).
@@ -1210,6 +1215,7 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       rand_mode_ = that->rand_mode_;
       rand_mode_leaves_ = that->rand_mode_leaves_;
       constraint_mode_ = that->constraint_mode_;
+      active_constraints_ = that->active_constraints_;
       randc_history_ = that->randc_history_;
 	// Constructor-derived coverage topology belongs to the copied property
 	// values, not to the destination's previous contents. Rebuild both caches

@@ -112,6 +112,41 @@ static bool z3_solve_trace(const class_type*defn)
       return defn && strstr(defn->class_name().c_str(), e) != 0;
 }
 
+#ifdef VVP_PERF_STATS
+static bool z3_t4_ir_(const string&ir)
+{
+      static const char*features[] = {
+            "soft", "solvebefore", "solve-before", "solve_before",
+            "unique", "distinct",
+            "dynforeach", "qforeach", "assocforeach"
+      };
+      for (size_t idx = 0; idx < sizeof(features) / sizeof(features[0]); ++idx)
+            if (ir.find(features[idx]) != string::npos) return true;
+      return false;
+}
+
+static bool z3_t4_owner_(const class_type*defn, const vvp_cobject*cobj,
+                         const vector<string>&extra_ir)
+{
+      if (!extra_ir.empty() || !defn) return true;
+      if (!defn->constraint_state_calls().empty()) return true;
+      for (size_t pid = 0; pid < defn->property_count(); ++pid) {
+            if (defn->property_is_randc(pid)) return true;
+            if (!defn->property_is_rand(pid)) continue;
+            const string&type = defn->property_base_type(pid);
+            if (!defn->property_dimensions(pid).empty()
+                || (!type.empty() && (type[0] == 'D' || type[0] == 'Q'
+                                      || type[0] == 'M'))
+                || type == "o" || type.compare(0, 3, "oc:") == 0)
+                  return true;
+      }
+      for (size_t ci = 0; ci < defn->constraint_count(); ++ci)
+            if ((!cobj || cobj->constraint_mode(ci))
+                && z3_t4_ir_(defn->constraint_ir(ci))) return true;
+      return false;
+}
+#endif
+
 /* Evaluate `var` under `model` and extract it as a uint64.
  *
  * Robustness note (Windows corner, m3_constraint_dynforeach_test): the
@@ -15266,7 +15301,26 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<vvp_vector4_t>*class_slot_vals)
 {
       if ((!include_class_constraints || defn->constraint_count() == 0)
-	  && extra_ir.empty()) return true;
+          && extra_ir.empty()) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(0);
+#endif
+            return true;
+      }
+      // randomize_cobject_ has already prefilled every active rand property.
+      // An all-disabled class constraint set is therefore the same fast path
+      // as a class with no constraints, provided there is no extra IR.
+      if (include_class_constraints && cobj
+          && !cobj->has_active_constraints() && extra_ir.empty()) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(0);
+#endif
+            return true;
+      }
+#ifdef VVP_PERF_STATS
+      vvp_perf_stats_randomize_tier(
+            z3_t4_owner_(defn, cobj, extra_ir) ? 4 : 3);
+#endif
 
       z3_rng_stream_t rng(cobj);
 
@@ -16234,8 +16288,22 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
             constrained |= !owner.inherited_ir.empty() || !owner.extra_ir.empty()
                   || !owner.planned_class_ir.empty()
                   || (owner.include_class_constraints
-                      && owner.object->get_defn()->constraint_count() != 0);
-      if (!constrained) return true;
+                      && owner.object->has_active_constraints());
+      if (!constrained) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(0);
+#endif
+            return true;
+      }
+#ifdef VVP_PERF_STATS
+      bool tier4 = false;
+      for (const auto&owner : objects)
+            tier4 |= !owner.inherited_ir.empty()
+                  || !owner.planned_class_ir.empty()
+                  || z3_t4_owner_(owner.object->get_defn(), owner.object,
+                                  owner.extra_ir);
+      vvp_perf_stats_randomize_tier(tier4 ? 4 : 3);
+#endif
       z3_object_graph_t graph(objects);
       graph.select_storage_owners();
       const auto&root = objects.front();

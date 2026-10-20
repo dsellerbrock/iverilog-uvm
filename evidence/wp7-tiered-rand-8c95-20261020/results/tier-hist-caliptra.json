@@ -1,0 +1,44 @@
+{
+  "cptra_ss_test_rom": {
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "model_evaluations": 0
+    }
+  },
+  "smoke_test_dma_aes_gcm_short_1_dword": {
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "model_evaluations": 0
+    }
+  },
+  "smoke_test_sha256": {
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "model_evaluations": 0
+    }
+  }
+}
