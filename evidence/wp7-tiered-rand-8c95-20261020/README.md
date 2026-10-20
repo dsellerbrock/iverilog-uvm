@@ -81,4 +81,8 @@ or comparison failure.
 No T1/T2 paths or T3 context reuse are implemented. The only seeded path change
 is T0, and its 400-call stream is byte-identical. Slurm job 3379 passed make-check, FPGA install, the full ivtest gate (4,798 JSON
 cases, zero failures), and real-DPI UVM (367 passed, zero failed or skipped).
-Exact-head CI remains required before merge.
+Final-head Slurm job 3417 passed on `da8813d6`: `make check`, FPGA install,
+4,804 JSON cases with zero failures, and real-DPI UVM (367 passed, 0 failed,
+0 skipped). Logs and provenance are in
+[`final-head-da8813d6/`](final-head-da8813d6/). Exact-head CI remains required
+before merge.

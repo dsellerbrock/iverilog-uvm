@@ -260,7 +260,7 @@ sketches, not current VVP members.
    implemented. The local Bitwuzla spike favors it for hard QF_BV API
    microbenchmarks, but its soft/dist/solve-before gaps make Z3 the current
    full-semantics recommendation. No seed or distribution change is authorized.
-   See [SOLVER.md](SOLVER.md) and [WP7 evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md).
+   The post-rebase final-head Slurm gate job 3417 also passed. See [SOLVER.md](SOLVER.md) and [WP7 evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md).
 13. The latest profile is Slurm job 3383 on main `cc25756d`. Screen the
    combined Caliptra `of_LOAD_VEC4`/`copy_from_big_` path first using
    instruction counts; individual load samples are below the 10% gate. Keep
