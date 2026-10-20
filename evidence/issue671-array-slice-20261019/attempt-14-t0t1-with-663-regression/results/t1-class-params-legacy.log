@@ -1,0 +1,29 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+ sv_param_class_scoped_parameter_specialization: Passed.
+               sv_class_new_typed_parameterized: Passed.
+       sv_param_class_bare_parameter_scope_fail: Passed - CE.
+   sv_class_new_typed_parameterized_compat_fail: Passed - CE.
+                            sv_class_new_typed1: Passed.
+                            sv_class_new_typed2: Passed.
+                            sv_class_new_typed3: Passed.
+                       sv_class_new_typed_fail1: Passed - CE.
+                       sv_class_new_typed_fail2: Passed - CE.
+                       sv_class_new_typed_fail3: Passed - CE.
+                       sv_class_new_typed_fail4: Passed - CE.
+sv_param_class_bare_static_property_lvalue_fail: Passed - CE.
+ sv_param_class_package_bare_static_lvalue_fail: Passed - CE.
+sv_param_class_scoped_static_lvalue_special_rhs: Passed.
+         sv_param_class_typedef_static_property: Passed.
+                 sv_param_class_randomize_hooks: Passed.
+        sv_param_class_randomize_hook_task_fail: Passed - CE.
+           sv_param_class_builtin_property_type: Passed.
+                 sv_package_param_class_extends: Passed.
+              sv_param_class_cached_vif_default: Passed.
+  sv_param_class_dependent_super_value_identity: Passed.
+   sv_param_class_dependent_super_real_identity: Passed.
+     sv_param_class_cache_probe_diagnostic_fail: Passed - CE.
+              sv_inherited_generic_type_members: Passed.
+============================================================================
+Test results:
+  Total=24, Passed=24, Failed=0, Not Implemented=0, Expected Fail=0

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_dynamic_array_slice_class_property.v",
+    "iverilog-args" : [ "-g2023", "-s", "test" ],
+    "gold"          : "sv_dynamic_array_slice_class_property"
+}
