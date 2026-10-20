@@ -273,6 +273,13 @@ Keep one active A5 PR and one pinned base per WP. Record that SHA in each
 evidence directory and PR table. Rebase once, immediately before merge, and
 remeasure only if the final runtime/benchmark/build-path diff requires it.
 
+
+## M4 structural screens
+
+The M4 measurement pin is fb584a251dd4cc91e56a75be662ccd5ee05c64e9. Slurm job 3383 profiled the same hot VVP load, scheduling, and net-propagation source paths on cc25756d; the intervening runtime diff is confined to class-object constraint tracking, performance counters, and the Z3 solver.
+
+WP13 has no two-state candidate: of_LOAD_VEC4 self samples account for 9.04–9.39% of Caliptra samples, and that is an ideal upper bound before limiting the path to statically proven, force-safe sources. WP12 has no eligible identical-trigger process group; the multi_clock vthread_run share is 15.65%, but its 32 generated processes use distinct clocks. WP11 has no group to levelize, and the earlier MUXZ candidate changed an observable delta trace. No M4 runtime change advanced; the target of 1.50x the 8c95b5c anchor remains unmet. Details and throughput table are in [M4 closeout evidence](../../evidence/m4-structural-closeout-fb584-20261020/README.md).
+
 ## Sources
 
 - User-provided [Gemini deep-research report](https://share.gemini.google/nMPfVgUPaQoS), treated as candidate input.
