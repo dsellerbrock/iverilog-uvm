@@ -1,0 +1,4 @@
+case	runner_exit	profile_bytes	window_marker
+smoke_test_dma_aes_gcm_short_1_dword	1	436968	MCYCLE_WINDOW start=100 end=2100 cycles=2000 elapsed_ns=209721479973
+smoke_test_sha256	1	415940	MCYCLE_WINDOW start=100 end=2100 cycles=2000 elapsed_ns=202252525280
+cptra_ss_test_rom	1	416130	MCYCLE_WINDOW start=100 end=2100 cycles=2000 elapsed_ns=200759045116

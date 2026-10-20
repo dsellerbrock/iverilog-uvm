@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "timeout --signal=INT --kill-after=60s 1800s taskset -c 14 /home/dsell/toolchains/iverilog-c339/deps/bin/python3.12 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-m3-throughput-cae-20261019/input/threeway/run_caliptra_top_profile.py --case smoke_test_sha256 --case-yaml smoke_test_sha256/smoke_test_sha256.yml --output /home/dsell/slurm-runs/iverilog-uvm/a5-perf/caliptra-m3-throughput-cae-20261019/output/smoke_test_sha256-r3-main"
+	User time (seconds): 255.12
+	System time (seconds): 2.00
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:17.19
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1855328
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 1013218
+	Voluntary context switches: 2171802
+	Involuntary context switches: 2171457
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 777856
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

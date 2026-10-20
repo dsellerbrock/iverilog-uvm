@@ -1,0 +1,4 @@
+measurement_base=c344d20197a569dea8936bad95de3d185b1e78dc
+source_commit=c344d20197a569dea8936bad95de3d185b1e78dc
+candidate_commit=553c947ea8273cb4241777df1bc6c3610023ec36
+target=benchmarks/sim-hotspots/rtl_pipe.sv

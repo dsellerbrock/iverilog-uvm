@@ -1,0 +1,188 @@
+{
+  "benchmarks": {
+    "behav": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1201,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "d99f809deabdee2e02b68d3ca41e2f67de33436a172a924488352cc762578e79",
+      "thread_wakes": 1201
+    },
+    "classq": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 2,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "cb0b252f9884148d27e149baacbafe1467445cd75bf436fbf1133d0da6ccd630",
+      "thread_wakes": 888889
+    },
+    "fork_heavy": {
+      "scheduler_time_list": {
+        "average_steps": 0.9995118379301928,
+        "insertions": 4097,
+        "max_steps": 1,
+        "total_steps": 4095
+      },
+      "stdout_sha256": "892a70b1a6dec08ba72f0cb6c52f18bf5471aaa225cfa4fae12a1443bfa1a8a6",
+      "thread_wakes": 20477
+    },
+    "gate_strength": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 41381637,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "61dca74cc94db6dcb3907c1f40b2cbcbdd8f01cf863af385b25c90f1c260d50d",
+      "thread_wakes": 640000
+    },
+    "io_text": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "6872bf89c1f4973def25927f3bccf90a3933860039cf0bf3a6c7c743e200e7d5",
+      "thread_wakes": 0
+    },
+    "large_memory": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "4c62fcc1463be517cfd2066471eb0a3d8dff4a5bea4b44953ed778a1b75984d0",
+      "thread_wakes": 0
+    },
+    "multi_clock": {
+      "scheduler_time_list": {
+        "average_steps": 1.1531208234993033,
+        "insertions": 5978390,
+        "max_steps": 7,
+        "total_steps": 6893806
+      },
+      "stdout_sha256": "ba701169fae4938d03592226339428cbb1a756eec014aeb2e20ab15b0eac4390",
+      "thread_wakes": 5978280
+    },
+    "randomize_dv_txn": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "358ac60dd6f5697bede9b3c2c4d1877f363efd8d3868c1ae222eef8e795ab81a",
+      "thread_wakes": 2
+    },
+    "randomize_z3": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "956a1ad3032a330d8894506d849ce3e11c2aa53d380ce47ccb7afc23f841f786",
+      "thread_wakes": 3
+    },
+    "rtl_alu": {
+      "scheduler_time_list": {
+        "average_steps": 0.0023808788302738166,
+        "insertions": 84004275,
+        "max_steps": 1,
+        "total_steps": 200004
+      },
+      "stdout_sha256": "91322b7311c46dd9f0af0518648468b30c230fe7d9c713cc99b0c46e54053cd4",
+      "thread_wakes": 6600134
+    },
+    "rtl_pipe": {
+      "scheduler_time_list": {
+        "average_steps": 0.0025872952475399164,
+        "insertions": 185523473,
+        "max_steps": 1,
+        "total_steps": 480004
+      },
+      "stdout_sha256": "940a85d76d96329d89211f1aaf2bc7fbf24f7f00b7636e3e09c466795520012f",
+      "thread_wakes": 31680266
+    },
+    "strings_aa_queue": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "0002f877fb6180ea0cab14dc10ea3c7ff5bb847cd7239a43cce461898f169e1a",
+      "thread_wakes": 0
+    },
+    "uvm_config_factory": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 429,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "0123945bd02b6816319951468919c056e28987da28ea6914367496cf0b20cff1",
+      "thread_wakes": 1644
+    },
+    "uvm_traffic": {
+      "scheduler_time_list": {
+        "average_steps": 0.2094233164798124,
+        "insertions": 95529,
+        "max_steps": 2,
+        "total_steps": 20006
+      },
+      "stdout_sha256": "57d6ce3f9a21748fc69be65a9c4eb451177c2840fcc2b3a5964637436bb8a74c",
+      "thread_wakes": 202600
+    },
+    "vpi_callbacks": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 32000001,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "842a53ab5cc716c7872210f833649c342e9601857d1aa7647961a10752e1636e",
+      "thread_wakes": 32000000
+    },
+    "waveform_fst": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 2000002,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "6fc9aca3efb7e44e2a84a47a3bc731ebc6ad101822984f23347404bfcb7ae500",
+      "thread_wakes": 1000000
+    },
+    "waveform_vcd": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 2000002,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "7a59adecc7609f91084768fc79a2bd261d155b359ad0178a6b1aebd58bf9f470",
+      "thread_wakes": 1000000
+    },
+    "wide_vectors": {
+      "scheduler_time_list": {
+        "average_steps": 0.0,
+        "insertions": 1,
+        "max_steps": 0,
+        "total_steps": 0
+      },
+      "stdout_sha256": "7e53d491a890fa2032efdfe87f6872a08072d111cb17631aac3ebed5ad377fd8",
+      "thread_wakes": 0
+    }
+  },
+  "cpu_affinity": [
+    6
+  ],
+  "source": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp9-scheduler-walk-c344-20261019/source"
+}

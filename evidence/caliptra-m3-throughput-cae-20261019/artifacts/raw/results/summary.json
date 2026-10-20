@@ -1,0 +1,262 @@
+{
+  "campaign_base": "f9f8e0a79f230f38da6cbb4445994ad1075ad531",
+  "m2_main": "9b5fad2afb4104caa816b257d5bccc40f01b8c66",
+  "current_main": "cae035642e056644274a01e98d4422ce286685b4",
+  "window": {
+    "start": 100,
+    "end": 2100,
+    "cycles": 2000
+  },
+  "tests": {
+    "smoke_test_dma_aes_gcm_short_1_dword": {
+      "base": {
+        "median_cycles_per_second": 7.826751065619253,
+        "min_cycles_per_second": 7.537343180107314,
+        "max_cycles_per_second": 8.193559768412246,
+        "spread_percent": 8.384278263141777,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 244094149128,
+            "cycles_per_second": 8.193559768412246,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 265345487423,
+            "cycles_per_second": 7.537343180107314,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 255533871364,
+            "cycles_per_second": 7.826751065619253,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 9.768547785557118,
+        "min_cycles_per_second": 9.354615263733367,
+        "max_cycles_per_second": 10.621087826359268,
+        "spread_percent": 12.964798764647414,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 188304628744,
+            "cycles_per_second": 10.621087826359268,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 213798210147,
+            "cycles_per_second": 9.354615263733367,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204738723084,
+            "cycles_per_second": 9.768547785557118,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 9.948508642724684,
+        "min_cycles_per_second": 9.440130364020993,
+        "max_cycles_per_second": 11.122355774921756,
+        "spread_percent": 16.909322505649826,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 179818020613,
+            "cycles_per_second": 11.122355774921756,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 211861481026,
+            "cycles_per_second": 9.440130364020993,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201035157311,
+            "cycles_per_second": 9.948508642724684,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "smoke_test_sha256": {
+      "base": {
+        "median_cycles_per_second": 7.479235600375764,
+        "min_cycles_per_second": 7.313931576279921,
+        "max_cycles_per_second": 8.676887480158252,
+        "spread_percent": 18.223197886824885,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 230497399508,
+            "cycles_per_second": 8.676887480158252,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 267407006125,
+            "cycles_per_second": 7.479235600375764,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 273450739748,
+            "cycles_per_second": 7.313931576279921,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 10.01030184537993,
+        "min_cycles_per_second": 9.357730286298084,
+        "max_cycles_per_second": 10.80519970745722,
+        "spread_percent": 14.459797951319409,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 185096069869,
+            "cycles_per_second": 10.80519970745722,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 213727040512,
+            "cycles_per_second": 9.357730286298084,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 199794175130,
+            "cycles_per_second": 10.01030184537993,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 10.254599078918927,
+        "min_cycles_per_second": 9.560191353628005,
+        "max_cycles_per_second": 10.845497190046613,
+        "spread_percent": 12.533945272037972,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 184408327710,
+            "cycles_per_second": 10.845497190046613,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 209200833542,
+            "cycles_per_second": 9.560191353628005,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 195034441094,
+            "cycles_per_second": 10.254599078918927,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "cptra_ss_test_rom": {
+      "base": {
+        "median_cycles_per_second": 7.794438316771567,
+        "min_cycles_per_second": 6.678698303190562,
+        "max_cycles_per_second": 7.879495445265646,
+        "spread_percent": 15.405820063920276,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 253823358855,
+            "cycles_per_second": 7.879495445265646,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 256593216691,
+            "cycles_per_second": 7.794438316771567,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 299459551728,
+            "cycles_per_second": 6.678698303190562,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 9.717088604126438,
+        "min_cycles_per_second": 8.416560316572479,
+        "max_cycles_per_second": 10.260613199159705,
+        "spread_percent": 18.97742171255014,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 205822966269,
+            "cycles_per_second": 9.717088604126438,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 194920124283,
+            "cycles_per_second": 10.260613199159705,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 237626764946,
+            "cycles_per_second": 8.416560316572479,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 9.750800234314468,
+        "min_cycles_per_second": 8.53277785326316,
+        "max_cycles_per_second": 9.800661897690095,
+        "spread_percent": 13.002871702417485,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204067849792,
+            "cycles_per_second": 9.800661897690095,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 205111370548,
+            "cycles_per_second": 9.750800234314468,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 234390257709,
+            "cycles_per_second": 8.53277785326316,
+            "runner_exit": 1
+          }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "m2_main_vs_base_geometric_mean_percent": 27.701675057193654,
+    "current_main_vs_base_geometric_mean_percent": 29.667495383336217,
+    "current_main_vs_m2_main_geometric_mean_percent": 1.5393849182183006,
+    "base_pooled_cycles_per_second": 7.696905170403691,
+    "main_pooled_cycles_per_second": 9.830330712202267,
+    "candidate_pooled_cycles_per_second": 9.980355849336735
+  },
+  "all_inputs_identical": true,
+  "all_normalized_logs_identical": true
+}
