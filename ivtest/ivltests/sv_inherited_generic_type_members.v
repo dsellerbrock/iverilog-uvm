@@ -18,7 +18,8 @@ package qvip_compat_pkg;
     virtual function void write(mvc_sequence_item_base tr);
       T transfer;
       T beat;
-      if (!$cast(transfer, tr)) return;
+      if (!$cast(transfer, tr))
+        $fatal(1, "base generic cast failed");
       beat = new();
       beat.RnW = transfer.RnW;
       beat.size = transfer.size;
