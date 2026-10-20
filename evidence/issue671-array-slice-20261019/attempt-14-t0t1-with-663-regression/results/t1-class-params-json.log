@@ -1,0 +1,126 @@
+=== sv_param_class_scoped_parameter_specialization vvp_tests/sv_param_class_scoped_parameter_specialization.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_scoped_parameter_specialization: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_class_new_typed_parameterized vvp_tests/sv_class_new_typed_parameterized.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_class_new_typed_parameterized: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_bare_parameter_scope_fail vvp_tests/sv_param_class_bare_parameter_scope_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_bare_parameter_scope_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_class_new_typed_parameterized_compat_fail vvp_tests/sv_class_new_typed_parameterized_compat_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_class_new_typed_parameterized_compat_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_bare_static_property_lvalue_fail vvp_tests/sv_param_class_bare_static_property_lvalue_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_bare_static_property_lvalue_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_package_bare_static_lvalue_fail vvp_tests/sv_param_class_package_bare_static_lvalue_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_package_bare_static_lvalue_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_scoped_static_lvalue_special_rhs vvp_tests/sv_param_class_scoped_static_lvalue_special_rhs.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_scoped_static_lvalue_special_rhs: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_typedef_static_property vvp_tests/sv_param_class_typedef_static_property.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_typedef_static_property: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_randomize_hooks vvp_tests/sv_param_class_randomize_hooks.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_randomize_hooks: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_randomize_hook_task_fail vvp_tests/sv_param_class_randomize_hook_task_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_randomize_hook_task_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_builtin_property_type vvp_tests/sv_param_class_builtin_property_type.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_builtin_property_type: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_package_param_class_extends vvp_tests/sv_package_param_class_extends.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_package_param_class_extends: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_cached_vif_default vvp_tests/sv_param_class_cached_vif_default.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_cached_vif_default: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_dependent_super_value_identity vvp_tests/sv_param_class_dependent_super_value_identity.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_dependent_super_value_identity: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_dependent_super_real_identity vvp_tests/sv_param_class_dependent_super_real_identity.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_dependent_super_real_identity: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_param_class_cache_probe_diagnostic_fail vvp_tests/sv_param_class_cache_probe_diagnostic_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_param_class_cache_probe_diagnostic_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_inherited_generic_type_members_2017 vvp_tests/sv_inherited_generic_type_members_2017.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_inherited_generic_type_members_2017: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_inherited_generic_type_members_2023 vvp_tests/sv_inherited_generic_type_members_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_inherited_generic_type_members_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
