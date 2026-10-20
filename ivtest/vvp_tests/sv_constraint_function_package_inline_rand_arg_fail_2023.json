@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_function_package_inline_rand_arg_fail.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_constraint_function_package_inline_rand_arg_fail"
+}
