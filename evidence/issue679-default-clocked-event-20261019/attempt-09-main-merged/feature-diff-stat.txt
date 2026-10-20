@@ -1,0 +1,13 @@
+ PExpr.h                                            |  3 +
+ elaborate.cc                                       | 69 ++++++++++++++++++
+ .../ivltests/sv_sampled_value_default_clocking.v   | 85 +++++++++++++++++++++-
+ .../sv_sampled_value_event_past_unsupported.v      |  9 +++
+ .../sv_sampled_value_event_past_unsupported_2023.v |  9 +++
+ ...egress-sampled-value-preponed-focus-legacy.list |  2 +
+ .../regress-sampled-value-preponed-focus-vvp.list  |  2 +
+ ivtest/regress-sv.list                             |  2 +
+ ivtest/regress-vvp.list                            |  2 +
+ ..._sampled_value_event_past_unsupported_2017.json |  5 ++
+ ..._sampled_value_event_past_unsupported_2023.json |  5 ++
+ pform.cc                                           |  1 +
+ 12 files changed, 191 insertions(+), 3 deletions(-)

@@ -13768,6 +13768,7 @@ void pform_flush_pending_sampled_calls()
       unsigned live_operands = 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
+	    mine[i].call->set_sampled_default_clock();
 	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
 					      pre, post, init, sampled,
 					      live_operands);

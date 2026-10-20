@@ -1,0 +1,2 @@
+changed at 5
+evidence/issue679-default-clocked-event-20261019/attempt-09-main-merged/minimal-reproducer.sv:6: $finish called at 12 (1s)

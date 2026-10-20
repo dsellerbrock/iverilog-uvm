@@ -1509,9 +1509,12 @@ class PECallFunction : public PExpr {
 	// call, the same way a `let' expansion substitutes.
       void set_sampled_subst(PExpr*e) { sampled_subst_ = e; }
       PExpr* sampled_subst() const { return sampled_subst_; }
+      void set_sampled_default_clock() { sampled_default_clock_ = true; }
+      bool sampled_default_clock() const { return sampled_default_clock_; }
 
     private:
       PExpr*sampled_subst_ = nullptr;
+      bool sampled_default_clock_ = false;
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;

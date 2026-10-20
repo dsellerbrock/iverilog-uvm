@@ -21927,6 +21927,75 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       if (has_conditional_event_())
 	    return elaborate_conditional_(des, scope, enet);
 
+	/* A sampled call's value changes only at its inferred clock. Keep that
+	   clocked evaluation in a process; synthesizing it as a combinational event
+	   expression loses the internal sample operation and observes raw changes. */
+      if (expr_.size() == 1 && expr_[0]
+	  && expr_[0]->type() == PEEvent::ANYEDGE) {
+	    const PECallFunction*call = dynamic_cast<const PECallFunction*>(
+		  expr_[0]->expr());
+	    if (call && call->sampled_default_clock()
+		&& call->sampled_subst()) {
+		  perm_string call_name = call->path().name.back().name;
+		  bool is_stbl = strcmp(call_name, "$stable") == 0;
+		  bool is_chgd = strcmp(call_name, "$changed") == 0;
+		  bool is_rose = strcmp(call_name, "$rose") == 0;
+		  bool is_fell = strcmp(call_name, "$fell") == 0;
+		  if (!is_stbl && !is_chgd && !is_rose && !is_fell) {
+			cerr << get_fileline() << ": sorry: procedural event control on `"
+			     << call_name << "' is not supported." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+
+		  NetExpr*value = elab_and_eval(des, scope, expr_[0]->expr(), -1);
+		  if (!value) return nullptr;
+
+		  NetNet*previous = new NetNet(scope, scope->local_symbol(),
+					       NetNet::REG,
+					       &netvector_t::scalar_bool);
+		  previous->set_line(*this);
+		  previous->local_flag(true);
+		  verinum default_value(uint64_t(is_stbl), 1);
+		  NetAssign*initialize = new NetAssign(new NetAssign_(previous),
+						       new NetEConst(default_value));
+		  initialize->set_line(*this);
+
+		  std::list<named_pexpr_t>no_parms;
+		  PECallFunction default_clock(
+			perm_string::literal("$ivl_default_clock"), no_parms);
+		  default_clock.set_line(*this);
+		  PEEvent clock_event(PEEvent::ANYEDGE, &default_clock);
+		  clock_event.set_line(*this);
+		  PEventStatement clock_wait(&clock_event);
+		  clock_wait.set_line(*this);
+		  NetProc*wait = clock_wait.elaborate_st(des, scope, nullptr);
+		  if (!wait) {
+			delete value;
+			delete initialize;
+			return nullptr;
+		  }
+		  des->add_process(new NetProcTop(scope, IVL_PR_INITIAL, initialize));
+
+		  NetEBComp*same = new NetEBComp('E', value->dup_expr(),
+						 new NetESignal(previous));
+		  same->set_line(*this);
+		  NetDoWhile*until_changed = new NetDoWhile(same, wait);
+		  until_changed->set_line(*this);
+
+		  NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+		  result->set_line(*this);
+		  result->append(until_changed);
+		  NetAssign*update_previous = new NetAssign(new NetAssign_(previous),
+							    value->dup_expr());
+		  update_previous->set_line(*this);
+		  result->append(update_previous);
+		  if (enet) result->append(enet);
+		  delete value;
+		  return result;
+	    }
+      }
+
       std::vector<prepared_event_leaf_t>prepared;
 
       /* A nested class-property leaf needs the occurrence-time observer even
