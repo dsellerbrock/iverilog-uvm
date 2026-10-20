@@ -1232,6 +1232,8 @@ sv_fork_call_arg_capture normal,-g2012 ivltests
 sv_this_nested_detached_fork normal,-g2012 ivltests
 sv_loop_local_detached_fork normal,-g2012 ivltests
 sv_display_p_aggregates normal,-g2012 ivltests
+sv_display_explicit_width_2017 normal,-g2017,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
+sv_display_explicit_width_2023 normal,-g2023,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
 sv_process_suspend_resume normal,-g2012 ivltests
 sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
