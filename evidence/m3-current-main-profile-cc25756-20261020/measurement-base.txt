@@ -1,0 +1,5 @@
+Pinned measurement base: cc25756d187314742d347267c2a513b3e640a7fb
+Source: origin/main, refreshed 2026-10-20
+Caliptra profiles: perf record over mcycle window [100, 2100], task pinned to one CPU
+Corpus profiles: 18 sim-hotspots workloads, repeated for at least 3 seconds each, pinned to one CPU
+All outputs are profiling evidence only; no candidate speedup is claimed.

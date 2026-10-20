@@ -1,0 +1,105 @@
+{
+  "benchmarks": {
+    "waveform_fst": {
+      "identical_all_runs": true,
+      "samples": [
+        {
+          "candidate": {
+            "artifacts": {
+              "stdout.bin": "83c6aabeeb80a4b283c758adac6ce8721f1d1806cc44ebe51d35bf08d4c50f65",
+              "waveform.fst": "b1bb7505b1e6c53449b0fde574419912cfbd84da8a88beac1080e3cf557ddfea"
+            },
+            "instructions": null,
+            "max_rss_bytes": 155709440,
+            "output_sha256": "5e9f290acb1a160e55e5b5c6d3a531175cfdca6d61e855aaf1ac6470cafa3d1b",
+            "return_code": 0,
+            "task_clock_ms": null,
+            "wall_seconds": 34.331566914042924
+          },
+          "identical": true,
+          "order": [
+            "reference",
+            "candidate"
+          ],
+          "reference": {
+            "artifacts": {
+              "stdout.bin": "83c6aabeeb80a4b283c758adac6ce8721f1d1806cc44ebe51d35bf08d4c50f65",
+              "waveform.fst": "b1bb7505b1e6c53449b0fde574419912cfbd84da8a88beac1080e3cf557ddfea"
+            },
+            "instructions": null,
+            "max_rss_bytes": 155795456,
+            "output_sha256": "5e9f290acb1a160e55e5b5c6d3a531175cfdca6d61e855aaf1ac6470cafa3d1b",
+            "return_code": 0,
+            "task_clock_ms": null,
+            "wall_seconds": 35.1313876810018
+          },
+          "run": 1
+        }
+      ],
+      "status": "ok",
+      "summary": {
+        "candidate": {
+          "instructions": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "max_rss_bytes": {
+            "max": 155709440,
+            "median": 155709440.0,
+            "min": 155709440.0,
+            "spread_pct": 0.0
+          },
+          "task_clock_ms": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "wall_seconds": {
+            "max": 34.331566914042924,
+            "median": 34.331566914042924,
+            "min": 34.331566914042924,
+            "spread_pct": 0.0
+          }
+        },
+        "reference": {
+          "instructions": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "max_rss_bytes": {
+            "max": 155795456,
+            "median": 155795456.0,
+            "min": 155795456.0,
+            "spread_pct": 0.0
+          },
+          "task_clock_ms": {
+            "max": null,
+            "median": null,
+            "min": null,
+            "spread_pct": null
+          },
+          "wall_seconds": {
+            "max": 35.1313876810018,
+            "median": 35.1313876810018,
+            "min": 35.1313876810018,
+            "spread_pct": 0.0
+          }
+        },
+        "speedup": 1.023296949101141
+      }
+    }
+  },
+  "candidate_vvp": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/runners/fst-repro-candidate",
+  "cpu_affinity": [
+    12
+  ],
+  "perf_stat_available": false,
+  "reference_vvp": "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/runners/fst-repro-reference",
+  "runs": 1,
+  "schema_version": 1
+}

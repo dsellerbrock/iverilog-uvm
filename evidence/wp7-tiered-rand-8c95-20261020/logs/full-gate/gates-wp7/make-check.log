@@ -1,0 +1,99 @@
+make: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate'
+make -C ivlpp all &&  make -C vhdlpp all &&  make -C vvp all &&  make -C vpi all &&  make -C tgt-null all &&  make -C tgt-stub all &&  make -C tgt-vvp all &&  make -C tgt-vhdl all &&  make -C tgt-vlog95 all &&  make -C tgt-pcb all &&  make -C tgt-blif all &&  make -C tgt-sizer all &&  make -C driver all &&  make -C libveriuser all &&  make -C cadpli all &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/ivlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vhdlpp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vpi'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-null'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-stub'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vvp'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vhdl'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vlog95'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-pcb'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-blif'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-sizer'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/driver'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/libveriuser'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/cadpli'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/cadpli'
+make -C ivlpp check &&  make -C vhdlpp check &&  make -C vvp check &&  make -C vpi check &&  make -C tgt-null check &&  make -C tgt-stub check &&  make -C tgt-vvp check &&  make -C tgt-vhdl check &&  make -C tgt-vlog95 check &&  make -C tgt-pcb check &&  make -C tgt-blif check &&  make -C tgt-sizer check &&  make -C driver check &&  make -C libveriuser check &&  make -C cadpli check &&  true
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/ivlpp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/ivlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vhdlpp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vhdlpp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vvp'
+./vvp -M../vpi ./examples/hello.vvp | grep 'Hello, World.'
+Hello, World.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vpi'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/vpi'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-null'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-null'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-stub'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-stub'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vvp'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vvp'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vhdl'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vhdl'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vlog95'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-vlog95'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-pcb'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-pcb'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-blif'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-blif'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-sizer'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/tgt-sizer'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/driver'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/driver'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/libveriuser'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/libveriuser'
+make[1]: Entering directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/cadpli'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate/cadpli'
+test -r check.conf || cp ./check.conf .
+driver/iverilog -B. -BMvpi -BPivlpp -tcheck -ocheck.vvp ./examples/hello.vl
+vvp/vvp -M- -M./vpi ./check.vvp | grep 'Hello, World'
+Hello, World
+make: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/source/candidate'

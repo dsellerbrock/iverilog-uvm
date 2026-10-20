@@ -1,0 +1,15 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+measurement_base=8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1
+ A benchmarks/sim-hotspots/randomize_t0_disabled.sv
+ M benchmarks/sim-hotspots/test_perf_stats.sh
+ A docs/performance/SOLVER.md
+ M vvp/vvp_cobject.cc
+ M vvp/vvp_cobject.h
+ M vvp/vvp_perf_stats.cc
+ M vvp/vvp_perf_stats.h
+ M vvp/vvp_z3.cc
+?? benchmarks/sim-hotspots/run_json_callgrind.py
+c55255fc569c15dc212e2af6aa57d1b7883a9818c2fe6550d58560660dd12880  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/install/reference/bin/vvp
+cc7c2e67016dceea8416710ca50556ef7c35409084558caf4e2ee788c686055a  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/install/candidate/bin/vvp
+4655a50f6b1700060dd87b92db87966ecb2112366a7d47323f9070b3d1447754  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-tiered-rand-8c95-20261020/input/candidate.patch

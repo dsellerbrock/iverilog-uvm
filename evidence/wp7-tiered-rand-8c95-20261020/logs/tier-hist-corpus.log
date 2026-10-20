@@ -1,0 +1,82 @@
+{
+  "randomize_dv_txn": {
+    "stderr_sha256": "d5c2460d5f620050f9da48b07b26f7c398d1ca5c6e85fe838b9b1de31f40f6b1",
+    "stdout_sha256": "358ac60dd6f5697bede9b3c2c4d1877f363efd8d3868c1ae222eef8e795ab81a",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 400,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 37648,
+      "contexts": 400,
+      "model_evaluations": 241966
+    }
+  },
+  "randomize_t0_disabled": {
+    "stderr_sha256": "8ec037c6851700b46eaf02608cffd97e8b2cfd1a2ea40db925509a5fef1e6148",
+    "stdout_sha256": "43c33e3238b9cd7adc626e0f899a028a9f30708fcc0cc34ec45cf8811ba7914f",
+    "tiers": {
+      "T0": 400,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "model_evaluations": 0
+    }
+  },
+  "randomize_t4_soft": {
+    "stderr_sha256": "f173a7b6693e8df955f1196069a643f701b21deabf205a1de303ea41818bbcf3",
+    "stdout_sha256": "360f2bc1511a8440d1c28d1eb53ce364b0f12c06516ef07a5bc865fe611edd13",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 400
+    },
+    "z3": {
+      "checks": 1128,
+      "contexts": 400,
+      "model_evaluations": 182
+    }
+  },
+  "randomize_z3": {
+    "stderr_sha256": "ec26aef02d7ee77a5f86de6094811099d59cae77524b4f6df789a84d7937c417",
+    "stdout_sha256": "956a1ad3032a330d8894506d849ce3e11c2aa53d380ce47ccb7afc23f841f786",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 800,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 17773,
+      "contexts": 800,
+      "model_evaluations": 1718
+    }
+  },
+  "uvm_traffic": {
+    "stderr_sha256": "e83ce956bfb1dc806510206d11a8198fc57855190106a359fe4ef74ad62b09b4",
+    "stdout_sha256": "4cefc15462a573f93d44cf0d3d5199ad712102d48bfb1a86920f659ec1aeb76a",
+    "tiers": {
+      "T0": 5000,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "model_evaluations": 0
+    }
+  }
+}
