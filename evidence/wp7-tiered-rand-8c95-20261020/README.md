@@ -55,6 +55,14 @@ of the three tests. One sample per build produced a three-test geometric mean
 of 1.0103x candidate/main; spread is not available from one sample. The
 candidate therefore does not improve these Caliptra tests.
 
+The final isolated wall-time job (3382) used three interleaved runs on one CPU
+and the same pinned binaries. The 400-call T0 fixture measured 0.244439 s
+reference median (7.968% spread) and 0.004073 s candidate median (0.422%
+spread), or 60.021x, with byte-identical output. Wall time is supporting
+evidence; the instruction screen is the gate. First attempt 3381 was discarded
+because GNU `time %e` rounded the candidate to 0.00 s; the corrected rerun uses
+a nanosecond monotonic timer. Both attempts are preserved.
+
 The measurement job completed the profiles, histograms, and output comparisons
 but exited 1 during checksum packaging because its original `sha256sum`
 command included a directory. A corrected file-only manifest and
