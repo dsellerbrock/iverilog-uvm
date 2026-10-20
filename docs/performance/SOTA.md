@@ -261,11 +261,17 @@ sketches, not current VVP members.
    microbenchmarks, but its soft/dist/solve-before gaps make Z3 the current
    full-semantics recommendation. No seed or distribution change is authorized.
    The post-rebase final-head Slurm gate job 3417 also passed. See [SOLVER.md](SOLVER.md) and [WP7 evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md).
-13. The latest profile is Slurm job 3383 on main `cc25756d`. Screen the
-   combined Caliptra `of_LOAD_VEC4`/`copy_from_big_` path first using
-   instruction counts; individual load samples are below the 10% gate. Keep
-   `send_vec4`/callbacks for RTL corpus targets and vector multiply for
-   `wide_vectors`. See [profile evidence](../../evidence/m3-current-main-profile-cc25756-20261020/README.md).
+13. Slurm job 3383 on main `cc25756d` was re-screened inclusively for WP13 on
+   the pinned M4 base `fb584a251`. Across the three Caliptra tests, the
+   deduplicated union of vector4-plane, arithmetic, copy, construction,
+   comparison, resize, propagation, and net-functor samples is 45.53–47.50%,
+   an ideal 1.836–1.905x Amdahl ceiling (1.869x equal-weight combined).
+   Generic load/store dispatch is reported separately and not credited. A
+   narrow elaboration-proven unforced `.net/2u` wire-read prototype measured
+   −0.87% over three tests and was rejected; the all-`vec4_value` upper bound
+   is 6.61–6.96% by symbol before restricting to eligible wires. See
+   [inclusive WP13 evidence](../../evidence/m4-wp13-two-state-fb584-20261020/README.md)
+   and [profile source](../../evidence/m3-current-main-profile-cc25756-20261020/README.md).
 
 WP1's prior screen was −3.31% `behav` instructions on its own pinned base,
 below the 10% keep threshold; do not repeat it unless its runtime code changes.
@@ -278,7 +284,7 @@ remeasure only if the final runtime/benchmark/build-path diff requires it.
 
 The M4 measurement pin is fb584a251dd4cc91e56a75be662ccd5ee05c64e9. Slurm job 3383 profiled the same hot VVP load, scheduling, and net-propagation source paths on cc25756d; the intervening runtime diff is confined to class-object constraint tracking, performance counters, and the Z3 solver.
 
-WP13 has no supported two-state fast-path candidate: `of_LOAD_VEC4` self samples account for 9.04–9.39% of Caliptra samples, but profiles do not separate two-state, unforced signals, and both signal states use the same vec4 storage/read ABI. WP12 has no eligible identical-trigger process group; `multi_clock`'s 15.65% `vthread_run` share comes from 32 processes with distinct clocks, while Caliptra's entire `vthread_run` share is 3.25–3.65%. WP11 has no group to levelize, and the earlier MUXZ candidate changed an observable delta trace. No M4 runtime change advanced; the target of 1.50x the 8c95b5c anchor remains unmet. These are limiting profiles for the tested A/B/C candidates, not a global VVP ceiling. Details and throughput table are in [M4 closeout evidence](../../evidence/m4-structural-closeout-fb584-20261020/README.md).
+The inclusive WP13 screen on pinned base `fb584a251` gives a 1.836–1.905x ideal ceiling across the three Caliptra profiles after deduplicating overlapping sample stacks (1.869x equal-weight combined). The 68 overlapping rows include vector construction/destruction, send/receive propagation, `copy_from_big_`, `vec4_value`, arithmetic, logic, comparison, resize, and wire/array propagation. Only an elaboration-proven, unforced `.net/2u` `vvp_wire_vec4` read could use the prototype; the other generic vector and propagation rows remain unchanged. The corrected X/Z force-fallback fixture passed on the candidate, but its three-test A/B measured −0.87% geometric mean, so the prototype was rejected. Job 3570 measured the pinned base at 10.547 cycles/s and the candidate at 10.455 cycles/s; both are below the 14.884 cycles/s target. WP12 has no eligible identical-trigger process group; `multi_clock`'s 15.65% `vthread_run` share comes from 32 processes with distinct clocks, while Caliptra's entire `vthread_run` share is 3.25–3.65%. WP11 has no group to levelize, and the earlier MUXZ candidate changed an observable delta trace. These are limits for the screened paths, not a global VVP ceiling. Details and throughput table are in [M4 closeout evidence](../../evidence/m4-structural-closeout-fb584-20261020/README.md).
 
 ## Sources
 
