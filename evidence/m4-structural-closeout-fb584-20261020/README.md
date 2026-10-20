@@ -7,6 +7,10 @@ No A/B/C runtime candidate passed the profile and semantic screens. The recorded
 - WP12 process fusion: evidence/m4-wp12-process-fusion-fb584-20261020/README.md
 - WP11 local levelization: evidence/m4-wp11-levelization-fb584-20261020/README.md
 
+## What the profiles bound
+
+For WP13, removing every `of_LOAD_VEC4` sample would be an unattainable upper bound of 1.099–1.104x on the three Caliptra profiles; the actual type-proven, unforced subset is not separately sampled. For WP12, the whole `vthread_run` symbol is 3.25–3.65% in Caliptra, while the corpus `multi_clock` row at 15.65% has no repeated trigger sets. WP11 has no eligible fused group, and the earlier MUXZ prototype changed an observable delta trace. These measurements explain why the screened A/B/C candidates did not pass; they are not a global VVP performance ceiling. No precise ceiling for a new two-state opcode family is claimed because the available profiles do not separate those operand types.
+
 ## Cumulative Caliptra anchor
 
 Slurm job 3275 is the latest matched three-test, three-repeat comparison on a fixed mcycle 100–2,100 window. The current-main column in that job is commit 8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1, the M4 reference.
@@ -18,4 +22,4 @@ Slurm job 3275 is the latest matched three-test, three-repeat comparison on a fi
 | cptra_ss_test_rom | 7.718 (8.40%) | 9.914 (12.89%) |
 | Three-test geometric mean | 7.762 | 9.923 |
 
-The reference is +27.84% over campaign base. The M4 target is 1.50x the reference, or 14.884 cycles/s geometric mean. M4 advanced no runtime changes, so its cumulative M4 speedup is 1.000x against the 8c95b5c anchor; this is not a fresh fb584 throughput measurement. The profile-only evidence does not establish a new cycles/s result. The target remains unmet.
+The reference is +27.84% over campaign base. The M4 target is 1.50x the reference, or 14.884 cycles/s geometric mean. M4 advanced no runtime changes, so its cumulative M4 speedup is 1.000x against the 8c95b5c anchor; this is not a fresh fb584 throughput measurement. The profile-only evidence does not establish a new cycles/s result. The target remains unmet, and the documented limits apply to the screened A/B/C candidates rather than proving a global VVP ceiling.
