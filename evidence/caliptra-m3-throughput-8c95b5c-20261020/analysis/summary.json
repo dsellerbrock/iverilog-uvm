@@ -1,0 +1,262 @@
+{
+  "campaign_base": "f9f8e0a79f230f38da6cbb4445994ad1075ad531",
+  "m2_main": "9b5fad2afb4104caa816b257d5bccc40f01b8c66",
+  "current_main": "8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1",
+  "window": {
+    "start": 100,
+    "end": 2100,
+    "cycles": 2000
+  },
+  "tests": {
+    "smoke_test_dma_aes_gcm_short_1_dword": {
+      "base": {
+        "median_cycles_per_second": 7.821423333958669,
+        "min_cycles_per_second": 7.7651321735985235,
+        "max_cycles_per_second": 7.911435451878339,
+        "spread_percent": 1.8705454497598073,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 255707933787,
+            "cycles_per_second": 7.821423333958669,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 252798624493,
+            "cycles_per_second": 7.911435451878339,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 257561617148,
+            "cycles_per_second": 7.7651321735985235,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 9.914512603612955,
+        "min_cycles_per_second": 9.79500925132732,
+        "max_cycles_per_second": 10.026836728134215,
+        "spread_percent": 2.3382639780236385,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 199464702002,
+            "cycles_per_second": 10.026836728134215,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201724490145,
+            "cycles_per_second": 9.914512603612955,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204185616234,
+            "cycles_per_second": 9.79500925132732,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 9.912901006360007,
+        "min_cycles_per_second": 9.899428723474202,
+        "max_cycles_per_second": 10.102675465730243,
+        "spread_percent": 2.0503255517798546,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 197967360902,
+            "cycles_per_second": 10.102675465730243,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201757285654,
+            "cycles_per_second": 9.912901006360007,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 202031860208,
+            "cycles_per_second": 9.899428723474202,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "smoke_test_sha256": {
+      "base": {
+        "median_cycles_per_second": 7.746377678104599,
+        "min_cycles_per_second": 7.714620853514902,
+        "max_cycles_per_second": 7.887397211792053,
+        "spread_percent": 2.2304148526802297,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 259247996496,
+            "cycles_per_second": 7.714620853514902,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 258185190951,
+            "cycles_per_second": 7.746377678104599,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 253569073079,
+            "cycles_per_second": 7.887397211792053,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 9.777647873925382,
+        "min_cycles_per_second": 9.730860085998978,
+        "max_cycles_per_second": 9.919081426624269,
+        "spread_percent": 1.9250165587086736,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 205531677809,
+            "cycles_per_second": 9.730860085998978,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204548172095,
+            "cycles_per_second": 9.777647873925382,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201631573931,
+            "cycles_per_second": 9.919081426624269,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 9.940558666001536,
+        "min_cycles_per_second": 9.791384732364817,
+        "max_cycles_per_second": 10.101774827098634,
+        "spread_percent": 3.1224612736848085,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204261200501,
+            "cycles_per_second": 9.791384732364817,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201195935480,
+            "cycles_per_second": 9.940558666001536,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 197985010974,
+            "cycles_per_second": 10.101774827098634,
+            "runner_exit": 1
+          }
+        ]
+      }
+    },
+    "cptra_ss_test_rom": {
+      "base": {
+        "median_cycles_per_second": 7.718040112613559,
+        "min_cycles_per_second": 7.415287351714868,
+        "max_cycles_per_second": 8.063623808389107,
+        "spread_percent": 8.400273219812178,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 269713081252,
+            "cycles_per_second": 7.415287351714868,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 259133144013,
+            "cycles_per_second": 7.718040112613559,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 248027443681,
+            "cycles_per_second": 8.063623808389107,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "main": {
+        "median_cycles_per_second": 9.788778770763335,
+        "min_cycles_per_second": 9.711896990381224,
+        "max_cycles_per_second": 10.107866020727036,
+        "spread_percent": 4.045132080505015,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 205932991462,
+            "cycles_per_second": 9.711896990381224,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 204315578770,
+            "cycles_per_second": 9.788778770763335,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 197865701415,
+            "cycles_per_second": 10.107866020727036,
+            "runner_exit": 1
+          }
+        ]
+      },
+      "candidate": {
+        "median_cycles_per_second": 9.91428130846054,
+        "min_cycles_per_second": 9.864813994946543,
+        "max_cycles_per_second": 11.142556431093881,
+        "spread_percent": 12.887897734523158,
+        "samples": [
+          {
+            "cycles": 2000,
+            "elapsed_ns": 201729196275,
+            "cycles_per_second": 9.91428130846054,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 202740771496,
+            "cycles_per_second": 9.864813994946543,
+            "runner_exit": 1
+          },
+          {
+            "cycles": 2000,
+            "elapsed_ns": 179492023430,
+            "cycles_per_second": 11.142556431093881,
+            "runner_exit": 1
+          }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "m2_main_vs_base_geometric_mean_percent": 26.604048803499825,
+    "current_main_vs_base_geometric_mean_percent": 27.838137875838285,
+    "current_main_vs_m2_main_geometric_mean_percent": 0.9747627220467958,
+    "base_pooled_cycles_per_second": 7.7617025999573945,
+    "main_pooled_cycles_per_second": 9.826589503386348,
+    "candidate_pooled_cycles_per_second": 9.922564022465485
+  },
+  "all_inputs_identical": true,
+  "all_normalized_logs_identical": true
+}
