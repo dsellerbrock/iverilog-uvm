@@ -1,0 +1,3 @@
+DATA 5000 af
+FINAL 6000 af
+input/k4_vif_selected_drive.sv:27: $finish called at 6000 (1ps)
