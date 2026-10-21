@@ -1,0 +1,2 @@
+S3d FAIL 0
+inputs/s3d_time_zero_assertion_attempt_control.sv:6: $finish called at 50 (1ns)

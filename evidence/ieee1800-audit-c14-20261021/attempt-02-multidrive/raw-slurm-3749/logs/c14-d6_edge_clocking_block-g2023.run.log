@@ -1,0 +1,4 @@
+5 k=1
+10 k=0
+15 k=1
+inputs/c14/d6_edge_clocking_block.sv:8: $finish called at 50 (1ns)
