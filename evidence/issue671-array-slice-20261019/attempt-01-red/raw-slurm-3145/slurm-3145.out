@@ -1,0 +1,10 @@
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+compile -g2017 exit=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:13: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:14: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+2 error(s) during elaboration.
+compile -g2023 exit=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:13: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:14: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+2 error(s) during elaboration.

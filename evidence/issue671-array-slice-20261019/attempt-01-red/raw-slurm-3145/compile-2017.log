@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:13: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+/home/dsell/slurm-runs/iverilog-uvm/A3/issue671-slice-red-20261019-1/work/sv_dynamic_array_slice_class_property.v:14: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+2 error(s) during elaboration.
