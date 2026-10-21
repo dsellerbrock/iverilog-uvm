@@ -3,7 +3,8 @@
 The M3 WP7 prototype and measurements below are pinned to source base
 `8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1` (`origin/main` when that work
 started). The M5 WP7-T1 screen uses its own pinned base and is reported in a
-separate section; its full-corpus and Caliptra checks are complete. A tier is
+separate section. The initial T1 candidate passed full-corpus and Caliptra
+checks; the cached-hull follow-up is awaiting its full gates. A tier is
 selected for each effective class constraint set. If the runtime cannot prove
 that a cheaper tier is exact, it falls through to the next tier. Seeded values
 and legal-value distributions are release gates.
@@ -388,3 +389,35 @@ was added. Reviewable traces and machine-readable Callgrind and tier summaries
 are in the [validation record](../../evidence/wp7-t1-10f3a0a-20261021/validation/README.md).
 Generated Caliptra build trees remain in the local artifact copy and are not
 included in the PR.
+
+### T1 cached-hull follow-up
+
+The exact-interval cache attempt had zero hits over 1,000 DVT randomizations:
+the normal hull rejection usually succeeds before the sampler discovers a full
+interval union. A narrower per-context cache stores only the proven min/max
+hull and the count of boundary queries used to prove it. Cache hits skip those
+same queries, then preserve the 64 full-domain proposals, hull proposals, and
+later query cap. The key uses the subject and isolated-factor AST IDs, so a
+changed effective factor cannot reuse an old hull.
+
+Slurm job 3818 compared the pinned base, PR #933, and this candidate. Default
+outputs and eight seeded outputs matched byte-for-byte. The 1,000-call DVT run
+recorded 874 hull-cache hits and reduced Z3 checks from 93,340 to 37,404.
+Callgrind results were:
+
+| Workload | Pinned base | PR #933 | Candidate | Candidate vs PR #933 |
+| --- | ---: | ---: | ---: | ---: |
+| `randomize_dv_txn` | 106,077,741,143 | 72,981,246,600 | 44,754,551,050 | 1.630700x (-38.68%) |
+| `randomize_z3` | 13,023,158,864 | 5,781,316,490 | 5,782,607,074 | 0.999777x (+0.0223%) |
+
+This passes the focused 10% target and 2% regression screen. It leaves the
+whole-call tiers unchanged (`randomize_dv_txn` T4; `randomize_z3` 282 T2 / 518
+T3). The cumulative speedups over the pinned base are 2.370211x and 2.252126x,
+so the M5 10x goal remains unmet. Multi-seed and full-corpus correctness gates
+for this candidate are pending. The exact output hashes, profile hashes, and
+runner details are in
+[`evidence/wp7-t1-10f3a0a-20261021/attempts/t1-hull-cache/`](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-hull-cache/).
+The measured hull patch SHA-256 is
+`e3b7376125b75518391e010e26a48bd094577d5cfbb67f4556906f1d37f3de76`; the
+submitted patch adds only the explanatory query-cap comment (SHA-256
+`690decbc7ac17487666faa250dc8514a587b062f6abf96c8a4f7bcfe0079bc10`).

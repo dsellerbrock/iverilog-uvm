@@ -9584,6 +9584,14 @@ enum wide_interval_sampling_t {
   WIDE_INTERVAL_INDETERMINATE
 };
 
+// shortcut: cache hulls for <=32-bit factors only; widen if profiles justify it.
+struct z3_t1_hull_plan_t {
+      bool valid = false;
+      uint64_t low = 0;
+      uint64_t high = 0;
+      size_t boundary_queries = 0;
+};
+
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
  * Dense domains use exact uniform rejection; sparse domains use boundary
  * counting. ponytail: cap boundary work and rejection; use exact counting to
@@ -9594,10 +9602,14 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
                                                                       unsigned width,
                                                                       z3_rng_stream_t&rng,
                                                                       Z3_ast&sample,
-                                                                      Z3_ast isolated_factor = nullptr)
+                                                                      Z3_ast isolated_factor = nullptr,
+                                                                      const z3_t1_hull_plan_t*cached_hull = nullptr,
+                                                                      z3_t1_hull_plan_t*capture_hull = nullptr,
+                                                                      bool*used_cached_hull = nullptr)
 {
       typedef dist_wide_uint_t big;
       sample = nullptr;
+      if (used_cached_hull) *used_cached_hull = false;
       if (width == 0 || width > WIDE_INTERVAL_MAX_WIDTH)
             return WIDE_INTERVAL_NOT_APPLICABLE;
 
@@ -9707,9 +9719,30 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
             return Z3_L_TRUE;
       };
       big low, high;
-      if (bound(true, low) == Z3_L_UNDEF || bound(false, high) == Z3_L_UNDEF)
-            return recover_after_boundary_search();
-      if (big::cmp(low, high) > 0)            // no legal value at all
+      const bool cached_hull_valid = cached_hull && cached_hull->valid
+            && width <= 32 && cached_hull->low <= cached_hull->high
+            && cached_hull->high < (UINT64_C(1) << width)
+            && cached_hull->boundary_queries <= BOUNDARY_QUERY_CAP;
+      if (cached_hull_valid) {
+            low = big::from_u64(cached_hull->low);
+            high = big::from_u64(cached_hull->high);
+            // Preserve the later exact-search cap after skipping this proof.
+            boundary_queries = cached_hull->boundary_queries;
+            if (used_cached_hull) *used_cached_hull = true;
+      } else {
+            if (bound(true, low) == Z3_L_UNDEF
+                || bound(false, high) == Z3_L_UNDEF)
+                  return recover_after_boundary_search();
+            if (big::cmp(low, high) > 0)    // no legal value at all
+                  return finish(WIDE_INTERVAL_NOT_APPLICABLE);
+            if (capture_hull && width <= 32) {
+                  capture_hull->valid = true;
+                  capture_hull->low = low.low64();
+                  capture_hull->high = high.low64();
+                  capture_hull->boundary_queries = boundary_queries;
+            }
+      }
+      if (big::cmp(low, high) > 0)
             return finish(WIDE_INTERVAL_NOT_APPLICABLE);
       Z3_lbool hull = rejection_sample_in(4096, low,
             big::add(big::sub(high, low), one));
@@ -11517,6 +11550,7 @@ struct z3_context_cache_entry_t {
       unsigned uses = 0;
       unsigned active = 0;
       std::set<z3_isolated_count_cache_key_t> positive_counts;
+      std::map<z3_isolated_count_cache_key_t, z3_t1_hull_plan_t> hull_plans;
 };
 
 static void z3_context_cache_entry_destroy_(z3_context_cache_entry_t&entry)
@@ -11536,8 +11570,48 @@ struct z3_context_cache_t {
 };
 
 static z3_context_cache_t z3_context_cache;
-// shortcut: cap proven positive counts at 512/context; raise after RSS measurements.
+// shortcut: cap positive-count and hull plans at 512/context; use LRU if churn evicts hot entries.
 static const size_t Z3_CONTEXT_POSITIVE_COUNT_CACHE_LIMIT = 512;
+
+static z3_context_cache_entry_t* z3_context_cache_entry_(Z3_context ctx)
+{
+      for (auto&entry : z3_context_cache.entries)
+            if (entry.second.context == ctx) return &entry.second;
+      return nullptr;
+}
+
+static bool z3_t1_hull_cache_lookup_(Z3_context ctx, Z3_ast subject,
+      Z3_ast factor, unsigned width, z3_t1_hull_plan_t&plan)
+{
+      if (!subject || !factor || width == 0 || width > 32) return false;
+      z3_context_cache_entry_t*entry = z3_context_cache_entry_(ctx);
+      if (!entry) return false;
+      z3_isolated_count_cache_key_t key;
+      key.first = make_pair(Z3_get_ast_id(ctx, subject),
+                            Z3_get_ast_id(ctx, factor));
+      key.second = make_pair(width, (size_t)0);
+      auto found = entry->hull_plans.find(key);
+      if (found == entry->hull_plans.end() || !found->second.valid)
+            return false;
+      plan = found->second;
+      return true;
+}
+
+static void z3_t1_hull_cache_store_(Z3_context ctx, Z3_ast subject,
+      Z3_ast factor, unsigned width, const z3_t1_hull_plan_t&plan)
+{
+      if (!plan.valid || !subject || !factor || width == 0 || width > 32)
+            return;
+      z3_context_cache_entry_t*entry = z3_context_cache_entry_(ctx);
+      if (!entry) return;
+      z3_isolated_count_cache_key_t key;
+      key.first = make_pair(Z3_get_ast_id(ctx, subject),
+                            Z3_get_ast_id(ctx, factor));
+      key.second = make_pair(width, (size_t)0);
+      if (entry->hull_plans.size() >= Z3_CONTEXT_POSITIVE_COUNT_CACHE_LIMIT)
+            entry->hull_plans.clear();
+      entry->hull_plans[key] = plan;
+}
 
 static bool z3_isolated_count_cache_lookup_(Z3_context ctx, Z3_ast subject,
       Z3_ast factor, unsigned width, size_t cap,
@@ -13792,11 +13866,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		&& builder.state_checks.empty() && builder.qelem_vars.empty()
 		&& !builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx))) {
 		  Z3_ast sampled = nullptr;
+		  z3_t1_hull_plan_t cached_hull, captured_hull;
+		  const bool has_cached_hull = z3_t1_hull_cache_lookup_(ctx,
+		        pv.var, isolated_factor, pv.width, cached_hull);
+		  bool used_cached_hull = false;
 		  wide_interval_sampling_t interval_result =
 		z3_sample_wide_single_var_intervals_(ctx, base, pv.var,
 							   pv.width,
 							   property_rng(pv.idx), sampled,
-							   isolated_factor);
+							   isolated_factor,
+							   has_cached_hull ? &cached_hull : nullptr,
+							   pv.width <= 32 ? &captured_hull : nullptr,
+							   &used_cached_hull);
+		  if (used_cached_hull) {
+#ifdef VVP_PERF_STATS
+			vvp_perf_stats_z3_hull_cache_hit();
+#endif
+		  } else {
+			z3_t1_hull_cache_store_(ctx, pv.var, isolated_factor,
+			      pv.width, captured_hull);
+		  }
 		  if (interval_result == WIDE_INTERVAL_SAMPLED) {
 			Z3_ast eq = Z3_mk_eq(ctx, pv.var, sampled);
 			Z3_optimize_assert(ctx, opt, eq);
