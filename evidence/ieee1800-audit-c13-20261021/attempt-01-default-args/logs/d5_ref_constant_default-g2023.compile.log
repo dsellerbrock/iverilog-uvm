@@ -1,0 +1,3 @@
+input/d5_ref_constant_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d5_ref_constant_default.sv:3: error: Missing argument 1 ('x') of call to task.
+2 error(s) during elaboration.
