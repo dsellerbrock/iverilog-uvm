@@ -10521,12 +10521,12 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		specialized_handled = slice_handled;
 	    }
 	    slice_handled = false;
-	    bool direct_plain_target = delay_ == 0 && event_ == 0 && count_ == 0
-		  && !lv->word() && !lv->nest() && lv->get_property_idx() < 0
-		  && lv->sig()
+	    // A single class property has the same simple receiver shape as a signal.
+	    bool simple_darray_target = delay_ == 0 && event_ == 0 && count_ == 0
+		  && !lv->word() && !lv->nest() && lv->sig()
 		  && !dynamic_cast<const netqueue_t*>(target_darray);
 	    if (!specialized_handled) {
-		rv = direct_plain_target
+		rv = simple_darray_target
 		      ? elaborate_direct_darray_slice_rval_(
 			    des, scope, *this, rval(), target_darray,
 			    slice_handled, indexed_slice_prelude)
