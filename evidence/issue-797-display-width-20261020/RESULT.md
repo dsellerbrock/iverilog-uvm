@@ -46,3 +46,40 @@ explicit width is unchanged.
 The test sources use `PASSED` and reference the existing
 `sv_const_string_format` golden, so this change adds no golden file or edits
 an existing expected-output file.
+
+## T2 review correction — 2026-10-21
+
+The first T2 batch exposed that the initial implementation changed
+right-justified values to zero padding and left-justified values lost the
+existing expression-width zeros. The paired tests now follow the explicit
+examples in IEEE 1800-2017 §21.2.1.3 (pp. 629–630) and 1800-2023
+§21.2.1.2 (pp. 658–659): `%3h` with `32'h5` is `005`, `%3h` with
+`32'h1234` is `1234`, and
+`%02X` with `32'h3` is `03`. Explicit field width suppresses automatic
+expression-width zero extension, but never truncates significant digits.
+
+The tests also retain a left-justified case for Icarus's existing formatting
+extension, plus `$swrite` checks for the standard field padding. The legacy
+`format` and `swrite` tests still expect space padding, so the source diff
+changes those legacy outputs; their expected files have not been edited.
+The first local T0 run passed before the `%02X` expectation was corrected;
+it is superseded by the corrected run below.
+
+## Corrected verification — 2026-10-21
+
+- Host: Apple Silicon Mac, Apple clang 21. Source base `f5e2d1125` plus the
+  four changed files in this worktree. Incremental `make -j1` and `make
+  install` passed. The paired 2017/2023 legacy tests and JSON tests each pass
+  2/2, individually guarded at 120 seconds. This corrected T0 run took 2.90
+  seconds with 62,881,792 bytes maximum RSS.
+- T1 smoke set: 56/56 passed. VPI: 133/133 passed. All smoke reproducers,
+  negative tests, and VVP runtime checks passed. Display-focused T1: 23/25
+  legacy cases passed; `format` and `swrite` fail only because their old
+  output goldens expect spaces instead of the new radix zero-padding. The
+  17 display-related JSON cases passed. The full local T1 command took 82.84
+  seconds with 108,167,168 bytes maximum RSS.
+- No existing golden was changed. T1 remains red pending a decision on the
+  legacy output expectations; this branch is not ready-for-batch. The prior
+  T2 staging gate also remains red, and no T2 rerun or merge was attempted.
+- Raw T0/T1 runner output and the `format`/`swrite` mismatch logs are in
+  `attempt-02-repair/` for local review; generated logs are not source files.

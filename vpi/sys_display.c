@@ -513,18 +513,19 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           unsigned free_flag = 0;
           char *cp = value.value.str;
           if (width != -1 || ld_zero == 1) {
-            /* Explicit widths replace auto sizing, but never truncate digits. */
-            while (*cp == '0' && *(cp+1) != '\0') cp++;
-            if (ljust == 0 && width > 0) {
-              unsigned swidth = strlen(cp);
-              if ((signed)swidth < width) {
-                unsigned pad = (unsigned)width - swidth;
-                char *padded = malloc((width+1)*sizeof(char));
-                memset(padded, '0', pad);
-                strcpy(padded+pad, cp);
-                cp = padded;
-                free_flag = 1;
-              }
+            /* Keep auto-sized zeros for Icarus's existing %-width extension. */
+            if (ljust == 0 || ld_zero == 1)
+              while (*cp == '0' && *(cp+1) != '\0') cp++;
+          }
+          if (ljust == 0 && width > 0) {
+            unsigned swidth = strlen(cp);
+            if ((signed)swidth < width) {
+              unsigned pad = (unsigned)width - swidth;
+              char *padded = malloc((width+1)*sizeof(char));
+              memset(padded, '0', pad);
+              strcpy(padded+pad, cp);
+              cp = padded;
+              free_flag = 1;
             }
           }
 
