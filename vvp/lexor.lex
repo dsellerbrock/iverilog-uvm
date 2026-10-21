@@ -169,6 +169,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".constraint_call" { return K_CONSTRAINT_CALL; }
 ".constraint_dep" { return K_CONSTRAINT_DEP; }
 ".covgrp_bin"   { return K_COVGRP_BIN; }
+".covgrp_wide_range" { return K_COVGRP_WIDE_RANGE; }
 ".covgrp_dyn_bin" { return K_COVGRP_DYN_BIN; }
 ".covgrp_dyn_trans" { return K_COVGRP_DYN_TRANS; }
 ".covgrp_cross" { return K_COVGRP_CROSS; }
