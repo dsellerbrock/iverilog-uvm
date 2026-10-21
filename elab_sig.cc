@@ -3440,7 +3440,7 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
 				      tmp_def = elaborate_rval_expr(
-					    des, scope, formal_type,
+					    des, scope->parent(), formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
 				} else {
