@@ -521,6 +521,19 @@ class netclass_t : public ivl_type_s {
       static const unsigned COVGRP_NO_FAMILY = 0xFFFFFFFF;
       static const unsigned COVGRP_NO_GUARD = 0xFFFFFFFF;
 	static const unsigned COVGRP_REAL_BIN = 0x100;
+	static const unsigned COVGRP_WIDE_RANGE_BIN = 0x400;
+	struct covgrp_wide_range_t {
+	    unsigned width;
+	    std::vector<uint64_t> low;
+	    std::vector<uint64_t> high;
+	};
+	size_t add_covgrp_wide_range(unsigned width,
+				     const std::vector<uint64_t>&low,
+				     const std::vector<uint64_t>&high);
+	size_t covgrp_wide_range_count() const
+	{ return covgrp_wide_ranges_.size(); }
+	const covgrp_wide_range_t& covgrp_wide_range(size_t idx) const
+	{ return covgrp_wide_ranges_[idx]; }
 
       void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
@@ -882,6 +895,7 @@ class netclass_t : public ivl_type_s {
 	std::set<const Statement*>rejected_constructor_initializer_sites_;
 	std::map<const Statement*,size_t>constructor_initializer_properties_;
       std::vector<covgrp_bin_t> covgrp_bins_;
+	std::vector<covgrp_wide_range_t> covgrp_wide_ranges_;
       std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<covgrp_cross_t> covgrp_crosses_;
       std::vector<covgrp_cross_term_t> covgrp_cross_terms_;

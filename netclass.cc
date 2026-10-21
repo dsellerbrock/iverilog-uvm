@@ -1228,6 +1228,14 @@ void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_
       covgrp_bins_.push_back(b);
 }
 
+size_t netclass_t::add_covgrp_wide_range(
+	unsigned width, const std::vector<uint64_t>&low,
+	const std::vector<uint64_t>&high)
+{
+      covgrp_wide_ranges_.push_back({width, low, high});
+      return covgrp_wide_ranges_.size() - 1;
+}
+
 const string& netclass_t::constraint_ir_name(size_t idx) const
 {
       return constraint_irs_[idx].name;

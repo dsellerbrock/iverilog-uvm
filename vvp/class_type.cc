@@ -2888,6 +2888,44 @@ void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
 	}
 }
 
+size_t class_type::add_covgrp_wide_range(unsigned width,
+					 const std::vector<uint64_t>&low,
+					 const std::vector<uint64_t>&high)
+{
+      cov_wide_range_t range;
+      range.width = width;
+      range.low = low;
+      range.high = high;
+      covgrp_wide_ranges_.push_back(std::move(range));
+      return covgrp_wide_ranges_.size() - 1;
+}
+
+void compile_class_covgrp_wide_range(uint64_t idx, uint64_t width,
+				     const std::vector<uint64_t>&words)
+{
+      assert(compile_class);
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (idx > u32_max || width <= 64 || width > 256) {
+	yyerror("invalid .covgrp_wide_range metadata");
+	return;
+      }
+      size_t nwords = (width + 63) / 64;
+      if (idx != compile_class->covgrp_wide_range_count()
+	  || words.size() != 2 * nwords) {
+	yyerror("invalid .covgrp_wide_range word count or index");
+	return;
+      }
+      if ((width & 63)
+	  && ((words[nwords - 1] >> (width & 63)) != 0
+	      || (words[2 * nwords - 1] >> (width & 63)) != 0)) {
+	yyerror("invalid .covgrp_wide_range upper bits");
+	return;
+      }
+      std::vector<uint64_t> low(words.begin(), words.begin() + nwords);
+      std::vector<uint64_t> high(words.begin() + nwords, words.end());
+      compile_class->add_covgrp_wide_range((unsigned)width, low, high);
+}
+
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 			      uint64_t lo, uint64_t hi, uint64_t kind,
 			      uint64_t tuple, uint64_t item_idx,
@@ -2914,6 +2952,11 @@ void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 	      || trans_alt_count == 0
 	      || trans_alt >= trans_alt_count)) {
 	yyerror("invalid .covgrp_bin transition metadata");
+	return;
+      }
+      if ((kind & class_type::COV_WIDE_RANGE_BIN)
+	  && (hi != 0 || lo >= compile_class->covgrp_wide_range_count())) {
+	yyerror("invalid .covgrp_bin wide range reference");
 	return;
       }
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_wide_range_bins.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_covergroup_wide_range_bins"],
+  "gold": ""
+}
