@@ -50,6 +50,7 @@ vpip_make_systf_system_defined
 vpip_mcd_rawwrite
 vpip_set_return_value
 vpip_systf_call_returns_string
+vpip_is_system_verilog_mode
 svDimensions
 svSize
 svLow

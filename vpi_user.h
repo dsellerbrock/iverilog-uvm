@@ -682,6 +682,8 @@ extern void vpip_set_deferred_assertions_enabled(const char*selector,
                                                   PLI_INT32 enabled);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
+/* True when the current VVP design was compiled as SystemVerilog. */
+extern int vpip_is_system_verilog_mode(void);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
    (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the
