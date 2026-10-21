@@ -1,0 +1,9 @@
+edition	probe	compile_rc	run_rc	expected	first_diagnostic
+2017	p18_05_5_unique	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:28: warning: Static variable initialization requires explicit lifetime in this context.
+2017	p18_05_5_n1_randc	1	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_n1_randc.sv:6: error: 'randc' variables cannot be used in 'unique' constraints.
+2017	p18_05_5_n2_type	0	0	reject	
+2017	p18_05_5_n3_expr	0	0	reject	
+2023	p18_05_5_unique	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:28: warning: Static variable initialization requires explicit lifetime in this context.
+2023	p18_05_5_n1_randc	1	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_n1_randc.sv:6: error: 'randc' variables cannot be used in 'unique' constraints.
+2023	p18_05_5_n2_type	0	0	reject	
+2023	p18_05_5_n3_expr	0	0	reject	

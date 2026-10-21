@@ -1,0 +1,4 @@
+tests/1800_audit/c14/neg/n14_03_write_input.sv:8: error: clocking-block input `cb.d' cannot be written (IEEE 1800-2017 14.3: input clockvars are sampled, not driven).
+tests/1800_audit/c14/neg/n14_03_write_input.sv:8: error: 'd' is not a valid l-value for a procedural assignment.
+tests/1800_audit/c14/neg/n14_03_write_input.sv:3:      : 'd' is declared here as a wire.
+Elaboration failed

@@ -1,0 +1,9 @@
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z
+47	CLOSED	Phase 75: Fallback hardening — eliminate remaining warning noise		2026-07-28T14:57:12Z
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:06:40Z
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+739	OPEN	[IEEE 1800] §6.19.5 — bare enum methods (no parentheses) on a class property are dropped and return 32	1800-audit	2026-10-20T04:06:43Z

@@ -1,0 +1,9 @@
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: error: Cast size expression must be constant and greater than zero.
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:33: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+8 error(s) during elaboration.

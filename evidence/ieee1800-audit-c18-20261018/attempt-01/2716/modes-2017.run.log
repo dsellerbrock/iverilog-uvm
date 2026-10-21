@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-08-20261018/input/p18_08_modes.sv:85: whole-structure setter did not affect every member
+       Time: 0  Scope: test.$unm_blk_1

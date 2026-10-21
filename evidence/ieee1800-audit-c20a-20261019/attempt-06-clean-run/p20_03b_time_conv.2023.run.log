@@ -1,0 +1,24 @@
+TF [32.00000 ns]
+TF2 [30.00000 ns]
+TF3 [ 32000.00 ps]
+Time scale of (p20a) is 10ns / 1ns
+Time scale of (p20a) is 10ns / 1ns
+RESULT pass=13 fail=0
+        0.01 real         0.00 user         0.00 sys
+             6668288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 704  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  17  involuntary context switches
+            79965035  instructions retired
+            27886371  cycles elapsed
+             3850624  peak memory footprint

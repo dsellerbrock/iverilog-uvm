@@ -1,0 +1,55 @@
+
+--- "6.22.3" ---
+#474 CLOSED [IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads https://github.com/dsellerbrock/iverilog-uvm/issues/474
+
+--- "6.22.4" ---
+
+--- "6.22.6" ---
+
+--- assignment-compatible ---
+#743 OPEN [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/743
+#608 OPEN [IEEE 1800] §8.4 — Reject arithmetic operators on class handles https://github.com/dsellerbrock/iverilog-uvm/issues/608
+#612 OPEN [IEEE 1800] §8.4 — Reject equality between handles of unrelated classes https://github.com/dsellerbrock/iverilog-uvm/issues/612
+#671 OPEN from-caliptra-dv: dynamic-array slice assignments in class properties https://github.com/dsellerbrock/iverilog-uvm/issues/671
+#745 CLOSED [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/745
+#483 CLOSED [IEEE 1800] §13.5.2 — Allow const-ref forwarding to const-ref formals https://github.com/dsellerbrock/iverilog-uvm/issues/483
+#492 CLOSED [IEEE 1800] §§7.6/23.3.3 — Connect unpacked-array output ports to array slices https://github.com/dsellerbrock/iverilog-uvm/issues/492
+#415 CLOSED [IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns https://github.com/dsellerbrock/iverilog-uvm/issues/415
+
+--- integral to enum ---
+
+--- enum assignment ---
+#801 OPEN [IEEE 1800] §21.2.1.7 — %p of an associative array of structs prints question marks for the element values https://github.com/dsellerbrock/iverilog-uvm/issues/801
+#743 OPEN [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/743
+#671 OPEN from-caliptra-dv: dynamic-array slice assignments in class properties https://github.com/dsellerbrock/iverilog-uvm/issues/671
+#742 OPEN [IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/742
+#539 CLOSED Packed struct assignment pattern member loses enum value with wider sibling expression https://github.com/dsellerbrock/iverilog-uvm/issues/539
+#745 CLOSED [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/745
+#744 CLOSED [IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/744
+#27 CLOSED OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed https://github.com/dsellerbrock/iverilog-uvm/issues/27
+
+--- cast-compatible ---
+#743 OPEN [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/743
+#725 OPEN [IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations https://github.com/dsellerbrock/iverilog-uvm/issues/725
+#745 CLOSED [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/745
+
+--- cast to enum ---
+#742 OPEN [IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/742
+#737 OPEN [IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits https://github.com/dsellerbrock/iverilog-uvm/issues/737
+#743 OPEN [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/743
+#744 CLOSED [IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/744
+#745 CLOSED [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning https://github.com/dsellerbrock/iverilog-uvm/issues/745
+#47 CLOSED Phase 75: Fallback hardening — eliminate remaining warning noise https://github.com/dsellerbrock/iverilog-uvm/issues/47
+#27 CLOSED OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed https://github.com/dsellerbrock/iverilog-uvm/issues/27
+
+--- nettype ---
+#435 OPEN [IEEE 1800] §6 — Support class-method resolution functions for user-defined nettypes https://github.com/dsellerbrock/iverilog-uvm/issues/435
+
+--- user-defined nettype ---
+#435 OPEN [IEEE 1800] §6 — Support class-method resolution functions for user-defined nettypes https://github.com/dsellerbrock/iverilog-uvm/issues/435
+
+--- nettype alias ---
+
+--- nettype port ---
+
+--- matching nettypes ---

@@ -1,0 +1,7 @@
+# IEEE 1800 §16.10 local-variable probes
+
+- Slurm job: `3197` on `DAN-DESKTOP`, 2026-10-19 15:40 MDT; request was 1 CPU, 1 GiB, 10 minutes. The batch metadata shows start and finish in the same second. `squeue` was empty after completion.
+- Toolchain: Icarus from main `c31cbf1b52f1a39d5775f276e2340525a444a79e`; `iverilog` SHA256 `f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818`; `vvp` SHA256 `b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6`.
+- Each probe compiled using `iverilog -B <toolchain>/lib/ivl -g<2017|2023> -gassertions -s test ...` with a 120-second timeout. Successful builds ran using `vvp -n` with the same timeout.
+- Both editions: property-local and sequence-local assignment probes compiled and ran successfully. Declaration initialization failed at the declaration; multiple comma-separated assignments and assignment attached to a compound subsequence failed at the match-item list. The original increment match-item probe also failed, and was narrowed in [attempt 28](../attempt-28-c16.10-incdec/README.md). Raw compiler and runtime logs, input SHA256s, and the exact batch output are in `results/` and `logs/`.
+- IEEE 1800-2017 §16.10 (pp. 413–414) and IEEE 1800-2023 §16.10 (pp. 432–433) permit declaration initialization with an expression, and Syntax 16-14 permits comma-separated sequence match items including `operator_assignment` and `inc_or_dec_expression`. This probe set is awaiting lead review for final classification and any syntax corrections.

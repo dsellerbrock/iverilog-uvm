@@ -1,0 +1,10 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: error: I give up on this function definition.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: error: I give up on this function definition.

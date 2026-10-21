@@ -1,0 +1,9 @@
+job_id=3190
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:20:08-06:00
+17613314ca3c23488d74fe39425217b95182d37a8b9dfda424b305216676a939  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+compile_exit=0
+run_exit=7

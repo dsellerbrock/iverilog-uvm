@@ -1,0 +1,2 @@
+PASS §7.8/§7.9 associative arrays, methods, literals
+/home/dsell/slurm-runs/iverilog-uvm/A3/c07-audit-20261019-08/source/tests/1800_audit/c07/p07_08_assoc_methods_literals.sv:58: $finish called at 0 (1s)

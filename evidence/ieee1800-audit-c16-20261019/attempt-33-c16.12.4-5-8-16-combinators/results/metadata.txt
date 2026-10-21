@@ -1,0 +1,12 @@
+job_id=3205
+host=DAN-DESKTOP
+source_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T16:00:07-06:00
+input=p16_12_04_05_property_and_or.sv edition=2017 compile_exit=2 run_exit=NA
+input=p16_12_08_implies_iff.sv edition=2017 compile_exit=0 run_exit=0
+input=p16_12_16_case.sv edition=2017 compile_exit=1 run_exit=NA
+input=p16_12_04_05_property_and_or.sv edition=2023 compile_exit=2 run_exit=NA
+input=p16_12_08_implies_iff.sv edition=2023 compile_exit=0 run_exit=0
+input=p16_12_16_case.sv edition=2023 compile_exit=1 run_exit=NA
+finished=2026-10-19T16:00:07-06:00

@@ -1,0 +1,9 @@
+PASS explicit cross first product
+PASS implicit variable cross iff false
+PASS user bin first product
+PASS false iff still samples coverpoints
+PASS explicit cross all products
+FAIL implicit variable cross all products
+PASS user bins retain automatic products
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-6-20261019/input/p19_06_cross.sv:51: 1 cross coverage checks failed
+       Time: 0  Scope: test

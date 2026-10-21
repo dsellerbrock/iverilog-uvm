@@ -1,0 +1,2 @@
+INFO repeat_xz_timeout: still waiting after 1000 units
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-03/inputs/p09_04_5_repeat_x.sv:3: $finish called at 1000 (1s)

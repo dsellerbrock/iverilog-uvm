@@ -1,0 +1,5 @@
+Required issue searches, each separately in open and closed state:
+- `pop_front default`: open []; closed [].
+- `empty queue pop`: open [#849, unrelated queue `$+1` parser gap]; closed [#27, unrelated OpenTitan UART VVP runtime gaps].
+- `nonexistent array entry`: open []; closed [#486, associative-array missing-entry warnings under §7.8.6; distinct from queue pop return values].
+#486 was read directly; its reproducer and scope concern associative-array warning behavior, not queue `pop_front()`/`pop_back()` values.

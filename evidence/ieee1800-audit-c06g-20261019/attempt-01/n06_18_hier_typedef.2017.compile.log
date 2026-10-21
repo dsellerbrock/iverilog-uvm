@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: syntax error
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: error: Invalid module instantiation

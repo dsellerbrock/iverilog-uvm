@@ -1,0 +1,3 @@
+In this evidence directory, for each edition 2017 and 2023:
+~/codex-supervisor/localrun 180 bash -c '<IVL> -g<edition> -o v.<edition>.vvp <repo>/tests/1800_audit/c21/p21_07a_vcd.sv && <VVP> v.<edition>.vvp'
+Copy generated p21v.vcd to p21v.<edition>.vcd after each run.

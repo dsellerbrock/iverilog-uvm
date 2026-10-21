@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/p18_11_inline_rand_control.sv:13: warning: Static variable initialization requires explicit lifetime in this context.

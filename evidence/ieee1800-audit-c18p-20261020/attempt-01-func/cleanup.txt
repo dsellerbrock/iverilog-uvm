@@ -1,0 +1,1 @@
+Slurm job 3488 logs, outputs, timestamps and hashes copied before cleanup; removed 36513 bytes of completed owned run data.

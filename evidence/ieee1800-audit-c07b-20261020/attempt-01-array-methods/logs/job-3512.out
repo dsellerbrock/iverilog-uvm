@@ -1,0 +1,13 @@
+edition	case	compile_rc	run_rc	stdout_match
+2017	methods	1	NA	COMPILE_FAILED
+2017	reverse_with_negative	0	NA	ACCEPTED
+2023	methods	1	NA	COMPILE_FAILED
+2023	reverse_with_negative	0	NA	ACCEPTED
+--- methods-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07b-20261020-01/input/tests/1800_audit/c07/p07_12_methods.sv:24: error: Array reduction method sum() requires a one-dimensional unpacked array; got 2 unpacked dimensions.
+1 error(s) during elaboration.
+--- methods-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07b-20261020-01/input/tests/1800_audit/c07/p07_12_methods.sv:24: error: Array reduction method sum() requires a one-dimensional unpacked array; got 2 unpacked dimensions.
+1 error(s) during elaboration.
+--- reverse-with-g2017.compile.log
+--- reverse-with-g2023.compile.log

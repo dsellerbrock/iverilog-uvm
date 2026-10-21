@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_to_nomodport.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

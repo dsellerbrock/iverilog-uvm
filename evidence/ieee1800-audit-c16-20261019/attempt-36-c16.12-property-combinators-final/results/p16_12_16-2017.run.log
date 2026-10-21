@@ -1,0 +1,3 @@
+PASSED: §16.12.16 case selected arms and default
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-36/input/p16_12_16_case.sv:34: $finish called at 46 (1s)
+run_exit=0

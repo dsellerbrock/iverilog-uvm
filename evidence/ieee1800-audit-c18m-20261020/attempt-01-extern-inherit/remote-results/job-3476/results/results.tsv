@@ -1,0 +1,15 @@
+edition	probe	compile_rc	run_rc	expected
+2017	p18_05_1_extern_inherit	34	NA	run
+2017	p18_05_1_n1	1	NA	reject
+2017	p18_05_1_n2	10	NA	reject
+2017	p18_05_1_n3	0	NA	reject
+2017	p18_05_1_n4	1	NA	reject
+2017	p18_05_1_n5	1	NA	reject
+2017	p18_05_1_n6	1	NA	reject
+2023	p18_05_1_extern_inherit	34	NA	run
+2023	p18_05_1_n1	1	NA	reject
+2023	p18_05_1_n2	10	NA	reject
+2023	p18_05_1_n3	0	NA	reject
+2023	p18_05_1_n4	1	NA	reject
+2023	p18_05_1_n5	1	NA	reject
+2023	p18_05_1_n6	1	NA	reject

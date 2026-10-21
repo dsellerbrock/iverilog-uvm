@@ -1,0 +1,141 @@
+edition	probe	compile_rc	run_rc	expected
+2017	p18_05_1_extern_inherit	34	NA	run
+2017	p18_05_1_n1	1	NA	reject
+2017	p18_05_1_n2	10	NA	reject
+2017	p18_05_1_n3	0	NA	reject
+2017	p18_05_1_n4	1	NA	reject
+2017	p18_05_1_n5	1	NA	reject
+2017	p18_05_1_n6	1	NA	reject
+2023	p18_05_1_extern_inherit	34	NA	run
+2023	p18_05_1_n1	1	NA	reject
+2023	p18_05_1_n2	10	NA	reject
+2023	p18_05_1_n3	0	NA	reject
+2023	p18_05_1_n4	1	NA	reject
+2023	p18_05_1_n5	1	NA	reject
+2023	p18_05_1_n6	1	NA	reject
+--- p18_05_1_extern_inherit-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:9: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:11: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:12: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:14: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:16: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:19: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:20: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:21: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:22: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:22: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:24: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:25: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:25: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:26: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:26: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:27: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:28: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:32: error: Invalid module item.
+--- p18_05_1_extern_inherit-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:9: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:11: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:12: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:14: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:14: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:16: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:19: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:20: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:20: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:21: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:22: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:22: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:24: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:25: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:25: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:26: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:26: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:27: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:28: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:29: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_extern_inherit.sv:32: error: Invalid module item.
+--- p18_05_1_n1-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.
+--- p18_05_1_n1-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.
+--- p18_05_1_n2-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+I give up.
+--- p18_05_1_n2-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n2.sv:1: syntax error
+I give up.
+--- p18_05_1_n3-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n3.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+--- p18_05_1_n3-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n3.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+--- p18_05_1_n4-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n4.sv:1: error: A pure constraint may only be declared in a virtual class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n4.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+--- p18_05_1_n4-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n4.sv:1: error: A pure constraint may only be declared in a virtual class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n4.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+--- p18_05_1_n5-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: error: Non-virtual class `X' does not implement inherited pure constraint `t'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1:      : Pure constraint `t' is declared here.
+1 error(s) during elaboration.
+--- p18_05_1_n5-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: error: Non-virtual class `X' does not implement inherited pure constraint `t'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1:      : Pure constraint `t' is declared here.
+1 error(s) during elaboration.
+--- p18_05_1_n6-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: error: Constraint `t' is already declared pure in this class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+--- p18_05_1_n6-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: error: Constraint `t' is already declared pure in this class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: warning: Static variable initialization requires explicit lifetime in this context.

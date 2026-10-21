@@ -1,0 +1,12 @@
+Goal: Finish IEEE 1800-2017/2023 Clause 16.12 audit rows .14, .15, and .17-.19, then continue the next audit tranche.
+
+Tried: Slurm job 3215 ran the standard-valid probes with the pinned Icarus main build in both -g2017 and -g2023 modes. Toolchain main SHA c31cbf1b52f1a39d5775f276e2340525a444a79e; iverilog SHA256 f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818; vvp SHA256 b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6. Full input and result archive: evidence/ieee1800-audit-c16-20261019/attempt-39-c16.12.14-19-final/results-3215.tar.gz (SHA256 ba5938890dc477c1a9976b50efb7e09f4490805db53be4ef25014ff73839e0e4); summary log: evidence/ieee1800-audit-c16-20261019/attempt-39-c16.12.14-19-final/results-3215/logs/a3-c16-14-19-3215.out.
+
+Observed in both editions:
+- §16.12.14: all four abort operators pass the Boolean semantic counter test. Standard-valid `accept_on(abort_cond) (a ##1 b)` is rejected with `sorry: ... supported only with a boolean operand`.
+- §16.12.15: a completed sequence passes weak and strong; at end-of-simulation an incomplete sequence yields weak_failures=0 and strong_failures=0, while IEEE requires strong_failures=1.
+- §16.12.17: a recursive property that recurses after a positive cycle and then fails in both the direct and recursive attempts behaves as expected (two assertion failures; the test self-check passes).
+- §16.12.18: untyped property formal declaration and direct instantiation compile/run. A standard-valid typed formal declaration (`logic [3:0]`) produces a parser syntax error.
+- §16.12.19: standard-valid `local input int` property formal declaration produces a parser syntax error. The invalid `local output` form also produces a syntax error; its semantic direction check is therefore masked by lack of local-formal syntax.
+
+Question: Please classify each clause as Supported / Partial / Missing, dedupe or file an 1800-audit issue for every Partial or Missing gap, and choose the next audit clause in the agreed M7 order after Clause 16.

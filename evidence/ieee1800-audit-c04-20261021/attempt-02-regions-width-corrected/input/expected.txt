@@ -1,0 +1,4 @@
+R1 act b=0
+R2 inact b=0
+R4 react b=1
+R5 post b=1 c=2 d=0

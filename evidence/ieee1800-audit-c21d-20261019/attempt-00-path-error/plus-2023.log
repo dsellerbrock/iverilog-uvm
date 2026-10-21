@@ -1,0 +1,20 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21e_plusarg_overlap.sv: No such file or directory
+Preprocessor failed with 1 errors.
+        0.05 real         0.01 user         0.01 sys
+             6963200  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2427  page reclaims
+                  12  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                  55  involuntary context switches
+            56604658  instructions retired
+            21979221  cycles elapsed
+             2277856  peak memory footprint

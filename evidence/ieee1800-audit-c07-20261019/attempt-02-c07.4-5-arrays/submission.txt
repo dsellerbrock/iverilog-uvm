@@ -1,0 +1,5 @@
+branch=m7-1800-audit-c08
+head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+working_tree=dirty (pre-existing M7 audit changes; staged only these three Clause 7 probes)
+probe_archive_sha256=55b870d18a8c7d26c4f2524e84c79c0aded66b9cd204b09c249e4bee9d828863
+script_sha256=92cfd2eaf2ee87b92cd28ebf1b5e8287a0cae32d6f216109367e95615cab5dee

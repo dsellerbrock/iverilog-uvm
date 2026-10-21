@@ -1,0 +1,14 @@
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<real>.
+Warning: pop_back() on empty queue<real>.
+Warning: pop_front() on empty queue<string>.
+Warning: pop_back() on empty queue<string>.
+Warning: pop_front() on empty queue<object>.
+Warning: pop_back() on empty queue<object>.

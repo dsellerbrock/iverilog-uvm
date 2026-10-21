@@ -1,0 +1,18 @@
+job_id=3185
+host=DAN-DESKTOP
+source_commit=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:07:05-06:00
+01af4f9a30d7def8f99a362ad830f4f3d23d8edc4b7164988dbedffc443fd41c  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-15/source.tar.gz
+87d690979787da98f1c688325c5d5b4f4451ff6595f12bcc95af55e697d1ec83  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-15/input/p16_09_04_global_clocking_funcs.sv
+029ee75a08155244b9c422409ea07a8613cfa10588f65da9de89956fb6476a68  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-15/input/n16_09_04_no_global_clock.sv
+
+=== configure (timeout 300s) ===
+step_exit=127
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 127
+step_exit=127

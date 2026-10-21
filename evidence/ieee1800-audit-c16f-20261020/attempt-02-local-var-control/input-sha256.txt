@@ -1,0 +1,2 @@
+81a6dc22cc387d01071c80785de040446d714ec5be2bcb1c0d18aa025f5f0ac8  tests/1800_audit/c16/p16_10_local_vars_property.sv
+7151e499b35a959dd8a87be8874baa0144f0bcbb0601c715164ff77e3a8c66dc  run.sbatch

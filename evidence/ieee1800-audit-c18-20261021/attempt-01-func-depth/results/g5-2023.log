@@ -1,0 +1,5 @@
+G5 ok=8 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g5.sv:25: G5 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g5
+Command exited with non-zero status 1
+elapsed_seconds=0.42 max_rss_kib=40480

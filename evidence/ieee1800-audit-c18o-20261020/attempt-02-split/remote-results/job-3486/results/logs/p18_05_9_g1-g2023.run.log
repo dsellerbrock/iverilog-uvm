@@ -1,0 +1,22 @@
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+G1 i=0 rc=1 v=196 l=49 r=229
+G1 i=1 rc=1 v=249 l=239 r=250
+G1 i=2 rc=1 v=116 l=40 r=248
+G1 i=3 rc=1 v=221 l=155 r=231
+G1 i=4 rc=1 v=243 l=143 r=250
+G1 i=5 rc=1 v=235 l=210 r=240
+G1 i=6 rc=1 v=239 l=41 r=240
+G1 i=7 rc=1 v=179 l=94 r=252
+G1 i=8 rc=1 v=253 l=53 r=254
+G1 i=9 rc=1 v=99 l=78 r=254
+G1 i=10 rc=1 v=233 l=136 r=251
+G1 i=11 rc=1 v=240 l=240 r=242
+G1 i=12 rc=1 v=218 l=48 r=246
+G1 i=13 rc=1 v=100 l=66 r=125
+G1 i=14 rc=1 v=169 l=114 r=203
+G1 i=15 rc=1 v=206 l=193 r=207
+G1 i=16 rc=1 v=153 l=56 r=218
+G1 i=17 rc=1 v=240 l=239 r=242
+G1 i=18 rc=1 v=148 l=136 r=152
+G1 i=19 rc=1 v=34 l=31 r=143
+G1 bad=0

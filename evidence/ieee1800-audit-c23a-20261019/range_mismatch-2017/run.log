@@ -1,0 +1,21 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_02_range_mismatch.sv:1: error: Vectored port ``a'' [7:0] has a net declaration [3:0] at /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_02_range_mismatch.sv:1 that does not match.
+1 error(s) during elaboration.
+        0.05 real         0.01 user         0.01 sys
+             4571136  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2315  page reclaims
+                  17  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  60  involuntary context switches
+            72512459  instructions retired
+            24281878  cycles elapsed
+             1245544  peak memory footprint
+exit_code=1

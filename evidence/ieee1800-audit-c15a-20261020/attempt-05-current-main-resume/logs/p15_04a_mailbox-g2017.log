@@ -1,0 +1,2 @@
+RESULT pass=16 fail=0
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/p15_04a_mailbox.sv:34: $finish called at 20 (1s)

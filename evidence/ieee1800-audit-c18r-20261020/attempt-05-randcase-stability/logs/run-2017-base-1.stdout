@@ -1,0 +1,6 @@
+B_u=655509810
+B_rc=0021121110012122
+A_u=3641758753
+A_rc=0012110010221022
+PASS randcase thread stability
+/home/dsell/slurm-runs/iverilog-uvm/a3/1800-c18r-20261020-05/input/p18_14_randcase_stability.sv:47: $finish called at 1 (1s)

@@ -1,0 +1,14 @@
+=== compile -g2017 (300-second timeout; n=1000) ===
+compile_exit=0
+=== run -g2017 (300-second timeout; n=1000) ===
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+H 129.46 190.79 222.21 6
+elapsed_seconds=212.78 max_rss_kib=41784
+run_exit=0
+=== compile -g2023 (300-second timeout; n=1000) ===
+compile_exit=0
+=== run -g2023 (300-second timeout; n=1000) ===
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+H 129.46 190.79 222.21 6
+elapsed_seconds=212.07 max_rss_kib=41964
+run_exit=0

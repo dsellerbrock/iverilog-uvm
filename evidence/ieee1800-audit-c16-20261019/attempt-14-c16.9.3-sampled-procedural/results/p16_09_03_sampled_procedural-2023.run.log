@@ -1,0 +1,4 @@
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+GAP: $sampled changed within the time step: before=0 after=00000000000000000000000000000001
+GAP: $sampled changed within the time step: before=1 after=00000000000000000000000000000000
+RESULT: failures=2 checks=2

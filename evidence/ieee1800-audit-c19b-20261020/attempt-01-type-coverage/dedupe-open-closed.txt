@@ -1,0 +1,23 @@
+Repository: dsellerbrock/iverilog-uvm
+All text searches used --state all, so open and closed issues were included.
+
+Searches:
+- merge_instances: no matches.
+- type coverage: open #627 covers type-level cg::get_coverage()/cg::cp::get_coverage() lookup, not instance-handle get_coverage(); open #659 is parameterized-class embedded covergroup metadata; open #688 is coverage database backend. Closed #513 covers only merged transition-family cardinality; #510 covers real-valued coverpoint bins.
+- option weight: open #686 duplicate option specification and #689 procedural goal/comment options; neither covers instance weights in type coverage.
+- at_least: open #689 procedural goal/comment options; closed #513 transition-family cardinality. Neither covers maximum at_least across merged instances.
+- merged type coverage: closed #513 only; no open overlap.
+
+Related issue bodies reviewed:
+- #627: type-scope methods are missing; this probe calls get_coverage() on an instance handle.
+- #622: get_inst_coverage(ref, ref) returns a percentage but leaves output arguments unset. The probe uses get_coverage(ref, ref); any matching defect will be reported to the lead for possible comment on #622.
+- #513: closed issue concerns merged transition-bin cardinality, not average/weight/threshold rules.
+
+Post-probe --state all recheck, before lead classification or any issue filing:
+- merge_instances: []
+- type coverage: open #627, #659, #688; closed #513, #510, #511, #544, #99, #19 (all distinct from this probe's option-parameter behavior; #513 is merged transition-family cardinality).
+- at_least option: open #689 (procedural options only).
+- auto_bin_max: open #696 (non-power-of-two wide coverpoint), #687 (type_option assignment to instance option), #689 (procedural options).
+- covergroup option parameter: unrelated closed #19 only.
+- get_coverage output arguments: [].
+The relevant bodies for #627, #622, #696, #686 and #513 were reviewed. No issue filed pending lead classification.

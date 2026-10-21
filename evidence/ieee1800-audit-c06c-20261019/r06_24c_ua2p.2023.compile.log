@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_24c_ua2p.sv:3: error: Array ba needs an array index here.
+1 error(s) during elaboration.
