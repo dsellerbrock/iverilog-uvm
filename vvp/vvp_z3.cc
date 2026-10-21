@@ -1173,6 +1173,7 @@ struct Z3Builder {
 	    bool exact_supported_without_guard;
             bool requires_large_exact;
             bool state_weights;
+            bool weight_state_refs = false;
 	    bool disableable;
 	    bool real_subject = false;
 	    bool real_points_supported = false;
@@ -3120,10 +3121,12 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 				     uint64_t& out, bool& overflow,
                                      bool*negative = nullptr,
                                      bool*state_value = nullptr,
-                                     Z3_ast*symbolic_value = nullptr)
+                                     Z3_ast*symbolic_value = nullptr,
+                                     bool*has_refs = nullptr)
 {
       if (state_value) *state_value = false;
       if (symbolic_value) *symbolic_value = nullptr;
+      if (has_refs) *has_refs = false;
       overflow = false;
       if (negative) *negative = false;
       const char* start = par.p;
@@ -3133,6 +3136,7 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
       set<Z3Builder::VarRef> refs;
       if (state_value) value_builder.collect_refs = &refs;
       Z3_ast value = build_z3_atom(par, value_builder);
+      if (has_refs) *has_refs = !refs.empty();
       if (par.p == start || !value_builder.state_errors.empty()) {
 	    par.p = start;
 	    return false;
@@ -5977,6 +5981,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.exact_supported = false;
             dspec.requires_large_exact = false;
             dspec.state_weights = true;
+            dspec.weight_state_refs = false;
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
 	    bool real_subject = b.is_real(subject);
@@ -6174,10 +6179,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  uint64_t weight64 = 1;
 		  bool weight_overflow = false;
                   bool state_weight = false;
+                  bool weight_has_refs = false;
 		  Z3_ast weight_expression = nullptr;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
 						 weight_overflow, nullptr, &state_weight,
-						 &weight_expression)) {
+						 &weight_expression, &weight_has_refs)) {
                         state_weight = false;
 			static bool warned_weight = false;
 			if (!warned_weight) {
@@ -6197,6 +6203,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			weight64 = 0;
                   }
                   dspec.state_weights = dspec.state_weights && state_weight;
+                  dspec.weight_state_refs = dspec.weight_state_refs
+                        || weight_has_refs;
 		  bool dynamic_weight = weight_expression != nullptr;
 		  if (!dynamic_weight && weight_overflow) {
 			static bool warned_weight_overflow = false;
@@ -8082,6 +8090,283 @@ class z3_rng_stream_t {
       size_t cursor_ = 0;
 };
 
+struct z3_t1_weighted_item_t {
+      uint64_t weight = 0;
+      vector<uint64_t> values;
+};
+
+struct z3_t1_cached_plan_t {
+      bool classified = false;
+      bool weighted = false;
+      unsigned width = 0;
+      uint64_t total_weight = 0;
+      vector<uint64_t> values;
+      vector<z3_t1_weighted_item_t> items;
+};
+
+struct z3_t2_component_plan_t {
+      vector<unsigned> properties;
+      vector<unsigned> widths;
+      vector<vector<uint64_t> > tuples;
+      bool guarded_zero = false;
+      unsigned guard_slot = UINT_MAX;
+      unsigned zero_slot = UINT_MAX;
+};
+
+struct z3_t2_cached_plan_t {
+      bool classified = false;
+      bool eligible = false;
+      vector<z3_t2_component_plan_t> components;
+};
+
+static map<const class_type*, map<string, z3_t1_cached_plan_t>,
+           std::less<const class_type*> > z3_t1_cached_plans;
+static size_t z3_t1_cached_plan_count = 0;
+// shortcut: cap cached class/mode plans at 1024; reclassify after mode churn.
+static const size_t Z3_FAST_PATH_CACHE_LIMIT = 1024;
+static map<const class_type*, map<string, z3_t2_cached_plan_t>,
+           std::less<const class_type*> > z3_t2_cached_plans;
+static size_t z3_t2_cached_plan_count = 0;
+static const size_t Z3_T2_TUPLE_LIMIT = 64;
+static const unsigned Z3_T2_PROPOSAL_LIMIT = 64;
+
+static bool z3_t1_single_object_scope_(const vvp_z3_object_s&scope)
+{
+      return scope.object && scope.rng_owner == scope.object
+            && scope.include_class_constraints && !scope.staged_selection
+            && !scope.cyclic && scope.inherited_ir.empty()
+            && scope.extra_ir.empty() && scope.slot_vals.empty()
+            && scope.class_slot_vals.empty()
+            && scope.planned_class_ir.empty() && scope.slot_words.empty()
+            && scope.object_vals.empty();
+}
+
+static bool z3_t1_graph_eligible_(const z3_object_graph_t*graph,
+                                  const class_type*defn, vvp_cobject*cobj)
+{
+      if (!graph) return true;
+      if (!defn || !cobj || graph->objects.size() != 1
+          || graph->properties.size() != 1)
+            return false;
+      const auto&scope = graph->objects.front();
+      const auto&property = graph->properties.front();
+      return z3_t1_single_object_scope_(scope) && scope.object == cobj
+            && defn == cobj->get_defn() && property.object == cobj
+            && property.pid == 0 && property.bindings.size() == 1
+            && property.bindings.front().scope == &scope
+            && property.bindings.front().pid == 0;
+}
+
+static bool z3_t1_call_key_(const class_type*defn, vvp_cobject*cobj,
+                            const vector<string>&extra_ir,
+                            const vector<uint64_t>&slot_vals,
+                            const vector<bool>*prop_active,
+                            bool include_class_constraints,
+                            const vector<vvp_object_t>*object_vals,
+                            const vector<vvp_vector4_t>*class_slot_vals,
+                            string&key)
+{
+      if (!defn || !cobj || cobj->get_defn() != defn
+          || !include_class_constraints || !extra_ir.empty()
+          || !slot_vals.empty() || prop_active
+          || (object_vals && !object_vals->empty())
+          || (class_slot_vals && !class_slot_vals->empty())) return false;
+
+      key.clear();
+      key.reserve(defn->constraint_count() + defn->property_count() + 1);
+      for (size_t ci = 0; ci < defn->constraint_count(); ++ci)
+            key.push_back(cobj->constraint_mode(ci) ? '1' : '0');
+      key.push_back('|');
+      for (size_t pi = 0; pi < defn->property_count(); ++pi)
+            key.push_back(cobj->rand_mode_any(pi) ? '1' : '0');
+      return true;
+}
+
+static bool z3_t1_scalar_class_(const class_type*defn, vvp_cobject*cobj)
+{
+      if (!defn || !cobj || defn->is_struct_type() || defn->runtime_super()
+          || defn->property_count() != 1 || !defn->property_is_rand(0)
+          || defn->property_is_randc(0) || defn->property_is_static(0)
+          || defn->property_is_void(0)
+          || defn->property_declared_class_type(0)
+          || !defn->property_dimensions(0).empty()
+          || defn->property_array_size(0) != 1
+          || defn->property_vec4_width(0) == 0
+          || defn->property_vec4_width(0) > 10
+          || !cobj->rand_mode_any(0)) return false;
+      return true;
+}
+
+static bool z3_t1_apply_cached_(const class_type*defn, vvp_cobject*cobj,
+                               const vector<string>&extra_ir,
+                               const vector<uint64_t>&slot_vals,
+                               const vector<bool>*prop_active,
+                               bool include_class_constraints,
+                               const vector<vvp_object_t>*object_vals,
+                               const vector<vvp_vector4_t>*class_slot_vals)
+{
+      string key;
+      if (!z3_t1_call_key_(defn, cobj, extra_ir, slot_vals, prop_active,
+                           include_class_constraints, object_vals,
+                           class_slot_vals, key)) return false;
+      auto owner = z3_t1_cached_plans.find(defn);
+      if (owner == z3_t1_cached_plans.end()) return false;
+      auto found = owner->second.find(key);
+      if (found == owner->second.end() || !found->second.classified)
+            return false;
+      const z3_t1_cached_plan_t&plan = found->second;
+      if (plan.width == 0 || (plan.weighted
+          ? plan.items.empty() || plan.total_weight == 0
+          : plan.values.empty())) return false;
+
+      vvp_vector4_t current;
+      cobj->get_vec4(0, current);
+      if (current.size() != plan.width || current.has_xz()) return false;
+
+      uint64_t chosen = 0;
+      if (!plan.weighted) {
+            uint64_t prefill = cobj_prop_bits(cobj, 0);
+            return find(plan.values.begin(), plan.values.end(), prefill)
+                  != plan.values.end();
+      }
+
+      z3_rng_stream_t rng(cobj);
+      {
+            uint64_t ticket = rng.uniform_u64(plan.total_weight);
+            const z3_t1_weighted_item_t*selected = &plan.items.back();
+            for (const auto&item : plan.items) {
+                  if (ticket < item.weight) {
+                        selected = &item;
+                        break;
+                  }
+                  ticket -= item.weight;
+            }
+            if (selected->values.empty()) return false;
+            size_t index = selected->values.size() == 1
+                  ? 0 : rng.uniform_index(selected->values.size());
+            chosen = selected->values[index];
+      }
+
+      vvp_vector4_t value(plan.width, BIT4_0);
+      for (unsigned bit = 0; bit < plan.width; ++bit)
+            if ((chosen >> bit) & 1) value.set_bit(bit, BIT4_1);
+      return cobj_set_prop_vec4_(cobj, 0, value);
+}
+
+static bool z3_t2_graph_eligible_(const z3_object_graph_t*graph,
+                                  const class_type*defn, vvp_cobject*cobj)
+{
+      if (!graph) return true;
+      if (!defn || !cobj || graph->objects.size() != 1
+          || graph->properties.empty() || !graph->valid
+          || defn->runtime_super()) return false;
+      const auto&scope = graph->objects.front();
+      if (!z3_t1_single_object_scope_(scope) || scope.object != cobj
+          || defn != cobj->get_defn()) return false;
+      for (const auto&property : graph->properties)
+            if (property.object != cobj || property.pid >= defn->property_count()
+                || property.bindings.size() != 1
+                || property.bindings.front().scope != &scope
+                || property.bindings.front().pid != property.pid)
+                  return false;
+      return true;
+}
+
+static bool z3_t2_apply_cached_(const class_type*defn, vvp_cobject*cobj,
+                               const vector<string>&extra_ir,
+                               const vector<uint64_t>&slot_vals,
+                               const vector<bool>*prop_active,
+                               bool include_class_constraints,
+                               const vector<vvp_object_t>*object_vals,
+                               const vector<vvp_vector4_t>*class_slot_vals,
+                               const z3_object_graph_t*graph,
+                               z3_rng_stream_t&rng)
+{
+      string key;
+      if (!defn || defn->runtime_super()
+          || !z3_t2_graph_eligible_(graph, defn, cobj)
+          || !z3_t1_call_key_(defn, cobj, extra_ir, slot_vals, prop_active,
+                              include_class_constraints, object_vals,
+                              class_slot_vals, key)) return false;
+      auto owner = z3_t2_cached_plans.find(defn);
+      if (owner == z3_t2_cached_plans.end()) return false;
+      auto found = owner->second.find(key);
+      if (found == owner->second.end() || !found->second.classified
+          || !found->second.eligible || found->second.components.empty())
+            return false;
+
+      vector<pair<unsigned, vvp_vector4_t> > chosen_values;
+      for (const auto&component : found->second.components) {
+            bool found_tuple = false;
+            vector<uint64_t> candidate;
+            candidate.reserve(component.widths.size());
+            for (unsigned attempt = 0; attempt < Z3_T2_PROPOSAL_LIMIT;
+                 ++attempt) {
+                  candidate.clear();
+                  for (unsigned width : component.widths) {
+                        uint64_t value = width == 64
+                              ? ((uint64_t)rng.next() << 32) | rng.next()
+                              : rng.uniform_u64(UINT64_C(1) << width);
+                        candidate.push_back(value);
+                  }
+                  bool legal = false;
+                  if (component.guarded_zero) {
+                        legal = component.guard_slot < candidate.size()
+                              && component.zero_slot < candidate.size()
+                              && (candidate[component.guard_slot] == 0
+                                  || candidate[component.zero_slot] == 0);
+                  } else {
+                        legal = find(component.tuples.begin(),
+                              component.tuples.end(), candidate)
+                              != component.tuples.end();
+                  }
+                  if (legal) {
+                        for (size_t i = 0; i < candidate.size(); ++i) {
+                              vvp_vector4_t value(component.widths[i], BIT4_0);
+                              for (unsigned bit = 0; bit < component.widths[i];
+                                   ++bit)
+                                    if ((candidate[i] >> bit) & 1)
+                                          value.set_bit(bit, BIT4_1);
+                              chosen_values.emplace_back(component.properties[i],
+                                                         std::move(value));
+                        }
+                        found_tuple = true;
+                        break;
+                  }
+            }
+            if (!found_tuple) {
+                  rng.rewind();
+                  return false;
+            }
+      }
+
+      vector<pair<unsigned, vvp_vector4_t> > old_values;
+      old_values.reserve(chosen_values.size());
+      for (const auto&selected : chosen_values) {
+            vvp_vector4_t current;
+            cobj->get_vec4(selected.first, current);
+            if (current.size() != selected.second.size()) {
+                  rng.rewind();
+                  return false;
+            }
+            old_values.emplace_back(selected.first, std::move(current));
+      }
+      size_t applied = 0;
+      for (; applied < chosen_values.size(); ++applied)
+            if (!cobj_set_prop_vec4_(cobj, chosen_values[applied].first,
+                                     chosen_values[applied].second)) break;
+      if (applied != chosen_values.size()) {
+            while (applied > 0) {
+                  --applied;
+                  cobj_set_prop_vec4_(cobj, old_values[applied].first,
+                                      old_values[applied].second);
+            }
+            rng.rewind();
+            return false;
+      }
+      return true;
+}
+
 static bool z3_sample_real_candidate_(Z3_context ctx, Z3_solver solver,
 				      Z3_ast variable,
 				      const constraint_real_bounds_t&bounds,
@@ -9212,6 +9497,16 @@ struct z3_ground_eval_t {
       }
 };
 
+// Equal isolated-factor ASTs describe the same domain even when other pins differ.
+typedef pair<pair<unsigned, unsigned>, pair<unsigned, size_t> >
+      z3_isolated_count_cache_key_t;
+
+static bool z3_isolated_count_cache_lookup_(Z3_context ctx, Z3_ast subject,
+      Z3_ast factor, unsigned width, size_t cap,
+      z3_isolated_count_cache_key_t&key, bool&cacheable);
+static void z3_isolated_count_cache_store_(Z3_context ctx,
+      const z3_isolated_count_cache_key_t&key);
+
 /* True when VAR provably has more than CAP legal values, so an enumeration
  * capped at CAP would fail. Exact: VAR must be an isolated factor of BASE, and
  * every counted value is checked against that factor by ground evaluation
@@ -9226,6 +9521,15 @@ static bool z3_isolated_count_exceeds_(Z3_context ctx, Z3_solver base,
       Z3_ast formula = nullptr;
       if (!z3_isolated_subject_factor_(ctx, base, var, formula)) return false;
       if (factor_out) *factor_out = formula;
+      z3_isolated_count_cache_key_t cache_key;
+      bool cacheable = false;
+      if (z3_isolated_count_cache_lookup_(ctx, var, formula, width, cap,
+                                          cache_key, cacheable)) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_z3_isolated_count_cache_hit();
+#endif
+            return true;
+      }
       /* Check the isolated factor itself; checking BASE first lets solver
          preprocessing expose auxiliary guards to later assertion queries. */
       Z3_solver isolated = Z3_mk_simple_solver(ctx);
@@ -9262,7 +9566,11 @@ static bool z3_isolated_count_exceeds_(Z3_context ctx, Z3_solver base,
                   big probe = side ? big::sub(anchor, step) : up;
                   Z3_lbool known = ground.eval(probe.numeral(ctx, width));
                   if (known == Z3_L_UNDEF) return false;
-                  if (known == Z3_L_TRUE && ++legal > cap) return true;
+                  if (known == Z3_L_TRUE && ++legal > cap) {
+                        if (cacheable)
+                              z3_isolated_count_cache_store_(ctx, cache_key);
+                        return true;
+                  }
             }
       }
       return false;
@@ -9661,7 +9969,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                                    uint64_t& chosen,
                                    bool require_complete_ranges = false,
                                    bool validate_only = false,
-                                   bool*indeterminate = nullptr)
+                                   bool*indeterminate = nullptr,
+                                   z3_t1_cached_plan_t*capture = nullptr)
 {
       if (indeterminate) *indeterminate = false;
       for (const auto&br : spec.branches)
@@ -10355,6 +10664,17 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 	    total += item.aggregate_weight;
 	}
 	if (total == 0) return false;
+      if (capture) {
+            capture->weighted = true;
+            capture->total_weight = total;
+            capture->items.clear();
+            for (const auto&item : items) {
+                  z3_t1_weighted_item_t saved;
+                  saved.weight = item.aggregate_weight;
+                  saved.values = item.values;
+                  capture->items.push_back(std::move(saved));
+            }
+      }
       if (validate_only) return true;
       uint64_t ticket = rng.uniform_u64(total);
       size_t item_idx = items.size() - 1;
@@ -10385,7 +10705,8 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    uint64_t& chosen,
                                    bool require_complete_ranges = false,
                                    bool validate_only = false,
-                                   bool*indeterminate = nullptr)
+                                   bool*indeterminate = nullptr,
+                                   z3_t1_cached_plan_t*capture = nullptr)
 {
       const Z3Builder::DistBranch*default_branch = nullptr;
       for (const auto&branch : spec.branches)
@@ -10393,7 +10714,9 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
       if (!default_branch)
 	    return z3_resolve_dist_exact_core(ctx, base, opt, spec, rng,
 					      chosen, require_complete_ranges,
-					      validate_only, indeterminate);
+                                              validate_only, indeterminate,
+                                              capture);
+      if (capture) return false;
       if (indeterminate) *indeterminate = false;
       if (!spec.exact_supported || !default_branch->default_condition) {
 	    if (indeterminate) *indeterminate = true;
@@ -10964,6 +11287,454 @@ static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
       return true;
 }
 
+static bool z3_t2_scalar_property_(const class_type*type, unsigned pid,
+                                   unsigned width)
+{
+      if (!type || pid >= type->property_count()
+          || !type->property_is_rand(pid)
+          || type->property_is_randc(pid) || type->property_is_static(pid)
+          || type->property_is_void(pid)
+          || type->property_declared_class_type(pid)
+          || !type->property_dimensions(pid).empty()
+          || type->property_array_size(pid) != 1
+          || type->property_vec4_width(pid) != width || width == 0
+          || width > 64) return false;
+      const string&base = type->property_base_type(pid);
+      size_t pos = !base.empty() && base[0] == 's' ? 1 : 0;
+      return pos < base.size() && base[pos] == 'b';
+}
+
+static bool z3_t2_zero_compare_slot_(Z3_context ctx, Z3_ast expr,
+                                    Z3_decl_kind op,
+                                    const vector<Z3_ast>&vars,
+                                    unsigned&slot)
+{
+      if (!expr || Z3_get_ast_kind(ctx, expr) != Z3_APP_AST) return false;
+      Z3_app app = Z3_to_app(ctx, expr);
+      if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) != op
+          || Z3_get_app_num_args(ctx, app) != 2) return false;
+      Z3_ast variable = nullptr;
+      for (unsigned idx = 0; idx < 2; ++idx) {
+            Z3_ast arg = Z3_get_app_arg(ctx, app, idx);
+            if (Z3_get_ast_kind(ctx, arg) == Z3_NUMERAL_AST) {
+                  uint64_t value = 1;
+                  if (!Z3_get_numeral_uint64(ctx, arg, &value) || value != 0)
+                        return false;
+            } else if (find(vars.begin(), vars.end(), arg) != vars.end()) {
+                  if (variable) return false;
+                  variable = arg;
+            } else return false;
+      }
+      if (!variable || Z3_get_sort_kind(ctx, Z3_get_sort(ctx, variable))
+            != Z3_BV_SORT) return false;
+      slot = find(vars.begin(), vars.end(), variable) - vars.begin();
+      return true;
+}
+
+static bool z3_t2_nonzero_guard_slot_(Z3_context ctx, Z3_ast expr,
+                                     const vector<Z3_ast>&vars,
+                                     unsigned&slot)
+{
+      if (!expr || Z3_get_ast_kind(ctx, expr) != Z3_APP_AST) return false;
+      Z3_app app = Z3_to_app(ctx, expr);
+      Z3_decl_kind op = Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app));
+      if (op == Z3_OP_DISTINCT)
+            return z3_t2_zero_compare_slot_(ctx, expr, Z3_OP_DISTINCT,
+                                            vars, slot);
+      if (op != Z3_OP_NOT || Z3_get_app_num_args(ctx, app) != 1) return false;
+      return z3_t2_zero_compare_slot_(ctx, Z3_get_app_arg(ctx, app, 0),
+                                      Z3_OP_EQ, vars, slot);
+}
+
+// shortcut: one guard-to-zero formula, generalize after exact AST evaluation.
+static bool z3_t2_simple_zero_implication_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&vars, const map<Z3_ast, unsigned>&widths,
+      unsigned&guard_slot, unsigned&zero_slot)
+{
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      bool match = false;
+      if (Z3_ast_vector_size(ctx, assertions) == 1) {
+            Z3_ast formula = Z3_ast_vector_get(ctx, assertions, 0);
+            if (Z3_get_ast_kind(ctx, formula) == Z3_APP_AST) {
+                  Z3_app app = Z3_to_app(ctx, formula);
+                  if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app))
+                        == Z3_OP_IMPLIES
+                      && Z3_get_app_num_args(ctx, app) == 2
+                      && z3_t2_nonzero_guard_slot_(ctx,
+                            Z3_get_app_arg(ctx, app, 0), vars, guard_slot)
+                      && z3_t2_zero_compare_slot_(ctx,
+                            Z3_get_app_arg(ctx, app, 1), Z3_OP_EQ,
+                            vars, zero_slot)
+                      && guard_slot != zero_slot) {
+                        auto guard_width = widths.find(vars[guard_slot]);
+                        auto zero_width = widths.find(vars[zero_slot]);
+                        match = guard_width != widths.end()
+                              && zero_width != widths.end()
+                              && guard_width->second == 1
+                              && zero_width->second > 0
+                              && zero_width->second <= 64;
+                  }
+            }
+      }
+      Z3_ast_vector_dec_ref(ctx, assertions);
+      return match;
+}
+
+static void z3_t2_cache_joint_plan_(Z3_context ctx, Z3_solver base,
+      const class_type*defn, vvp_cobject*cobj, z3_object_graph_t*graph,
+      const vector<string>&extra_ir, const vector<uint64_t>&slot_vals,
+      const vector<bool>*prop_active, bool include_class_constraints,
+      const vector<vvp_object_t>*object_vals,
+      const vector<vvp_vector4_t>*class_slot_vals, bool row_pass,
+      bool dyn_sizes_present, bool exact_joint, bool eligible,
+      const Z3Builder&builder, const vector<Z3_ast>&active_uniform_vars,
+      const vector<vector<Z3_ast> >&components,
+      const map<Z3_ast, unsigned>&property_index,
+      const map<Z3_ast, unsigned>&variable_width,
+      const set<Z3_ast>&direct_scalars)
+{
+      string key;
+      if (!eligible || !defn || defn->runtime_super()
+          || components.empty() || active_uniform_vars.size() < 2
+          || !z3_t2_graph_eligible_(graph, defn, cobj) || row_pass
+          || dyn_sizes_present
+          || !z3_t1_call_key_(defn, cobj, extra_ir, slot_vals, prop_active,
+                              include_class_constraints, object_vals,
+                              class_slot_vals, key)) return;
+      auto owner = z3_t2_cached_plans.find(defn);
+      if (owner != z3_t2_cached_plans.end()
+          && owner->second.find(key) != owner->second.end()) return;
+
+      z3_t2_cached_plan_t plan;
+      plan.classified = true;
+      bool supported = eligible && !exact_joint
+            && builder.pending_soft.empty() && builder.order_pairs.empty()
+            && builder.dist_specs.empty() && !builder.any_soft_kw_assert()
+            && builder.dyn_foreach.empty() && builder.state_checks.empty()
+            && builder.absent_elems.empty() && builder.real_bounds.empty()
+            && builder.member_vars.empty() && builder.member_elem_vars.empty()
+            && builder.elem_vars.empty() && builder.size_vars.empty()
+            && builder.qelem_vars.empty()
+            && builder.prop_vars.size() == active_uniform_vars.size()
+            && active_uniform_vars.size() <= 4 && !active_uniform_vars.empty()
+            && components.size() <= active_uniform_vars.size();
+      for (const auto&pv : builder.prop_vars) {
+            if (!rand_scalar_active_(builder, prop_active, pv.idx)
+                || pv.is_real
+                || !z3_t2_scalar_property_(builder.type(pv.idx),
+                        builder.local_index(pv.idx), pv.width)) {
+                  supported = false;
+                  break;
+            }
+      }
+      bool simple_relation = false;
+      if (supported && active_uniform_vars.size() == 2
+          && components.size() == 1
+          && components.front().size() == 2) {
+            const auto&component = components.front();
+            z3_t2_component_plan_t saved;
+            bool direct = true;
+            for (Z3_ast var : component) {
+                  auto property = property_index.find(var);
+                  auto width = variable_width.find(var);
+                  if (!direct_scalars.count(var)
+                      || property == property_index.end()
+                      || width == variable_width.end()) {
+                        direct = false;
+                        break;
+                  }
+                  saved.properties.push_back(
+                        builder.local_index(property->second));
+                  saved.widths.push_back(width->second);
+            }
+            unsigned guard_slot = UINT_MAX;
+            unsigned zero_slot = UINT_MAX;
+            if (direct && z3_t2_simple_zero_implication_(ctx, base,
+                        component, variable_width, guard_slot, zero_slot)) {
+                  saved.guarded_zero = true;
+                  saved.guard_slot = guard_slot;
+                  saved.zero_slot = zero_slot;
+                  plan.components.push_back(std::move(saved));
+                  plan.eligible = true;
+                  simple_relation = true;
+            }
+      }
+      size_t covered = 0;
+      if (!simple_relation) for (const auto&component : components) {
+            if (!supported) break;
+            if (component.size() < 2 || component.size() > 4) {
+                  supported = false;
+                  break;
+            }
+            z3_t2_component_plan_t saved;
+            unsigned total_width = 0;
+            for (Z3_ast var : component) {
+                  auto property = property_index.find(var);
+                  auto width = variable_width.find(var);
+                  if (!direct_scalars.count(var)
+                      || property == property_index.end()
+                      || width == variable_width.end()
+                      || width->second > 16
+                      || total_width > 16 - width->second) {
+                        supported = false;
+                        break;
+                  }
+                  total_width += width->second;
+                  saved.properties.push_back(
+                        builder.local_index(property->second));
+                  saved.widths.push_back(width->second);
+            }
+            if (!supported) break;
+            const char*reason = nullptr;
+            if (z3_enumerate_joint_(ctx, base, component,
+                                    Z3_T2_TUPLE_LIMIT, saved.tuples,
+                                    reason) != Z3_L_TRUE
+                || saved.tuples.empty()) {
+                  supported = false;
+                  break;
+            }
+            covered += component.size();
+            plan.components.push_back(std::move(saved));
+      }
+      if (!simple_relation && covered != active_uniform_vars.size())
+            supported = false;
+      if (!simple_relation)
+            plan.eligible = supported && !plan.components.empty();
+      if (!plan.eligible) plan.components.clear();
+      if (z3_t2_cached_plan_count >= Z3_FAST_PATH_CACHE_LIMIT) {
+            z3_t2_cached_plans.clear();
+            z3_t2_cached_plan_count = 0;
+      }
+      z3_t2_cached_plans[defn][key] = std::move(plan);
+      ++z3_t2_cached_plan_count;
+}
+
+
+struct z3_context_cache_entry_t {
+      Z3_context context = nullptr;
+      Z3_solver solver = nullptr;
+      unsigned uses = 0;
+      unsigned active = 0;
+      std::set<z3_isolated_count_cache_key_t> positive_counts;
+};
+
+static void z3_context_cache_entry_destroy_(z3_context_cache_entry_t&entry)
+{
+      if (entry.solver) Z3_solver_dec_ref(entry.context, entry.solver);
+      if (entry.context) Z3_del_context(entry.context);
+}
+
+struct z3_context_cache_t {
+      std::map<const class_type*, z3_context_cache_entry_t,
+               std::less<const class_type*> > entries;
+      ~z3_context_cache_t()
+      {
+            for (auto&entry : entries)
+                  z3_context_cache_entry_destroy_(entry.second);
+      }
+};
+
+static z3_context_cache_t z3_context_cache;
+// shortcut: cap proven positive counts at 512/context; raise after RSS measurements.
+static const size_t Z3_CONTEXT_POSITIVE_COUNT_CACHE_LIMIT = 512;
+
+static bool z3_isolated_count_cache_lookup_(Z3_context ctx, Z3_ast subject,
+      Z3_ast factor, unsigned width, size_t cap,
+      z3_isolated_count_cache_key_t&key, bool&cacheable)
+{
+      cacheable = false;
+      for (auto&entry : z3_context_cache.entries) {
+            if (entry.second.context != ctx) continue;
+            cacheable = true;
+            key.first = make_pair(Z3_get_ast_id(ctx, subject),
+                                  Z3_get_ast_id(ctx, factor));
+            key.second = make_pair(width, cap);
+            auto found = entry.second.positive_counts.find(key);
+            if (found == entry.second.positive_counts.end()) return false;
+            return true;
+      }
+      return false;
+}
+
+static void z3_isolated_count_cache_store_(Z3_context ctx,
+      const z3_isolated_count_cache_key_t&key)
+{
+      for (auto&entry : z3_context_cache.entries) {
+            if (entry.second.context != ctx) continue;
+            if (entry.second.positive_counts.size()
+                  >= Z3_CONTEXT_POSITIVE_COUNT_CACHE_LIMIT)
+                  entry.second.positive_counts.clear();
+            entry.second.positive_counts.insert(key);
+            return;
+      }
+}
+
+// shortcut: rotate small scalar sessions after 16 uses; raise after RSS measurements.
+static const unsigned Z3_CONTEXT_REUSE_LIMIT = 16;
+static const size_t Z3_CONTEXT_CACHE_LIMIT = 8;
+
+static Z3_context z3_create_context_()
+{
+      Z3_config cfg = Z3_mk_config();
+      Z3_set_param_value(cfg, "model", "true");
+      Z3_context ctx = Z3_mk_context(cfg);
+      Z3_del_config(cfg);
+      return ctx;
+}
+
+static bool z3_context_reuse_eligible_(const class_type*defn,
+      vvp_cobject*cobj, const z3_object_graph_t*graph,
+      const vector<string>&extra_ir, const vector<uint64_t>&slot_vals,
+      const vector<bool>*prop_active, bool include_class_constraints,
+      const vector<vvp_vector4_t>&class_slot_vals,
+      const std::map<std::pair<unsigned,unsigned>,uint64_t>*dyn_sizes,
+      bool row_pass, const vector<vvp_object_t>*object_vals)
+{
+      if (!defn || !cobj || defn != cobj->get_defn()
+          || defn->is_struct_type() || defn->runtime_super()
+          || defn->property_count() > 8 || defn->constraint_count() > 64
+          || !include_class_constraints || !extra_ir.empty()
+          || !slot_vals.empty() || prop_active || !class_slot_vals.empty()
+          || dyn_sizes || row_pass
+          || (object_vals && !object_vals->empty())) return false;
+      if (graph && (graph->objects.size() != 1
+            || !z3_t1_single_object_scope_(graph->objects.front())
+            || graph->objects.front().object != cobj)) return false;
+      for (size_t pid = 0; pid < defn->property_count(); ++pid)
+            if (defn->property_is_randc(pid) || defn->property_is_static(pid)
+                || defn->property_is_void(pid)
+                || defn->property_declared_class_type(pid)
+                || !defn->property_dimensions(pid).empty()
+                || defn->property_array_size(pid) != 1
+                || defn->property_vec4_width(pid) == 0
+                || defn->property_vec4_width(pid) > 64) return false;
+      return true;
+}
+
+class z3_context_lease_t {
+public:
+      z3_context_lease_t(const class_type*defn, bool reusable)
+            : defn_(defn)
+      {
+            auto&entries = z3_context_cache.entries;
+            if (reusable) {
+                  auto found = entries.find(defn_);
+                  if (found != entries.end()
+                      && found->second.uses >= Z3_CONTEXT_REUSE_LIMIT
+                      && found->second.active == 0) {
+                        z3_context_cache_entry_destroy_(found->second);
+                        entries.erase(found);
+                        found = entries.end();
+                  }
+                  if (found != entries.end()) {
+                        context_ = found->second.context;
+                        ++found->second.uses;
+                        ++found->second.active;
+                        cached_ = true;
+                        return;
+                  }
+                  if (entries.size() >= Z3_CONTEXT_CACHE_LIMIT) {
+                        auto victim = entries.begin();
+                        while (victim != entries.end()
+                               && victim->second.active != 0) ++victim;
+                        if (victim != entries.end()) {
+                              z3_context_cache_entry_destroy_(victim->second);
+                              entries.erase(victim);
+                        }
+                  }
+                  if (entries.size() < Z3_CONTEXT_CACHE_LIMIT) {
+                        context_ = z3_create_context_();
+                        z3_context_cache_entry_t entry;
+                        entry.context = context_;
+                        entry.uses = 1;
+                        entry.active = 1;
+                        entries.emplace(defn_, entry);
+                        cached_ = true;
+                        return;
+                  }
+            }
+            context_ = z3_create_context_();
+      }
+
+      ~z3_context_lease_t()
+      {
+            if (!context_) return;
+            if (!cached_) {
+                  Z3_del_context(context_);
+                  return;
+            }
+            auto found = z3_context_cache.entries.find(defn_);
+            if (found == z3_context_cache.entries.end()
+                || found->second.context != context_) {
+                  Z3_del_context(context_);
+                  return;
+            }
+            if (found->second.active > 0) --found->second.active;
+            if (found->second.active == 0
+                && found->second.uses >= Z3_CONTEXT_REUSE_LIMIT) {
+                  z3_context_cache_entry_destroy_(found->second);
+                  z3_context_cache.entries.erase(found);
+            }
+      }
+
+      Z3_context get() const { return context_; }
+
+      Z3_solver cached_solver()
+      {
+            if (!cached_) return nullptr;
+            auto found = z3_context_cache.entries.find(defn_);
+            if (found == z3_context_cache.entries.end()
+                || found->second.context != context_
+                || found->second.active != 1) return nullptr;
+            if (!found->second.solver) {
+                  found->second.solver = Z3_mk_simple_solver(context_);
+                  Z3_solver_inc_ref(context_, found->second.solver);
+            }
+            return found->second.solver;
+      }
+
+      z3_context_lease_t(const z3_context_lease_t&) = delete;
+      z3_context_lease_t& operator=(const z3_context_lease_t&) = delete;
+
+private:
+      const class_type*defn_;
+      Z3_context context_ = nullptr;
+      bool cached_ = false;
+};
+
+class z3_solver_lease_t {
+public:
+      z3_solver_lease_t(Z3_context ctx, Z3_solver cached)
+            : ctx_(ctx), solver_(cached), cached_(cached != nullptr)
+      {
+            if (!solver_) {
+                  solver_ = Z3_mk_simple_solver(ctx_);
+                  Z3_solver_inc_ref(ctx_, solver_);
+            }
+            initial_scopes_ = Z3_solver_get_num_scopes(ctx_, solver_);
+            Z3_solver_push(ctx_, solver_);
+      }
+
+      ~z3_solver_lease_t()
+      {
+            while (Z3_solver_get_num_scopes(ctx_, solver_) > initial_scopes_)
+                  Z3_solver_pop(ctx_, solver_, 1);
+            if (!cached_) Z3_solver_dec_ref(ctx_, solver_);
+      }
+
+      Z3_solver get() const { return solver_; }
+
+      z3_solver_lease_t(const z3_solver_lease_t&) = delete;
+      z3_solver_lease_t& operator=(const z3_solver_lease_t&) = delete;
+
+private:
+      Z3_context ctx_;
+      Z3_solver solver_;
+      unsigned initial_scopes_ = 0;
+      bool cached_;
+};
+
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      z3_rng_stream_t& root_rng,
                       const vector<string>& extra_ir,
@@ -10993,10 +11764,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			  i, (unsigned long long)slot_vals[i]);
 	    fflush(stderr);
       }
-      Z3_config cfg = Z3_mk_config();
-      Z3_set_param_value(cfg, "model", "true");
-      Z3_context ctx = Z3_mk_context(cfg);
-      Z3_del_config(cfg);
+      bool reuse_context = z3_context_reuse_eligible_(defn, cobj, graph,
+            extra_ir, slot_vals, prop_active, include_class_constraints,
+            class_slot_vals, dyn_sizes, row_pass, object_vals);
+      z3_context_lease_t context_lease(defn, reuse_context);
+      Z3_context ctx = context_lease.get();
 
       Z3Builder builder(ctx, defn, cobj, graph);
       builder.object_vals = object_vals;
@@ -11059,13 +11831,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // measured ~7-8ms cheaper per randomize() call -- the tactic-
       // combinator setup Z3_mk_solver does is unneeded overhead for a
       // quantifier-free bitvector check like every one of these.
-      Z3_solver base = Z3_mk_simple_solver(ctx);
-      Z3_solver_inc_ref(ctx, base);
+      z3_solver_lease_t base_lease(ctx, context_lease.cached_solver());
+      Z3_solver base = base_lease.get();
       auto fail_joint = [&](const char*reason) -> int {
             if (reason) fprintf(stderr, "ERROR: global constraint sampling failed: %s.\n", reason);
-            Z3_solver_dec_ref(ctx, base);
+
             Z3_optimize_dec_ref(ctx, opt);
-            Z3_del_context(ctx);
             return Z3PASS_FAILED;
       };
       unsigned class_owners = 0;
@@ -11229,9 +12000,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
       if (graph && !graph->valid) {
             fprintf(stderr, "ERROR: global constraint references invalid object storage.\n");
-            Z3_solver_dec_ref(ctx, base);
+
             Z3_optimize_dec_ref(ctx, opt);
-            Z3_del_context(ctx);
             return Z3PASS_FAILED;
       }
       if (dyn_out)
@@ -11914,6 +12684,116 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
       set<Z3_ast> uniform_sampled_vars;
 
+      z3_t2_cache_joint_plan_(ctx, base, defn, cobj, graph, extra_ir,
+            slot_vals, prop_active, include_class_constraints, object_vals,
+            &class_slot_vals, row_pass, dyn_sizes != nullptr, exact_joint,
+            uniform_joint_eligible, builder, active_uniform_vars,
+            uniform_joint_components, uniform_joint_property,
+            uniform_joint_width, uniform_joint_direct_scalars);
+
+      string t1_key;
+      bool t1_keyable = z3_t1_graph_eligible_(graph, defn, cobj)
+            && !row_pass && !dyn_sizes
+            && z3_t1_call_key_(defn, cobj, extra_ir, slot_vals, prop_active,
+                               include_class_constraints, object_vals,
+                               &class_slot_vals, t1_key);
+      bool t1_cached = false;
+      if (t1_keyable) {
+            auto owner = z3_t1_cached_plans.find(defn);
+            if (owner != z3_t1_cached_plans.end()) {
+                  auto old = owner->second.find(t1_key);
+                  t1_cached = old != owner->second.end()
+                        && old->second.classified;
+            }
+      }
+      if (t1_keyable && !t1_cached) {
+            z3_t1_cached_plan_t plan;
+            plan.classified = true;
+            bool scalar = z3_t1_scalar_class_(defn, cobj)
+                  && builder.prop_vars.size() == 1
+                  && builder.prop_vars.front().idx == 0
+                  && !builder.prop_vars.front().is_real
+                  && builder.prop_vars.front().width
+                        == defn->property_vec4_width(0)
+                  && rand_scalar_active_(builder, prop_active, 0)
+                  && builder.member_vars.empty()
+                  && builder.member_elem_vars.empty()
+                  && builder.elem_vars.empty()
+                  && builder.size_vars.empty()
+                  && builder.qelem_vars.empty()
+                  && builder.dyn_foreach.empty()
+                  && builder.absent_elems.empty()
+                  && builder.state_checks.empty()
+                  && builder.real_bounds.empty()
+                  && builder.pending_soft.empty()
+                  && builder.order_pairs.empty()
+                  && builder.dist_specs.size() <= 1
+                  && !active_real_property;
+            if (scalar) {
+                  const auto&pv = builder.prop_vars.front();
+                  plan.width = pv.width;
+                  if (builder.dist_specs.empty()) {
+                        if (!z3_enumerate_domain(ctx, base, pv.var,
+                              pv.width, plan.values))
+                              plan.values.clear();
+                  } else {
+                        const auto&spec = builder.dist_specs.front();
+                        // The soft fallback is unused when exact resolution succeeds.
+                        // Only cache literal weights; state-only weights can change between calls.
+                        bool dist_ok = spec.exact_supported
+                              && !spec.requires_large_exact
+                              && spec.state_weights && !spec.weight_state_refs
+                              && !spec.disableable
+                              && !spec.real_subject && spec.guards.empty()
+                              && spec.subject == pv.var;
+                        size_t span_total = 0;
+                        for (const auto&branch : spec.branches) {
+                              if (!branch.weight) continue;
+                              if (branch.is_default || branch.weight_expression
+                                  || branch.value_width == 0
+                                  || branch.value_width > 64) {
+                                    dist_ok = false;
+                                    break;
+                              }
+                              uint64_t span = 1;
+                              if (branch.is_range) {
+                                    if (branch.hi < branch.lo) continue;
+                                    span = branch.hi - branch.lo + 1;
+                                    if (span == 0 || span > 256) {
+                                          dist_ok = false;
+                                          break;
+                                    }
+                              }
+                              if (span > 1024 - span_total) {
+                                    dist_ok = false;
+                                    break;
+                              }
+                              span_total += (size_t)span;
+                        }
+                        if (dist_ok) {
+                              z3_rng_stream_t unused_rng(cobj);
+                              uint64_t ignored = 0;
+                              bool indeterminate = false;
+                              bool exact = z3_resolve_dist_exact(ctx, base,
+                                    opt, spec, unused_rng, ignored, false,
+                                    true, &indeterminate, &plan);
+                              if (!exact || !plan.weighted
+                                  || plan.items.empty()) {
+                                    plan.weighted = false;
+                                    plan.total_weight = 0;
+                                    plan.items.clear();
+                              }
+                        }
+                  }
+            }
+            if (z3_t1_cached_plan_count >= Z3_FAST_PATH_CACHE_LIMIT) {
+                  z3_t1_cached_plans.clear();
+                  z3_t1_cached_plan_count = 0;
+            }
+            z3_t1_cached_plans[defn][t1_key] = std::move(plan);
+            ++z3_t1_cached_plan_count;
+      }
+
       // Check if the already-randomized values satisfy all hard constraints.
       // Use a temporary solver for this fast-path check (opt is slow for pure
       // feasibility when we already have a candidate). RANDOM-DIST
@@ -12070,9 +12950,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  // diversity mechanism, dist's included) -- now z3_resolve_
 		  // dist_exact below must run every time so the weights are
 		  // actually honored.
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_SAT_CURRENT;
 	    }
       }
@@ -14823,9 +15702,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			Z3_model_dec_ref(ctx, error_model);
 		  }
 	    }
-	    Z3_solver_dec_ref(ctx, base);
+
 	    Z3_optimize_dec_ref(ctx, opt);
-	    Z3_del_context(ctx);
 	    if (result == Z3_L_FALSE)
 		  return Z3PASS_FAILED;
 	      // UNKNOWN cannot establish a legal solution. The caller treats
@@ -14855,9 +15733,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                     failed == Z3_L_TRUE ? check.message.c_str()
                                         : "could not evaluate guarded state read");
             Z3_model_dec_ref(ctx, model);
-            Z3_solver_dec_ref(ctx, base);
+
             Z3_optimize_dec_ref(ctx, opt);
-            Z3_del_context(ctx);
             return Z3PASS_FAILED;
       }
 
@@ -14880,9 +15757,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					      builder.local_index(sv.idx), sv.leaf)) {
                         fprintf(stderr, "ERROR: resizing a random class-handle collection during a global solve is not yet supported.\n");
                         Z3_model_dec_ref(ctx, model);
-                        Z3_solver_dec_ref(ctx, base);
+
                         Z3_optimize_dec_ref(ctx, opt);
-                        Z3_del_context(ctx);
                         return Z3PASS_FAILED;
                   }
             }
@@ -14906,9 +15782,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_vector4_t value;
 	    if (!z3_eval_vec4_(ctx, model, mv.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    member_write_t write = {mv.outer, mv.member, mv.width, value};
@@ -14926,9 +15801,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_vector4_t value;
 	    if (!z3_eval_vec4_(ctx, model, av.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    member_elem_writes.push_back(
@@ -14942,9 +15816,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  uint64_t bits = 0;
 		  if (!z3_eval_uint64(ctx, model, pv.var, bits)) {
 			Z3_model_dec_ref(ctx, model);
-			Z3_solver_dec_ref(ctx, base);
+
 			Z3_optimize_dec_ref(ctx, opt);
-			Z3_del_context(ctx);
 			return Z3PASS_FAILED;
 		  }
 		  builder.object(pv.idx)->set_real(builder.local_index(pv.idx),
@@ -14954,9 +15827,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_vector4_t value;
 	    if (!z3_eval_vec4_(ctx, model, pv.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    if (!cobj_set_prop_vec4_(builder.object(pv.idx),
@@ -14964,9 +15836,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  fprintf(stderr, "ERROR: constraint model width %u does not match "
 			  "property width.\n", value.size());
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    if (z3_dyndbg())
@@ -14980,9 +15851,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  fprintf(stderr, "ERROR: constraint model width %u does not match "
 			  "struct member width.\n", write.value.size());
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    if (z3_dyndbg())
@@ -15239,9 +16109,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    fprintf(stderr, "ERROR: constraint state read: %s.\n",
 		    builder.absent_elems.front().message.c_str());
 	    Z3_model_dec_ref(ctx, model);
-	    Z3_solver_dec_ref(ctx, base);
+
 	    Z3_optimize_dec_ref(ctx, opt);
-	    Z3_del_context(ctx);
 	    return Z3PASS_FAILED;
       }
 
@@ -15266,9 +16135,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		          "the solved dynamic-container size %llu.\n", ev.elem,
 		          (unsigned long long)count);
 		  Z3_model_dec_ref(ctx, model);
-		  Z3_solver_dec_ref(ctx, base);
+
 		  Z3_optimize_dec_ref(ctx, opt);
-		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
 	    vvp_vector4_t value;
@@ -15287,9 +16155,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       Z3_model_dec_ref(ctx, model);
-      Z3_solver_dec_ref(ctx, base);
+
       Z3_optimize_dec_ref(ctx, opt);
-      Z3_del_context(ctx);
       return Z3PASS_SAT_APPLIED;
 }
 
@@ -15318,12 +16185,27 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 #endif
             return true;
       }
+      if (z3_t1_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
+                              include_class_constraints, object_vals,
+                              class_slot_vals)) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(1);
+#endif
+            return true;
+      }
+      z3_rng_stream_t rng(cobj);
+      if (z3_t2_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
+            include_class_constraints, object_vals, class_slot_vals, nullptr,
+            rng)) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(2);
+#endif
+            return true;
+      }
 #ifdef VVP_PERF_STATS
       vvp_perf_stats_randomize_tier(
             z3_t4_owner_(defn, cobj, extra_ir) ? 4 : 3);
 #endif
-
-      z3_rng_stream_t rng(cobj);
 
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
@@ -16296,6 +17178,33 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
 #endif
             return true;
       }
+      if (objects.size() == 1
+          && z3_t1_single_object_scope_(objects.front())) {
+            const auto&owner = objects.front();
+            if (z3_t1_apply_cached_(owner.object->get_defn(), owner.object,
+                  owner.extra_ir, owner.slot_vals, owner.selection(),
+                  owner.include_class_constraints, &owner.object_vals,
+                  &owner.class_slot_vals)) {
+#ifdef VVP_PERF_STATS
+                  vvp_perf_stats_randomize_tier(1);
+#endif
+                  return true;
+            }
+      }
+      z3_object_graph_t graph(objects);
+      graph.select_storage_owners();
+      const auto&root = objects.front();
+      z3_rng_stream_t root_rng(root.object);
+      if (objects.size() == 1
+          && z3_t2_apply_cached_(root.object->get_defn(), root.object,
+                root.extra_ir, root.slot_vals, root.selection(),
+                root.include_class_constraints, &root.object_vals,
+                &root.class_slot_vals, &graph, root_rng)) {
+#ifdef VVP_PERF_STATS
+            vvp_perf_stats_randomize_tier(2);
+#endif
+            return true;
+      }
 #ifdef VVP_PERF_STATS
       bool tier4 = false;
       for (const auto&owner : objects)
@@ -16305,10 +17214,6 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
                                   owner.extra_ir);
       vvp_perf_stats_randomize_tier(tier4 ? 4 : 3);
 #endif
-      z3_object_graph_t graph(objects);
-      graph.select_storage_owners();
-      const auto&root = objects.front();
-      z3_rng_stream_t root_rng(root.object);
       map<vvp_cobject*, unique_ptr<z3_rng_stream_t> > streams;
       vector<Z3Builder::DynForeach> dyn;
       static const vector<string> no_extra;

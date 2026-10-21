@@ -33,6 +33,7 @@ struct perf_stats_s {
       uint64_t z3_contexts = 0;
       uint64_t z3_checks = 0;
       uint64_t z3_model_evaluations = 0;
+      uint64_t z3_isolated_count_cache_hits = 0;
       std::array<uint64_t, 5> randomize_tiers = {{0}};
       uint64_t time_list_insertions = 0;
       uint64_t time_list_steps = 0;
@@ -150,6 +151,8 @@ static void dump_stats(void)
                 << "},\"z3\":{\"contexts\":" << stats.z3_contexts
                 << ",\"checks\":" << stats.z3_checks
                 << ",\"model_evaluations\":" << stats.z3_model_evaluations
+                << ",\"isolated_count_cache_hits\":"
+                << stats.z3_isolated_count_cache_hits
                 << "},\"randomize_tiers\":{";
       for (unsigned tier = 0; tier < stats.randomize_tiers.size(); ++tier) {
             if (tier) std::cerr << ',';
@@ -227,6 +230,11 @@ void vvp_perf_stats_z3_check(void)
 void vvp_perf_stats_z3_model_eval(void)
 {
       if (stats_enabled) stats.z3_model_evaluations += 1;
+}
+
+void vvp_perf_stats_z3_isolated_count_cache_hit(void)
+{
+      if (stats_enabled) stats.z3_isolated_count_cache_hits += 1;
 }
 
 void vvp_perf_stats_randomize_tier(unsigned tier)

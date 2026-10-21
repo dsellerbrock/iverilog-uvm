@@ -1,0 +1,68 @@
+{
+  "t1-dist": {
+    "candidate": {
+      "stdout_sha256": "6c21d26329c5e5ab1d79669471e32661cdd6ca1edf9dbc3f4f1dc2887e58a457",
+      "tiers": {
+        "T0": 0,
+        "T1": 63,
+        "T2": 0,
+        "T3": 0,
+        "T4": 1
+      }
+    },
+    "reference": {
+      "stdout_sha256": "6c21d26329c5e5ab1d79669471e32661cdd6ca1edf9dbc3f4f1dc2887e58a457",
+      "tiers": {
+        "T0": 0,
+        "T1": 0,
+        "T2": 0,
+        "T3": 0,
+        "T4": 64
+      }
+    }
+  },
+  "t1-enum": {
+    "candidate": {
+      "stdout_sha256": "e5e578a00f471e605917a377f9bc619c549c276a1f2bd4a8c7e520c9a7fbc191",
+      "tiers": {
+        "T0": 0,
+        "T1": 40,
+        "T2": 0,
+        "T3": 24,
+        "T4": 0
+      }
+    },
+    "reference": {
+      "stdout_sha256": "e5e578a00f471e605917a377f9bc619c549c276a1f2bd4a8c7e520c9a7fbc191",
+      "tiers": {
+        "T0": 0,
+        "T1": 0,
+        "T2": 0,
+        "T3": 64,
+        "T4": 0
+      }
+    }
+  },
+  "t1-range": {
+    "candidate": {
+      "stdout_sha256": "da754fbe31624c3f16f0b30dfb1a84cb5b72591a844aaa7fff774c591772a077",
+      "tiers": {
+        "T0": 0,
+        "T1": 35,
+        "T2": 0,
+        "T3": 29,
+        "T4": 0
+      }
+    },
+    "reference": {
+      "stdout_sha256": "da754fbe31624c3f16f0b30dfb1a84cb5b72591a844aaa7fff774c591772a077",
+      "tiers": {
+        "T0": 0,
+        "T1": 0,
+        "T2": 0,
+        "T3": 64,
+        "T4": 0
+      }
+    }
+  }
+}
