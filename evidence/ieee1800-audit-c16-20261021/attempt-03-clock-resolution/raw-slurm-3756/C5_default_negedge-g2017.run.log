@@ -1,0 +1,2 @@
+C5 FAIL 20
+input/C5_default_negedge.sv:8: $finish called at 60 (1ns)
