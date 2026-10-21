@@ -512,19 +512,21 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         } else {
           unsigned free_flag = 0;
           char *cp = value.value.str;
-          if (ld_zero == 1) {
-            unsigned swidth = strlen(value.value.str);
-            /* Strip the leading zeros if a width is not given. */
-            if (width == -1) while (*cp == '0' && *(cp+1) != '\0') cp++;
-            /* Pad with leading zeros. */
-            else if (ljust == 0 && (signed)swidth < width) {
+          if (width != -1 || ld_zero == 1) {
+            /* Keep auto-sized zeros for Icarus's existing %-width extension. */
+            if (ljust == 0 || ld_zero == 1)
+              while (*cp == '0' && *(cp+1) != '\0') cp++;
+          }
+          if (ljust == 0 && width > 0) {
+            unsigned swidth = strlen(cp);
+            if ((signed)swidth < width) {
               unsigned pad = (unsigned)width - swidth;
-              cp = malloc((width+1)*sizeof(char));
-              memset(cp, '0', pad);
-              strcpy(cp+pad, value.value.str);
+              char *padded = malloc((width+1)*sizeof(char));
+              memset(padded, '0', pad);
+              strcpy(padded+pad, cp);
+              cp = padded;
               free_flag = 1;
-            /* For a left aligned value also strip the leading zeros. */
-            } else if (ljust != 0) while (*cp == '0' && *(cp+1) != '\0') cp++;
+            }
           }
 
           /* If a width was not given, use a width of zero. */
