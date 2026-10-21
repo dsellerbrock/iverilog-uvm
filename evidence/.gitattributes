@@ -156,3 +156,4 @@ ieee1800-audit-c35e-20261020/attempt-01-packed-vectors/remote-3594/results/iveri
 ieee1800-audit-c35e-20261020/attempt-01-packed-vectors/remote-3594/results/vvp-version.txt -whitespace
 ieee1800-audit-c35e-20261020/attempt-01-packed-vectors/remote-3595/results/iverilog-version.txt -whitespace
 ieee1800-audit-c35e-20261020/attempt-01-packed-vectors/remote-3595/results/vvp-version.txt -whitespace
+ieee1800-audit-c19-20261021/attempt-02-option-args-depth/scheduler-metrics.txt -whitespace
