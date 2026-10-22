@@ -1023,6 +1023,9 @@ struct vthread_s {
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
       vvp_net_t*event;
+      waitable_hooks_s*event_hooks;
+      vvp_object_t event_vif;
+      bool synchronous_drive;
       uint64_t ecount;
 	/* A selected class-property event keeps its source subscriptions on the
 	 * original process, but evaluates its value in a short-lived bytecode
@@ -10856,6 +10859,9 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->waiting_for_event = 0;
       thr->post_finish_wait = 0;
       thr->event  = 0;
+      thr->event_hooks = 0;
+      thr->event_vif = vvp_object_t();
+      thr->synchronous_drive = false;
       thr->ecount = 0;
 
       thr->flags[0] = BIT4_0;
@@ -19319,9 +19325,88 @@ bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t)
       return false;
 }
 
+static bool wait_vif_runtime_fatal_(const char*opcode);
+
+enum vif_evctl_edge_t {
+      VIF_EVCTL_POSEDGE,
+      VIF_EVCTL_NEGEDGE,
+      VIF_EVCTL_ANYEDGE
+};
+
+enum vif_evctl_count_t {
+      VIF_EVCTL_COUNT_IMMEDIATE,
+      VIF_EVCTL_COUNT_UNSIGNED,
+      VIF_EVCTL_COUNT_SIGNED
+};
+
+static bool of_EVCTLVIF_(vthread_t thr, vvp_code_t cp,
+                         vif_evctl_edge_t edge,
+                         vif_evctl_count_t count_mode)
+{
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      uint64_t ecount;
+      if (count_mode == VIF_EVCTL_COUNT_IMMEDIATE)
+            ecount = cp->bit_idx[1];
+      else if (count_mode == VIF_EVCTL_COUNT_SIGNED) {
+            int64_t value = thr->words[cp->bit_idx[1]].w_int;
+            ecount = value < 0 ? 0 : value;
+      } else
+            ecount = thr->words[cp->bit_idx[1]].w_uint;
+
+      thr->ecount = ecount;
+      if (ecount == 0)
+            return true;
+
+      thr->event_vif = obj;
+      vvp_vinterface*vif = thr->event_vif.peek<vvp_vinterface>();
+      if (!vif)
+            return wait_vif_runtime_fatal_("%evctl/vif");
+
+      unsigned member = cp->number;
+      unsigned word = cp->bit_idx[0];
+      if (edge == VIF_EVCTL_POSEDGE)
+            thr->event_hooks = vif->get_posedge_functor(member, word);
+      else if (edge == VIF_EVCTL_NEGEDGE)
+            thr->event_hooks = vif->get_negedge_functor(member, word);
+      else
+            thr->event_hooks = vif->get_anyedge_functor(member, word);
+      return true;
+}
+
+#define VIF_EVCTL_HANDLER(name, edge, count_mode) \
+bool name(vthread_t thr, vvp_code_t cp) \
+{ return of_EVCTLVIF_(thr, cp, edge, count_mode); }
+
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE_I, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE_S, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE_I, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE_S, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE_I, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE_S, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+
+#undef VIF_EVCTL_HANDLER
+
 bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       thr->ecount = thr->words[cp->bit_idx[0]].w_uint;
       return true;
@@ -19329,13 +19414,17 @@ bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 bool of_EVCTLC(vthread_t thr, vvp_code_t)
 {
       thr->event = 0;
+      thr->event_hooks = 0;
+      thr->event_vif = vvp_object_t();
+      thr->synchronous_drive = false;
       thr->ecount = 0;
       return true;
 }
 
 bool of_EVCTLI(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       thr->ecount = cp->bit_idx[0];
       return true;
@@ -19343,11 +19432,19 @@ bool of_EVCTLI(vthread_t thr, vvp_code_t cp)
 
 bool of_EVCTLS(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       int64_t val = thr->words[cp->bit_idx[0]].w_int;
       if (val < 0) val = 0;
       thr->ecount = val;
+      return true;
+}
+
+bool of_EVCTL_SYNC(vthread_t thr, vvp_code_t)
+{
+      assert(!thr->synchronous_drive);
+      thr->synchronous_drive = true;
       return true;
 }
 
@@ -31983,11 +32080,14 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
  * NONBLOCKING store to a vec4 property of a class object or virtual
  * interface (IEEE 1800-2017 10.4.2): pops <wid> bits of value from the
  * vec4 stack and the receiver handle from the object stack, then
- * schedules the property store in the NBA region after <delay> ticks.
+ * schedules the property store in NBA after <delay> ticks, or in Re-NBA for
+ * a synchronous clocking drive.
  * The receiver and value are captured now; a null receiver is a no-op.
  */
 bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid   = cp->number;
       unsigned delay = cp->bit_idx[0];
       unsigned wid   = cp->bit_idx[1];
@@ -32001,8 +32101,18 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
-				vthread_is_reactive(thr));
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4(obj, pid, val, root_obj,
+				   thr->event_hooks, thr->ecount,
+					   vthread_is_reactive(thr) || synchronous_drive);
+	    else
+		  schedule_evctl_prop_vec4(obj, pid, val, root_obj, thr->event,
+					   thr->ecount,
+					   vthread_is_reactive(thr) || synchronous_drive);
+	  } else
+	    schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
+				      vthread_is_reactive(thr) || synchronous_drive);
       return true;
 }
 
@@ -32016,6 +32126,8 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
  */
 bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid = cp->number;
       unsigned delay = cp->bit_idx[0];
       uint64_t bitoff = cp->bit_idx[1];
@@ -32027,8 +32139,19 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj, delay,
-				     vthread_is_reactive(thr));
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+						thr->event_hooks, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive);
+	    else
+		  schedule_evctl_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+						thr->event, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive);
+	  } else
+	    schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+					    delay,
+					    vthread_is_reactive(thr) || synchronous_drive);
       return true;
 }
 
@@ -32037,6 +32160,8 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
                                  bool signed_offset)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid = cp->number;
       unsigned delay = cp->bit_idx[0];
       unsigned off_reg = cp->bit_idx[1];
@@ -32050,9 +32175,26 @@ static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
       if (obj.test_nil() || thr->flags[4] != BIT4_0)
             return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
-                                    val, root_obj, delay,
-                                    vthread_is_reactive(thr), signed_offset);
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4_bits(obj, pid,
+						thr->words[off_reg].w_uint, val,
+						root_obj, thr->event_hooks,
+						thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive,
+						signed_offset);
+	    else
+		  schedule_evctl_prop_vec4_bits(obj, pid,
+						thr->words[off_reg].w_uint, val,
+						root_obj, thr->event, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive,
+						signed_offset);
+	  } else
+	    schedule_assign_prop_vec4_bits(obj, pid,
+					    thr->words[off_reg].w_uint,
+					    val, root_obj, delay,
+					    vthread_is_reactive(thr) || synchronous_drive,
+					    signed_offset);
       return true;
 }
 
