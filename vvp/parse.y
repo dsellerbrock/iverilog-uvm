@@ -131,7 +131,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
 %token K_vpi_call K_vpi_call_w K_vpi_call_i
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
-%token K_ivl_version K_ivl_delay_selection
+%token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
 %token K_vpi_source_location
 %token K_export_dpi
@@ -185,6 +185,8 @@ header_line
 		{ verify_version($2, NULL); }
 	| K_ivl_version T_STRING T_STRING ';'
 		{ verify_version($2, $3); }
+	| K_ivl_systemverilog ';'
+		{ compile_systemverilog_mode(); }
 	| K_ivl_delay_selection T_STRING ';'
 		{ set_delay_selection($2); }
 	| K_vpi_module T_STRING ';'
