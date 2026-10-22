@@ -12024,6 +12024,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 
 	/* All done with this node. Mark its line number and check it in. */
       NetAssignNB*cur = new NetAssignNB(lv, rv, event, count);
+      cur->set_clocking_drive(clocking_drive_);
       cur->set_delay(delay);
       cur->set_line(*this);
       return guard_function_background_event_(scope, *this, cur);

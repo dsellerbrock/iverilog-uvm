@@ -31,6 +31,7 @@
 class scalar_event_history;
 class vvp_fun_wait_order;
 class vvp_object_t;
+struct waitable_hooks_s;
 
 /* A source update is one signal/object publication and all combinational
    fanout caused by it. Event-cone functors settle once at the boundary;
@@ -139,11 +140,24 @@ extern void schedule_evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
                                      const vvp_object_t&root_obj,
                                      vvp_net_t*event, unsigned long ecount,
                                      bool reactive);
+extern void schedule_evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
+                                     const vvp_vector4_t&value,
+                                     const vvp_object_t&root_obj,
+                                     waitable_hooks_s*event,
+                                     unsigned long ecount, bool reactive);
 extern void schedule_evctl_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
                                           uint64_t bitoff,
                                           const vvp_vector4_t&value,
                                           const vvp_object_t&root_obj,
                                           vvp_net_t*event,
+                                          unsigned long ecount,
+                                          bool reactive,
+                                          bool signed_offset = false);
+extern void schedule_evctl_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
+                                          uint64_t bitoff,
+                                          const vvp_vector4_t&value,
+                                          const vvp_object_t&root_obj,
+                                          waitable_hooks_s*event,
                                           unsigned long ecount,
                                           bool reactive,
                                           bool signed_offset = false);

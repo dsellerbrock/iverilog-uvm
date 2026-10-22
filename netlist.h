@@ -3798,6 +3798,10 @@ class NetAssignNB  : public NetAssignBase {
                            NetExpr*cnt);
       ~NetAssignNB() override;
 
+      void set_clocking_drive(bool flag = true)
+      { clocking_drive_ = flag; }
+      bool is_clocking_drive() const { return clocking_drive_; }
+
 
       bool synth_async(Design*des, NetScope*scope,
                        NexusSet&nex_map, NetBus&nex_out,
@@ -3814,6 +3818,7 @@ class NetAssignNB  : public NetAssignBase {
     private:
       NetEvWait*event_;
       NetExpr*count_;
+      bool clocking_drive_ = false;
 };
 
 /*

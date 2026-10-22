@@ -1,2 +1,2 @@
 PASSED
-./ivtests/sv_vif_clocking_cycle_delayed_drive.v:63: $finish called at 26000 (1ps)
+./ivltests/sv_vif_clocking_cycle_delayed_drive.v:71: $finish called at 26000 (1ps)

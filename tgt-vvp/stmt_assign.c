@@ -5202,6 +5202,9 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
 
+	if (ivl_stmt_is_clocking_drive(net))
+	      fprintf(vvp_out, "    %%evctl/sync;\n");
+
       if (dynamic_part_off) {
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
 	    if (dynamic_carrier) {
