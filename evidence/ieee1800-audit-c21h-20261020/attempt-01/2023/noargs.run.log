@@ -1,0 +1,2 @@
+VCD info: dumpfile dumpvars_noargs.vcd opened for output.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_7_1_2_dumpvars_noargs.sv:13: $finish called at 2 (1s)

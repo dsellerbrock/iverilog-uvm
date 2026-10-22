@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Assignment to const class property `size' is not allowed.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Unable to elaborate statement in function new.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:2: error: Const properties of class BadStaticConst are missing initialization.
+3 error(s) during elaboration.

@@ -1,0 +1,29 @@
+compiler: Icarus Verilog version 13.0 (devel) ()
+compiler sha256: 4f3fbe94d8cb08d55e37e831a67f85289806acdfebf6bf2f393ac572c9b36d8d
+vvp sha256: 9cec8fe710d7aa9d1c056658d3a8c2bb0f54a239a96edfaad48ffe871282d208
+=== -g2023 compile ===
+=== -g2023 run ===
+RESULT: try_get(-1) returned 0 (expected error)
+RESULT: put(-1) returned without error
+RESULT: put(-1) corrupted key count, acquired 1000 keys from empty semaphore
+RESULT: get(-1) blocked indefinitely waiting for 2^32-1 keys (expected error)
+NEGATIVE PROBE FINISHED
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/neg/n15_03_semaphore_neg_keys.sv:35: $finish called at 10 (1s)
+        0.17 real         0.01 user         0.00 sys
+             6881280  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1608  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  40  involuntary context switches
+           149239199  instructions retired
+            59085528  cycles elapsed
+             3867008  peak memory footprint

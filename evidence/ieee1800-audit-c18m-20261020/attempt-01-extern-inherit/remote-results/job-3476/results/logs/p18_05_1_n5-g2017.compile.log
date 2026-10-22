@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1: error: Non-virtual class `X' does not implement inherited pure constraint `t'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n5.sv:1:      : Pure constraint `t' is declared here.
+1 error(s) during elaboration.

@@ -1,0 +1,17 @@
+Open+closed all-repository GitHub issue search in dsellerbrock/iverilog-uvm,
+checked 2026-10-20:
+
+Search: nested module
+Results included #672 (nested property path through a type-parameterized
+sequence base), #478 (constraint aliases), #473 (assignment conversion),
+#497 (package-qualified class calls), #499 (struct-member indexing), #434
+(captured handles), #103 (join_none class handle), and #27 (OpenTitan). These
+are unrelated to nested module declaration/instantiation.
+
+Search: 23.4
+Result: []
+
+No existing §23.4 nested-module issue found.
+
+Live open count for label 1800-audit: 220. The earlier handoff snapshot of 89
+is stale.

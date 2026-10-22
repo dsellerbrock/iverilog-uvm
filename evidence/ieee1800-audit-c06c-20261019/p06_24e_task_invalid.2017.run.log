@@ -1,0 +1,4 @@
+INFO task_invalid_1 col=1
+INFO task_invalid_2 col=1
+INFO task_valid col=2
+REACHED_END

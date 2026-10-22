@@ -1,0 +1,21 @@
+FAIL tn_vec
+INFO tn L=[logic [7:0]] U=[int unsigned] B=[byte] SR=[shortreal] mt=[struct {logic valid;bit [8:1] data;}]
+RESULT pass=9 fail=1
+        0.03 real         0.00 user         0.00 sys
+             6586368  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 702  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   8  involuntary context switches
+            79127423  instructions retired
+            28196519  cycles elapsed
+             3850624  peak memory footprint

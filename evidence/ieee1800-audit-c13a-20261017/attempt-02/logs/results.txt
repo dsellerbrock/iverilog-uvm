@@ -1,0 +1,110 @@
+host=DAN-DESKTOP
+2026-10-17T16:44:49-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 30s; run 10s; SIGTERM then SIGKILL after 2s.
+
+=== p13_05_args_core -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_args_core-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_args_core.sv
+run: timeout -k 2s 10s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_args_core-2017.vvp
+PASS 13.5.1.by_value_copy
+PASS 13.5.2.ref_variable
+PASS 13.5.2.ref_change_visible_before_return
+PASS 13.5.2.ref_struct_member
+PASS 13.5.2.ref_unpacked_elem
+PASS 13.5.2.ref_class_property
+PASS 13.5.2.const_ref_read
+PASS 13.5.2.ref_object_handle
+PASS 13.5.3.read(,5)
+PASS 13.5.3.read(2,5)
+PASS 13.5.3.read(,5,)
+PASS 13.5.3.read(,5,7)
+PASS 13.5.3.read(1,5,2)
+PASS 13.5.3.default_evaluated_per_call_a
+PASS 13.5.3.default_evaluated_per_call_b
+DONE fails=0
+PASS run
+
+=== p13_05_3_output_default -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_3_output_default-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv:3: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== p13_05_3_inout_default -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_3_inout_default-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:3: error: Missing argument 1 ('io') of call to task.
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== expect compile rejection: n13_05_2_ref_in_implicit_static_sub -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_2_ref_in_implicit_static_sub.sv
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_05_3_default_unresolved_input -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv:2: warning: Unable to bind wire/reg/memory `nosuch' in `top.t2' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv:2: error: Unable to evaluate nosuch as a port default expression.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== p13_05_args_core -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_args_core-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_args_core.sv
+run: timeout -k 2s 10s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_args_core-2023.vvp
+PASS 13.5.1.by_value_copy
+PASS 13.5.2.ref_variable
+PASS 13.5.2.ref_change_visible_before_return
+PASS 13.5.2.ref_struct_member
+PASS 13.5.2.ref_unpacked_elem
+PASS 13.5.2.ref_class_property
+PASS 13.5.2.const_ref_read
+PASS 13.5.2.ref_object_handle
+PASS 13.5.3.read(,5)
+PASS 13.5.3.read(2,5)
+PASS 13.5.3.read(,5,)
+PASS 13.5.3.read(,5,7)
+PASS 13.5.3.read(1,5,2)
+PASS 13.5.3.default_evaluated_per_call_a
+PASS 13.5.3.default_evaluated_per_call_b
+DONE fails=0
+PASS run
+
+=== p13_05_3_output_default -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_3_output_default-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_output_default.sv:3: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== p13_05_3_inout_default -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/build/p13_05_3_inout_default-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:3: error: Missing argument 1 ('io') of call to task.
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== expect compile rejection: n13_05_2_ref_in_implicit_static_sub -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_2_ref_in_implicit_static_sub.sv
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_05_3_default_unresolved_input -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv:2: warning: Unable to bind wire/reg/memory `nosuch' in `top.t2' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/neg/n13_05_3_default_unresolved_input.sv:2: error: Unable to evaluate nosuch as a port default expression.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+FINAL_STATUS=1

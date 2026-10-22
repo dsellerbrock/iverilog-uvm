@@ -1,0 +1,2 @@
+P19_05_04_WILDCARD_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_04_wildcard_bins.sv:15: $finish called at 0 (1s)

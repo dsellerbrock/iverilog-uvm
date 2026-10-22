@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-12-20261019-01/source/tests/1800_audit/c18/p18_12_scope_randomize.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-12-20261019-01/source/tests/1800_audit/c18/p18_12_scope_randomize.sv:24: error: No function named `std.randomize' found in this context (test.run_checks).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-12-20261019-01/source/tests/1800_audit/c18/p18_12_scope_randomize.sv:28: error: No function named `std.randomize' found in this context (test.run_checks).
+2 error(s) during elaboration.

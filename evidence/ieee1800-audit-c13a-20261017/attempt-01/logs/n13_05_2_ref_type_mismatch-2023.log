@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_type_mismatch.sv:4: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+1 error(s) during elaboration.

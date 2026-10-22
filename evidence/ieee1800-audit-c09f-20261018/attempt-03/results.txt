@@ -1,0 +1,8 @@
+# Slurm job 2558: c09f §9.4.5 follow-up, attempt 03
+Host: DAN-DESKTOP, pinned Icarus main 9b5fad2; Icarus SHA 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a. Requested 1 CPU / 2 GiB / 10 minutes. `sbatch --wait` returned job 2558 with exit 0; harness reached HARNESS_STATUS=0. Slurm accounting is disabled, so MaxRSS is unavailable. Each compile had a 30-second timeout and each simulation had a 30-second timeout with TERM then KILL after 5 seconds.
+
+Both -g2017 and -g2023:
+- `p09_04_5_intra.sv` compiled and completed. All 12 checks passed: RHS pre-delay sampling, swap, event RHS sampling, data shift, repeat 3, negative/zero count, unsigned 13, count sampled once, delayed NBA, NBA RHS sampling, and NBA repeat sampling. Output ended `DONE fails=0` at t=412.
+- `p09_04_5_repeat_x.sv` compiled. The first X-count repeat did not complete before its internal watchdog at t=1000, which printed `INFO repeat_xz_timeout: still waiting after 1000 units` and called `$finish`. Because it blocks at the X case, the subsequent Z-count case was never reached; Z remains unclassified.
+
+Raw harness output and per-test compile/run logs are in results.raw.txt and logs/. Probe sources and SHA-256 are in inputs/ and inputs.sha256.

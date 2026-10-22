@@ -1,0 +1,19 @@
+Open+closed GitHub issue search, 2026-10-20T15:42:50.095133+00:00.
+Repository: dsellerbrock/iverilog-uvm. Every query uses --state all.
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'real disjunction'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'real truthiness'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'rand real implication'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'binary64'
+#840 OPEN [IEEE 1800-2023] §18.4/§11.4.13 — rand real constrained by an inside value set ({1.0, 2.0, 3.0}) is always infeasible https://github.com/dsellerbrock/iverilog-uvm/issues/840
+
+Direct overlap checks:
+#840 OPEN: [IEEE 1800-2023] §18.4/§11.4.13 real rand variable in a discrete `inside` value set is infeasible. D1 uses `||` point disjunction without `inside`; same root is possible, as the lead noted.
+#463 OPEN: [IEEE 1800] §18 remaining rand-real forms beyond scalar finite intervals, including arrays/aggregates and distribution; broad potential overlap for any real solver failure.
+#417 CLOSED: uniformity for constrained dynamic-array tuples; lead determined it is not relevant to this scalar predicate probe.

@@ -1,0 +1,126 @@
+host=DAN-DESKTOP
+start=2026-10-17T23:26:06-06:00
+job_id=2552
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+
+=== -g2017 p09_04_3_wait.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.3.wait_blocks_until_true
+PASS 9.4.3.wait_true_on_entry_no_extra_delay
+PASS 9.4.3.wait_true_constant_zero_time
+PASS 9.4.3.wait_x_is_not_true
+PASS 9.4.3.wait_reevaluates_on_any_operand
+PASS 9.4.3.wait_level_not_edge
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait.sv:27: $finish called at 56 (1s)
+PROBE_STATUS 2017_p09_04_3_wait assertions-passed
+
+=== -g2017 p09_04_3_wait_methods.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8: warning: wait expression is constant false.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8:        : The statement will block permanently.
+run_rc=0
+PASS 9.4.3.wait_dynamic_array_size
+FAIL 9.4.3.wait_bits_of_queue
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:15: $finish called at 11 (1s)
+PROBE_STATUS 2017_p09_04_3_wait_methods assertions-failed
+
+=== -g2017 p09_04_4_sequence_triggered.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:12: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:13: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+run_rc=0
+FAIL 9.4.4.wait_triggered_unblocks_at_end_point
+FAIL 9.4.4.triggered_true_in_the_time_step
+PASS 9.4.4.triggered_false_after_time_advances
+DONE fails=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:17: $finish called at 1 (1s)
+PROBE_STATUS 2017_p09_04_4_sequence_triggered assertions-failed
+
+=== -g2017 p09_04_2_4_sequence_event.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).
+run_rc=0
+FAIL 9.4.2.4.at_sequence_instance
+FAIL 9.4.2.4.at_paren_sequence_instance
+DONE fails=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:15: $finish called at 30 (1s)
+PROBE_STATUS 2017_p09_04_2_4_sequence_event assertions-failed
+
+=== -g2017 expected compile rejection neg/n09_04_2_4_automatic_seq_arg.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: error: No function named `s' found in this context (top.$unm_blk_1).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: warning: Failed to evaluate event expression 's(av)' (compile-progress: event skipped).
+1 error(s) during elaboration.
+PROBE_STATUS 2017_n09_04_2_4_automatic_seq_arg compile-rejected
+
+=== -g2023 p09_04_3_wait.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.3.wait_blocks_until_true
+PASS 9.4.3.wait_true_on_entry_no_extra_delay
+PASS 9.4.3.wait_true_constant_zero_time
+PASS 9.4.3.wait_x_is_not_true
+PASS 9.4.3.wait_reevaluates_on_any_operand
+PASS 9.4.3.wait_level_not_edge
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait.sv:27: $finish called at 56 (1s)
+PROBE_STATUS 2023_p09_04_3_wait assertions-passed
+
+=== -g2023 p09_04_3_wait_methods.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8: warning: wait expression is constant false.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8:        : The statement will block permanently.
+run_rc=0
+PASS 9.4.3.wait_dynamic_array_size
+FAIL 9.4.3.wait_bits_of_queue
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:15: $finish called at 11 (1s)
+PROBE_STATUS 2023_p09_04_3_wait_methods assertions-failed
+
+=== -g2023 p09_04_4_sequence_triggered.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:12: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:13: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+run_rc=0
+FAIL 9.4.4.wait_triggered_unblocks_at_end_point
+FAIL 9.4.4.triggered_true_in_the_time_step
+PASS 9.4.4.triggered_false_after_time_advances
+DONE fails=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:17: $finish called at 1 (1s)
+PROBE_STATUS 2023_p09_04_4_sequence_triggered assertions-failed
+
+=== -g2023 p09_04_2_4_sequence_event.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).
+run_rc=0
+FAIL 9.4.2.4.at_sequence_instance
+FAIL 9.4.2.4.at_paren_sequence_instance
+DONE fails=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:15: $finish called at 30 (1s)
+PROBE_STATUS 2023_p09_04_2_4_sequence_event assertions-failed
+
+=== -g2023 expected compile rejection neg/n09_04_2_4_automatic_seq_arg.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: error: No function named `s' found in this context (top.$unm_blk_1).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: warning: Failed to evaluate event expression 's(av)' (compile-progress: event skipped).
+1 error(s) during elaboration.
+PROBE_STATUS 2023_n09_04_2_4_automatic_seq_arg compile-rejected
+
+RUNNER_STATUS=0

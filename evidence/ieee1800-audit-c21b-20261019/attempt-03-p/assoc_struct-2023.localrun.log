@@ -1,0 +1,19 @@
+assoc_struct ['{10:?}]
+        0.08 real         0.02 user         0.02 sys
+             6930432  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3369  page reclaims
+                  26  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  65  involuntary context switches
+            32973393  instructions retired
+            16201767  cycles elapsed
+             1540480  peak memory footprint

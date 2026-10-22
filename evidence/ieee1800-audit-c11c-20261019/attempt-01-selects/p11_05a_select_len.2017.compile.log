@@ -1,0 +1,1 @@
+tests/1800_audit/c11/p11_05a_select_len.sv:15: warning: returning 'bx for out of bounds array access mem[9].

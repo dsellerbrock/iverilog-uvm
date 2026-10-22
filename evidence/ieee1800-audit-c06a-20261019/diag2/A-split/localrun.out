@@ -1,0 +1,56 @@
+== diag_A_getc -g2017 compile_rc=0
+run_rc=0
+A getc=98
+== diag_A_idx -g2017 compile_rc=0
+evidence/ieee1800-audit-c06a-20261019/run-diagA-split.sh: line 6: 57491 Abort trap: 6              perl -e 'alarm 60; exec @ARGV' "$B/vvp" -n "$out.vvp" > "$out.run.log" 2>&1
+run_rc=134
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.
+== diag_A_substr -g2017 compile_rc=0
+run_rc=0
+A substr='bj'
+== diag_A_compare -g2017 compile_rc=0
+run_rc=0
+A compare=0
+== diag_A_upper -g2017 compile_rc=0
+run_rc=0
+A upper='OBJ'
+== diag_A_copy -g2017 compile_rc=0
+run_rc=0
+A copy src_len=8 copy_len=3 equal=1
+== diag_A_getc -g2023 compile_rc=0
+run_rc=0
+A getc=98
+== diag_A_idx -g2023 compile_rc=0
+evidence/ieee1800-audit-c06a-20261019/run-diagA-split.sh: line 6: 57553 Abort trap: 6              perl -e 'alarm 60; exec @ARGV' "$B/vvp" -n "$out.vvp" > "$out.run.log" 2>&1
+run_rc=134
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.
+== diag_A_substr -g2023 compile_rc=0
+run_rc=0
+A substr='bj'
+== diag_A_compare -g2023 compile_rc=0
+run_rc=0
+A compare=0
+== diag_A_upper -g2023 compile_rc=0
+run_rc=0
+A upper='OBJ'
+== diag_A_copy -g2023 compile_rc=0
+run_rc=0
+A copy src_len=8 copy_len=3 equal=1
+        2.00 real         0.38 user         0.37 sys
+             7159808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               54113  page reclaims
+                 362  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   4  signals received
+                 108  voluntary context switches
+                1442  involuntary context switches
+           167500976  instructions retired
+           107651890  cycles elapsed
+             2408928  peak memory footprint

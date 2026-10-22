@@ -1,0 +1,2 @@
+859db90e3cba3a9fc3d3cd63bcdf512a7409b2ce7bb5d2ddf67cb5fc41918b86  tests/1800_audit/c20/r20_05_bitstoreal_constant.sv
+acedaf760ee8f5abbe1a1e609dc105f8acba082eb3edc4afe0ce0fb0e0ade75c  tests/1800_audit/c20/r20_05_real_constant_control.sv

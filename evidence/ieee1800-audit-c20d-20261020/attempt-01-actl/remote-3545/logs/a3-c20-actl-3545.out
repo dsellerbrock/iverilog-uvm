@@ -1,0 +1,93 @@
+Toolchain: Icarus Verilog version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Bundled UVM: Accellera:1800.2:UVM:2020.3.1
+Icarus Verilog Preprocessor version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1999-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Icarus Verilog Parser/Elaborator version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1998-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+ FLAGS DLL vvp.tgt
+vvp.tgt: Icarus Verilog VVP Code Generator 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+218796e8e4fe0587816e8e8e4fa43b2088807368c9f776f4797fc431a55fcd3d  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivl
+07d3adc5c29c525db009829290dc418b04425a08ee17ea5305ab08b19889c8f2  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivlpp
+69746f3a2b977010fc6d6cbae9f31bfd279d7dbb560d6bf6b80ac9b928184bd1  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv
+p20_12_actl-2017 compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).
+p20_12_actl-2017 run_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/results/p20_12_actl-2017.vvp: Program not runnable, 2 errors.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: Error: System task/function $assertcontrol() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: Error: System task/function $assertcontrol() is not defined by any module.
+p20_12_actl-2023 compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).
+p20_12_actl-2023 run_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/results/p20_12_actl-2023.vvp: Program not runnable, 2 errors.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: Error: System task/function $assertcontrol() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: Error: System task/function $assertcontrol() is not defined by any module.

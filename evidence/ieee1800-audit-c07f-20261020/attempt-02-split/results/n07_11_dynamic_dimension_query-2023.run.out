@@ -1,0 +1,2 @@
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size has too many arguments.

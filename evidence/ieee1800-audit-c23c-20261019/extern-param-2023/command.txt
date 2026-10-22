@@ -1,0 +1,1 @@
+/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog -g2023 -s top -o reducer.vvp tests/1800_audit/c23/p23_04c_extern_param.sv && /tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp reducer.vvp

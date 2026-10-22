@@ -1,0 +1,10 @@
+PASS: p14_06_shared_signals -g2017
+PASS: p14_07_instance_scope -g2017
+REJECTED: n14_07_clocking_in_task -g2017 (exit 4)
+REJECTED: n14_07_clocking_in_package -g2017 (exit 2)
+REJECTED: n14_07_nested_clocking -g2017 (exit 4)
+PASS: p14_06_shared_signals -g2023
+PASS: p14_07_instance_scope -g2023
+REJECTED: n14_07_clocking_in_task -g2023 (exit 4)
+REJECTED: n14_07_clocking_in_package -g2023 (exit 2)
+REJECTED: n14_07_nested_clocking -g2023 (exit 4)

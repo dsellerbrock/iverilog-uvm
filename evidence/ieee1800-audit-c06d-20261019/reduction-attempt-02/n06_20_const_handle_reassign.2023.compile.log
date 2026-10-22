@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_const_handle_reassign.sv:2: error: Assignment to const signal `k` is not allowed.
+Elaboration failed

@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_17_b.sv:1: syntax error
+tests/1800_audit/c06/r06_17_b.sv:1: error: Syntax error in event variable list.

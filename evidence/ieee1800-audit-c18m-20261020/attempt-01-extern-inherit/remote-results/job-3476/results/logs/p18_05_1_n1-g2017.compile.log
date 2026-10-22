@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.

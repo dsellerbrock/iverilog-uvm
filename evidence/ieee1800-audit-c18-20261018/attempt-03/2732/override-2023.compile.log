@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-08-20261018/input/n18_08_rand_mode_override.sv:4: error: Class method `rand_mode' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.

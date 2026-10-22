@@ -1,0 +1,37 @@
+$date
+	Tue Oct 20 13:29:27 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1s
+$end
+$scope module p21_evcd.u $end
+$var port 1 <0 a $end
+$var port 1 <1 y $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpports
+pD 6 0 <0
+pH 0 6 <1
+$end
+#1
+pU 0 6 <0
+pL 6 0 <1
+#2
+$dumpportsoff
+pN 6 6 <0
+pX 6 6 <1
+$end
+#3
+$dumpportson
+pU 0 6 <0
+pH 0 6 <1
+$end
+pL 6 0 <1
+#4
+pD 6 0 <0
+pH 0 6 <1
+$vcdclose #5 $end

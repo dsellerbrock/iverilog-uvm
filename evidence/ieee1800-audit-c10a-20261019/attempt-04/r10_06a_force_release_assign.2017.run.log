@@ -1,0 +1,4 @@
+BASE d=0
+FORCE d=1
+RELEASE d=0
+tests/1800_audit/c10/r10_06a_force_release_assign.sv:8: $finish called at 3 (1s)

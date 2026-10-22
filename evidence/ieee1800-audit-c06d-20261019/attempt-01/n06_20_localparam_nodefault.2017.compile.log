@@ -1,0 +1,1 @@
+tests/1800_audit/c06/neg/n06_20_localparam_nodefault.sv:1: error: localparam must have a value.

@@ -1,0 +1,22 @@
+VCD info: dumpfile typemap.vcd opened for output.
+VCD warning: $dumpvars: Unsupported argument type (vpiClassVar).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21v_typemap.sv:5: $finish called at 2 (1s)
+        0.07 real         0.01 user         0.00 sys
+             6963200  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1339  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  31  involuntary context switches
+           138128202  instructions retired
+            51142370  cycles elapsed
+             3948928  peak memory footprint
+exit_code=0

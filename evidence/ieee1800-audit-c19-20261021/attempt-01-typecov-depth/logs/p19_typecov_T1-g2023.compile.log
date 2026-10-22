@@ -1,0 +1,2 @@
+input/p19_typecov_T1.sv:12: error: No function named `cg.get_coverage' found in this context (top).
+1 error(s) during elaboration.

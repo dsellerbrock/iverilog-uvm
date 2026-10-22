@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_20_fwd_r7_classneg.sv:2: error: Type argument for class type parameter `E' does not satisfy the `type enum' restriction.
+1 error(s) during elaboration.

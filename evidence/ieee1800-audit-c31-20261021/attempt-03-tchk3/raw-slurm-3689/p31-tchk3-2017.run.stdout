@@ -1,0 +1,9 @@
+p31_tchk3.sv:16: Timing violation: $recrem(recovery) check in p31_tchk3 at time 11
+p31_tchk3.sv:16: Timing violation: $recrem(removal) check in p31_tchk3 at time 21
+p31_tchk3.sv:17: Timing violation: $timeskew check in p31_tchk3 at time 43
+p31_tchk3.sv:18: Timing violation: $fullskew check in p31_tchk3 at time 63
+p31_tchk3.sv:19: Timing violation: $fullskew check in p31_tchk3 at time 73
+p31_tchk3.sv:20: Timing violation: $setup check in p31_tchk3 at time 101
+p31_tchk3.sv:21: Timing violation: $setup check in p31_tchk3 at time 130
+p31_tchk3.sv:22: Timing violation: $setup check in p31_tchk3 at time 150
+N 8 0

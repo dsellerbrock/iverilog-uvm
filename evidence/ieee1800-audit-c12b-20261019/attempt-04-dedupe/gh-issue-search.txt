@@ -1,0 +1,58 @@
+### foreach
+#487 CLOSED [IEEE 1800] §12.7.3 — Traverse packed ranks after runtime and omitted array dimensions https://github.com/dsellerbrock/iverilog-uvm/issues/487
+#492 CLOSED [IEEE 1800] §§7.6/23.3.3 — Connect unpacked-array output ports to array slices https://github.com/dsellerbrock/iverilog-uvm/issues/492
+#44 CLOSED Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax https://github.com/dsellerbrock/iverilog-uvm/issues/44
+#47 CLOSED Phase 75: Fallback hardening — eliminate remaining warning noise https://github.com/dsellerbrock/iverilog-uvm/issues/47
+#15 CLOSED Phase 11: UVM callbacks, virtual sequences, and sequence library https://github.com/dsellerbrock/iverilog-uvm/issues/15
+### loop variable
+#487 CLOSED [IEEE 1800] §12.7.3 — Traverse packed ranks after runtime and omitted array dimensions https://github.com/dsellerbrock/iverilog-uvm/issues/487
+#596 CLOSED VVP aborts in vthread_add_event_wait for forked loop-local clock waits https://github.com/dsellerbrock/iverilog-uvm/issues/596
+#545 CLOSED [Icarus] Caliptra clock generator is rejected without a timescale https://github.com/dsellerbrock/iverilog-uvm/issues/545
+#97 CLOSED ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr) https://github.com/dsellerbrock/iverilog-uvm/issues/97
+### break fork
+#699 OPEN [IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation https://github.com/dsellerbrock/iverilog-uvm/issues/699
+### continue fork
+### for scope
+#621 OPEN [IEEE 1800] §§18.7/18.12 — Reject null argument in scope std::randomize() https://github.com/dsellerbrock/iverilog-uvm/issues/621
+#634 OPEN [IEEE 1800] §13.4.1 — Reject a declaration with the function's own name inside the function https://github.com/dsellerbrock/iverilog-uvm/issues/634
+#767 OPEN [IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value https://github.com/dsellerbrock/iverilog-uvm/issues/767
+#740 OPEN [IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values https://github.com/dsellerbrock/iverilog-uvm/issues/740
+#622 OPEN [IEEE 1800] §19.8 — get_inst_coverage(ref int, ref int) does not assign covered/total bin counts https://github.com/dsellerbrock/iverilog-uvm/issues/622
+#429 OPEN [IEEE 1800] §7 — Resolve indexed class-array member operations https://github.com/dsellerbrock/iverilog-uvm/issues/429
+#421 OPEN [IEEE 1800] §18 — Define standard packed-select randomization semantics https://github.com/dsellerbrock/iverilog-uvm/issues/421
+#445 OPEN [IEEE 1800] §16 — Expose deferred-immediate assertion identity and results through VPI https://github.com/dsellerbrock/iverilog-uvm/issues/445
+#432 OPEN [IEEE 1800] §10 — Enforce function call contexts for nonblocking assignments https://github.com/dsellerbrock/iverilog-uvm/issues/432
+#426 OPEN [IEEE 1800] §7 — Support assignment-pattern keys from expressions and remaining types https://github.com/dsellerbrock/iverilog-uvm/issues/426
+#425 OPEN [IEEE 1800] §7 — Support associative-array min/max receivers https://github.com/dsellerbrock/iverilog-uvm/issues/425
+#423 OPEN [IEEE 1800] §7 — Copy aggregate elements returned by locator methods https://github.com/dsellerbrock/iverilog-uvm/issues/423
+#625 OPEN [IEEE 1800] §19.3 — Block event @@(end task) is a syntax error and crashes ivl (pform.cc:2723) https://github.com/dsellerbrock/iverilog-uvm/issues/625
+#463 OPEN [IEEE 1800] §18 — Expand rand real beyond scalar finite intervals https://github.com/dsellerbrock/iverilog-uvm/issues/463
+#461 OPEN [IEEE 1800] §8 — Implement weak_reference#(T) https://github.com/dsellerbrock/iverilog-uvm/issues/461
+#633 OPEN [IEEE 1800] §13.5.3 — Support default values for output and inout subroutine arguments https://github.com/dsellerbrock/iverilog-uvm/issues/633
+#766 OPEN [IEEE 1800] §6.25 — a specialized class-scoped type (C#(T,N)::t) is rejected in variable, typedef and class-property declarations https://github.com/dsellerbrock/iverilog-uvm/issues/766
+#446 OPEN [IEEE 1800] §16 — Support variable-length multiclock antecedents https://github.com/dsellerbrock/iverilog-uvm/issues/446
+#443 OPEN [IEEE 1800] §16 — Account for deferred cover in coverage databases and VPI https://github.com/dsellerbrock/iverilog-uvm/issues/443
+#435 OPEN [IEEE 1800] §6 — Support class-method resolution functions for user-defined nettypes https://github.com/dsellerbrock/iverilog-uvm/issues/435
+#427 OPEN [IEEE 1800] §7 — Preserve nested container-element ref aliases https://github.com/dsellerbrock/iverilog-uvm/issues/427
+#484 OPEN [IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements https://github.com/dsellerbrock/iverilog-uvm/issues/484
+#442 OPEN [IEEE 1800] §16 — Capture deferred assertion action subroutine/ref/fixed-array arguments https://github.com/dsellerbrock/iverilog-uvm/issues/442
+#430 OPEN [IEEE 1800] §10 — Snapshot unpacked-array function results for NBA updates https://github.com/dsellerbrock/iverilog-uvm/issues/430
+#428 OPEN [IEEE 1800] §7 — Support runtime fixed-array prefixes across aggregate copies https://github.com/dsellerbrock/iverilog-uvm/issues/428
+#424 OPEN [IEEE 1800] §7 — Preserve locator result types through expression wrappers https://github.com/dsellerbrock/iverilog-uvm/issues/424
+#420 OPEN [IEEE 1800] §18 — Extend exact randc cycle coverage past current domain limits https://github.com/dsellerbrock/iverilog-uvm/issues/420
+#735 OPEN [IEEE 1800] §6.16 — indexing an instance class-property string aborts vvp (idx < array_size_) https://github.com/dsellerbrock/iverilog-uvm/issues/735
+#731 OPEN [IEEE 1800] §6.16.1 — string len() returns 8 for an instance class property and a struct member string https://github.com/dsellerbrock/iverilog-uvm/issues/731
+#736 OPEN [IEEE 1800] §6.16 — indexed write to an instance class-property or struct-member string replaces the whole string https://github.com/dsellerbrock/iverilog-uvm/issues/736
+#730 OPEN [IEEE 1800] §6.16.12-.14 — hextoa/octtoa/bintoa print a signed magnitude for values with bit 31 set https://github.com/dsellerbrock/iverilog-uvm/issues/730
+#699 OPEN [IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation https://github.com/dsellerbrock/iverilog-uvm/issues/699
+#733 OPEN [IEEE 1800] §6.16 — integral value assigned to a string without a cast is accepted https://github.com/dsellerbrock/iverilog-uvm/issues/733
+#732 OPEN [IEEE 1800] §6.16 — string assigned to a byte or string-element is accepted and truncated to its last character https://github.com/dsellerbrock/iverilog-uvm/issues/732
+#756 OPEN [IEEE 1800] §6.22.1/§6.23 — type() matching of struct, union and array types is not supported https://github.com/dsellerbrock/iverilog-uvm/issues/756
+#650 OPEN [IEEE 1800] §9.4.2 — Built-in array method call (size()) in an event control expression fails to elaborate https://github.com/dsellerbrock/iverilog-uvm/issues/650
+#734 OPEN [IEEE 1800] §6.16.1 — string len() returns 1 for an element of a fixed unpacked string array https://github.com/dsellerbrock/iverilog-uvm/issues/734
+#680 OPEN [IEEE 1800] evaluate non-random function calls in inline constraints https://github.com/dsellerbrock/iverilog-uvm/issues/680
+#458 CLOSED [IEEE 1800] §20 — Implement $timeunit and $timeprecision system functions https://github.com/dsellerbrock/iverilog-uvm/issues/458
+#500 CLOSED [IEEE 1800] §23.7.1 — Diagnose unresolved unindexed hierarchical task calls https://github.com/dsellerbrock/iverilog-uvm/issues/500
+### foreach same name
+#44 CLOSED Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax https://github.com/dsellerbrock/iverilog-uvm/issues/44
+#47 CLOSED Phase 75: Fallback hardening — eliminate remaining warning noise https://github.com/dsellerbrock/iverilog-uvm/issues/47

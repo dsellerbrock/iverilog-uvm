@@ -1,0 +1,1 @@
+tests/1800_audit/c12/p12_05c_no_guards.sv:22: warning: Unable to bind wire/reg/memory `n' in `p12c' (compile-progress: unresolved reference).

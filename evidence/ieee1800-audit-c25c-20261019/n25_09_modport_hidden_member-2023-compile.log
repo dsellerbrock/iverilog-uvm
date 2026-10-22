@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_hidden_member.sv:7: error: cannot access 'I' through modport 'mp' of interface 'E' — it is not listed in that modport (IEEE 1800-2017 25.5).
+1 error(s) during elaboration.

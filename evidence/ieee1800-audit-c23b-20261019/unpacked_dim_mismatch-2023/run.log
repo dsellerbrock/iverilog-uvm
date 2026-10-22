@@ -1,0 +1,22 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_03_unpacked_dim_mismatch.sv:1: error: Unpacked dimensions are not compatible in array assignment.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_03_unpacked_dim_mismatch.sv:1:      : Port 1 (i) of a is connected to w
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4620288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2320  page reclaims
+                  15  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  58  involuntary context switches
+            72174303  instructions retired
+            28162823  cycles elapsed
+             1245544  peak memory footprint
+exit_code=1

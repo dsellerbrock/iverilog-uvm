@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c37-followup-20261021-a3/input/vpi_obj.c: In function ‘probe_calltf’:
+/home/dsell/slurm-runs/iverilog-uvm/A3/c37-followup-20261021-a3/input/vpi_obj.c:63:51: error: ‘vpiInstance’ undeclared (first use in this function); did you mean ‘instance’?
+   63 |                   vpiHandle instance = vpi_handle(vpiInstance, item);
+      |                                                   ^~~~~~~~~~~
+      |                                                   instance
+/home/dsell/slurm-runs/iverilog-uvm/A3/c37-followup-20261021-a3/input/vpi_obj.c:63:51: note: each undeclared identifier is reported only once for each function it appears in

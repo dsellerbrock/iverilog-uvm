@@ -1,0 +1,2 @@
+RESULT pass=2 fail=0
+tests/1800_audit/c10/r10_06a_assign_rhs_update.sv:13: $finish called at 2 (1s)

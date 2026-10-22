@@ -1,0 +1,7 @@
+edition	probe	compile_rc	run_rc	result
+2023	p08_30_weak	4	NA	COMPILE_FAILED
+2023	p08_30_weak_std	4	NA	COMPILE_FAILED
+2017	p08_27_fwd_param	1	NA	COMPILE_FAILED
+2023	p08_27_fwd_param	1	NA	COMPILE_FAILED
+2023	n08_30_weak_int	1	NA	REJECTED
+2017	p08_30_weak	4	NA	REJECTED

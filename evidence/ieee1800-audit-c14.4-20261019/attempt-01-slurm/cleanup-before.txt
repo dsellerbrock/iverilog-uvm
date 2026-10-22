@@ -1,0 +1,4 @@
+1210688582	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.4-20261019-01/source
+192199396	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.4-20261019-01/install
+227071188	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.4-20261019-01/input
+3088	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.4-20261019-01/run.sbatch

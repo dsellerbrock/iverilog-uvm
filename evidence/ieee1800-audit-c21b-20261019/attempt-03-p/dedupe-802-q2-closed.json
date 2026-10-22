@@ -1,0 +1,14 @@
+[
+  {
+    "number": 47,
+    "state": "CLOSED",
+    "title": "Phase 75: Fallback hardening \u2014 eliminate remaining warning noise",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/47"
+  },
+  {
+    "number": 11,
+    "state": "CLOSED",
+    "title": "Phase 7: Enum methods and queue sort/find methods",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/11"
+  }
+]

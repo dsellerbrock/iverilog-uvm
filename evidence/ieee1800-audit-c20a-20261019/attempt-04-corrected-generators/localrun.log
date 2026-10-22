@@ -1,0 +1,65 @@
+shasum: tests/1800_audit/c20/r20_02_exit_in_program.sv tests/1800_audit/c20/r20_02_exit.sv: No such file or directory
+== p20_03b_time_conv g2017 compile rc=2
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:14: warning: Unable to bind wire/reg/memory `LP' in `p20a' (compile-progress: unresolved reference).
+== r20_05_k_c1 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+== r20_05_k_c2 g2017 compile rc=0
+r20_05_k_c2 g2017 run rc=0
+c2 7
+== r20_05_k_c3 g2017 compile rc=0
+r20_05_k_c3 g2017 run rc=0
+c3 3.0
+== r20_05_k_c4 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+== r20_05_k_c5 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+== r20_05_k_c6 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+== r20_05_k_c7 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+== r20_02_exit g2017 compile rc=1
+== p20_03b_time_conv g2023 compile rc=2
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:14: warning: Unable to bind wire/reg/memory `LP' in `p20a' (compile-progress: unresolved reference).
+== r20_05_k_c1 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+== r20_05_k_c2 g2023 compile rc=0
+r20_05_k_c2 g2023 run rc=0
+c2 7
+== r20_05_k_c3 g2023 compile rc=0
+r20_05_k_c3 g2023 run rc=0
+c3 3.0
+== r20_05_k_c4 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+== r20_05_k_c5 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+== r20_05_k_c6 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+== r20_05_k_c7 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+== r20_02_exit g2023 compile rc=1
+        1.79 real         0.60 user         0.83 sys
+            18563072  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               89872  page reclaims
+                 531  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  36  signals received
+                 234  voluntary context switches
+                3545  involuntary context switches
+           180592618  instructions retired
+           105451563  cycles elapsed
+             2540000  peak memory footprint

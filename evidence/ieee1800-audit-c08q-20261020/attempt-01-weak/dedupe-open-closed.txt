@@ -1,0 +1,12 @@
+QUERY: weak_reference
+#461 [OPEN] [IEEE 1800] §8 — Implement weak_reference#(T) https://github.com/dsellerbrock/iverilog-uvm/issues/461
+
+QUERY: weak reference
+#461 [OPEN] [IEEE 1800] §8 — Implement weak_reference#(T) https://github.com/dsellerbrock/iverilog-uvm/issues/461
+
+QUERY: get_id
+
+QUERY: 8.30
+
+Reviewed direct hit:
+- #461 OPEN, “[IEEE 1800] §8 — Implement weak_reference#(T)”, says weak_reference is unsupported and calls for establishing standard observable expiration and handle semantics. This directly covers a fully missing §8.30 implementation; do not file a duplicate issue. The audit lead should attach the probe evidence to #461 if the positive tests confirm it is missing or partial. Current labels are `enhancement` only (not `1800-audit`).

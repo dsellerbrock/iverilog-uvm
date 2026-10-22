@@ -1,0 +1,3 @@
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+728	OPEN	[IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays	1800-audit	2026-10-19T22:48:15Z
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members	from-caliptra-dv	2026-10-20T00:37:55Z

@@ -1,0 +1,17 @@
+Audit: IEEE 1800 Clause 6.6 follow-up controls 2
+Host: DAN-DESKTOP (Slurm)
+Job: 3766
+Remote run directory: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-followup-2-20261021-01
+Partition/request: verilog, 1 CPU, 1 GiB, 15 minutes
+Toolchain: /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb (Icarus 13.0 devel, cc25756d1)
+Edition/limits: -g2017 and -g2023; -B; 30 s per compile/run; `ulimit -f 262144` per compile/run
+Source checkout HEAD at staging: 25be4f678cc9d097f6e3a45d7b664f385c2bffdc
+
+SHA-256 (source files and batch script):
+c04510e934bc5a8d61d0fd08aa56efd4736f081037398683d8eea2bd95afc6e4  input/C1_struct_variable_drives_net.sv
+56d8a0e0166e48100de1a4503a5a3d4ddac3d4c6f5603d98f173b7ac5476da36  input/C2_continuous_struct_variable_assignment.sv
+d20da07803a91538ebfa0ccbd5e2638a395cf6cadbd612db0b0f0dbc3dd61975  input/C3_always_comb_struct_pattern.sv
+a0060393304c1c823d2bd15ac4de3fe415870c72aa81484d099364cb8810a39b  input/U1c_real_user_nettype_resolver.sv
+d35829801d8000b29f3f8b91c4922a6e564da88606794f0b6bec9eedc79a53b2  input/U2c_real_user_nettype_alias.sv
+209abdc2af40754f62d87c2cbbd70f5b3080532e9f8bd93330f03d132773d04d  input/U3c_real_user_nettype_force_release.sv
+779c5a0d841b8505941fd8193cbe7c876ef1754e9b6f4881026d1ed637ceb9f6  run.sbatch

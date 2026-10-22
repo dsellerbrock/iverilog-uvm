@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-11-subroutines-20261019-29/input/p16_11_subroutine_calls.sv:39: sorry: sequence match-item subroutine calls currently support only direct $display calls or zero-argument user calls in a cover property in the bounded IEEE 1800-2017 16.11 lowering; the assertion is dropped.
+compile_exit=1

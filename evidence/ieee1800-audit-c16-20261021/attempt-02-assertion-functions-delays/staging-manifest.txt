@@ -1,0 +1,8 @@
+Scope: lead-selected paired probe for IEEE 1800-2017/2023 §§16.6 and 16.7; 17 sources, 34 compile/run pairs maximum.
+Source checkout HEAD: df794e5829b207d89cbbef9f0948ebb8f7f3d416; working tree has audit documentation/evidence changes; job stages only the immutable 17-source probe snapshot and run script.
+Slurm host: DAN-DESKTOP; checked 2026-10-21, 10 CPUs idle / 20 total, 10 active.
+Remote run dir: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c16-6-7-20261021-attempt-01.
+Resources: 1 CPU, 1 GiB (same established as prior audit probes), 00:06:00; 30-second timeout per compile and simulation.
+Compiler: Icarus 13.0 devel (cc25756d1), /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb.
+Flags: pinned -B; -g2017/-g2023/-gassertions.
+Submitted Slurm job: 3754.

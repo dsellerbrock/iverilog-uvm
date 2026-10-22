@@ -1,0 +1,1 @@
+/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog -B /home/dsell/toolchains/iverilog-a3-main-82023726-679/lib/ivl -g2017 -s test_proc_members /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_procedural_members.sv -o /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/results/procedural-members-2017.vvp

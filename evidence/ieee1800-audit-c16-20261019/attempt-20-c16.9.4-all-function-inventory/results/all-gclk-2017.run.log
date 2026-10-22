@@ -1,0 +1,9 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:8: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:12: Error: System task/function $changed_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:13: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:14: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:15: Error: System task/function $falling_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:16: Error: System task/function $steady_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/input/p16_09_04_all_gclk_funcs.sv:17: Error: System task/function $changing_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-allfuncs-20261019-20/results/all-gclk-2017.vvp: Program not runnable, 7 errors.
+run_exit=7

@@ -1,0 +1,7 @@
+# IEEE 1800 §20.7 and §20.7.1 text reviewed
+
+- IEEE 1800-2017 §20.7, pp. 600–602; IEEE 1800-2023 §20.7, pp. 630–631: `$dimensions` counts all dimensions and `$unpacked_dimensions` counts unpacked dimensions; a predefined-width integer contributes one packed dimension. Dimension 1 is the slowest-varying dimension.
+- Both editions §20.7: for a fixed-size dimension, `$increment` is 1 when left ≥ right and −1 when left < right; it is −1 for a queue or dynamic-array dimension. `$size` returns the number of elements in the selected dimension.
+- Both editions §20.7: `'x` is returned when the first argument has no dimensions or the optional dimension is out of range. Queries on associative-array dimensions are restricted to integral index types. With integral keys, `$left` is 0, `$right` is the highest possible index, `$low`/`$high` are the lowest/highest allocated keys or `'x` when empty, `$increment` is −1, and `$size` counts allocated entries.
+- Both editions §20.7: these queries may be used in constant expressions when the call is legal, the type operator on the first argument returns a fixed-size type, and the optional dimension is constant. The standard example `typedef logic [16:1] Word; Word Ram[0:9];` gives 16 for `$size(Word)` and `$size(Ram,2)`.
+- Both editions §20.7.1: for `$query(v,n)` with `n > 1`, it is an error if that dimension is variable-sized. The standard's `int a[3][][5]` example expects `$unpacked_dimensions(a)` = 3, `$size(a,1)` = 3, `$size(a,2)` to error, `$size(a,3)` = 5, and `$size(a[2],1)` = 4 after allocation.

@@ -1,0 +1,21 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_02_var_no_direction.sv:1: error: Port `x` of module `m` is declared as inout and as a reg type.
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4308992  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2302  page reclaims
+                  15  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  47  involuntary context switches
+            73087421  instructions retired
+            29236358  cycles elapsed
+             1245544  peak memory footprint
+exit_code=1

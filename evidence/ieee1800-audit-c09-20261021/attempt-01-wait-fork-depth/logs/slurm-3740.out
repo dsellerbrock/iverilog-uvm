@@ -1,0 +1,52 @@
+=== w1_parent_child_grandchild -g2017 ===
+W1 wait fork returned at 60
+input/w1_parent_child_grandchild.sv:14: $finish called at 60000 (1ps)
+w1_parent_child_grandchild	2017	0	0
+=== w1_parent_child_grandchild -g2023 ===
+W1 wait fork returned at 60
+input/w1_parent_child_grandchild.sv:14: $finish called at 60000 (1ps)
+w1_parent_child_grandchild	2023	0	0
+=== w2_called_task_child -g2017 ===
+W2 wait fork returned at 20
+input/w2_called_task_child.sv:12: $finish called at 20000 (1ps)
+w2_called_task_child	2017	0	0
+=== w2_called_task_child -g2023 ===
+W2 wait fork returned at 20
+input/w2_called_task_child.sv:12: $finish called at 20000 (1ps)
+w2_called_task_child	2023	0	0
+=== w3_no_children -g2017 ===
+W3 wait fork returned at 0
+input/w3_no_children.sv:8: $finish called at 0 (1ps)
+w3_no_children	2017	0	0
+=== w3_no_children -g2023 ===
+W3 wait fork returned at 0
+input/w3_no_children.sv:8: $finish called at 0 (1ps)
+w3_no_children	2023	0	0
+=== w4_child_already_finished -g2017 ===
+W4 wait fork returned at 10
+input/w4_child_already_finished.sv:10: $finish called at 10000 (1ps)
+w4_child_already_finished	2017	0	0
+=== w4_child_already_finished -g2023 ===
+W4 wait fork returned at 10
+input/w4_child_already_finished.sv:10: $finish called at 10000 (1ps)
+w4_child_already_finished	2023	0	0
+=== w5_child_does_not_wait_for_sibling -g2017 ===
+W5 C1 wait fork returned at 30
+input/w5_child_does_not_wait_for_sibling.sv:18: $finish called at 30000 (1ps)
+w5_child_does_not_wait_for_sibling	2017	0	0
+=== w5_child_does_not_wait_for_sibling -g2023 ===
+W5 C1 wait fork returned at 30
+input/w5_child_does_not_wait_for_sibling.sv:18: $finish called at 30000 (1ps)
+w5_child_does_not_wait_for_sibling	2023	0	0
+=== w6_join_any_child_remains -g2017 ===
+W6 wait fork returned at 40
+input/w6_join_any_child_remains.sv:12: $finish called at 40000 (1ps)
+w6_join_any_child_remains	2017	0	0
+=== w6_join_any_child_remains -g2023 ===
+W6 wait fork returned at 40
+input/w6_join_any_child_remains.sv:12: $finish called at 40000 (1ps)
+w6_join_any_child_remains	2023	0	0
+=== w7_uvm_forever_monitor_grandchild -g2017 ===
+w7_uvm_forever_monitor_grandchild	2017	0	124
+=== w7_uvm_forever_monitor_grandchild -g2023 ===
+w7_uvm_forever_monitor_grandchild	2023	0	124

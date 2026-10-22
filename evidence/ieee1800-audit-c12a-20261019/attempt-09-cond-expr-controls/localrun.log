@@ -1,0 +1,50 @@
+h1 g2017 compile rc=0
+h1 nv=0
+h2 g2017 compile rc=0
+h2 nv=2
+h3 g2017 compile rc=2
+tests/1800_audit/c12/r12_06_h3.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h3.sv:2: error: Malformed statement
+h4 g2017 compile rc=2
+tests/1800_audit/c12/r12_06_h4.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h4.sv:2: error: Malformed statement
+h5 g2017 compile rc=2
+tests/1800_audit/c12/r12_06_h5.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h5.sv:2: error: Malformed statement
+h6 g2017 compile rc=2
+tests/1800_audit/c12/r12_06_h6.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h6.sv:2: error: Malformed statement
+h1 g2023 compile rc=0
+h1 nv=0
+h2 g2023 compile rc=0
+h2 nv=2
+h3 g2023 compile rc=2
+tests/1800_audit/c12/r12_06_h3.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h3.sv:2: error: Malformed statement
+h4 g2023 compile rc=2
+tests/1800_audit/c12/r12_06_h4.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h4.sv:2: error: Malformed statement
+h5 g2023 compile rc=2
+tests/1800_audit/c12/r12_06_h5.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h5.sv:2: error: Malformed statement
+h6 g2023 compile rc=2
+tests/1800_audit/c12/r12_06_h6.sv:2: syntax error
+tests/1800_audit/c12/r12_06_h6.sv:2: error: Malformed statement
+        7.26 real         0.86 user         0.54 sys
+            16875520  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               66018  page reclaims
+                 848  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   1  signals received
+                 107  voluntary context switches
+                4224  involuntary context switches
+           117690569  instructions retired
+            84853497  cycles elapsed
+             2441696  peak memory footprint

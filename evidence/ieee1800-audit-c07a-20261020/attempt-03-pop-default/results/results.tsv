@@ -1,0 +1,3 @@
+edition	compile_rc	run_rc	stdout_match
+2017	0	0	NO
+2023	0	0	NO

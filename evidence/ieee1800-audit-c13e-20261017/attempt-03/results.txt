@@ -1,0 +1,100 @@
+host=DAN-DESKTOP
+2026-10-17T22:27:55-06:00
+slurm_job_id=2530
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+c336fc35f02d75bf75da0eb332e549dfaa62307a4b8dac7d9d6a83acc74812ac  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_07_08_proc.sv
+379394534c65f1fe38e73fd4869de34c54b3a80471bb7f5d14216188eb59b1d2  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_module_fn.sv
+6652281b42282b04daaa901daae5841583fc678a80af93c4db2da34e34d2514c  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv
+42e4e5411a06bca40e26edf1e5c37f3db896b790ed4b1dd7ac9a3796b0313f47  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv
+22d77f522082383d46090e4f2efa5db0cca8204a3613cd1106a752091dbb3dd6  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/neg/n13_08_new_virtual_class.sv
+=== p13_08_assign_param -g2017 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_param-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv
+compile_rc=6
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: error: Unable to synthesize port 0 of call to ENCODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: Failed to synthesize expression: top._ivl_4.ENCODER_f(<null>, encoder_in[7:0])
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: error: Unable to synthesize port 0 of call to DECODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: Failed to synthesize expression: top._ivl_5.DECODER_f(<null>, decoder_in[1:0])
+6 error(s) during elaboration.
+classification=compile-rejected; potential parameterized static assignment gap
+=== p13_08_assign_plain -g2017 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_plain-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: error: Unable to synthesize port 0 of call to dbl.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: Failed to synthesize expression: top.K.dbl(<null>, +a[31:0])
+3 error(s) during elaboration.
+=== p13_08_assign_module_fn -g2017 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_module_fn-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_module_fn.sv
+compile_rc=0
+run_rc=0
+PASS 13.4.control_module_fn_in_assign y=6
+=== p13_07_08_proc -g2017 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_07_08_proc-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_07_08_proc.sv
+compile_rc=0
+run_rc=0
+PASS 13.7.forward_ref_function
+PASS 13.7.forward_ref_task
+PASS 13.7.enclosing_scope_function_from_named_block
+PASS 13.8.spec_example_encoder_out
+PASS 13.8.spec_example_decoder_out
+PASS 13.8.encoder_C8
+PASS 13.8.decoder_C8
+PASS 13.8.encoder_C16_default_encode_w
+PASS 13.8.encoder_C4
+PASS 13.8.explicit_encode_w_override
+DONE fails=0
+=== n13_08_new_virtual_class -g2017 ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/neg/n13_08_new_virtual_class.sv:7: error: Can not create object of virtual class `C`.
+Elaboration failed
+PASS rejected specifically as virtual-class construction
+=== p13_08_assign_param -g2023 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_param-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv
+compile_rc=6
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: error: Unable to synthesize port 0 of call to ENCODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: Failed to synthesize expression: top._ivl_4.ENCODER_f(<null>, encoder_in[7:0])
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: error: Unable to synthesize port 0 of call to DECODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: Failed to synthesize expression: top._ivl_5.DECODER_f(<null>, decoder_in[1:0])
+6 error(s) during elaboration.
+classification=compile-rejected; potential parameterized static assignment gap
+=== p13_08_assign_plain -g2023 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_plain-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv
+compile_rc=3
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: error: Unable to synthesize port 0 of call to dbl.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: Failed to synthesize expression: top.K.dbl(<null>, +a[31:0])
+3 error(s) during elaboration.
+=== p13_08_assign_module_fn -g2023 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_08_assign_module_fn-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_module_fn.sv
+compile_rc=0
+run_rc=0
+PASS 13.4.control_module_fn_in_assign y=6
+=== p13_07_08_proc -g2023 ===
+command: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -s top -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/build/c13e-2694368-p13_07_08_proc-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_07_08_proc.sv
+compile_rc=0
+run_rc=0
+PASS 13.7.forward_ref_function
+PASS 13.7.forward_ref_task
+PASS 13.7.enclosing_scope_function_from_named_block
+PASS 13.8.spec_example_encoder_out
+PASS 13.8.spec_example_decoder_out
+PASS 13.8.encoder_C8
+PASS 13.8.decoder_C8
+PASS 13.8.encoder_C16_default_encode_w
+PASS 13.8.encoder_C4
+PASS 13.8.explicit_encode_w_override
+DONE fails=0
+=== n13_08_new_virtual_class -g2023 ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/neg/n13_08_new_virtual_class.sv:7: error: Can not create object of virtual class `C`.
+Elaboration failed
+PASS rejected specifically as virtual-class construction
+FINAL_STATUS=1
