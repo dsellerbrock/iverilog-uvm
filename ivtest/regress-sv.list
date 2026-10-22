@@ -702,6 +702,10 @@ sv_class_method_signed1	normal,-g2009		ivltests
 sv_class_method_signed2	normal,-g2009		ivltests
 sv_class_method_var_init	normal,-g2009	ivltests
 sv_class_method_auto_return1 normal,-g2009	ivltests
+sv_default_argument_declaration_scope normal,-g2017,-s,sv_default_argument_declaration_scope ivltests
+sv_default_argument_declaration_scope_2023 normal,-g2023,-Iivltests,-s,sv_default_argument_declaration_scope ivltests
+sv_default_argument_declaration_scope_missing CE,-g2017,-s,sv_default_argument_declaration_scope_missing ivltests
+sv_default_argument_declaration_scope_missing_2023 CE,-g2023,-s,sv_default_argument_declaration_scope_missing ivltests
 sv_class_prop_shadow1		normal,-g2009	ivltests
 sv_class_prop_shadow2		normal,-g2009	ivltests
 sv_class_property_signed1	normal,-g2009	ivltests
@@ -2898,6 +2902,8 @@ sv_class_parenless_unqualified_method normal,-g2017,-s,main ivltests gold=sv_cla
 sv_class_parenless_unqualified_method_2023 normal,-g2023,-s,main ivltests gold=sv_class_parenless_unqualified_method.gold
 sv_class_parenless_defaulted_method normal,-g2017,-s,main ivltests gold=sv_class_parenless_defaulted_method.gold
 sv_class_parenless_defaulted_method_2023 normal,-g2023,-Iivltests,-s,main ivltests gold=sv_class_parenless_defaulted_method.gold
+sv_method_default_argument_this normal,-g2017,-Iivltests,-s,method_default_argument_this_test ivltests
+sv_method_default_argument_this_2023 normal,-g2023,-Iivltests,-s,method_default_argument_this_test ivltests
 sv_class_parenless_required_method_fail CE,-g2017,-s,main ivltests gold=sv_class_parenless_required_method_fail.gold
 sv_class_parenless_required_method_fail_2023 CE,-g2023,-Iivltests,-s,main ivltests gold=sv_class_parenless_required_method_fail_2023.gold
 sv_ref_queue_formal_unrelated_fork normal,-g2017,-s,main ivltests gold=sv_ref_queue_formal_unrelated_fork.gold
