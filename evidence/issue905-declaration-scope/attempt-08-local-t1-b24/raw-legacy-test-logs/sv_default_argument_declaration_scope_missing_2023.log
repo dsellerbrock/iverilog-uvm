@@ -1,0 +1,2 @@
+./ivltests/sv_default_argument_declaration_scope_missing_2023.v:2: Include file sv_default_argument_declaration_scope_missing.v not found
+Preprocessor failed with 1 errors.

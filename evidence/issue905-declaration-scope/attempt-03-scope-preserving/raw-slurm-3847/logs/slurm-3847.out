@@ -1,0 +1,167 @@
+commit=4d5378a232cc27ad04d011a257eebad04ffbaa2f
+=== autoconf ===
+autoconf: PASS
+=== configure ===
+configure: PASS
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+=== build ===
+build: PASS
+gcc -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cadpli.c
+mv cadpli.d dep
+gcc -shared  -o cadpli.vpl cadpli.o ../libveriuser/libveriuser.o -L../vpi -lvpi
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261022-0008/source/cadpli'
+=== make-check ===
+make-check: PASS
+test -r check.conf || cp ./check.conf .
+driver/iverilog -B. -BMvpi -BPivlpp -tcheck -ocheck.vvp ./examples/hello.vl
+vvp/vvp -M- -M./vpi ./check.vvp | grep 'Hello, World'
+Hello, World
+=== install ===
+install: PASS
+    "/home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261022-0008/source/local-install"
+note: uvm-core submodule not checked out; skipping UVM install.
+      run 'git submodule update --init' to enable 'iverilog -uvm'.
+make[1]: Leaving directory '/home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261022-0008/source'
+Icarus Verilog version 13.0 (devel) ()
+=== T0-issue-legacy ===
+T0-issue-legacy: FAIL (exit 3)
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+             sv_default_argument_declaration_scope: ==> Failed - running iverilog.
+        sv_default_argument_declaration_scope_2023: ==> Failed - running iverilog.
+     sv_default_argument_declaration_scope_missing: ==> Failed - CE (core dump).
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=4, Passed=1, Failed=3, Not Implemented=0, Expected Fail=0
+T0-issue-json: FAIL
+=== sv_default_argument_declaration_scope ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope: exit=1
+=== sv_default_argument_declaration_scope_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope_2023: exit=1
+=== sv_default_argument_declaration_scope_missing ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing: exit=0
+=== sv_default_argument_declaration_scope_missing_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing_2023: exit=0
+=== T0-smoke ===
+T0-smoke: PASS
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)
+=== T1-related-legacy ===
+T1-related-legacy: FAIL (exit 7)
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                 sv_automatic_boolean_default_chain: Passed.
+            sv_automatic_boolean_default_chain_2023: Passed.
+               sv_automatic_integral_default_events: Passed.
+          sv_automatic_integral_default_events_2023: Passed.
+            sv_automatic_integral_default_recursive: Passed.
+       sv_automatic_integral_default_recursive_2023: Passed.
+                       sv_class_constructor_default: Passed.
+                           sv_class_method_default1: Passed.
+                           sv_class_method_default2: Passed.
+                sv_class_parenless_defaulted_method: ==> Failed - running iverilog.
+           sv_class_parenless_defaulted_method_2023: ==> Failed - running iverilog.
+     sv_constraint_function_named_default_arguments: Passed.
+sv_constraint_function_named_default_arguments_2023: Passed.
+              sv_default_argument_declaration_scope: ==> Failed - running iverilog.
+         sv_default_argument_declaration_scope_2023: ==> Failed - running iverilog.
+      sv_default_argument_declaration_scope_missing: ==> Failed - CE (core dump).
+ sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+                         sv_default_formal_contexts: Passed.
+                    sv_method_default_argument_this: ==> Failed - running iverilog.
+               sv_method_default_argument_this_2023: ==> Failed - running iverilog.
+============================================================================
+Test results:
+  Total=20, Passed=13, Failed=7, Not Implemented=0, Expected Fail=0
+T1-related-json: FAIL
+sv_constraint_function_named_default_arguments: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_constraint_function_named_default_arguments: exit=0
+=== sv_constraint_function_named_default_arguments_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_constraint_function_named_default_arguments_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_constraint_function_named_default_arguments_2023: exit=0
+=== sv_default_argument_declaration_scope ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope: exit=1
+=== sv_default_argument_declaration_scope_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope_2023: exit=1
+=== sv_default_argument_declaration_scope_missing ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing: exit=0
+=== sv_default_argument_declaration_scope_missing_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing_2023: exit=0
+=== sv_method_default_argument_this ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_method_default_argument_this: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_method_default_argument_this: exit=1
+=== sv_method_default_argument_this_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_method_default_argument_this_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_method_default_argument_this_2023: exit=1
+T0_T1_STATUS=1
