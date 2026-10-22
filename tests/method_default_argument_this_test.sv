@@ -34,6 +34,6 @@ module method_default_argument_this_test;
       $fatal(1, "self-check used the wrong receiver");
     if (!b.self_check())
       $fatal(1, "second self-check used the wrong receiver");
-    $display("PASS method default argument this");
+    $display("PASSED");
   end
 endmodule
