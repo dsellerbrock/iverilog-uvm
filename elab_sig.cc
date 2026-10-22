@@ -3384,13 +3384,27 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
       pdefs.resize(ports_->size());
       port_names.resize(ports_->size());
 
+      // Default expressions see the declaration scope, not any subroutine formal.
+      vector<NetNet*>formal_signals(ports_->size(), nullptr);
+      bool removed_formals = false;
+      for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+	    formal_signals[idx] = scope->find_signal(
+		  ports_->at(idx).port->basename());
+	    if (formal_signals[idx]) {
+		  scope->rem_signal(formal_signals[idx]);
+		  removed_formals = true;
+	    }
+      }
+      if (removed_formals)
+	symbol_search_cache_clear();
+
       for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
 
 	    perm_string port_name = ports_->at(idx).port->basename();
 
 	    ports[idx] = 0;
 	    pdefs[idx] = 0;
-	    NetNet*tmp = scope->find_signal(port_name);
+	    NetNet*tmp = formal_signals[idx];
 	    NetExpr*tmp_def = 0;
 	    if (tmp == 0) {
 		  cerr << get_fileline() << ": internal error: "
@@ -3440,7 +3454,7 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
 				      tmp_def = elaborate_rval_expr(
-					    des, scope->parent(), formal_type,
+					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
 				} else {
@@ -3494,6 +3508,11 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	      // formals fail even though the caller retains the complete
 	      // array type and the target already carries word-array stores.
       }
+      for (NetNet*formal : formal_signals)
+	if (formal)
+	      scope->add_signal(formal);
+      if (removed_formals)
+	symbol_search_cache_clear();
 }
 
 void PBlock::elaborate_sig(Design*des, NetScope*scope) const

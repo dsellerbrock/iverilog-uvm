@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "../../tests/method_default_argument_this_test.sv",
+  "iverilog-args": ["-g2023", "-s", "method_default_argument_this_test"]
+}
