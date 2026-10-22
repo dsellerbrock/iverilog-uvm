@@ -1,0 +1,17 @@
+Repository: dsellerbrock/iverilog-uvm. Commands used `gh issue list --state all`
+on 2026-10-20; this includes both open and closed issues.
+
+- `"virtual method"`: OPEN #615 static virtual methods; OPEN #609 static or
+  virtual class constructors; OPEN #650 built-in array method in event
+  control; CLOSED #30 and #9 virtual dispatch/TLM; CLOSED #27 unrelated VPI.
+- `"abstract class"`: no matches.
+- `"pure virtual"`: OPEN #845 interface-class nesting. Its full body is
+  unrelated to concrete subclasses inheriting an unimplemented pure method.
+- `polymorphism`: no matches.
+- `"8.20"`: OPEN #609 static/virtual constructors; CLOSED #455 override
+  specifiers. #455 is specifically the 2023 `:initial`, `:extends`, and
+  `:final` behavior; its recorded verification does not cover the result here.
+- `"8.21"`: no matches.
+
+Inspected #455 and #845 bodies/comments. No issue in these results covers the
+observed acceptance of `MissingImplementation`.

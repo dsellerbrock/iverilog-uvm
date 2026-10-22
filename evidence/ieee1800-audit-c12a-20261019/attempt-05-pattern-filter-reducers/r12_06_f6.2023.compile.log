@@ -1,0 +1,4 @@
+tests/1800_audit/c12/r12_06_f6.sv:2: syntax error
+tests/1800_audit/c12/r12_06_f6.sv:2: error: Incomprehensible case expression.
+tests/1800_audit/c12/r12_06_f6.sv:2: syntax error
+tests/1800_audit/c12/r12_06_f6.sv:2: error: Incomprehensible case expression.

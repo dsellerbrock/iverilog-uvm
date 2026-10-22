@@ -1,0 +1,2 @@
+STAGED d=x a=1 b=0 c=1
+tests/1800_audit/c10/r10_06a_multi_rhs_staged.sv:9: $finish called at 3 (1s)

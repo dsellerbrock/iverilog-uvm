@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_16_len_arity.sv:1: error: String method `len' requires 0 arguments, got 1.
+Elaboration failed

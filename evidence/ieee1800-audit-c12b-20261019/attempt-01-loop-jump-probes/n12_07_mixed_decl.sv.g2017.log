@@ -1,0 +1,2 @@
+tests/1800_audit/c12/neg/n12_07_mixed_decl.sv:1: syntax error
+tests/1800_audit/c12/neg/n12_07_mixed_decl.sv:1: warning: unsupported for-loop initializer syntax ignored.

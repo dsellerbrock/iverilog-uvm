@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_fixed_array_item_control.sv:5: error: this expression (kind 18) cannot be evaluated in a vector context.
+error: Code generation had 1 error(s).

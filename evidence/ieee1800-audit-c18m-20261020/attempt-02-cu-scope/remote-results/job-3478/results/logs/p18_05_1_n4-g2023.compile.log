@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n4.sv:1: error: A pure constraint may only be declared in a virtual class.

@@ -1,0 +1,9 @@
+611	OPEN	[IEEE 1800] §8.5 — Accept class-scoped type parameter as cast type (C#(3)::T'(x))	1800-audit	2026-10-17T18:51:24Z
+616	OPEN	[IEEE 1800] §8.12 — Shallow copy through base handle of derived object aborts vvp	1800-audit	2026-10-17T18:59:04Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+650	OPEN	[IEEE 1800] §9.4.2 — Built-in array method call (size()) in an event control expression fails to elaborate	1800-audit	2026-10-18T05:13:07Z
+477	CLOSED	[IEEE 1800] §§13.5.2/6.22.2 — Reject non-equivalent ref actual types		2026-10-13T06:27:28Z
+483	CLOSED	[IEEE 1800] §13.5.2 — Allow const-ref forwarding to const-ref formals		2026-10-15T03:25:21Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+30	CLOSED	Phase 59: UVM port-imp virtual dispatch (seq_item_port.try_next_item)		2026-04-30T22:59:47Z

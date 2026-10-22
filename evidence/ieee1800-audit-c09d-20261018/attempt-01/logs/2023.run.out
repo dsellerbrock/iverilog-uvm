@@ -1,0 +1,9 @@
+PASS 9.7.resume_after_delay_expired_continues_now
+PASS 9.7.suspended_waiter_not_woken_by_condition
+PASS 9.7.resume_after_condition_true_continues
+INFO event_while_suspended edone=0 status=SUSPENDED
+INFO after_resume edone=1 status=FINISHED
+FAIL 9.7.resume_does_not_replay_event
+PASS 9.7.resumed_waiter_wakes_on_next_event
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/m7-c09d-20261018-01/inputs/p09_07_resume_semantics.sv:23: $finish called at 21 (1s)

@@ -1,0 +1,120 @@
+[
+  {
+    "test": "a-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/a.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_a.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.03,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_a.sv:10: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "b-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/b.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_b.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.057,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_b.sv:10: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "c-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/c.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_c.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.08,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "c-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/c.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.024,
+    "stdout": "C req=1\n",
+    "stderr": ""
+  },
+  {
+    "test": "a-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/a.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_a.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.03,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_a.sv:10: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "b-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/b.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_b.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.055,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_b.sv:10: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "c-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/c.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_c.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.048,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "c-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25b-20261019/c.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "C req=1\n",
+    "stderr": ""
+  }
+]

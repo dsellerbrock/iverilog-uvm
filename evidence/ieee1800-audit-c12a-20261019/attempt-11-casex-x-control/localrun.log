@@ -1,0 +1,20 @@
+CX hit=2
+CX hit=2
+        0.26 real         0.14 user         0.07 sys
+            16842752  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               17305  page reclaims
+                 232  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  32  voluntary context switches
+                 318  involuntary context switches
+            74534716  instructions retired
+            39228546  cycles elapsed
+             2408928  peak memory footprint

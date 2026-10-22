@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_21_hier_unnamed_block.sv:1: error: Unable to bind wire/reg/memory `m.x' in `m'
+1 error(s) during elaboration.

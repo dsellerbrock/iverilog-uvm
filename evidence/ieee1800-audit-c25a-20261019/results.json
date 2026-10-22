@@ -1,0 +1,230 @@
+[
+  {
+    "test": "basic-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25a-20261019/basic.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_03a_basic.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.044,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_03a_basic.sv:35: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_generic_implicit-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Generic interface port `a' of module `g' cannot be left unconnected.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (a).\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_generic_nonansi-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv"
+    ],
+    "exit": 3,
+    "seconds": 0.032,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:3: error: interface not closed by endinterface.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:4: syntax error\nI give up.\n"
+  },
+  {
+    "test": "n25_03_modport_enclosing-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_enclosing.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_03_modport_mismatch-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_mismatch.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.022,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_mismatch.sv:9: error: Interface port `p' of module `m' and its actual have incompatible interface definitions or modport selections (IEEE 1800-2017/2023 25.3/25.5).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_modport_undeclared-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_undeclared.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.033,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_03_module_in_interface-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_module_in_interface.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.034,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_module_in_interface.sv:2: error: module declarations are not allowed in interfaces.\n"
+  },
+  {
+    "test": "n25_03_write_modport_input-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_write_modport_input.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.03,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_write_modport_input.sv:6: error: cannot write to 'a' through modport 'm' of interface 'i' \u2014 it is an input in that modport (IEEE 1800-2017 25.5).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "basic-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25a-20261019/basic.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_03a_basic.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_03a_basic.sv:35: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_generic_implicit-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.021,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Generic interface port `a' of module `g' cannot be left unconnected.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (a).\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_generic_nonansi-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv"
+    ],
+    "exit": 3,
+    "seconds": 0.023,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:3: error: interface not closed by endinterface.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:4: syntax error\nI give up.\n"
+  },
+  {
+    "test": "n25_03_modport_enclosing-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_enclosing.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_03_modport_mismatch-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_mismatch.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.038,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_mismatch.sv:9: error: Interface port `p' of module `m' and its actual have incompatible interface definitions or modport selections (IEEE 1800-2017/2023 25.3/25.5).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_03_modport_undeclared-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_undeclared.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_03_module_in_interface-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_module_in_interface.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_module_in_interface.sv:2: error: module declarations are not allowed in interfaces.\n"
+  },
+  {
+    "test": "n25_03_write_modport_input-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_write_modport_input.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_write_modport_input.sv:6: error: cannot write to 'a' through modport 'm' of interface 'i' \u2014 it is an input in that modport (IEEE 1800-2017 25.5).\n1 error(s) during elaboration.\n"
+  }
+]

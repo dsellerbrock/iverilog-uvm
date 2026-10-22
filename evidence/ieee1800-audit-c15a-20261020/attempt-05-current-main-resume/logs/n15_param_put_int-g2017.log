@@ -1,0 +1,2 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/neg/n15_param_put_int.sv:4: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+1 error(s) during elaboration.

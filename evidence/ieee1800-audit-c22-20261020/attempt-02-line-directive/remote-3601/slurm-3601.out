@@ -1,0 +1,9 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+edition_flag=-g2012; §22.12 wording matches in 2017 and 2023; no edition-specific syntax
+7399304b376fc6e745053641f63165ba480b980961859c3afa250bcbac63f743  ivltests/fileline2.v
+c639954bc258a3ad8ca5f0991531e3a3199df5689a0a4ceaaa7daf0c797e8460  expected.gold
+1 -> ./ivltests/fileline2.v:1003
+2 -> imaginary-include-file:2003
+3 -> ./ivltests/fileline2.v:3003
+PASSED
+PROBE_RESULT=PASS

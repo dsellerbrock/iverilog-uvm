@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_05_3d_part.sv:1: error: Array cannot be indexed by a range.
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.2-20261019-a01/input/p16_09_02_goto_rep.sv:18: goto repetition hits=0
+       Time: 80000  Scope: test

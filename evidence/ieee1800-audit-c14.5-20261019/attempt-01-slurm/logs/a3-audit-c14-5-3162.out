@@ -1,0 +1,12 @@
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+PASS: p14_05_hier_ref -g2017
+PASS: p14_05_slice -g2017
+PASS: p14_05_concat -g2017
+FAIL compile expected rejection: n14_05_illegal_output_expr -g2017
+PASS: p14_05_hier_ref -g2023
+PASS: p14_05_slice -g2023
+PASS: p14_05_concat -g2023
+FAIL compile expected rejection: n14_05_illegal_output_expr -g2023

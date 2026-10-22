@@ -1,0 +1,7 @@
+C len var=1 const=1
+C getc=99 idx=99 substr='cc' cmp=0 upper='CCC'
+C idxwr arr1='Bb'
+C copy len=3
+C dyn len=3
+C assoc len=4
+C queue len=4

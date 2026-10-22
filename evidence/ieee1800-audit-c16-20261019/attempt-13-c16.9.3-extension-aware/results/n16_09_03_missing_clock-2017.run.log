@@ -1,0 +1,2 @@
+NO_CLOCK_PAST=00000000000000000000000000000001
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv:5: $finish called at 0 (1s)

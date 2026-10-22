@@ -1,0 +1,1 @@
+tests/1800_audit/c06/neg/n06_18_fwd_incomplete_scope.sv:1: error: C doesn't name a visible class.

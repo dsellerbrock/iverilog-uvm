@@ -1,0 +1,4 @@
+0 d=x,e=0
+10 d=1,e=1
+20 d=x,e=0
+tests/1800_audit/c10/p10_06b_force_release.sv:10: $finish called at 30 (1s)

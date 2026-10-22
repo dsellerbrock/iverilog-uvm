@@ -1,0 +1,75 @@
+job_id=3186
+host=DAN-DESKTOP
+source_commit=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:08:57-06:00
+01af4f9a30d7def8f99a362ad830f4f3d23d8edc4b7164988dbedffc443fd41c  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/source.tar.gz
+87d690979787da98f1c688325c5d5b4f4451ff6595f12bcc95af55e697d1ec83  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/input/p16_09_04_global_clocking_funcs.sv
+029ee75a08155244b9c422409ea07a8613cfa10588f65da9de89956fb6476a68  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/input/n16_09_04_no_global_clock.sv
+
+=== autoconf (timeout 120s) ===
+step_exit=0
+	File system inputs: 0
+	File system outputs: 1280
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+step_exit=0
+
+=== configure (timeout 300s) ===
+step_exit=0
+	File system inputs: 0
+	File system outputs: 3424
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+step_exit=0
+
+=== build (timeout 1800s) ===
+step_exit=0
+	File system inputs: 0
+	File system outputs: 1326720
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+step_exit=0
+
+=== install (timeout 300s) ===
+step_exit=0
+	File system inputs: 0
+	File system outputs: 376912
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+step_exit=0
+iverilog=/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/install/bin/iverilog
+vvp=/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/install/bin/vvp
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/install/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/install/bin/vvp
+positive_compile_exit=0
+positive_run_exit=1
+negative_compile_exit=0
+
+=== edition 2017 results ===
+positive_compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/input/p16_09_04_global_clocking_funcs.sv:10: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/results/positive-2017.vvp: Program not runnable, 1 errors.
+positive_run_exit=1
+negative_compile_exit=0
+positive_compile_exit=0
+positive_run_exit=1
+negative_compile_exit=0
+
+=== edition 2023 results ===
+positive_compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/input/p16_09_04_global_clocking_funcs.sv:10: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-16/results/positive-2023.vvp: Program not runnable, 1 errors.
+positive_run_exit=1
+negative_compile_exit=0

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_constraint_mode_override.sv:4: error: Class method `constraint_mode' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.

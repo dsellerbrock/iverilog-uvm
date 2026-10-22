@@ -1,0 +1,104 @@
+[
+  {
+    "probe": "t_import",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_import.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_import.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25d-20261020/t_import.2017.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "MRD 12\nMWR 34\nMRD 12\nMWR 34\nSRD n=111\nN 111 11 W16\n"
+  },
+  {
+    "probe": "t_export",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_export.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5: syntax error\n"
+  },
+  {
+    "probe": "t_forkjoin",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_forkjoin.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:1: error: Invalid module item.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5: syntax error\n"
+  },
+  {
+    "probe": "t_import",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_import.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_import.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25d-20261020/t_import.2023.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "MRD 12\nMWR 34\nMRD 12\nMWR 34\nSRD n=111\nN 111 11 W16\n"
+  },
+  {
+    "probe": "t_export",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_export.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_export.sv:5: syntax error\n"
+  },
+  {
+    "probe": "t_forkjoin",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25d-20261020/t_forkjoin.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:1: error: Invalid module item.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/t_forkjoin.sv:5: syntax error\n"
+  }
+]

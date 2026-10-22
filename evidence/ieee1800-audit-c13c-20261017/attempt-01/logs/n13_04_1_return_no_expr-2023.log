@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Return from top.f requires a return value expression.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Unable to elaborate statement in function f.
+2 error(s) during elaboration.

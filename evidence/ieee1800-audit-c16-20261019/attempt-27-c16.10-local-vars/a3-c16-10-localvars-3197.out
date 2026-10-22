@@ -1,0 +1,24 @@
+job_id=3197
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:40:58-06:00
+6588a70d27b05e34aacb25bc820a9b8ad82b154c958c3e884252c72123a82881  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_incdec_match_item.sv
+6570798ac26e9ccf0bda9b425a75802d1224324b9e06413a5bc42c485ce6f93b  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_local_init.sv
+81a6dc22cc387d01071c80785de040446d714ec5be2bcb1c0d18aa025f5f0ac8  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_local_vars_property.sv
+956cfe10289fdfc8b40dfbf622789ad1536302de6caa512ae67ad90bc0c3061a  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_local_vars_sequence.sv
+e5ea7040aba4029ee1602d4fdb05ee6b0dc7be2ce934d2278b5a49813a1b4505  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_multi_assignment.sv
+98c6eafdafeb918dbfdafef34b70c95f032eea22acf0480d4fe7af6d32830c60  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_subseq_match_item.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+probe=p16_10_local_vars_property edition=2017 compile_exit=0 run_exit=0
+probe=p16_10_local_vars_sequence edition=2017 compile_exit=0 run_exit=0
+probe=p16_10_local_init edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_multi_assignment edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_subseq_match_item edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_incdec_match_item edition=2017 compile_exit=3 run_exit=NA
+probe=p16_10_local_vars_property edition=2023 compile_exit=0 run_exit=0
+probe=p16_10_local_vars_sequence edition=2023 compile_exit=0 run_exit=0
+probe=p16_10_local_init edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_multi_assignment edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_subseq_match_item edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_incdec_match_item edition=2023 compile_exit=3 run_exit=NA

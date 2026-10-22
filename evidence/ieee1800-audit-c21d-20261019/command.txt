@@ -1,0 +1,4 @@
+cd /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c21d-20261019
+For each edition g in 2017, 2023:
+  ~/codex-supervisor/localrun 180 bash -c '/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog -g$g -o a.$g.vvp /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04a_readmem.sv && /tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp a.$g.vvp'
+  ~/codex-supervisor/localrun 180 bash -c '/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog -g$g -o e.$g.vvp /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_06a_plusargs.sv && /tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp e.$g.vvp +HELLO +TEST=5 +TESTNAME=t1 +FREQ+9.234'

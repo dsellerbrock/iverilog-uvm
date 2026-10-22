@@ -1,0 +1,3 @@
+tests/1800_audit/c11/r11_12_shape_tint.sv:1: sorry: typed/ranged let ports are not supported yet (let `sq', port `v').
+tests/1800_audit/c11/r11_12_shape_tint.sv:1: error: No function named `sq' found in this context (m).
+2 error(s) during elaboration.

@@ -1,0 +1,2 @@
+local repo HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+run.sbatch hash: 8a50773a8358b5a6e86982b562a6f480d6766e8f65022397a6ccf310f715a5af  evidence/ieee1800-audit-c18l-20261020/attempt-02-real-bidir-iso/run.sbatch

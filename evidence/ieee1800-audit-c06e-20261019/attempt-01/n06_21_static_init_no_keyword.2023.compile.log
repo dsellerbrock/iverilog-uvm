@@ -1,0 +1,1 @@
+tests/1800_audit/c06/neg/n06_21_static_init_no_keyword.sv:1: warning: Static variable initialization requires explicit lifetime in this context.

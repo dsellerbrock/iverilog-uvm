@@ -1,0 +1,4 @@
+tests/1800_audit/c14/neg/n14_03_unnamed_nondefault.sv:4: syntax error
+tests/1800_audit/c14/neg/n14_03_unnamed_nondefault.sv:4: error: Invalid module item.
+tests/1800_audit/c14/neg/n14_03_unnamed_nondefault.sv:6: syntax error
+I give up.

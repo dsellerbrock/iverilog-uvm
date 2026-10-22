@@ -1,0 +1,8 @@
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+sorry: covergroup option 'auto_bin_max' is not a constant; using default 64.
+AVG  type=75.00 i1=100.00 i2=50.00
+MRG  type=66.67 i1=66.67 i2=66.67
+WGT  type=87.50
+ATL1 type=100.00 l1inst=100.00
+ATL2 type=100.00
+AUTO type=1.56 cov=0 tot=0

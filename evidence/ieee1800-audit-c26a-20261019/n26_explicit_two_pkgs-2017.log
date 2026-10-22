@@ -1,0 +1,4 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_two_pkgs.sv:3: error: 'c' has already been imported into this scope from package 'p'.

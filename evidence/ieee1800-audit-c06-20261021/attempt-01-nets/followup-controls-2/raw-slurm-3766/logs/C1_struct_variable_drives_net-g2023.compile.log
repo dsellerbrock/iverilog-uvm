@@ -1,0 +1,2 @@
+input/C1_struct_variable_drives_net.sv:4: error: Net `n` can not be of type `<no_type>`.
+1 error(s) during elaboration.

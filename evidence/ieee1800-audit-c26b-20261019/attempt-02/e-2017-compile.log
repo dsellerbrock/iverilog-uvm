@@ -1,0 +1,6 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:2: error: Net `a` can not be of type `<no_type>`.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>
+2 error(s) during elaboration.

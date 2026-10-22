@@ -1,0 +1,6 @@
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/c21-readmem-dynqueue-20261021-01/input/p21_04b_dynqueue.sv:6: $readmemh's second argument must be a memory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/c21-readmem-dynqueue-20261021-01/input/p21_04b_dynqueue.sv:7: $readmemh's second argument must be a memory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/c21-readmem-dynqueue-20261021-01/input/p21_04b_dynqueue.sv:8: $writememh's second argument must be a memory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/c21-readmem-dynqueue-20261021-01/input/p21_04b_dynqueue.sv:8: $readmemh's second argument must be a memory.
+Command exited with non-zero status 1
+elapsed_seconds=0.00 max_rss_kib=11572

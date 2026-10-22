@@ -1,0 +1,1 @@
+tests/1800_audit/c06/r06_17_e.sv:1: warning: Could not find variable ``e2'' in ``m'' (compile-progress: assignment ignored).

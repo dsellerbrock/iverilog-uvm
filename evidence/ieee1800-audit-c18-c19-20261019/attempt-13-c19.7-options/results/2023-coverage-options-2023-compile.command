@@ -1,0 +1,1 @@
+/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog -B /home/dsell/toolchains/iverilog-a3-main-82023726-679/lib/ivl -g2023 -s test_2023 /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-7-options-20261019/input/p19_07_options_2023.sv -o /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-7-options-20261019/results/2023-coverage-options-2023.vvp

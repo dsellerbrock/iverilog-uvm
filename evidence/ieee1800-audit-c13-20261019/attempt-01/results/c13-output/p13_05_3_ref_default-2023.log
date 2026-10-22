@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c13-20261019-2/probes/p13_05_3_ref_default.sv:5: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c13-20261019-2/probes/p13_05_3_ref_default.sv:10: error: Missing argument 1 of call to task: a `ref' formal has no default.
+2 error(s) during elaboration.
+COMPILE_FAIL rc=2

@@ -1,0 +1,4 @@
+EVCD info: dumpports file lim.evcd opened for output.
+EVCD info: dumpports file control.evcd opened for output.
+WARNING: Dumpports file limit (200 bytes) reached for lim.evcd.
+input/p21_evcd_limit.sv:27: $finish called at 52000 (1ps)

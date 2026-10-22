@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_24c_p2ua.sv:3: sorry: bit-stream cast to `11netuarray_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+1 error(s) during elaboration.

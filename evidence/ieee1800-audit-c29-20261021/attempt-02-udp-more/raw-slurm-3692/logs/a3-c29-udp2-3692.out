@@ -1,0 +1,10 @@
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+tests/p29_more.sv:37: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+FAIL p29_more compile -g2017
+tests/p29_more.sv:37: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+FAIL p29_more compile -g2023

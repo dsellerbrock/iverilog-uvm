@@ -1,0 +1,60 @@
+=== o1_group_at_least -g2017 ===
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O1 after_1=100.00
+O1 after_2=100.00
+o1_group_at_least	2017	0	0
+=== o1_group_at_least -g2023 ===
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O1 after_1=100.00
+O1 after_2=100.00
+o1_group_at_least	2023	0	0
+=== o2_coverpoint_at_least -g2017 ===
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O2 after_1=100.00
+O2 after_2=100.00
+o2_coverpoint_at_least	2017	0	0
+=== o2_coverpoint_at_least -g2023 ===
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O2 after_1=100.00
+O2 after_2=100.00
+o2_coverpoint_at_least	2023	0	0
+=== o3_expression_at_least -g2017 ===
+input/o3_expression_at_least.sv:5: warning: Unable to bind wire/reg/memory `al' in `o3_expression_at_least.cg' (compile-progress: unresolved reference).
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O3 after_1=100.00
+O3 after_2=100.00
+o3_expression_at_least	2017	0	0
+=== o3_expression_at_least -g2023 ===
+input/o3_expression_at_least.sv:5: warning: Unable to bind wire/reg/memory `al' in `o3_expression_at_least.cg' (compile-progress: unresolved reference).
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+O3 after_1=100.00
+O3 after_2=100.00
+o3_expression_at_least	2023	0	0
+=== o4_parameter_at_least -g2017 ===
+O4 after_1=0.00
+O4 after_2=100.00
+o4_parameter_at_least	2017	0	0
+=== o4_parameter_at_least -g2023 ===
+O4 after_1=0.00
+O4 after_2=100.00
+o4_parameter_at_least	2023	0	0
+=== o5_coverpoint_weight -g2017 ===
+O5 group=75.00 cp1=100.00 cp2=0.00
+o5_coverpoint_weight	2017	0	0
+=== o5_coverpoint_weight -g2023 ===
+O5 group=75.00 cp1=100.00 cp2=0.00
+o5_coverpoint_weight	2023	0	0
+=== o6_goal_readback -g2017 ===
+input/o6_goal_readback.sv:11: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+O6 goal=0
+o6_goal_readback	2017	0	0
+=== o6_goal_readback -g2023 ===
+input/o6_goal_readback.sv:11: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).
+O6 goal=0
+o6_goal_readback	2023	0	0
+=== o7_at_least_default_override -g2017 ===
+O7 cpA=0.00 cpB=100.00
+o7_at_least_default_override	2017	0	0
+=== o7_at_least_default_override -g2023 ===
+O7 cpA=0.00 cpB=100.00
+o7_at_least_default_override	2023	0	0

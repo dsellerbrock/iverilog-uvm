@@ -1,0 +1,114 @@
+Tool and helpers:
+Icarus Verilog version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Bundled UVM: Accellera:1800.2:UVM:2020.3.1
+Icarus Verilog Preprocessor version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1999-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Icarus Verilog Parser/Elaborator version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1998-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+ FLAGS DLL vvp.tgt
+vvp.tgt: Icarus Verilog VVP Code Generator 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+218796e8e4fe0587816e8e8e4fa43b2088807368c9f776f4797fc431a55fcd3d  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivl
+07d3adc5c29c525db009829290dc418b04425a08ee17ea5305ab08b19889c8f2  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivlpp
+54cc7acf147b3544f4e2eb77d4ecdf0d769c92063b0b3cda39fd3ebef1e93aff  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20f-bits-split-20261020-01/source/p20_06_bits_b1.sv
+93ef047f0a9e62033ef17dd1610451572177ea0661c70e453d31e796410bb123  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20f-bits-split-20261020-01/source/p20_06_bits_b2.sv
+269befe6661ac97d583d431a9b079e150f09e46f551ed6406e0169fbef5da2f9  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20f-bits-split-20261020-01/source/p20_06_bits_b3.sv
+7fe225dbf95c142eb5c59938d8fe80e8d7123528c56fcae1d6f997b48f0f5bc4  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20f-bits-split-20261020-01/source/p20_06_bits_b4.sv
+601c2167c4c45f574c06a030c35ecfd6f3578b7b96f8b0c32e0ca9614223127d  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20f-bits-split-20261020-01/source/p20_06_bits_b5.sv
+p20_06_bits_b1-2017 compile_rc=0
+p20_06_bits_b1-2017 run_rc=0
+B1 3
+p20_06_bits_b2-2017 compile_rc=0
+p20_06_bits_b2-2017 run_rc=0
+B2 64 64
+p20_06_bits_b3-2017 compile_rc=0
+p20_06_bits_b3-2017 run_rc=0
+B3 64
+p20_06_bits_b4-2017 compile_rc=0
+p20_06_bits_b4-2017 run_rc=0
+B4 -1
+p20_06_bits_b5-2017 compile_rc=0
+p20_06_bits_b5-2017 run_rc=0
+B5 -1
+p20_06_bits_b1-2023 compile_rc=0
+p20_06_bits_b1-2023 run_rc=0
+B1 3
+p20_06_bits_b2-2023 compile_rc=0
+p20_06_bits_b2-2023 run_rc=0
+B2 64 64
+p20_06_bits_b3-2023 compile_rc=0
+p20_06_bits_b3-2023 run_rc=0
+B3 64
+p20_06_bits_b4-2023 compile_rc=0
+p20_06_bits_b4-2023 run_rc=0
+B4 -1
+p20_06_bits_b5-2023 compile_rc=0
+p20_06_bits_b5-2023 run_rc=0
+B5 -1

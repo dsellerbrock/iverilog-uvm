@@ -1,0 +1,20 @@
+FATAL: tests/1800_audit/c20/r20_10_fatal0.sv:1: f0
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5160960  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 615  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   6  involuntary context switches
+            77916324  instructions retired
+            22792867  cycles elapsed
+             2703744  peak memory footprint

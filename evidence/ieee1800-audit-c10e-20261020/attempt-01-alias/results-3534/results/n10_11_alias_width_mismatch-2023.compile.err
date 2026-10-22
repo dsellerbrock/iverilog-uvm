@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_width_mismatch.sv:4: error: Net alias operands have different widths (4 and 8).
+1 error(s) during elaboration.

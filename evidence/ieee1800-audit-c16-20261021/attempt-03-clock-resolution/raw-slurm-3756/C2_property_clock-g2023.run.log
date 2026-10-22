@@ -1,0 +1,2 @@
+C2 FAIL 15
+input/C2_property_clock.sv:8: $finish called at 60 (1ns)
