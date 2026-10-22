@@ -22599,11 +22599,9 @@ static void aa_warn_invalid_write_(vthread_t thr)
 }
 
 template <class ASSOC, class KEY>
-static bool aa_invalid_write_(vthread_t thr, ASSOC*assoc, const KEY&key)
+static bool aa_invalid_write_(vthread_t thr, ASSOC*, const KEY&key)
 {
       if (!aa_index_has_xz_(key)) return false;
-      /* 7.4.5/7.8.7 allow a new associative entry; 7.8.6 rejects overwrites. */
-      if (assoc && !assoc->exists_key(key)) return false;
       aa_warn_invalid_write_(thr);
       return true;
 }
