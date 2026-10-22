@@ -1,0 +1,13 @@
+Goal: final paired follow-up for §14.16.2 and §16.5.1, adding S3c cover validity gate and const-cast assignment/type controls.
+Source checkout HEAD: df794e5829b207d89cbbef9f0948ebb8f7f3d416.
+Slurm host: DAN-DESKTOP; 14 idle CPUs at submission check.
+Remote run dir: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c14-c16-20261021-attempt-03.
+Slurm job: 3751.
+Resources: 1 CPU, 1 GiB, 00:15:00; 9 sources in one sequential job, both editions.
+Compiler: Icarus 13.0 devel (cc25756d1), /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb.
+Timeout: GNU timeout --signal=TERM --kill-after=5s 30s per compile and run.
+Flags: pinned -B; -g2017/-g2023; every Clause 16 case uses -gassertions.
+Harness SHA-256: 97d2083bf975ec90bc4483ae04fcdf58937d9d145b15952931ce59f70aba5e8f.
+Source and harness hashes: SHA256SUMS.input.
+Job 3750 was PENDING at the first post-submit check; final output files appeared after the next five-minute wait. scontrol returned Invalid job id and sacct reported accounting storage disabled, so scheduler exit/time could not be recovered after completion.
+Completion evidence: all 18 per-case status rows and raw logs are present under raw-slurm-3751/. After output generation, squeue/scontrol returned Invalid job id and sacct reported accounting storage disabled; the scheduler exit/runtime cannot be independently verified. Only this run's inputs/ and generated .vvp files were removed from its remote run dir after copying results; logs and status files remain.

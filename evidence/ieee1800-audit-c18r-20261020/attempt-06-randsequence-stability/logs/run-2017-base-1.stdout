@@ -1,0 +1,6 @@
+B_u=2045998359
+B_rs=2102202122120201
+A_u=4156023367
+A_rs=0122110222220001
+PASS randsequence thread stability
+/home/dsell/slurm-runs/iverilog-uvm/a3/1800-c18r-20261020-06/input/p18_14_randsequence_stability.sv:49: $finish called at 1 (1s)

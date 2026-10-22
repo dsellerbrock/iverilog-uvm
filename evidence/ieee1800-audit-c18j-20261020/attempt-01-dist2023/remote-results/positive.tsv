@@ -1,0 +1,11 @@
+edition	probe	case	compile_rc	run_rc
+2017	p18_05_3_dist2023	CASE=1	0	0
+2017	p18_05_3_dist2023	CASE=2	0	0
+2017	p18_05_3_dist2023	CASE=3	0	0
+2017	p18_05_3_dist2023	CASE=4	0	0
+2017	p18_05_3_default	E4	1	NA
+2023	p18_05_3_dist2023	CASE=1	0	0
+2023	p18_05_3_dist2023	CASE=2	0	0
+2023	p18_05_3_dist2023	CASE=3	0	0
+2023	p18_05_3_dist2023	CASE=4	0	0
+2023	p18_05_3_default	E4	0	124

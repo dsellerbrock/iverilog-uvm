@@ -1,0 +1,152 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+SOURCE COMMIT: b9441bafbdb0b6b7413c09e0381845e69481391b
+IVERILOG: /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+Icarus Verilog version 13.0 (devel) ()
+
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+== p06_19a_enum_decl -g2017 compile
+compile_rc=0
+run_rc=0
+FAIL integer_xz
+RESULT pass=10 fail=1
+== p06_19b_enum_methods -g2017 compile
+compile_rc=2
+tests/1800_audit/c06/p06_19b_enum_methods.sv:32: error: Object p06_19b_enum_methods.c has no method "name.len(...)".
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:40: error: Variable q['sd0] does not have a field named: next.
+2 error(s) during elaboration.
+run_rc=not-run; no .vvp generated
+== p06_19c_enum_numeric -g2017 compile
+compile_rc=0
+run_rc=0
+RESULT pass=8 fail=0
+n06_19_assign_expr g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_assign_expr.sv:4: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_assign_int g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_assign_int.sv:4: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_dup_name g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_dup_name.sv:2: error: Duplicate enumeration name 'a'.
+n06_19_dup_value g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_dup_value.sv:2: error: Enumeration name d and c have the same value: 32'sd8
+1 error(s) during elaboration.
+n06_19_inc_overflow g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_inc_overflow.sv:2: error: Enumeration name b has an inferred value that overflowed.
+1 error(s) during elaboration.
+n06_19_incr g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_incr.sv:4: error: This assignment requires an explicit cast.
+Elaboration failed
+n06_19_int_to_enum g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_int_to_enum.sv:5: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_one_bit g2017 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_one_bit.sv:2: error: Enumeration name c has an inferred value that overflowed.
+tests/1800_audit/c06/neg/n06_19_one_bit.sv:2: error: Enumeration name c and a have the same value: 1'd0
+2 error(s) during elaboration.
+n06_19_out_of_range g2017 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_out_of_range.sv:2: error: Enumeration name b has a value that is too large 32'sd4.
+tests/1800_audit/c06/neg/n06_19_out_of_range.sv:2: error: Enumeration name b and a have the same value: 2'd0
+2 error(s) during elaboration.
+n06_19_plus_eq g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_plus_eq.sv:4: error: This assignment requires an explicit cast.
+Elaboration failed
+n06_19_sized_mismatch g2017 compile_rc=3 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has an incorrectly sized constant.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large 5'd19.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large: 5'd19.
+3 error(s) during elaboration.
+n06_19_unassigned_after_x g2017 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S1 has an undefined inferred value.
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S2 has an undefined inferred value.
+2 error(s) during elaboration.
+n06_19_xz_2state g2017 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_xz_2state.sv:2: error: Enumeration name XX can not have an undefined value.
+1 error(s) during elaboration.
+== p06_19a_enum_decl -g2023 compile
+compile_rc=0
+run_rc=0
+FAIL integer_xz
+RESULT pass=10 fail=1
+== p06_19b_enum_methods -g2023 compile
+compile_rc=2
+tests/1800_audit/c06/p06_19b_enum_methods.sv:32: error: Object p06_19b_enum_methods.c has no method "name.len(...)".
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:40: error: Variable q['sd0] does not have a field named: next.
+2 error(s) during elaboration.
+run_rc=not-run; no .vvp generated
+== p06_19c_enum_numeric -g2023 compile
+compile_rc=0
+run_rc=0
+RESULT pass=8 fail=0
+n06_19_assign_expr g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_assign_expr.sv:4: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_assign_int g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_assign_int.sv:4: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_dup_name g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_dup_name.sv:2: error: Duplicate enumeration name 'a'.
+n06_19_dup_value g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_dup_value.sv:2: error: Enumeration name d and c have the same value: 32'sd8
+1 error(s) during elaboration.
+n06_19_inc_overflow g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_inc_overflow.sv:2: error: Enumeration name b has an inferred value that overflowed.
+1 error(s) during elaboration.
+n06_19_incr g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_incr.sv:4: error: This assignment requires an explicit cast.
+Elaboration failed
+n06_19_int_to_enum g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_int_to_enum.sv:5: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+n06_19_one_bit g2023 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_one_bit.sv:2: error: Enumeration name c has an inferred value that overflowed.
+tests/1800_audit/c06/neg/n06_19_one_bit.sv:2: error: Enumeration name c and a have the same value: 1'd0
+2 error(s) during elaboration.
+n06_19_out_of_range g2023 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_out_of_range.sv:2: error: Enumeration name b has a value that is too large 32'sd4.
+tests/1800_audit/c06/neg/n06_19_out_of_range.sv:2: error: Enumeration name b and a have the same value: 2'd0
+2 error(s) during elaboration.
+n06_19_plus_eq g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_plus_eq.sv:4: error: This assignment requires an explicit cast.
+Elaboration failed
+n06_19_sized_mismatch g2023 compile_rc=3 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has an incorrectly sized constant.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large 5'd19.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large: 5'd19.
+3 error(s) during elaboration.
+n06_19_unassigned_after_x g2023 compile_rc=2 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S1 has an undefined inferred value.
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S2 has an undefined inferred value.
+2 error(s) during elaboration.
+n06_19_xz_2state g2023 compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_19_xz_2state.sv:2: error: Enumeration name XX can not have an undefined value.
+1 error(s) during elaboration.
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z
+451	CLOSED	[IEEE 1800] §8 — Support restricted class type parameters	enhancement	2026-10-14T18:56:14Z
+47	CLOSED	Phase 75: Fallback hardening — eliminate remaining warning noise		2026-07-28T14:57:12Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+       13.98 real         2.33 user         1.58 sys
+            46481408  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              236561  page reclaims
+                2081  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 104  messages sent
+                  94  messages received
+                 498  signals received
+                 500  voluntary context switches
+               14160  involuntary context switches
+           405906576  instructions retired
+           306276925  cycles elapsed
+             2556384  peak memory footprint

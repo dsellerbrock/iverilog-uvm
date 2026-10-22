@@ -1,0 +1,4 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_module_in_interface.sv:2: error: module declarations are not allowed in interfaces.

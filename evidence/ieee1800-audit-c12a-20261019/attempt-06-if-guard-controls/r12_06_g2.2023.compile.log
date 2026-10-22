@@ -1,0 +1,3 @@
+tests/1800_audit/c12/r12_06_g2.sv:2: syntax error
+tests/1800_audit/c12/r12_06_g2.sv:2: Syntax in assignment statement l-value.
+tests/1800_audit/c12/r12_06_g2.sv:2: error: Malformed conditional expression.

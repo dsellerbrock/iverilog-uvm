@@ -1,0 +1,20 @@
+m: 60/60 edition/case outputs match prior; log=evidence/ieee1800-audit-c20d-20261019/attempt-02-isolated/whitespace-recheck-20261021.log
+q: 2/2 edition/case outputs match prior; log=evidence/ieee1800-audit-c20c-20261019/attempt-04-isolated/whitespace-recheck-20261021.log
+        1.11 real         0.55 user         0.41 sys
+            28196864  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              188173  page reclaims
+                1582  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 609  voluntary context switches
+                2831  involuntary context switches
+          1054058505  instructions retired
+           494194179  cycles elapsed
+            17842704  peak memory footprint

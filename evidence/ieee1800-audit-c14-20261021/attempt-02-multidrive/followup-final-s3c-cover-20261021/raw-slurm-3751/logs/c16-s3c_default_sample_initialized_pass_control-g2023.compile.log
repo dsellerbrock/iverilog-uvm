@@ -1,0 +1,1 @@
+inputs/c16/s3c_default_sample_initialized_pass_control.sv:7: warning: the pass statement of this `cover property' is not executed (recorded corner); it is dropped. The match counter still counts.

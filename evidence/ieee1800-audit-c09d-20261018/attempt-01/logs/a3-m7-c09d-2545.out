@@ -1,0 +1,36 @@
+host=DAN-DESKTOP
+start=2026-10-17T23:03:48-06:00
+job_id=2545
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+
+=== -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.7.resume_after_delay_expired_continues_now
+PASS 9.7.suspended_waiter_not_woken_by_condition
+PASS 9.7.resume_after_condition_true_continues
+INFO event_while_suspended edone=0 status=SUSPENDED
+INFO after_resume edone=1 status=FINISHED
+FAIL 9.7.resume_does_not_replay_event
+PASS 9.7.resumed_waiter_wakes_on_next_event
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/m7-c09d-20261018-01/inputs/p09_07_resume_semantics.sv:23: $finish called at 21 (1s)
+RESULT edition=2017 compile_rc=0 run_rc=0
+
+=== -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.7.resume_after_delay_expired_continues_now
+PASS 9.7.suspended_waiter_not_woken_by_condition
+PASS 9.7.resume_after_condition_true_continues
+INFO event_while_suspended edone=0 status=SUSPENDED
+INFO after_resume edone=1 status=FINISHED
+FAIL 9.7.resume_does_not_replay_event
+PASS 9.7.resumed_waiter_wakes_on_next_event
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/m7-c09d-20261018-01/inputs/p09_07_resume_semantics.sv:23: $finish called at 21 (1s)
+RESULT edition=2023 compile_rc=0 run_rc=0
+
+DONE status=1

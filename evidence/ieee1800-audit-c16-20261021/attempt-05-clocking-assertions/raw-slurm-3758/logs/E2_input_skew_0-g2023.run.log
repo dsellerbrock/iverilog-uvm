@@ -1,0 +1,4 @@
+E2 FAIL 5
+E2 FAIL 15
+E2 FAIL 25
+input/E2_input_skew_0.sv:7: $finish called at 40 (1ns)

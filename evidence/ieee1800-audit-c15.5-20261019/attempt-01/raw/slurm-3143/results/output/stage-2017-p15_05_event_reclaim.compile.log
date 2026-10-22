@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15.5-20261019-1/input/p15_05_event_reclaim.sv:5: warning: Could not find variable ``e1'' in ``test'' (compile-progress: assignment ignored).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15.5-20261019-1/input/p15_05_event_reclaim.sv:7: warning: Could not find variable ``e1'' in ``test'' (compile-progress: assignment ignored).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15.5-20261019-1/input/p15_05_event_reclaim.sv:6: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 5 error(s).

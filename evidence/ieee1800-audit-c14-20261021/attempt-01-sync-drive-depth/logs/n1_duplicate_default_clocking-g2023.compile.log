@@ -1,0 +1,1 @@
+input/n1_duplicate_default_clocking.sv:7: error: multiple default clocking declarations in `test' (IEEE 1800-2017 14.12 allows at most one per module, interface, or program).

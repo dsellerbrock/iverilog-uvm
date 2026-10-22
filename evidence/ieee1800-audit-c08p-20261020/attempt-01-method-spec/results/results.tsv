@@ -1,0 +1,11 @@
+edition	probe	compile_rc	run_rc	result
+2023	p08_20_spec_legal	1	NA	COMPILE_FAILED
+2023	p08_20_spec_n1	1	NA	REJECTED
+2023	p08_20_spec_n2	1	NA	REJECTED
+2023	p08_20_spec_n3	1	NA	REJECTED
+2023	p08_20_spec_n4	1	NA	REJECTED
+2023	p08_20_spec_n5	1	NA	REJECTED
+2023	p08_20_spec_e1	1	NA	REJECTED
+2023	p08_20_spec_e2	1	NA	REJECTED
+2023	p08_20_spec_e3	1	NA	REJECTED
+2017	p08_20_spec_legal	6	NA	REJECTED

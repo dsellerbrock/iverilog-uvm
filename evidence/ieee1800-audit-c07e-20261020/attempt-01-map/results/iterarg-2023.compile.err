@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_4_iterarg.sv:6: error: Object p07_12_4_iterarg.arr has no method "find(...)".
+1 error(s) during elaboration.

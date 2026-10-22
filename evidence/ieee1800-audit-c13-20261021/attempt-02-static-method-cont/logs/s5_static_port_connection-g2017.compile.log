@@ -1,0 +1,4 @@
+input/s5_static_port_connection.sv:11: internal error: cannot synthesize expression: <null>
+input/s5_static_port_connection.sv:11: error: Unable to synthesize port 0 of call to f.
+input/s5_static_port_connection.sv:11: internal error: Port expression too complicated for elaboration.
+2 error(s) during elaboration.

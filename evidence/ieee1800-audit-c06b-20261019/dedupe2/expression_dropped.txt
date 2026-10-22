@@ -1,0 +1,1 @@
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z

@@ -1,0 +1,146 @@
+=== g1_global_clock_event -g2017 ===
+GLOBAL 3
+input/g1_global_clock_event.sv:13: $finish called at 26000 (1ps)
+g1_global_clock_event	2017	0	0
+=== g1_global_clock_event -g2023 ===
+GLOBAL 3
+input/g1_global_clock_event.sv:13: $finish called at 26000 (1ps)
+g1_global_clock_event	2023	0	0
+=== g2_nested_global_clock_resolution -g2017 ===
+COUNTS 3 2
+input/g2_nested_global_clock_resolution.sv:8: $finish called at 31000 (1ps)
+g2_nested_global_clock_resolution	2017	0	0
+=== g2_nested_global_clock_resolution -g2023 ===
+COUNTS 3 2
+input/g2_nested_global_clock_resolution.sv:8: $finish called at 31000 (1ps)
+g2_nested_global_clock_resolution	2023	0	0
+=== k10_vif_inout_drive_sample -g2017 ===
+EARLY 7000 cb=00 signal=00
+LATE 16000 signal=77
+input/k10_vif_inout_drive_sample.sv:30: $finish called at 17000 (1ps)
+k10_vif_inout_drive_sample	2017	0	0
+=== k10_vif_inout_drive_sample -g2023 ===
+EARLY 7000 cb=00 signal=00
+LATE 16000 signal=77
+input/k10_vif_inout_drive_sample.sv:30: $finish called at 17000 (1ps)
+k10_vif_inout_drive_sample	2023	0	0
+=== k1_vif_zero_skew -g2017 ===
+DATA 5000 a5
+FINAL 6000 a5
+input/k1_vif_zero_skew.sv:31: $finish called at 6000 (1ps)
+k1_vif_zero_skew	2017	0	0
+=== k1_vif_zero_skew -g2023 ===
+DATA 5000 a5
+FINAL 6000 a5
+input/k1_vif_zero_skew.sv:31: $finish called at 6000 (1ps)
+k1_vif_zero_skew	2023	0	0
+=== k2_vif_numeric_skew -g2017 ===
+DATA 7000 a5
+FINAL 8000 a5
+input/k2_vif_numeric_skew.sv:27: $finish called at 8000 (1ps)
+k2_vif_numeric_skew	2017	0	0
+=== k2_vif_numeric_skew -g2023 ===
+DATA 7000 a5
+FINAL 8000 a5
+input/k2_vif_numeric_skew.sv:27: $finish called at 8000 (1ps)
+k2_vif_numeric_skew	2023	0	0
+=== k3_vif_cycle_delayed_drive -g2017 ===
+input/k3_vif_cycle_delayed_drive.sv:12: vvp.tgt error: this nonblocking property assignment form is not yet supported without changing its NBA semantics.
+error: Code generation had 1 error(s).
+k3_vif_cycle_delayed_drive	2017	1	NA
+=== k3_vif_cycle_delayed_drive -g2023 ===
+input/k3_vif_cycle_delayed_drive.sv:12: vvp.tgt error: this nonblocking property assignment form is not yet supported without changing its NBA semantics.
+error: Code generation had 1 error(s).
+k3_vif_cycle_delayed_drive	2023	1	NA
+=== k4_vif_selected_drive -g2017 ===
+DATA 5000 af
+FINAL 6000 af
+input/k4_vif_selected_drive.sv:27: $finish called at 6000 (1ps)
+k4_vif_selected_drive	2017	0	0
+=== k4_vif_selected_drive -g2023 ===
+DATA 5000 af
+FINAL 6000 af
+input/k4_vif_selected_drive.sv:27: $finish called at 6000 (1ps)
+k4_vif_selected_drive	2023	0	0
+=== k5_vif_input_sample -g2017 ===
+SAMPLE 5000 0
+SAMPLE 15000 1
+SAMPLE 25000 2
+input/k5_vif_input_sample.sv:28: $finish called at 25000 (1ps)
+k5_vif_input_sample	2017	0	0
+=== k5_vif_input_sample -g2023 ===
+SAMPLE 5000 0
+SAMPLE 15000 1
+SAMPLE 25000 2
+input/k5_vif_input_sample.sv:28: $finish called at 25000 (1ps)
+k5_vif_input_sample	2023	0	0
+=== k6_vif_clockvar_event -g2017 ===
+EVENT 15000 1
+input/k6_vif_clockvar_event.sv:28: $finish called at 16000 (1ps)
+k6_vif_clockvar_event	2017	0	0
+=== k6_vif_clockvar_event -g2023 ===
+EVENT 15000 1
+input/k6_vif_clockvar_event.sv:28: $finish called at 16000 (1ps)
+k6_vif_clockvar_event	2023	0	0
+=== k7_vif_offclock_drive -g2017 ===
+DATA 15000 11
+FINAL 16000 11
+input/k7_vif_offclock_drive.sv:27: $finish called at 16000 (1ps)
+k7_vif_offclock_drive	2017	0	0
+=== k7_vif_offclock_drive -g2023 ===
+DATA 15000 11
+FINAL 16000 11
+input/k7_vif_offclock_drive.sv:27: $finish called at 16000 (1ps)
+k7_vif_offclock_drive	2023	0	0
+=== k8_net_clockvar_target -g2017 ===
+INITIAL 1000 z
+DRIVEN 6000 1
+input/k8_net_clockvar_target.sv:28: $finish called at 6000 (1ps)
+k8_net_clockvar_target	2017	0	0
+=== k8_net_clockvar_target -g2023 ===
+INITIAL 1000 z
+DRIVEN 6000 1
+input/k8_net_clockvar_target.sv:28: $finish called at 6000 (1ps)
+k8_net_clockvar_target	2023	0	0
+=== k9_default_cycle_delay -g2017 ===
+RESUMED 25000
+input/k9_default_cycle_delay.sv:10: $finish called at 25000 (1ps)
+k9_default_cycle_delay	2017	0	0
+=== k9_default_cycle_delay -g2023 ===
+RESUMED 25000
+input/k9_default_cycle_delay.sv:10: $finish called at 25000 (1ps)
+k9_default_cycle_delay	2023	0	0
+=== n1_duplicate_default_clocking -g2017 ===
+input/n1_duplicate_default_clocking.sv:7: error: multiple default clocking declarations in `test' (IEEE 1800-2017 14.12 allows at most one per module, interface, or program).
+n1_duplicate_default_clocking	2017	1	NA
+=== n1_duplicate_default_clocking -g2023 ===
+input/n1_duplicate_default_clocking.sv:7: error: multiple default clocking declarations in `test' (IEEE 1800-2017 14.12 allows at most one per module, interface, or program).
+n1_duplicate_default_clocking	2023	1	NA
+=== n2_default_clocking_not_inherited -g2017 ===
+n2_default_clocking_not_inherited	2017	0	NA
+=== n2_default_clocking_not_inherited -g2023 ===
+n2_default_clocking_not_inherited	2023	0	NA
+=== n3_blocking_clockvar_write -g2017 ===
+n3_blocking_clockvar_write	2017	0	NA
+=== n3_blocking_clockvar_write -g2023 ===
+n3_blocking_clockvar_write	2023	0	NA
+=== n4_intra_assignment_delay -g2017 ===
+n4_intra_assignment_delay	2017	0	NA
+=== n4_intra_assignment_delay -g2023 ===
+n4_intra_assignment_delay	2023	0	NA
+=== n5_continuous_clockvar_write -g2017 ===
+input/n5_continuous_clockvar_write.sv:12: error: Net top.bus.cb.data is not defined in this context.
+input/n5_continuous_clockvar_write.sv:11:      : Found a scope with this name here.
+1 error(s) during elaboration.
+n5_continuous_clockvar_write	2017	1	NA
+=== n5_continuous_clockvar_write -g2023 ===
+input/n5_continuous_clockvar_write.sv:12: error: Net top.bus.cb.data is not defined in this context.
+input/n5_continuous_clockvar_write.sv:11:      : Found a scope with this name here.
+1 error(s) during elaboration.
+n5_continuous_clockvar_write	2023	1	NA
+=== n6_duplicate_global_clocking -g2017 ===
+input/n6_duplicate_global_clocking.sv:9: error: multiple global clocking declarations in `test' (IEEE 1800-2017 14.14 allows at most one per module or program).
+n6_duplicate_global_clocking	2017	1	NA
+=== n6_duplicate_global_clocking -g2023 ===
+input/n6_duplicate_global_clocking.sv:9: error: multiple global clocking declarations in `test' (IEEE 1800-2017 14.14 allows at most one per module or program).
+n6_duplicate_global_clocking	2023	1	NA

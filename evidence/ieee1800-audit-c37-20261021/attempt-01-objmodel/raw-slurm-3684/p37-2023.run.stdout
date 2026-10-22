@@ -1,0 +1,8 @@
+port=a direction=1 size=1
+port=y direction=2 size=4
+port_count=2
+parameter=P value=7
+parameter_p_count=1
+variable_v_count=0
+child=u def=sub scope=sub module=sub
+child_u_count=1

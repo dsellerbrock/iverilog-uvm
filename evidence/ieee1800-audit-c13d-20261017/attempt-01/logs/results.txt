@@ -1,0 +1,149 @@
+host=DAN-DESKTOP
+2026-10-17T17:07:09-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 60s; run 30s; SIGTERM then SIGKILL after 2s.
+
+=== p13_03_tasks -g2017 ===
+run_rc=0
+PASS 13.3.directions
+FAIL 13.3.default_dir_input
+PASS 13.3.return_exits
+PASS 13.3.empty_task
+PASS 13.3.2.static_output_retained
+PASS 13.3.2.auto_output_reinit
+PASS 13.3.1.static_var_in_auto_task
+PASS 13.3.2.static_shared_concurrent
+PASS 13.3.2.auto_replicated
+DONE fails=1
+
+=== p13_04_3_constfn -g2017 ===
+run_rc=0
+PASS 13.4.3 Q=4 R=5
+2017 constant-function result informational for 2023 built-in-method rule.
+
+=== expect compile rejection: n13_03_1_auto_hier_ref -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+3 error(s) during elaboration.
+rejected_rc=3; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_nba -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_force -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2: error: automatically allocated variables may not be assigned values using procedural force statements.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_monitor -g2017 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_3_fork -g2017 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_3_hier_ref -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_hier_ref.sv:3: error: A hierarchical reference (`top.g') is not allowed in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_hier_ref.sv:4: error: Unable to evaluate parameter P value: top.cf(32'sd2)
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nonlocal_id -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonlocal_id.sv:3: error: A reference to a non-local net or variable (`g') is not allowed in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonlocal_id.sv:4: error: Unable to evaluate parameter P value: top.cf(32'sd2)
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nonconst_sysfn -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:2: error: $random is not a built-in function, so cannot be used in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:3: error: `cf' is not a constant function.
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nba -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nba.sv:3: error: `cf' is not a constant function.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+=== p13_03_tasks -g2023 ===
+run_rc=0
+PASS 13.3.directions
+FAIL 13.3.default_dir_input
+PASS 13.3.return_exits
+PASS 13.3.empty_task
+PASS 13.3.2.static_output_retained
+PASS 13.3.2.auto_output_reinit
+PASS 13.3.1.static_var_in_auto_task
+PASS 13.3.2.static_shared_concurrent
+PASS 13.3.2.auto_replicated
+DONE fails=1
+
+=== p13_04_3_constfn -g2023 ===
+run_rc=0
+PASS 13.4.3 Q=4 R=5
+
+=== expect compile rejection: n13_03_1_auto_hier_ref -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+3 error(s) during elaboration.
+rejected_rc=3; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_nba -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_nba.sv:2.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_force -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2: error: automatically allocated variables may not be assigned values using procedural force statements.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_2_auto_force.sv:2.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_03_2_auto_monitor -g2023 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_3_fork -g2023 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_3_hier_ref -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_hier_ref.sv:3: error: A hierarchical reference (`top.g') is not allowed in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_hier_ref.sv:4: error: Unable to evaluate parameter P value: top.cf(32'sd2)
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nonlocal_id -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonlocal_id.sv:3: error: A reference to a non-local net or variable (`g') is not allowed in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonlocal_id.sv:4: error: Unable to evaluate parameter P value: top.cf(32'sd2)
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nonconst_sysfn -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:2: error: $random is not a built-in function, so cannot be used in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:3: error: `cf' is not a constant function.
+2 error(s) during elaboration.
+rejected_rc=2; inspect diagnostic for direct relevance
+
+=== expect compile rejection: n13_04_3_nba -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nba.sv:3: error: `cf' is not a constant function.
+1 error(s) during elaboration.
+rejected_rc=1; inspect diagnostic for direct relevance
+
+FINAL_STATUS=1

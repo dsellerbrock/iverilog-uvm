@@ -1,0 +1,2 @@
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: syntax error
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: error: Syntax error in typedef clause.

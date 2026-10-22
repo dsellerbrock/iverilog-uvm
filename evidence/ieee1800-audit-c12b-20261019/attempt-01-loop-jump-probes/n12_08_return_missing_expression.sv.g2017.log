@@ -1,0 +1,3 @@
+tests/1800_audit/c12/neg/n12_08_return_missing_expression.sv:3: error: Return from n12_08_return_missing_expression.f requires a return value expression.
+tests/1800_audit/c12/neg/n12_08_return_missing_expression.sv:3: error: Unable to elaborate statement in function f.
+2 error(s) during elaboration.

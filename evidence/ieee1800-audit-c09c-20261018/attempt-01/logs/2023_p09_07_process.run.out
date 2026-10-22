@@ -1,0 +1,26 @@
+PASS 9.7.default_null
+PASS 9.7.self_nonnull_and_stable
+PASS 9.7.self_status_running
+PASS 9.7.status_waiting_in_delay
+PASS 9.7.await_blocks_until_finished
+PASS 9.7.distinct_handles
+INFO 9.7.kill_immediate_status=KILLED (2023: terminated before kill returns)
+PASS 9.7.kill_status_killed
+PASS 9.7.kill_stops_process
+PASS 9.7.await_on_killed_returns
+PASS 9.7.kill_kills_descendants
+PASS 9.7.status_finished_after_exit
+INFO 9.7.kill_finished_parent_descendant_ran=1 (2023 requires 0; 2017 unspecified)
+INFO 9.7.suspend_immediate_status=SUSPENDED (2023: suspended before suspend returns)
+PASS 9.7.suspend_status
+PASS 9.7.suspend_halts_progress
+PASS 9.7.suspend_twice_no_effect
+PASS 9.7.resume_restarts
+PASS 9.7.resume_on_non_suspended_noop
+PASS 9.7.suspended_waiter_misses_event
+FAIL 9.7.resumed_waiter_still_waiting
+PASS 9.7.resumed_waiter_wakes_on_next_event
+PASS 9.7.self_suspend_in_task_stops
+PASS 9.7.resume_after_self_suspend_continues
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/m7-c09c-20261018-01/inputs/p09_07_process.sv:55: $finish called at 88 (1s)

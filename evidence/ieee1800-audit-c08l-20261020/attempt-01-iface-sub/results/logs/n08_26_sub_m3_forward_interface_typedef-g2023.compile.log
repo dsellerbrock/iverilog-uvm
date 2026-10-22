@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m3_forward_interface_typedef.sv:3: error: A forward-declared interface class cannot be used in an extends or implements list.

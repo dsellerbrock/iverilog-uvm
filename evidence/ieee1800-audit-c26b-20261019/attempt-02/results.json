@@ -1,0 +1,152 @@
+[
+  {
+    "test": "e-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/e.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.052,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:2: error: Net `a` can not be of type `<no_type>`.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "f-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/f.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv:2: error: Net `a` can not be of type `<no_type>`.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "g-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/g.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_g.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "g-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/g.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.021,
+    "stdout": "SG 5a\n",
+    "stderr": ""
+  },
+  {
+    "test": "h-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/h.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.021,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv:2: sorry: Port `a` of module `M` with type `<no_type>` is not supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "e-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/e.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.03,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:2: error: Net `a` can not be of type `<no_type>`.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_e.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "f-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/f.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.036,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv:2: error: Net `a` can not be of type `<no_type>`.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_f.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  },
+  {
+    "test": "g-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/g.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_g.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.034,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "g-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/g.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "SG 5a\n",
+    "stderr": ""
+  },
+  {
+    "test": "h-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26b-20261019/attempt-02/h.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.022,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv:2: sorry: Port `a` of module `M` with type `<no_type>` is not supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_st_h.sv:3: internal error: Failed to synthesize expression: a[-2:0].<0>\n2 error(s) during elaboration.\n"
+  }
+]

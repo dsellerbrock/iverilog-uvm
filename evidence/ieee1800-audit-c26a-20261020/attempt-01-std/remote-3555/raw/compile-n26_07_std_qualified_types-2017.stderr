@@ -1,0 +1,4 @@
+input/n26_07_std_qualified_types.sv:2: syntax error
+input/n26_07_std_qualified_types.sv:2: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:3: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:4: error: Invalid module instantiation

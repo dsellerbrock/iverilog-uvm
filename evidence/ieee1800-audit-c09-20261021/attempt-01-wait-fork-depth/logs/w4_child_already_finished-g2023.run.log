@@ -1,0 +1,2 @@
+W4 wait fork returned at 10
+input/w4_child_already_finished.sv:10: $finish called at 10000 (1ps)

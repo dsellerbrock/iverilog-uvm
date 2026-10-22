@@ -1,0 +1,4 @@
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+635	OPEN	[IEEE 1800] §13.4 — Reject output/inout/ref function calls outside procedural statements	1800-audit	2026-10-17T23:15:56Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z

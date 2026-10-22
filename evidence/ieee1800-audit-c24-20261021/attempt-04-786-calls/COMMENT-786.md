@@ -1,0 +1,5 @@
+Correction for the issue-body reproducer (separate from the module-origin `$exit` case in my earlier comment): both initial procedures are inside the same `program pg`. IEEE 1800-2017/2023 §24.7 says `$exit` “shall terminate all initial procedures and their descendant threads within that originating program block.” So `PROG2 done` is correctly suppressed; §20.2 then waits for program blocks to complete before the implicit `$finish`.
+
+I reran the exact issue-body source with Icarus source `fb584a251dd4cc91e56a75be662ccd5ee05c64e9` (`-B /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl`). Under both `-g2017` and `-g2023`, compile and simulation exit 0 with empty stdout and stderr. The issue-body expectation is not a conformance gap. The distinct module-origin case in my earlier comment remains separate; §24.7 requires `$exit` from a thread not originating in a program initial procedure to be ignored.
+
+Paired probe source, hashes, and raw Slurm job 3655 logs: `evidence/ieee1800-audit-c24-20261021/attempt-04-786-calls/`.

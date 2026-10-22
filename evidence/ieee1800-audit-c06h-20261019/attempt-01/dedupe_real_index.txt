@@ -1,0 +1,6 @@
+733	OPEN	[IEEE 1800] §6.16 — integral value assigned to a string without a cast is accepted	1800-audit	2026-10-20T03:58:32Z
+502	CLOSED	[IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions		2026-10-09T07:47:17Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+157	CLOSED	UVM regex DPI: reject null input before strlen in uvm_re_comp	bug	2026-09-25T03:16:54Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z

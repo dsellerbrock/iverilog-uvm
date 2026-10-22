@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_24_size_neg.sv:1: error: Cast size expression must be constant and greater than zero.
+1 error(s) during elaboration.

@@ -1,0 +1,1 @@
+tests/1800_audit/c10/neg/n10_03_interconnect_assign.sv:1: error: Interconnect nets cannot have initializers.

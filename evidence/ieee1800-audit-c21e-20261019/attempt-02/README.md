@@ -1,0 +1,5 @@
+# §21.7 VCD reducers
+
+The audit lead requested two race-free reducers after inspecting identical full VCD output from 2017 and 2023. Sources are [r21v_off_window.sv](../../../../tests/1800_audit/c21/r21v_off_window.sv) and [r21v_event_never.sv](../../../../tests/1800_audit/c21/r21v_event_never.sv), copied unchanged from the lead. Each edition is compiled and simulated under `~/codex-supervisor/localrun 180` in a separate working directory, preserving its VCD file and raw log.
+
+Both editions compiled and ran both reducers with exit code 0. The off-window VCD has no value record for the in-window assignment and records `b0 !` after `$dumpon`; that behavior conforms. The event reducer only declares `a`; its `1!` is `a` changing, so it does not test an event. The corrected event reducers are in attempt-03; their gaps were filed as [#805](https://github.com/dsellerbrock/iverilog-uvm/issues/805) and [#806](https://github.com/dsellerbrock/iverilog-uvm/issues/806). Results are in [RESULT.md](RESULT.md).

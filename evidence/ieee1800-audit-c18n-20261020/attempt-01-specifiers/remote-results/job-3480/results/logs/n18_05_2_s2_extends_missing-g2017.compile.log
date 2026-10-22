@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s2_extends_missing.sv:2: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).

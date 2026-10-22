@@ -1,0 +1,2 @@
+FAIL integer_xz
+RESULT pass=10 fail=1

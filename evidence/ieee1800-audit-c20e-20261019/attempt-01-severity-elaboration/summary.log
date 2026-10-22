@@ -1,0 +1,558 @@
+=== r20_10_fatal0 -g2017 ===
+compile_rc=0
+        0.02 real         0.01 user         0.01 sys
+             4964352  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1789  page reclaims
+                  26  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  45  involuntary context switches
+            19241439  instructions retired
+             9601159  cycles elapsed
+             1261928  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal0.sv:1: f0
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5160960  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 615  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   6  involuntary context switches
+            77916324  instructions retired
+            22792867  cycles elapsed
+             2703744  peak memory footprint
+=== r20_10_fatal1 -g2017 ===
+compile_rc=0
+        0.02 real         0.01 user         0.01 sys
+             4964352  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1797  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  43  involuntary context switches
+            20323197  instructions retired
+             8438440  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal1.sv:1: f1
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5128192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 614  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  10  involuntary context switches
+            77735882  instructions retired
+            20690691  cycles elapsed
+             2670976  peak memory footprint
+=== r20_10_fatal2 -g2017 ===
+compile_rc=0
+        0.02 real         0.01 user         0.01 sys
+             4947968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1797  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  88  involuntary context switches
+            18613345  instructions retired
+             6367408  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal2.sv:1: f2
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5111808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 615  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   7  involuntary context switches
+            77572582  instructions retired
+            21182263  cycles elapsed
+             2654592  peak memory footprint
+=== r20_10_severity -g2017 ===
+compile_rc=0
+        0.04 real         0.01 user         0.01 sys
+             5062656  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1802  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  33  involuntary context switches
+            18598604  instructions retired
+             9692779  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+INFO: tests/1800_audit/c20/r20_10_severity.sv:3: info 1
+      Time: 0  Scope: p20sev
+LOC1 tests/1800_audit/c20/r20_10_severity.sv:3
+WARNING: tests/1800_audit/c20/r20_10_severity.sv:4: warn w
+         Time: 0  Scope: p20sev
+LOC2 tests/1800_audit/c20/r20_10_severity.sv:4
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:5: err ab
+       Time: 0  Scope: p20sev
+LOC3 tests/1800_audit/c20/r20_10_severity.sv:5
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:6: 
+       Time: 5  Scope: p20sev
+AFTER_ERROR_NOARG
+FATAL: tests/1800_audit/c20/r20_10_severity.sv:7: fatal 42
+       Time: 6  Scope: p20sev
+        0.01 real         0.00 user         0.00 sys
+             5177344  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 617  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   8  involuntary context switches
+            77853051  instructions retired
+            19910998  cycles elapsed
+             2703744  peak memory footprint
+=== r20_11_error -g2017 ===
+compile_rc=2
+ERROR: tests/1800_audit/c20/r20_11_error.sv:1:
+tests/1800_audit/c20/r20_11_error.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+       During elaboration  Scope: genblk1
+2 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4915200  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1765  page reclaims
+                  14  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  58  involuntary context switches
+            18663637  instructions retired
+             9628956  cycles elapsed
+             1245544  peak memory footprint
+=== r20_11_fatal -g2017 ===
+compile_rc=1
+FATAL: tests/1800_audit/c20/r20_11_fatal.sv:1: elab fatal
+       During elaboration  Scope: m
+Elaboration failed
+        0.02 real         0.01 user         0.01 sys
+             4390912  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1737  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  40  involuntary context switches
+            18575072  instructions retired
+             8922455  cycles elapsed
+             1261928  peak memory footprint
+=== r20_11_gen_info -g2017 ===
+compile_rc=3
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[0]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[1]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[2]
+3 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4849664  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1762  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  55  involuntary context switches
+            19183843  instructions retired
+             7104567  cycles elapsed
+             1245544  peak memory footprint
+=== r20_11_warn_info -g2017 ===
+compile_rc=1
+WARNING: tests/1800_audit/c20/r20_11_warn_info.sv:1:
+tests/1800_audit/c20/r20_11_warn_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+         During elaboration  Scope: m
+INFO: tests/1800_audit/c20/r20_11_warn_info.sv:1: elab info
+      During elaboration  Scope: m
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4423680  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1741  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  44  involuntary context switches
+            18774412  instructions retired
+             6980860  cycles elapsed
+             1245544  peak memory footprint
+=== r20_10_fatal0 -g2023 ===
+compile_rc=0
+        0.04 real         0.01 user         0.01 sys
+             4947968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1794  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  37  involuntary context switches
+            18708581  instructions retired
+             7071888  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal0.sv:1: f0
+       Time: 2  Scope: m
+        0.03 real         0.00 user         0.00 sys
+             5095424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 612  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  14  involuntary context switches
+            77767483  instructions retired
+            28806034  cycles elapsed
+             2638208  peak memory footprint
+=== r20_10_fatal1 -g2023 ===
+compile_rc=0
+        0.03 real         0.01 user         0.01 sys
+             4947968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1792  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  40  involuntary context switches
+            18688634  instructions retired
+             6530082  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal1.sv:1: f1
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5128192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 616  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  10  involuntary context switches
+            79144686  instructions retired
+            21835973  cycles elapsed
+             2670976  peak memory footprint
+=== r20_10_fatal2 -g2023 ===
+compile_rc=0
+        0.03 real         0.01 user         0.01 sys
+             4947968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1773  page reclaims
+                  35  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  35  involuntary context switches
+            23614463  instructions retired
+            11650111  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+FATAL: tests/1800_audit/c20/r20_10_fatal2.sv:1: f2
+       Time: 2  Scope: m
+        0.01 real         0.00 user         0.00 sys
+             5128192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 614  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   6  involuntary context switches
+            79538798  instructions retired
+            23065402  cycles elapsed
+             2670976  peak memory footprint
+=== r20_10_severity -g2023 ===
+compile_rc=0
+        0.03 real         0.01 user         0.01 sys
+             5095424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1804  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  30  involuntary context switches
+            18725590  instructions retired
+             6928392  cycles elapsed
+             1245544  peak memory footprint
+run_rc=1
+INFO: tests/1800_audit/c20/r20_10_severity.sv:3: info 1
+      Time: 0  Scope: p20sev
+LOC1 tests/1800_audit/c20/r20_10_severity.sv:3
+WARNING: tests/1800_audit/c20/r20_10_severity.sv:4: warn w
+         Time: 0  Scope: p20sev
+LOC2 tests/1800_audit/c20/r20_10_severity.sv:4
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:5: err ab
+       Time: 0  Scope: p20sev
+LOC3 tests/1800_audit/c20/r20_10_severity.sv:5
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:6: 
+       Time: 5  Scope: p20sev
+AFTER_ERROR_NOARG
+FATAL: tests/1800_audit/c20/r20_10_severity.sv:7: fatal 42
+       Time: 6  Scope: p20sev
+        0.01 real         0.00 user         0.00 sys
+             5193728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 618  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  12  involuntary context switches
+            79077032  instructions retired
+            26141870  cycles elapsed
+             2720128  peak memory footprint
+=== r20_11_error -g2023 ===
+compile_rc=2
+ERROR: tests/1800_audit/c20/r20_11_error.sv:1:
+tests/1800_audit/c20/r20_11_error.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+       During elaboration  Scope: genblk1
+2 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4882432  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1766  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  60  involuntary context switches
+            18559192  instructions retired
+             9899955  cycles elapsed
+             1245544  peak memory footprint
+=== r20_11_fatal -g2023 ===
+compile_rc=1
+FATAL: tests/1800_audit/c20/r20_11_fatal.sv:1: elab fatal
+       During elaboration  Scope: m
+Elaboration failed
+        0.02 real         0.01 user         0.01 sys
+             4358144  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1733  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  44  involuntary context switches
+            18660195  instructions retired
+             9546551  cycles elapsed
+             1229136  peak memory footprint
+=== r20_11_gen_info -g2023 ===
+compile_rc=3
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[0]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[1]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[2]
+3 error(s) during elaboration.
+        0.04 real         0.01 user         0.01 sys
+             4816896  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1762  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  33  involuntary context switches
+            18671976  instructions retired
+             8795922  cycles elapsed
+             1261928  peak memory footprint
+=== r20_11_warn_info -g2023 ===
+compile_rc=1
+WARNING: tests/1800_audit/c20/r20_11_warn_info.sv:1:
+tests/1800_audit/c20/r20_11_warn_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+         During elaboration  Scope: m
+INFO: tests/1800_audit/c20/r20_11_warn_info.sv:1: elab info
+      During elaboration  Scope: m
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4472832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1755  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  67  involuntary context switches
+            18931013  instructions retired
+             9107699  cycles elapsed
+             1261928  peak memory footprint

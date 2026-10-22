@@ -1,0 +1,3 @@
+local repo HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+run.sbatch hash: 8f0d48aa27dbb1971b05fc34aabb84b5be63f25fa8be394009b32036c5002d15  evidence/ieee1800-audit-c18m-20261020/attempt-02-cu-scope/run.sbatch
+Slurm job 3478: DAN-DESKTOP, 1 CPU / 1 GiB / 15-minute allocation; 30-second per-process timeouts.

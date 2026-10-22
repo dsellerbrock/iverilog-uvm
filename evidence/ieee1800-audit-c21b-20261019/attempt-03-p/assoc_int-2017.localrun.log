@@ -1,0 +1,19 @@
+assoc_int ['{3:7, 9:8}]
+        0.08 real         0.02 user         0.02 sys
+             6668288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3337  page reclaims
+                  37  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                  93  involuntary context switches
+            32377515  instructions retired
+            18588904  cycles elapsed
+             1507712  peak memory footprint

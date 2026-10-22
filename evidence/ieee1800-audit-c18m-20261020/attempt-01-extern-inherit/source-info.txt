@@ -1,0 +1,2 @@
+local repo HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+Slurm job 3476: DAN-DESKTOP, 1 CPU / 1 GiB / 11-minute limit; each compiler/runtime process had a 30-second process-group timeout.

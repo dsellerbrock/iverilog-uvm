@@ -1,0 +1,7 @@
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+toolchain=/home/dsell/toolchains/iverilog-a3-batch-6604c23e-f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd-53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+5423f6b0c3c3d36320f3abf5ce84e7d7f77c9cde17f5826b07bca85b9b6f2f13  /home/dsell/slurm-runs/iverilog-uvm/A3/c07-audit-20261019-09/results-3249.tar.gz
+edition	compile_rc	run_rc
+2017	1	not_run
+2023	1	not_run

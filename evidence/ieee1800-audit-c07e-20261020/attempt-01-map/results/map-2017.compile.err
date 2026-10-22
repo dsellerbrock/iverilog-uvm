@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:5: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:6: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:7: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:8: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:9: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+5 error(s) during elaboration.

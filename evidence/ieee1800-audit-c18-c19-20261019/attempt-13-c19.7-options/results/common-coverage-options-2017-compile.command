@@ -1,0 +1,1 @@
+/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog -B /home/dsell/toolchains/iverilog-a3-main-82023726-679/lib/ivl -g2017 -s test /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-7-options-20261019/input/p19_07_options.sv -o /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-7-options-20261019/results/common-coverage-options-2017.vvp

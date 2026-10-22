@@ -1,0 +1,35 @@
+Open+closed GitHub issue searches captured 2026-10-20T15:48:17.306678+00:00.
+Repository: dsellerbrock/iverilog-uvm; every query uses --state all --limit 50.
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'extern constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint prototype'
+#831 OPEN [IEEE 1800] §18.5.11 — constraint_mode() on a static constraint block affects only the calling object https://github.com/dsellerbrock/iverilog-uvm/issues/831
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'pure constraint'
+#681 OPEN [IEEE 1800] §18.12 — Zero-argument scope randomize() with constraint checker fails elaboration https://github.com/dsellerbrock/iverilog-uvm/issues/681
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint inheritance'
+#456 CLOSED [IEEE 1800] §18 — Implement constraint override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/456
+#418 CLOSED [IEEE 1800] §18 — Solve coupled parent and child class constraints https://github.com/dsellerbrock/iverilog-uvm/issues/418
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'external constraint block'
+#831 OPEN [IEEE 1800] §18.5.11 — constraint_mode() on a static constraint block affects only the calling object https://github.com/dsellerbrock/iverilog-uvm/issues/831
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search '18.5.1'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search '18.5.2'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint override'
+#456 CLOSED [IEEE 1800] §18 — Implement constraint override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/456
+#12 CLOSED Phase 8: Randomization completeness — dist, soft, solve..before, query forms https://github.com/dsellerbrock/iverilog-uvm/issues/12
+
+Direct review of broad search results:
+#456 CLOSED — constraint override specifiers `:extends/:initial/:final`; this does not cover ordinary same-name constraint replacement from §18.5.2.
+#418 CLOSED — exact coupled solving for parent/child objects; it does not cover prototype legality or the inheritance replacement rules isolated here.
+#831 OPEN — static constraint_mode state shared across objects; unrelated to external blocks or same-name inheritance.
+#681 OPEN — zero-argument scope randomize constraint-checker support; unrelated.
+#12 CLOSED — broad historic randomization completeness plan (dist, soft, solve-before, query forms); it contains no specific external-constraint or inheritance gap matching these probes.

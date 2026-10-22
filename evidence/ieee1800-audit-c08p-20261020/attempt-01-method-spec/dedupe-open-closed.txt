@@ -1,0 +1,13 @@
+QUERY: method final
+#455 [CLOSED] [IEEE 1800] §8 — Implement method override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/455
+#102 [CLOSED] Per-iteration `automatic` local captured by join_none fork shares one slot inside a class method https://github.com/dsellerbrock/iverilog-uvm/issues/102
+#15 [CLOSED] Phase 11: UVM callbacks, virtual sequences, and sequence library https://github.com/dsellerbrock/iverilog-uvm/issues/15
+#27 [CLOSED] OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed https://github.com/dsellerbrock/iverilog-uvm/issues/27
+
+QUERY: initial specifier method
+#455 [CLOSED] [IEEE 1800] §8 — Implement method override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/455
+
+QUERY: extends specifier
+#619 [OPEN] [IEEE 1800] §8.17 — Reject super.new() when extends specifier supplies arguments https://github.com/dsellerbrock/iverilog-uvm/issues/619
+#455 [CLOSED] [IEEE 1800] §8 — Implement method override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/455
+

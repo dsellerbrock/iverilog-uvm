@@ -1,0 +1,7 @@
+edition	probe	compile_rc	run_rc
+2017	p15_03a_semaphore	0	0
+2017	p15_05a_events	4	NA
+2017	r15_wait_order_fail	0	0
+2023	p15_03a_semaphore	0	0
+2023	p15_05a_events	4	NA
+2023	r15_wait_order_fail	0	0

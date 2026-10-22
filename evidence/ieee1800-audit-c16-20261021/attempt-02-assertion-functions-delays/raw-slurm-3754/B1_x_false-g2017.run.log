@@ -1,0 +1,9 @@
+B1 FAIL 5
+B1 FAIL 15
+B1 FAIL 25
+B1 FAIL 35
+B1 FAIL 45
+B1 FAIL 55
+B1 FAIL 65
+B1 FAIL 75
+input/B1_x_false.sv:8: $finish called at 80 (1ns)

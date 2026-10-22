@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/neg/n16_12_13_unbounded_eventually.sv:5: error: unbounded `eventually' is not legal; use `s_eventually' (or a bounded `eventually [m:n]').
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/neg/n16_12_13_unbounded_eventually.sv:7: sorry: named property `p_unbounded_eventually' uses a form that supports only one instantiation; this additional assertion is dropped.
+compile_exit=2

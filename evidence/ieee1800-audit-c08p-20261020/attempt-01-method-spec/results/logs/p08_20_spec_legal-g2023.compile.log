@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08p-20261020-01/input/tests/1800_audit/c08/p08_20_spec_legal.sv:5: error: A pure virtual method may only be declared in a virtual class.

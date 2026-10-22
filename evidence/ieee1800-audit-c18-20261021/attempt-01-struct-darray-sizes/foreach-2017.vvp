@@ -1,0 +1,213 @@
+#! /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/local-install/bin/vvp
+:ivl_version "13.0 (devel)" "(9bd5082b8)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/system.vpi";
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/v2005_math.vpi";
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/va_math.vpi";
+:vpi_module "/tmp/a3-ieee1800-c18-20261021-install/lib/ivl/v2009.vpi";
+S_0x76fb420000 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+C0x103b472e8  .class/struct "" [1]
+   0: "values", "q8:rDo!D,D"
+ ;
+C0x103b46940  .class "nested_item" "$unit.nested_item" [1]
+   0: "record", "q8:roc:C0x103b472e8"
+ .constraint "array_values" "(unsupported evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv:8)"
+ .covgrp_type_weight 1
+ ;
+S_0x76fb4200c0 .scope class, "nested_item" "nested_item" 3 5, 3 5 0, S_0x76fb420000;
+ .timescale 0 0;
+S_0x76fb420060 .scope module, "test" "test" 3 12;
+ .timescale 0 0;
+v0x76fb480000_0 .var/cobj "item", TC0x103b46940;
+v0x76fb480000_0 .vpi_source_location 3 13;
+v0x76fb480020_0 .var/darray "row0", 8, "D!D";
+v0x76fb480040_0 .var/darray "row1", 8, "D!D";
+    .scope S_0x76fb420060;
+T_0 ;
+; Inline class definition for specialized/interface type
+    %new/cobj C0x103b46940;
+    %store/obj v0x76fb480000_0;
+    %load/obj v0x76fb480000_0;
+    %test_nul/obj;
+    %jmp/1 T_0.0, 4;
+    %prop/obj 0, 0; Load property record
+    %pop/obj 1, 1;
+    %jmp T_0.1;
+T_0.0;
+    %pop/obj 1, 0;
+    %null;
+T_0.1;
+    %test_nul/obj;
+    %jmp/1 T_0.4, 4;
+    %ix/load 4, 2, 0;
+    %flag_set/imm 4, 0;
+    %new/darray 4, "o";
+    %store/prop/obj 0, 0; IVL_VT_DARRAY
+    %pop/obj 1, 0;
+    %jmp T_0.5;
+T_0.4;
+    %pop/obj 1, 0;
+T_0.5;
+    %load/obj v0x76fb480000_0;
+    %test_nul/obj;
+    %jmp/1 T_0.6, 4;
+    %prop/obj 0, 0; Load property record
+    %pop/obj 1, 1;
+    %jmp T_0.7;
+T_0.6;
+    %pop/obj 1, 0;
+    %null;
+T_0.7;
+    %test_nul/obj;
+    %jmp/1 T_0.10, 4;
+    %ix/load 4, 0, 0;
+    %flag_set/imm 4, 0;
+    %prop/obj 0, 0;
+    %pop/obj 1, 1;
+    %ix/load 5, 1, 0;
+    %flag_set/imm 4, 0;
+    %new/darray 5, "b8";
+    %set/dar/obj/obj 4;
+    %pop/obj 1, 0;
+    %jmp T_0.11;
+T_0.10;
+    %pop/obj 1, 0;
+T_0.11;
+    %load/obj v0x76fb480000_0;
+    %test_nul/obj;
+    %jmp/1 T_0.12, 4;
+    %prop/obj 0, 0; Load property record
+    %pop/obj 1, 1;
+    %jmp T_0.13;
+T_0.12;
+    %pop/obj 1, 0;
+    %null;
+T_0.13;
+    %test_nul/obj;
+    %jmp/1 T_0.16, 4;
+    %ix/load 4, 1, 0;
+    %flag_set/imm 4, 0;
+    %prop/obj 0, 0;
+    %pop/obj 1, 1;
+    %ix/load 5, 2, 0;
+    %flag_set/imm 4, 0;
+    %new/darray 5, "b8";
+    %set/dar/obj/obj 4;
+    %pop/obj 1, 0;
+    %jmp T_0.17;
+T_0.16;
+    %pop/obj 1, 0;
+T_0.17;
+    %load/obj v0x76fb480000_0;
+    %randomize/pre "*";
+    %dup/obj/ref; randomize solve receiver
+    %randomize;
+    %randomize/hook 1;
+    %pop/obj 1, 0; randomize receiver
+    %pad/u 1;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_0.18, 8;
+    %vpi_call/w 3 20 "$fatal", 32'sb00000000000000000000000000000001, "nested dynamic-array foreach randomize failed" {0 0 0 0};
+T_0.18 ;
+    %load/obj v0x76fb480000_0;
+    %test_nul/obj;
+    %jmp/1 T_0.24, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_0.25;
+T_0.24;
+    %pop/obj 1, 0;
+    %null;
+T_0.25;
+    %test_nul/obj;
+    %jmp/1 T_0.22, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_0.23;
+T_0.22;
+    %pop/obj 1, 0;
+    %null;
+T_0.23;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/obj;
+    %dup/obj; container value copy
+    %pop/obj 1, 1; discard source container alias
+    %store/obj v0x76fb480020_0; evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv:21: row0 = <expr type 7>
+    %load/obj v0x76fb480000_0;
+    %test_nul/obj;
+    %jmp/1 T_0.30, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_0.31;
+T_0.30;
+    %pop/obj 1, 0;
+    %null;
+T_0.31;
+    %test_nul/obj;
+    %jmp/1 T_0.28, 4;
+    %prop/obj 0, 0; eval_object_property
+    %pop/obj 1, 1;
+    %jmp T_0.29;
+T_0.28;
+    %pop/obj 1, 0;
+    %null;
+T_0.29;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %load/qo/obj;
+    %dup/obj; container value copy
+    %pop/obj 1, 1; discard source container alias
+    %store/obj v0x76fb480040_0; evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv:22: row1 = <expr type 7>
+    %qsize v0x76fb480020_0;
+    %cmpi/ne 1, 0, 32;
+    %jmp/1 T_0.37, 4;
+    %flag_mov 8, 4;
+    %qsize v0x76fb480040_0;
+    %cmpi/ne 2, 0, 32;
+    %flag_or 4, 8;
+T_0.37;
+    %jmp/1 T_0.36, 4;
+    %flag_mov 8, 4;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/dar/vec4 v0x76fb480020_0;
+    %cast2;
+    %cmpi/ne 16, 0, 8;
+    %flag_or 4, 8;
+T_0.36;
+    %jmp/1 T_0.35, 4;
+    %flag_mov 8, 4;
+    %ix/load 3, 0, 0;
+    %flag_set/imm 4, 0;
+    %load/dar/vec4 v0x76fb480040_0;
+    %cast2;
+    %cmpi/ne 32, 0, 8;
+    %flag_or 4, 8;
+T_0.35;
+    %jmp/1 T_0.34, 4;
+    %flag_mov 8, 4;
+    %ix/load 3, 1, 0;
+    %flag_set/imm 4, 0;
+    %load/dar/vec4 v0x76fb480040_0;
+    %cast2;
+    %cmpi/ne 33, 0, 8;
+    %flag_or 4, 8;
+T_0.34;
+    %jmp/0xz  T_0.32, 4;
+    %vpi_call/w 3 25 "$fatal", 32'sb00000000000000000000000000000001, "nested dynamic-array foreach constraints failed" {0 0 0 0};
+T_0.32 ;
+    %vpi_call/w 3 26 "$display", "PASSED" {0 0 0 0};
+    %end;
+    .thread T_0, $function_background_ok;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "-";
+    "evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv";

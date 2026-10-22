@@ -1,0 +1,71 @@
+generated probes: 29
+q_BY_left g2017 run rc=0 Q BY_left=7 exp 7
+q_BY_size g2017 run rc=0 Q BY_size=8 exp 8
+q_DT_size_ERR g2017 run rc=0 Q DT_size_ERR=x exp error
+q_N_left g2017 run rc=0 Q N_left=31 exp 31
+q_N_right g2017 run rc=0 Q N_right=0 exp 0
+q_Ram_size g2017 run rc=0 Q Ram_size=10 exp 10
+q_Ram_size2 g2017 run rc=0 Q Ram_size2=16 exp 16
+q_SI_left g2017 run rc=0 Q SI_left=15 exp 15
+q_Word_left g2017 run rc=0 Q Word_left=x exp 16
+q_Word_right g2017 run rc=0 Q Word_right=x exp 1
+q_Word_size g2017 run rc=0 Q Word_size=x exp 16
+q_a1_size g2017 run rc=0 Q a1_size=0 exp 0
+q_a2_size g2017 run rc=0 Q a2_size=4 exp 4
+q_a_s1 g2017 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s1.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s1.sv:2: $size has too many arguments.
+q_a_s2_ERR g2017 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size has too many arguments.
+q_a_s3 g2017 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s3.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s3.sv:2: $size has too many arguments.
+q_aa_empty_high g2017 run rc=0 Q aa_empty_high=-1 exp x
+q_aa_empty_low g2017 run rc=0 Q aa_empty_low=0 exp x
+q_aa_empty_size g2017 run rc=0 Q aa_empty_size=0 exp 0
+q_aa_high g2017 run rc=0 Q aa_high=-1 exp 9
+q_aa_incr g2017 run rc=0 Q aa_incr=0 exp -1
+q_aa_left g2017 run rc=0 Q aa_left=0 exp 0
+q_aa_low g2017 run rc=0 Q aa_low=0 exp 2
+q_aa_right g2017 run rc=0 Q aa_right=-1 exp >=9
+q_aa_size g2017 run rc=0 Q aa_size=0 exp 3
+q_dims_Word g2017 run rc=0 Q dims_Word=0 exp 1
+q_int_left g2017 run rc=0 Q int_left=x exp 31
+q_unp_V g2017 run rc=0 Q unp_V=0 exp 0
+q_unp_a g2017 run rc=0 Q unp_a=1 exp 3
+q_BY_left g2023 run rc=0 Q BY_left=7 exp 7
+q_BY_size g2023 run rc=0 Q BY_size=8 exp 8
+q_DT_size_ERR g2023 run rc=0 Q DT_size_ERR=x exp error
+q_N_left g2023 run rc=0 Q N_left=31 exp 31
+q_N_right g2023 run rc=0 Q N_right=0 exp 0
+q_Ram_size g2023 run rc=0 Q Ram_size=10 exp 10
+q_Ram_size2 g2023 run rc=0 Q Ram_size2=16 exp 16
+q_SI_left g2023 run rc=0 Q SI_left=15 exp 15
+q_Word_left g2023 run rc=0 Q Word_left=x exp 16
+q_Word_right g2023 run rc=0 Q Word_right=x exp 1
+q_Word_size g2023 run rc=0 Q Word_size=x exp 16
+q_a1_size g2023 run rc=0 Q a1_size=0 exp 0
+q_a2_size g2023 run rc=0 Q a2_size=4 exp 4
+q_a_s1 g2023 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s1.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s1.sv:2: $size has too many arguments.
+q_a_s2_ERR g2023 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size has too many arguments.
+q_a_s3 g2023 run rc=1
+ERROR: tests/1800_audit/c20/q/q_a_s3.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s3.sv:2: $size has too many arguments.
+q_aa_empty_high g2023 run rc=0 Q aa_empty_high=-1 exp x
+q_aa_empty_low g2023 run rc=0 Q aa_empty_low=0 exp x
+q_aa_empty_size g2023 run rc=0 Q aa_empty_size=0 exp 0
+q_aa_high g2023 run rc=0 Q aa_high=-1 exp 9
+q_aa_incr g2023 run rc=0 Q aa_incr=0 exp -1
+q_aa_left g2023 run rc=0 Q aa_left=0 exp 0
+q_aa_low g2023 run rc=0 Q aa_low=0 exp 2
+q_aa_right g2023 run rc=0 Q aa_right=-1 exp >=9
+q_aa_size g2023 run rc=0 Q aa_size=0 exp 3
+q_dims_Word g2023 run rc=0 Q dims_Word=0 exp 1
+q_int_left g2023 run rc=0 Q int_left=x exp 31
+q_unp_V g2023 run rc=0 Q unp_V=0 exp 0
+q_unp_a g2023 run rc=0 Q unp_a=1 exp 3

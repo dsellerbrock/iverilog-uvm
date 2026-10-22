@@ -1,0 +1,8 @@
+747	OPEN	[IEEE 1800] §6.24.3 — bit-stream cast to or from a fixed unpacked array is not implemented	1800-audit	2026-10-20T04:32:12Z
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+680	OPEN	[IEEE 1800] evaluate non-random function calls in inline constraints	from-caliptra-dv	2026-10-19T05:33:35Z
+740	OPEN	[IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values	1800-audit	2026-10-20T04:14:42Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+499	CLOSED	[IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element		2026-10-09T17:35:01Z
+434	CLOSED	[IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles	enhancement	2026-10-15T05:09:10Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z

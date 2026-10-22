@@ -1,0 +1,6 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Generic interface port `a' of module `g' cannot be left unconnected.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_implicit.sv:5: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (a).
+2 error(s) during elaboration.

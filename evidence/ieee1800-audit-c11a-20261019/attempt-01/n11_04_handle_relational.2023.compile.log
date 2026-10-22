@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_04_handle_relational.sv:1: error: Class/null is not allowed with the '<' operator.
+Elaboration failed
