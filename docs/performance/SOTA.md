@@ -250,17 +250,75 @@ sketches, not current VVP members.
 
 11. Slurm job 3275 compared the campaign base, matched M2 main, and current main `8c95b5c` on three interleaved 2,000-mcycle top-level Caliptra tests, with three repeats each. The three-test geometric mean is +27.84% over campaign base and +0.97% over matched M2 main. The current ROM median is 9.914 cycles/s (12.89% spread), below the requested 13.3 cycles/s goal. The earlier 10.608 rate used a 500-mcycle window; on the matched 2,000-mcycle window, current main is +1.28% over M2 main (9.914 vs 9.789). All 39 firmware inputs and normalized logs matched. The initial job summary carried a stale `cae0356` label; a corrected analyzer was rerun over the archived raw windows. See [job 3275 evidence](../../evidence/caliptra-m3-throughput-8c95b5c-20261020/README.md).
 
-12. WP7 tiered randomization is active in PR #828. The implemented T0 path
-   skips Z3 when all effective class constraints are disabled and preserves
-   seeded output byte-for-byte; its 400-call fixture fell from 1,897,719,601
-   to 25,462,724 Callgrind instructions (74.5293x). The corrected histogram
-   puts `randomize_z3` in T3-eligible, `randomize_dv_txn` in T4 because of
-   `dist`, and the sequence-heavy `uvm_traffic` workload in T0; Caliptra made
-   no randomization calls. T1/T2 sampling and T3 context reuse are not
-   implemented. The local Bitwuzla spike favors it for hard QF_BV API
-   microbenchmarks, but its soft/dist/solve-before gaps make Z3 the current
-   full-semantics recommendation. No seed or distribution change is authorized.
-   The post-rebase final-head Slurm gate job 3417 also passed. See [SOLVER.md](SOLVER.md) and [WP7 evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md).
+12. M3 WP7 T0 remains merged in PR #828; M5 resumes WP7 on pinned base
+   `10f3a0a2509d0852c2556cb6622fb0025121fb2d`. T1 focused checks preserve
+   byte-identical outputs: the cached scalar path hits 35/64 range, 40/64
+   enum, and 63/64 constant-dist calls. Job 3657's focused Callgrind ratios
+   are 1.523x range, 1.604x enum, and 37.037x overlapping constant `dist`.
+   The headline `randomize_z3` and `randomize_dv_txn` controls remain T3 and T4.
+   Job 3657's full corpus passed: all 18 outputs are byte-identical, the target
+   Callgrind ratios are 0.999959x and 1.000019x, and no other workload regressed
+   by more than 2%. The histogram confirms T1 handles none of those target
+   calls. The earlier UVM output mismatch came from separately compiled
+   bytecode embedding different absolute roots; job 3657 compiles once and
+   reuses the bytecode across both runtimes. Job 3681 ran the three 2,000-mcycle Caliptra tests on both binaries;
+   each had zero `randomize()` calls. The in-job comparator stopped on a
+   wall-clock progress heartbeat difference, but the offline analyzer confirmed
+   byte-identical functional logs and firmware hashes after normalizing only
+   instrumentation timing and source-root paths. T1 has no Caliptra speedup
+   opportunity. The 10x goal remains unmet, so continue with T2/T3.
+   A follow-up cached the isolated wide `addr` intervals for `randomize_dv_txn`;
+   its 400-call seeded trace stayed byte-identical, but target Callgrind
+   instructions regressed 8.797406% (0.919140x), above the 2% limit. That
+   interval-cache extension was removed. See the
+   [rejected T1 interval-cache evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-independent-domain/README.md).
+   The first T2 small-domain screen replays the current first 64 proposals for
+   enumerable two-state components: `randomize_z3` improved 38.02% (1.613x),
+   with 282/800 calls on T2; `randomize_dv_txn` stayed T4 and changed +0.000265%.
+   The inherited/invalid-graph-guarded 18-workload validation is queued as
+   Slurm job 3731 on the same pinned base. Focused job 3735 passed the later
+   guarded-zero matcher with byte-identical traces: `randomize_z3` improved
+   38.02% (1.613415x; 282/800 T2 calls), while `randomize_dv_txn` remained T4
+   and changed +0.000511% (0.999995x). That run did not include the full
+   corpus. Focused Slurm job 3742 measured the cumulative T1/T2/T3 stack:
+   `randomize_z3` improved 55.62% (2.253425x), while `randomize_dv_txn`
+   improved 6.00% (1.063843x) and missed the 10% gate. Both default-seed
+   per-draw traces matched; context creations fell from 800 to 33 and 1,000 to
+   63. Candidate transaction RSS rose 3.26%. No full-corpus or multi-seed
+   validation was run, so the candidate is not ready to promote and the 10x
+   goal remains unmet. See [T2 evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t2-small-dom/README.md), [T3 evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t3-context-reuse/README.md), and [solver details](SOLVER.md).
+   Focused T3 job 3752 measured a bounded per-context isolated-factor cache on
+   the same pin. Default-seed outputs matched, but the result was effectively
+   unchanged from job 3742: 2.253642x on `randomize_z3`, 1.063667x on
+   `randomize_dv_txn`, and +3.69% transaction peak RSS. It missed the 10% DVT
+   gate, so the analysis cache is rejected and the full corpus was not run.
+   The DVT inclusive profile assigns 23.38% to repeated isolated-domain count
+   work. T1 job 3759 tried a positive-only cache keyed by the full active
+   assertion list, but recorded zero hits and no additional target speedup;
+   that key is too narrow across per-draw pins. Job 3763 keyed by the exact
+   isolated factor AST, subject, width, and cap, hit 874/1,000 DVT calls, and
+   preserved default-seed outputs. Callgrind improved `randomize_z3` 2.254952x
+   and `randomize_dv_txn` 1.453790x. The screen passed; multi-seed and full-
+   corpus validation remain. See the
+   [profile](../../evidence/perf-research-20261014/profiles/randomize_dv_txn.txt),
+   [job 3763](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-factor-count-cache/artifacts/job-3763/),
+   and [job 3759](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-positive-count-cache/artifacts/job-3759/)
+   and [solver details](SOLVER.md).
+   Bitwuzla's
+   hard QF_BV microbenchmark advantage does not close its soft/dist/solve-before
+   gaps, so Z3 remains the full-semantics recommendation; no seed or
+   distribution change is authorized. See [SOLVER.md](SOLVER.md), [M3 WP7
+   evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md), and [M5
+   T1 evidence](../../evidence/wp7-t1-10f3a0a-20261021/README.md).
+   The frozen job-3763 candidate is now validated on its pinned base: eight
+   seeds matched byte-for-byte; the full 18-workload screen improved
+   `randomize_z3` 2.253387x and `randomize_dv_txn` 1.454097x, with no other
+   workload over the 2% regression limit; job 3769 passed the full correctness
+   gates. The three Caliptra cases made zero randomize calls and their
+   normalized functional logs and firmware hashes matched. FST required two
+   clean Callgrind pairs because Valgrind intermittently segfaulted; failed
+   partial profiles were excluded. The M5 10x target remains unmet. See the
+   [final WP7 validation](../../evidence/wp7-t1-10f3a0a-20261021/validation/corpus-r11/).
 13. Slurm job 3383 on main `cc25756d` was re-screened inclusively for WP13 on
    the pinned M4 base `fb584a251`. Across the three Caliptra tests, the
    deduplicated union of vector4-plane, arithmetic, copy, construction,

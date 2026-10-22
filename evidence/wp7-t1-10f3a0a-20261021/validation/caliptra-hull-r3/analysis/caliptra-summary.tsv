@@ -1,0 +1,4 @@
+test	reference_cycles_s	candidate_cycles_s	delta_percent	reference_calls	candidate_calls	functional_prefix_identical	firmware_hash_list_identical	reference_complete_test	candidate_complete_test
+smoke_test_dma_aes_gcm_short_1_dword	6.072352	6.099635	+0.449	0	0	yes	yes	no (bounded prefix)	no (bounded prefix)
+smoke_test_sha256	6.151785	5.968772	-2.975	0	0	yes	yes	no (bounded prefix)	no (bounded prefix)
+cptra_ss_test_rom	5.988663	5.919707	-1.151	0	0	yes	yes	no (bounded prefix)	no (bounded prefix)

@@ -1,0 +1,3 @@
+seeded_outputs_byte_identical=yes
+seeds=8
+fixtures=5
