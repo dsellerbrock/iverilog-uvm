@@ -32001,8 +32001,12 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
-				vthread_is_reactive(thr));
+      if (thr->ecount != 0)
+	    schedule_evctl_prop_vec4(obj, pid, val, root_obj, thr->event,
+				     thr->ecount, vthread_is_reactive(thr));
+      else
+	    schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
+				      vthread_is_reactive(thr));
       return true;
 }
 
@@ -32027,8 +32031,13 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj, delay,
-				     vthread_is_reactive(thr));
+      if (thr->ecount != 0)
+	    schedule_evctl_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+					  thr->event, thr->ecount,
+					  vthread_is_reactive(thr));
+      else
+	    schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+					    delay, vthread_is_reactive(thr));
       return true;
 }
 
@@ -32050,9 +32059,18 @@ static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
       if (obj.test_nil() || thr->flags[4] != BIT4_0)
             return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
-                                    val, root_obj, delay,
-                                    vthread_is_reactive(thr), signed_offset);
+      if (thr->ecount != 0)
+	    schedule_evctl_prop_vec4_bits(obj, pid,
+					  thr->words[off_reg].w_uint, val,
+					  root_obj, thr->event, thr->ecount,
+					  vthread_is_reactive(thr),
+					  signed_offset);
+      else
+	    schedule_assign_prop_vec4_bits(obj, pid,
+					    thr->words[off_reg].w_uint,
+					    val, root_obj, delay,
+					    vthread_is_reactive(thr),
+					    signed_offset);
       return true;
 }
 

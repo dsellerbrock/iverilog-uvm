@@ -52,7 +52,9 @@ module sv_vif_clocking_cycle_delayed_drive;
 
     @(posedge clk); #1;
     check(bus.data === 8'h00, "##2 drive remains pending after one edge");
-    @(posedge clk); #1;
+    @(posedge clk); #0;
+    check(bus.data === 8'h00, "##2 drive waits for the NBA region at edge two");
+    #1;
     check(bus.data === 8'h3c, "##2 drive lands with the captured RHS after two edges");
 
     if (errors != 0)

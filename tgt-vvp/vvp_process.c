@@ -1538,10 +1538,10 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 
 	/* Nonblocking store to a class-object / virtual-interface property
 	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
-	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields
-	   are supported, including variable selectors and constant delays. Residual property
-	   forms are rejected below; executing them as blocking assignments
-	   would silently change their event-region semantics. */
+	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields are
+	   supported, including variable selectors, constant delays, and event
+	   controls. Residual property forms are rejected below; executing them as
+	   blocking assignments would silently change their event-region semantics. */
 	if (ivl_lval_property_idx(lval) >= 0 || ivl_lval_nest(lval) ||
 	    (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS)) {
 	    uint64_t prop_delay = 0;
@@ -1552,9 +1552,11 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else if (del) {
 		  can_delay = 0;
 	    }
-	    if (nevents == 0 && can_delay &&
-	        show_stmt_assign_nb_cobject(net, prop_delay) == 0)
+	    if (can_delay && show_stmt_assign_nb_cobject(net, prop_delay) == 0) {
+		  if (nevents)
+			fprintf(vvp_out, "    %%evctl/c;\n");
 		  return 0;
+	    }
 	    fprintf(stderr, "%s:%u: vvp.tgt error: this nonblocking "
 		    "property assignment form is not yet supported without "
 		    "changing its NBA semantics.\n",
