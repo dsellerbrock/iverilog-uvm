@@ -1,6 +1,8 @@
 module sv_readmem_darray_queue;
   logic [7:0] darray[];
   logic [7:0] queue[$];
+  logic [7:0] empty_darray[];
+  logic [7:0] empty_queue[$];
   logic [7:0] roundtrip[0:1];
   integer fd;
 
@@ -32,6 +34,21 @@ module sv_readmem_darray_queue;
     $readmemh("work/sv_readmem_darray_queue_queue.out", roundtrip);
     if (roundtrip[0] !== 8'h12 || roundtrip[1] !== 8'h34)
       $fatal(1, "queue writememh round trip failed");
+
+    empty_darray = new[0];
+    $readmemh("work/sv_readmem_darray_queue.hex", empty_darray);
+    $readmemh("work/sv_readmem_darray_queue.hex", empty_queue);
+    if (empty_darray.size() != 0 || empty_queue.size() != 0)
+      $fatal(1, "readmemh resized an empty array");
+
+    $writememh("work/sv_readmem_darray_queue_empty_array.out", empty_darray);
+    $writememh("work/sv_readmem_darray_queue_empty_queue.out", empty_queue);
+    fd = $fopen("work/sv_readmem_darray_queue_empty_array.out", "r");
+    if (fd == 0) $fatal(1, "writememh did not create an empty array file");
+    $fclose(fd);
+    fd = $fopen("work/sv_readmem_darray_queue_empty_queue.out", "r");
+    if (fd == 0) $fatal(1, "writememh did not create an empty queue file");
+    $fclose(fd);
 
     $display("PASSED");
     $finish;
