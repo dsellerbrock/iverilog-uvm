@@ -1,0 +1,15 @@
+job_id=3858
+host=DAN-DESKTOP
+started=2026-10-21T19:21:40-06:00
+batch_commit=18132be37631a9d07957b483ee0c9d5843f01349
+main_base=e90fcc1776f6022ce058388402738be7bf7218a6
+prs=827,904,934
+pr_827=52c1df44155d313cb04c85d077df5d597c71ed97
+pr_904=c7c27c24fb369a0d8af148baddf1626a8b7af6cd
+pr_934=745eeeeb51a0f6003d05c086281b6e077d87217b
+uvm_core_shared=/home/dsell/toolchains/iverilog-uvm-d9caaaea5b410ed14e7ca14be828fc2f2c9fea44-a5-wp6-r2/lib/ivl/uvm
+uvm_pkg_sha256=4c1516f91172fc24e9d8f023911ffcb5718da281f285f3062547553c09be60e6
+iverilog=/home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261022-1/source/local-install/bin/iverilog
+vvp=/home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261022-1/source/local-install/bin/vvp
+3fc50099a87c4db84b075b2331f5c5a787398be8181ee94cd2a54a2d9e24c7b5  /home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261022-1/source/local-install/bin/iverilog
+841af65520bddf76c5c215bc191e255c5ab5835c75af9c5f466002dd463b37ea  /home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261022-1/source/local-install/bin/vvp
