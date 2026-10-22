@@ -19,3 +19,34 @@ logs/executables, generated Caliptra build trees, and full gate logs remain in
 the local artifact copy; no profile data was rewritten to fit source whitespace
 checks. Job 3731 is not used as evidence for this candidate. The M5 10x target
 remains unmet.
+
+## Cached-hull follow-up at PR head `2a2e71b`
+
+All follow-up measurements use the same pinned base,
+`10f3a0a2509d0852c2556cb6622fb0025121fb2d`. Job 3820 rebuilt both sides and
+passed the 18-workload output comparison, eight-seed replay, and 10%/2%
+instruction screen. Callgrind measured 2.252988x for `randomize_z3` and
+2.375035x for `randomize_dv_txn`; the largest non-target increase was
+`classq` at +0.026753%. Candidate tier counts were 282 T2 / 518 T3 for
+`randomize_z3`, 400 T4 calls with 350 hull-cache hits for `randomize_dv_txn`,
+and 5,000 T0 calls for `uvm_traffic`. The focused range, enum, and constant
+`dist` fixtures measured 2.301874x, 2.194573x, and 37.138188x respectively.
+Detailed results and selected artifacts are in
+[`corpus-hull-r1/README.md`](corpus-hull-r1/README.md).
+
+Job 3820's Caliptra stage stopped before simulation because its environment
+did not put the pinned OpenSSL toolchain directory on `PATH`. Job 3839 stopped
+in preflight because the pinned QD-BFM path is a source directory, not a Git
+checkout. Job 3841 captured 2,000-mcycle prefixes for all three Caliptra cases
+on CPU 0. After stripping only heartbeat, elapsed-time, and performance-counter
+lines, the prefixes and generated firmware hash lists match. These bounded
+windows do not reach the tests' completion markers and are not full functional
+passes; job 3809's completed Caliptra run remains the full-run evidence. Job
+3822 passed the full correctness gates on this candidate:
+`make check`, FPGA install, 15 runtime invariants, 7,559 passed and zero failed
+in the 7,564-case JSON sweep, and 367/367 real-DPI UVM tests. Exact-head Fast
+Linux CI passed on commit `2a2e71b`; it must run again after the evidence update
+changes the PR head.
+
+The cumulative 10x goal remains unmet. No seed or distribution changed and no
+dependency was added.

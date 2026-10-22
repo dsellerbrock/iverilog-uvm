@@ -4,10 +4,13 @@ The M3 WP7 prototype and measurements below are pinned to source base
 `8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1` (`origin/main` when that work
 started). The M5 WP7-T1 screen uses its own pinned base and is reported in a
 separate section. The initial T1 candidate passed full-corpus and Caliptra
-checks; the cached-hull follow-up is awaiting its full gates. A tier is
-selected for each effective class constraint set. If the runtime cannot prove
-that a cheaper tier is exact, it falls through to the next tier. Seeded values
-and legal-value distributions are release gates.
+checks. The cached-hull follow-up passed the 18-workload and eight-seed corpus
+screens and full Slurm correctness gates. Job 3841 completed bounded Caliptra
+windows after two harness setup fixes; those windows confirm prefix equality
+but do not replace the full functional results from job 3809. A tier is
+selected for each effective class constraint set. If the
+runtime cannot prove that a cheaper tier is exact, it falls through to the next
+tier. Seeded values and legal-value distributions are release gates.
 Changing either requires an explicit user decision; it is a hard stop for this
 WP until then.
 
@@ -412,10 +415,52 @@ Callgrind results were:
 
 This passes the focused 10% target and 2% regression screen. It leaves the
 whole-call tiers unchanged (`randomize_dv_txn` T4; `randomize_z3` 282 T2 / 518
-T3). The cumulative speedups over the pinned base are 2.370211x and 2.252126x,
-so the M5 10x goal remains unmet. Multi-seed and full-corpus correctness gates
-for this candidate are pending. The exact output hashes, profile hashes, and
-runner details are in
+T3). A fresh full-corpus run on Slurm job 3820 rebuilt both sides from the
+pinned base. All 18 workload outputs and all eight seeded traces matched
+byte-for-byte; no non-target workload regressed by more than 2% (largest
+increase: `classq`, +0.026753%). Callgrind reported:
+
+| Workload | Reference instructions | Candidate instructions | Speedup | Candidate tier |
+| --- | ---: | ---: | ---: | --- |
+| `randomize_z3` (800 calls) | 13,047,457,073 | 5,791,178,912 | 2.252988x | 282 T2 / 518 T3 |
+| `randomize_dv_txn` (400 calls) | 42,384,346,864 | 17,845,780,794 | 2.375035x | 400 T4; 350 hull-cache hits |
+| UVM `uvm_traffic` (5,000 calls) | 40,802,918,977 | 40,805,286,255 | 0.999942x | 5,000 T0 |
+
+The T1 fixture speedups were 2.301874x for range, 2.194573x for enum, and
+37.138188x for overlapping constant `dist`; candidate T1 hits were 35/64,
+40/64, and 63/64 respectively. Slurm job 3822 passed `make check`, FPGA
+install, the full 7,564-case JSON suite (7,559 pass, zero fail), 15 runtime
+invariants, and real-DPI UVM (367 pass, zero fail or skip). Exact-head Fast
+Linux CI passed for commit `2a2e71b` before this documentation update.
+
+Job 3820 stopped before its Caliptra simulations because its `PATH` selected
+the system OpenSSL instead of the pinned toolchain copy; the runner reported
+the missing `openssl_libcrypto` input. Job 3839 stopped in preflight because
+the pinned QD-BFM source directory is not a Git checkout. Job 3841 fixed both
+checks and captured each reference/candidate pair through the same 2,000-mcycle
+window on CPU 0. Its initial analyzer stopped because it retained heartbeat
+and elapsed-time lines. A local recheck removed only those instrumentation
+lines: all three normalized prefixes and generated firmware hash lists match.
+The short-window runner reports `passed=false` because these prefixes do not
+reach each top-level test's completion marker; this is not a full functional
+pass. The earlier full Caliptra run in job 3809 remains the functional result.
+
+| Caliptra test (2,000-mcycle prefix) | Reference cycles/s | Candidate cycles/s | Single-run delta | Randomize calls, both sides |
+|---|---:|---:|---:|---:|
+| `smoke_test_dma_aes_gcm_short_1_dword` | 6.072352 | 6.099635 | +0.449% | 0 |
+| `smoke_test_sha256` | 6.151785 | 5.968772 | -2.975% | 0 |
+| `cptra_ss_test_rom` | 5.988663 | 5.919707 | -1.151% | 0 |
+
+These are one reference-then-candidate pair per case, so they are descriptive
+prefix rates, not medians or a Caliptra performance claim. All tier counts were zero in these
+windows; job 3809's full-run histogram also found zero `randomize()` calls in
+the three tests. The cumulative full-corpus speedups over the pinned base are
+2.252988x and 2.375035x, so the M5 10x goal remains unmet. Job 3820 corpus
+summaries are in
+[`corpus-hull-r1/README.md`](../../evidence/wp7-t1-10f3a0a-20261021/validation/corpus-hull-r1/README.md).
+The bounded Caliptra prefix evidence is in
+[`caliptra-hull-r3/README.md`](../../evidence/wp7-t1-10f3a0a-20261021/validation/caliptra-hull-r3/README.md).
+The focused hull-cache output hashes, profile hashes, and runner details are in
 [`evidence/wp7-t1-10f3a0a-20261021/attempts/t1-hull-cache/`](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-hull-cache/).
 The measured hull patch SHA-256 is
 `e3b7376125b75518391e010e26a48bd094577d5cfbb67f4556906f1d37f3de76`; the
