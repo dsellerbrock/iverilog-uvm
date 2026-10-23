@@ -3635,6 +3635,14 @@ extern "C" ivl_expr_t ivl_stmt_cond_expr(ivl_statement_t net)
       }
 }
 
+extern "C" unsigned ivl_stmt_is_clocking_drive(ivl_statement_t net)
+{
+      assert(net);
+      return net->type_ == IVL_ST_ASSIGN_NB
+	    && net->u_.assign_.aux_
+	    && net->u_.assign_.aux_->clocking_drive;
+}
+
 extern "C" ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net)
 {
       assert(net);

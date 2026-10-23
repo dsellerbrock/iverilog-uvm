@@ -698,6 +698,117 @@ void schedule_evctl(vvp_array_t memory, unsigned index,
       ep->last = &((*(ep->last))->next);
 }
 
+class evctl_prop_vec4 : public evctl {
+    public:
+      evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
+                      const vvp_vector4_t&value, const vvp_object_t&root_obj,
+                      unsigned long ecount, bool reactive)
+      : evctl(ecount), obj_(obj), pid_(pid), bitoff_(0), value_(value),
+        root_obj_(root_obj), bits_(false), signed_offset_(false),
+        reactive_(reactive)
+      { }
+
+      evctl_prop_vec4(const vvp_object_t&obj, unsigned pid, uint64_t bitoff,
+                      const vvp_vector4_t&value, const vvp_object_t&root_obj,
+                      unsigned long ecount, bool reactive, bool signed_offset)
+      : evctl(ecount), obj_(obj), pid_(pid), bitoff_(bitoff), value_(value),
+        root_obj_(root_obj), bits_(true), signed_offset_(signed_offset),
+        reactive_(reactive)
+      { }
+
+      void run_run() override
+      {
+            if (bits_)
+                  schedule_assign_prop_vec4_bits(obj_, pid_, bitoff_, value_,
+                                                 root_obj_, 0, reactive_,
+                                                 signed_offset_);
+            else
+                  schedule_assign_prop_vec4(obj_, pid_, value_, root_obj_,
+                                            0, reactive_);
+      }
+
+    private:
+      vvp_object_t obj_;
+      unsigned pid_;
+      uint64_t bitoff_;
+      vvp_vector4_t value_;
+      vvp_object_t root_obj_;
+      bool bits_;
+      bool signed_offset_;
+      bool reactive_;
+};
+
+static void schedule_evctl_prop_vec4_(const vvp_object_t&obj, unsigned pid,
+                                     const vvp_vector4_t&value,
+                                     const vvp_object_t&root_obj,
+                                     waitable_hooks_s*ep,
+                                     unsigned long ecount, bool reactive)
+{
+      assert(ep);
+      *(ep->last) = new evctl_prop_vec4(obj, pid, value, root_obj,
+                                        ecount, reactive);
+      ep->last = &((*(ep->last))->next);
+}
+
+void schedule_evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
+                              const vvp_vector4_t&value,
+                              const vvp_object_t&root_obj,
+                              vvp_net_t*event, unsigned long ecount,
+                              bool reactive)
+{
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
+      schedule_evctl_prop_vec4_(obj, pid, value, root_obj, ep, ecount, reactive);
+}
+
+void schedule_evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
+                              const vvp_vector4_t&value,
+                              const vvp_object_t&root_obj,
+                              waitable_hooks_s*ep,
+                              unsigned long ecount,
+                              bool reactive)
+{
+      schedule_evctl_prop_vec4_(obj, pid, value, root_obj, ep, ecount, reactive);
+}
+
+static void schedule_evctl_prop_vec4_bits_(const vvp_object_t&obj,
+                                           unsigned pid, uint64_t bitoff,
+                                           const vvp_vector4_t&value,
+                                           const vvp_object_t&root_obj,
+                                           waitable_hooks_s*ep,
+                                           unsigned long ecount,
+                                           bool reactive,
+                                           bool signed_offset)
+{
+      assert(ep);
+      *(ep->last) = new evctl_prop_vec4(obj, pid, bitoff, value, root_obj,
+                                        ecount, reactive, signed_offset);
+      ep->last = &((*(ep->last))->next);
+}
+
+void schedule_evctl_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
+                                   uint64_t bitoff,
+                                   const vvp_vector4_t&value,
+                                   const vvp_object_t&root_obj,
+                                   vvp_net_t*event, unsigned long ecount,
+                                   bool reactive, bool signed_offset)
+{
+      waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
+      schedule_evctl_prop_vec4_bits_(obj, pid, bitoff, value, root_obj, ep,
+                                     ecount, reactive, signed_offset);
+}
+
+void schedule_evctl_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
+                                   uint64_t bitoff,
+                                   const vvp_vector4_t&value,
+                                   const vvp_object_t&root_obj,
+                                   waitable_hooks_s*ep,
+                                   unsigned long ecount,
+                                   bool reactive, bool signed_offset)
+{
+      schedule_evctl_prop_vec4_bits_(obj, pid, bitoff, value, root_obj, ep,
+                                     ecount, reactive, signed_offset);
+}
+
 const vvp_fun_edge::edge_t vvp_edge_posedge
       = VVP_EDGE(BIT4_0,BIT4_1)
       | VVP_EDGE(BIT4_0,BIT4_X)

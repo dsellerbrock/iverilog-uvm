@@ -362,6 +362,7 @@ ivl_stmt_flow_control
 ivl_stmt_force_link_rval
 ivl_stmt_init_stmt
 ivl_stmt_is_assoc_rmw
+ivl_stmt_is_clocking_drive
 ivl_stmt_lexp
 ivl_stmt_lineno
 ivl_stmt_lval
