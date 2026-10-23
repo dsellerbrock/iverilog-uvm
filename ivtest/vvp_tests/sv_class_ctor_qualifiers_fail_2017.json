@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_class_ctor_qualifiers_fail.v",
+    "iverilog-args": ["-g2017", "-stest"],
+    "gold": "sv_class_ctor_qualifiers_fail"
+}

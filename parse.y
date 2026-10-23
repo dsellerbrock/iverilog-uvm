@@ -6192,14 +6192,16 @@ function_declaration /* IEEE1800-2005: A.2.6 */
      regressions introduced by temporary scoped-method support). */
   : K_function lifetime_opt K_new
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, "new", $2);
+	current_function = pform_push_constructor_scope(@3);
       }
     tf_port_list_parens_opt ';'
     block_item_decls_opt
     statement_or_null_list_opt
     K_endfunction endnew_opt
       { current_function->set_ports($5);
+	pform_set_constructor_return(current_function);
 	current_function_set_statement(@3, $8);
+	pform_set_this_class(@3, current_function);
 	pform_pop_scope();
 	current_function = 0;
       }

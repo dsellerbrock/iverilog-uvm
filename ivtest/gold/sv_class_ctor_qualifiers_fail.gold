@@ -1,0 +1,2 @@
+./ivltests/sv_class_ctor_qualifiers_fail.v:2: error: A constructor shall not be declared as a static method (IEEE 1800-2017/2023 8.7).
+./ivltests/sv_class_ctor_qualifiers_fail.v:7: error: A constructor shall not be declared as a virtual method (IEEE 1800-2017/2023 8.7).

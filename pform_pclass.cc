@@ -51,6 +51,25 @@ static vector<PClass*> pform_enclosing_classes_;
 static LexicalScope* pform_class_reentry_caller_ = 0;
 static PTaskFunc* pform_recent_class_method_ = 0;
 
+static void pform_check_constructor_qualifiers_(PTaskFunc*method)
+{
+	  if (method->pscope_name() != perm_string::literal("new"))
+		return;
+
+	  if (method->method_qualifiers().test_static()) {
+		cerr << method->get_fileline()
+		     << ": error: A constructor shall not be declared as a static method (IEEE 1800-2017/2023 8.7)."
+		     << endl;
+		error_count += 1;
+	  }
+	  if (method->is_virtual_method()) {
+		cerr << method->get_fileline()
+		     << ": error: A constructor shall not be declared as a virtual method (IEEE 1800-2017/2023 8.7)."
+		     << endl;
+		error_count += 1;
+	  }
+}
+
 static PClass* pform_class_base_scope_(PClass*class_scope)
 {
       if (!class_scope || !class_scope->type || !class_scope->type->base_type)
@@ -479,19 +498,24 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       delete this_port;
 
       net->set_this(pform_cur_class->type, this_wire);
+      pform_check_constructor_qualifiers_(net);
       pform_recent_class_method_ = net;
 }
 
 void pform_set_recent_class_method_qualifiers(property_qualifier_t qual)
 {
-      if (pform_recent_class_method_)
+	  if (pform_recent_class_method_) {
 	    pform_recent_class_method_->set_method_qualifiers(qual);
+	    pform_check_constructor_qualifiers_(pform_recent_class_method_);
+	  }
 }
 
 void pform_mark_recent_class_method_virtual(void)
 {
-      if (pform_recent_class_method_)
+	  if (pform_recent_class_method_) {
 	    pform_recent_class_method_->set_virtual_method(true);
+	    pform_check_constructor_qualifiers_(pform_recent_class_method_);
+	  }
       pform_recent_class_method_ = 0;
 }
 
