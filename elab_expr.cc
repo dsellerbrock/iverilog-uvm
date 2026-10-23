@@ -12438,6 +12438,44 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
 	    } else {
 		  use_width = expr->expr_width();
+		  /* An unpacked struct is still a fixed-size bit stream for $bits.
+		     expr_width() is the width used by ordinary expression lowering,
+		     and does not include all unpacked struct members. Calculate the
+		     data size from the declared member types for this query. */
+		  if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+			ivl_type_t ident_type = ident->test_type_of_ident(des, scope);
+			const netstruct_t*struct_type =
+			      dynamic_cast<const netstruct_t*>(ident_type);
+			if (struct_type && !struct_type->packed()) {
+			      function<uint64_t(ivl_type_t)> type_bits =
+				    [&type_bits](ivl_type_t type) -> uint64_t {
+				      if (const netuarray_t*array =
+					  dynamic_cast<const netuarray_t*>(type))
+					    return netrange_width(array->static_dimensions(), 1)
+						  * type_bits(array->element_type());
+				      if (const netstruct_t*record =
+					  dynamic_cast<const netstruct_t*>(type)) {
+					    if (record->packed())
+						  return record->packed_width();
+					    uint64_t width = 0;
+					    for (const auto&member : record->members()) {
+						  uint64_t member_width =
+							type_bits(member.net_type);
+						  if (record->union_flag())
+							width = std::max(width, member_width);
+						  else
+							width += member_width;
+					    }
+					    if (record->tagged_flag())
+						  width += record->tag_bits();
+					    return width;
+				      }
+				      return type && type->packed()
+					    ? type->packed_width() : 0;
+				    };
+			      use_width = type_bits(ident_type);
+			}
+		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
 			     << " Width of expression argument is " << use_width << endl;
