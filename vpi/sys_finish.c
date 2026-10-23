@@ -111,6 +111,21 @@ static PLI_INT32 sys_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 static PLI_INT32 sys_exit_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       (void) name;
+      /* IEEE 1800-2017 24.7: calls that do not originate in a program
+         initial procedure (or one of its descendants) are ignored. */
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle scope = callh ? vpi_handle(vpiScope, callh) : 0;
+      int from_program = 0;
+      while (scope) {
+	    if (vpi_get(vpiType, scope) == vpiProgram) {
+		  from_program = 1;
+		  break;
+	    }
+	    scope = vpi_handle(vpiParent, scope);
+      }
+      if (!from_program)
+	    return 0;
+
       vpip_set_return_value(0);
       vpi_control(vpiFinish, 0);
       return 0;
