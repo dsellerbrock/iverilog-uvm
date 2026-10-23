@@ -372,6 +372,9 @@ class PEAssignPattern : public PExpr {
       NetExpr* elaborate_expr_struct_(Design *des, NetScope *scope,
 				      const netstruct_t *struct_type,
 				      bool need_const) const;
+      NetExpr* elaborate_expr_default_(Design *des, NetScope *scope,
+				       ivl_type_t type, PExpr *value,
+				       bool need_const) const;
       NetExpr* elaborate_expr_array_(Design *des, NetScope *scope,
 				     const netarray_t *array_type,
 				     bool need_const, bool up) const;

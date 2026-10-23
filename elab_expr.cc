@@ -5249,6 +5249,60 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       return neconcat;
 }
 
+/* Apply a structure pattern's type/default value through aggregate members.
+   IEEE 1800-2017 10.9.2 requires these keys to recurse through structures
+   and to be applied to arrays using the array-pattern rules. */
+NetExpr* PEAssignPattern::elaborate_expr_default_(Design *des, NetScope *scope,
+						 ivl_type_t type, PExpr *value,
+						 bool need_const) const
+{
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(type)) {
+	    vector<NetExpr*> items;
+	    for (const auto&member : st->members())
+		  items.push_back(elaborate_expr_default_(des, scope,
+							 member.net_type,
+							 value, need_const));
+	    if (st->packed()) {
+		  for (size_t idx = 0; idx < items.size(); ++idx) {
+			long width = st->members()[idx].net_type->packed_width();
+			if (items[idx] && width > 0
+			    && items[idx]->expr_width() != (unsigned)width)
+			      items[idx] = cast_to_width(items[idx], (unsigned)width,
+							 items[idx]->has_sign(), *this);
+		  }
+		  NetEConcat*res = new NetEConcat(items.size(), 1, st->base_type());
+		  for (size_t idx = 0; idx < items.size(); ++idx)
+			if (items[idx]) res->set(idx, items[idx]);
+		  return res;
+	    }
+	    NetEArrayPattern*res = new NetEArrayPattern(st, items);
+	    res->set_line(*this);
+	    return res;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    const netranges_t&dims = array->static_dimensions();
+	    std::function<NetExpr*(unsigned, ivl_type_t)> fill =
+		  [&](unsigned dim, ivl_type_t leaf) -> NetExpr* {
+		    if (dim == dims.size())
+			  return elaborate_expr_default_(des, scope, leaf,
+							 value, need_const);
+		    const auto&range = dims[dim];
+		    unsigned n = range.width();
+		    vector<NetExpr*> elems(n);
+		    bool up = range.get_msb() < range.get_lsb();
+		    for (unsigned idx = 0; idx < n; ++idx)
+			  elems[up ? idx : n - 1 - idx] = fill(dim + 1, leaf);
+		    NetEArrayPattern*res = new NetEArrayPattern(array, elems);
+		    res->set_line(*this);
+		    return res;
+		  };
+	    return fill(0, array->element_type());
+      }
+
+      return elaborate_rval_expr(des, scope, type, value, need_const);
+}
+
 NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 						 const netstruct_t *struct_type,
 						 bool need_const) const
@@ -5347,16 +5401,21 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 		  }
 
 		  PExpr*src = member_values[idx];
+		  bool inherited_value = false;
 		  if (!src) {
 			for (const auto&type_entry : type_values)
 			      if (assignment_pattern_types_equivalent_(
 					members[idx].net_type, type_entry.first)) {
 				    src = type_entry.second;
+				    inherited_value = true;
 				    if (union_active_member == members.size())
 					  union_active_member = idx;
 			      }
 		  }
-		  if (!src) src = dflt;
+		  if (!src) {
+			src = dflt;
+			inherited_value = src != nullptr;
+		  }
 		  if (!src) {
 			if (is_union) {
 			      /* Default-construct the unmentioned member to zero
@@ -5378,6 +5437,12 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 			     << "has no value for member '"
 			     << members[idx].name << "'." << endl;
 			des->errors++;
+		  } else if (inherited_value &&
+			     (dynamic_cast<const netstruct_t*>(members[idx].net_type) ||
+			      dynamic_cast<const netuarray_t*>(members[idx].net_type))) {
+			items[idx] = elaborate_expr_default_(des, scope,
+							     members[idx].net_type,
+							     src, need_const);
 		  } else {
 			items[idx] = elaborate_rval_expr(des, scope,
 							 members[idx].net_type,
