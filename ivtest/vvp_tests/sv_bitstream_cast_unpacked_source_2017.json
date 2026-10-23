@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_bitstream_cast_unpacked_source.v",
+  "iverilog-args": ["-g2017", "-s", "sv_bitstream_cast_unpacked_source"],
+  "gold": "sv_bitstream_cast_unpacked_source"
+}
