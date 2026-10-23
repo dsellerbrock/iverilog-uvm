@@ -3134,8 +3134,30 @@ NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
             des, s, qualifier());
       const netclass_t*class_type =
             dynamic_cast<const netclass_t*>(qualifier_type);
-      if (class_type && class_type->class_scope())
-            return const_cast<NetScope*>(class_type->class_scope());
+      if (class_type && class_type->class_scope()) {
+            NetScope*class_scope =
+                  const_cast<NetScope*>(class_type->class_scope());
+            if (!typedef_ref() && deferred_member_ != perm_string()) {
+                  const PClass*pclass = class_scope->class_pform();
+                  if (pclass) {
+                        auto member = pclass->typedefs.find(deferred_member_);
+                        if (member != pclass->typedefs.end())
+                              set_typedef_ref(member->second);
+                  }
+                  if (!typedef_ref()) {
+                        if (!deferred_reported_) {
+                              deferred_reported_ = true;
+                              cerr << get_fileline() << ": error: "
+                                   << deferred_member_
+                                   << " doesn't name a type in class scope."
+                                   << endl;
+                              des->errors += 1;
+                        }
+                        return nullptr;
+                  }
+            }
+            return class_scope;
+      }
 
       cerr << get_fileline() << ": error: Class-scoped type qualifier `";
       qualifier()->debug_dump(cerr);
