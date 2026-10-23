@@ -2115,6 +2115,7 @@ sv_assoc_wildcard_type_fail CE,-g2012 ivltests gold=sv_assoc_wildcard_type_fail.
 sv_assoc_output_nonassoc_fail CE,-g2012 ivltests gold=sv_assoc_output_nonassoc_fail.gold
 sv_assoc_cast_to_queue_fail CE,-g2012 ivltests gold=sv_assoc_cast_to_queue_fail.gold
 sv_default_formal_contexts normal,-g2012 ivltests gold=sv_default_formal_contexts.gold
+sv_subroutine_output_inout_default normal,-g2012 ivltests gold=sv_subroutine_output_inout_default.gold
 sv_enum_default_formal_width normal,-g2012 ivltests gold=sv_enum_default_formal_width.gold
 sv_enum_default_formal_cast_fail CE,-g2012 ivltests gold=sv_enum_default_formal_cast_fail.gold
 sv_enum_compound_assignment_fail CE,-g2012 ivltests gold=sv_enum_compound_assignment_fail.gold
