@@ -19799,7 +19799,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	bool is_std_rand = ($1 && $3
 			    && strcmp($1, "std")==0
 			    && strcmp($3, "randomize")==0
-			    && $4 && !$4->empty());
+			    && $4);
 	pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
