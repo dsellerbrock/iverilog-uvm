@@ -29132,6 +29132,28 @@ static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env);
+static bool constraint_dist_subject_has_rand_(const PExpr*expr,
+					       const netclass_t*cls)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (!cls || id->path().package || id->path().name.size() != 1)
+		  return false;
+	    int idx = cls->property_idx_from_name(id->path().name.front().name);
+	    return idx >= 0 && cls->get_prop_qual((size_t)idx).test_rand();
+      }
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(expr))
+	    return constraint_dist_subject_has_rand_(u->get_expr(), cls);
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(expr))
+	    return constraint_dist_subject_has_rand_(b->get_left(), cls)
+		  || constraint_dist_subject_has_rand_(b->get_right(), cls);
+      if (const PETernary*t = dynamic_cast<const PETernary*>(expr))
+	    return constraint_dist_subject_has_rand_(t->get_cond(), cls)
+		  || constraint_dist_subject_has_rand_(t->get_true(), cls)
+		  || constraint_dist_subject_has_rand_(t->get_false(), cls);
+      return false;
+}
+
 static void constraint_diagnose_randc_restrictions_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
@@ -31713,6 +31735,10 @@ static void constraint_diagnose_randc_restrictions_(
       if (!expr)
 	    return;
 
+      /* A dist subject must contain a rand (rather than randc) variable.
+       * Resolve simple class-property references before lowering, so a
+       * constant/state-only distribution cannot silently become a no-op. */
+
 	/* A let is substitution, so visit only the expanded expression. An
 	 * unused actual does not participate in the resulting constraint. */
       static unsigned let_depth = 0;
@@ -31765,6 +31791,16 @@ static void constraint_diagnose_randc_restrictions_(
 	    return;
       }
       if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    if (inside->is_dist()
+		&& !constraint_dist_subject_has_rand_(inside->get_expr(), cls)
+		&& !constraint_source_references_randc_(
+		      inside->get_expr(), cls, value_slots, scope, loop_env)) {
+		  cerr << inside->get_fileline()
+		       << ": error: a dist expression requires at least one rand variable."
+		       << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+	    }
 	    if (inside->is_dist()
 		&& constraint_source_references_randc_(
 		      inside, cls, value_slots, scope, loop_env))

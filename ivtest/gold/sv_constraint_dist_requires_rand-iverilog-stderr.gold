@@ -1,0 +1,2 @@
+ivltests/sv_constraint_dist_requires_rand.v:3: error: a dist expression requires at least one rand variable.
+1 error(s) during elaboration.
