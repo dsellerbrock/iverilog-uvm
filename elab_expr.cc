@@ -30551,6 +30551,18 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	 * value copy. */
       if (const netuarray_t*array_type =
 		  dynamic_cast<const netuarray_t*>(type)) {
+	    /* Runtime whole-array conditionals are implemented for the editions
+	     * this change qualifies. Keep the older-edition rejection in place. */
+	    if (generation_flag < GN_VER2017) {
+	      cerr << get_fileline() << ": sorry: a conditional with whole "
+		   << "unpacked array operands is only supported when the "
+		   << "condition is a constant." << endl;
+	      des->errors += 1;
+	      delete con;
+	      delete tru;
+	      delete fal;
+	      return nullptr;
+	    }
 	    const NetESignal*true_array = dynamic_cast<const NetESignal*>(tru);
 	    const NetESignal*false_array = dynamic_cast<const NetESignal*>(fal);
 	    const netranges_t&dims = array_type->static_dimensions();
