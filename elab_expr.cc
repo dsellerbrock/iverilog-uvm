@@ -12438,6 +12438,26 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
 	    } else {
 		  use_width = expr->expr_width();
+		  /* A queue/dynamic-array expression has no fixed elaboration width.
+		   * $bits observes its current bit-stream size, which is the number of
+		   * elements times the packed width of each element. */
+		  NetExpr* dynamic_arg = elab_sys_task_arg(des, scope,
+							 lex_strings.make(name), 0,
+							 expr, false);
+		  const netdarray_t* dynamic_type = dynamic_arg
+			? dynamic_cast<const netdarray_t*>(dynamic_arg->net_type()) : 0;
+		  if (dynamic_type) {
+			unsigned long elem_width = dynamic_type->element_width();
+			NetESFunc*size = new NetESFunc("$ivl_queue_method$size",
+							IVL_VT_LOGIC, integer_width, 1);
+			size->parm(0, dynamic_arg);
+			NetExpr*width = new NetEConst(verinum(elem_width, integer_width));
+			NetExpr*result = new NetEBMult('*', size, width,
+							integer_width, true);
+			result->set_line(*this);
+			return cast_to_width_(result, expr_wid);
+		  }
+		  delete dynamic_arg;
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
 			     << " Width of expression argument is " << use_width << endl;
