@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_class_extends_args_super_new_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"]
+}
