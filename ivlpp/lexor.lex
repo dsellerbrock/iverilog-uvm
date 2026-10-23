@@ -40,6 +40,7 @@ static void  def_start(void);
 static void  def_add_arg(void);
 static void  def_finish(void);
 static void  def_undefine(void);
+static void  def_undefineall(void);
 static void  do_define(void);
 static int   def_is_done(void);
 static void  def_continue(void);
@@ -768,6 +769,8 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 }
 
 `undef{W}[a-zA-Z_][a-zA-Z0-9_$]*{W}?.* { def_undefine(); }
+
+`undefineall/({WNL}|$) { def_undefineall(); }
 
   /* Detect conditional compilation directives, and parse them. If I
    * find the name defined, switch to the IFDEF_TRUE state and stay
@@ -2267,6 +2270,12 @@ static void def_undefine(void)
     for (idx = 0 ; idx < cur->argc ; idx += 1) free(cur->defaults[idx]);
     free(cur->defaults);
     free(cur);
+}
+
+static void def_undefineall(void)
+{
+    free_macro(def_table);
+    def_table = 0;
 }
 
 /*
