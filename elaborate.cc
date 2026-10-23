@@ -40985,6 +40985,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  perm_string name;
 		  std::vector<std::pair<uint64_t,uint64_t>> ranges;
 		  std::vector<std::vector<uint64_t>> wide_values;
+		  std::vector<unsigned> wide_ranges;
 		  std::vector<std::vector<uint64_t>> xz_values;
 		  bool wide_auto = false;
 		  uint64_t wide_auto_value = 0;
@@ -43044,18 +43045,20 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
-				// Exact unsigned wide values use one existing metadata
-				// record per 64-bit word. Records in one tuple are ANDed;
-					// separate values of the same bin are ORed. Bit 6 marks
-				// an exact word; hi carries source width, word index and
-				// the number of valid bits in that word.
+				// Exact wide values keep the compact word-record format;
+				// non-degenerate ranges use one interval record per alternative.
 				if (cp_value_width > 64) {
 				      bool supported = cp_wide_exact_supported
-					&& base_kind == 0 && !bin.array_size
+					&& (base_kind == 0 || base_kind == 1 || base_kind == 2)
+					&& !bin.array_size
 					&& !bin.wildcard && !bin.with_expr
 					&& !bin.set_expr && bin.source_coverpoint.nil()
 					&& bin.trans_seqs.empty() && !bin.ranges.empty();
 				      std::vector<std::vector<uint64_t>> values;
+				      typedef std::pair<std::vector<uint64_t>,
+						std::vector<uint64_t>> wide_range_t;
+				      std::vector<wide_range_t> wide_bounds;
+				      bool has_wide_range = false;
 			      auto read_value = [&](PExpr*expr,
 						 std::vector<uint64_t>&words) -> bool {
 					if (!expr || range_references_runtime(expr))
@@ -43102,20 +43105,106 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (supported) for (auto&range : bin.ranges) {
 					std::vector<uint64_t> lo, hi;
 					if (!read_value(range.first, lo)
-					    || !read_value(range.second, hi) || lo != hi) {
+					    || !read_value(range.second, hi)) {
 					      supported = false;
 					      break;
 					}
-					values.push_back(std::move(lo));
+					if (lo != hi) has_wide_range = true;
+					values.push_back(lo);
+					wide_bounds.push_back(std::make_pair(
+					      std::move(lo), std::move(hi)));
 				      }
+				      if ((has_wide_range || base_kind != 0) && bin.arrayed)
+					supported = false;
 				      if (!supported) {
 					cerr << pclass->get_fileline()
 					     << ": error: wide covergroup bin '" << bin.name
-					     << "' requires unsigned packed exact constant "
-						"values (up to 256 bits); the bin cannot be represented."
+					     << "' requires unsigned packed constant values or ranges "
+						"(up to 256 bits); the bin cannot be represented."
 					     << endl;
 					des->errors += 1;
 					if (base_kind == 0) has_value_bins = true;
+					continue;
+				      }
+				      if (base_kind == 0 && has_wide_range) {
+					auto wide_less = [](const std::vector<uint64_t>&a,
+							    const std::vector<uint64_t>&b) {
+					      return std::lexicographical_compare(
+						    a.rbegin(), a.rend(), b.rbegin(), b.rend());
+					};
+					std::vector<wide_range_t> carved;
+					for (const auto&excluded : cp.bins) {
+					      unsigned excluded_kind = (unsigned)excluded.kind & 7;
+					      if ((excluded_kind != 1 && excluded_kind != 2)
+						  || excluded.wildcard || excluded.with_expr
+						  || excluded.set_expr
+						  || excluded.iff_expr
+						  || !excluded.source_coverpoint.nil()
+						  || !excluded.trans_seqs.empty()) continue;
+					      for (const auto&range : excluded.ranges) {
+						    std::vector<uint64_t> lo, hi;
+						    if (read_value(range.first, lo)
+							&& read_value(range.second, hi)
+							&& !wide_less(hi, lo))
+							  carved.push_back(std::make_pair(
+								std::move(lo), std::move(hi)));
+					      }
+					}
+					std::sort(carved.begin(), carved.end(),
+						  [&](const wide_range_t&a,
+						      const wide_range_t&b) {
+							return wide_less(a.first, b.first);
+						  });
+					// Runtime suppression handles partial overlaps; remove fully
+					// carved alternatives so they add no bin or cross denominator.
+					auto fully_carved = [&](const wide_range_t&range) {
+					      std::vector<uint64_t> cursor = range.first;
+					      for (const auto&excluded : carved) {
+						    if (wide_less(excluded.second, cursor)) continue;
+						    if (wide_less(cursor, excluded.first)) return false;
+						    if (!wide_less(excluded.second, range.second))
+							  return true;
+						    cursor = excluded.second;
+						    for (size_t word = 0; word < cursor.size(); ++word)
+							  if (++cursor[word] != 0) break;
+						    if (cp_value_width % 64)
+							  cursor.back() &= (UINT64_C(1)
+							    << (cp_value_width % 64)) - 1;
+					      }
+					      return false;
+					};
+					wide_bounds.erase(std::remove_if(wide_bounds.begin(),
+						wide_bounds.end(), fully_carved), wide_bounds.end());
+					if (wide_bounds.empty()) {
+					      has_value_bins = true;
+					      continue;
+					}
+				      }
+				      if (has_wide_range || base_kind != 0) {
+					unsigned prop = netclass_t::COVGRP_NO_PROP;
+					if (base_kind != 1) {
+					      int added = add_unique_cov_counter(bstem);
+					      if (added < 0) continue;
+					      prop = (unsigned)added;
+					}
+					xbin_desc_t d;
+					d.name = bin.name;
+					d.guard_idx = bin_guard;
+					for (unsigned tuple = 0; tuple < wide_bounds.size(); ++tuple) {
+					      size_t range_idx = cg_class->add_covgrp_wide_range(
+						    cp_value_width, wide_bounds[tuple].first,
+						    wide_bounds[tuple].second);
+					      cg_class->add_covgrp_bin(cp_idx, prop, range_idx, 0,
+						    base_kind | netclass_t::COVGRP_WIDE_RANGE_BIN,
+						    tuple, cp_idx);
+					      cg_class->set_last_covgrp_bin_guard(bin_guard);
+					      d.wide_ranges.push_back((unsigned)range_idx);
+					}
+					if (base_kind == 0) {
+					      d.source_prop = (int)prop;
+					      vbins.push_back(std::move(d));
+					      has_value_bins = true;
+					}
 					continue;
 				      }
 				      if (bin.arrayed) {
@@ -45193,7 +45282,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
-					    rsizes[k] = !d.wide_values.empty()
+					    rsizes[k] = !d.wide_ranges.empty()
+						? d.wide_ranges.size()
+						: !d.wide_values.empty()
 						? d.wide_values.size()
 						: d.ranges.size() + d.xz_values.size();
 					    if (rsizes[k] == 0) rsizes[k] = 1;
@@ -45256,6 +45347,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      cg_class->add_covgrp_bin(cp_indexes[k],
 								    tgt.first, d.wide_auto_value, meta,
 								    tgt.second | 512u, tup, item_idx);
+							      cg_class->set_last_covgrp_bin_guard(
+								    d.guard_idx);
+							      continue;
+							}
+								if (!d.wide_ranges.empty()) {
+							      cg_class->add_covgrp_bin(cp_indexes[k],
+								    tgt.first, d.wide_ranges[ridx[k]], 0,
+								    tgt.second
+								      | netclass_t::COVGRP_WIDE_RANGE_BIN,
+								    tup, item_idx);
 							      cg_class->set_last_covgrp_bin_guard(
 								    d.guard_idx);
 							      continue;

@@ -7626,7 +7626,8 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
-				     const vvp_vector4_t*wide_val = nullptr)
+				     const vvp_vector4_t*wide_val = nullptr,
+				     const class_type*defn = nullptr)
 {
       if (bin.kind & 128) {
 	    unsigned width = bin.hi >> 16;
@@ -7649,6 +7650,25 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 	    return true;
       }
       if (wide_val && wide_val->has_xz()) return false;
+	  if (bin.kind & class_type::COV_WIDE_RANGE_BIN) {
+	    if (!defn || !wide_val) return false;
+	    const class_type::cov_wide_range_t*range =
+		  defn->covgrp_wide_range(static_cast<size_t>(bin.lo));
+	    if (!range || range->width <= 64 || range->width > 256
+		|| wide_val->size() != range->width
+		|| range->low.size() != (range->width + 63) / 64
+		|| range->high.size() != range->low.size()) return false;
+	    int low_cmp = 0, high_cmp = 0;
+	    for (unsigned bit = range->width; bit > 0; bit--) {
+		  unsigned idx = bit - 1;
+		  bool sample = wide_val->value(idx) == BIT4_1;
+		  bool low = (range->low[idx / 64] >> (idx % 64)) & 1;
+		  bool high = (range->high[idx / 64] >> (idx % 64)) & 1;
+		  if (low_cmp == 0 && sample != low) low_cmp = sample ? 1 : -1;
+		  if (high_cmp == 0 && sample != high) high_cmp = sample ? 1 : -1;
+	    }
+	    return low_cmp >= 0 && high_cmp <= 0;
+	  }
 	  if (bin.kind & 512) {
 	    unsigned width = bin.hi >> 32;
 	    unsigned bits = bin.hi & 0xffffffffu;
@@ -9149,6 +9169,7 @@ static bool covgrp_cross_guard_enabled_(unsigned guard,
 
 static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
       const covgrp_cross_state_t&state,
+      const class_type*defn,
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
       unsigned ncp, const vector<uint64_t>&cp_vals,
       const vector<vvp_vector4_t>&wide_vals,
@@ -9175,7 +9196,7 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 			  if (rec && covgrp_cross_guard_enabled_(rec->guard_idx,
 								 bin_guards)
 				  && covgrp_rec_match_(*rec, cp_vals[choice.cp_idx],
-						       &wide_vals[choice.cp_idx])) {
+						       &wide_vals[choice.cp_idx], defn)) {
 				    hit = true;
 				    break;
 			      }
@@ -9648,7 +9669,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  }
 		  bool m = bin_enabled(bin.guard_idx)
 			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
-					       &wide_vals[bin.cp_idx]);
+					       &wide_vals[bin.cp_idx], defn);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -9707,7 +9728,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    const std::set<unsigned> no_transition_props;
 	    const std::set<std::pair<unsigned,uint64_t>> no_transition_families;
 	    std::vector<std::set<unsigned>> matched =
-		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
+		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
 			no_transition_props, no_transition_families, false, false);
 	    std::set<unsigned> illegal_hits;
@@ -9733,7 +9754,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
 		  continue;
 	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
-					 &wide_vals[bin.cp_idx]))
+					 &wide_vals[bin.cp_idx], defn))
 		  cp_suppressed[bin.cp_idx] = true;
       }
       for (auto&entry : dyn_states) {
@@ -9838,7 +9859,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			m = false;
 		  else
 			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx],
-					       &wide_vals[bin.cp_idx]);
+					       &wide_vals[bin.cp_idx], defn);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -9905,7 +9926,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!state.enabled || !state.meta
 		|| !item_enabled(state.meta->item_idx)) continue;
 	    std::vector<std::set<unsigned>> matched =
-		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
+		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
 			transition_hits, transition_family_hits, true, true);
 	    std::set<unsigned> named_hits;

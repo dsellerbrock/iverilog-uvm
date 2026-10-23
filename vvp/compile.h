@@ -716,6 +716,8 @@ extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t trans_family = 0xFFFFFFFFu,
 				     uint64_t trans_base = 0,
 				     uint64_t guard_idx = 0xFFFFFFFFu);
+extern void compile_class_covgrp_wide_range(
+	uint64_t idx, uint64_t width, const std::vector<uint64_t>&words);
 extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					 uint64_t kind, uint64_t family,
 					 uint64_t array_size, char*name,

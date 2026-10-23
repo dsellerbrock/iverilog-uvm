@@ -4547,6 +4547,49 @@ extern "C" int ivl_type_covgrp_bins(ivl_type_t net)
       return 0;
 }
 
+extern "C" int ivl_type_covgrp_wide_ranges(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && class_type->is_covergroup())
+	    return (int)class_type->covgrp_wide_range_count();
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_wide_range_width(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_wide_range_count())
+	    return class_type->covgrp_wide_range((size_t)idx).width;
+      return 0;
+}
+
+extern "C" uint64_t ivl_type_covgrp_wide_range_low(ivl_type_t net, int idx,
+							 unsigned word)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_wide_range_count()) {
+	    const netclass_t::covgrp_wide_range_t&range =
+		  class_type->covgrp_wide_range((size_t)idx);
+	    if (word < range.low.size()) return range.low[word];
+      }
+      return 0;
+}
+
+extern "C" uint64_t ivl_type_covgrp_wide_range_high(ivl_type_t net, int idx,
+							  unsigned word)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_wide_range_count()) {
+	    const netclass_t::covgrp_wide_range_t&range =
+		  class_type->covgrp_wide_range((size_t)idx);
+	    if (word < range.high.size()) return range.high[word];
+      }
+      return 0;
+}
+
 extern "C" int ivl_type_covgrp_ncoverpoints(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
