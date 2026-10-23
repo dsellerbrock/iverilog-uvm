@@ -5253,6 +5253,27 @@ void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 	  }
 }
 
+static bool implicit_port_types_match_(Design*des, const LineInfo&loc,
+				       const NetNet*actual,
+				       const NetNet*formal,
+				       const Module*mod,
+				       perm_string port_name)
+{
+      ivl_type_t actual_type = actual ? actual->net_type() : 0;
+      ivl_type_t formal_type = formal ? formal->net_type() : 0;
+      if (actual_type && formal_type
+	  && actual_type->type_equivalent(formal_type)
+	  && formal_type->type_equivalent(actual_type))
+	    return true;
+
+      cerr << loc.get_fileline() << ": error: Implicit connection for port `"
+	   << port_name << "' of module `" << mod->mod_name()
+	   << "' requires equivalent data types (IEEE 1800-2017/2023 "
+	      "23.3.2.3/23.3.2.4)." << endl;
+      des->errors += 1;
+      return false;
+}
+
 /* An interconnect has no independently declared data type.  Settle the
  * generic component from the concrete net port at each hierarchy edge before
  * elaborating the child body.  This is intentionally a net-only operation:
@@ -5727,6 +5748,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// the source list is rearranged by name binding into this list.
       vector<PExpr*>pins (rmod->port_count());
       vector<bool>pins_fromwc (rmod->port_count(), false);
+      vector<bool>pins_implicit (rmod->port_count(), false);
       vector<bool>pins_is_explicitly_not_connected (rmod->port_count(), false);
       vector<bool>interface_type_error (rmod->port_count(), false);
 
@@ -5750,6 +5772,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    symbol_search(this, des, scope, path_, UINT_MAX, &sr);
 				    if (sr.net != 0) {
 					  pins[j] = new PEIdent(rmod->ports[j]->name, UINT_MAX, true);
+					  pins_implicit[j] = true;
 					  pins[j]->set_lineno(get_lineno());
 					  pins[j]->set_file(get_file());
 				    }
@@ -5794,6 +5817,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // OK, do the binding by placing the expression in
 		    // the right place.
 		  pins[pidx] = pins_[idx].parm;
+		  const PEIdent*ident = dynamic_cast<const PEIdent*>(pins[pidx]);
+		  pins_implicit[pidx] = ident && ident->no_implicit_sig();
 		  if (!pins[pidx])
 			pins_is_explicitly_not_connected[pidx] = true;
 	    }
@@ -6721,6 +6746,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			     << "too complicated for elaboration." << endl;
 			continue;
 		  }
+		  if (pins_implicit[idx] && !prts.empty()
+		      && !implicit_port_types_match_(des, *pins[idx], sig, prts[0],
+						     rmod, port_name)) {
+			delete tmp_expr;
+			continue;
+		  }
 
 		  delete tmp_expr;
 		  if (!sig->get_lineno()) sig->set_line(*this);
@@ -6822,6 +6853,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			des->errors += 1;
 			continue;
 		  }
+		  if (pins_implicit[idx] && !prts.empty()
+		      && !implicit_port_types_match_(des, *pins[idx], sig, prts[0],
+						     rmod, port_name))
+			continue;
 
 		    // We do not support automatic bits to real conversion
 		    // for inout ports.
@@ -6884,6 +6919,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			des->errors += 1;
 			continue;
 		  }
+		  if (pins_implicit[idx] && !prts.empty()
+		      && !implicit_port_types_match_(des, *pins[idx], sig, prts[0],
+						     rmod, port_name))
+			continue;
 		    // If we have a real port driving a bit/vector signal
 		    // then we convert the real value using the appropriate
 		    // width cast. Since a real is only one bit the whole

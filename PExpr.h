@@ -541,6 +541,7 @@ class PEIdent : public PExpr {
 	// exist. Marked identifiers take the error branch instead.
       void set_strict_bind() { strict_bind_ = true; }
       bool strict_bind() const { return strict_bind_; }
+      bool no_implicit_sig() const { return no_implicit_sig_; }
 
 	// Set on COMPILER-GENERATED references that merely shadow a name
 	// the user already wrote (the $ivl_clocking_hist_on bookkeeping

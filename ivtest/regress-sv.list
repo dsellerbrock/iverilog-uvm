@@ -5749,3 +5749,6 @@ sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold
 # IEEE 1800-2017 A.9.3 note 37 / 13.5.5 and 1800-2023 13.5.5.
 sv_class_method_noarg_string_concat_2017 normal,-g2017,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
 sv_class_method_noarg_string_concat_2023 normal,-g2023,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
+# IEEE 1800-2017/2023 §23.3.2.3/.4 and §6.22.2.
+sv_implicit_port_type_mismatch_fail CE,-g2017,-s,sv_implicit_port_type_mismatch_fail ivltests gold=sv_implicit_port_type_mismatch_fail.gold
+sv_implicit_port_type_mismatch_fail_2023 CE,-g2023,-s,sv_implicit_port_type_mismatch_fail ivltests gold=sv_implicit_port_type_mismatch_fail.gold
