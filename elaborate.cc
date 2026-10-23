@@ -10565,6 +10565,24 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+	/* Check declared chandle identity before assignment-context elaboration
+	 * can reduce the RHS to the destination width (IEEE 1800-2017/2023 6.14,
+	 * 6.22.5). */
+      if (lv->net_type()) {
+	    const PEIdent*rhs_ident = dynamic_cast<const PEIdent*>(rval());
+	    ivl_type_t rhs_type = rhs_ident
+		  ? rhs_ident->test_type_of_ident(des, scope) : nullptr;
+	    bool lhs_chandle = lv->net_type() == &netvector_t::chandle_type;
+	    bool rhs_chandle = rhs_type == &netvector_t::chandle_type;
+	    if (lhs_chandle != rhs_chandle
+		  && !(lhs_chandle && dynamic_cast<const PENull*>(rval()))) {
+		  cerr << get_fileline() << ": error: chandle variables may only be assigned from another chandle or null (IEEE 1800-2017/2023 6.14)." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
+
 
 
 	/* If there is an internal delay expression, elaborate it. */
