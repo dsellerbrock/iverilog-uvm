@@ -98,21 +98,12 @@ static PLI_INT32 sys_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
-/*
- * M6B: $exit (IEEE 1800-2017 24.7). Terminate the calling program block;
- * when all program blocks have completed, simulation implicitly ends.
- * Icarus does not track per-program completion, and the overwhelmingly
- * common use is a single program testbench calling $exit to end the
- * test — for which "all programs complete" IS "this program completes".
- * So $exit ends the simulation quietly (no $finish banner). Multi-program
- * designs where one program should exit while others keep running are a
- * recorded corner (this ends the whole simulation at the first $exit).
- */
+/* The vthread runtime handles $exit for calls originating in program
+ * initial procedures. Calls from other processes are ignored as required
+ * by IEEE 1800-2017/2023 24.7. */
 static PLI_INT32 sys_exit_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       (void) name;
-      vpip_set_return_value(0);
-      vpi_control(vpiFinish, 0);
       return 0;
 }
 
