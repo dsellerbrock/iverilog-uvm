@@ -81,6 +81,10 @@ always_ff_fail		CE,-g2005-sv		ivltests
 always_ff_fail2		CE,-g2005-sv		ivltests
 always_ff_fail3		CE,-g2005-sv		ivltests
 always_ff_fail4		CE,-g2005-sv		ivltests
+sv_auto_dumpvars_trace_2017 CE,-g2017,-s,sv_auto_dumpvars_trace ivltests
+sv_auto_dumpvars_trace_2023 CE,-g2023,-s,sv_auto_dumpvars_trace ivltests
+sv_auto_monitor_trace_2017 CE,-g2017,-s,sv_auto_monitor_trace ivltests
+sv_auto_monitor_trace_2023 CE,-g2023,-s,sv_auto_monitor_trace ivltests
 always_ff_no_sens	CE,-g2005-sv		ivltests
 synth_modern_process_reject CE,-g2012,-S		ivltests
 synth_branch_disjoint_partial_latch_reject CE,-g2012,-S ivltests
