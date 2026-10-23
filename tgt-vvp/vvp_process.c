@@ -3639,6 +3639,7 @@ static int show_stmt_wait_arr(ivl_statement_t net, ivl_scope_t sscope)
  */
 struct deferred_final_task_frame_s {
       int active;
+      int is_final;
       int phase; /* 0: before call, 1: after call, 2: rejected */
       int saw_alloc;
       int saw_free;
@@ -3840,6 +3841,30 @@ static int deferred_final_task_validate_(ivl_statement_t net,
       return 0;
 }
 
+static int deferred_observed_task_validate_(ivl_statement_t net,
+                                             ivl_scope_t task)
+{
+      const char*reason = 0;
+      if (!task || ivl_scope_type(task) != IVL_SCT_TASK) {
+            reason = "the resolved subroutine is not a task";
+      } else if (ivl_scope_ports(task) != 0) {
+            reason = "the task has formal arguments";
+      } else if (ivl_scope_is_dpi_import(task)) {
+            reason = "DPI task calls are outside this slice";
+      } else {
+            return 1;
+      }
+
+      fprintf(stderr,
+              "%s:%u: sorry: observed-deferred user-task action is not "
+              "supported because %s; only a zero-argument direct "
+              "SystemVerilog task is supported.\n",
+              ivl_stmt_file(net), ivl_stmt_lineno(net),
+              reason ? reason : "its resolved shape is unsupported");
+      vvp_errors += 1;
+      return 0;
+}
+
 static int show_stmt_utask(ivl_statement_t net)
 {
       ivl_scope_t task = ivl_stmt_call(net);
@@ -3854,7 +3879,10 @@ static int show_stmt_utask(ivl_statement_t net)
                   deferred_final_task_frame_.phase = 2;
                   return 1;
             }
-            if (!deferred_final_task_validate_(net, task)) {
+            if ((deferred_final_task_frame_.is_final
+                 && !deferred_final_task_validate_(net, task))
+                || (!deferred_final_task_frame_.is_final
+                    && !deferred_observed_task_validate_(net, task))) {
                   deferred_final_task_frame_.phase = 2;
                   return 1;
             }
@@ -6037,8 +6065,8 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
                                              ivl_scope_t sscope)
 {
       const char*name = ivl_stmt_name(net);
-      const int is_begin = strcmp(name,
-            "$ivl_deferred_final_task_begin") == 0;
+      const int is_final = strstr(name, "final") != NULL;
+      const int is_begin = strstr(name, "_begin") != NULL;
       long source_id = deferred_final_task_marker_id_(net);
 
       if (source_id <= 0 || !sscope) {
@@ -6064,28 +6092,33 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             memset(&deferred_final_task_frame_, 0,
                    sizeof deferred_final_task_frame_);
             deferred_final_task_frame_.active = 1;
+            deferred_final_task_frame_.is_final = is_final;
             deferred_final_task_frame_.source_id = source_id;
             deferred_final_task_frame_.action_scope = sscope;
             deferred_final_task_frame_.action_lab = local_count++;
             deferred_final_task_frame_.after_lab = local_count++;
 
-            show_stmt_file_line(net,
-                                "Final deferred user-task assertion pin.");
-            fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+            show_stmt_file_line(net, is_final
+                  ? "Final deferred user-task assertion pin."
+                  : "Observed deferred user-task assertion enqueue.");
+            fprintf(vvp_out, is_final
+                  ? "    %%defer/final T_%u.%u, S_%p;\n"
+                  : "    %%defer/enqueue T_%u.%u, S_%p;\n",
                     thread_count, deferred_final_task_frame_.action_lab,
                     sscope);
             fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
                     deferred_final_task_frame_.after_lab);
             fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
                     deferred_final_task_frame_.action_lab);
-            fprintf(vvp_out, "    %%defer/final/taskkey %ld;\n",
-                    source_id);
+            fprintf(vvp_out, is_final
+                  ? "    %%defer/final/taskkey %ld;\n"
+                  : "    %%defer/enqueue/taskkey %ld;\n", source_id);
             return 0;
       }
 
       if (!deferred_final_task_frame_.active) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task end "
+                    "%s:%u: error: internal deferred user-task end "
                     "marker has no matching begin marker.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6095,14 +6128,14 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
       int rc = 0;
       if (deferred_final_task_frame_.source_id != source_id) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task marker "
+                    "%s:%u: error: internal deferred user-task marker "
                     "source ids do not match.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
             rc = 1;
       } else if (deferred_final_task_frame_.phase == 0) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task thunk "
+                    "%s:%u: error: internal deferred user-task thunk "
                     "contains no resolved task call.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6111,7 +6144,7 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
                  && deferred_final_task_frame_.saw_alloc
                  != deferred_final_task_frame_.saw_free) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred automatic-task "
+                    "%s:%u: error: internal automatic-task "
                     "thunk has an unbalanced alloc/free pair.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6290,7 +6323,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
             return show_deferred_assert_enqueue_(net, sscope);
 
       if (strcmp(stmt_name, "$ivl_deferred_final_task_begin") == 0
-          || strcmp(stmt_name, "$ivl_deferred_final_task_end") == 0)
+          || strcmp(stmt_name, "$ivl_deferred_final_task_end") == 0
+          || strcmp(stmt_name, "$ivl_deferred_observed_task_begin") == 0
+          || strcmp(stmt_name, "$ivl_deferred_observed_task_end") == 0)
             return show_deferred_final_task_marker_(net, sscope);
 
       if (strncmp(stmt_name, "$ivl_std_randomize_with|", 24) == 0) {
@@ -8000,7 +8035,9 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
       if (deferred_final_task_frame_.active) {
             int is_end = code == IVL_ST_STASK
                   && strcmp(ivl_stmt_name(net),
-                            "$ivl_deferred_final_task_end") == 0;
+                            deferred_final_task_frame_.is_final
+                                  ? "$ivl_deferred_final_task_end"
+                                  : "$ivl_deferred_observed_task_end") == 0;
 
             if (deferred_final_task_frame_.phase == 2 && !is_end)
                   return 0;

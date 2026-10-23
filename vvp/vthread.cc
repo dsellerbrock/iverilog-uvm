@@ -17871,6 +17871,8 @@ bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t cp)
  * blocking task calls and named sequential blocks deliberately share that
  * process, while explicit fork branches retain their own queue.
  */
+static bool validate_final_deferred_task_thunk_(vvp_code_t action);
+
 bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 {
       vthread_t owner = logical_process_thread_(thr);
@@ -17881,7 +17883,9 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
       vvp_code_t key = cp->cptr2;
 
-      if (!process || !key || key->opcode != of_DEFER_ENQUEUE_KEY
+      bool task_key = key && key->opcode == of_DEFER_ENQUEUE_TASK_KEY;
+      if (!process || !key
+          || (key->opcode != of_DEFER_ENQUEUE_KEY && !task_key)
           || !key->number || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
@@ -17894,7 +17898,16 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       }
       vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
-      if (!capture_deferred_args_(thr, action_pc, action_args, "observed"))
+      if (task_key) {
+            if (!validate_final_deferred_task_thunk_(action_pc)) {
+                  fprintf(stderr,
+                          "vvp: malformed observed-deferred user-task thunk; "
+                          "expected a complete zero-formal task call and "
+                          "dropped the report.\n");
+                  return true;
+            }
+      } else if (!capture_deferred_args_(thr, action_pc, action_args,
+                                         "observed"))
 	    return true;
 
       process->enqueue_deferred_assert(
@@ -17903,6 +17916,11 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 }
 
 bool of_DEFER_ENQUEUE_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+bool of_DEFER_ENQUEUE_TASK_KEY(vthread_t, vvp_code_t)
 {
       return true;
 }
