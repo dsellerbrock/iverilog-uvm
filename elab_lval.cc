@@ -3563,9 +3563,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			} else if (owner_class->has_covgrp_item(member_cur.name)) {
 			      cerr << get_fileline() << ": sorry: procedural write of "
 				   << "coverpoint/cross option `" << member_cur.name
-				   << ".option." << value_comp.name
-				   << "' is not supported; only option.at_least and "
-				   << "option.weight are implemented." << endl;
+				   << ".option." << value_comp.name << "' is not supported." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
