@@ -964,6 +964,13 @@ struct vthread_s {
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
       set<struct vthread_s*>detached_children;
+	/* The detached children spawned directly by this process.  The
+	 * detached_children set also retains reparented descendants, but
+	 * wait fork is defined only over these immediate children. */
+      set<struct vthread_s*>wait_fork_children;
+	/* Original process whose wait-fork child this is.  This ownership
+	 * survives reparenting used to keep detached descendants reachable. */
+      struct vthread_s*wait_fork_parent;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* DPI export (35.5): non-null on an exported SV *task* thread that is
@@ -1272,6 +1279,7 @@ inline vthread_s::vthread_s()
       perf_has_run = false;
 #endif
       last_pause_pc = 0;
+      wait_fork_parent = 0;
 }
 
 inline vthread_s::~vthread_s()
@@ -10973,6 +10981,31 @@ static void vthread_reap(vthread_t thr)
       vthread_cancel_event_wait(thr);
       vthread_cancel_mutation_wait(thr);
 
+	/* A process can outlive its original parent after reparenting, so
+	 * remove it from that parent's immediate-child wait set independently
+	 * of its current reachability parent. */
+      if (thr->wait_fork_parent) {
+	    vthread_t owner = thr->wait_fork_parent;
+	    thr->wait_fork_parent = 0;
+	    size_t res = owner->wait_fork_children.erase(thr);
+	    assert(res == 1);
+	    if (owner->i_am_waiting && owner->wait_fork_children.empty()) {
+		  owner->i_am_waiting = 0;
+		  owner->deferred_assert_flush_on_run = 1;
+		  schedule_vthread(owner, 0, true);
+	    }
+      }
+
+	/* Any outstanding direct children cease to be wait-fork children
+	 * once this process ends; their descendants remain independently
+	 * reachable through detached_children. */
+      while (! thr->wait_fork_children.empty()) {
+	    vthread_t child = *(thr->wait_fork_children.begin());
+	    assert(child->wait_fork_parent == thr);
+	    child->wait_fork_parent = 0;
+	    thr->wait_fork_children.erase(thr->wait_fork_children.begin());
+      }
+
 	/* Reparent children to the grandparent, emptying our child sets as
 	 * we go. Mirror of_END's while/pop erase discipline so no stale child
 	 * pointer survives this thread's single, owning reap. */
@@ -18340,18 +18373,9 @@ static bool do_disable(vthread_t thr, vthread_t match)
       if (thr->i_am_detached) {
 	      /* A detached thread (fork-join_none, possibly reparented after
 	       * its original parent ended) must NOT spuriously wake a parent
-	       * that is joining for a different child.  Mirror of_END's
-	       * detached-child path: optionally wake a parent stuck in
-	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
-	       * the parent's detached_children, so do not erase manually. */
-	    if (parent && parent->i_am_waiting
-		&& parent->detached_children.size() == 1) {
-		    /* This is the last detached child; the wait fork
-		     * predicate will become true once we reap. */
-		  parent->i_am_waiting = 0;
-		  parent->deferred_assert_flush_on_run = 1;
-		  schedule_vthread(parent, 0, true);
-	    }
+	       * that is joining for a different child. vthread_reap will remove
+	       * it from both ownership sets and wake its wait-fork owner if this
+	       * was the last immediate child. */
 	    vthread_reap(thr);
       } else if (parent && parent->i_am_joining) {
 	      // If a parent is waiting in a %join, wake it up. Note
@@ -19066,14 +19090,6 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    assert(tmp);
 	    size_t res = tmp->detached_children.erase(thr);
 	    assert(res == 1);
-	      /* If the parent is waiting for the detached children to
-	       * finish then the last detached child needs to tell the
-	       * parent to wake up when it is finished. */
-	    if (tmp->i_am_waiting && tmp->detached_children.empty()) {
-		  tmp->i_am_waiting = 0;
-		  tmp->deferred_assert_flush_on_run = 1;
-		  schedule_vthread(tmp, 0, true);
-	    }
 	      /* Fully detach this thread so it will be reaped below. */
 	    thr->i_am_detached = 0;
 	    thr->parent = 0;
@@ -21643,6 +21659,8 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		  assert(res == 1);
 		  child->i_am_detached = 1;
 		  thr->detached_children.insert(child);
+		  child->wait_fork_parent = thr;
+		  thr->wait_fork_children.insert(child);
 	    }
       }
 
@@ -33980,7 +33998,7 @@ bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
 
 /*
  * Implement the %wait/fork (SystemVerilog) instruction by suspending
- * the current thread until all the detached children have finished.
+ * the current thread until all its immediate detached children finish.
  */
 bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 {
@@ -34005,9 +34023,9 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children when waiting. */
       assert(thr->children.empty());
 
-	/* If there are no detached children then there is nothing to
+	/* If there are no immediate detached children then there is nothing to
 	 * wait for. */
-      if (thr->detached_children.empty()) return true;
+      if (thr->wait_fork_children.empty()) return true;
 
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */
