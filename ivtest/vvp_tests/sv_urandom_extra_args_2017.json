@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_urandom_extra_args.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_urandom_extra_args"
+}
