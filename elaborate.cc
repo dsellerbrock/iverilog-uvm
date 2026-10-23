@@ -17861,20 +17861,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  if (method_name == perm_string::literal("sample")) {
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
-			      unsigned ncp = cgtype->covgrp_ncoverpoints();
-			      vector<NetExpr*> argv;
-
-			      // args 1..ncp: coverpoint values from the
-			      // parent class; args ncp+1..2*ncp: the iff
-			      // guard values (constant 1 when unguarded).
-			      //
-			      // The coverpoint source properties live in the
-			      // object that CONTAINS the covergroup property.
-			      // For a chained call (obj.cg.sample()) that
-			      // parent is the base of the covergroup property
-			      // expression; the implicit "this" handle only
-			      // covers calls made from inside the parent
-			      // class itself.
+			      // args 1..ncp: coverpoint values from the parent class; args
+			      // ncp+1..2*ncp: iff guard values (constant 1 when unguarded).
+			      // Sources are properties of the object containing this group.
 			      NetNet* this_net = find_implicit_this_handle(des, scope);
 			      const NetEProperty*cg_prop =
 				    dynamic_cast<const NetEProperty*>(obj_expr);
@@ -17888,6 +17877,21 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      else if (this_net)
 				    parent_cls = dynamic_cast<const netclass_t*>
 					  (this_net->net_type());
+			      // A concrete class specialization requested through the
+			      // signature-only path can reach sample() before its deferred
+			      // class body has materialized embedded-covergroup metadata.
+			      // Complete it before lowering this call from that metadata.
+			      if (parent_cls && !parent_cls->body_elaborated()) {
+				NetScope*owner_scope = const_cast<NetScope*>(
+				      parent_cls->class_scope());
+				PClass*owner_pform = owner_scope
+				      ? const_cast<PClass*>(owner_scope->class_pform()) : nullptr;
+				if (owner_pform)
+				      const_cast<netclass_t*>(parent_cls)->elaborate(
+					    des, owner_pform);
+			      }
+			      unsigned ncp = cgtype->covgrp_ncoverpoints();
+			      vector<NetExpr*> argv;
 			      NetNet*interface_receiver = nullptr;
 			      auto make_parent_expr = [&]() -> NetExpr* {
 				    if (interface_receiver) {
