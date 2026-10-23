@@ -6081,13 +6081,21 @@ void pform_makewire(const struct vlltype&li,
       }
 
       std::vector<PWire*> *wires = new std::vector<PWire*>;
+      bool has_initializer = false;
 
       for (list<decl_assignment_t*>::iterator cur = assign_list->begin()
 		 ; cur != assign_list->end() ; ++ cur) {
 	    decl_assignment_t* curp = *cur;
 	    PWire *wire = pform_makewire(li, curp->name, type, &curp->index);
 	    wires->push_back(wire);
+	    if (curp->expr) has_initializer = true;
       }
+
+      // Declarations without any initializers use the net-delay semantics;
+      // when an initializer is present, delay applies to its continuous
+      // assignment as before.
+      if (!has_initializer)
+	    pform_set_net_delay(li, delay, wires);
 
       pform_set_data_type(li, data_type, wires, type, attr, is_const);
 
