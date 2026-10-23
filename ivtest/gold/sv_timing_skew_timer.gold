@@ -1,0 +1,5 @@
+./ivltests/sv_timing_skew_timer.v:11: Timing violation: $timeskew check in main at time 12000
+./ivltests/sv_timing_skew_timer.v:12: Timing violation: $timeskew check in main at time 22000
+./ivltests/sv_timing_skew_timer.v:13: Timing violation: $fullskew check in main at time 32000
+PASS: timer-based skew checks
+./ivltests/sv_timing_skew_timer.v:26: $finish called at 60000 (1ps)
