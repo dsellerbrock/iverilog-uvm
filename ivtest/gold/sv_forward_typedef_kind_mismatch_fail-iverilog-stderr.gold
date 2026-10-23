@@ -1,0 +1,1 @@
+ivltests/sv_forward_typedef_kind_mismatch_fail.v:3 error: Type identifier `wrong_kind_t` does not conform to its forward declaration as `enum` at ivltests/sv_forward_typedef_kind_mismatch_fail.v:2.
