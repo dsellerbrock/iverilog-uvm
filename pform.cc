@@ -16265,6 +16265,52 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    pform_sva_destroy_property(conseq);
 	    return nullptr;
       }
+
+	/* IEEE 1800-2017/2023 16.12.1 permits a named property instance as a
+	   property_expr operand. In particular, the recursive property_expr
+	   grammar can put a bare property name here as an implication
+	   consequent. Expand that declaration before composing the outer
+	   implication; otherwise the identifier is left in the sequence and
+	   later elaborated as a signal. */
+      if (conseq->op_type == 0 && conseq->seq && conseq->seq->size() == 1
+	  && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && conseq->mc_boundary == -1
+	  && (*conseq->seq)[0].delay_lo == 0
+	  && (*conseq->seq)[0].delay_hi == 0
+	  && (*conseq->seq)[0].rep_tail == 0) {
+	if (PEIdent*id = dynamic_cast<PEIdent*>((*conseq->seq)[0].expr)) {
+	  if (!id->path().package && id->path().name.size() == 1
+	      && id->path().name.front().index.empty()) {
+	    auto pit = sva_resolve_(sva_module_properties,
+				id->path().name.front().name);
+	    if (pit != sva_module_properties.end() && pit->second) {
+	      sva_property_t*named = pit->second;
+	      /* A property used as a property-building operand cannot carry
+		 disable iff (16.12.1). Preserve it as an explicit diagnostic
+		 rather than silently combining its disable with the outer one. */
+	      if (named->disable_iff_expr) {
+		cerr << loc << ": error: named property `"
+		     << id->path().name.front().name
+		     << "' with disable iff cannot be used as a property_expr operand "
+		     << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+		++error_count;
+		delete id;
+		delete conseq->seq;
+		delete conseq;
+		pform_sva_destroy_sequence(ante);
+		return nullptr;
+	      }
+	      /* As in direct named-property instantiation, currently supported
+		 declaration shapes transfer their stored body exactly once. */
+	      pit->second = nullptr;
+	      delete id;
+	      delete conseq->seq;
+	      delete conseq;
+	      return pform_sva_paren_conseq(loc, op_type, ante, named);
+	    }
+	  }
+	}
+      }
       if (sva_prop_is_plain_seq_(conseq)) {
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
 	    conseq->seq = nullptr;

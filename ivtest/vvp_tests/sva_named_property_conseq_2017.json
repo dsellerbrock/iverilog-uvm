@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sva_named_property_conseq.v",
+    "iverilog-args" : [ "-g2017", "-gassertions" ]
+}
