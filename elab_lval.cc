@@ -908,6 +908,44 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       ivl_assert(*this, reg);
 
+	/* IEEE 1800-2017/2023 19.4 restricts assignment to an embedded
+	   covergroup variable to the constructor of its parent class. */
+	const netclass_t* property_type = nullptr;
+	const netclass_t* property_owner =
+	      dynamic_cast<const netclass_t*>(reg->net_type());
+	if (property_owner) {
+	      int idx = property_owner->property_idx_from_name(peek_tail_name(path_));
+	      if (idx >= 0)
+		    property_type = dynamic_cast<const netclass_t*>(property_owner->get_prop_type(idx));
+	}
+	for (NetScope* lexical = scope; lexical; lexical = lexical->parent()) {
+	      if (property_type) break;
+	      if (lexical->type() != NetScope::CLASS) continue;
+	      property_owner = lexical->class_def();
+	      int idx = property_owner ? property_owner->property_idx_from_name(peek_tail_name(path_)) : -1;
+	      if (idx >= 0) {
+		    property_type = dynamic_cast<const netclass_t*>(property_owner->get_prop_type(idx));
+		    break;
+	      }
+	}
+	if (gn_system_verilog() && property_type
+	    && property_type->covgrp_owner_prop() >= 0) {
+	      NetScope* function_scope = scope;
+	      while (function_scope && function_scope->type() != NetScope::FUNC)
+		    function_scope = function_scope->parent();
+	      const netclass_t* constructor_owner = function_scope
+		    && function_scope->parent()
+		    && function_scope->parent()->type() == NetScope::CLASS
+		    ? function_scope->parent()->class_def() : nullptr;
+	      if (!function_scope || function_scope->basename() != perm_string::literal("new")
+		  || (constructor_owner && constructor_owner != property_owner)) {
+		    cerr << get_fileline() << ": error: Embedded covergroup variable `"
+			 << path_ << "' may only be assigned in the new method." << endl;
+		    des->errors += 1;
+		    return 0;
+	      }
+	}
+
 	/* Match the constant-function read-side rule for a string character
 	   l-value. A declaration in the function or one of its nested lexical
 	   blocks is local; module, package, and class storage is not. Ordinary
