@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_array_query_const_var.v",
+    "iverilog-args": ["-g2023", "-s", "sv_array_query_const_var"],
+    "gold": "sv_array_query_const_var"
+}

@@ -12473,6 +12473,99 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       unsigned nparms = parms_.size();
 
+	// IEEE 1800-2017/2023 20.7 permits array query functions in a
+	// constant expression when the first argument has a fixed-size type.
+	// A variable identifier is not itself a constant expression, so fold
+	// the query from its declared dimensions instead of elaborating the
+	// identifier as a constant value. In particular, this handles packed
+	// dimensions after the unpacked dimensions (e.g. $size(Ram, 2)).
+      if ((NEED_CONST & flags) && nparms >= 1 && nparms <= 2
+	  && (strcmp(name, "$size") == 0
+	      || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0
+	      || strcmp(name, "$low") == 0
+	      || strcmp(name, "$high") == 0
+	      || strcmp(name, "$increment") == 0
+	      || (nparms == 1 && (strcmp(name, "$dimensions") == 0
+				  || strcmp(name, "$unpacked_dimensions") == 0)))
+	  && dynamic_cast<PEIdent*>(parms_[0].parm)) {
+	    const PEIdent*ident = dynamic_cast<const PEIdent*>(parms_[0].parm);
+	    ivl_type_t type = ident->test_type_of_ident(des, scope);
+	    std::vector<netrange_t> dimensions;
+	    size_t unpacked_dimensions = 0;
+	    bool fixed_size = type != nullptr;
+	    while (fixed_size && type) {
+	      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+		const netranges_t&dims = array->static_dimensions();
+		dimensions.insert(dimensions.end(), dims.begin(), dims.end());
+		unpacked_dimensions += dims.size();
+		type = array->element_type();
+	      } else if (const netparray_t*packed_array =
+			 dynamic_cast<const netparray_t*>(type)) {
+		const netranges_t&dims = packed_array->static_dimensions();
+		dimensions.insert(dimensions.end(), dims.begin(), dims.end());
+		type = packed_array->element_type();
+	      } else if (const netvector_t*vector =
+			 dynamic_cast<const netvector_t*>(type)) {
+		const netranges_t&dims = vector->packed_dims();
+		dimensions.insert(dimensions.end(), dims.begin(), dims.end());
+		break;
+	      } else if (dynamic_cast<const netdarray_t*>(type)
+			 || dynamic_cast<const netqueue_t*>(type)) {
+		fixed_size = false;
+	      } else {
+		break;
+	      }
+	    }
+	    if (fixed_size && (!dimensions.empty()
+			       || strcmp(name, "$dimensions") == 0
+			       || strcmp(name, "$unpacked_dimensions") == 0)) {
+		long dimension = 1;
+		if (nparms == 2 && strcmp(name, "$dimensions") != 0
+		    && strcmp(name, "$unpacked_dimensions") != 0) {
+		    NetExpr*dim_expr = elab_sys_task_arg(
+			  des, scope, lex_strings.make(name), 1, parms_[1].parm,
+			  true);
+		    NetEConst*dim_const = dynamic_cast<NetEConst*>(dim_expr);
+		    if (!dim_const || !dim_const->value().is_defined()
+			|| dim_const->value().is_negative()) {
+			delete dim_expr;
+			return 0;
+		    }
+		    dimension = dim_const->value().as_long();
+		    delete dim_expr;
+		}
+		NetExpr*result = nullptr;
+		if (strcmp(name, "$dimensions") == 0) {
+		      size_t count = dimensions.empty() ? 1 : dimensions.size();
+		      result = make_const_val((long)count);
+		} else if (strcmp(name, "$unpacked_dimensions") == 0) {
+		      result = make_const_val((long)unpacked_dimensions);
+		} else if (dimension < 1
+			   || (size_t)dimension > dimensions.size()) {
+		      result = make_const_x(32);
+		} else {
+		      const netrange_t&range = dimensions[dimension-1];
+		      long left = range.get_msb();
+		      long right = range.get_lsb();
+		      if (strcmp(name, "$size") == 0)
+			    result = make_const_val((long)range.width());
+		      else if (strcmp(name, "$left") == 0)
+			    result = make_const_val(left);
+		      else if (strcmp(name, "$right") == 0)
+			    result = make_const_val(right);
+		      else if (strcmp(name, "$low") == 0)
+			    result = make_const_val(std::min(left, right));
+		      else if (strcmp(name, "$high") == 0)
+			    result = make_const_val(std::max(left, right));
+		      else
+			    result = make_const_val_s(left >= right ? 1 : -1);
+		}
+		result->set_line(*this);
+		return cast_to_width_(result, expr_wid);
+	    }
+      }
+
       if (name == "$system" && nparms > 1) {
 	    cerr << get_fileline() << ": error: The $system function takes zero or one argument; found "
 		 << nparms << "." << endl;
