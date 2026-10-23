@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "vpi_variables_scope.sv",
+    "iverilog-args": ["-g2023"],
+    "gold": "vpi_variables_scope",
+    "vpi-source": "vpi_variables_scope.c"
+}

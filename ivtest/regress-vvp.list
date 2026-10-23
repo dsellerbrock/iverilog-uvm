@@ -10,6 +10,8 @@ array_packed_sysfunct		vvp_tests/array_packed_sysfunct.json
 array_packed_value_list		vvp_tests/array_packed_value_list.json
 array_packed_write_read		vvp_tests/array_packed_write_read.json
 array_slice_concat		vvp_tests/array_slice_concat.json
+vpi_variables_scope_2017	vvp_tests/vpi_variables_scope_2017.json
+vpi_variables_scope_2023	vvp_tests/vpi_variables_scope_2023.json
 automatic_error11		vvp_tests/automatic_error11.json
 automatic_error12		vvp_tests/automatic_error12.json
 automatic_error13		vvp_tests/automatic_error13.json

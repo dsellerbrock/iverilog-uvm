@@ -339,6 +339,16 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
 def run_normal(options: dict, cfg: dict) -> list:
     '''Run a normal test'''
+    if options['vpi_source'] is not None:
+        # VPI modules use the same C sources as vpi_regress.list. Give each
+        # test a separate module name so generation variants do not collide.
+        vpi_cmd = ["iverilog-vpi" + cfg['suffix'], "--name=" + options['key'],
+                   os.path.join("vpi", options['vpi_source'])]
+        vpi_res = run_cmd(vpi_cmd)
+        if vpi_res.returncode != 0:
+            log_results(options['key'], "iverilog-vpi", vpi_res)
+            return [1, "Failed - VPI module build failed."]
+        options['vvp_args'].extend(["-M", ".", "-m", options['key']])
     return do_run_normal(options, cfg, False, False)
 
 

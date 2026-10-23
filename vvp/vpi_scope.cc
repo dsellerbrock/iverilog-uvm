@@ -298,7 +298,9 @@ static int compare_types(int code, int type)
 	    return 1;
 
       if ( code == vpiVariables &&
-	     (type == vpiIntegerVar  ||
+             (type == vpiReg         ||
+              type == vpiRegArray    ||
+              type == vpiIntegerVar  ||
 	      type == vpiBitVar      ||
 	      type == vpiByteVar     ||
 	      type == vpiShortIntVar ||

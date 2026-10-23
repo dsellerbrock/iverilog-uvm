@@ -1,0 +1,2 @@
+PASS vpiVariables includes v and variable port y
+ivltests/vpi_variables_scope.sv:8: $finish called at 1 (1s)
