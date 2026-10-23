@@ -1759,6 +1759,9 @@ class PEStreaming : public PExpr {
                               ivl_type_t type, unsigned flags) const override;
       NetExpr* elaborate_expr(Design* des, NetScope* scope,
                               unsigned expr_wid, unsigned flags) const override;
+      NetExpr* elaborate_bitstream_cast(Design* des, NetScope* scope,
+                                        unsigned expr_wid,
+                                        unsigned flags) const;
       // Unpack elaboration (11.4.14.3): the streaming concatenation was
       // the target of an assignment and lv_width is the total width of
       // the (rewritten) l-value concatenation.

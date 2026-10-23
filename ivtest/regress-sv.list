@@ -49,6 +49,9 @@
 # NI:      Not implemented. Only use for version specific tests.
 #
 # <directory> is where the <testname>.v file is located.
+
+sv_stream_operand_legality_fail_2017	CE,-g2017		ivltests
+sv_stream_operand_legality_fail_2023	CE,-g2023		ivltests
 #
 # An optional fourth and fifth argument can be supplied.
 #
