@@ -1,0 +1,13 @@
+readmem-error normal ivltests gold=readmem-error.gold
+readmemb1 normal ivltests
+readmemb2 normal ivltests
+readmemb3 normal ivltests
+readmemh1 normal ivltests
+readmemh1a normal ivltests
+readmemh2 normal ivltests
+readmemh3 normal ivltests
+readmemh4 normal ivltests
+readmemh5 CE ivltests
+writemem-error normal ivltests gold=writemem-error.gold
+writememb1 normal ivltests
+writememb2 normal ivltests
