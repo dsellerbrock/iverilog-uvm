@@ -1,0 +1,5 @@
+ivltests/sv_class_handle_equality_unrelated_fail.v:9: error: class handle operands of '==' are not assignment compatible (IEEE 1800-2017/2023 8.4).
+ivltests/sv_class_handle_equality_unrelated_fail.v:10: error: class handle operands of '!=' are not assignment compatible (IEEE 1800-2017/2023 8.4).
+ivltests/sv_class_handle_equality_unrelated_fail.v:11: error: class handle operands of '===' are not assignment compatible (IEEE 1800-2017/2023 8.4).
+ivltests/sv_class_handle_equality_unrelated_fail.v:12: error: class handle operands of '!==' are not assignment compatible (IEEE 1800-2017/2023 8.4).
+4 error(s) during elaboration.
