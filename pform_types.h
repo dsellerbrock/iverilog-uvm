@@ -282,13 +282,14 @@ struct typeref_t : public data_type_t {
       std::ostream& debug_dump(std::ostream&out) const override;
 
       inline typedef_t* typedef_ref() const { return type; }
+      inline void set_typedef_ref(typedef_t*t) const { type = t; }
       inline PScope* scope_ref() const { return scope; }
       inline const parmvalue_t* parameter_values() const { return overrides; }
       inline void set_parameter_values(parmvalue_t*o) { overrides = o; }
 
 private:
       PScope *scope;
-      typedef_t *type;
+      mutable typedef_t *type;
       parmvalue_t* overrides;
 };
 
@@ -302,8 +303,10 @@ private:
    alias and aggregate-shape handling for the selected member. */
 struct class_scoped_typeref_t : public typeref_t {
       class_scoped_typeref_t(typedef_t*member, PScope*fallback_scope,
-                             data_type_t*qualifier)
-      : typeref_t(member, fallback_scope), qualifier_(qualifier) { }
+                             data_type_t*qualifier,
+                             perm_string deferred_member = perm_string())
+      : typeref_t(member, fallback_scope), qualifier_(qualifier),
+        deferred_member_(deferred_member), deferred_reported_(false) { }
 
       NetScope* find_scope(Design*des, NetScope*scope) const override;
       std::ostream& debug_dump(std::ostream&out) const override;
@@ -312,6 +315,8 @@ struct class_scoped_typeref_t : public typeref_t {
 
 private:
       std::unique_ptr<data_type_t> qualifier_;
+      perm_string deferred_member_;
+      mutable bool deferred_reported_;
 };
 
 /*
