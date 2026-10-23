@@ -1,0 +1,3 @@
+runtime error: semaphore.put() called with negative keyCount
+runtime error: semaphore.try_get() called with negative keyCount
+runtime error: semaphore.get() called with negative keyCount

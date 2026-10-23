@@ -35394,6 +35394,13 @@ bool of_SEM_GET(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.get() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
+      }
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
@@ -35422,6 +35429,13 @@ bool of_SEM_PUT(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.put() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
+      }
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
@@ -35447,13 +35461,16 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      bool negative = nval & (1UL << 31);
+      if (negative)
+	    cerr << "runtime error: semaphore.try_get() called with negative keyCount" << endl;
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
       vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
-      bool ok = sem ? sem->try_get(nval ? nval : 1) : false;
+      bool ok = !negative && sem ? sem->try_get(nval ? nval : 1) : false;
       vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
       return true;
