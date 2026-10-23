@@ -6447,13 +6447,27 @@ class Design {
 	// detected. It prevents code being emitted.
       unsigned errors;
 
-      void fork_enter() { in_fork++; };
-      void fork_exit() { in_fork--; };
-      bool is_in_fork() { return in_fork != 0; }
-      unsigned fork_depth() const { return in_fork; }
-      void restore_fork_depth(unsigned depth) { in_fork = depth; }
+      void loop_enter() { loop_depth++; }
+      void loop_exit() { loop_depth--; }
+      void fork_enter() { fork_loop_depths.push_back(loop_depth); }
+      void fork_exit() { fork_loop_depths.pop_back(); }
+      bool is_in_fork() const { return !fork_loop_depths.empty(); }
+      unsigned fork_depth() const { return fork_loop_depths.size(); }
+      bool jump_controls_outer_loop() const
+      {
+	    return is_in_fork() && loop_depth <= fork_loop_depths.back();
+      }
+      const std::vector<unsigned>& fork_loop_context() const
+      {
+	    return fork_loop_depths;
+      }
+      void restore_fork_loop_context(const std::vector<unsigned>&context)
+      {
+	    fork_loop_depths = context;
+      }
 
-      unsigned int in_fork = 0;
+      unsigned loop_depth = 0;
+      std::vector<unsigned> fork_loop_depths;
 
 	/* Unpacked-struct member defaults are validated when their declaring
 	 * pform type is elaborated, even when no variable uses the type or a
