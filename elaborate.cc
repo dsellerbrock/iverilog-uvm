@@ -24148,6 +24148,22 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
 
+	/* The class-event and event-array fast paths below return directly, before
+	   elaborate_st() can enforce the function timing restriction. Constructors
+	   are functions too, so reject every event control before those paths. A
+	   positive event denotes the separate wait statement and is checked by
+	   elaborate_wait(). */
+      if (scope->in_func()) {
+	    for (const PEEvent*event : expr_) {
+		  if (event && event->type() != PEEvent::POSITIVE) {
+			cerr << get_fileline() << ": error: functions cannot have "
+			        "event statements." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+	    }
+      }
+
 	/* Conditional event expressions must retain one-shot wait semantics,
 	   so lower them before the specialized single-event fast paths below. */
       if (has_conditional_event_()) {
