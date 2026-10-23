@@ -742,8 +742,66 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         vpi_printf("WARNING: %s:%d: missing argument for %s%s.\n",
                    info->filename, info->lineno, info->name, fmtb);
       } else {
-        value.format = vpiStringVal;
-        vpi_get_value(info->items[*idx], &value);
+        vpiHandle arg = info->items[*idx];
+        PLI_INT32 type = vpi_get(vpiType, arg);
+        char *owned_string = 0;
+        if (type == vpiRegArray || type == vpiNetArray || type == vpiMemory) {
+          vpiHandle left = vpi_handle(vpiLeftRange, arg);
+          vpiHandle right = vpi_handle(vpiRightRange, arg);
+          size_t used = 0;
+          size_t capacity = 1;
+          char *array_string = malloc(capacity);
+          array_string[0] = '\0';
+          int is_byte_array = left && right;
+          if (is_byte_array) {
+            s_vpi_value bound;
+            bound.format = vpiIntVal;
+            vpi_get_value(left, &bound);
+            PLI_INT32 left_index = bound.value.integer;
+            bound.format = vpiIntVal;
+            vpi_get_value(right, &bound);
+            PLI_INT32 right_index = bound.value.integer;
+            PLI_INT32 step = left_index <= right_index ? 1 : -1;
+            PLI_INT32 count = vpi_get(vpiSize, arg);
+            for (PLI_INT32 offset = 0; offset < count; ++offset) {
+              PLI_INT32 index = left_index + offset * step;
+              vpiHandle word = vpi_handle_by_index(arg, index);
+              if (!word) {
+                is_byte_array = 0;
+                break;
+              }
+              if (vpi_get(vpiSize, word) != 8) {
+                is_byte_array = 0;
+                break;
+              }
+              value.format = vpiIntVal;
+              vpi_get_value(word, &value);
+              if (value.format != vpiIntVal) {
+                is_byte_array = 0;
+                break;
+              }
+              if (used + 2 > capacity) {
+                capacity *= 2;
+                array_string = realloc(array_string, capacity);
+              }
+              array_string[used++] = (char)value.value.integer;
+              array_string[used] = '\0';
+            }
+          }
+          if (left) vpi_free_object(left);
+          if (right) vpi_free_object(right);
+          if (is_byte_array) {
+            value.format = vpiStringVal;
+            value.value.str = array_string;
+            owned_string = array_string;
+          } else {
+            free(array_string);
+            value.format = vpiSuppressVal;
+          }
+        } else {
+          value.format = vpiStringVal;
+          vpi_get_value(arg, &value);
+        }
         if (value.format == vpiSuppressVal) {
           vpi_printf("WARNING: %s:%d: incompatible value for %s%s.\n",
                      info->filename, info->lineno, info->name, fmtb);
@@ -762,6 +820,7 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           else sprintf(result, "%-*s", width, value.value.str);
           size = strlen(result) + 1;
         }
+        free(owned_string);
       }
       break;
 
