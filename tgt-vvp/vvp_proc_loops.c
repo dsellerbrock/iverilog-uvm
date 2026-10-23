@@ -234,6 +234,13 @@ int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
 
 	/* Calculate the repeat count onto the top of the vec4 stack. */
       draw_eval_vec4(expr);
+	/* Relational comparison with zero can produce a known result even if
+	   only less-significant bits of the count are unknown. Equality with
+	   a duplicate count is unknown whenever any bit is x or z. */
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%cmp/e;\n");
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n", thread_count, lab_out);
 
 	/* Test that 0 < expr, escape if expr <= 0. If the expr is
 	   unsigned, then we only need to try to escape if expr==0 as
@@ -242,7 +249,7 @@ int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
       fprintf(vvp_out, "    %%cmpi/%s 0, 0, %u;\n", sign, ivl_expr_width(expr));
       if (ivl_expr_signed(expr))
 	    fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, 5;\n", thread_count, lab_out);
-      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
+      fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, 4;\n", thread_count, lab_out);
 	/* This adds -1 (all ones in 2's complement) to the count. */
       fprintf(vvp_out, "    %%subi 1, 0, %u;\n",  ivl_expr_width(expr));
 

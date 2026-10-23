@@ -5751,6 +5751,8 @@ sv_wait_order_null_else_2023 normal,-g2023,-s,sv_wait_order_null_else ivltests g
 # Icarus interpretation; IEEE 1800-2017/2023 §15.5.4 does not define duplicate identifiers.
 sv_wait_order_duplicate_interpretation_2017 normal,-g2017,-s,sv_wait_order_duplicate_interpretation ivltests gold=sv_wait_order_duplicate_interpretation.gold
 sv_wait_order_duplicate_interpretation_2023 normal,-g2023,-s,sv_wait_order_duplicate_interpretation ivltests gold=sv_wait_order_duplicate_interpretation.gold
+sv_repeat_xz_count_2017 normal,-g2017,-s,sv_repeat_xz_count ivltests
+sv_repeat_xz_count_2023 normal,-g2023,-s,sv_repeat_xz_count ivltests
 sv_wait_order_vlog95 CE,-g2017,-tvlog95,-s,sv_wait_order_target ivltests gold=sv_wait_order_vlog95.gold
 sv_wait_order_vhdl CE,-g2017,-tvhdl,-s,sv_wait_order_target ivltests gold=sv_wait_order_vhdl.gold
 sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold=sv_wait_order_synth.gold
