@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+sv_static_method_instance_access_fail_2017	vvp_tests/sv_static_method_instance_access_fail_2017.json
+sv_static_method_instance_access_fail_2023	vvp_tests/sv_static_method_instance_access_fail_2023.json
 always4B			vvp_tests/always4B.json
 analog1				vvp_tests/analog1.json
 analog2				vvp_tests/analog2.json
