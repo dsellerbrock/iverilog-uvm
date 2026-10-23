@@ -14309,6 +14309,17 @@ expr_primary
 	}
       }
 
+  | K_const '\'' '(' expression ')'
+      { std::list<named_pexpr_t> args;
+	named_pexpr_t arg;
+	arg.parm = $4;
+	args.push_back(arg);
+	PECallFunction*tmp = new PECallFunction(
+	      lex_strings.make("$ivl_const_cast"), args);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   /* Aggregate literals are primaries. */
 
   | assignment_pattern

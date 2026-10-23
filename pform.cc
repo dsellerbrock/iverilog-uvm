@@ -10291,6 +10291,17 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				 const std::map<perm_string,unsigned>*unsampled_locals)
 {
       if (!e) return nullptr;
+	/* IEEE 1800-2017/2023 16.5.1: const'(expr) uses the
+	   current value of expr in an assertion, rather than its Preponed
+	   value. The parser keeps this internal call as the cast marker. */
+	if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	      if (!cf->receiver_expr()
+		  && !strcmp(peek_tail_name(cf->path().name).str(),
+			     "$ivl_const_cast")
+		  && cf->get_parms().size() == 1
+		  && cf->get_parms()[0].parm)
+		    return sva_clone_expr_(cf->get_parms()[0].parm);
+	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	      /* A sequence local is per assertion attempt, not a design signal.
