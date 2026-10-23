@@ -5878,7 +5878,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    path_.push_back(name_component_t(rmod->ports[j]->name));
 				    symbol_search_results sr;
 				    symbol_search(this, des, scope, path_, UINT_MAX, &sr);
-				    if (sr.net != 0) {
+				    // Interface instances are scopes rather than nets, but
+				    // they are valid implicit .name actuals for interface
+				    // ports (IEEE 1800-2017/2023 23.3.2.4).
+				    if (sr.net != 0 || (sr.scope
+						&& sr.scope->type() == NetScope::MODULE
+						&& sr.scope->is_interface())) {
 					  pins[j] = new PEIdent(rmod->ports[j]->name, UINT_MAX, true);
 					  pins_implicit[j] = true;
 					  pins[j]->set_lineno(get_lineno());
