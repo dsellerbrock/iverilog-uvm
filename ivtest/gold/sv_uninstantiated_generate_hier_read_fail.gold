@@ -1,0 +1,2 @@
+./ivltests/sv_uninstantiated_generate_hier_read_fail.v:5: error: Unable to bind wire/reg/memory `sv_uninstantiated_generate_hier_read_fail.g.v' in `sv_uninstantiated_generate_hier_read_fail'
+1 error(s) during elaboration.
