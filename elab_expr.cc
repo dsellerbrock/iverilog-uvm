@@ -29,6 +29,7 @@
 # include  <climits>
 # include  <functional>
 # include  <iterator>
+# include  <limits>
 # include  <map>
 # include  <memory>
 # include  <set>
@@ -140,6 +141,61 @@ extern string pexpr_to_rooted_class_constraint_ir(
       vector<NetExpr*>*object_slots = nullptr,
       vector<bool>*function_slot_flags = nullptr,
       vector<NetExpr*>*prebuilt_value_slots = nullptr);
+
+/* Return the bit-stream width of a fixed-size data type. Unpacked
+ * structures and arrays do not have packed_width(), but their members
+ * still contribute their data bits to $bits. */
+static bool bits_type_width_(ivl_type_t type, uint64_t&width)
+{
+      if (type->packed()) {
+	    width = type->packed_width();
+	    return true;
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    width = 0;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  uint64_t member_width;
+		  if (!bits_type_width_(member.net_type, member_width))
+			return false;
+		  if (record->union_flag()) {
+			if (member_width > width)
+			      width = member_width;
+		  } else {
+			if (member_width > numeric_limits<uint64_t>::max() - width)
+			      return false;
+			width += member_width;
+		  }
+	    }
+	    if (record->union_flag() && record->tagged_flag()) {
+		  unsigned tag_width = record->tag_bits();
+		  if (tag_width > numeric_limits<uint64_t>::max() - width)
+			return false;
+		  width += tag_width;
+	    }
+	    return true;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    width = 1;
+	    for (const netrange_t&dim : array->static_dimensions()) {
+		  if (!dim.defined())
+			return false;
+		  unsigned long dim_width = dim.width();
+		  if (dim_width && width > numeric_limits<uint64_t>::max() / dim_width)
+			return false;
+		  width *= dim_width;
+	    }
+	    uint64_t element_width;
+	    if (!bits_type_width_(array->element_type(), element_width)
+		|| (element_width && width > numeric_limits<uint64_t>::max() / element_width))
+		  return false;
+	    width *= element_width;
+	    return true;
+      }
+
+      return false;
+}
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Turn the
  * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
@@ -12415,21 +12471,11 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
 		  ivl_type_t data_type = type_expr->get_type()->elaborate_type(des, scope);
 		  ivl_assert(*this, data_type);
-		  use_width = 1;
-		  while (const netuarray_t *utype =
-			 dynamic_cast<const netuarray_t*>(data_type)) {
-			use_width = netrange_width(utype->static_dimensions(),
-			                           use_width);
-			data_type = utype->element_type();
-		  }
-		  if (!data_type->packed()) {
-			use_width = 0;
+		  if (!bits_type_width_(data_type, use_width)) {
 			cerr << get_fileline() << ": error: "
 			     << "Invalid data type for $bits()."
 			     << endl;
 			des->errors++;
-		  } else {
-			use_width *= data_type->packed_width();
 		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
@@ -12437,7 +12483,21 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 
 	    } else {
-		  use_width = expr->expr_width();
+		  ivl_type_t data_type = nullptr;
+		  if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+			if (ident->path().size() == 1)
+			data_type = unpacked_aggregate_operand_type_(des, scope, ident);
+		  }
+		  if (dynamic_cast<const netstruct_t*>(data_type)) {
+			if (!bits_type_width_(data_type, use_width)) {
+			      cerr << get_fileline() << ": error: "
+				   << "Invalid data type for $bits()."
+				   << endl;
+			      des->errors++;
+			}
+		  } else {
+			use_width = expr->expr_width();
+		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
 			     << " Width of expression argument is " << use_width << endl;

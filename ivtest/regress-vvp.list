@@ -14,6 +14,8 @@ automatic_error11		vvp_tests/automatic_error11.json
 automatic_error12		vvp_tests/automatic_error12.json
 automatic_error13		vvp_tests/automatic_error13.json
 bits4				vvp_tests/bits4.json
+sv_bits_unpacked_struct_2017	vvp_tests/sv_bits_unpacked_struct_2017.json
+sv_bits_unpacked_struct_2023	vvp_tests/sv_bits_unpacked_struct_2023.json
 bitsel11			vvp_tests/bitsel11.json
 br_gh13a			vvp_tests/br_gh13a.json
 br_gh99c			vvp_tests/br_gh99c.json
