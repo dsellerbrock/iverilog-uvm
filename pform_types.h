@@ -260,10 +260,14 @@ struct typedef_t : public PNamedItem {
       bool report_unresolved_once()
 	    { if (unresolved_reported) return false;
 	      unresolved_reported = true; return true; }
+      bool report_kind_mismatch_once()
+	    { if (kind_mismatch_reported) return false;
+	      kind_mismatch_reported = true; return true; }
 
 protected:
       enum basic_type basic_type;
       bool unresolved_reported;
+      bool kind_mismatch_reported = false;
       std::unique_ptr<data_type_t> data_type;
 public:
       perm_string name;
