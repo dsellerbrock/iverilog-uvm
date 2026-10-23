@@ -1,0 +1,2 @@
+extern module ports passed
+ivltests/sv_extern_module_23_5.v:21: $finish called at 1 (1s)

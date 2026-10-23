@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_extern_module_23_5.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "sv_extern_module_23_5"
+}

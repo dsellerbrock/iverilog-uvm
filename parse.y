@@ -5937,6 +5937,7 @@ deferred_mode
 
 description /* IEEE1800-2005: A.1.2 */
   : module
+  | extern_module_declaration
   | udp_primitive
   | config_declaration
   | nature_declaration
@@ -15432,6 +15433,21 @@ module
       }
   ;
 
+/* IEEE 1800-2017/2023 23.5: an extern module declaration records the
+   module header without a body. The later definition reuses this scope when
+   it uses the .* port-list form. */
+extern_module_declaration
+  : K_extern K_module IDENTIFIER
+      { pform_start_extern_module(@2, $3, LexicalScope::INHERITED); }
+    module_package_import_list_opt
+    module_parameter_port_list_opt
+    module_port_list_opt ';'
+      { pform_module_set_ports($7);
+	pform_end_extern_module($3);
+	delete[] $3;
+      }
+  ;
+
   /* Modules start with a module/macromodule, program, or interface
      keyword, and end with a endmodule, endprogram, or endinterface
      keyword. The syntax for modules programs, and interfaces is
@@ -15485,6 +15501,10 @@ module_port_list_opt
       { $$ = $2; }
   | '(' list_of_port_declarations ')'
       { $$ = $2; }
+  | '(' K_DOTSTAR ')'
+      { pform_module_use_extern_ports(@2);
+	$$ = 0;
+      }
   |
       { $$ = 0; }
   | '(' error ')'

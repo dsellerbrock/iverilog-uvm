@@ -154,6 +154,11 @@ extern void pform_startmodule(const struct vlltype&loc, const char*name,
 			      bool is_checker,
 			      LexicalScope::lifetime_t lifetime,
 			      std::list<named_pexpr_t>*attr);
+extern void pform_start_extern_module(const struct vlltype&loc,
+			      const char*name,
+			      LexicalScope::lifetime_t lifetime);
+extern void pform_end_extern_module(const char*name);
+extern void pform_module_use_extern_ports(const struct vlltype&loc);
 extern void pform_module_set_ports(std::vector<Module::port_t*>*);
 extern void pform_set_scope_timescale(const struct vlltype&loc);
 

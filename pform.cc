@@ -76,6 +76,10 @@ void pform_mc_translate_on(bool flag) { pform_mc_translate_flag = flag; }
 map<perm_string,Module*> pform_modules;
 map<perm_string,PUdp*> pform_primitives;
 
+/* Extern module declarations provide the header for a later definition. */
+static map<perm_string,Module*> pform_extern_modules;
+static set<Module*> pform_extern_module_defs;
+
 /*
  * The pform_units is a list of the SystemVerilog compilation unit scopes.
  * The current compilation unit is the last element in the list. All items
@@ -2545,7 +2549,25 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       perm_string lex_name = lex_strings.make(name);
-      Module*cur_module = new Module(lexical_scope, lex_name);
+      Module*cur_module = nullptr;
+      if (!program_block && !is_interface && !is_checker
+	  && pform_cur_module.empty()) {
+	    map<perm_string,Module*>::iterator ext = pform_extern_modules.find(lex_name);
+	    if (ext != pform_extern_modules.end()) {
+		  cur_module = ext->second;
+		  pform_extern_modules.erase(ext);
+		  pform_extern_module_defs.insert(cur_module);
+	    }
+      }
+      if (cur_module) {
+	    pform_cur_module.push_front(cur_module);
+	    lexical_scope = cur_module;
+	    allow_timeunit_decl = true;
+	    allow_timeprec_decl = true;
+	    pform_generate_single_item = false;
+	    return;
+      }
+      cur_module = new Module(lexical_scope, lex_name);
       cur_module->program_block = program_block;
       cur_module->is_interface = is_interface;
       cur_module->is_checker = is_checker;
@@ -2567,6 +2589,37 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       lexical_scope = cur_module;
 
       pform_bind_attributes(cur_module->attributes, attr);
+}
+
+void pform_start_extern_module(const struct vlltype&loc, const char*name,
+		       LexicalScope::lifetime_t lifetime)
+{
+      pform_startmodule(loc, name, false, false, false, lifetime, nullptr);
+}
+
+void pform_end_extern_module(const char*name)
+{
+      assert(!pform_cur_module.empty());
+      Module*module = pform_cur_module.front();
+      pform_cur_module.pop_front();
+      perm_string module_name = module->mod_name();
+      if (strcmp(name, module_name) != 0) {
+	    VLerror("error: extern module name mismatch.");
+	    return;
+      }
+      map<perm_string,Module*>::iterator old = pform_extern_modules.find(module_name);
+      if (old != pform_extern_modules.end()) {
+	    ostringstream msg;
+	    msg << "error: Extern module " << name << " was already declared here: "
+		<< old->second->get_fileline() << endl;
+	    VLerror(msg.str().c_str());
+      } else {
+	    pform_extern_modules[module_name] = module;
+	    if (pform_modules.find(module_name) == pform_modules.end())
+		  pform_modules[module_name] = module;
+      }
+      ivl_assert(*module, lexical_scope == module);
+      pform_pop_scope();
 }
 
 void pform_start_parameter_port_list()
@@ -2614,6 +2667,18 @@ void pform_module_set_ports(vector<Module::port_t*>*ports)
 	    pform_cur_module.front()->ports = *ports;
 	    delete ports;
       }
+}
+
+void pform_module_use_extern_ports(const struct vlltype&loc)
+{
+      assert(!pform_cur_module.empty());
+      if (pform_extern_module_defs.find(pform_cur_module.front())
+	  == pform_extern_module_defs.end()) {
+	    VLerror(loc, "error: .* module port list requires a matching extern module declaration.");
+	    return;
+      }
+      /* The module object comes from the extern header, so its ports and
+	 parameters are already active in this scope. */
 }
 
 void pform_endmodule(const char*name, bool inside_celldefine,
@@ -2711,10 +2776,12 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    use_module_map.find(mod_name);
 
       if (test != use_module_map.end()) {
-	    ostringstream msg;
-	    msg << "error: Module " << name << " was already declared here: "
-		<< test->second->get_fileline() << endl;
-	    VLerror(msg.str().c_str());
+	    if (test->second != cur_module) {
+		  ostringstream msg;
+		  msg << "error: Module " << name << " was already declared here: "
+		      << test->second->get_fileline() << endl;
+		  VLerror(msg.str().c_str());
+	    }
       } else {
 	    use_module_map[mod_name] = cur_module;
       }
