@@ -29137,13 +29137,38 @@ static bool constraint_dist_subject_has_rand_(const PExpr*expr,
 {
       if (!expr) return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
-	    if (!cls || id->path().package || id->path().name.size() != 1)
-		  return false;
-	    int idx = cls->property_idx_from_name(id->path().name.front().name);
-	    return idx >= 0 && cls->get_prop_qual((size_t)idx).test_rand();
+	    if (id->path().package || id->path().name.empty()) return false;
+	    const netclass_t*owner = cls;
+	    for (const name_component_t&component : id->path().name) {
+		  if (!owner) return false;
+		  int idx = owner->property_idx_from_name(component.name);
+		  if (idx < 0) return false;
+		  if (owner->get_prop_qual((size_t)idx).test_rand()) return true;
+		  owner = dynamic_cast<const netclass_t*>(
+			owner->get_prop_type((size_t)idx));
+	    }
+	    return false;
       }
       if (const PEUnary*u = dynamic_cast<const PEUnary*>(expr))
 	    return constraint_dist_subject_has_rand_(u->get_expr(), cls);
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    if (constraint_dist_subject_has_rand_(call->receiver_expr(), cls))
+		  return true;
+	    for (const named_pexpr_t&arg : call->get_parms())
+		  if (constraint_dist_subject_has_rand_(arg.parm, cls))
+			return true;
+	    return false;
+      }
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(expr))
+	    return constraint_dist_subject_has_rand_(member->base(), cls);
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    if (constraint_dist_subject_has_rand_(concat->repeat_expr(), cls))
+		  return true;
+	    for (const PExpr*part : concat->stream_parms())
+		  if (constraint_dist_subject_has_rand_(part, cls))
+			return true;
+	    return false;
+      }
       if (const PEBinary*b = dynamic_cast<const PEBinary*>(expr))
 	    return constraint_dist_subject_has_rand_(b->get_left(), cls)
 		  || constraint_dist_subject_has_rand_(b->get_right(), cls);
