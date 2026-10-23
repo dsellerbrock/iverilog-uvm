@@ -1,0 +1,4 @@
+sv_coverage_db_save_2017 normal,-g2017,-DSV_COVERAGE_DB_2017,-s,sv_coverage_db,-Iivltests ivltests gold=sv_coverage_db_save.gold
+sv_coverage_db_save_2023 normal,-g2023,-s,sv_coverage_db,-Iivltests ivltests gold=sv_coverage_db_save.gold
+sv_coverage_db_load_2017 normal,-g2017,-DSV_COVERAGE_DB_2017,-s,sv_coverage_db,-Iivltests ivltests gold=sv_coverage_db_load.gold
+sv_coverage_db_load_2023 normal,-g2023,-s,sv_coverage_db,-Iivltests ivltests gold=sv_coverage_db_load.gold

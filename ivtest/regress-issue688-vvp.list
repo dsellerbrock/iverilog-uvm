@@ -1,0 +1,4 @@
+sv_coverage_db_1_save_2017 vvp_tests/sv_coverage_db_save_2017.json
+sv_coverage_db_1_save_2023 vvp_tests/sv_coverage_db_save_2023.json
+sv_coverage_db_2_load_2017 vvp_tests/sv_coverage_db_load_2017.json
+sv_coverage_db_2_load_2023 vvp_tests/sv_coverage_db_load_2023.json
