@@ -5066,7 +5066,7 @@ class randomize_graph_session_t {
                         objects.push_back(entry.hold);
       }
 
-      void rollback()
+      void rollback(bool restore_rng = true)
       {
             while (!pending_randc_.empty()) {
                   pending_randc_.back()->randc_transaction_rollback();
@@ -5075,7 +5075,7 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
-		  (void)it->cobj->rng_set_state(it->rng_state);
+		  if (restore_rng) (void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -6139,7 +6139,12 @@ static bool randomize_staged_finish_(vthread_t thr, bool success)
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
       if (success) success = state->session.commit();
-      if (!success) state->session.rollback();
+      if (!success) {
+            /* Earlier function-argument priority sets have already consumed
+             * their random draws. Keep those draws consumed when a later set
+             * is infeasible, while still rolling back every object value. */
+            state->session.rollback(state->stage == 0);
+      }
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
       call.staged.reset();

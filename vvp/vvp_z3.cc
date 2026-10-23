@@ -11858,6 +11858,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&scope : graph->objects)
                   if (scope.staged_selection)
                         for (const auto&ref : scope.staged_active) {
+                              if (ref.kind == vvp_z3_ref_s::PROP) {
+                                    unsigned idx = graph->intern(scope.object,
+                                                                ref.property);
+                                    unsigned width = scope.object->get_defn()
+                                          ->property_vec4_width(ref.property);
+                                    if (width)
+                                          builder.get_prop_var(idx, width);
+                                    continue;
+                              }
                               if (ref.kind != vvp_z3_ref_s::ELEM) continue;
                               unsigned idx = graph->intern(scope.object,
                                                           ref.property);
@@ -12961,6 +12970,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // accept-current fast path would sample differently).
 	    if (!builder.order_pairs.empty())
 		  precheck = Z3_L_FALSE;
+	      // A function-priority stage owns a fresh random choice even when its
+	      // current pre-fill satisfies the stage constraints. In particular,
+	      // an argument-only stage has no constraint item to disturb the
+	      // pre-fill, but it must still randomize the function argument.
+	    if (graph)
+	      for (const auto&owner : graph->objects)
+		if (owner.staged_selection && !owner.staged_active.empty())
+		      precheck = Z3_L_FALSE;
 
 	      // A rand dynamic array's SIZE is randomized by the solver
 	      // (18.4), not by the caller's pre-fill — so unlike every
@@ -17261,7 +17278,11 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
                   || !owner.planned_class_ir.empty()
                   || (owner.include_class_constraints
                       && owner.object->has_active_constraints());
-      if (!constrained) {
+      bool staged_variables = false;
+      for (const auto&owner : objects)
+            staged_variables |= owner.staged_selection
+                  && !owner.staged_active.empty();
+      if (!constrained && !staged_variables) {
 #ifdef VVP_PERF_STATS
             vvp_perf_stats_randomize_tier(0);
 #endif
