@@ -6036,12 +6036,13 @@ const type_reference_t* type_operator_reference(const PExpr*expr)
  * We restrict which *kinds* of type this fold is willing to call, via
  * an allow-list: type_equivalent()'s coarse width/base-type comparison
  * is a good match for 6.22.1 "matching types" on vectors/atoms/reals/
- * strings/enums/classes, but for packed structs, packed arrays of a
- * non-vector base, dynamic arrays, queues and unpacked arrays it only
- * checks total width/element-type -- not the member-by-member matching
- * 6.22.1 actually requires -- so accepting those risks a *wrong*
- * "matching" verdict rather than merely an incomplete one. Those kinds
- * are sorried instead (see the sv_type_operator1.v test).
+ * strings/enums/classes, but for packed arrays of a non-vector base,
+ * dynamic arrays and queues it only checks total width/element-type -- not
+ * the member-by-member matching 6.22.1 requires -- so accepting those risks
+ * a *wrong* verdict. Those kinds are still sorried instead (see the
+ * sv_type_operator1.v test). Nominal struct/union types can be compared by
+ * identity, and fixed unpacked arrays need exact bounds plus recursive
+ * element matching.
  */
 static bool type_operator_kind_supported_(ivl_type_t t)
 {
@@ -6052,7 +6053,37 @@ static bool type_operator_kind_supported_(ivl_type_t t)
       if (dynamic_cast<const netstring_t*>(t)) return true;
       if (dynamic_cast<const netenum_t*>(t))   return true;
       if (dynamic_cast<const netclass_t*>(t))  return true;
+      if (dynamic_cast<const netstruct_t*>(t)) return true;
+      if (dynamic_cast<const netuarray_t*>(t)) return true;
       return false;
+}
+
+static bool type_operator_types_match_(ivl_type_t left, ivl_type_t right)
+{
+      if (left == right)
+	    return true;
+
+      if (dynamic_cast<const netstruct_t*>(left)
+	  || dynamic_cast<const netstruct_t*>(right))
+	    return false;
+
+      const netuarray_t*left_array = dynamic_cast<const netuarray_t*>(left);
+      const netuarray_t*right_array = dynamic_cast<const netuarray_t*>(right);
+      if (left_array || right_array) {
+	    if (!left_array || !right_array)
+		  return false;
+	    const netranges_t&left_dims = left_array->static_dimensions();
+	    const netranges_t&right_dims = right_array->static_dimensions();
+	    if (left_dims.size() != right_dims.size())
+		  return false;
+	    for (size_t idx = 0; idx < left_dims.size(); idx += 1)
+		  if (left_dims[idx] != right_dims[idx])
+			return false;
+	    return type_operator_types_match_(left_array->element_type(),
+					       right_array->element_type());
+      }
+
+      return left->type_equivalent(right) && right->type_equivalent(left);
 }
 
 bool elaborate_type_operator_match(Design*des, NetScope*scope,
@@ -6078,7 +6109,7 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
 	    return false;
       }
 
-      match = (lt == rt) || lt->type_equivalent(rt);
+      match = type_operator_types_match_(lt, rt);
       return true;
 }
 
