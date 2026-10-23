@@ -7395,16 +7395,14 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
       unsigned inst_count = calculate_array_size_(des, scope, high, low);
       if (inst_count == 0) return;
 
-      if (inst_count != 1) {
-	    cerr << get_fileline() << ": sorry: UDPs with a range ("
-	         << my_name << " [" << high << ":" << low << "]) are "
-	         << "not supported." << endl;
-	    des->errors += 1;
-	    return;
-      }
-
       ivl_assert(*this, udp);
-      NetUDP*net = new NetUDP(scope, my_name, udp->ports.size(), udp);
+      perm_string first_name = my_name;
+      if (inst_count > 1) {
+	    ostringstream tmp;
+	    tmp << my_name << "<" << low << ">";
+	    first_name = lex_strings.make(tmp.str());
+      }
+      NetUDP*net = new NetUDP(scope, first_name, udp->ports.size(), udp);
       net->set_line(*this);
       net->rise_time(rise_expr);
       net->fall_time(fall_expr);
@@ -7417,9 +7415,6 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
 	    net->attribute(attrib_list[adx].key, attrib_list[adx].val);
-
-      delete[]attrib_list;
-
 
 	// This is the array of pin expressions, shuffled to match the
 	// order of the declaration. If the source instantiation uses
@@ -7492,17 +7487,34 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
       }
 
 
-	/* Handle the output port of the primitive special. It is an
-	   output port (the only output port) so must be passed an
-	   l-value net. */
+	/* Make one UDP node for every element of the instance array. */
+      vector<NetUDP*>instances(inst_count);
+      instances[0] = net;
+      for (unsigned idx = 1; idx < inst_count; idx += 1) {
+	    ostringstream tmp;
+	    long index = (low < high)? low+idx : low-idx;
+	    tmp << my_name << "<" << index << ">";
+	    perm_string inst_name = lex_strings.make(tmp.str());
+	    instances[idx] = new NetUDP(scope, inst_name, udp->ports.size(), udp);
+	    instances[idx]->set_line(*this);
+	    instances[idx]->rise_time(rise_expr);
+	    instances[idx]->fall_time(fall_expr);
+	    instances[idx]->decay_time(decay_expr);
+	    for (unsigned adx = 0; adx < attrib_list_n; adx += 1)
+		  instances[idx]->attribute(attrib_list[adx].key,
+					    attrib_list[adx].val);
+      }
+
+	/* Handle the output terminal as an l-value. */
+      NetNet*output_sig = 0;
       if (pins[0] == 0) {
 	    cerr << get_fileline() << ": warning: output port unconnected."
 		 << endl;
 
       } else {
 	      // A UDP can drive a variable.
-	    NetNet*sig = pins[0]->elaborate_lnet(des, scope, true);
-	    if (sig == 0) {
+	    output_sig = pins[0]->elaborate_lnet(des, scope, true);
+	    if (output_sig == 0) {
 		  cerr << get_fileline() << ": error: "
 		       << "Output port expression is not valid." << endl;
 		  cerr << get_fileline() << ":      : Output "
@@ -7510,22 +7522,12 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 		       << " is " << udp->ports[0] << "." << endl;
 		  des->errors += 1;
 		  return;
-	    } else {
-		  connect(sig->pin(0), net->pin(0));
-	    }
-	    if (sig->vector_width() != 1) {
-		  cerr << get_fileline() << ": error: "
-		       << "Output port expression " << *pins[0]
-		       << " is too wide (" << sig->vector_width()
-		       << ") expected 1." << endl;
-		  des->errors += 1;
 	    }
       }
 
-	/* Run through the pins, making netlists for the pin
-	   expressions and connecting them to the pin in question. All
-	   of this is independent of the nature of the UDP. */
-      for (unsigned idx = 1 ;  idx < net->pin_count() ;  idx += 1) {
+	/* Elaborate each input once. */
+      vector<NetNet*>input_sigs(udp->ports.size()-1, 0);
+	  for (unsigned idx = 1 ;  idx < udp->ports.size() ;  idx += 1) {
 	    if (pins[idx] == 0)
 		  continue;
 
@@ -7541,18 +7543,74 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 
 	    delete expr_tmp;
 
-	    connect(sig->pin(0), net->pin(idx));
-	    if (sig->vector_width() != 1) {
-		  cerr << get_fileline() << ": error: "
-		       << "Input port expression " << *pins[idx]
-		       << " is too wide (" << sig->vector_width()
-		       << ") expected 1." << endl;
-		  des->errors += 1;
-	    }
+	    input_sigs[idx-1] = sig;
       }
 
-	// All done. Add the object to the design.
-      des->add_node(net);
+	  if (output_sig && output_sig->vector_width() != 1
+	      && output_sig->vector_width() != inst_count) {
+	    cerr << get_fileline() << ": error: output width "
+	         << output_sig->vector_width() << " does not match UDP array size "
+	         << inst_count << "." << endl;
+	    des->errors += 1;
+	  }
+	  for (unsigned idx = 0; idx < input_sigs.size(); idx += 1) {
+	    if (input_sigs[idx] == 0) continue;
+	    unsigned width = input_sigs[idx]->vector_width();
+	    if (width != 1 && width != inst_count) {
+		  cerr << get_fileline() << ": error: input width " << width
+		       << " does not match UDP array size " << inst_count << "."
+		       << endl;
+		  des->errors += 1;
+	    }
+	  }
+
+	  NetConcat*output_concat = 0;
+	  if (output_sig && output_sig->vector_width() == inst_count
+	      && inst_count > 1) {
+	    output_concat = new NetConcat(scope, scope->local_symbol(),
+					  inst_count, inst_count);
+	    output_concat->set_line(*this);
+	    des->add_node(output_concat);
+	    connect(output_concat->pin(0), output_sig->pin(0));
+	  }
+	  for (unsigned inst = 0; inst < inst_count; inst += 1) {
+	    if (output_sig) {
+		  if (output_concat) {
+			const netvector_t*bit_type = new netvector_t(IVL_VT_LOGIC);
+			NetNet*bit = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, bit_type);
+			bit->set_line(*this);
+			bit->local_flag(true);
+			connect(output_concat->pin(inst+1), bit->pin(0));
+			connect(bit->pin(0), instances[inst]->pin(0));
+		  } else {
+			connect(output_sig->pin(0), instances[inst]->pin(0));
+		  }
+	    }
+	    for (unsigned idx = 0; idx < input_sigs.size(); idx += 1) {
+		  NetNet*sig = input_sigs[idx];
+		  if (sig == 0) continue;
+		  if (sig->vector_width() == 1) {
+			connect(sig->pin(0), instances[inst]->pin(idx+1));
+		  } else {
+			NetPartSelect*part = new NetPartSelect(sig, inst, 1,
+						       NetPartSelect::VP);
+			part->set_line(*this);
+			des->add_node(part);
+			connect(part->pin(1), sig->pin(0));
+			const netvector_t*bit_type = new netvector_t(sig->data_type());
+			NetNet*bit = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, bit_type);
+			bit->set_line(*this);
+			bit->local_flag(true);
+			connect(part->pin(0), bit->pin(0));
+			connect(bit->pin(0), instances[inst]->pin(idx+1));
+		  }
+	    }
+	  }
+	  for (unsigned idx = 0; idx < instances.size(); idx += 1)
+		des->add_node(instances[idx]);
+      delete[]attrib_list;
 }
 
 
