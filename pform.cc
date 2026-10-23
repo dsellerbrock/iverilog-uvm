@@ -8548,6 +8548,132 @@ static bool sva_in_scope_(MAP&m, perm_string nm)
       return sva_resolve_(m, nm) != m.end();
 }
 
+/* A sequence event is a procedural one-shot wait for a sequence match
+   endpoint, not a value-change event on a signal with the same name. Reuse
+   the existing sequence assertion lowering to detect endpoints and trigger
+   a private named event from its pass action. */
+static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
+					 const char*what, unsigned idx,
+					 bool wide, bool as_real,
+					 PExpr*width_from, bool signed_value);
+static PEIdent* sva_id_(const struct vlltype&loc, perm_string name);
+static PExpr* sva_bit_(const struct vlltype&loc, int v);
+static std::vector<sva_seq_step_t>* sva_clone_steps_subst_(
+					 const struct vlltype&loc,
+					 const std::vector<sva_seq_step_t>*src,
+					 const std::map<perm_string,PExpr*>&subst);
+static PEventStatement* sva_clone_event_control_(
+					 const PEventStatement*src,
+					 const struct vlltype&loc,
+					 const std::map<perm_string,PExpr*>*subst);
+
+Statement* pform_sva_sequence_event(const struct vlltype&loc,
+					    PEventStatement*ctl)
+{
+      if (!ctl || ctl->event_expressions().size() != 1) return ctl;
+      const PEEvent*event = ctl->event_expressions().front();
+      if (!event || event->type() != PEEvent::ANYEDGE) return ctl;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+      if (!id || id->path().package || id->path().name.size() != 1
+	  || !id->path().name.front().index.empty()) return ctl;
+      perm_string seqname = id->path().name.front().name;
+      if (!sva_in_scope_(sva_module_sequences, seqname)
+	  && !sva_in_scope_(sva_property_shaped_sequences, seqname))
+	    return ctl;
+
+      unsigned inst = sva_gensym_counter++;
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_sva_seq_event_%u", inst);
+      perm_string event_name = lex_strings.make(buf);
+
+      if (pform_cur_module.empty()) return ctl;
+      LexicalScope*saved_scope = lexical_scope;
+      lexical_scope = pform_cur_module.front();
+      pform_make_event(loc, pform_ident_t(event_name, loc.lexical_pos),
+		       nullptr, IVL_VLT_INHERITED);
+
+      perm_string active_name = sva_make_reg_(loc, inst, "seqevent_active", 0,
+						 false, false, nullptr, false);
+      lexical_scope = saved_scope;
+
+      std::vector<sva_seq_step_t>*steps = nullptr;
+      PEventStatement*clock = nullptr;
+      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator sit =
+	    sva_resolve_(sva_module_sequences, seqname);
+      if (sit != sva_module_sequences.end() && sit->second) {
+	    std::map<perm_string,PExpr*>no_subst;
+	    steps = sva_clone_steps_subst_(loc, sit->second, no_subst);
+      } else {
+	    std::set<sva_scoped_name_t>::iterator tag =
+		  sva_resolve_(sva_property_shaped_sequences, seqname);
+	    if (tag != sva_property_shaped_sequences.end()) {
+		  std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+			sva_resolve_(sva_module_properties, seqname);
+		  if (pit != sva_module_properties.end() && pit->second
+		      && !pit->second->tree && pit->second->seq) {
+			std::map<perm_string,PExpr*>no_subst;
+			steps = sva_clone_steps_subst_(loc, pit->second->seq,
+						       no_subst);
+			clock = pit->second->clk_evt
+			      ? sva_clone_event_control_(pit->second->clk_evt, loc,
+							 nullptr)
+			      : nullptr;
+		  }
+	    }
+      }
+      if (!steps || steps->empty()) {
+	    cerr << loc << ": sorry: this sequence event shape cannot be ";
+	    cerr << "lowered by the procedural sequence-event path yet.\n";
+	    error_count += 1;
+	    delete clock;
+	    pform_sva_destroy_sequence(steps);
+	    delete ctl;
+	    return new PNoop;
+      }
+      PExpr*active = sva_id_(loc, active_name);
+      PExpr*first = steps->front().expr;
+      PEBinary*guarded_first = new PEBinary('&', active, first);
+      FILE_NAME(guarded_first, loc);
+      steps->front().expr = guarded_first;
+
+      pform_name_t event_path;
+      event_path.push_back(name_component_t(event_name));
+      PTrigger*trigger = pform_new_trigger(loc, nullptr, event_path,
+						   loc.lexical_pos);
+
+      sva_property_t*prop = new sva_property_t;
+      prop->op_type = 0;
+      prop->seq = steps;
+      prop->clk_evt = clock;
+      PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(no_failure_action, loc);
+      pform_make_assertion(loc, prop, no_failure_action, trigger, 0);
+
+      PEIdent*wait_id = new PEIdent(event_path, loc.lexical_pos);
+      FILE_NAME(wait_id, loc);
+      PEEvent*wait_event = new PEEvent(PEEvent::ANYEDGE, wait_id);
+      FILE_NAME(wait_event, loc);
+      PEventStatement*wait = new PEventStatement(wait_event);
+      FILE_NAME(wait, loc);
+      std::vector<Statement*>body;
+      PAssign*activate = new PAssign(sva_id_(loc, active_name), sva_bit_(loc, 1));
+      FILE_NAME(activate, loc);
+      PAssign*initialize = new PAssign(sva_id_(loc, active_name), sva_bit_(loc, 0));
+      FILE_NAME(initialize, loc);
+      PProcess*init_process = pform_make_behavior(IVL_PR_INITIAL,
+							  initialize, nullptr);
+      FILE_NAME(init_process, loc);
+      body.push_back(activate);
+      body.push_back(wait);
+      body.push_back(new PAssign(sva_id_(loc, active_name), sva_bit_(loc, 0)));
+      body.push_back(ctl->statement());
+      PBlock*result = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(result, loc);
+      result->set_statement(body);
+      delete ctl;
+      return result;
+}
+
 void pform_sva_set_default_disable(PExpr*expr)
 {
       sva_default_disable = expr;
