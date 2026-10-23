@@ -1,0 +1,2 @@
+PASS: SDF INCREMENT accumulates in file and annotation order
+ivltests/sdf_increment.v:38: $finish called at 40000 (1ps)

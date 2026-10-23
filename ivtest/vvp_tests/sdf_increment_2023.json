@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sdf_increment.v",
+  "iverilog-args": ["-g2023", "-Ttyp", "-gspecify"],
+  "gold": "sdf_increment"
+}

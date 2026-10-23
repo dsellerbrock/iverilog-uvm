@@ -1,0 +1,10 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "sdf_increment")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "sdf_increment_cell")
+    (INSTANCE multi)
+    (DELAY (INCREMENT (IOPATH a y (1) (1))))
+  )
+)

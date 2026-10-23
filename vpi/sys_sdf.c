@@ -30,6 +30,7 @@
 int sdf_flag_warning = 0;
 int sdf_flag_inform = 0;
 int sdf_min_typ_max;
+int sdf_increment = 0;
 
   /* Scope of the $sdf_annotate call. Annotation starts here. */
 static vpiHandle sdf_scope;
@@ -280,7 +281,10 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 			if (delval_list->val[idx].defined) {
 			      if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
 			                                      sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-			      delay_vals[idx].real = delval_list->val[idx].value;
+			      if (sdf_increment)
+				    delay_vals[idx].real += delval_list->val[idx].value;
+			      else
+				    delay_vals[idx].real = delval_list->val[idx].value;
 			}
 		  }
 
@@ -352,7 +356,10 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	    for (idx = 0 ; idx < delval_list->count ; idx += 1) {
 		  delay_vals[idx].type = vpiScaledRealTime;
 		  if (delval_list->val[idx].defined) {
-			delay_vals[idx].real = delval_list->val[idx].value;
+			if (sdf_increment)
+			      delay_vals[idx].real += delval_list->val[idx].value;
+			else
+			      delay_vals[idx].real = delval_list->val[idx].value;
 		  }
 	    }
 

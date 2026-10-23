@@ -31,6 +31,7 @@ extern void sdf_process_file(FILE*fd, const char*path);
 
 extern int sdf_flag_warning;
 extern int sdf_flag_inform;
+extern int sdf_increment;
 
 extern int sdf_min_typ_max;
 

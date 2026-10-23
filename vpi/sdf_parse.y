@@ -306,8 +306,10 @@ deltype_list
 deltype
   : '(' K_PATHPULSE input_output_path_opt rvalue rvalue_opt ')'
   | '(' K_PATHPULSEPERCENT input_output_path_opt rvalue rvalue_opt ')'
-  | '(' K_ABSOLUTE del_def_list ')'
-  | '(' K_INCREMENT del_def_list ')'
+  | '(' K_ABSOLUTE { sdf_increment = 0; } del_def_list ')'
+      { sdf_increment = 0; }
+  | '(' K_INCREMENT { sdf_increment = 1; } del_def_list ')'
+      { sdf_increment = 0; }
   | '(' error ')'
     { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed delay type\n",
 	         sdf_parse_path, @1.first_line); }
