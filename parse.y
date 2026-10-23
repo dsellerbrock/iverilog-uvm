@@ -14726,6 +14726,16 @@ hierarchy_identifier
 	$$->back().local_scope = true;
 	delete[]$3.text;
       }
+  | K_local K_SCOPE_RES K_this
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(perm_string::literal(THIS_TOKEN)));
+	$$->back().local_scope = true;
+      }
+  | K_local K_SCOPE_RES K_super
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(perm_string::literal(SUPER_TOKEN)));
+	$$->back().local_scope = true;
+      }
   | hierarchy_identifier '.' IDENTIFIER
       { pform_name_t * tmp = $1;
 	tmp->push_back(name_component_t(lex_strings.make($3)));
