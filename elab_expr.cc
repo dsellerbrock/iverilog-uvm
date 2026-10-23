@@ -6124,7 +6124,12 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return true;
       }
-      if (left.count != right.count
+      const netranges_t&left_dims = left.signal->unpacked_dims();
+      const netranges_t&right_dims = right.signal->unpacked_dims();
+      bool same_shape = left_dims.size() == right_dims.size();
+      for (size_t dim = 0; same_shape && dim < left_dims.size(); dim += 1)
+	    same_shape = left_dims[dim].width() == right_dims[dim].width();
+      if (!same_shape || left.count != right.count
 	  || !fixed_uarray_element_types_equivalent_(
 		left.element_type, right.element_type)) {
 	    cerr << pexpr->get_fileline() << ": error: fixed unpacked array "
@@ -6134,20 +6139,28 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 	    return true;
       }
 
-      bool left_ascending = left.selected_range.get_msb()
-	    < left.selected_range.get_lsb();
-      bool right_ascending = right.selected_range.get_msb()
-	    < right.selected_range.get_lsb();
-      bool reverse_right = left_ascending != right_ascending;
       unsigned count = static_cast<unsigned>(left.count);
       bool equal_op = op == 'e' || op == 'E' || op == 'w';
       vector<NetExpr*> terms;
       terms.reserve(count);
       for (unsigned k = 0 ; k < count ; k += 1) {
 	    long left_word = left.canonical_base + static_cast<long>(k);
-	    long right_off = reverse_right
-		  ? static_cast<long>(count - 1 - k)
-		  : static_cast<long>(k);
+	    long right_off = 0;
+	    long remaining = static_cast<long>(k);
+	    long stride = static_cast<long>(count);
+	    for (size_t dim = 0; dim < left_dims.size(); dim += 1) {
+		  long width = static_cast<long>(left_dims[dim].width());
+		  stride /= width;
+		  long position = remaining / stride;
+		  remaining %= stride;
+		  bool left_ascending = left_dims[dim].get_msb()
+			< left_dims[dim].get_lsb();
+		  bool right_ascending = right_dims[dim].get_msb()
+			< right_dims[dim].get_lsb();
+		  if (left_ascending != right_ascending)
+			position = width - 1 - position;
+		  right_off = right_off * width + position;
+	    }
 	    long right_word = right.canonical_base + right_off;
 	    NetExpr*lidx = make_const_val_s(left_word);
 	    NetExpr*ridx = make_const_val_s(right_word);
