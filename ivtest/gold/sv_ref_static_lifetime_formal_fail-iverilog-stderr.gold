@@ -1,0 +1,5 @@
+ivltests/sv_ref_static_lifetime_formal_fail.v:2: error: static-lifetime function `explicit_static_function' may not have a ref argument (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_static_lifetime_formal_fail.v:5: error: static-lifetime function `implicit_static_function' may not have a ref argument (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_static_lifetime_formal_fail.v:8: error: static-lifetime task `explicit_static_task' may not have a ref argument (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_static_lifetime_formal_fail.v:11: error: static-lifetime task `implicit_static_task' may not have a ref argument (IEEE 1800-2017/2023 13.5.2).
+4 error(s) during elaboration.
