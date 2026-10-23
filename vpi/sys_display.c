@@ -1031,8 +1031,9 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
       break;
 
     default:
-      vpi_printf("WARNING: %s:%d: unknown format %s%s.\n",
+      vpi_printf("ERROR: %s:%d: unknown format %s%s.\n",
                  info->filename, info->lineno, info->name, fmtb);
+      vpi_control(vpiFinish, 1);
       size = strlen(result) + 1;
       break;
   }

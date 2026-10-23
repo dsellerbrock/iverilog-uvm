@@ -1,0 +1,6 @@
+{
+    "type"          : "EF",
+    "source"        : "format_undefined_spec.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "format_undefined_spec"
+}
