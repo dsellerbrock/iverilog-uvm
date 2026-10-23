@@ -23670,6 +23670,10 @@ struct sva_pending_proc_t {
       perm_string label;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
+/* Assertions without an explicit clock are held until their enclosing
+   procedural event control can supply rule (c), or module end can apply the
+   default clock. Suppress re-parking during that final default-clock bind. */
+static bool sva_proc_clock_retry_active_ = false;
 
 /* Both end-of-module retry paths have seen every declaration. An unresolved
    identifier must now fall through to the ordinary binding diagnostic, not
@@ -23839,8 +23843,11 @@ void pform_sva_flush_pending_procedural(void)
 		  lexical_scope = p.scope;
 		  pform_cur_generate = p.generate;
 		  sva_named_prop_retry_active_ = true;
+		  bool saved_proc_retry = sva_proc_clock_retry_active_;
+		  sva_proc_clock_retry_active_ = true;
 		  pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
 				       p.kind, p.label);
+		  sva_proc_clock_retry_active_ = saved_proc_retry;
 		  sva_named_prop_retry_active_ = saved_retry;
 		  pform_cur_generate = saved_generate;
 		  lexical_scope = saved;
@@ -25918,29 +25925,28 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pass_stmt = nullptr;
       }
 
-	/* M9-10: no explicit clock and no default clocking -- park it and
-	   let an enclosing procedural event control supply the clock
-	   (16.14.6). See pform_sva_infer_procedural_clock. */
-      if (prop && !prop->clk_evt && !sva_prop_is_named_ref_(prop)) {
+	/* M9-10: defer a clock-less assertion until its enclosing procedural
+	   event control can supply rule (c), or module end can bind the default
+	   clock under rule (a). See pform_sva_infer_procedural_clock. */
+	if (prop && !prop->clk_evt && !sva_proc_clock_retry_active_
+	    && !sva_prop_is_named_ref_(prop)) {
 	    Module*mod = pform_cur_module.empty() ? nullptr
 			 : pform_cur_module.front();
-	    if (!mod || mod->default_clocking.nil()) {
-		  sva_pending_proc_t pend;
-		  pend.loc = loc;
-		  pend.owner = mod;
-		  pend.scope = lexical_scope;
-		  pend.generate = pform_cur_generate;
-		  while (dynamic_cast<PBlock*>(pend.scope)
-			 && pend.scope->parent_scope())
-			pend.scope = pend.scope->parent_scope();
-		  pend.prop = prop;
-		  pend.fail_stmt = fail_stmt;
-		  pend.pass_stmt = pass_stmt;
-		  pend.kind = kind;
-		  pend.label = sva_active_assertion_label_;
-		  sva_pending_proc_.push_back(pend);
-		  return;
-	    }
+	    sva_pending_proc_t pend;
+	    pend.loc = loc;
+	    pend.owner = mod;
+	    pend.scope = lexical_scope;
+	    pend.generate = pform_cur_generate;
+	    while (dynamic_cast<PBlock*>(pend.scope)
+		   && pend.scope->parent_scope())
+		  pend.scope = pend.scope->parent_scope();
+	    pend.prop = prop;
+	    pend.fail_stmt = fail_stmt;
+	    pend.pass_stmt = pass_stmt;
+	    pend.kind = kind;
+	    pend.label = sva_active_assertion_label_;
+	    sva_pending_proc_.push_back(pend);
+	    return;
       }
 
       /* Synthesize into the nearest non-block scope; see

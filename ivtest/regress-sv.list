@@ -68,6 +68,7 @@
 #
 
 always_comb		normal,-g2005-sv	ivltests
+sv_default_clocking_procedural_override normal,-g2017 ivltests gold=sv_default_clocking_procedural_override.gold
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
 always_comb_fail4	CE,-g2005-sv		ivltests
