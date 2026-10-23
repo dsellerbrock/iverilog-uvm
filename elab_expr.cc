@@ -62,6 +62,28 @@
 
 using namespace std;
 
+/* Return the number of bits in the fixed-size bit-stream representation of
+ * a type. Unpacked records contribute the concatenation of their members. */
+static uint64_t bits_type_width_(ivl_type_t type)
+{
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    uint64_t count = 1;
+	    for (const netrange_t&dim : array->static_dimensions())
+		  count *= dim.width();
+	    return count * bits_type_width_(array->element_type());
+      }
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (!record->packed()) {
+		  uint64_t width = 0;
+		  for (const netstruct_t::member_t&member : record->members())
+			width += bits_type_width_(member.net_type);
+		  return width;
+	    }
+      }
+      long width = type ? type->packed_width() : 0;
+      return width > 0 ? (uint64_t)width : 0;
+}
+
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
       pform_name_t&, perm_string*);
@@ -12422,7 +12444,10 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			                           use_width);
 			data_type = utype->element_type();
 		  }
-		  if (!data_type->packed()) {
+		  if (dynamic_cast<const netstruct_t*>(data_type)
+	      && !data_type->packed()) {
+			use_width = bits_type_width_(data_type);
+		  } else if (!data_type->packed()) {
 			use_width = 0;
 			cerr << get_fileline() << ": error: "
 			     << "Invalid data type for $bits()."
@@ -12437,7 +12462,17 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 
 	    } else {
-		  use_width = expr->expr_width();
+		  ivl_type_t data_type = nullptr;
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+			NetNet*net = id->elaborate_unpacked_net(des, scope);
+			if (net)
+			      data_type = net->net_type();
+		  }
+		  if (dynamic_cast<const netstruct_t*>(data_type)
+	      && !data_type->packed())
+			use_width = bits_type_width_(data_type);
+		  else
+			use_width = expr->expr_width();
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
 			     << " Width of expression argument is " << use_width << endl;
