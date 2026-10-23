@@ -45808,6 +45808,38 @@ static ostream& operator<< (ostream&o, ivl_process_type_t t)
 bool Design::check_proc_delay() const
 {
       bool result = false;
+      NexusSet always_comb_written;
+      NexusSet other_process_written;
+
+	      auto overlaps_array_write = [](NexusSet& left, NexusSet& right) {
+	    for (size_t lhs = 0; lhs < left.size(); lhs += 1) {
+		  const NexusSet::elem_t& a = left[lhs];
+		  const Nexus* an = a.lnk.nexus();
+		  for (size_t rhs = 0; rhs < right.size(); rhs += 1) {
+			const NexusSet::elem_t& b = right[rhs];
+			if (an != b.lnk.nexus()
+			    || a.base >= b.base + b.wid
+			    || b.base >= a.base + a.wid)
+			      continue;
+			for (const Link*cur = an ? an->first_nlink() : nullptr;
+			     cur; cur = cur->next_nlink()) {
+			      const NetNet*sig =
+				    dynamic_cast<const NetNet*>(cur->get_obj());
+			      if (sig && sig->unpacked_dimensions() > 0)
+				    return true;
+			}
+		  }
+	    }
+	    return false;
+      };
+
+      for (const NetProcTop*pr = procs_ ;  pr ;  pr = pr->next_) {
+	    if (pr->type() == IVL_PR_ALWAYS_COMB)
+		  continue;
+	    NexusSet written;
+	    const_cast<NetProc*>(pr->statement())->nex_output(written);
+	    other_process_written.add(written);
+      }
 
       for (const NetProcTop*pr = procs_ ;  pr ;  pr = pr->next_) {
 	      /* If this is an always process and we have no or zero delay then
@@ -45838,6 +45870,16 @@ bool Design::check_proc_delay() const
 		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
 		  NexusSet written;
 		  const_cast<NetProc*>(pr->statement())->nex_output(written);
+		  if (pr->type() == IVL_PR_ALWAYS_COMB
+		      && (overlaps_array_write(always_comb_written, written)
+			  || overlaps_array_write(other_process_written, written))) {
+			cerr << pr->get_fileline() << ": error: Variable written in an "
+			        "always_comb process is also written by another process."
+			     << endl;
+			result = true;
+		  }
+		  if (pr->type() == IVL_PR_ALWAYS_COMB)
+			always_comb_written.add(written);
 		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
 			Nexus*nex = written[idx].lnk.nexus();
 			for (Link*cur = nex ? nex->first_nlink() : nullptr ;

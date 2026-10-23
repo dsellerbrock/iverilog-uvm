@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_always_comb_longest_static_prefix_control.v",
+  "iverilog-args": ["-g2023", "-s", "sv_always_comb_longest_static_prefix_control"],
+  "gold": "sv_always_comb_longest_static_prefix_control"
+}
