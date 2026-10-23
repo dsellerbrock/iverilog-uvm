@@ -35371,7 +35371,11 @@ bool of_MBX_NUM(vthread_t thr, vvp_code_t)
  */
 bool of_SEM_NEW(vthread_t thr, vvp_code_t cp)
 {
-      size_t cnt = cp->number;
+      /* keyCount is a signed 32-bit int; preserve its negative deficit. */
+      uint32_t raw_count = cp->number & 0xffffffff;
+      int64_t cnt = (raw_count & 0x80000000)
+                  ? (int64_t)raw_count - 0x100000000LL
+                  : (int64_t)raw_count;
       vvp_object_t sem(new vvp_semaphore(cnt));
       thr->push_object(sem);
       return true;
