@@ -7145,6 +7145,25 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
 	delete[]$1.text;
 	$$ = tmp;
       }
+  /* A package name occupies a separate namespace, so it remains a valid
+     declarator even though the lexer classifies it for package references. */
+  | PACKAGE_IDENTIFIER dimensions_opt var_decl_initializer_opt
+      { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
+	    && (var_lifetime == LexicalScope::INHERITED)) {
+	      cerr << @1 << ": warning: Static variable initialization requires "
+			    "explicit lifetime in this context." << endl;
+	      warn_count += 1;
+	}
+
+	decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { $1->pscope_name(), @1.lexical_pos };
+	if ($2) {
+	      tmp->index = *$2;
+	      delete $2;
+	}
+	tmp->expr.reset($3);
+	$$ = tmp;
+      }
   ;
 
 
