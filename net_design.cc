@@ -1413,6 +1413,7 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       }
 
       NetExpr *expr;
+      const unsigned errors_before = des->errors;
 
       // Handle assignment patterns as a special case as they need the type to
       // be evaluated correctly.
@@ -1439,6 +1440,24 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    use_type = val_expr->expr_type();
 	    if (use_type == IVL_VT_NO_TYPE)
 		  use_type = expr->expr_type();
+      }
+
+      if (param_type && param_type->base_type() == IVL_VT_CLASS) {
+	    // Reject the recovery NetENull for an incompatible class RHS.
+	    if (dynamic_cast<const NetENull*>(expr)
+		&& val_expr->expr_type() == IVL_VT_CLASS
+		&& des->errors == errors_before) {
+		  cur->second.val = expr;
+		  return;
+	    }
+	    if (des->errors == errors_before) {
+		  cerr << expr->get_fileline() << ": error: "
+		       << "Value is not assignment-compatible with class-typed "
+		       << "parameter `" << cur->first << "`." << endl;
+		  des->errors += 1;
+	    }
+	    delete expr;
+	    return;
       }
 
       if (NetEConst*unbounded = dynamic_cast<NetEConst*>(expr)) {
@@ -2081,6 +2100,10 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
                 case IVL_VT_REAL:
                   evaluate_parameter_real_(des, cur);
                   break;
+
+		case IVL_VT_CLASS:
+		  evaluate_parameter_logic_(des, cur);
+		  break;
 
 		case IVL_VT_STRING:
 		  evaluate_parameter_string_(des, cur);
