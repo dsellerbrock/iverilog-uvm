@@ -2302,6 +2302,9 @@ ivl_type_t enum_type_t::elaborate_type_raw(Design *des, NetScope *scope) const
       netenum_t *type = new netenum_t(base, names->size(), integer_flag);
       type->set_nominal_identity(
 	    this, nominal_type_owner_key_(scope));
+      if (scope)
+	    type->set_generated_type_name("e$" + std::to_string(
+		  scope->enumeration_count() + 1));
       type->set_line(*this);
 
       scope->add_enumeration_set(this, type);
@@ -3259,6 +3262,17 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 		 << "` at " << get_fileline() << "."
 		 << endl;
 	    des->errors++;
+      }
+
+      if (scope) {
+	    std::ostringstream type_name;
+	    type_name << scope_path(scope)
+		      << ((scope->type() == NetScope::PACKAGE) ? "::" : ".")
+		      << name;
+	    if (const netenum_t*enum_type = dynamic_cast<const netenum_t*>(elab_type))
+		  enum_type->set_typedef_type_name(type_name.str());
+	    if (const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(elab_type))
+		  struct_type->set_typedef_type_name(type_name.str());
       }
 
       return elab_type;
