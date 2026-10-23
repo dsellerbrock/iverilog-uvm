@@ -1,0 +1,2 @@
+./ivltests/sv_program_module_calls_program_fail_2017.v:8: error: Design modules cannot call subroutines declared in a program (IEEE 1800-2017/2023 24.5).
+Elaboration failed

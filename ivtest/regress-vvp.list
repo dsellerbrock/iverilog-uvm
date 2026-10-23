@@ -281,6 +281,8 @@ pr3270320_ams			vvp_tests/pr3270320_ams.json
 pr903				vvp_tests/pr903.json
 program2b			vvp_tests/program2b.json
 program3a			vvp_tests/program3a.json
+sv_program_module_calls_program_fail_2017	vvp_tests/sv_program_module_calls_program_fail_2017.json
+sv_program_module_calls_program_fail_2023	vvp_tests/sv_program_module_calls_program_fail_2023.json
 pv_wr_fn_vec2			vvp_tests/pv_wr_fn_vec2.json
 pv_wr_fn_vec4			vvp_tests/pv_wr_fn_vec4.json
 queue_fail			vvp_tests/queue_fail.json

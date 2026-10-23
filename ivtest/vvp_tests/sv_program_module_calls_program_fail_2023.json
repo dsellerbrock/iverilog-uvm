@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_program_module_calls_program_fail_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_program_module_calls_program_fail_2023"
+}

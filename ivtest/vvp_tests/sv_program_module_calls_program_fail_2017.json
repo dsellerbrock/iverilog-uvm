@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_program_module_calls_program_fail_2017.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_program_module_calls_program_fail_2017"
+}

@@ -16300,6 +16300,28 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    return 0;
       }
 
+	// IEEE 1800-2017/2023 24.5 prohibits a design module from calling a
+	// task declared in a program. Check here before the zero-port fast path
+	// below, which bypasses elaborate_build_call_(). Calls made by programs
+	// and calls to module tasks remain legal.
+	if (task->type() == NetScope::TASK) {
+	      const NetScope*caller_scope = scope;
+	      while (caller_scope && caller_scope->type() != NetScope::MODULE)
+		    caller_scope = caller_scope->parent();
+	      const NetScope*target_scope = task;
+	      while (target_scope && target_scope->type() != NetScope::MODULE)
+		    target_scope = target_scope->parent();
+	      if (caller_scope && target_scope
+		  && !caller_scope->program_block()
+		  && target_scope->program_block()) {
+		    cerr << get_fileline() << ": error: Design modules cannot call "
+			 << "subroutines declared in a program (IEEE 1800-2017/2023 "
+			 << "24.5)." << endl;
+		    des->errors += 1;
+		    return 0;
+	      }
+	}
+
       if (task->type() == NetScope::FUNC)
 	    return elaborate_build_call_(des, scope, task, nullptr);
 

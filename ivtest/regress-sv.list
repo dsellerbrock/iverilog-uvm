@@ -476,6 +476,8 @@ program3b		CE,-g2009		ivltests
 program4		normal,-g2009		ivltests
 program5a		CE,-g2009		ivltests
 program5b		CE,-g2009		ivltests
+sv_program_module_calls_program_fail_2017 CE,-g2017 ivltests gold=sv_program_module_calls_program_fail_2017.gold
+sv_program_module_calls_program_fail_2023 CE,-g2023 ivltests gold=sv_program_module_calls_program_fail_2023.gold
 program_hello		normal,-g2009		ivltests
 program_hello2		CE,-g2009		ivltests
 pv_wr_vec2		normal,-g2005-sv	ivltests
