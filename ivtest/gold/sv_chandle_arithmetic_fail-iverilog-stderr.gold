@@ -1,0 +1,2 @@
+ivltests/sv_chandle_arithmetic_fail.v:4: error: chandle may not be used with + (IEEE 1800-2017/2023 6.14).
+Elaboration failed

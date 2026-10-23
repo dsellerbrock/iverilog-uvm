@@ -3722,6 +3722,18 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* IEEE 1800-2017/2023 6.14 explicitly forbids chandles in
+	 * structural continuous assignments, including direct handle copies. */
+      if (lval->net_type() == &netvector_t::chandle_type
+	  || rval_expr->net_type() == &netvector_t::chandle_type) {
+	    cerr << get_fileline() << ": error: chandle may not be used in a ";
+	    cerr << "continuous assignment (IEEE 1800-2017/2023 6.14)."
+		 << endl;
+	    des->errors += 1;
+	    delete rval_expr;
+	    return;
+      }
+
       NetNet*rval = rval_expr->synthesize(des, scope, rval_expr);
 
       if (rval == 0) {
@@ -22742,6 +22754,13 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  && !prepared[idx].preserve_pform
 		  ? prepared[idx].expr.release()
 		  : elab_and_eval(des, scope, expr_[idx]->expr(), -1);
+	    if (tmp && tmp->net_type() == &netvector_t::chandle_type) {
+		  cerr << get_fileline() << ": error: chandle may not be used in an "
+		       << "event expression (IEEE 1800-2017/2023 6.14)." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return nullptr;
+	    }
 	    if (tmp == 0 && expr_[idx]->type() == PEEvent::ANYEDGE) {
 		  /* @(vif.ev) on an interface's named event: wait for a change
 		   * of its bridge member instead. */
