@@ -74,6 +74,16 @@ extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
 
+class loop_context_guard_t {
+    public:
+      explicit loop_context_guard_t(Design*des) : des_(des) {
+	    des_->loop_enter();
+      }
+      ~loop_context_guard_t() { des_->loop_exit(); }
+    private:
+      Design*des_;
+};
+
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
  * the statement form `void'(obj.randomize(b))' narrows the random set
@@ -594,19 +604,23 @@ class subroutine_fork_context_guard_t {
 
     public:
       explicit subroutine_fork_context_guard_t(Design*des)
-      : des_(des), saved_depth_(des->fork_depth())
+      : des_(des), saved_depth_(des->fork_depth()),
+	saved_loop_fork_depths_(des->loop_fork_depths)
       {
 	    des_->restore_fork_depth(0);
+	    des_->loop_fork_depths.clear();
       }
 
       ~subroutine_fork_context_guard_t()
       {
 	    des_->restore_fork_depth(saved_depth_);
+	    des_->loop_fork_depths = saved_loop_fork_depths_;
       }
 
     private:
       Design*des_;
       unsigned saved_depth_;
+      std::vector<unsigned> saved_loop_fork_depths_;
 };
 
 static void elaborate_function_outside_caller_fork_(Design*des,
@@ -12500,6 +12514,13 @@ NetProc* PBreak::elaborate(Design*des, NetScope*) const
 	    return nullptr;
       }
 
+      if (kind_ == IVL_FLOW_LOOP_BREAK && !des->loop_control_allowed()) {
+	    cerr << get_fileline() << ": error: "
+		 << "'break' must control a loop in the same fork-join block "
+		 << "(IEEE 1800-2017/2023 12.8)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
       NetBreak*res = new NetBreak(kind_);
       res->set_line(*this);
@@ -13488,6 +13509,14 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
       if (!gn_system_verilog()) {
 	    cerr << get_fileline() << ": error: "
 		<< "'continue' jump statement requires SystemVerilog." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      if (!des->loop_control_allowed()) {
+	    cerr << get_fileline() << ": error: "
+		 << "'continue' must control a loop in the same fork-join block "
+		 << "(IEEE 1800-2017/2023 12.8)." << endl;
 	    des->errors += 1;
 	    return nullptr;
       }
@@ -20575,6 +20604,7 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
  */
 NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*ce = nullptr;
       if (gn_system_verilog()) {
 	    PExpr::width_mode_t mode = PExpr::SIZED;
@@ -24455,6 +24485,7 @@ NetProc* PEventStatement::elaborate_wait_order_(Design*des,
  */
 NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetProc*stat;
       if (statement_)
 	    stat = statement_->elaborate(des, scope);
@@ -24944,6 +24975,7 @@ static NetProc* prepend_foreach_path_selector_evaluation_(Design*des,
  */
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       if (foreach_target_is_non_simple_(array_path_)) {
 	      /* A hierarchical target may name an ordinary SIGNAL in
 		 another scope -- an array member of an interface
@@ -25896,6 +25928,7 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
  */
 NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*initial_expr = nullptr;
       NetNet*sig = nullptr;
       NetProc*initial_statement = nullptr;
@@ -26194,6 +26227,7 @@ NetProc* PRelease::elaborate(Design*des, NetScope*scope) const
 
 NetProc* PRepeat::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       ivl_assert(*this, scope);
 
       NetExpr*expr = nullptr;
@@ -26648,6 +26682,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
  */
 NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*ce = nullptr;
       if (gn_system_verilog()) {
 	    PExpr::width_mode_t mode = PExpr::SIZED;

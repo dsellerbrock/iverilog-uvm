@@ -1,0 +1,1 @@
+{"type":"CE","source":"n12_08_break_cross_fork.v","iverilog-args":["-g2017","-s","n12_08_break_cross_fork"],"gold":"n12_08_break_cross_fork_2017"}

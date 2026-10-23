@@ -1,0 +1,2 @@
+ivltests/n12_08_break_cross_fork.v:4: error: 'break' must control a loop in the same fork-join block (IEEE 1800-2017/2023 12.8).
+1 error(s) during elaboration.

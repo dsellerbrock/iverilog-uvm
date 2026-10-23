@@ -6453,7 +6453,17 @@ class Design {
       unsigned fork_depth() const { return in_fork; }
       void restore_fork_depth(unsigned depth) { in_fork = depth; }
 
+      void loop_enter() { loop_fork_depths.push_back(in_fork); }
+      void loop_exit() { loop_fork_depths.pop_back(); }
+      bool loop_control_allowed() const {
+	    for (auto depth = loop_fork_depths.rbegin();
+		 depth != loop_fork_depths.rend(); ++depth)
+		  if (*depth == in_fork) return true;
+	    return false;
+      }
+
       unsigned int in_fork = 0;
+      std::vector<unsigned> loop_fork_depths;
 
 	/* Unpacked-struct member defaults are validated when their declaring
 	 * pform type is elaborated, even when no variable uses the type or a

@@ -1,0 +1,2 @@
+ivltests/n12_08_continue_fork.v:3: error: 'continue' must control a loop in the same fork-join block (IEEE 1800-2017/2023 12.8).
+1 error(s) during elaboration.

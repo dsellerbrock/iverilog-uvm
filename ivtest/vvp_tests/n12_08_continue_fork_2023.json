@@ -1,0 +1,1 @@
+{"type":"CE","source":"n12_08_continue_fork.v","iverilog-args":["-g2023","-s","n12_08_continue_fork"],"gold":"n12_08_continue_fork_2023"}
