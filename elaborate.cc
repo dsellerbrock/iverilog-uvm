@@ -13566,6 +13566,10 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      const bool monitor_task = name == "$monitor" || name == "$monitorb"
+	    || name == "$monitoro" || name == "$fmonitor"
+	    || name == "$fmonitorb" || name == "$fmonitoro";
+      const bool dumpvars_task = name == "$dumpvars";
       const bool assertion_control_task =
 	    name == "$asserton" || name == "$assertoff"
 	    || name == "$assertkill";
@@ -13613,6 +13617,20 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 
       for (unsigned idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    auto &parm = parms_[idx];
+
+	    /* IEEE 1800-2017/2023 13.3.2: automatic task variables are
+	       deallocated at return, so they cannot be traced by $monitor or
+	       $dumpvars. Reject these references during elaboration instead of
+	       leaving the VPI compiletf check to fail only when vvp starts. */
+	    bool traced_argument = monitor_task || (dumpvars_task && idx > 0);
+	    if (monitor_task && name[1] == 'f' && idx == 0)
+		  traced_argument = false;
+	    if (traced_argument && parm.parm
+		&& parm.parm->has_aa_term(des, scope)) {
+		  cerr << parm.get_fileline() << ": error: automatically allocated "
+		          "variables may not be traced with " << name << "()." << endl;
+		  des->errors += 1;
+	    }
 
 	    // System functions don't have named parameters
 	    if (!parm.name.nil()) {
