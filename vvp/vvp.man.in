@@ -125,7 +125,9 @@ enable better compression and turn off incremental writing.
 .TP
 .B -fst-space-speed\fR|\fP-fst-speed-space
 This is a modern dumping format that is both faster and more compact
-than the other dumping formats. It supports incremental dumping just
+than the other dumping formats. Without any of these dumper flags, a dump
+file whose name ends in \fI.fst\fP is written in FST format and any
+other name in VCD format. It supports incremental dumping just
 like \fB\-lxt2\fP. The \fB\-fst\-speed\fP argument uses a faster
 compression methods that creates a noticeably larger output file.
 The \fB\-fst\-space\fP argument performs a repack of the file on
