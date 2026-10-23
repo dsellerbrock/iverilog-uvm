@@ -1056,6 +1056,8 @@ sv_dumpports_late_fail vvp_tests/sv_dumpports_late_fail.json
 
 # $finish drains already-scheduled work but event controls do not re-spawn it
 sv_finish_event_rearm vvp_tests/sv_finish_event_rearm.json
+sv_finish_stats_2017 vvp_tests/sv_finish_stats_2017.json
+sv_finish_stats_2023 vvp_tests/sv_finish_stats_2023.json
 
 # IEEE 1800-2017 type() case matching and specparam constant-expression boundary
 sv_type_operator_case	vvp_tests/sv_type_operator_case.json
