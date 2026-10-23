@@ -1,0 +1,7 @@
+{
+    "__comment"     : "IEEE 1800-2017 clause 23.10.1 forbids a generate-block defparam from targeting another instance of the same block.",
+    "type"          : "CE",
+    "source"        : "sv_defparam_cross_generate_block_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_defparam_cross_generate_block_fail" ],
+    "gold"          : "sv_defparam_cross_generate_block_fail"
+}
