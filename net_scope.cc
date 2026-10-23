@@ -611,6 +611,38 @@ bool NetScope::auto_name(const char*prefix, char pad, const char* suffix)
  * Return false if the parameter does not already exist.
  * A parameter is not automatically created.
  */
+static bool defparam_targets_other_genblock_instance(const NetScope*src,
+						     const NetScope*targ)
+{
+      // Check all enclosing generate scopes so nested loops include their
+      // outer iterations.
+      for (const NetScope*gen = src;
+	   gen && gen->type() == NetScope::GENBLOCK;
+	   gen = gen->parent()) {
+	    const NetScope*parent = gen->parent();
+	    if (!parent) break;
+
+	    const hname_t&gen_name = gen->fullname();
+	    if (gen_name.has_numbers() == 0) continue;
+
+	    for (const NetScope*ancestor = targ;
+		 ancestor && ancestor->parent();
+		 ancestor = ancestor->parent()) {
+		  if (ancestor->parent() != parent) continue;
+
+		  const hname_t&target_name = ancestor->fullname();
+		  if (ancestor != gen
+		      && target_name.peek_name() == gen_name.peek_name()
+		      && target_name.has_numbers() != 0
+		      && target_name.peek_numbers() != gen_name.peek_numbers())
+			return true;
+		  break;
+	    }
+      }
+
+      return false;
+}
+
 void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 			         NetScope*scope, bool defparam)
 {
@@ -618,6 +650,16 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 	    cerr << val->get_fileline() << ": error: parameter `"
 	         << key << "` not found in `"
 	         << scope_path(this) << "`." << endl;
+	    des->errors++;
+	    return;
+      }
+
+      if (defparam && defparam_targets_other_genblock_instance(scope, this)) {
+	    cerr << val->get_fileline() << ": error: defparam in generate block `"
+		 << scope_path(scope) << "` cannot target parameter `" << key
+		 << "` in `" << scope_path(this)
+		 << "`, which is in another instance of the same generate block "
+		    "(IEEE 1800-2017/2023 23.10.1)." << endl;
 	    des->errors++;
 	    return;
       }
