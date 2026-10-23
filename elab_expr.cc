@@ -6053,7 +6053,10 @@ static bool type_operator_kind_supported_(ivl_type_t t)
       if (dynamic_cast<const netstring_t*>(t)) return true;
       if (dynamic_cast<const netenum_t*>(t))   return true;
       if (dynamic_cast<const netclass_t*>(t))  return true;
-      if (dynamic_cast<const netstruct_t*>(t)) return true;
+      // This issue adds nominal matching for unpacked struct/union types.
+      // Packed structs still need member-wise matching; preserve the existing
+      // unsupported diagnostic instead of accepting them by identity alone.
+      if (dynamic_cast<const netstruct_t*>(t)) return !t->packed();
       if (dynamic_cast<const netuarray_t*>(t)) return true;
       return false;
 }
