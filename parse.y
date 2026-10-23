@@ -7431,9 +7431,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence(@2, $2, $4);
+      { check_end_label(@8, "sequence", $2, $8);
+	pform_sva_declare_sequence(@2, $2, $4);
 	delete[] $2;
-	delete[] $8;
       }
   /* A sequence_expr can carry a leading clocking_event and can itself be a
      multiclocked/combinator sequence.  Preserve the property-shaped IR. */
@@ -7444,11 +7444,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' event_control property_expr ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $5;
+      { check_end_label(@9, "sequence", $2, $9);
+	sva_property_t*p = $5;
 	if (p) p->clk_evt = $4; else delete $4;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $9;
       }
   /* A composite sequence is itself a sequence_expr and may continue through
      ##delay into an ordinary linear suffix. Keep this declaration-scoped
@@ -7461,11 +7461,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $5;
+      { check_end_label(@9, "sequence", $2, $9);
+	sva_property_t*p = $5;
 	if (p) p->clk_evt = $4; else delete $4;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $9;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
       property_expr ';' K_endsequence
@@ -7476,20 +7476,20 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
       property_expr ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $6;
+      { check_end_label(@10, "sequence", $2, $10);
+	sva_property_t*p = $6;
 	if (p) p->clk_evt = $5; else delete $5;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $10;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence(@2, $2, $5);
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence(@2, $2, $5);
+      { check_end_label(@9, "sequence", $2, $9);
+	pform_sva_declare_sequence(@2, $2, $5);
 	delete[] $2;
-	delete[] $9;
       }
   /* M9D: parameterized named property/sequence declarations. Formal
      arguments (plain identifiers) are substituted with the actual
@@ -7519,9 +7519,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+      { check_end_label(@11, "sequence", $2, $11);
+	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
-	delete[] $11;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence
@@ -7530,9 +7530,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence_p(@2, $2, $4, $8);
+      { check_end_label(@12, "sequence", $2, $12);
+	pform_sva_declare_sequence_p(@2, $2, $4, $8);
 	delete[] $2;
-	delete[] $12;
       }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
      parameterized/complex forms are parsed and dropped via bison

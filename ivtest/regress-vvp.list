@@ -867,6 +867,8 @@ sv_assoc_integral_key_context	vvp_tests/sv_assoc_integral_key_context.json
 sv_assoc_traversal_key_type_fail	vvp_tests/sv_assoc_traversal_key_type_fail.json
 
 # IEEE 1800-2017 sequential statement labels and matching end labels
+sv_sequence_end_label_mismatch_2017 vvp_tests/sv_sequence_end_label_mismatch_2017.json
+sv_sequence_end_label_mismatch_2023 vvp_tests/sv_sequence_end_label_mismatch_2023.json
 sv_statement_label_seq	vvp_tests/sv_statement_label_seq.json
 sv_statement_label_seq_fail	vvp_tests/sv_statement_label_seq_fail.json
 
