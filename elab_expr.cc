@@ -5536,21 +5536,6 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       ivl_variable_type_t r_type = right_->expr_type();
 
       if (l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS) {
-	      // Compile-progress fallback: sub-expression resolved as
-	      // class type (common for unresolved method returns).
-	      // Treat as integer and continue. A literal `null` operand
-	      // is never a stubbed method return, so it gets the hard
-	      // error in every mode — silently continuing let width-0
-	      // null expressions deep into elaboration (br_gh440 abort).
-	    if (gn_system_verilog()
-		&& !dynamic_cast<const PENull*>(left_)
-		&& !dynamic_cast<const PENull*>(right_)) {
-		  expr_type_ = IVL_VT_LOGIC;
-		  expr_width_ = 32;
-		  min_width_ = 32;
-		  signed_flag_ = true;
-		  return fix_width_(mode);
-	    }
 	    cerr << get_fileline() << ": error: "
 	         << "Class/null is not allowed with the '"
 	         << human_readable_op(op_) << "' operator." << endl;
@@ -5788,6 +5773,17 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*lp =  left_->elaborate_expr(des, scope, l_width, flags);
       NetExpr*rp = right_->elaborate_expr(des, scope, r_width, flags);
       if ((lp == 0) || (rp == 0)) {
+	    delete lp;
+	    delete rp;
+	    return 0;
+      }
+
+      if ((lp->expr_type() == IVL_VT_CLASS || rp->expr_type() == IVL_VT_CLASS)
+	  && !dynamic_cast<NetENull*>(lp) && !dynamic_cast<NetENull*>(rp)) {
+	    cerr << get_fileline() << ": error: "
+	         << "Class handle is not allowed with the '"
+	         << human_readable_op(op_) << "' operator." << endl;
+	    des->errors += 1;
 	    delete lp;
 	    delete rp;
 	    return 0;
