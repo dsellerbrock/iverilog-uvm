@@ -19645,6 +19645,20 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			if (des->errors == errors_before)
 			      des->errors += 1;
 		  }
+	    } else if (def->port_defe(idx)) {
+		  const PTaskFunc*subroutine = task->type() == NetScope::TASK
+			? static_cast<const PTaskFunc*>(task->task_pform())
+			: static_cast<const PTaskFunc*>(task->func_pform());
+		  const vector<pform_tf_port_t>*formals = subroutine
+			? subroutine->peek_ports() : 0;
+		  if (formals && idx < formals->size()
+		      && formals->at(idx).defe) {
+			// The default is lexically bound in the declaration scope
+			// (IEEE 1800-2017 13.5.3), not the caller's scope. It is
+			// also the actual l-value for copy-out of output/inout ports.
+			lv = formals->at(idx).defe->elaborate_lval(
+			      des, task, false, false);
+		  }
 	    } else if (port->port_type() == NetNet::POUTPUT) {
 		    // Output ports were skipped earlier, so report the error
 		    // now. An omitted output with no default is illegal (IEEE
