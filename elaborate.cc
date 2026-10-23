@@ -8588,6 +8588,20 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 				   operand_width, force_unsigned);
       if (rv == 0) return 0;
 
+      /* IEEE 1800-2017/2023 Table 11-1 restricts modulus to integral
+         operands. Compressed assignments bypass PEBinary elaboration, so
+         check the elaborated l-value and operand before building the IR. */
+      if (op_ == '%' && generation_flag >= GN_VER2017
+          && (lv->expr_type() == IVL_VT_REAL
+              || rv->expr_type() == IVL_VT_REAL)) {
+            cerr << get_fileline() << ": error: Modulus operator "
+                 << "may not have REAL operands." << endl;
+            des->errors += 1;
+            delete lv;
+            delete rv;
+            return 0;
+      }
+
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
 	// shifts now if the lval is unsigned.

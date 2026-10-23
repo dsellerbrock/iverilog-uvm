@@ -1,0 +1,3 @@
+ivltests/sv_real_mod_integral_fail_2023.v:6: error: Modulus operator may not have REAL operands.
+ivltests/sv_real_mod_integral_fail_2023.v:7: error: Modulus operator may not have REAL operands.
+2 error(s) during elaboration.
