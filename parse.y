@@ -9043,6 +9043,16 @@ sva_seq_atom
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
+  /* IEEE 1800-2017/2023 16.10: a parenthesized sequence expression can
+     itself be the subsequence whose endpoint receives the match item,
+     e.g. `((a ##1 b), x = 1)'. */
+  | '(' '(' sva_seq_expr ')' ',' IDENTIFIER '=' expression ')'
+      { std::vector<sva_seq_step_t>*steps = $3;
+	sva_seq_step_t&st = steps->back();
+	st.lv_name = lex_strings.make($6);
+	st.lv_rhs = pform_sva_coerce_local_assignment(@6, $6, $8);
+	delete[] $6;
+	$$ = steps; }
   /* 16.11 bounded executable slice: calls alone, or calls after the local
      assignment. The latter order is semantically significant: the call's
      input arguments observe the value assigned by the preceding item. */

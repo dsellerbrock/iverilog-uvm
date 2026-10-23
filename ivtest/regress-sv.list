@@ -5358,6 +5358,7 @@ sv_csrng_packed_bit_joint_dist_multileaf normal,-g2017,-scsrng_packed_bit_joint_
 sv_csrng_packed_bit_joint_dist_multileaf_2023 normal,-g2023,-Iivltests,-scsrng_packed_bit_joint_dist_multileaf ivltests gold=sv_csrng_packed_bit_joint_dist_multileaf.gold
 
 # Sequence match-item subroutine calls on cover endpoints.
+sv_sva_subsequence_match_item normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_subsequence_match_item ivltests gold=sv_sva_subsequence_match_item.gold
 sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
 sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
 sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
