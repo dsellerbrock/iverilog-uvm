@@ -27333,7 +27333,7 @@ static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
  *   blocked (waiting on an event/join) leaves the block in place and lets
  *   the eventual wake re-arm the reschedule.
  */
-bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+static bool process_suspend_(vthread_t thr, bool edition_2023)
 {
       vvp_object_t obj;
       thr->pop_object(obj);
@@ -27356,6 +27356,11 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
 
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
+      if (edition_2023 && self_suspend && thr->i_am_in_function) {
+	    vpi_printf("vvp: error: a function cannot suspend its own process in IEEE 1800-2023 mode\n");
+	    vpi_control(vpiFinish, 1);
+	    return false;
+      }
 
 	// Every thread the process is made of, not just the one the handle
 	// names: while a named block or a task frame is executing, IT is the
@@ -27383,6 +27388,16 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       }
 
       return true;
+}
+
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, false);
+}
+
+bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, true);
 }
 
 /*

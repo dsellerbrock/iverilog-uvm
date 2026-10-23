@@ -1,0 +1,2 @@
+RESUMED_AFTER_FUNCTION
+ivltests/sv_process_suspend_function_self.v:13: $finish called at 2 (1s)

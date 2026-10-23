@@ -781,6 +781,7 @@ DLLEXPORT int target_process_order(ivl_process_order_s*processes,
 /* Accessor for tgt-vvp helpers that need design-wide scope navigation
  * (e.g. randomize() pre/post-hook lookup in eval_vec4.c). */
 ivl_design_t vvp_get_saved_design(void) { return saved_design; }
+int vvp_ieee_2023_mode = 0;
 
 static void segfault_handler(int sig)
 {
@@ -1022,6 +1023,8 @@ static int finish_design_output(ivl_design_t des, int rc)
 
 int target_design(ivl_design_t des)
 {
+      const char *edition = ivl_design_flag(des, "IEEE_1800_2023");
+      vvp_ieee_2023_mode = edition && edition[0];
       int rc = begin_design_output(des);
       if (rc != 0)
             return rc;
@@ -1033,6 +1036,9 @@ int target_design(ivl_design_t des)
 DLLEXPORT int target_design_begin(ivl_design_t des)
 {
       int rc;
+
+      const char *edition = ivl_design_flag(des, "IEEE_1800_2023");
+      vvp_ieee_2023_mode = edition && edition[0];
 
       if (incremental_design_active) {
             fprintf(stderr,

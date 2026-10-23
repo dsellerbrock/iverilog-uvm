@@ -7059,7 +7059,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    else if (strcmp(stmt_name, "$ivl_process$await") == 0)
 		  op = "%process/await";
 	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
-		  op = "%process/suspend";
+		  op = vvp_ieee_2023_mode
+		       ? "%process/suspend/2023" : "%process/suspend";
 	    else
 		  op = "%process/resume";
 	    fprintf(vvp_out, "    %s;\n", op);

@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "sv_process_suspend_function_self.v",
+    "iverilog-args": [ "-g2017" ],
+    "gold": "sv_process_suspend_function_self_2017",
+    "vlog95": { "type": "NI" }
+}

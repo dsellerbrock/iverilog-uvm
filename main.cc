@@ -1317,6 +1317,8 @@ int main(int argc, char*argv[])
             if (prior != flags.end()) free((void *)prior->second);
             flags["DUMPPORTS"] = strdup("1");
       }
+      if (generation_flag >= GN_VER2023)
+            flags["IEEE_1800_2023"] = strdup("1");
       des->set_flags(flags);
 
       switch(min_typ_max_flag) {
