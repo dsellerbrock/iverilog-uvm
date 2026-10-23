@@ -311,6 +311,11 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 		  array->set_all_rand_mode(mode);
 	    else if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
 		  assoc->set_all_rand_mode(mode);
+	    else if (vvp_cobject*aggregate = obj.peek<vvp_cobject>()) {
+		  if (aggregate->get_defn()->is_struct_type()
+		      && !aggregate->get_defn()->is_union_type())
+			aggregate->set_all_rand_mode(mode);
+	    }
       }
 }
 
