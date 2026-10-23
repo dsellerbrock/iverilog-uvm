@@ -13385,6 +13385,28 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		  const name_component_t member_comp = member_path.front();
 		  member_path.pop_front();
 
+		    /* An unpacked-struct iterator is elaborated through this
+		     * member walker. Check the active array-method index alias
+		     * before looking up a struct field, just as the class and
+		     * ordinary signal paths do. */
+		  if (gn_system_verilog() && member_comp.index.empty()) {
+			if (NetNet*idx_net = find_array_method_iter_index(
+			      net, member_comp.name)) {
+			      if (!member_path.empty()) {
+				    cerr << li->get_fileline() << ": error: iterator index "
+					 << "query cannot be followed by a member selection."
+					 << endl;
+				    des->errors += 1;
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      delete base_expr;
+			      NetESignal*idx_expr = new NetESignal(idx_net);
+			      idx_expr->set_line(*li);
+			      return idx_expr;
+			}
+		  }
+
 		    // Enumeration methods may be invoked on an enum-valued
 		    // UNPACKED-struct member (`s.mode.name()` and the legal
 		    // no-parentheses zero-argument form `s.mode.name').  The
