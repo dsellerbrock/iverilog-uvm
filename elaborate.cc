@@ -29132,6 +29132,53 @@ static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env);
+static bool constraint_dist_subject_has_rand_(const PExpr*expr,
+					       const netclass_t*cls)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (id->path().package || id->path().name.empty()) return false;
+	    const netclass_t*owner = cls;
+	    for (const name_component_t&component : id->path().name) {
+		  if (!owner) return false;
+		  int idx = owner->property_idx_from_name(component.name);
+		  if (idx < 0) return false;
+		  if (owner->get_prop_qual((size_t)idx).test_rand()) return true;
+		  owner = dynamic_cast<const netclass_t*>(
+			owner->get_prop_type((size_t)idx));
+	    }
+	    return false;
+      }
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(expr))
+	    return constraint_dist_subject_has_rand_(u->get_expr(), cls);
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    if (constraint_dist_subject_has_rand_(call->receiver_expr(), cls))
+		  return true;
+	    for (const named_pexpr_t&arg : call->get_parms())
+		  if (constraint_dist_subject_has_rand_(arg.parm, cls))
+			return true;
+	    return false;
+      }
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(expr))
+	    return constraint_dist_subject_has_rand_(member->base(), cls);
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    if (constraint_dist_subject_has_rand_(concat->repeat_expr(), cls))
+		  return true;
+	    for (const PExpr*part : concat->stream_parms())
+		  if (constraint_dist_subject_has_rand_(part, cls))
+			return true;
+	    return false;
+      }
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(expr))
+	    return constraint_dist_subject_has_rand_(b->get_left(), cls)
+		  || constraint_dist_subject_has_rand_(b->get_right(), cls);
+      if (const PETernary*t = dynamic_cast<const PETernary*>(expr))
+	    return constraint_dist_subject_has_rand_(t->get_cond(), cls)
+		  || constraint_dist_subject_has_rand_(t->get_true(), cls)
+		  || constraint_dist_subject_has_rand_(t->get_false(), cls);
+      return false;
+}
+
 static void constraint_diagnose_randc_restrictions_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
@@ -31713,6 +31760,10 @@ static void constraint_diagnose_randc_restrictions_(
       if (!expr)
 	    return;
 
+      /* A dist subject must contain a rand (rather than randc) variable.
+       * Resolve simple class-property references before lowering, so a
+       * constant/state-only distribution cannot silently become a no-op. */
+
 	/* A let is substitution, so visit only the expanded expression. An
 	 * unused actual does not participate in the resulting constraint. */
       static unsigned let_depth = 0;
@@ -31765,6 +31816,16 @@ static void constraint_diagnose_randc_restrictions_(
 	    return;
       }
       if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    if (inside->is_dist()
+		&& !constraint_dist_subject_has_rand_(inside->get_expr(), cls)
+		&& !constraint_source_references_randc_(
+		      inside->get_expr(), cls, value_slots, scope, loop_env)) {
+		  cerr << inside->get_fileline()
+		       << ": error: a dist expression requires at least one rand variable."
+		       << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+	    }
 	    if (inside->is_dist()
 		&& constraint_source_references_randc_(
 		      inside, cls, value_slots, scope, loop_env))
