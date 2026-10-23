@@ -15771,26 +15771,17 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			}
 			
 		  } else if (const netenum_t*tail_enum = dynamic_cast<const netenum_t*>(cur_type)) {
-		// Built-in enum method accessed through a class property chain
-		if (tail_comp.name == "name") {
-		      NetESFunc*sys_expr = new NetESFunc("$ivl_enum_method$name",
-							&netstring_t::type_string, 2);
-		      sys_expr->set_line(*this);
-		      NetENetenum*def = new NetENetenum(tail_enum);
-		      def->set_line(*this);
-		      sys_expr->parm(0, def);
-		      sys_expr->parm(1, base_expr);
-		      base_expr = sys_expr;
-		      cur_type = &netstring_t::type_string;
-		      continue;
-		}
-		// compile-progress for other enum methods (next, prev, etc.)
-		cerr << get_fileline() << ": warning: "
-		     << "Enum method `" << tail_comp.name
-		     << "' on class-property enum not yet supported"
-		     << " (compile-progress: expression dropped)." << endl;
-		delete base_expr;
-		return nullptr;
+		// Bare enum methods on class properties use the same elaboration path
+		// as enum methods on ordinary variables and temporary expressions.
+		// This preserves the enum receiver for name/next/prev and handles
+		// first/last/num as type-derived constants.
+		base_expr = check_for_enum_methods(this, des, scope, tail_enum,
+						   pform_scoped_name_t(sr.path_head),
+						   tail_comp.name, base_expr, {});
+		if (!base_expr)
+		      return nullptr;
+		cur_type = base_expr->net_type();
+		continue;
 	  } else if (const netuarray_t*fixed =
 		       dynamic_cast<const netuarray_t*>(cur_type)) {
 		/* Paren-less reductions and unique/unique_index on a whole
