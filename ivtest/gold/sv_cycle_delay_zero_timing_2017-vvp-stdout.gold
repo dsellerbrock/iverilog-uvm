@@ -1,0 +1,2 @@
+PASS
+ivltests/sv_cycle_delay_zero_timing.v:18: $finish called at 15 (1s)

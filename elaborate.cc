@@ -20275,6 +20275,41 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
       PEEvent*cb_ev = new PEEvent(PEEvent::ANYEDGE, cb_id);
       PEventStatement*wait_stmt = new PEventStatement(cb_ev);
       wait_stmt->set_line(*this);
+
+	/* repeat (0) normally removes its body. IEEE 1800-2017 14.11
+	   instead makes ##0 wait for this time step's clocking event when
+	   that event has not happened yet. The public clocking event has a
+	   matching internal named event whose triggered property tracks that
+	   condition. */
+      NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
+      const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
+      bool zero_count = count_const && count_const->value().as_long() == 0;
+      delete count_expr;
+      if (zero_count) {
+	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
+	    perm_string trig_name = lex_strings.make(trig_name_str.c_str());
+	    pform_name_t trig_path;
+	    trig_path.push_back(name_component_t(trig_name));
+	    trig_path.push_back(name_component_t(perm_string::literal("triggered")));
+	    PEIdent*trig_id = new PEIdent(trig_path, UINT_MAX);
+	    trig_id->set_line(*this);
+	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
+	    wait_if_needed->set_line(*this);
+	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	    if (proc && statement_) {
+		  NetProc*sub = statement_->elaborate(des, scope);
+		  if (sub == 0) {
+			delete proc;
+			return 0;
+		  }
+		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+		  blk->set_line(*this);
+		  blk->append(proc);
+		  blk->append(sub);
+		  proc = blk;
+	    }
+            return proc;
+      }
       PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
       rep_stmt->set_line(*this);
 
