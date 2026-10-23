@@ -2445,6 +2445,10 @@ sv_interface_class_illegal_items_fail CE,-g2012 ivltests gold=sv_interface_class
 sv_interface_class_relation_fail CE,-g2012 ivltests gold=sv_interface_class_relation_fail.gold
 sv_interface_class_qualifier_fail CE,-g2012 ivltests gold=sv_interface_class_qualifier_fail.gold
 sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_class_nonvirtual_method_fail.gold
+sv_interface_class_nested_edition_2017 CE,-g2017 ivltests
+sv_interface_class_nested_edition_2023 normal,-g2023 ivltests gold=sv_interface_class_nested_edition_2023.gold
+sv_interface_class_nested_interface_fail_2017 CE,-g2017 ivltests
+sv_interface_class_nested_interface_fail_2023 CE,-g2023 ivltests
 sv_package_param_interface_relations normal,-g2012 ivltests gold=sv_package_param_interface_relations.gold
 
 # IEEE 1800-2017 6.6.7 user-defined nettypes and 6.6.8 interconnect

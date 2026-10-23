@@ -1,0 +1,1 @@
+ivltests/sv_interface_class_nested_edition_2017.v:3: error: An interface class shall not be nested within a class (IEEE 1800-2017 8.26).

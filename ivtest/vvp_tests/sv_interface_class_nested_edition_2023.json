@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_class_nested_edition_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_interface_class_nested_edition_2023"
+}
