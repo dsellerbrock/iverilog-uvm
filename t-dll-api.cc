@@ -3605,6 +3605,23 @@ extern "C" ivl_statement_t ivl_stmt_case_stmt(ivl_statement_t net, unsigned idx)
       }
 }
 
+extern "C" unsigned ivl_stmt_case_group(ivl_statement_t net, unsigned idx)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    assert(idx < net->u_.case_.ncase);
+	    return net->u_.case_.case_group[idx];
+
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
 extern "C" ivl_expr_t ivl_stmt_cond_expr(ivl_statement_t net)
 {
       assert(net);

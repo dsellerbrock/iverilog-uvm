@@ -343,6 +343,7 @@ ivl_stmt_break_kind
 ivl_stmt_call
 ivl_stmt_case_count
 ivl_stmt_case_expr
+ivl_stmt_case_group
 ivl_stmt_case_is_quality_if
 ivl_stmt_case_quality
 ivl_stmt_case_stmt
