@@ -30659,8 +30659,16 @@ bool of_SCOPY(vthread_t thr, vvp_code_t)
 
       vvp_object_t&dest = thr->peek_object();
         // If it is null there is nothing to copy
-      if (!tmp.test_nil())
+      if (!tmp.test_nil()) {
+	    const vvp_cobject*src = tmp.peek<vvp_cobject>();
+	    vvp_cobject*dst = dest.peek<vvp_cobject>();
+	    if (src && dst && src->get_defn() != dst->get_defn()) {
+		  // A base handle may refer to a derived object. IEEE 1800-2017/2023
+		  // 8.12 requires its shallow copy to retain the dynamic type.
+		  dest = new vvp_cobject(src->get_defn());
+	    }
 	    dest.shallow_copy(tmp);
+      }
 
       return true;
 }
