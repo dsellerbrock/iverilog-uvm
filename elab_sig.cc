@@ -3392,6 +3392,13 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	    pdefs[idx] = 0;
 	    NetNet*tmp = scope->find_signal(port_name);
 	    NetExpr*tmp_def = 0;
+	    if (tmp && tmp->port_type() == NetNet::PREF
+		&& default_lifetime == LexicalScope::STATIC) {
+		  cerr << tmp->get_fileline() << ": error: A ref argument is "
+		       << "illegal for a subroutine with static lifetime "
+		       << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+		  des->errors += 1;
+	    }
 	    if (tmp == 0) {
 		  cerr << get_fileline() << ": internal error: "
 		       << "task/function " << scope_path(scope)

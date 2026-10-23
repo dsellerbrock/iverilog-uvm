@@ -143,10 +143,10 @@ module main;
   endtask
 
   // ------------------------------------------------------------------
-  // 5. A ref formal of a static-lifetime task keeps the copy pair (no
-  //    frame to bind into); a synchronous call must still work.
+  // 5. A ref formal of an automatic-lifetime task must bind directly,
+  //    and a synchronous call must still work.
   // ------------------------------------------------------------------
-  task st_task(ref Foo out_h);
+  task automatic st_task(ref Foo out_h);
     out_h = new(123);
   endtask
 

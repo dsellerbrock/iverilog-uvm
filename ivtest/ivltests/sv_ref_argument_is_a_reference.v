@@ -171,7 +171,7 @@ module main;
     task automatic spin_relay(ref int x); forever #1 x++;  endtask
   endclass
 
-  task st_task(ref int x);          // static lifetime: no frame
+  task automatic st_task(ref int x);
     x = x + 100;
   endtask
 
@@ -323,9 +323,9 @@ module main;
     chk("a part write through a ref formal",       k,       15);
     chk("a part write through a ref vector",       int'(pw), 8'h35);
 
-    // ---- a static-lifetime subroutine: the copy pair ----
+    // ---- an automatic-lifetime subroutine: direct reference ----
     k = 0; st_task(k);
-    chk("a ref formal of a static-lifetime task", k, 100);
+    chk("a ref formal of an automatic-lifetime task", k, 100);
 
     // ---- controls ----
     qpush(q);
