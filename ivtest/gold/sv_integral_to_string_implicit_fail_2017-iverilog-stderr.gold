@@ -1,0 +1,3 @@
+ivltests/sv_integral_to_string_implicit_fail.v:7: error: An integral value assigned to a string requires an explicit string cast (IEEE 1800-2017/2023 6.16).
+ivltests/sv_integral_to_string_implicit_fail.v:8: error: An integral value assigned to a string requires an explicit string cast (IEEE 1800-2017/2023 6.16).
+2 error(s) during elaboration.

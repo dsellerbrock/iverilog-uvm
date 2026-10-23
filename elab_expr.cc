@@ -4243,6 +4243,31 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    }
       }
 
+	/* IEEE 1800-2017/2023 6.16 permits string literals and string-valued
+	 * expressions to initialize or assign a string directly, but an integral
+	 * value requires an explicit string cast. PEString is kept as the literal
+	 * exception because the legacy width-based path represents it as an
+	 * integral constant before string lowering. A type cast whose resolved
+	 * target is string is also explicit even if its lowered expression retains
+	 * the source's integral type (for example, a typedef naming string). */
+      bool explicit_string_cast = false;
+      if (const PECastType*cast_expr = dynamic_cast<const PECastType*>(expr)) {
+	    ivl_type_t cast_type = cast_expr->resolve_target_type(des, scope);
+	    explicit_string_cast = cast_type
+		 && cast_type->base_type() == IVL_VT_STRING;
+      }
+      if (lv_type == IVL_VT_STRING
+	  && type_is_vectorable(rval->expr_type())
+	  && !dynamic_cast<const PEString*>(expr)
+	  && !explicit_string_cast) {
+	    cerr << expr->get_fileline() << ": error: An integral value assigned to "
+		 << "a string requires an explicit string cast (IEEE 1800-2017/2023 "
+		 << "6.16)." << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+      }
+
 	/* A nonconstant replication of string data is intrinsically string,
 	 * even when all of its operands are literals (Table 6-9). A string
 	 * expression is not implicitly assignment-compatible with an integral
