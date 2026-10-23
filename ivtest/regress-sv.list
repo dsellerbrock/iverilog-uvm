@@ -573,6 +573,8 @@ sv_array_cassign_fail9	CE,-g2005-sv		ivltests
 sv_array_cassign_fail10	CE,-g2005-sv		ivltests
 sv_array_cassign_fail11	CE,-g2005-sv		ivltests
 sv_class_fixed_array_reduction normal,-g2012	ivltests gold=sv_class_fixed_array_reduction.gold
+sv_modport_undeclared_signal_2017 CE,-g2017	ivltests gold=sv_modport_undeclared_signal_2017.gold
+sv_modport_undeclared_signal_2023 CE,-g2023	ivltests gold=sv_modport_undeclared_signal_2023.gold
 sv_constraint_fixed_array_reduction normal,-g2012	ivltests gold=sv_constraint_fixed_array_reduction.gold
 sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array_reduction_fail.gold
 sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
