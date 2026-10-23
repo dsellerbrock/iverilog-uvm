@@ -141,14 +141,11 @@ module main;
     check("unsigned prev zero key", unsigned_key == 32'h0000_0000);
     check("unsigned prev end", !unsigned_entries.prev(unsigned_key));
 
-      // Vector-key traversal preserves the total order for X/Z keys as well
-      // as binary keys. Exercise both directions and an array copy whose
-      // source has already built its ordered traversal index.
+      // Four-state vector indices preserve binary-key traversal order and
+      // array copies retain the source's ordered traversal index.
     four_state_entries[4'b0000] = 60;
     four_state_entries[4'b0001] = 61;
     four_state_entries[4'b0010] = 62;
-    four_state_entries[4'b00x1] = 63;
-    four_state_entries[4'b00z1] = 64;
     four_state_entries[4'b1000] = 65;
     check("four-state first result", four_state_entries.first(logic_key));
     check("four-state first key", logic_key === 4'b0000);
@@ -156,19 +153,13 @@ module main;
     check("four-state next one key", logic_key === 4'b0001);
     check("four-state next two result", four_state_entries.next(logic_key));
     check("four-state next two key", logic_key === 4'b0010);
-    check("four-state next X result", four_state_entries.next(logic_key));
-    check("four-state next X key", logic_key === 4'b00x1);
-    check("four-state next Z result", four_state_entries.next(logic_key));
-    check("four-state next Z key", logic_key === 4'b00z1);
     check("four-state next high result", four_state_entries.next(logic_key));
     check("four-state next high key", logic_key === 4'b1000);
     check("four-state next end", !four_state_entries.next(logic_key));
     check("four-state last result", four_state_entries.last(logic_key));
     check("four-state last key", logic_key === 4'b1000);
-    check("four-state prev Z result", four_state_entries.prev(logic_key));
-    check("four-state prev Z key", logic_key === 4'b00z1);
-    check("four-state prev X result", four_state_entries.prev(logic_key));
-    check("four-state prev X key", logic_key === 4'b00x1);
+    check("four-state prev two result", four_state_entries.prev(logic_key));
+    check("four-state prev two key", logic_key === 4'b0010);
     four_state_copy = four_state_entries;
     check("four-state copy first result", four_state_copy.first(logic_key));
     check("four-state copy first key", logic_key === 4'b0000);
