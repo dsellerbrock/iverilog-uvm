@@ -67,6 +67,8 @@
 # gold or diff commands.
 #
 
+sv_genvar_outside_loop_fail_2017	CE,-g2017	ivltests
+sv_genvar_outside_loop_fail_2023	CE,-g2023	ivltests
 always_comb		normal,-g2005-sv	ivltests
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests

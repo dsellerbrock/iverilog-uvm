@@ -25706,6 +25706,22 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       }
 
 	// I cannot interpret this identifier. Error message.
+	// A genvar is an elaboration-only name (IEEE 1800-2017/2023 27.4),
+	// so an unresolved reference to one outside a loop generate scheme
+	// must not take the SystemVerilog compile-progress warning path.
+	if (gn_system_verilog() && !path_.package && path_.name.size() == 1) {
+	      perm_string name = path_.name.front().name;
+	      for (NetScope* gen_scope = scope; gen_scope;
+		   gen_scope = gen_scope->parent()) {
+		    if (gen_scope->find_genvar(name)) {
+			  cerr << get_fileline() << ": error: Genvar `" << name
+			       << "' may only be referenced in a loop generate scheme."
+			       << endl;
+			  des->errors += 1;
+			  return 0;
+		    }
+	      }
+	}
 	// In SV mode, clocking blocks and other interface constructs may
 	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
 	// unless the reference is package-scoped or its prefix names a

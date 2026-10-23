@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_genvar_outside_loop_fail_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_genvar_outside_loop_fail_2017" ]
+}

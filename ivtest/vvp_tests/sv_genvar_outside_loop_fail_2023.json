@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_genvar_outside_loop_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_genvar_outside_loop_fail_2023" ]
+}
