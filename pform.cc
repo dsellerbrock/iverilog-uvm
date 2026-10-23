@@ -18854,16 +18854,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
 
-	/* End-of-simulation handling for looping obligations. Loop states
-	   are self-loop wait states by construction; a slot still in one at
-	   end of simulation is an attempt whose sequence never completed.
-	   For a WEAK sequence property (the default) that is not a failure
-	   — emit an informational note. For a STRONG sequence property
-	   (`strong(seq)', 16.12.2) it IS a failure. A pending `not' attempt
-	   means the negated property held (silent); a pending cover attempt
-	   simply never matched (silent). */
+	/* End-of-simulation handling for pending sequence attempts. For a
+	   strong sequence, every active non-accepting state represents an
+	   incomplete attempt: simulation cannot supply another clock tick to
+	   reach the accept state, so the attempt fails (16.12.15). Weak
+	   sequences impose no such obligation; retain the existing diagnostic
+	   only for their unbounded loop states. A pending `not' attempt means
+	   the negated property held (silent); a pending cover attempt simply
+	   never matched (silent). */
       bool strong_seq = (prop->strength == 1);
-      if (cyclic && !negated && !cover && !endpoint_fanout) {
+	if (!negated && !cover && !endpoint_fanout
+	    && (strong_seq || cyclic)) {
 	    std::vector<bool> loop_state (N, false);
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
 		  if (nfa.edges[i].from == nfa.edges[i].to)
@@ -18871,7 +18872,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    PExpr*pend = nullptr;
 	    for (long k = 0 ; k < K ; k += 1)
 		  for (unsigned j = 0 ; j < N ; j += 1) {
-			if (!loop_state[j]) continue;
+			if (j == nfa.accept
+			    || (!strong_seq && !loop_state[j])) continue;
 			PExpr*t = sva_id_(loc, s[k][j]);
 			pend = pend ? sva_logic_(loc, 'o', pend, t) : t;
 		  }

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_strong_incomplete_eos.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_assert_strong_incomplete_eos"
+}
