@@ -1129,6 +1129,16 @@ void NetScope::restore_signal_alias(perm_string name, NetNet*prev)
       symbol_search_cache_clear();
 }
 
+bool NetScope::record_alias_pair(const NetNet*left, const NetNet*right)
+{
+      for (const auto&pair : alias_pairs_)
+	    if ((pair.first == left && pair.second == right)
+		|| (pair.first == right && pair.second == left))
+		  return false;
+      alias_pairs_.push_back(std::make_pair(left, right));
+      return true;
+}
+
 typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 {
       map<perm_string,typedef_t*>::const_iterator cache_td = typedef_search_cache_.find(name);

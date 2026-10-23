@@ -1373,6 +1373,10 @@ class NetScope : public Definitions, public Attrib {
       NetNet* set_signal_alias(perm_string name, NetNet*net);
       void restore_signal_alias(perm_string name, NetNet*prev);
 
+      // Alias statements in one scope may not connect the same nets more
+      // than once. Keep the pairs seen while elaborating this scope.
+      bool record_alias_pair(const NetNet*left, const NetNet*right);
+
       // I2 (Phase 62m): post-elab fix-up pass.  Iterates signals_map_
       // and replaces the net_type of NetNets that were emitted with a
       // logic-vector fallback (because their typeref'd class had not
@@ -1389,6 +1393,11 @@ class NetScope : public Definitions, public Attrib {
 	 * and finalized all structural nodes. Returns the number of Link records
 	 * discarded. */
       size_t release_signal_connectivity();
+
+    private:
+      std::vector<std::pair<const NetNet*, const NetNet*>> alias_pairs_;
+
+    public:
 
       netclass_t* find_class(const Design*des, perm_string name);
 
