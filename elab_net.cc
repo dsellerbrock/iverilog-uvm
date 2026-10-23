@@ -1246,6 +1246,15 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	unsigned long selected_word_count = unpacked_slice_flag
 	      ? unpacked_slice_count : (widx_flag ? 1 : sig->pin_count());
 
+	if (sig->is_output_clockvar()) {
+	      cerr << get_fileline() << ": error: Variable '" << sig->name()
+	           << "' associated with an output clockvar cannot be driven by a "
+	           << "continuous assignment, procedural continuous assignment, "
+	           << "or primitive (IEEE 1800-2017/2023 14.16.2)." << endl;
+	      des->errors += 1;
+	      return nullptr;
+	}
+
       if (sig->user_nettype()) {
             bool partial_drive = explicit_vector_select || widx_flag
                   || unpacked_slice_flag || midx != sig->vector_width()-1

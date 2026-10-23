@@ -1051,6 +1051,8 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		       clocking events are buffered and applied at the next
 		       event by the synthesized apply process. */
 		  if (is_out) {
+			if (raw->type() == NetNet::REG)
+			      raw->mark_output_clockvar();
 			string bname = string("_ivl_obuf$") + cb->name.str()
 			      + "$" + sig_it->str();
 			perm_string obuf_name = lex_strings.make(bname.c_str());

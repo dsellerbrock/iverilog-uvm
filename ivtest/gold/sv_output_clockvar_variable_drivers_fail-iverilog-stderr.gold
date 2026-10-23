@@ -1,0 +1,5 @@
+ivltests/sv_output_clockvar_variable_drivers_fail.v:6: error: Variable 'q' associated with an output clockvar cannot be driven by a continuous assignment, procedural continuous assignment, or primitive (IEEE 1800-2017/2023 14.16.2).
+ivltests/sv_output_clockvar_variable_drivers_fail.v:14: error: Variable 'q' associated with an output clockvar cannot be driven by a continuous assignment, procedural continuous assignment, or primitive (IEEE 1800-2017/2023 14.16.2).
+ivltests/sv_output_clockvar_variable_drivers_fail.v:14: error: Failed to elaborate primitive output expression sv_output_clockvar_variable_drivers_fail.p.q.
+ivltests/sv_output_clockvar_variable_drivers_fail.v:22: error: Variable 'q' associated with an output clockvar cannot be driven by a continuous assignment, procedural continuous assignment, or primitive (IEEE 1800-2017/2023 14.16.2).
+4 error(s) during elaboration.

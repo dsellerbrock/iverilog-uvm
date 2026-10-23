@@ -841,6 +841,8 @@ class NetNet  : public NetObj, public PortType {
 
       void set_const(bool is_const) { is_const_ = is_const; }
       bool get_const() const { return is_const_; }
+      void mark_output_clockvar() { output_clockvar_ = true; }
+      bool is_output_clockvar() const { return output_clockvar_; }
       void set_ref_static(bool value) { is_ref_static_ = value; }
       bool get_ref_static() const { return is_ref_static_; }
 
@@ -1127,6 +1129,7 @@ class NetNet  : public NetObj, public PortType {
       std::vector<class NetAssign_*> lref_objs_;
       bool assignment_expression_write_ = false;
       bool unsafe_ref_actual_write_ = false;
+      bool output_clockvar_ = false;
 
       NetNet*net_delay_driver_ = 0;
       NetNet*net_delay_public_ = 0;

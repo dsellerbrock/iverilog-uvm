@@ -1028,6 +1028,21 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 	    return nullptr;
       }
 
+	/* IEEE 1800-2017/2023 14.16.2 forbids continuous and procedural-
+	   continuous drivers of the variable associated with an output
+	   clockvar. Primitive output l-values use the force-lvalue path, as do
+	   procedural continuous assignments; ordinary procedural assignments
+	   remain legal. */
+      if ((is_cassign || is_force) && reg->is_output_clockvar()) {
+	    cerr << get_fileline() << ": error: Variable '" << reg->name()
+	         << "' associated with an output clockvar cannot be driven by a "
+	         << "continuous assignment, procedural continuous assignment, "
+	         << "or primitive (IEEE 1800-2017/2023 14.16.2)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
 	/* We are elaborating procedural assignments. Wires are not allowed
 	   unless this is the l-value of a force. */
       if ((reg->type() != NetNet::REG)
