@@ -1235,6 +1235,8 @@ sv_this_nested_detached_fork normal,-g2012 ivltests
 sv_loop_local_detached_fork normal,-g2012 ivltests
 sv_display_p_aggregates normal,-g2012 ivltests
 sv_process_suspend_resume normal,-g2012 ivltests
+sv_process_resume_event_rearm normal,-g2017 ivltests gold=sv_process_resume_event_rearm.gold
+sv_process_resume_event_rearm_2023 normal,-g2023 ivltests gold=sv_process_resume_event_rearm.gold
 sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests

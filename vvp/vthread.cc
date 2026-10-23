@@ -925,6 +925,10 @@ struct vthread_s {
 	// suspended) so the process continues where it left off.
       unsigned suspended :1;
       unsigned suspend_resched :1;
+	// A named-event wait is removed when a blocked process is suspended.
+	// Resume must execute the wait opcode again instead of consuming an
+	// event occurrence that happened while the process was suspended.
+      unsigned resume_event_wait :1;
 	// True while the thread is parked on a procedural delay (#d). Unlike
 	// i_am_waiting / waiting_for_event this is not otherwise tracked
 	// (a delay just reschedules the thread on the timing wheel, which
@@ -27367,6 +27371,20 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
 	    vthread_t part = parts[idx];
 	    part->suspended = 1;
 
+	      // A named-event wait is edge-like: an occurrence while suspended
+	      // must not satisfy it. Remove the waiter now and remember to arm
+	      // the same wait again when resume() is called. Other wait kinds
+	      // keep their existing wake behavior (notably wait conditions and
+	      // delays, whose state is re-evaluated on wake).
+	    if (part->waiting_for_event && part->last_pause_pc
+	        && part->last_pause_pc->opcode == &of_WAIT
+	        && part->last_pause_pc->net
+	        && part->last_pause_pc->net->fun
+	        && dynamic_cast<vvp_named_event*>(part->last_pause_pc->net->fun)) {
+		  vthread_cancel_event_wait(part);
+		  part->resume_event_wait = 1;
+	    }
+
 	      // A running/ready thread must be rescheduled by resume() to
 	      // make progress. A blocked one (waiting on an event or a join)
 	      // will have its reschedule armed by vthread_run when the wake
@@ -27418,6 +27436,12 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
 	    if (!part->suspended) continue;
 
 	    part->suspended = 0;
+
+	    if (part->resume_event_wait) {
+		  part->resume_event_wait = 0;
+		  part->pc = part->last_pause_pc;
+		  part->suspend_resched = 1;
+	    }
 
 	    if (part->suspend_resched) {
 		  part->suspend_resched = 0;
