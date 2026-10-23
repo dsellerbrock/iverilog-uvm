@@ -5871,16 +5871,20 @@ bool PGenerate::generate_scope_condit_(Design*des, NetScope*container, bool else
 
 bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 {
-      NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
-      NetEConst*case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
-      if (case_value_co == 0) {
+      bool type_case = type_operator_reference(loop_test) != 0;
+      NetEConst*case_value_co = 0;
+      if (!type_case) {
+	    NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
+	    case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
+      }
+      if (!type_case && case_value_co == 0) {
 	    cerr << get_fileline() << ": error: Cannot evaluate genvar case"
 		 << " expression: " << *loop_test << endl;
 	    des->errors += 1;
 	    return false;
       }
 
-      if (debug_scopes)
+      if (debug_scopes && !type_case)
 	    cerr << get_fileline() << ": debug: Generate case "
 		 << "switch value=" << case_value_co->value() << endl;
 
@@ -5901,6 +5905,27 @@ bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 
 	    bool match_flag = false;
 	    for (unsigned idx = 0 ; idx < item->item_test.size() && !match_flag ; idx +=1 ) {
+	      if (type_case) {
+		    if (!type_operator_reference(item->item_test[idx])) {
+			  cerr << item->item_test[idx]->get_fileline()
+			       << ": error: A type() generate case expression "
+			       << "requires type() case item expressions (IEEE "
+			       << "1800-2017 6.23)." << endl;
+			  des->errors += 1;
+			  delete case_value_co;
+			  return false;
+		    }
+
+		    if (!elaborate_type_operator_match(des, container, loop_test,
+						       item->item_test[idx],
+						       *item->item_test[idx],
+						       match_flag)) {
+			  delete case_value_co;
+			  return false;
+		    }
+		    continue;
+	      }
+
 		  NetExpr*item_value_ex = elab_and_eval(des, container,
                                                         item->item_test[idx],
                                                         -1, true);
