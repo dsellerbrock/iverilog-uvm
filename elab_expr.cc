@@ -12451,6 +12451,86 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    return cast_to_width_(sub, expr_wid);
       }
 
+	/* IEEE 1800-2017/2023 20.7: array query functions also accept a
+	   data_type. Unlike an expression argument, its shape is available
+	   directly from the elaborated type and must be evaluated here. */
+      if (parms_.size() >= 1 && parms_.size() <= 2 && parms_[0].parm
+	  && dynamic_cast<PETypename*>(parms_[0].parm)
+	  && (strcmp(name, "$size") == 0 || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0 || strcmp(name, "$low") == 0
+	      || strcmp(name, "$high") == 0 || strcmp(name, "$increment") == 0
+	      || strcmp(name, "$dimensions") == 0
+	      || strcmp(name, "$unpacked_dimensions") == 0)) {
+	    ivl_type_t type =
+		  dynamic_cast<PETypename*>(parms_[0].parm)->get_type()
+			->elaborate_type(des, scope);
+	    if (!type) return 0;
+	    if (dynamic_cast<const netdarray_t*>(type)
+		|| dynamic_cast<const netqueue_t*>(type)) {
+		  cerr << get_fileline() << ": error: Array query functions cannot "
+		       << "be used directly on a dynamically sized type identifier."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    netranges_t dims;
+	    for (ivl_type_t cur = type; cur; ) {
+		  if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur)) {
+			dims.insert(dims.end(), ua->static_dimensions().begin(),
+				    ua->static_dimensions().end());
+			cur = ua->element_type();
+		  } else {
+			netranges_t packed = cur->slice_dimensions();
+			if (packed.empty() && cur->packed() && cur->packed_width() > 0)
+			      packed.push_back(netrange_t(cur->packed_width()-1, 0));
+			dims.insert(dims.end(), packed.begin(), packed.end());
+			break;
+		  }
+	    }
+	    long value = 0;
+	    bool invalid_dimension = false;
+	    if (strcmp(name, "$dimensions") == 0)
+		  value = dims.empty() ? 0 : (long)dims.size();
+	    else if (strcmp(name, "$unpacked_dimensions") == 0) {
+		  value = 0;
+		  for (ivl_type_t cur = type; cur; ) {
+			const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur);
+			if (!ua) break;
+			value += ua->static_dimensions().size();
+			cur = ua->element_type();
+		  }
+	    } else {
+		  unsigned dim = 1;
+		  if (parms_.size() == 2 && parms_[1].parm) {
+			NetExpr*de = elab_sys_task_arg(des, scope, lex_strings.make(name),
+					       1, parms_[1].parm, true);
+			if (!de) return 0;
+			NetEConst*dc = dynamic_cast<NetEConst*>(de);
+			long dv = dc ? dc->value().as_long() : 0;
+			delete de;
+			if (dv <= 0) invalid_dimension = true;
+			else dim = (unsigned)dv;
+		  }
+		  if (!invalid_dimension && dim <= dims.size()) {
+			const netrange_t&r = dims[dim-1];
+			long left = r.get_msb(), right = r.get_lsb();
+			long low = std::min(left, right), high = std::max(left, right);
+			if (strcmp(name, "$size") == 0) value = r.width();
+			else if (strcmp(name, "$left") == 0) value = left;
+			else if (strcmp(name, "$right") == 0) value = right;
+			else if (strcmp(name, "$low") == 0) value = low;
+			else if (strcmp(name, "$high") == 0) value = high;
+			else value = left >= right ? 1 : -1;
+		  } else invalid_dimension = true;
+	    }
+	    NetExpr*res = invalid_dimension
+		  ? static_cast<NetExpr*>(new NetEConst(verinum(verinum::Vx,
+								 expr_wid, true)))
+		  : make_const_val(value);
+	    res->set_line(*this);
+	    return cast_to_width_(res, expr_wid);
+      }
+
 	/* Interpret the internal $is_signed system function to return
 	   a single bit flag -- 1 if the expression is signed, 0
 	   otherwise. */

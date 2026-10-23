@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "array_query_type.v",
+  "iverilog-args": ["-g2017"]
+}
