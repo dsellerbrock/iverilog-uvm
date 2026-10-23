@@ -931,8 +931,13 @@ module main;
       else
         $fatal(1, "pruned := range escaped feasible domain");
     end
+`ifdef EXPECT_2023
     if (pruned_range < 80 || pruned_scalar != 96 - pruned_range)
-      $fatal(1, "pruned := range lost full aggregate: range=%0d scalar=%0d",
+`else
+    if (pruned_range < 36 || pruned_range > 60 ||
+        pruned_scalar != 96 - pruned_range)
+`endif
+      $fatal(1, "pruned := range has wrong edition weighting: range=%0d scalar=%0d",
              pruned_range, pruned_scalar);
 
     overlap_item = new;
@@ -998,9 +1003,13 @@ module main;
       else
         $fatal(1, "pruned signed range escaped feasible domain");
     end
+`ifdef EXPECT_2023
     if (signed_pruned_range < 70 ||
+`else
+    if (signed_pruned_range < 36 || signed_pruned_range > 60 ||
+`endif
         signed_pruned_scalar != 96 - signed_pruned_range)
-      $fatal(1, "pruned signed range lost full aggregate: range=%0d scalar=%0d",
+      $fatal(1, "pruned signed range has wrong edition weighting: range=%0d scalar=%0d",
              signed_pruned_range, signed_pruned_scalar);
 
     signed_open_item = new;

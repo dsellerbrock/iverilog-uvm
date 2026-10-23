@@ -4778,6 +4778,9 @@ sv_vif_descendant_null_fail RE,-g2017 ivltests gold=sv_vif_descendant_null_fail.
 # Exact large-range dist items: paired IEEE editions.
 sv_dist_large_exact_probability normal,-g2017 ivltests gold=sv_dist_large_exact_probability.gold
 sv_dist_large_exact_probability_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_probability_2023.gold
+sv_dist_range_excluded_weight normal,-g2017,-s,sv_dist_range_excluded_weight ivltests gold=sv_dist_range_excluded_weight.gold
+sv_dist_range_excluded_weight_2023 normal,-g2023,-DEXPECT_2023,-s,sv_dist_range_excluded_weight ivltests gold=sv_dist_range_excluded_weight.gold
+sv_constraint_dist_boolean_subject_2023 normal,-g2023,-DEXPECT_2023 ivltests gold=sv_constraint_dist_boolean_subject.gold
 sv_dist_large_exact_connected_state normal,-g2017 ivltests gold=sv_dist_large_exact_connected_state.gold
 sv_dist_large_exact_connected_state_2023 normal,-g2023 ivltests gold=sv_dist_large_exact_connected_state_2023.gold
 sv_dist_large_exact_pinned_state normal,-g2017 ivltests gold=sv_dist_large_exact_pinned_state.gold
