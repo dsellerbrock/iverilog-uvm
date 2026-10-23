@@ -45,6 +45,7 @@
 # include  <tuple>
 # include  "pform.h"
 # include  "PClass.h"
+# include  "PTask.h"
 # include  "PEvent.h"
 # include  "PGenerate.h"
 # include  "PModport.h"
@@ -18814,11 +18815,23 @@ static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
  * the port.
  */
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
+					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
 					unsigned argno,
 					NetNet**via) const
 {
       *via = 0;
+
+      NetScope*actual_scope = default_scope;
+      if (actual == 0) {
+	    const PTaskFunc*subroutine = default_scope->task_pform();
+	    if (!subroutine) subroutine = default_scope->func_pform();
+	    const vector<pform_tf_port_t>*ports = subroutine
+		  ? subroutine->peek_ports() : 0;
+	    if (ports && argno < ports->size()) {
+		  actual = (*ports)[argno].defe;
+	    }
+      }
 
       if (actual == 0) {
 	    cerr << get_fileline() << ": error: "
@@ -18850,7 +18863,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (NetAssign_*lv = actual->elaborate_lval(
-				des, scope, false, false, false,
+				des, actual_scope, false, false, false,
 				port->get_const())) {
 	    if (port->get_ref_static()
 		&& !ref_static_actual_is_static_lifetime(lv)) {
@@ -19531,7 +19544,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 frame allocation and the call. */
 	    if (ref_formal_is_bound(port)) {
 		  NetNet*via = 0;
-		  NetProc*bind = elaborate_ref_bind_(des, scope, port,
+		  NetProc*bind = elaborate_ref_bind_(
+				des, scope, const_cast<NetScope*>(def->scope()), port,
 						     args[parms_idx], idx,
 						     &via);
 		  if (bind)
