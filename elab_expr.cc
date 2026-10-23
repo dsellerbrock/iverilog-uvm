@@ -430,6 +430,28 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
       return false;
 }
 
+/* The scope-randomize argument grammar names variables. Keep the check at
+ * the common lowering boundary so both the simple VPI and constraint solver
+ * paths reject expressions before they can be treated as destinations. */
+static bool std_randomize_args_are_variables_(
+	const vector<named_pexpr_t>&parms, Design*des)
+{
+      bool valid = true;
+      for (const named_pexpr_t&parm : parms) {
+	    if (parm.parm && dynamic_cast<const PEIdent*>(parm.parm))
+		  continue;
+	    if (!parm.parm) {
+		  valid = false;
+		  continue;
+	    }
+	    cerr << parm.parm->get_fileline() << ": error: "
+		 << "std::randomize() arguments must be variables." << endl;
+	    des->errors += 1;
+	    valid = false;
+      }
+      return valid;
+}
+
 /* A fixed unpacked array is one scope-randomize argument, but the VPI
  * implementation writes individual integral variables. Supply each
  * canonical memory word as an argument, retaining the existing RNG and
@@ -438,6 +460,8 @@ NetESFunc* make_std_randomize_simple_expr(
       const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
       const LineInfo*loc)
 {
+      if (!std_randomize_args_are_variables_(parms, des))
+	    return nullptr;
       vector<NetExpr*> args;
       for (const named_pexpr_t&parm : parms) {
 	    if (!parm.parm) {
@@ -511,6 +535,8 @@ NetESFunc* make_std_randomize_with_expr(
       bool has_with_identifier_list,
       Design*des, NetScope*scope, const LineInfo*loc)
 {
+      if (!std_randomize_args_are_variables_(parms, des))
+	    return nullptr;
       static const vector<perm_string> no_identifiers;
       const vector<perm_string>&effective_identifiers =
 	    has_with_identifier_list ? no_identifiers : with_identifiers;

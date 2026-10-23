@@ -1,0 +1,2 @@
+ivltests/sv_scope_randomize_expression_arg_2017.v:3: error: std::randomize() arguments must be variables.
+Elaboration failed
