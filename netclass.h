@@ -435,6 +435,7 @@ class netclass_t : public ivl_type_s {
 	    //               (seq_id << 8) | step_pos, lo/hi the step)
 	    //           5 = illegal_bins default (complement of normal bins)
 	    //           6 = ignore_bins default (complement of normal bins)
+	    //           7 = arrayed default bins (sparse value-keyed counters)
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    unsigned kind = 0;

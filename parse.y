@@ -5131,6 +5131,15 @@ bins_item
 	$$ = b;
 	  }
   /* Default bins compose with all three bin kinds. */
+  | bins_keyword bins_name '[' ']' '=' K_default ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->is_default = true;
+	delete[] $2;
+	$$ = b;
+      }
   | bins_keyword bins_name '=' K_default ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);

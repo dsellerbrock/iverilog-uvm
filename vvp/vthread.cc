@@ -9762,6 +9762,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned item;
 	    unsigned cp;
       };
+	std::vector<default_special_t> default_array_props;
       std::vector<default_special_t> default_illegal;
       std::vector<default_special_t> default_ignore;
 
@@ -9776,6 +9777,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  if (!bin_enabled(first.guard_idx)) continue;
 		  default_props.push_back(std::make_pair(kv.first,
 						 first.item_idx));
+		  continue;
+	    }
+	    if (k == 7) {
+		  if (!bin_enabled(first.guard_idx)) continue;
+		  default_special_t special = { kv.first, first.item_idx,
+					first.cp_idx };
+		  default_array_props.push_back(special);
 		  continue;
 	    }
 	    if (k == 5 || k == 6) {
@@ -9958,6 +9966,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    covgrp_bump_count_(cobj, dp.first);
       }
+	for (auto&dp : default_array_props) {
+	    if (!item_enabled(dp.item)) continue;
+	    if (item_matched.count(dp.item) && item_matched[dp.item])
+		  continue;
+	    if (dp.cp >= ncp || !cp_sampled[dp.cp] || cp_suppressed[dp.cp])
+		  continue;
+	    // An array default bin is keyed by each unmatched sampled value.
+	    // These counters remain outside the coverage denominator, as required
+	    // for default bins, while retaining distinct value identities.
+	    std::string value_key;
+	    if (wide_vals[dp.cp].size() != 0) {
+		  unsigned width = wide_vals[dp.cp].size();
+		  value_key.append(reinterpret_cast<const char*>(&width), sizeof width);
+		  for (unsigned bit = 0; bit < width; bit++)
+			value_key.push_back(static_cast<char>(wide_vals[dp.cp].value(bit)));
+	    } else {
+		  uint64_t value = cp_vals[dp.cp];
+		  value_key.append(reinterpret_cast<const char*>(&value), sizeof value);
+	    }
+	    cobj->cov_default_array_bump(dp.prop, value_key);
+	}
 }
 
 /* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
@@ -10157,7 +10186,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7)
 			continue;
 		  if (k == 4 && bin.trans_family != class_type::COV_NO_FAMILY) {
 			if (seen_trans_families.insert(bin.trans_family).second) {

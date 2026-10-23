@@ -42879,6 +42879,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // preserves illegal_bins/ignore_bins = default.
 					unsigned default_kind = (base_kind == 2 ? 5u
 							    : base_kind == 1 ? 6u : 3u)
+						    | (bin.arrayed && base_kind == 0 ? 4u : 0u)
 						    | (cp_real_supported
 							 ? netclass_t::COVGRP_REAL_BIN : 0u);
 					      int default_added = add_unique_cov_counter(bstem);
