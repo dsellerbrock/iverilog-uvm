@@ -679,7 +679,8 @@ static void pform_check_constraint_override_specifiers_(
 
 void pform_class_constraint(const struct vlltype&loc,
 			     bool is_static, unsigned override_specifiers,
-			     const char*name, std::list<PExpr*>*items)
+			     const char*name, std::list<PExpr*>*items,
+			     bool is_external)
 {
       if (!pform_cur_class || !name)
 	    return;
@@ -689,6 +690,21 @@ void pform_class_constraint(const struct vlltype&loc,
 	  bool had_decl = type->constraint_declarations.count(pname) != 0;
       class_type_t::constraint_decl_info_t&decl =
 	    type->constraint_declarations[pname];
+      if (is_external && had_decl && decl.has_external_definition) {
+	    cerr << loc << ": error: More than one external constraint block is "
+		 "provided for prototype `" << pname << "'." << endl;
+	    error_count += 1;
+	    delete items;
+	    return;
+      }
+      if (!is_external && had_decl && decl.is_prototype) {
+	    cerr << loc << ": error: Constraint block `" << pname
+		 << "' conflicts with a prototype in the same class (IEEE 1800-2017 "
+		 "18.5.1)." << endl;
+	    error_count += 1;
+	    delete items;
+	    return;
+      }
       FILE_NAME(&decl, loc);
 	  pform_check_constraint_override_specifiers_(&decl, is_static, false,
 					      override_specifiers);
@@ -707,6 +723,8 @@ void pform_class_constraint(const struct vlltype&loc,
 	    }
 	    decl.is_prototype = false;
 	  }
+      if (is_external)
+	    decl.has_external_definition = true;
       decl.is_static = is_static;
 	  decl.override_specifiers = override_specifiers;
       auto pure = type->pure_constraints.find(pname);

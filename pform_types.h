@@ -689,6 +689,7 @@ struct class_type_t : public data_type_t {
       struct constraint_decl_info_t : public LineInfo {
 	    bool is_static = false;
 	    bool is_prototype = false;
+	    bool has_external_definition = false;
 	    unsigned override_specifiers = 0;
       };
       std::map<perm_string, constraint_decl_info_t> constraint_declarations;

@@ -4427,7 +4427,7 @@ randomize_constraint_block_opt
 constraint_declaration /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER
 	'{' constraint_block_item_list_opt '}'
-      { pform_class_constraint(@2, $1, $3, $4, $6);
+      { pform_class_constraint(@2, $1, $3, $4, $6, false);
 	delete[] $4;
       }
 
@@ -8071,7 +8071,7 @@ package_constraint_declaration
       '{' constraint_block_item_list_opt '}'
       { if (!pform_reenter_class_scope(@4, $4.text))
 	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
-	pform_class_constraint(@2, $1, $3, $6, $8);
+	pform_class_constraint(@2, $1, $3, $6, $8, true);
 	pform_leave_class_scope(@4);
 	delete[] $4.text; delete[] $6;
       }
@@ -8080,7 +8080,7 @@ package_constraint_declaration
       '{' constraint_block_item_list_opt '}'
       { if (!pform_reenter_class_scope(@4, $4))
 	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
-	pform_class_constraint(@2, $1, $3, $6, $8);
+	pform_class_constraint(@2, $1, $3, $6, $8, true);
 	pform_leave_class_scope(@4);
 	delete[] $4; delete[] $6;
       }

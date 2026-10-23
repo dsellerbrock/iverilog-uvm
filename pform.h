@@ -242,7 +242,8 @@ extern void pform_class_constraint(const struct vlltype&loc,
 				    bool is_static,
 				    unsigned override_specifiers,
 				    const char*name,
-				    std::list<PExpr*>*items);
+				    std::list<PExpr*>*items,
+				    bool is_external = false);
 extern void pform_class_constraint_prototype(const struct vlltype&loc,
 					      bool is_static,
                                               unsigned override_specifiers,
