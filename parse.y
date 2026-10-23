@@ -20106,7 +20106,15 @@ rs_case_items
   : rs_case_item
       { $$ = new std::vector<rs_case_item_t>; $$->push_back(*$1); delete $1; }
   | rs_case_items rs_case_item
-      { $1->push_back(*$2); delete $2; $$ = $1; }
+      { if (!$2->expressions) {
+	    for (const rs_case_item_t&item : *$1) {
+		  if (!item.expressions) {
+			yyerror(@2, "error: Multiple default items in one randsequence case production.");
+			break;
+		  }
+	    }
+	}
+	$1->push_back(*$2); delete $2; $$ = $1; }
   ;
 
 rs_case_item
