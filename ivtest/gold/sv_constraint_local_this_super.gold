@@ -1,0 +1,2 @@
+PASS local::this and local::super
+PASSED
