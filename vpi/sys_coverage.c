@@ -33,6 +33,9 @@
 # include <limits.h>
 # include <string.h>
 
+extern void vpip_coverage_db_set_name(const char*path);
+extern int vpip_coverage_db_load(const char*path);
+
 enum {
       SV_COV_START = 0,
       SV_COV_STOP = 1,
@@ -351,14 +354,20 @@ static PLI_INT32 coverage_db_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 static PLI_INT32 coverage_db_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle arg = argv ? vpi_scan(argv) : 0;
+      s_vpi_value value;
 
       assert(callh);
-      if (strcmp((const char*)name, "$set_coverage_db_name") == 0)
+      assert(arg);
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      if (strcmp((const char*)name, "$set_coverage_db_name") == 0) {
+            vpip_coverage_db_set_name(value.value.str);
+      } else if (!vpip_coverage_db_load(value.value.str)) {
             coverage_runtime_warning(callh, (const char*)name,
-                 "cannot select a functional-coverage database because that backend is unavailable");
-      else
-            coverage_runtime_warning(callh, (const char*)name,
-                 "cannot load a functional-coverage database because that backend is unavailable");
+                 "could not read the functional-coverage database");
+      }
       return 0;
 }
 
