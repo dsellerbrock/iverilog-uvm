@@ -1,0 +1,4 @@
+./ivltests/sv_implicit_port_type_mismatch_fail.v:20: error: Implicit connection for port `d' of module `sv_implicit_port_type_mismatch_child' requires equivalent data types (IEEE 1800-2017/2023 23.3.2.3/23.3.2.4).
+./ivltests/sv_implicit_port_type_mismatch_fail.v:21: error: Implicit connection for port `d_wild' of module `sv_implicit_port_wildcard_type_child' requires equivalent data types (IEEE 1800-2017/2023 23.3.2.3/23.3.2.4).
+./ivltests/sv_implicit_port_type_mismatch_fail.v:21: error: Implicit connection for port `q' of module `sv_implicit_port_wildcard_type_child' requires equivalent data types (IEEE 1800-2017/2023 23.3.2.3/23.3.2.4).
+3 error(s) during elaboration.

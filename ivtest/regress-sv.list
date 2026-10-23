@@ -2887,6 +2887,12 @@ sv_class_type_param_scoped_call_template_seed normal,-g2017,-s,main ivltests gol
 sv_class_type_param_scoped_call_template_seed_2023 normal,-g2023,-s,main ivltests gold=sv_class_type_param_scoped_call_template_seed.gold
 sv_class_type_param_bound_missing_fail CE,-g2012 ivltests gold=sv_class_type_param_bound_missing_fail.gold
 sv_class_type_param_default_spec_fail CE,-g2012 ivltests gold=sv_class_type_param_default_spec_fail.gold
+sv_module_class_value_param_default_fail CE,-g2017,-s,top ivltests gold=sv_module_class_value_param_default_fail.gold
+sv_module_class_value_param_default_fail_2023 CE,-g2023,-s,top ivltests gold=sv_module_class_value_param_default_fail.gold
+sv_module_class_value_param_default_override normal,-g2017,-s,top ivltests gold=sv_module_class_value_param_default_override.gold
+sv_module_class_value_param_default_override_2023 normal,-g2023,-s,top ivltests gold=sv_module_class_value_param_default_override.gold
+sv_module_class_value_param_default_null normal,-g2017,-s,top ivltests gold=sv_module_class_value_param_default_null.gold
+sv_module_class_value_param_default_null_2023 normal,-g2023,-s,top ivltests gold=sv_module_class_value_param_default_null.gold
 sv_class_type_param_virtual_default_seed normal,-g2017,-s,main ivltests gold=sv_class_type_param_virtual_default_seed.gold
 sv_class_type_param_virtual_default_seed_2023 normal,-g2023,-s,main ivltests gold=sv_class_type_param_virtual_default_seed.gold
 sv_class_virtual_new_in_method_fail CE,-g2012 ivltests gold=sv_class_virtual_new_in_method_fail.gold
@@ -5751,5 +5757,21 @@ sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold
 # IEEE 1800-2017 A.9.3 note 37 / 13.5.5 and 1800-2023 13.5.5.
 sv_class_method_noarg_string_concat_2017 normal,-g2017,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
 sv_class_method_noarg_string_concat_2023 normal,-g2023,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
+# IEEE 1800-2017/2023 §23.3.2.3/.4 and §6.22.2.
+sv_implicit_port_type_mismatch_fail CE,-g2017,-s,sv_implicit_port_type_mismatch_fail ivltests gold=sv_implicit_port_type_mismatch_fail.gold
+sv_implicit_port_type_mismatch_fail_2023 CE,-g2023,-s,sv_implicit_port_type_mismatch_fail ivltests gold=sv_implicit_port_type_mismatch_fail.gold
+sv_continuous_struct_variable normal,-g2017,-s,sv_continuous_struct_variable ivltests gold=sv_continuous_struct_variable.gold
+sv_continuous_struct_variable_2023 normal,-g2023,-s,sv_continuous_struct_variable ivltests gold=sv_continuous_struct_variable.gold
+sv_continuous_struct_pattern normal,-g2017,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
+sv_continuous_struct_pattern_2023 normal,-g2023,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
+sv_continuous_struct_driver_conflict_fail CE,-g2017,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
+sv_continuous_struct_driver_conflict_fail_2023 CE,-g2023,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
+# IEEE 1800-2017/2023 §§23.6, 27.5: unselected conditional-generate blocks are absent from the hierarchy.
+sv_uninstantiated_generate_hier_read_fail CE,-g2017,-s,sv_uninstantiated_generate_hier_read_fail ivltests gold=sv_uninstantiated_generate_hier_read_fail.gold
+sv_uninstantiated_generate_hier_read_fail_2023 CE,-g2023,-s,sv_uninstantiated_generate_hier_read_fail ivltests gold=sv_uninstantiated_generate_hier_read_fail.gold
+sv_instantiated_generate_hier_read_2017 normal,-g2017,-s,sv_instantiated_generate_hier_read ivltests gold=sv_instantiated_generate_hier_read.gold
+sv_instantiated_generate_hier_read_2023 normal,-g2023,-s,sv_instantiated_generate_hier_read ivltests gold=sv_instantiated_generate_hier_read.gold
+
+# IEEE 1800-2017/2023 §8.10.
 sv_static_virtual_method_fail_2017 CE,-g2017,-s,sv_static_virtual_method_fail ivltests
 sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail ivltests
