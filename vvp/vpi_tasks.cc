@@ -969,6 +969,18 @@ void vpi_call_delete(vpiHandle item)
 
 vthread_t vpip_current_vthread;
 
+static bool system_verilog_mode = false;
+
+void compile_systemverilog_mode(void)
+{
+      system_verilog_mode = true;
+}
+
+extern "C" int vpip_is_system_verilog_mode(void)
+{
+      return system_verilog_mode;
+}
+
 extern "C" int vpip_systf_call_returns_string(void)
 {
       return vpip_cur_task

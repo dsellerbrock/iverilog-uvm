@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_display_explicit_width_2023.v","iverilog-args":["-g2023","-s","sv_display_explicit_width"],"gold":"sv_const_string_format"}
