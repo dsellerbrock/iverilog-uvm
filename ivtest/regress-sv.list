@@ -5783,3 +5783,5 @@ sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail iv
 # IEEE 1800-2017 §21.2.1.8 / 2023 §21.2.1.7 %s leading zero bytes.
 sv_percent_s_leading_zero_2017 normal,-g2017,-s,sv_percent_s_leading_zero_2017 ivltests gold=sv_percent_s_leading_zero_2017.gold
 sv_percent_s_leading_zero_2023 normal,-g2023,-s,sv_percent_s_leading_zero_2023 ivltests gold=sv_percent_s_leading_zero_2023.gold
+sv_class_type_param_cast_2017 normal,-g2017,-s,test ivltests gold=sv_class_type_param_cast.gold
+sv_class_type_param_cast_2023 normal,-g2023,-s,test ivltests gold=sv_class_type_param_cast.gold

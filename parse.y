@@ -1084,7 +1084,7 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
-      if (!id || !id->has_scoped_type_prefix() || id->leading_type_args())
+      if (!id || !id->has_scoped_type_prefix())
 	    return 0;
       const pform_scoped_name_t&path = id->path();
       if (path.name.size() != 2 || !path.name.front().index.empty()
@@ -1092,7 +1092,7 @@ static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 	    return 0;
       return make_class_scoped_typeref(loc, loc, path.name.front().name.str(),
 				       path.name.back().name.str(),
-				       path.package, nullptr, true);
+				       path.package, id->take_leading_type_args(), true);
 }
 
 static char* dup_cstr(const char*txt)
