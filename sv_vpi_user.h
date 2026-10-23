@@ -92,6 +92,16 @@ EXTERN_C_START
 #define vpiClassTypespec    630
 #define vpiEnumTypespec     633
 #define vpiEnumConst        634
+#define vpiStructTypespec   638
+#define vpiUnionTypespec    639
+#define vpiBitTypespec      640
+#define vpiLogicTypespec    641
+#define vpiTypespecMember   644
+/* One-to-one relation from a variable or net to its typespec. Icarus uses
+ * the same number for the vpiCovergroup object type above. */
+#define vpiTypespec         605
+/* Property: true for a packed struct or union typespec. */
+#define vpiPacked           630
 
 #define vpiClassDefn        652
 
