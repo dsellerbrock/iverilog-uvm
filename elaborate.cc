@@ -8588,6 +8588,18 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 				   operand_width, force_unsigned);
       if (rv == 0) return 0;
 
+	// IEEE 1800 Table 11-1 restricts modulus assignment operands to
+	// integral types, just like the corresponding binary operator.
+      if (op_ == '%' && (lv->expr_type() == IVL_VT_REAL
+			 || rv->expr_type() == IVL_VT_REAL)) {
+	    cerr << get_fileline() << ": error: Modulus operator "
+		    "may not have REAL operands." << endl;
+	    des->errors += 1;
+	    delete rv;
+	    delete lv;
+	    return 0;
+      }
+
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
 	// shifts now if the lval is unsigned.
