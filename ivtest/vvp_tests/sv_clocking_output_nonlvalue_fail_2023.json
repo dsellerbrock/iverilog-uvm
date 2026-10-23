@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_clocking_output_nonlvalue_fail.v",
+    "iverilog-args": ["-g2023", "-s", "sv_clocking_output_nonlvalue_fail"],
+    "gold": "sv_clocking_output_nonlvalue_fail"
+}
