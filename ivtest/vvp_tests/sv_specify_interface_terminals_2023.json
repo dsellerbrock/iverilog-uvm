@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_specify_interface_terminals.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "sv_specify_interface_terminals"],
+  "gold": "sv_specify_interface_terminals"
+}

@@ -1,0 +1,2 @@
+PASS
+ivltests/sv_specify_interface_terminals.v:18: $finish called at 0 (1s)

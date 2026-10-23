@@ -17478,6 +17478,16 @@ specify_path_identifiers
 	$$ = tmp;
 	delete[]$1;
       }
+  | IDENTIFIER '.' IDENTIFIER
+      { std::string name($1);
+	name += ".";
+	name += $3;
+	std::list<perm_string>*tmp = new std::list<perm_string>;
+	tmp->push_back(lex_strings.make(name.c_str()));
+	$$ = tmp;
+	delete[]$1;
+	delete[]$3;
+      }
   | IDENTIFIER '[' expr_primary ']'
       { if (gn_specify_blocks_flag) {
 	      yywarn(@4, "warning: Bit selects are not currently supported "

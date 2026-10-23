@@ -5859,6 +5859,23 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
       vector<bool>pins_implicit (rmod->port_count(), false);
       vector<bool>pins_is_explicitly_not_connected (rmod->port_count(), false);
       vector<bool>interface_type_error (rmod->port_count(), false);
+      set<perm_string> interface_specify_ports;
+      for (const PSpecPath*path : rmod->specify_paths) {
+	for (perm_string name : path->src) {
+	      std::string terminal(name.str());
+	      std::string::size_type dot = terminal.find('.');
+	      if (dot != std::string::npos)
+		    interface_specify_ports.insert(
+			  lex_strings.make(terminal.substr(0, dot).c_str()));
+	}
+	for (perm_string name : path->dst) {
+	      std::string terminal(name.str());
+	      std::string::size_type dot = terminal.find('.');
+	      if (dot != std::string::npos)
+		    interface_specify_ports.insert(
+			  lex_strings.make(terminal.substr(0, dot).c_str()));
+	}
+      }
 
 	// If the instance has a pins_ member, then we know we are
 	// binding by name. Therefore, make up a pins array that
@@ -6164,6 +6181,30 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
 		  if (NetNet*isig = instance[inst]->find_signal(pname)) {
 			isig->set_net_type(actual_ifc);
+		/* Specify paths are elaborated in the child before the ordinary
+		 * port-connection pass below. Install the static interface binding
+		 * now as well, so interface-member terminals can resolve there. */
+		if (interface_specify_ports.count(pname)
+		    && isig->unpacked_dimensions() == 0 && isig->pin_count() == 1
+		    && actual_iface_scope) {
+		      isig->bind_interface_scope(0, actual_iface_scope);
+		} else if (interface_specify_ports.count(pname)
+			   && isig->unpacked_dimensions() == 0
+			   && isig->pin_count() == 1 && pins[idx]) {
+		      if (const PEIdent*aid =
+			    dynamic_cast<const PEIdent*>(pins[idx])) {
+			    const pform_name_t&ap = aid->path().name;
+			    if (ap.size() == 1 && ap.front().index.empty()) {
+				  if (NetNet*actual = scope->find_signal(
+					ap.front().name)) {
+					const netclass_t*actual_type = dynamic_cast<
+					      const netclass_t*>(actual->net_type());
+					if (actual_type && actual_type->is_interface())
+					      isig->bind_interface_signal(0, actual, 0);
+				  }
+			    }
+		      }
+		}
 			if (!effective_modport.nil())
 			      isig->attribute(
 				    perm_string::literal("ivl_modport"),
@@ -26766,6 +26807,47 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       return true;
 }
 
+static NetNet* resolve_specify_path_terminal_(NetScope*scope,
+					      perm_string name,
+					      NetNet::PortType*direction)
+{
+      std::string path(name.str());
+      std::string::size_type dot = path.find('.');
+      if (dot == std::string::npos) {
+	NetNet*signal = scope->find_signal(name);
+	if (signal && direction) *direction = signal->port_type();
+	return signal;
+      }
+
+      if (path.find('.', dot + 1) != std::string::npos) return 0;
+      perm_string port_name = lex_strings.make(path.substr(0, dot).c_str());
+      perm_string member_name = lex_strings.make(path.substr(dot + 1).c_str());
+      NetNet*interface_port = scope->find_signal(port_name);
+      const netclass_t*interface_type = interface_port
+	    ? dynamic_cast<const netclass_t*>(interface_port->net_type()) : 0;
+      if (!interface_type || !interface_type->is_interface()) return 0;
+
+      int property = interface_type->property_idx_from_name(member_name);
+      if (property < 0) return 0;
+      NetNet*signal = interface_port->resolve_interface_member(0, property);
+      if (!signal) return 0;
+
+      NetNet::PortType terminal_direction = NetNet::PINOUT;
+      perm_string modport_name = interface_type->interface_modport();
+      if (!modport_name.nil()) {
+	const PModport*view = interface_modport_view(interface_type,
+							    modport_name);
+	if (!view) return 0;
+	auto port = view->simple_ports.find(member_name);
+	if (port == view->simple_ports.end())
+	      terminal_direction = NetNet::NOT_A_PORT;
+	else
+	      terminal_direction = port->second.first;
+      }
+      if (direction) *direction = terminal_direction;
+      return signal;
+}
+
 void PSpecPath::elaborate(Design*des, NetScope*scope) const
 {
       uint64_t delay_value[12];
@@ -26844,7 +26926,8 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    typedef std::vector<perm_string>::const_iterator str_vec_iter;
 	    for (str_vec_iter cur = src.begin();
 		 ( cur != src.end() && all_single); ++ cur) {
-		  const NetNet *psig = scope->find_signal(*cur);
+		  const NetNet *psig = resolve_specify_path_terminal_(
+			  scope, *cur, 0);
 		    /* We will report a missing signal as invalid later. For
 		     * now assume it's a single bit. */
 		  if (psig == 0) continue;
@@ -26852,7 +26935,8 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    }
 	    for (str_vec_iter cur = dst.begin();
 		 ( cur != dst.end() && all_single); ++ cur) {
-		  const NetNet *psig = scope->find_signal(*cur);
+		  const NetNet *psig = resolve_specify_path_terminal_(
+			  scope, *cur, 0);
 		    /* The same as above for source paths. */
 		  if (psig == 0) continue;
 		  if (psig->vector_width() != 1) all_single = false;
@@ -26880,7 +26964,9 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 		  cerr << " from ";
 	    }
 
-	    NetNet*dst_sig = scope->find_signal(*cur);
+	    NetNet::PortType dst_direction = NetNet::NOT_A_PORT;
+	    NetNet*dst_sig = resolve_specify_path_terminal_(
+		    scope, *cur, &dst_direction);
 	    if (dst_sig == 0) {
 		  cerr << get_fileline() << ": error: No wire '"
 		       << *cur << "' in this module." << endl;
@@ -26890,8 +26976,8 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 
 	    unsigned long dst_wid = dst_sig->vector_width();
 
-	    if (dst_sig->port_type() != NetNet::POUTPUT
-		&& dst_sig->port_type() != NetNet::PINOUT) {
+	    if (dst_direction != NetNet::POUTPUT
+		&& dst_direction != NetNet::PINOUT) {
 
 		  cerr << get_fileline() << ": error: Path destination "
 		       << *cur << " must be an output or inout port." << endl;
@@ -26940,7 +27026,9 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    unsigned idx = 0;
 	    for (str_vector_iter cur_src = src.begin()
 		       ; cur_src != src.end() ; ++ cur_src ) {
-		  NetNet*src_sig = scope->find_signal(*cur_src);
+		  NetNet::PortType src_direction = NetNet::NOT_A_PORT;
+		  NetNet*src_sig = resolve_specify_path_terminal_(
+			  scope, *cur_src, &src_direction);
 		  if (src_sig == 0) {
 			cerr << get_fileline() << ": error: No wire '"
 			     << *cur_src << "' in this module." << endl;
@@ -26953,8 +27041,8 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 			cerr << src_sig->name();
 		  }
 
-		  if ( (src_sig->port_type() != NetNet::PINPUT)
-		    && (src_sig->port_type() != NetNet::PINOUT) ) {
+		  if ( (src_direction != NetNet::PINPUT)
+		    && (src_direction != NetNet::PINOUT) ) {
 
 			cerr << get_fileline() << ": error: Path source "
 			     << *cur_src << " must be an input or inout port."
