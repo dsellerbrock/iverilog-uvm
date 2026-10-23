@@ -331,6 +331,8 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 
 	/* Make the lval fields. */
       make_assign_lvals_(net);
+	if (net->is_clocking_drive())
+	      ensure_assign_aux_(stmt_cur_)->clocking_drive = true;
 
 	/* Make the rval field. */
       assert(expr_ == 0);

@@ -236,12 +236,15 @@ class PAssignNB  : public PAssign_ {
       explicit PAssignNB(PExpr*lval, PExpr*cnt, PEventStatement*de, PExpr*ex);
       ~PAssignNB() override;
 
+      void mark_clocking_drive() { clocking_drive_ = true; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
     private:
       NetProc*assign_to_memory_(class NetMemory*, PExpr*,
 				Design*des, NetScope*scope) const;
+      bool clocking_drive_ = false;
 };
 
 /*
