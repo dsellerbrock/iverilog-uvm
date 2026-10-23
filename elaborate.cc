@@ -2409,13 +2409,13 @@ struct pending_interface_variable_continuous_driver_t {
 static vector<pending_interface_variable_continuous_driver_t>
       pending_interface_variable_continuous_drivers_;
 
-struct pending_string_variable_continuous_driver_t {
+struct pending_variable_continuous_driver_t {
       NetNet*signal;
       const LineInfo*location;
 };
 
-static vector<pending_string_variable_continuous_driver_t>
-      pending_string_variable_continuous_drivers_;
+static vector<pending_variable_continuous_driver_t>
+      pending_variable_continuous_drivers_;
 
 /* The commercial-unsafe compatibility path is deliberately closed-world:
  * only a write in an uncalled task body of the SAME concrete interface
@@ -3055,8 +3055,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
 
-      for (const pending_string_variable_continuous_driver_t&pending :
-	   pending_string_variable_continuous_drivers_) {
+      for (const pending_variable_continuous_driver_t&pending :
+	   pending_variable_continuous_drivers_) {
 	    unsigned msb = pending.signal->vector_width() - 1;
 	    if (pending.signal->test_part_procedurally_driven(msb, 0, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable '"
@@ -3066,7 +3066,7 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  des->errors += 1;
 	    }
       }
-      pending_string_variable_continuous_drivers_.clear();
+      pending_variable_continuous_drivers_.clear();
 
 }
 
@@ -3312,10 +3312,10 @@ static bool elaborate_string_variable_continuous_(
 
       bool overlap = signal->test_and_set_part_driver(msb, 0, 0);
       ivl_assert(*assignment, !overlap);
-      pending_string_variable_continuous_driver_t pending = {
+      pending_variable_continuous_driver_t pending = {
             signal, assignment
       };
-      pending_string_variable_continuous_drivers_.push_back(pending);
+      pending_variable_continuous_drivers_.push_back(pending);
 
       NetProcTop*initial = new NetProcTop(
             scope, IVL_PR_INITIAL, initial_assignment);
@@ -3330,6 +3330,106 @@ static bool elaborate_string_variable_continuous_(
                   verinum(1));
             des->add_process(always);
       }
+      return true;
+}
+
+static bool elaborate_unpacked_struct_variable_continuous_(
+      Design*des, NetScope*scope, const PGAssign*assignment,
+      NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+      bool default_strength)
+{
+      bool selected = false;
+      NetNet*signal = direct_identifier_net_(
+	    assignment, des, scope, assignment->pin(0), selected);
+      const netstruct_t*struct_type = signal ? signal->struct_type() : nullptr;
+      if (!signal || selected || signal->unpacked_dimensions() > 0
+	  || signal->pin_count() != 1 || signal->type() != NetNet::REG
+	  || !struct_type || struct_type->packed() || struct_type->union_flag())
+	    return false;
+
+      bool unsupported_delay = assignment->delay_count() > 0
+	    && !(is_defined_zero_delay_(rise_time)
+		 && is_defined_zero_delay_(fall_time)
+		 && is_defined_zero_delay_(decay_time));
+      if (unsupported_delay || !default_strength) {
+	    cerr << assignment->get_fileline() << ": sorry: Nonzero/dynamic "
+		    "delay and non-default drive strength on a continuous "
+		    "assignment to an unpacked struct variable are not currently "
+		    "supported." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+      delete_unique_delays_(rise_time, fall_time, decay_time);
+
+      if (signal->test_part_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have multiple continuous drivers." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      if (signal->test_part_procedurally_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have continuous and procedural drivers on the "
+		    "same value." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      PAssign store(const_cast<PExpr*>(assignment->pin(0)),
+		    const_cast<PExpr*>(assignment->pin(1)));
+      store.set_continuous_lval();
+      store.set_line(*assignment);
+      NetProc*initial_assignment = store.elaborate(des, scope);
+      store.replace_lval_rval(0, 0);
+	if (!initial_assignment) {
+	      cerr << assignment->get_fileline() << ": error: Unable to "
+		      "elaborate continuous assignment to unpacked struct "
+		      "variable `" << signal->name() << "'." << endl;
+	      des->errors += 1;
+	    return true;
+	}
+
+      PEventStatement wait(true);
+      wait.set_line(*assignment);
+      NetProc*body = wait.elaborate_st(des, scope, initial_assignment);
+      if (!body) {
+	    delete initial_assignment;
+	    cerr << assignment->get_fileline() << ": error: Unable to derive "
+		    "sensitivity for continuous assignment to unpacked struct "
+		    "variable `" << signal->name() << "'." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      bool overlap = signal->test_and_set_part_driver(0, 0, 0);
+      ivl_assert(*assignment, !overlap);
+      pending_variable_continuous_driver_t pending = {
+	    signal, assignment
+      };
+      pending_variable_continuous_drivers_.push_back(pending);
+
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(*assignment);
+      top->attribute(perm_string::literal("_ivl_function_background_ok"),
+		     verinum(1));
+	if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	      if (event_wait->nevents() == 1) {
+		    NetEvent*event = event_wait->event(0);
+		    bool anyedge = event->nprobe() != 0;
+		    for (unsigned idx = 0; anyedge && idx < event->nprobe();
+			 idx += 1)
+			  if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
+				anyedge = false;
+		    if (anyedge)
+			  top->attribute(
+				perm_string::literal("_ivl_schedule_push"),
+				verinum(1));
+	      }
+	}
+      des->add_process(top);
       return true;
 }
 
@@ -3580,6 +3680,14 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  const_cast<PExpr*>(pin(1)), proxy);
 	    return;
       }
+
+	/* Keep an unpacked-struct variable as a REG. elaborate_lnet() coerces
+	 * SystemVerilog variable l-values to UWIRE for structural assignments,
+	 * but object-backed aggregates need the procedural store path. */
+      if (elaborate_unpacked_struct_variable_continuous_(
+		des, scope, this, rise_time, fall_time, decay_time,
+		var_allowed_in_sv))
+	    return;
 
 	/* Elaborate the l-value. */
         // A continuous assignment can drive a variable if the default strength is used.
@@ -7958,8 +8066,12 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 	    }
       }
 
-      return lval_->elaborate_lval(des, scope, false, false,
-				    authorized_initializer);
+      NetAssign_*lval = lval_->elaborate_lval(des, scope,
+					      continuous_lval_, false,
+					      authorized_initializer);
+	if (lval && continuous_lval_)
+	      lval->mark_force_lval();
+      return lval;
 }
 
 NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const
@@ -46360,7 +46472,7 @@ Design* elaborate(list<perm_string>roots)
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_variable_continuous_drivers_.clear();
-      pending_string_variable_continuous_drivers_.clear();
+      pending_variable_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();

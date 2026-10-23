@@ -5749,3 +5749,9 @@ sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold
 # IEEE 1800-2017 A.9.3 note 37 / 13.5.5 and 1800-2023 13.5.5.
 sv_class_method_noarg_string_concat_2017 normal,-g2017,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
 sv_class_method_noarg_string_concat_2023 normal,-g2023,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
+sv_continuous_struct_variable normal,-g2017,-s,sv_continuous_struct_variable ivltests gold=sv_continuous_struct_variable.gold
+sv_continuous_struct_variable_2023 normal,-g2023,-s,sv_continuous_struct_variable ivltests gold=sv_continuous_struct_variable.gold
+sv_continuous_struct_pattern normal,-g2017,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
+sv_continuous_struct_pattern_2023 normal,-g2023,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
+sv_continuous_struct_driver_conflict_fail CE,-g2017,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
+sv_continuous_struct_driver_conflict_fail_2023 CE,-g2023,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
