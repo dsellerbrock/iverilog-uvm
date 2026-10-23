@@ -15712,19 +15712,23 @@ module_item
      This creates the wire and sets the port type all at once. */
 
   | attribute_list_opt port_direction net_type_or_var data_type_or_implicit list_of_port_identifiers ';'
-      { pform_module_define_port(@2, $5, $2, $3, $4, $1); }
+      { pform_error_in_generate(@2, "port declaration");
+	pform_module_define_port(@2, $5, $2, $3, $4, $1); }
 
   | attribute_list_opt port_direction NETTYPE_IDENTIFIER list_of_port_identifiers ';'
-      { pform_set_nettype_referenced(@3, $3.text);
+      { pform_error_in_generate(@2, "port declaration");
+	pform_set_nettype_referenced(@3, $3.text);
 	pform_module_define_nettype_port(@2, $4, $2, $3.type, $1);
 	delete[]$3.text;
       }
 
   | attribute_list_opt port_direction K_interconnect interconnect_implicit_type list_of_port_identifiers ';'
-      { pform_module_define_interconnect_port(@2, $5, $2, $4, $1); }
+      { pform_error_in_generate(@2, "port declaration");
+	pform_module_define_interconnect_port(@2, $5, $2, $4, $1); }
 
   | attribute_list_opt port_direction K_wreal list_of_port_identifiers ';'
-      { real_type_t*real_type = new real_type_t(real_type_t::REAL);
+      { pform_error_in_generate(@2, "port declaration");
+	real_type_t*real_type = new real_type_t(real_type_t::REAL);
 	pform_module_define_port(@2, $4, $2, NetNet::WIRE, real_type, $1);
       }
 
@@ -15735,7 +15739,8 @@ module_item
        input signed [h:l] <list>;
    */
   | attribute_list_opt K_inout data_type_or_implicit list_of_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15747,7 +15752,8 @@ module_item
       }
 
   | attribute_list_opt K_input data_type_or_implicit list_of_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15759,7 +15765,8 @@ module_item
       }
 
   | attribute_list_opt K_output data_type_or_implicit list_of_variable_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15780,28 +15787,32 @@ module_item
       }
 
   | attribute_list_opt port_direction net_type_or_var data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($4) delete $4;
 	yyerrok;
       }
 
   | attribute_list_opt K_inout data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
       }
 
   | attribute_list_opt K_input data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
       }
 
   | attribute_list_opt K_output data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
