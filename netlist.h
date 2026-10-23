@@ -1434,9 +1434,9 @@ class NetScope : public Definitions, public Attrib {
       { return modport_names_; }
 	// M13: let declarations (IEEE 1800-2017 11.13) visible in this
 	// scope, copied from the pform Module at scope elaboration.
-	// find_let walks up lexically but stops at the module boundary.
+	// find_let walks up lexically through the compilation-unit boundary.
       void add_let(perm_string nm, PLet*let) { lets_[nm] = let; }
-      PLet* find_let(perm_string nm) const;
+      PLet* find_let(const Design*des, perm_string nm) const;
       inline TYPE type() const { return type_; }
       void print_type(std::ostream&) const;
 

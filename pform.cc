@@ -2546,6 +2546,8 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 
       perm_string lex_name = lex_strings.make(name);
       Module*cur_module = new Module(lexical_scope, lex_name);
+      if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
+	    cur_module->unit_lets = unit->lets;
       cur_module->program_block = program_block;
       cur_module->is_interface = is_interface;
       cur_module->is_checker = is_checker;
@@ -6537,6 +6539,23 @@ void pform_make_let(const struct vlltype&loc,
 {
       LexicalScope*scope =  pform_peek_scope();
       Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
+
+      if (mod == 0) {
+	    PPackage*package = dynamic_cast<PPackage*>(scope);
+	    if (package) {
+		  if (package->lets.count(name)) {
+			cerr << loc.get_fileline() << ": error: duplicate let declaration `"
+			     << name << "' in package `" << package->pscope_name() << "'." << endl;
+			error_count += 1;
+			delete expr;
+			return;
+		  }
+		  PLet*res = new PLet(name, scope, ports, expr);
+		  FILE_NAME(res, loc);
+		  package->lets[name] = res;
+		  return;
+	    }
+      }
 
 	// let declarations are supported directly in module/interface
 	// scope (the overwhelmingly common placement). Lets nested in
