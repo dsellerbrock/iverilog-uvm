@@ -15331,8 +15331,7 @@ static void report_unsupported_covergroup_item_option_(
 {
       cerr << loc->get_fileline() << ": sorry: procedural " << access
 	   << " of coverpoint/cross option `" << item << ".option."
-	   << member << "' is not supported; only option.at_least and "
-	   << "option.weight are implemented." << endl;
+	   << member << "' is not supported." << endl;
       des->errors += 1;
 }
 

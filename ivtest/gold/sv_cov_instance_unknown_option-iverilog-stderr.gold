@@ -1,0 +1,2 @@
+ivltests/sv_cov_instance_unknown_option.v:6: sorry: procedural write of coverpoint/cross option `cp_a.option.no_such_member' is not supported.
+Elaboration failed

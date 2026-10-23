@@ -41833,7 +41833,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    auto add_option_props = [&](const std::string&stem,
                                           const char*first = "at_least",
                                           ivl_type_t first_type = &netvector_t::atom2s32)
-			  -> std::pair<int,int> {
+			  -> std::pair<std::pair<int,int>,std::pair<int,int>> {
 			auto add_unique_property = [&](const std::string&base, ivl_type_t type) -> int {
 			      std::string candidate = base;
 			      unsigned suffix = 0;
@@ -41855,8 +41855,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			};
 			int at_prop = add_unique_property(stem + "_option_" + first, first_type);
 			int wt_prop = add_unique_property(stem + "_option_weight", &netvector_t::atom2s32);
+			int goal_prop = add_unique_property(stem + "_option_goal", &netvector_t::atom2s32);
+			int comment_prop = add_unique_property(stem + "_option_comment", &netstring_t::type_string);
 			prop_idx = cg_class->get_properties();
-			return std::make_pair(at_prop, wt_prop);
+			return std::make_pair(std::make_pair(at_prop, wt_prop),
+			                      std::make_pair(goal_prop, comment_prop));
 		    };
             auto&group_options = cg_class->covgrp_options();
             group_options.declaration_scope = class_scope_;
@@ -41870,8 +41873,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
-            group_options.weight_prop = group_props.second;
-            group_options.get_inst_coverage_prop = group_props.first;
+            group_options.weight_prop = group_props.first.second;
+            group_options.get_inst_coverage_prop = group_props.first.first;
+            group_options.goal_prop = group_props.second.first;
+            group_options.comment_prop = group_props.second.second;
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
@@ -42344,14 +42349,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
-			  std::pair<int,int> cp_option_props =
+			  auto cp_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
 						nullptr, -1,
-						cp_option_props.first,
-						cp_option_props.second);
+						cp_option_props.first.first,
+						cp_option_props.first.second,
+						cp_option_props.second.first,
+						cp_option_props.second.second);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -44329,15 +44336,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				     << "(IEEE 1800-2023 19.4.1)." << endl;
 				des->errors += 1;
 			  }
-			  std::pair<int,int> x_option_props =
+			  auto x_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(item_idx));
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
 						x_weight.second,
 						cross.iff_expr, x_guard_src,
-						x_option_props.first,
-						x_option_props.second);
+					x_option_props.first.first,
+						x_option_props.first.second,
+						x_option_props.second.first,
+						x_option_props.second.second);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
