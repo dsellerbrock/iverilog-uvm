@@ -1142,6 +1142,7 @@ struct Z3Builder {
 	    unsigned weight;
 	    bool is_range;
 	    bool range_weight_per_value;
+	    bool legacy_range_weight;
 	    unsigned value_width;
 	    bool comparison_signed;
 	      // A range stores order-preserving coordinates at value_width;
@@ -6160,10 +6161,16 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 		  saw_branch = true;
 		  bool range_weight_per_value = false;
+		  bool legacy_range_weight = false;
 		  par.skip_ws();
 		  if (par.peek() == ':') {
 			string mode = par.read_token();
-			if (mode == ":=")
+			if (mode == ":=17") {
+			      range_weight_per_value = true;
+			      legacy_range_weight = true;
+			} else if (mode == ":/17") {
+			      legacy_range_weight = true;
+			} else if (mode == ":=")
 			      range_weight_per_value = true;
 			else if (mode != ":/") {
 			      static bool warned_mode = false;
@@ -6341,6 +6348,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    dspec.requires_large_exact = true;
 			      Z3Builder::DistBranch db = {
 					  weight, true, range_weight_per_value,
+					  legacy_range_weight,
 					  rw, lo_order_signed, 0, 0,
 					  ordered_wide(lo_wide, rw, lo_order_signed),
 					  ordered_wide(hi_wide, rw, hi_order_signed),
@@ -6402,6 +6410,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
+				    legacy_range_weight,
 				    rw, coordinate_signed, lo_coord, hi_coord,
 				    nullptr, nullptr, weight_expression, false, nullptr
 			      };
@@ -6474,14 +6483,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      Z3_ast coord = ordered_wide(value_wide, vw,
 						  value_compare_signed);
 			      Z3Builder::DistBranch db = {
-				    weight, true, false, vw,
+				    weight, true, false, legacy_range_weight, vw,
 				    value_compare_signed, 0, 0, coord, coord,
 				    weight_expression, false, nullptr
 			      };
 			      dspec.branches.push_back(db);
 			} else if (weight != 0 && value_ok) {
 			      Z3Builder::DistBranch db = {
-				    weight, false, false, vw,
+				    weight, false, false, false, vw,
 				    value_compare_signed,
 				    value_bits, value_bits, nullptr, nullptr,
 				    weight_expression, false, nullptr
@@ -6566,7 +6575,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      wide_hi = Z3_mk_bv_numeral(b.ctx, sw, bits.get());
 			}
 			Z3Builder::DistBranch db = {
-			      default_weight, true, false, sw, false, 0, hi,
+			      default_weight, true, false, false, sw, false, 0, hi,
 			      wide_lo, wide_hi, default_weight_expression,
 			      true, default_membership
 			};
@@ -9311,14 +9320,14 @@ static bool z3_isolated_subject_factor_(Z3_context ctx, Z3_solver base,
       return true;
 }
 
-/* RANDOM-DIST fix #2 (IEEE 1800-2023 18.5.3; 2017 18.5.4): `dist`
+/* RANDOM-DIST fix #2 (IEEE 1800-2017 18.5.4; 2023 18.5.3): `dist`
  * selects an ITEM with probability proportional to that item's aggregate
  * weight, then chooses uniformly among the selected item's feasible member
- * values. For `:=' on an integral range, aggregate weight is the specified
- * weight times the COMPLETE source range size, including values excluded by
- * other constraints. For `:/' it is just the specified weight. Keeping an
- * item as the sampling unit also makes overlapping items additive instead of
- * merging their equal values prematurely.
+ * values. In 2023, range weights apply to the complete source range even when
+ * other constraints exclude values. In 2017, each value retains its own `:=`
+ * weight or its `:/` share, so excluded values reduce the item's weight.
+ * Keeping an item as the sampling unit also makes overlapping items additive
+ * instead of merging their equal values prematurely.
  *
  * Ranges up to RANGE_EXPAND_CAP retain the bounded enumerator. Larger ranges
  * use exact interval discovery for isolated factors or singleton compound
@@ -10106,6 +10115,11 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                   if (positive) Z3_solver_dec_ref(ctx, positive);
                   return result;
             };
+            const bool has_legacy_range_weight = any_of(
+                  spec.branches.begin(), spec.branches.end(),
+                  [](const Z3Builder::DistBranch&br) {
+                        return br.legacy_range_weight && br.is_range;
+                  });
             /* Large ranges (`base_addr dist { [0:15] :/ 1,
                [16:32'hfffffff0] :/ 2, ... }' with `!base_addr[0]'): choose
                an item by its declared weight among the items that still
@@ -10115,7 +10129,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                item. Giving up after a run of misses (sparse feasible set)
                falls through to the bounded exact paths. */
             rejection_draw = [&]() -> bool {
-                  if (validate_only || require_complete_ranges) return false;
+                  if (validate_only || require_complete_ranges
+                      || has_legacy_range_weight) return false;
                   struct DrawItem {
                         const Z3Builder::DistBranch* branch;
                         uint64_t first;
@@ -10320,6 +10335,7 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                                               fast_weight});
                         fast_weight_bound += fast_weight;
                   }
+                  if (has_legacy_range_weight) fast_eligible = false;
                   if (fast_eligible && !fast_items.empty()
                       && fast_weight_bound) {
                         while (!fast_items.empty()) {
@@ -10419,6 +10435,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
             struct ExactItem {
                   uint64_t aggregate_weight;
                   uint64_t feasible_count;
+                  uint64_t declared_span;
+                  const Z3Builder::DistBranch* branch;
                   unsigned value_width;
                   bool comparison_signed;
                   vector<ExactInterval> intervals;
@@ -10444,9 +10462,10 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         declared_span = br.hi - br.lo + 1;
                         if (declared_span == 0) return finish(unsupported());
                   }
-                  ExactItem item = {(uint64_t)br.weight, 0,
+                  ExactItem item = {(uint64_t)br.weight, 0, declared_span,
+                                    &br,
                                     br.value_width, br.comparison_signed, {}};
-                  if (br.range_weight_per_value) {
+                  if (!br.legacy_range_weight && br.range_weight_per_value) {
                         if (declared_span > UINT64_MAX / item.aggregate_weight)
                               return finish(unsupported());
                         item.aggregate_weight *= declared_span;
@@ -10567,6 +10586,44 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
             }
             if (items.empty()) return finish(false);
 
+            uint64_t legacy_divisor = 1;
+            for (const auto&item : items) {
+                  const auto&br = *item.branch;
+                  if (!br.legacy_range_weight || !br.is_range
+                      || br.range_weight_per_value) continue;
+                  uint64_t a = legacy_divisor, b = item.declared_span;
+                  while (b) { uint64_t r = a % b; a = b; b = r; }
+                  uint64_t range_factor = item.declared_span / a;
+                  if (range_factor
+                      && legacy_divisor > UINT64_MAX / range_factor)
+                        return finish(unsupported());
+                  legacy_divisor *= range_factor;
+            }
+            for (auto&item : items) {
+                  const auto&br = *item.branch;
+                  uint64_t multiplier = legacy_divisor;
+                  if (br.legacy_range_weight && br.is_range) {
+                        multiplier = br.range_weight_per_value
+                              ? legacy_divisor
+                              : legacy_divisor / item.declared_span;
+                        if (item.feasible_count
+                            && item.aggregate_weight
+                                  > UINT64_MAX / item.feasible_count)
+                              return finish(unsupported());
+                        item.aggregate_weight *= item.feasible_count;
+                  } else if (br.is_range && br.range_weight_per_value) {
+                        if (item.declared_span
+                            && item.aggregate_weight
+                                  > UINT64_MAX / item.declared_span)
+                              return finish(unsupported());
+                        item.aggregate_weight *= item.declared_span;
+                  }
+                  if (multiplier && item.aggregate_weight
+                        > UINT64_MAX / multiplier)
+                        return finish(unsupported());
+                  item.aggregate_weight *= multiplier;
+            }
+
             uint64_t total_weight = 0;
             for (const auto&item : items) {
                   if (total_weight > UINT64_MAX - item.aggregate_weight)
@@ -10611,6 +10668,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 
       struct FeasibleItem {
 	    uint64_t aggregate_weight;
+	    uint64_t declared_span;
+	    const Z3Builder::DistBranch* branch;
 	    unsigned value_width;
 	    bool comparison_signed;
 	    vector<uint64_t> values;
@@ -10638,10 +10697,10 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 
 	    FeasibleItem item;
 	    item.aggregate_weight = (uint64_t)br.weight;
+	    item.declared_span = span;
+	    item.branch = &br;
 	    item.value_width = br.value_width;
 	    item.comparison_signed = br.comparison_signed;
-	    if (br.is_range && br.range_weight_per_value)
-		  item.aggregate_weight *= span;
 
 	    uint64_t first = br.lo;
 	    uint64_t last = br.is_range ? br.hi : br.lo;
@@ -10679,6 +10738,59 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 		  items.push_back(item);
       }
       if (items.empty()) return false;
+
+	// 2017 assigns range weights to individual source values, so values
+	// removed by other constraints remove their share of the item's weight.
+	// For :/ ranges those shares are fractional; scale all item weights by the
+	// LCM of the source range sizes to keep the ticket draw exact.
+	uint64_t legacy_divisor = 1;
+	for (const auto&item : items) {
+	      const auto&br = *item.branch;
+	      if (!br.legacy_range_weight || !br.is_range
+		  || br.range_weight_per_value) continue;
+	      uint64_t a = legacy_divisor, b = item.declared_span;
+	      while (b) { uint64_t r = a % b; a = b; b = r; }
+	      uint64_t factor = item.declared_span / a;
+	      if (factor && legacy_divisor > UINT64_MAX / factor) {
+		    if (indeterminate) *indeterminate = true;
+		    return false;
+	      }
+	      legacy_divisor *= factor;
+	}
+	for (auto&item : items) {
+	      const auto&br = *item.branch;
+	      uint64_t multiplier = legacy_divisor;
+	      if (br.legacy_range_weight && br.is_range) {
+		    uint64_t feasible = item.values.size();
+		    if (br.range_weight_per_value) {
+			  if (feasible && item.aggregate_weight > UINT64_MAX / feasible) {
+				if (indeterminate) *indeterminate = true;
+				return false;
+			  }
+			  item.aggregate_weight *= feasible;
+		    } else {
+			  multiplier /= item.declared_span;
+			  if (feasible && item.aggregate_weight > UINT64_MAX / feasible) {
+				if (indeterminate) *indeterminate = true;
+				return false;
+			  }
+			  item.aggregate_weight *= feasible;
+		    }
+	      } else if (br.is_range && br.range_weight_per_value) {
+		    // 2023 := keeps the weight of the complete source range.
+		    if (item.declared_span
+			  && item.aggregate_weight > UINT64_MAX / item.declared_span) {
+			  if (indeterminate) *indeterminate = true;
+			  return false;
+		    }
+		    item.aggregate_weight *= item.declared_span;
+	      }
+	      if (multiplier && item.aggregate_weight > UINT64_MAX / multiplier) {
+		    if (indeterminate) *indeterminate = true;
+		    return false;
+	      }
+	      item.aggregate_weight *= multiplier;
+	}
 
       uint64_t total = 0;
 	for (const auto& item : items) {

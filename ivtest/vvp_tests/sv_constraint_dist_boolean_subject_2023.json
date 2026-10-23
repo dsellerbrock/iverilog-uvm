@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_dist_boolean_subject_2023.v",
+    "iverilog-args" : [ "-g2023", "-DEXPECT_2023" ],
+    "gold"          : "sv_constraint_dist_boolean_subject"
+}
