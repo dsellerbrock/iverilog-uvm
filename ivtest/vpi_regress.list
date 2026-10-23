@@ -218,3 +218,5 @@ event_callback_parent_atomic_high normal,-g2017 event_callback_parent_atomic_hig
 event_callback_parent_atomic_high_2023 normal,-g2023 event_callback_parent_atomic_high.c event_callback_parent_atomic_high_2023.log
 event_callback_nested_depth normal,-g2017 event_callback_nested_depth.c event_callback_nested_depth.log
 event_callback_nested_depth_2023 normal,-g2023 event_callback_nested_depth.c event_callback_nested_depth_2023.log
+vpi_typespec normal,-g2017 vpi_typespec.c vpi_typespec.gold
+vpi_typespec_2023 normal,-g2023 vpi_typespec.c vpi_typespec_2023.gold
