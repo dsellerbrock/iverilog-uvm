@@ -25,6 +25,7 @@
 # include  "StringHeap.h"
 # include  <iostream>
 # include  <vector>
+# include  <set>
 
 /*
  * SystemVerilog supports class declarations with their own lexical
@@ -50,6 +51,7 @@ class PPackage : public PScopeExtra, public LineInfo {
       };
 
       std::vector<export_t> exports;
+      std::set<perm_string> programwide_symbols;
 };
 
 #endif /* IVL_PPackage_H */

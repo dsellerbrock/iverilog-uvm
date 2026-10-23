@@ -114,6 +114,7 @@ extern void pform_set_default_nettype(NetNet::Type net,
   /* Return true if currently processing a program block. This can be
      used to reject statements that cannot exist in program blocks. */
 extern bool pform_in_program_block(void);
+extern void pform_set_anonymous_program(bool enable);
 
   /* Return true if currently processing an interface. This can be
      used to reject statements that cannot exist in interfaces. */

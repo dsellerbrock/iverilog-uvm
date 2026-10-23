@@ -2666,7 +2666,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <int_val> deferred_mode
 %type <int_val> sva_int_local_declarations
 %type <atom_type> atom_type
-%type <int_val> module_start module_end
+%type <int_val> module_start module_end program_start
 
 %type <lifetime> lifetime lifetime_opt
 
@@ -5942,7 +5942,7 @@ description /* IEEE1800-2005: A.1.2 */
   | nature_declaration
   | package_declaration
   | discipline_declaration
-  | package_item
+  | compilation_unit_item
   | bind_directive
   | KK_attribute '(' IDENTIFIER ',' STRING ',' STRING ')'
       { perm_string tmp3 = lex_strings.make($3);
@@ -7936,7 +7936,7 @@ package_export_item_list
   | package_export_item
   ;
 
-package_item /* IEEE1800-2005 A.1.10 */
+compilation_unit_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
   | parameter_declaration
   | type_declaration
@@ -7957,6 +7957,38 @@ package_item /* IEEE1800-2005 A.1.10 */
       { FILE_NAME($2, @1);
 	pform_make_var(@1, $3, $2, nullptr, false);
       }
+  ;
+
+package_item /* IEEE1800-2005 A.1.10 */
+  : compilation_unit_item
+  | anonymous_program
+  ;
+
+/* IEEE 1800-2017/2023 24.6 and A.1.11: anonymous programs declare
+   programwide subroutines and types in the surrounding package or
+   compilation-unit scope, without introducing another scope. */
+anonymous_program
+  : K_program ';' { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
+  ;
+
+anonymous_program_item_list_opt
+  :
+  | anonymous_program_item_list
+  ;
+
+anonymous_program_item_list
+  : anonymous_program_item
+  | anonymous_program_item_list anonymous_program_item
+  ;
+
+anonymous_program_item
+  : package_task_declaration
+  | package_function_declaration
+  | class_declaration
+  | package_covergroup_declaration
+  | ';'
   ;
 
 /* Package-scope covergroup (IEEE 1800-2017 §19.3).
@@ -15430,6 +15462,12 @@ module
 	}
 	delete[]$4;
       }
+  | attribute_list_opt module_start ';'
+    { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false);
+	if ($2 != K_program)
+	    yyerror(@2, "error: An anonymous program must start with 'program'."); }
   ;
 
   /* Modules start with a module/macromodule, program, or interface
@@ -15445,10 +15483,7 @@ module_start
       { pform_error_in_generate(@1, "module declaration");
         $$ = K_module;
       }
-  | K_program
-      { pform_error_in_generate(@1, "program declaration");
-        $$ = K_program;
-      }
+  | program_start { $$ = K_program; }
   | K_interface
       { pform_error_in_generate(@1, "interface declaration");
         $$ = K_interface;
@@ -15456,6 +15491,13 @@ module_start
   | K_checker
       { pform_error_in_generate(@1, "checker declaration");
         $$ = K_checker;
+      }
+  ;
+
+program_start
+  : K_program
+      { pform_error_in_generate(@1, "program declaration");
+	$$ = K_program;
       }
   ;
 

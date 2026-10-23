@@ -449,6 +449,7 @@ static bool pform_in_parameter_port_list = false;
  * Items that have scoped names are put in the lexical_scope object.
  */
 static LexicalScope* lexical_scope = 0;
+static bool anonymous_program_items = false;
 
 LexicalScope* pform_peek_scope(void)
 {
@@ -625,8 +626,20 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 {
       LexicalScope*scope = lexical_scope;
       while (scope) {
-	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
+	    if (scope->local_symbols.find(name) != scope->local_symbols.end()) {
+		  PPackage*unit_or_package = dynamic_cast<PPackage*>(scope);
+		  if (unit_or_package
+		      && unit_or_package->programwide_symbols.find(name)
+			 != unit_or_package->programwide_symbols.end()
+		      && !pform_in_program_block()) {
+			cerr << loc.get_fileline()
+			     << ": error: Programwide identifier '" << name
+			     << "' is accessible only from a program block."
+			     << endl;
+			error_count++;
+		  }
 		  return;
+	    }
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
@@ -754,6 +767,10 @@ PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name)
       PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
       ivl_assert(loc, scopex);
       pform_set_scope_timescale(class_scope, scopex);
+      if (anonymous_program_items && lexical_scope == scopex) {
+	    PPackage*pkg = dynamic_cast<PPackage*>(scopex);
+	    if (pkg) pkg->programwide_symbols.insert(name);
+      }
 
       if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    pform_cur_generate->classes[name] = class_scope;
@@ -802,6 +819,10 @@ PTask* pform_push_task_scope(const struct vlltype&loc, const char*name,
       }
 
       pform_set_scope_timescale(task, scopex);
+      if (anonymous_program_items && lexical_scope == scopex) {
+	    PPackage*pkg = dynamic_cast<PPackage*>(scopex);
+	    if (pkg) pkg->programwide_symbols.insert(task_name);
+      }
 
       if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, task_name, task);
@@ -857,6 +878,10 @@ PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
       }
 
       pform_set_scope_timescale(func, scopex);
+      if (anonymous_program_items && lexical_scope == scopex) {
+	    PPackage*pkg = dynamic_cast<PPackage*>(scopex);
+	    if (pkg) pkg->programwide_symbols.insert(func_name);
+      }
 
       if (pform_cur_generate && lexical_scope == pform_cur_generate) {
 	    add_local_symbol(pform_cur_generate, func_name, func);
@@ -1279,6 +1304,11 @@ bool pform_in_program_block()
       if (pform_cur_module.front()->program_block)
 	    return true;
       return false;
+}
+
+void pform_set_anonymous_program(bool enable)
+{
+      anonymous_program_items = enable;
 }
 
 bool pform_in_interface()

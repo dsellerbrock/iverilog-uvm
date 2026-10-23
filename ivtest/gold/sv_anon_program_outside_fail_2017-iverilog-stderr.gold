@@ -1,0 +1,2 @@
+ivltests/sv_anon_program_outside_fail_2017.v:18: error: Programwide identifier 'package_hello' is accessible only from a program block.
+ivltests/sv_anon_program_outside_fail_2017.v:19: error: Programwide identifier 'unit_hello' is accessible only from a program block.

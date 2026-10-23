@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_anon_program_scope_2017.v",
+  "iverilog-args": ["-g2017", "-s", "anon_program_scope"],
+  "gold": "sv_anon_program_scope_2017"
+}

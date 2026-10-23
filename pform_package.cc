@@ -84,6 +84,15 @@ PPackage *pform_find_potential_import(const struct vlltype&loc, LexicalScope*sco
 	    PPackage *decl_pkg = pform_package_importable(search_pkg, name);
 	    if (!decl_pkg)
 		  continue;
+	    if (decl_pkg->programwide_symbols.find(name)
+		!= decl_pkg->programwide_symbols.end()
+		&& !pform_in_program_block()) {
+		  cerr << loc.get_fileline() << ": error: Programwide identifier '"
+		       << name << "' is accessible only from a program block."
+		       << endl;
+		  error_count++;
+		  continue;
+	    }
 
 	    if (found_pkg && found_pkg != decl_pkg && make_explicit) {
 		  cerr << loc.get_fileline() << ": error: "
@@ -187,6 +196,15 @@ void pform_package_import(const struct vlltype&loc, PPackage*pkg, const char*ide
 		  error_count += 1;
 		  return;
 	    }
+	    if (pkg_decl->programwide_symbols.find(use_ident)
+		!= pkg_decl->programwide_symbols.end()
+		&& !pform_in_program_block()) {
+		  cerr << loc.get_fileline() << ": error: Programwide identifier '"
+		       << use_ident << "' is accessible only from a program block."
+		       << endl;
+		  error_count += 1;
+		  return;
+	    }
 
 	      // Check for conflict with local symbol.
 	    auto cur_sym = scope->local_symbols.find(use_ident);
@@ -278,6 +296,15 @@ PExpr* pform_package_ident(const struct vlltype&loc,
 			   PPackage*pkg, const pform_name_t*ident_name)
 {
       ivl_assert(loc, ident_name);
+      if (!ident_name->empty()
+	  && pkg->programwide_symbols.find(ident_name->front().name)
+	     != pkg->programwide_symbols.end()
+	  && !pform_in_program_block()) {
+	    cerr << loc.get_fileline() << ": error: Programwide identifier '"
+		 << ident_name->front().name
+		 << "' is accessible only from a program block." << endl;
+	    error_count += 1;
+      }
       PEIdent*tmp = new PEIdent(pkg, *ident_name, loc.lexical_pos);
       FILE_NAME(tmp, loc);
       return tmp;
