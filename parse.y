@@ -226,10 +226,23 @@ static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
                             char*obj, char*field, PExpr*val)
 {
       if (strcmp(obj, "option") == 0) {
-	    dst[lex_strings.make(field)] = val;
+	    perm_string key = lex_strings.make(field);
+	    if (dst.find(key) != dst.end()) {
+		  yyerror(loc, "error: duplicate coverage option '%s'.", field);
+		  delete val;
+	    } else {
+		  dst[key] = val;
+	    }
       } else if (strcmp(obj, "type_option") == 0) {
 	    std::string k = std::string("type_option.") + field;
-	    dst[lex_strings.make(k.c_str())] = val;
+	    perm_string key = lex_strings.make(k.c_str());
+	    if (dst.find(key) != dst.end()) {
+		  yyerror(loc, "error: duplicate coverage option '%s.%s'.",
+			  obj, field);
+		  delete val;
+	    } else {
+		  dst[key] = val;
+	    }
       } else {
 	    cerr << loc.get_fileline() << ": sorry: covergroup item '"
 	         << obj << "." << field << " = ...' is not an option "
