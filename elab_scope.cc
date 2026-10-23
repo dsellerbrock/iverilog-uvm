@@ -538,7 +538,11 @@ static void elaborate_scope_enumeration(Design*des, NetScope*scope,
 	    if (cur->parm) {
 		    // There is an explicit value. elaborate/evaluate
 		    // the value and assign it to the enumeration name.
-		  NetExpr*val = elab_and_eval(des, scope, cur->parm, -1);
+		  // IEEE 1800-2017/2023 6.19 evaluates enum value expressions in
+		  // the context of a cast to the enum base type. In particular,
+		  // this expands an unbased unsized literal such as 'x to the full
+		  // width of the base type before its value is recorded.
+		  NetExpr*val = elab_and_eval(des, scope, cur->parm, enum_width);
 		  const NetEConst*val_const = dynamic_cast<NetEConst*> (val);
 		  if (val_const == 0) {
 			cerr << use_enum->get_fileline()
