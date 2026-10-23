@@ -20394,6 +20394,25 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+      /* IEEE 1800-2017 14.11 requires a positive count, while
+         1800-2023 permits zero. Check counts that are known during
+         elaboration; non-constant counts remain evaluated by repeat. */
+      NetExpr*count_expr = count_->elaborate_expr(des, scope, 32, 0);
+      if (const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr)) {
+	    const verinum&count_value = count_const->value();
+	    if ((!count_value.is_defined() || count_value.is_zero()
+		 || count_value.is_negative())
+		&& generation_flag < GN_VER2023) {
+		  cerr << get_fileline() << ": error: cycle delay expression must "
+		          "evaluate to a positive integer (IEEE 1800-2017 14.11)."
+		       << endl;
+		  des->errors += 1;
+		  delete count_expr;
+		  return 0;
+	    }
+      }
+      delete count_expr;
+
       perm_string cb_name;
       for (const NetScope*walker = scope ; walker ; walker = walker->parent()) {
 	    if (walker->type() != NetScope::MODULE)

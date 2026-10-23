@@ -1,0 +1,2 @@
+zero cycle delay accepted
+ivltests/sv_procedural_cycle_delay_zero.v:7: $finish called at 1 (1s)

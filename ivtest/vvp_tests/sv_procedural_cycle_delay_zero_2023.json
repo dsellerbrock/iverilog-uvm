@@ -1,0 +1,8 @@
+{
+  "source": "sv_procedural_cycle_delay_zero.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_procedural_cycle_delay_zero_2023",
+  "type": "normal"
+}

@@ -1,0 +1,2 @@
+ivltests/sv_procedural_cycle_delay_zero.v:6: error: cycle delay expression must evaluate to a positive integer (IEEE 1800-2017 14.11).
+1 error(s) during elaboration.
