@@ -1,0 +1,2 @@
+ivltests/sv_clocking_read_output.v:11: error: clocking-block output `cb.q' cannot be read (IEEE 1800-2017 14.3).
+1 error(s) during elaboration.

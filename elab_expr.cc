@@ -64,7 +64,7 @@ using namespace std;
 
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
-      pform_name_t&, perm_string*);
+      pform_name_t&, perm_string*, bool*);
 
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
@@ -12728,7 +12728,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 		  if (!tmp)
 			tmp = elab_sys_task_arg(des, scope, name, idx,
-                                                expr, need_const);
+			                        expr, need_const,
+			                        name == "$value$plusargs" && idx == 1
+			                            ? SYS_TASK_ARG_OUTPUT : 0);
 			  if (tmp) {
 			bool type_ok = true;
 			if (coverage_control || coverage_query
@@ -15357,14 +15359,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
       pform_name_t rewritten_path;
       perm_string mapped_access = clocking_access();
+      bool output_read = false;
+      bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+	    ? nullptr : &output_read;
       if (rewrite_class_clocking_member_path(this, sr, rewritten_path,
-					      false, nullptr, &mapped_access)
+						      false, nullptr, &mapped_access,
+						      output_read_flag)
 	  || rewrite_nested_class_clocking_member_path(
-		this, des, scope, sr, rewritten_path, &mapped_access)
+		this, des, scope, sr, rewritten_path, &mapped_access,
+		output_read_flag)
 	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
-						      false, nullptr, &mapped_access)
+						      false, nullptr, &mapped_access,
+						      output_read_flag)
 	  || (!sr.net && rewrite_enclosing_scope_clocking_member_path(
-		this, scope, rewritten_path, false, nullptr, &mapped_access))) {
+		this, scope, rewritten_path, false, nullptr, &mapped_access,
+		output_read_flag))) {
+	    if (output_read) des->errors += 1;
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  mapped_ident.set_line(*this);
@@ -25519,10 +25529,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    if (gn_system_verilog()) {
 			  pform_name_t rewritten;
 			  perm_string mapped_access = clocking_access();
+			  bool output_read = false;
+			  bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+				? nullptr : &output_read;
 			  if (rewrite_clocking_member_path_via_scope(
-				    this, sr, rewritten, false, nullptr, &mapped_access)
+				    this, sr, rewritten, false, nullptr, &mapped_access,
+				    output_read_flag)
 			      || rewrite_enclosing_scope_clocking_member_path(
-				    this, scope, rewritten, false, nullptr, &mapped_access)) {
+				    this, scope, rewritten, false, nullptr, &mapped_access,
+				    output_read_flag)) {
+				if (output_read) des->errors += 1;
 				PEIdent mapped(rewritten, lexical_pos_);
 				mapped.set_line(*this);
 				mapped.set_clocking_access(mapped_access);
@@ -25680,10 +25696,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	if (gn_system_verilog()) {
 	    pform_name_t rewritten;
 	    perm_string mapped_access = clocking_access();
+	    bool output_read = false;
+	    bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+		  ? nullptr : &output_read;
 	    if (rewrite_clocking_member_path_via_scope(
-		  this, sr, rewritten, false, nullptr, &mapped_access)
+		  this, sr, rewritten, false, nullptr, &mapped_access,
+		  output_read_flag)
 		|| rewrite_enclosing_scope_clocking_member_path(
-		  this, scope, rewritten, false, nullptr, &mapped_access)) {
+		  this, scope, rewritten, false, nullptr, &mapped_access,
+		  output_read_flag)) {
+		  if (output_read) des->errors += 1;
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  mapped.set_line(*this);
 		  mapped.set_clocking_access(mapped_access);

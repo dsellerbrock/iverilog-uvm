@@ -2808,7 +2808,8 @@ NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
 }
 
 NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
-                           unsigned arg_idx, PExpr*pe, bool need_const)
+                           unsigned arg_idx, PExpr*pe, bool need_const,
+                           unsigned extra_flags)
 {
       if (!pe)
 	    return nullptr;
@@ -2828,6 +2829,7 @@ NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
       }
 
       unsigned flags = PExpr::SYS_TASK_ARG;
+      flags |= extra_flags;
       if (need_const)
             flags |= PExpr::NEED_CONST;
 
@@ -4875,7 +4877,7 @@ const netclass_t* resolve_nested_clocking_child_type(
 bool rewrite_nested_class_clocking_member_path(
 		const PEIdent*ident, Design*des, NetScope*scope,
 		const symbol_search_results&sr, pform_name_t&rewritten,
-		perm_string*clocking_access)
+		perm_string*clocking_access, bool*output_read)
 {
       const netclass_t*type = dynamic_cast<const netclass_t*>(sr.type);
       if (!sr.net || !type || sr.path_tail.size() < 3)
@@ -4903,8 +4905,8 @@ bool rewrite_nested_class_clocking_member_path(
 	      child_sr.path_tail.erase(child_sr.path_tail.begin(),
 		first_remaining);
 	      return rewrite_class_clocking_member_path(
-		ident, child_sr, rewritten, false, nullptr,
-		clocking_access);
+			ident, child_sr, rewritten, false, nullptr,
+			clocking_access, output_read);
 	}
 	ivl_type_t ptype = type->get_prop_type(pidx);
 	if (!it->index.empty()) {
@@ -4929,7 +4931,8 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					pform_name_t&rewritten,
 					bool as_lvalue,
 					bool*input_write,
-					perm_string*clocking_access)
+					perm_string*clocking_access,
+					bool*output_read)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
       if (!class_type || sr.path_tail.size() < 2)
@@ -5012,6 +5015,13 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 				   << "14.3: input clockvars are sampled, "
 				   << "not driven)." << endl;
 			      if (input_write) *input_write = true;
+			}
+			if (!as_lvalue && output_read
+			    && dir == static_cast<int>(NetNet::POUTPUT)) {
+			      cerr << ident->get_fileline() << ": error: clocking-block output `"
+				   << clocking_comp.name << "." << next->name
+				   << "' cannot be read (IEEE 1800-2017 14.3)." << endl;
+			      if (output_read) *output_read = true;
 			}
 
 			pform_name_t::iterator sig_it = erase_it;
@@ -5132,7 +5142,8 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
 					   pform_name_t&newpath,
 					   pform_name_t::iterator cb_comp,
 					   bool as_lvalue,
-					   bool*input_write)
+					   bool*input_write,
+					   bool*output_read)
 {
       pform_name_t::iterator sig_comp = cb_comp;
       ++sig_comp;
@@ -5146,6 +5157,12 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
 		 << "clockvars are sampled, not driven)." << endl;
 	    if (input_write) *input_write = true;
       }
+	if (!as_lvalue && output_read && dir == NetNet::POUTPUT) {
+	    cerr << ident->get_fileline() << ": error: clocking-block output `"
+		 << cb->name << "." << sig_comp->name
+		 << "' cannot be read (IEEE 1800-2017 14.3)." << endl;
+	    if (output_read) *output_read = true;
+	}
 
 	bool sampled_input = false;
 	if (!as_lvalue
@@ -5189,7 +5206,8 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 					    pform_name_t&rewritten,
 					    bool as_lvalue,
 					    bool*input_write,
-					    perm_string*clocking_access)
+					    perm_string*clocking_access,
+					    bool*output_read)
 {
       if (sr.net || !sr.scope) return false;
       if (ident->path().size() < 3) return false;
@@ -5221,7 +5239,7 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 			    != signals.end()) {
 			apply_clocking_member_rewrite_(ident, cb_it->second,
 						       sr.scope, newpath, it,
-						       as_lvalue, input_write);
+						       as_lvalue, input_write, output_read);
 			rewritten = newpath;
 			if (clocking_access)
 			      *clocking_access = cb_it->second->name;
@@ -5244,7 +5262,8 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 						  pform_name_t&rewritten,
 						  bool as_lvalue,
 						  bool*input_write,
-						  perm_string*clocking_access)
+						  perm_string*clocking_access,
+						  bool*output_read)
 {
       if (ident->path().size() < 2) return false;
       const name_component_t&cb_comp = ident->path().name.front();
@@ -5270,7 +5289,7 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 	    rewritten = ident->path().name;
 	    apply_clocking_member_rewrite_(ident, cb_it->second, walker,
 					   rewritten, rewritten.begin(),
-					   as_lvalue, input_write);
+					   as_lvalue, input_write, output_read);
 	    if (clocking_access)
 		  *clocking_access = cb_it->second->name;
 	    return true;

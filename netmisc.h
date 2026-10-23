@@ -250,19 +250,22 @@ extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					       pform_name_t&rewritten,
 					       bool as_lvalue = false,
 					       bool*input_write = nullptr,
-					       perm_string*clocking_access = nullptr);
+				       perm_string*clocking_access = nullptr,
+				       bool*output_read = nullptr);
 extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						   const symbol_search_results&sr,
 						   pform_name_t&rewritten,
 						   bool as_lvalue = false,
 						   bool*input_write = nullptr,
-						   perm_string*clocking_access = nullptr);
+						   perm_string*clocking_access = nullptr,
+						   bool*output_read = nullptr);
 extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 							 const NetScope*scope,
 							 pform_name_t&rewritten,
 							 bool as_lvalue = false,
 							 bool*input_write = nullptr,
-							 perm_string*clocking_access = nullptr);
+							 perm_string*clocking_access = nullptr,
+							 bool*output_read = nullptr);
 
 /* Enforce the member surface and write directions of one modport-qualified
    interface handle. Compiler-generated clocking state is admitted only when
@@ -612,7 +615,8 @@ extern NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
  */
 extern NetExpr* elab_sys_task_arg(Design*des, NetScope*scope,
                                   perm_string name, unsigned arg_idx,
-                                  PExpr*pe, bool need_const =false);
+                                  PExpr*pe, bool need_const =false,
+                                  unsigned extra_flags = 0);
 
 /* Elaborate a typed-mailbox input without losing the dynamic string category.
  * Generic system-task arguments intentionally lower a string literal through
