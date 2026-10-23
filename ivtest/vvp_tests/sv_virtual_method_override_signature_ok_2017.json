@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_virtual_method_override_signature_ok.v",
+  "iverilog-args": ["-g2017", "-s", "sv_virtual_method_override_signature_ok"],
+  "gold": "sv_virtual_method_override_signature_ok"
+}

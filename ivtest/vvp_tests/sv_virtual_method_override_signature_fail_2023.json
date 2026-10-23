@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_virtual_method_override_signature_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_virtual_method_override_signature_fail"],
+  "gold": "sv_virtual_method_override_signature_fail_2023"
+}

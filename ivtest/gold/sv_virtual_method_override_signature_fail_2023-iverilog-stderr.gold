@@ -1,0 +1,6 @@
+ivltests/sv_virtual_method_override_signature_fail.v:25: error: Virtual method `with_default' override does not match its inherited prototype (IEEE 1800-2023 8.20).
+ivltests/sv_virtual_method_override_signature_fail.v:17: error: Virtual method `f' override does not match its inherited prototype (IEEE 1800-2023 8.20).
+ivltests/sv_virtual_method_override_signature_fail.v:21: error: Virtual method `f' override does not match its inherited prototype (IEEE 1800-2023 8.20).
+ivltests/sv_virtual_method_override_signature_fail.v:13: error: Virtual method `f' override does not match its inherited prototype (IEEE 1800-2023 8.20).
+ivltests/sv_virtual_method_override_signature_fail.v:9: error: Virtual method `f' override does not match its inherited prototype (IEEE 1800-2023 8.20).
+5 error(s) during elaboration.

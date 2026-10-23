@@ -1316,6 +1316,81 @@ static bool interface_method_type_equivalent_(ivl_type_t left,
 	  && right->type_equivalent(left);
 }
 
+static const NetBaseDef*class_method_def_(const NetScope*method)
+{
+      if (!method)
+	    return nullptr;
+      if (method->type() == NetScope::FUNC)
+	    return method->func_def();
+      if (method->type() == NetScope::TASK)
+	    return method->task_def();
+      return nullptr;
+}
+
+static bool virtual_method_return_type_matches_(const NetScope*method,
+						 const NetScope*prototype)
+{
+      const NetFuncDef*method_func = method->func_def();
+      const NetFuncDef*prototype_func = prototype->func_def();
+      if (!method_func || !prototype_func
+	  || method_func->is_void() != prototype_func->is_void())
+	    return false;
+      if (method_func->is_void()) return true;
+
+      ivl_type_t method_type = method_func->return_sig()->net_type();
+      ivl_type_t prototype_type = prototype_func->return_sig()->net_type();
+      if (interface_method_type_equivalent_(method_type, prototype_type))
+	    return true;
+
+      const netclass_t*method_class = dynamic_cast<const netclass_t*>(method_type);
+      const netclass_t*prototype_class =
+	    dynamic_cast<const netclass_t*>(prototype_type);
+      for (const netclass_t*cur = method_class; cur; cur = cur->get_super())
+	    if (cur == prototype_class) return true;
+      return false;
+}
+
+static bool virtual_method_signatures_match_(const NetScope*method,
+						 const NetScope*prototype)
+{
+      if (!method || !prototype || method->type() != prototype->type())
+	    return false;
+      const NetBaseDef*method_def = class_method_def_(method);
+      const NetBaseDef*prototype_def = class_method_def_(prototype);
+      if (!method_def || !prototype_def) return false;
+
+      unsigned method_first = 0;
+      unsigned prototype_first = 0;
+      if (method_def->port_count() && method_def->port(0)
+	  && method_def->port(0)->name() == perm_string::literal("@"))
+	    method_first = 1;
+      if (prototype_def->port_count() && prototype_def->port(0)
+	  && prototype_def->port(0)->name() == perm_string::literal("@"))
+	    prototype_first = 1;
+      if (method_def->port_count() - method_first
+	  != prototype_def->port_count() - prototype_first)
+	    return false;
+
+      for (unsigned idx = 0 ; idx < method_def->port_count() - method_first
+		 ; idx += 1) {
+	    const NetNet*formal = method_def->port(method_first + idx);
+	    const NetNet*base_formal = prototype_def->port(prototype_first + idx);
+	    if (!formal || !base_formal
+	|| formal->name() != base_formal->name()
+	|| formal->port_type() != base_formal->port_type()
+	|| formal->get_const() != base_formal->get_const()
+	|| formal->get_ref_static() != base_formal->get_ref_static()
+	|| !interface_method_type_equivalent_(formal->net_type(),
+						       base_formal->net_type())
+	|| (method_def->port_defe(method_first + idx) != nullptr)
+	   != (prototype_def->port_defe(prototype_first + idx) != nullptr))
+	      return false;
+      }
+
+      return method->type() != NetScope::FUNC
+	  || virtual_method_return_type_matches_(method, prototype);
+}
+
 static const NetBaseDef*interface_method_def_(const NetScope*method)
 {
       if (!method)
@@ -2697,6 +2772,33 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
 	    cur->second->elaborate_sig(des, scope);
+      }
+
+	// IEEE 1800-2017/2023 8.20 requires every override of a virtual
+	// method to preserve the prototype's formal names, matching types,
+	// directions, qualifiers, and default-presence pattern. Return types
+	// may additionally be covariant class types.
+      if (class_scope_) {
+	    for (const auto&kv : class_scope_->children()) {
+		  const NetScope*method = kv.second;
+		  if (!method || (method->type() != NetScope::FUNC
+				  && method->type() != NetScope::TASK))
+			continue;
+		  const NetScope*prototype = inherited_class_method_(
+			super_, kv.first.peek_name());
+		  if (!prototype || !prototype->is_virtual_method()
+		      || prototype->type() != method->type())
+			continue;
+		  if (!virtual_method_signatures_match_(method, prototype)) {
+			const char*clause = generation_flag >= GN_VER2023
+			      ? "IEEE 1800-2023 8.20" : "IEEE 1800-2017 8.20";
+			cerr << method->get_fileline() << ": error: Virtual method `"
+			     << kv.first.peek_name()
+			     << "' override does not match its inherited prototype "
+			     << "(" << clause << ")." << endl;
+			des->errors += 1;
+		  }
+	    }
       }
 
       class_scope_->elaborate_nettypes(des);
