@@ -630,12 +630,6 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 static void sig_check_port_type(Design*des, const NetScope*scope,
 			        const PWire *wire, const NetNet *sig)
 {
-      if (sig->port_type() == NetNet::PREF
-          && scope->type() == NetScope::MODULE) {
-	    cerr << wire->get_fileline() << ": warning: "
-		 << "Reference ports on modules are not fully supported." << endl;
-      }
-
       // Some extra checks for module ports
       if (scope->type() != NetScope::MODULE)
 	    return;
@@ -3762,6 +3756,11 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (wtype == NetNet::IMPLICIT)
 	    wtype = NetNet::WIRE;
       if (wtype == NetNet::IMPLICIT_REG)
+	    wtype = NetNet::REG;
+      // A module ref port names the caller's variable directly.  Its
+      // formal therefore has to be represented as a variable even when
+      // the declaration's ordinary net default is wire.
+      if (port_type_ == NetNet::PREF && scope->type() == NetScope::MODULE)
 	    wtype = NetNet::REG;
 
       NetNetType*user_type = user_nettype()

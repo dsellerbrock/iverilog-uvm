@@ -6249,6 +6249,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // signal connected to the port.
 		  if (!tmp) continue;
 		  ivl_assert(*this, tmp);
+		  if (tmp->port_type() == NetNet::PREF) {
+			cerr << get_fileline() << ": error: Reference port `"
+			     << port_name << "' of module `" << rmod->mod_name()
+			     << "' cannot be left unconnected (IEEE 1800-2017/2023 "
+				"23.3.3.2)." << endl;
+			des->errors += 1;
+		  }
 
 		  if (tmp->port_type() == NetNet::PINPUT) {
 			  // If we have an unconnected input convert it
@@ -6772,6 +6779,44 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    if (member_port_bridge) {
 		  /* The common width adjustment and per-instance connection code
 		     below connects the bridge to the formal port. */
+	    } else if (ptype == NetNet::PREF) {
+		  // A ref module port is a variable alias.  Do not elaborate it as
+		  // an input expression or output l-value: either would copy the
+		  // value and lose the required shared variable identity.
+		  NetAssign_*actual_lval = pins[idx]->elaborate_lval(
+			des, scope, false, false, false, false);
+		  if (!actual_lval)
+			continue;
+		  sig = actual_lval->sig();
+		  ivl_type_t actual_type =
+			netassign_type_for_equivalence(actual_lval);
+		  bool equivalent_type = mport.size() == 1 && !prts.empty()
+			&& actual_lval->word() == 0
+			&& actual_lval->get_base() == 0
+			&& actual_lval->get_property_idx() < 0 && sig && actual_type;
+		  if (equivalent_type) {
+			for (NetNet*formal : prts) {
+			      if (!formal || !formal->net_type()
+				  || !actual_type->type_equivalent(formal->net_type())
+				  || !formal->net_type()->type_equivalent(actual_type)
+				  || !netrange_equivalent(sig->unpacked_dims(),
+							  formal->unpacked_dims())) {
+				    equivalent_type = false;
+				    break;
+			      }
+			}
+		  }
+		  if (!sig || sig->type() != NetNet::REG || !equivalent_type) {
+			cerr << pins[idx]->get_fileline() << ": error: Actual for ref "
+			     << "port `" << port_name << "' of module `"
+			     << rmod->mod_name()
+			     << "' must be an equivalent variable data type "
+				"(IEEE 1800-2017/2023 23.3.3.2)." << endl;
+			des->errors += 1;
+			delete actual_lval;
+			continue;
+		  }
+		  delete actual_lval;
 	    } else if (prts.empty() || (ptype == NetNet::PINPUT)) {
 
 		    // Special case: If the input port is an unpacked
@@ -7106,7 +7151,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 #ifndef NDEBUG
 	    if ((! prts.empty())
-		&& (ptype != NetNet::PINPUT)) {
+		&& (ptype != NetNet::PINPUT)
+		&& (ptype != NetNet::PREF)) {
 		  ivl_assert(*this, sig->type() != NetNet::REG);
 	    }
 #endif
@@ -7122,6 +7168,32 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		       << " or " << (prts_vector_width/instance.size())
 		       << "." << endl;
 		  des->errors += 1;
+		  continue;
+	    }
+
+	      // Bind a module ref formal through the same run-time reference
+	      // mechanism used by subroutine ref arguments. A nexus connection
+	      // would make two variable declarations drive one another and would
+	      // not preserve variable identity.
+	    if (ptype == NetNet::PREF) {
+		  for (unsigned inst = 0; inst < prts.size(); inst += 1) {
+			NetESignal*formal = new NetESignal(prts[inst]);
+			formal->set_line(*this);
+			NetESignal*actual = new NetESignal(sig);
+			actual->set_line(*pins[idx]);
+			vector<NetExpr*>argv(2);
+			argv[0] = formal;
+			argv[1] = actual;
+			NetSTask*bind = new NetSTask("$ivl_ref_bind",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			NetProcTop*top = new NetProcTop(prts[inst]->scope(),
+						 IVL_PR_INITIAL, bind);
+			top->set_line(*this);
+			top->attribute(perm_string::literal("_ivl_schedule_init"),
+				       verinum(1));
+			des->add_process(top);
+		  }
 		  continue;
 	    }
 
@@ -7151,7 +7223,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			as_signed = prts[0]->get_signed() && sig->get_signed();
 			break;
 		    case NetNet::PREF:
-			ivl_assert(*this, 0);
+			as_signed = prts[0]->get_signed();
 			break;
 		    default:
 			ivl_assert(*this, 0);
@@ -7242,7 +7314,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			                    (gn_interconnect_flag ? idx : -1));
 		  } else {
 			NetNet*formal = prts[0];
-			if (connect_dominated_wire_port(des, *this, formal, sig))
+			if (ptype != NetNet::PREF
+			    && connect_dominated_wire_port(des, *this, formal, sig))
 			      continue;
 			if (ptype == NetNet::PINPUT && formal->net_delay_driver())
 			      formal = delay_driver_net(formal);
