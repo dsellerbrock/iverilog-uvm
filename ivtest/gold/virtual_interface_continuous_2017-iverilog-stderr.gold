@@ -1,0 +1,2 @@
+ivltests/virtual_interface_continuous_fail.v:10: error: A component of a virtual interface may not be used in a continuous assignment (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.
