@@ -13414,6 +13414,7 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    un->mark_concurrent_assertion_expr();
 	    sva_mark_strict_(un->get_expr());
 	    return;
       }

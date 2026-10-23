@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_assert_increment_side_effect_2023.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "sv_assert_increment_side_effect_2023"],
+  "gold": "sv_assert_increment_side_effect_2023"
+}
