@@ -640,6 +640,18 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
       if (scope->type() != NetScope::MODULE)
 	    return;
 
+	  // IEEE 1800-2017/2023 6.14 explicitly excludes chandle module ports.
+	  // Keep chandle legal for subroutine arguments, which are not module ports.
+      if (sig->port_type() != NetNet::NOT_A_PORT
+	  && sig->net_type() == &netvector_t::chandle_type) {
+	    cerr << wire->get_fileline() << ": error: Port `"
+		 << wire->basename() << "` of module `"
+		 << scope->module_name()
+		 << "` shall not have the chandle data type "
+		 << "(IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+      }
+
 	/* If the signal is an input and is also declared as a
 	   reg, then report an error. In SystemVerilog a input
 	   is allowed to be a register. It will get converted

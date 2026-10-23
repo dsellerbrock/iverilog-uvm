@@ -1,0 +1,4 @@
+ivltests/sv_chandle_restrictions_fail.v:2: error: chandle is not permitted in a packed type (IEEE 1800-2017/2023 6.14).
+ivltests/sv_chandle_restrictions_fail.v:1: error: Port `port_handle` of module `sv_chandle_restrictions_fail` shall not have the chandle data type (IEEE 1800-2017/2023 6.14).
+ivltests/sv_chandle_restrictions_fail.v:3: error: chandle is not permitted in a untagged union (IEEE 1800-2017/2023 6.14).
+3 error(s) during elaboration.
