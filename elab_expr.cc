@@ -12551,6 +12551,32 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			query_name = "$ivl_array_query$increment";
 
 		  if (query_name) {
+			/* Associative-array bounds that do not depend on allocated
+			 * entries are determined by the declared index type. */
+			const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(
+			      sub->net_type());
+			if (assoc && assoc->assoc_compat()
+			    && (strcmp(name, "$left") == 0
+				|| strcmp(name, "$increment") == 0
+				|| strcmp(name, "$right") == 0)) {
+			      long result = 0;
+			      if (strcmp(name, "$increment") == 0) result = -1;
+			      else if (strcmp(name, "$right") == 0) {
+				    ivl_type_t key = assoc->assoc_index_type();
+				    unsigned width = key ? key->packed_width() : 32;
+				    bool is_signed = key && key->get_signed();
+				    if (width == 0) width = 32;
+				    if (width >= sizeof(long) * CHAR_BIT)
+					  result = -1;
+				    else if (is_signed)
+					  result = (1L << (width - 1)) - 1;
+				    else result = (1L << width) - 1;
+			      }
+			      delete sub;
+			      NetExpr*res = make_const_val_s(result);
+			      res->set_line(*this);
+			      return cast_to_width_(res, expr_wid);
+			}
 			NetExpr*dim = 0;
 			if (nparms == 2 && parms_[1].parm)
 			      dim = elab_sys_task_arg(des, scope, pname, 1,

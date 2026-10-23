@@ -3246,6 +3246,28 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*array = recv.peek<vvp_darray>();
+	  vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
+
+	  if (assoc && dim == 1) {
+		int32_t value = 0;
+		if (cp->number == 0) {
+		      value = static_cast<int32_t>(assoc->size());
+		} else if (cp->number == 3 || cp->number == 4) {
+		      vvp_vector4_t key;
+		      bool found = cp->number == 3
+			    ? assoc->first_key(key, true) : assoc->last_key(key, true);
+		      if (!found) {
+			    vvp_vector4_t unknown(32, BIT4_X);
+			    thr->push_vec4(unknown);
+			    return true;
+		      }
+		      vector4_to_value(key, value, true, false);
+		}
+		vvp_vector4_t result;
+		size_to_vec4_(static_cast<uint32_t>(value), result);
+		thr->push_vec4(result);
+		return true;
+	  }
 
       for (int cur = 1 ; array && cur < dim ; cur += 1) {
 	    if (array->get_size() == 0) {

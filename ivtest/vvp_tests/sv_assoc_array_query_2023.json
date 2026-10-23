@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_array_query.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_assoc_array_query"
+}
