@@ -22,6 +22,7 @@
 # include  <ctype.h>
 # include  <math.h>
 # include  <stdlib.h>
+# include  <stdint.h>
 # include  <string.h>
 
 static PLI_INT32 one_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
@@ -414,12 +415,9 @@ static PLI_INT32 atobin_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 }
 
 /*
- * Convert a val to a text string that represents the value. The base
- * is the integer base to use for the conversion. The base will be one
- * of the values 2, 8, 10, or 16. If the input value is negative, then
- * extract the sign out (and put a '-' in the beginning of the string and
- * write the digits for the abs(val). For example, if the input value
- * is -11 and base is 8, then the text output will be "-13".
+ * Convert a val to a text string that represents the value. Decimal
+ * conversion is signed; non-decimal conversion prints the 32-bit
+ * representation without a sign.
  */
 static void value_to_text_base(char*text, long val, long base)
 {
@@ -431,6 +429,26 @@ static void value_to_text_base(char*text, long val, long base)
       if (val == 0) {
 	    text[0] = '0';
 	    text[1] = 0;
+	    return;
+      }
+
+      if (base != 10) {
+	    unsigned long bits = (uint32_t) val;
+	    ptr = text;
+	    do {
+		  long digit = bits % base;
+		  bits /= base;
+		  *(ptr++) = digit_map[digit];
+		  *ptr = 0;
+	    } while (bits != 0);
+	    ptr -= 1;
+	    while (text < ptr) {
+		  char tmp = *ptr;
+		  *ptr = *text;
+		  *text = tmp;
+		  ptr -= 1;
+		  text += 1;
+	    }
 	    return;
       }
 
