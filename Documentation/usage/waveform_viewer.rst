@@ -40,10 +40,12 @@ the test module:
   end
 
 By default, the vvp runtime will generate VCD dump output. This is the default
-because it is the most portable. However, when using gtkwave, the FST output
-format is faster and most compact. Use the "-fst", "-lxt", or "-lxt2" extended
-argument to activate FST, LXT, or LXT2 output, respectively. For example, if
-your compiled output is written into the file "foo.vvp", the command:
+because it is the most portable. However, when using gtkwave or Surfer, the FST
+output format is faster and most compact. A dump file whose name ends in ".fst",
+for example ``$dumpfile("waves.fst")``, is written in FST format automatically.
+Use the "-fst", "-lxt", or "-lxt2" extended argument to activate FST, LXT, or
+LXT2 output for any file name. For example, if your compiled output is written
+into the file "foo.vvp", the command:
 
 .. code-block:: console
 
