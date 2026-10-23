@@ -18568,6 +18568,21 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 {
       NetScope*dscope = def->scope();
 
+	/* A void function cannot be part of the constant-function subset, and
+	 * statement-form calls do not pass through PECallFunction's constant-call
+	 * validation. Reject them when elaborating the body of a constant function. */
+      if (scope->need_const_func()) {
+	    cerr << get_fileline() << ": error: Void function `"
+		 << dscope->basename()
+		 << "' cannot be invoked within a constant function"
+		    " (IEEE 1800-2017/2023 13.4.3)." << endl;
+	    des->errors += 1;
+	    scope->is_const_func(false);
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PCallTask::elaborate_void_function_: "
 		 << "function void " << scope_path(dscope)

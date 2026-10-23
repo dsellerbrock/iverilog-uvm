@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_void_function_in_constant_function.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_void_function_in_constant_function"
+  ],
+  "gold": "sv_void_function_in_constant_function"
+}
