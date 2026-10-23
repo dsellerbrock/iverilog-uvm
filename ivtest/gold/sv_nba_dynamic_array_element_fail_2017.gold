@@ -1,0 +1,2 @@
+./ivltests/sv_nba_dynamic_array_element_fail_2017.v:5: error: elements of dynamically sized arrays may not be assigned values using non-blocking assignments (IEEE 1800 6.21).
+1 error(s) during elaboration.
