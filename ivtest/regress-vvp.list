@@ -212,6 +212,8 @@ synth_uarray_partial_index_caliptra	vvp_tests/synth_uarray_partial_index_caliptr
 synth_uarray_partial_index_caliptra-S	vvp_tests/synth_uarray_partial_index_caliptra-S.json
 synth_unwritten_packed_initialization-S	vvp_tests/synth_unwritten_packed_initialization-S.json
 dumpfile			vvp_tests/dumpfile.json
+sv_vcd_unused_event_2017 vvp_tests/sv_vcd_unused_event_2017.json
+sv_vcd_unused_event_2023 vvp_tests/sv_vcd_unused_event_2023.json
 early_sig_elab1			vvp_tests/early_sig_elab1.json
 early_sig_elab2			vvp_tests/early_sig_elab2.json
 early_sig_elab3			vvp_tests/early_sig_elab3.json

@@ -60,6 +60,12 @@ void nodangle_f::event(Design*, NetEvent*ev)
       if (ev->is_event_array())
 	    return;
 
+	/* Named events are visible through VPI even when no process waits
+	   on or triggers them. Keep those declarations for consumers such
+	   as $dumpvars. */
+      if (ev->name() && !ev->is_class_event())
+	    return;
+
 	/* If there are no references to this event, then go right
 	   ahead and delete it. There is no use looking further at
 	   it. */
