@@ -1,0 +1,3 @@
+ivltests/sv_ref_argument_static_sub_fail_2023.v:2: error: A ref argument is illegal for a subroutine with static lifetime (IEEE 1800-2017/2023 13.5.2).
+ivltests/sv_ref_argument_static_sub_fail_2023.v:5: error: A ref argument is illegal for a subroutine with static lifetime (IEEE 1800-2017/2023 13.5.2).
+2 error(s) during elaboration.

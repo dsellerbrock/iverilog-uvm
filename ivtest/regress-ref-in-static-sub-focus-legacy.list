@@ -1,0 +1,2 @@
+sv_ref_argument_static_sub_fail_2017 CE,-g2017,-s,sv_ref_argument_static_sub_fail ivltests gold=sv_ref_argument_static_sub_fail_2017.gold
+sv_ref_argument_static_sub_fail_2023 CE,-g2023,-s,sv_ref_argument_static_sub_fail ivltests gold=sv_ref_argument_static_sub_fail_2023.gold

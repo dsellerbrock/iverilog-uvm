@@ -3000,6 +3000,23 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
  * created as signals/variables for each instance of the
  * function. That is why PFunction has an elaborate_sig method.
  */
+static void check_ref_formals_in_static_subroutine_(
+		Design*des, const LineInfo&loc,
+		const vector<NetNet*>&ports, bool is_auto)
+{
+      if (is_auto)
+	    return;
+
+      for (const NetNet*port : ports) {
+	    if (!port || port->port_type() != NetNet::PREF)
+		  continue;
+	    cerr << loc.get_fileline() << ": error: A ref argument is illegal "
+		 << "for a subroutine with static lifetime "
+		    "(IEEE 1800-2017/2023 13.5.2)." << endl;
+	    des->errors += 1;
+      }
+}
+
 void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 {
       const char*func_sig_trace = getenv("IVL_FUNC_SIG_TRACE");
@@ -3245,6 +3262,7 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
       }
 
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
+	  check_ref_formals_in_static_subroutine_(des, *this, ports, is_auto_);
 
 	  // IEEE 1800-2017/2023 9.3.2 applies to function ref formals too.
 	  for (NetNet*port : ports)
@@ -3328,6 +3346,7 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       vector<NetExpr*>pdefs;
       vector<perm_string> port_names;
       elaborate_sig_ports_(des, scope, ports, pdefs, port_names);
+	  check_ref_formals_in_static_subroutine_(des, *this, ports, is_auto_);
       NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
       scope->set_task_def(def);
       scope->elaborate_nettypes(des);
