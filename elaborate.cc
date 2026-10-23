@@ -40454,8 +40454,12 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
-	    if (!ir.empty())
-		  add_constraint_ir(string(cit.first), ir, state_calls);
+	    if (!ir.empty()) {
+		  const auto decl = pclass->type->constraint_declarations.find(cit.first);
+		  const bool is_static = decl != pclass->type->constraint_declarations.end()
+			&& decl->second.is_static;
+		  add_constraint_ir(string(cit.first), ir, state_calls, is_static);
+	    }
       }
 
       /* Synthesize an inside constraint for each random enum property. */

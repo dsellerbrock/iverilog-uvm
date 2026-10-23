@@ -1273,8 +1273,8 @@ class_property
       { compile_class_interface($2); }
   | K_STATIC_PROP T_NUMBER T_SYMBOL
       { compile_class_static_property($2, $3); }
-  | K_CONSTRAINT_DEF T_STRING T_STRING
-      { compile_class_constraint($2, $3); }
+  | K_CONSTRAINT_DEF T_STRING T_STRING T_NUMBER
+	      { compile_class_constraint($2, $3, $4); }
   | K_CONSTRAINT_DEP T_NUMBER T_NUMBER T_NUMBER
 	{ compile_class_constraint_dep($2, $3, $4); }
   | K_CONSTRAINT_CALL T_NUMBER T_STRING T_STRING T_NUMBER T_NUMBER

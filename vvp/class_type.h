@@ -187,6 +187,10 @@ class class_type : public __vpiHandle {
       const std::vector<constraint_state_call_t>&constraint_state_calls() const
 	    { return constraint_state_calls_; }
       size_t constraint_count() const { return constraints_.size(); }
+      void set_constraint_static(size_t idx);
+      bool constraint_is_static(size_t idx) const;
+      bool static_constraint_mode(size_t idx) const;
+      void set_static_constraint_mode(size_t idx, bool mode) const;
       const std::string& constraint_name(size_t idx) const;
       const std::string& constraint_ir(size_t idx) const;
 
@@ -267,6 +271,8 @@ class class_type : public __vpiHandle {
 	    std::string ir;
       };
       std::vector<constraint_t> constraints_;
+      std::vector<bool> static_constraints_;
+      mutable std::vector<bool> static_constraint_modes_;
       std::vector<constraint_state_call_t> constraint_state_calls_;
 
     public:

@@ -699,7 +699,7 @@ extern void compile_class_property(
       std::vector<std::pair<int,int> >*dimensions);
 extern void compile_class_interface(char*dispatch_prefix);
 extern void compile_class_static_property(unsigned idx, char*storage);
-extern void compile_class_constraint(char*name, char*ir);
+extern void compile_class_constraint(char*name, char*ir, uint64_t is_static);
 extern void compile_class_constraint_dep(uint64_t kind, uint64_t property,
 		uint64_t leaf);
 extern void compile_class_constraint_call(uint64_t constraint, char*label,

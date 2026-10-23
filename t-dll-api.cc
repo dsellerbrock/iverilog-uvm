@@ -4474,6 +4474,13 @@ extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
       return "";
 }
 
+extern "C" int ivl_type_constraint_static(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type && idx >= 0
+	    ? class_type->constraint_ir_is_static((size_t)idx) : 0;
+}
+
 extern "C" int ivl_type_constraint_state_calls(ivl_type_t net)
 {
       const netclass_t*type = dynamic_cast<const netclass_t*>(net);

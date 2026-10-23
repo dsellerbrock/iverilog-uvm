@@ -1858,6 +1858,29 @@ void class_type::add_constraint(const string&name, const string&ir)
       c.name = name;
       c.ir = ir;
       constraints_.push_back(c);
+      static_constraints_.push_back(false);
+      static_constraint_modes_.push_back(true);
+}
+
+void class_type::set_constraint_static(size_t idx)
+{
+      if (idx < static_constraints_.size()) static_constraints_[idx] = true;
+}
+
+bool class_type::constraint_is_static(size_t idx) const
+{
+      return idx < static_constraints_.size() && static_constraints_[idx];
+}
+
+bool class_type::static_constraint_mode(size_t idx) const
+{
+      return idx < static_constraint_modes_.size() && static_constraint_modes_[idx];
+}
+
+void class_type::set_static_constraint_mode(size_t idx, bool mode) const
+{
+      if (idx < static_constraint_modes_.size())
+	    static_constraint_modes_[idx] = mode;
 }
 
 void class_type::add_constraint_state_call(unsigned constraint,
@@ -2833,10 +2856,12 @@ void compile_class_static_property(unsigned idx, char*storage)
       compile_class->bind_static_property(idx, storage);
 }
 
-void compile_class_constraint(char*name, char*ir)
+void compile_class_constraint(char*name, char*ir, uint64_t is_static)
 {
       assert(compile_class);
       compile_class->add_constraint(string(name), string(ir));
+      if (is_static)
+	    compile_class->set_constraint_static(compile_class->constraint_count() - 1);
       delete[]name;
       delete[]ir;
 }
