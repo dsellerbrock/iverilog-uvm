@@ -1,0 +1,2 @@
+ivltests/sv_function_own_name_duplicate_2017.v:3: error: Object `duplicate' has the same name as the function.
+1 error(s) during elaboration.

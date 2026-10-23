@@ -6395,6 +6395,25 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::FUNC);
 
+      // The function return variable is implicit, but a declaration in the
+      // function body with the same name is still a duplicate object (IEEE
+      // 1800-2017/2023 13.4.1). Diagnose it before the implicit return signal
+      // is added to the scope and replaces the declaration during elaboration.
+      const PNamedItem*return_name = nullptr;
+      map<perm_string,PWire*>::const_iterator wire = wires.find(scope->basename());
+      if (wire != wires.end()) return_name = wire->second;
+      map<perm_string,param_expr_t*>::const_iterator param =
+	    parameters.find(scope->basename());
+      if (!return_name && param != parameters.end()) return_name = param->second;
+      map<perm_string,PEvent*>::const_iterator event = events.find(scope->basename());
+      if (!return_name && event != events.end()) return_name = event->second;
+      if (return_name) {
+	    cerr << return_name->get_fileline() << ": error: Object `"
+		 << scope->basename() << "' has the same name as the function."
+		 << endl;
+	    des->errors += 1;
+      }
+
         // Save a reference to the pform representation of the function
         // in case we need to perform early elaboration.
       scope->set_func_pform(this);
