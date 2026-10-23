@@ -28853,6 +28853,32 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 		 << endl;
       }
 
+	/* IEEE 1800-2017/2023 25.9 disallows a virtual interface whose
+	 * definition references an object outside its body. Record the resolved
+	 * target scope on the interface definition for the final design check. */
+	if (path_.size() > 1) {
+	      const NetScope*interface_scope = scope;
+	      while (interface_scope
+		     && interface_scope->type() != NetScope::MODULE)
+		    interface_scope = interface_scope->parent();
+	      if (interface_scope && interface_scope->is_interface()) {
+		    bool target_inside_interface = false;
+		    for (const NetScope*owner = found_in; owner;
+			 owner = owner->parent()) {
+			  if (owner == interface_scope) {
+				target_inside_interface = true;
+				break;
+			  }
+		    }
+		    if (!target_inside_interface) {
+			  const Module*definition = interface_scope->module_definition();
+			  if (definition)
+				const_cast<Module*>(definition)->
+				      has_unsupported_virtual_interface_reference = true;
+		    }
+	      }
+	}
+
       if (net->unpacked_dimensions() > 0)
 	    return elaborate_expr_net_word_(des, scope, net, found_in,
                                             expr_wid, flags);

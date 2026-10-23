@@ -1,0 +1,3 @@
+ivltests/sv_vif_external_hier_ref_fail.v:20: error: Interface `sv_vif_external_hier_ref_if' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9).
+ivltests/sv_vif_external_hier_ref_fail.v:21: error: Interface `sv_vif_external_hier_ref_port_if' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9).
+2 error(s) during elaboration.

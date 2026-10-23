@@ -2598,9 +2598,40 @@ Module::port_t* pform_module_port_reference(const struct vlltype&loc,
       return ptmp;
 }
 
+static bool pform_is_interface_port_type_(const data_type_t*type)
+{
+      set<const typedef_t*>visited;
+      while (type) {
+	    if (dynamic_cast<const interface_type_t*>(type))
+		  return true;
+	    const typeref_t*ref = dynamic_cast<const typeref_t*>(type);
+	    if (!ref || !ref->typedef_ref()
+		|| !visited.insert(ref->typedef_ref()).second)
+		  return false;
+	    type = ref->typedef_ref()->get_data_type();
+      }
+      return false;
+}
+
 void pform_module_set_ports(vector<Module::port_t*>*ports)
 {
       assert(! pform_cur_module.empty());
+
+	/* The module's own interface declaration is now active, so its parsed
+	 * port wires are available. An interface-valued port is an outside
+	 * interface reference prohibited by virtual-interface types (25.9). */
+	if (pform_cur_module.front()->is_interface && ports) {
+	      for (vector<Module::port_t*>::const_iterator cur = ports->begin();
+		   cur != ports->end(); ++cur) {
+		    if (!*cur) continue;
+		    PWire*wire = pform_get_wire_in_scope((*cur)->name);
+		    if (wire && pform_is_interface_port_type_(wire->data_type())) {
+			  pform_cur_module.front()->
+				 has_unsupported_virtual_interface_reference = true;
+			  break;
+		    }
+	      }
+	}
 
 	/* The parser parses ``module foo()'' as having one
 	   unconnected port, but it is really a module with no

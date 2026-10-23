@@ -2249,8 +2249,33 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    return 0;
       }
 
-      return elaborate_interface_type_(
+      netclass_t*result = elaborate_interface_type_(
 	    des, scope, cur->second, parameter_values_, modport);
+      if (virtual_type) {
+	    cur->second->virtual_interface_declarations.push_back(this);
+	  }
+      return result;
+}
+
+void finalize_virtual_interface_hierarchical_references(Design*des)
+{
+      for (map<perm_string,Module*>::const_iterator cur = pform_modules.begin();
+	   cur != pform_modules.end(); ++cur) {
+	    const Module*module = cur->second;
+	    if (!module || !module->is_interface
+		|| !module->has_unsupported_virtual_interface_reference)
+		  continue;
+	    for (vector<const LineInfo*>::const_iterator declaration =
+		       module->virtual_interface_declarations.begin();
+		 declaration != module->virtual_interface_declarations.end();
+		 ++declaration) {
+		  cerr << (*declaration)->get_fileline() << ": error: Interface `"
+		       << module->mod_name()
+		       << "' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9)."
+		       << endl;
+		  des->errors += 1;
+	    }
+      }
 }
 
 /*

@@ -135,6 +135,12 @@ class Module : public PScopeExtra, public PNamedItem {
 	   content restrictions and some extra allowed items. */
       bool is_interface;
 
+	/* Set when this interface has an external hierarchical reference or
+	 * a port referencing another interface. IEEE 1800 25.9 forbids using
+	 * either form as a virtual-interface type. */
+	bool has_unsupported_virtual_interface_reference = false;
+	std::vector<const LineInfo*> virtual_interface_declarations;
+
 	/* Checkers are module-like scopes, but IEEE 1800 permits a checker
 	 * (unlike an ordinary module) to be bound into an interface. */
       bool is_checker;
