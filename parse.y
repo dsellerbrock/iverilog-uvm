@@ -2033,6 +2033,28 @@ static Module::port_t *module_declare_port_continuation(
             default_value, attributes);
 }
 
+static Module::port_t *module_declare_explicit_port(
+                                    const YYLTYPE&loc, char*port_id,
+                                    PExpr*expression,
+                                    NetNet::PortType port_type)
+{
+      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
+      if (!ident) {
+            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers.");
+            delete expression;
+            delete[] port_id;
+            return nullptr;
+      }
+
+      perm_string internal_name = peek_tail_name(ident->path().name);
+      pform_module_defer_port_direction(internal_name, port_type);
+      delete expression;
+      Module::port_t*port = pform_module_port_reference(loc, internal_name);
+      port->name = lex_strings.make(port_id);
+      delete[] port_id;
+      return port;
+}
+
 %}
 
 %union {
@@ -15013,6 +15035,22 @@ list_of_port_declarations
 	port = module_declare_port_continuation(@4, $4, $5, $6, $3);
 	ports->push_back(port);
 	$$ = ports;
+      }
+  | list_of_port_declarations ',' port_direction_opt '.' IDENTIFIER '(' expression_opt ')'
+      { std::vector<Module::port_t*> *ports = $1;
+        NetNet::PortType direction = $3 == NetNet::PIMPLICIT
+              ? port_declaration_context.port_type : $3;
+        Module::port_t* port = module_declare_explicit_port(
+              @5, $5, $7, direction);
+        if (port) ports->push_back(port);
+        // An explicitly named port contributes only its direction to the
+        // following port. Its expression does not establish inherited
+        // port-kind or data-type defaults.
+        port_declaration_context.port_type = direction;
+        port_declaration_context.port_net_type = NetNet::IMPLICIT;
+        port_declaration_context.data_type = nullptr;
+        port_declaration_context.user_nettype = nullptr;
+        port_declaration_context.interconnect = false;
       }
   | list_of_port_declarations ','
       { yyerror(@2, "error: Superfluous comma in port declaration list."); }
