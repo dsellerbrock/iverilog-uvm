@@ -20306,6 +20306,21 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
  * is no delay to worry about. The code generator will take care of
  * the differences between continuous assign and normal assignments.
  */
+/* IEEE 1800-2017/2023 10.6.1 and 10.6.2 prohibit selected variable
+ * targets for procedural continuous assignments and force/release. Net
+ * selects are handled separately: force/release permits constant selects. */
+static bool procedural_continuous_var_select_(const NetAssign_*lval)
+{
+      for (const NetAssign_*item = lval; item; item = item->more) {
+	    NetNet*sig = item->sig();
+	    if (sig && item->get_base()
+	        && (sig->type() == NetNet::REG
+	            || sig->type() == NetNet::IMPLICIT_REG))
+		  return true;
+      }
+      return false;
+}
+
 NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
 {
       NetCAssign*dev = 0;
@@ -20330,6 +20345,15 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lval = lval_->elaborate_lval(des, scope, true, false);
       if (lval == 0)
 	    return 0;
+
+      if (procedural_continuous_var_select_(lval)) {
+	    cerr << get_fileline() << ": error: procedural continuous assignment "
+		    "target shall not be a bit-select or part-select of a variable "
+		    "(IEEE 1800-2017/2023 10.6.1)." << endl;
+	    des->errors += 1;
+	    delete lval;
+	    return 0;
+      }
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
@@ -20367,6 +20391,15 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lval = lval_->elaborate_lval(des, scope, true, false);
       if (lval == 0)
 	    return 0;
+
+      if (procedural_continuous_var_select_(lval)) {
+	    cerr << get_fileline() << ": error: deassign target shall not be a "
+		    "bit-select or part-select of a variable "
+		    "(IEEE 1800-2017/2023 10.6.1)." << endl;
+	    des->errors += 1;
+	    delete lval;
+	    return 0;
+      }
 
       NetDeassign*dev = new NetDeassign(lval);
       dev->set_line( *this );
@@ -24584,6 +24617,15 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (procedural_continuous_var_select_(lval)) {
+	    cerr << get_fileline() << ": error: force target shall not be a "
+		    "bit-select or part-select of a variable "
+		    "(IEEE 1800-2017/2023 10.6.2)." << endl;
+	    des->errors += 1;
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
@@ -26186,6 +26228,15 @@ NetProc* PRelease::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lval = lval_->elaborate_lval(des, scope, false, true);
       if (lval == 0)
 	    return 0;
+
+      if (procedural_continuous_var_select_(lval)) {
+	    cerr << get_fileline() << ": error: release target shall not be a "
+		    "bit-select or part-select of a variable "
+		    "(IEEE 1800-2017/2023 10.6.2)." << endl;
+	    des->errors += 1;
+	    delete lval;
+	    return 0;
+      }
 
       NetRelease*dev = new NetRelease(lval);
       dev->set_line( *this );

@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_proc_cont_assign_select_fail.v",
+    "iverilog-args": ["-g2023", "-s", "sv_proc_cont_assign_select_fail"],
+    "gold": "sv_proc_cont_assign_select_fail"
+}
