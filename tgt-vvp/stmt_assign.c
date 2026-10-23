@@ -5340,9 +5340,10 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  && (ivl_type_base(whole_fixed_leaf) == IVL_VT_QUEUE
 		      || ivl_type_base(whole_fixed_leaf) == IVL_VT_DARRAY);
 
-	    /* Dynamic null-handle guard: if the receiver object is null, skip
-	       property assignment and pop the receiver object without issuing
-	       %store/prop* opcodes. */
+	    /* A null class receiver suppresses a property store. A null VIF
+	       receiver is fatal before the shared null-class guard can skip it. */
+	    if (ivl_type_is_interface(sig_type))
+		  fprintf(vvp_out, "    %%vif/nullcheck;\n");
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
 	    if (fixed_scalar_slot) {
