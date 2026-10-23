@@ -48,6 +48,8 @@ extern void lex_end_table();
 static data_type_t* param_data_type = 0;
 static bool param_is_local = false;
 static bool param_is_type = false;
+static type_parameter_restriction_t param_type_restriction =
+	type_parameter_restriction_t::NONE;
 static bool in_gen_region = false;
 static std::list<pform_range_t>* specparam_active_range = 0;
 
@@ -15511,7 +15513,14 @@ module_parameter_port_list_maybe
   ;
 
 type_param
-  : K_type { param_is_type = true; }
+  : K_type
+      { param_is_type = true;
+	param_type_restriction = type_parameter_restriction_t::NONE;
+      }
+  | K_type class_type_parameter_restriction
+      { param_is_type = true;
+	param_type_restriction = $2;
+      }
   ;
 
 module_parameter
@@ -16613,7 +16622,8 @@ parameter_assign_list
 parameter_assign
   : IDENTIFIER dimensions_opt parameter_initializer_opt parameter_value_ranges_opt
       { pform_set_parameter(@1, lex_strings.make($1), param_is_local,
-			    param_is_type, param_data_type, $2, $3, $4);
+			    param_is_type, param_data_type, $2, $3, $4,
+			    param_type_restriction);
 	delete[]$1;
       }
   ;
