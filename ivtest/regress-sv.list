@@ -2495,6 +2495,10 @@ sv_dumpports_duplicate_scope_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate
 sv_dumpports_duplicate_file_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_file_fail.gold
 sv_dumpports_late_fail RE,-g2012 ivltests gold=sv_dumpports_late_fail.gold
 
+# IEEE 1800-2017/2023 §21.7.5: unpacked structures are fork scopes in VCD.
+sv_vcd_unpacked_struct_2017 normal,-g2017,-s,sv_vcd_unpacked_struct_2017 ivltests gold=sv_vcd_unpacked_struct_2017.gold
+sv_vcd_unpacked_struct_2023 normal,-g2023,-s,sv_vcd_unpacked_struct_2023 ivltests gold=sv_vcd_unpacked_struct_2023.gold
+
 # $finish drains already-scheduled work but event controls do not re-spawn it
 sv_finish_event_rearm normal,-g2012 ivltests gold=sv_finish_event_rearm.gold
 

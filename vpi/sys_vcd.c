@@ -519,6 +519,14 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	 * future development version. */
       item_type = vpi_get(vpiType, item);
       switch (item_type) {
+	  case vpiClassVar:
+	    if (vpi_get(vpiIsStruct, item)) type = "fork";
+	    else {
+		  vpi_printf("VCD warning: $dumpvars: Unsupported argument "
+		             "type (%s).\n", vpi_get_str(vpiType, item));
+		  return;
+	    }
+	    break;
 	  case vpiNamedEvent: type = "event"; break;
 	  case vpiIntVar:
 	  case vpiIntegerVar: type = "integer"; break;
@@ -665,10 +673,14 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 		    type, size, ident, prefix, name);
 
 	      /* Add a range for vectored values. */
-	    if (size > 1 || vpi_get(vpiLeftRange, item) != 0) {
+	    {
+		  int left = vpi_get(vpiLeftRange, item);
+		  int right = vpi_get(vpiRightRange, item);
+		  if ((size > 1 || left != 0)
+		      && !(left == vpiUndefined && right == vpiUndefined)) {
 		  fprintf(dump_file, " [%i:%i]",
-			  (int)vpi_get(vpiLeftRange, item),
-			  (int)vpi_get(vpiRightRange, item));
+			  left, right);
+		  }
 	    }
 
 	    fprintf(dump_file, " $end\n");
@@ -709,6 +721,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	  case vpiTask:
 	  case vpiNamedBegin:
 	  case vpiNamedFork:
+	  case vpiClassVar:
 
 	    if (depth > 0) {
 		  int i;
@@ -726,11 +739,18 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 		  name = vpi_get_str(vpiName, item);
 		  fprintf(dump_file, "$scope %s %s $end\n", type, name);
 
-		  for (i=0; dumpable_types[i]>0; i++) {
+		  if (item_type == vpiClassVar) {
 			vpiHandle hand;
-			vpiHandle argv = vpi_iterate(dumpable_types[i], item);
-			while (argv && (hand = vpi_scan(argv))) {
+			vpiHandle argv = vpi_iterate(vpiMember, item);
+			while (argv && (hand = vpi_scan(argv)))
 			      scan_item(depth-1, hand, nskip);
+		  } else {
+			for (i=0; dumpable_types[i]>0; i++) {
+			      vpiHandle hand;
+			      vpiHandle argv = vpi_iterate(dumpable_types[i], item);
+			      while (argv && (hand = vpi_scan(argv))) {
+				    scan_item(depth-1, hand, nskip);
+			      }
 			}
 		  }
 
@@ -842,6 +862,8 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	        case vpiRealVar:
 	        case vpiReg:
 	        case vpiTimeVar:
+		case vpiClassVar:
+		    if (!vpi_get(vpiIsStruct, item)) break;
 		    /* Warn if the variables scope (which includes the
 		     * variable) or the variable itself was already
 		     * included. A scope does not automatically include
