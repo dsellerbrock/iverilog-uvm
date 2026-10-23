@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "timing_check_skew_flags.v",
+    "iverilog-args" : [ "-g2023", "-gspecify" ],
+    "gold"           : "timing_check_skew_flags"
+}

@@ -17188,10 +17188,9 @@ specify_item
     ',' delay_value ',' delay_value fullskew_opt_args ')' ';'
       {
 	// $fullskew(ref, data, l1, l2): skew check in both directions.
-	bool have_flags = $10->event_based_flag != nullptr
-	               || $10->remain_active_flag != nullptr;
 	pform_timing_check_fullskew(@1, *$3, *$5, $7, $9,
-				    $10->notifier, have_flags);
+				    $10->notifier, $10->event_based_flag,
+				    $10->remain_active_flag);
 	delete $3;
 	delete $5;
 	delete $10->notifier;
@@ -17315,12 +17314,10 @@ specify_item
   | K_Stimeskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value timeskew_opt_args ')' ';'
       {
-	// $timeskew(ref, data, limit): like $skew; the flag arguments
-	// (rejected loudly inside) are what change report granularity.
-	bool have_flags = $8->event_based_flag != nullptr
-	               || $8->remain_active_flag != nullptr;
+	// The optional flags control report granularity and dormancy.
 	pform_timing_check_timeskew(@1, *$3, *$5, $7,
-				    $8->notifier, have_flags);
+				    $8->notifier, $8->event_based_flag,
+				    $8->remain_active_flag);
 	delete $3;
 	delete $5;
 	delete $8->notifier;

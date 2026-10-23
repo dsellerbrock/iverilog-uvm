@@ -12404,18 +12404,117 @@ void pform_timing_check_width(const struct vlltype&loc,
       tc_always_at_(loc, opp, chk);
 }
 
-/* Loud drop for the event_based/remain_active flag arguments of
-   $timeskew/$fullskew: they change violation-report granularity in
-   ways this synthesizer does not model. */
-static bool tc_skew_flags_ok_(const struct vlltype&loc,
-			      const char*check_name, bool have_flags)
+/* Synthesize an event-based skew check. With remain_active clear, a
+   violation makes this checker dormant until the next qualified
+   timestamp event. */
+static void tc_skew_pair_synth_(const struct vlltype&loc,
+				const char*check_name,
+				const PTimingCheck::event_t&stamp_ev,
+				const PTimingCheck::event_t&check_ev,
+				PExpr*limit,
+				const pform_name_t*notifier,
+				PExpr*event_flag,
+				PExpr*remain_flag)
 {
-      if (!have_flags) return true;
-      cerr << loc.get_fileline() << ": sorry: " << check_name
-	   << " event_based/remain_active flag arguments are not "
-	   << "supported; the check is dropped." << endl;
-      error_count += 1;
-      return false;
+      if (!event_flag) {
+	    tc_pair_synth_(loc, check_name, stamp_ev, check_ev, limit,
+			   true, notifier);
+	    return;
+      }
+      if (!tc_check_supported_(loc, check_name, stamp_ev)
+		  || !tc_check_supported_(loc, check_name, check_ev)) return;
+
+      PExpr*event_check = sva_clone_expr_(event_flag);
+      PExpr*remain_check = remain_flag ? sva_clone_expr_(remain_flag) : nullptr;
+      PExpr*event_not = sva_clone_expr_(event_flag);
+      PExpr*event_disable = sva_clone_expr_(event_flag);
+      PExpr*remain_disable = remain_flag ? sva_clone_expr_(remain_flag) : nullptr;
+      if (!event_check || !event_not || !event_disable
+	      || (remain_flag && (!remain_check || !remain_disable))) {
+	    delete event_check; delete event_not; delete event_disable;
+	    delete remain_check; delete remain_disable;
+	    cerr << loc.get_fileline() << ": sorry: " << check_name
+		 << " flag expression shape is not supported; the check "
+		 << "is dropped." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
+      perm_string active_var = tc_make_real_(loc, inst, "active", 1.0);
+
+	// A conditioned reference event that is detected while its condition
+	// is false makes an event-based, non-remain-active check dormant.
+      if (stamp_ev.condition.get()) {
+	    PExpr*ref_condition = sva_clone_expr_(stamp_ev.condition.get());
+	    PExpr*event_condition = sva_clone_expr_(event_flag);
+	    PExpr*remain_condition = remain_flag
+		  ? sva_clone_expr_(remain_flag)
+		  : static_cast<PExpr*>(new PENumber(new verinum(verinum::V0, 1)));
+	    if (!ref_condition || !event_condition || !remain_condition) {
+		  delete ref_condition; delete event_condition; delete remain_condition;
+		  cerr << loc.get_fileline() << ": sorry: " << check_name
+		       << " reference condition or flag shape is not supported; "
+		       << "the check is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    PExpr*not_ref_condition = new PEUnary('!', ref_condition);
+	    PExpr*not_remain = new PEUnary('!', remain_condition);
+	    PExpr*go_dormant = new PEBLogic('a', event_condition,
+					    new PEBLogic('a', not_remain,
+							 not_ref_condition));
+	    PCondit*conditioned_dormancy = new PCondit(go_dormant,
+		  new PAssign(sva_id_(loc, active_var), tc_real_(loc, 0.0)),
+		  nullptr);
+	    FILE_NAME(conditioned_dormancy, loc);
+	    PTimingCheck::event_t monitor_ev;
+	    monitor_ev.name = stamp_ev.name;
+	    monitor_ev.posedge = stamp_ev.posedge;
+	    monitor_ev.negedge = stamp_ev.negedge;
+	    monitor_ev.edges = stamp_ev.edges;
+	    tc_always_at_(loc, monitor_ev, conditioned_dormancy);
+      }
+
+      PAssign*stamp = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
+      PAssign*activate = new PAssign(sva_id_(loc, active_var), tc_real_(loc, 1.0));
+      FILE_NAME(stamp, loc); FILE_NAME(activate, loc);
+      std::vector<Statement*> stamp_stmts;
+      stamp_stmts.push_back(stamp);
+      stamp_stmts.push_back(activate);
+      tc_always_at_(loc, stamp_ev, sva_block_(loc, stamp_stmts));
+
+      PExpr*guard = new PEBComp('G', sva_id_(loc, stamp_var), tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc), sva_id_(loc, stamp_var));
+      PExpr*cmp = new PEBComp('>', delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      PExpr*active = new PEBComp('>', sva_id_(loc, active_var),
+				 tc_real_(loc, 0.0));
+      PExpr*remain_expr = remain_check ? remain_check
+	    : static_cast<PExpr*>(new PENumber(new verinum(verinum::V0, 1)));
+      PExpr*event_stays_active = new PEBLogic('a', event_check,
+						 new PEBLogic('o', remain_expr, active));
+      PExpr*not_event = new PEUnary('!', event_not);
+      cond = new PEBLogic('a', cond,
+			  new PEBLogic('o', not_event, event_stays_active));
+
+	  PExpr*event_dormant = new PEBComp('E', event_disable,
+					 new PENumber(new verinum(verinum::V1, 1)));
+	  PExpr*remain_dormant = remain_disable ? remain_disable
+	    : static_cast<PExpr*>(new PENumber(new verinum(verinum::V0, 1)));
+      PExpr*disable = new PEBLogic('a', event_dormant,
+				   new PEUnary('!', remain_dormant));
+      PCondit*turn_off = new PCondit(disable,
+		    new PAssign(sva_id_(loc, active_var), tc_real_(loc, 0.0)),
+		    nullptr);
+      FILE_NAME(turn_off, loc);
+      std::vector<Statement*> violation_stmts;
+      violation_stmts.push_back(tc_violation_(loc, check_name, notifier));
+      violation_stmts.push_back(turn_off);
+      PCondit*violate = new PCondit(cond, sva_block_(loc, violation_stmts), nullptr);
+      FILE_NAME(violate, loc);
+      tc_always_at_(loc, check_ev, violate);
 }
 
 void pform_timing_check_timeskew(const struct vlltype&loc,
@@ -12423,15 +12522,14 @@ void pform_timing_check_timeskew(const struct vlltype&loc,
 				 const PTimingCheck::event_t&data_ev,
 				 PExpr*limit,
 				 const pform_name_t*notifier,
-				 bool have_flags)
+				 PExpr*event_based_flag,
+				 PExpr*remain_active_flag)
 {
       if (!tc_active_(loc, "$timeskew")) return;
-      if (!tc_skew_flags_ok_(loc, "$timeskew", have_flags)) return;
-	// Default-flavor $timeskew uses the same delta test as $skew:
-	// violation when data lags the reference by MORE than the
-	// limit. (The flag arguments, rejected above, are what change
-	// the report granularity relative to $skew.)
-      tc_pair_synth_(loc, "$timeskew", ref_ev, data_ev, limit, true, notifier);
+	// The no-flag timer-based behavior is tracked separately; this
+	// synthesized path handles event-based checks.
+	 tc_skew_pair_synth_(loc, "$timeskew", ref_ev, data_ev, limit,
+			     notifier, event_based_flag, remain_active_flag);
 }
 
 void pform_timing_check_fullskew(const struct vlltype&loc,
@@ -12440,15 +12538,17 @@ void pform_timing_check_fullskew(const struct vlltype&loc,
 				 PExpr*lim1,
 				 PExpr*lim2,
 				 const pform_name_t*notifier,
-				 bool have_flags)
+				 PExpr*event_based_flag,
+				 PExpr*remain_active_flag)
 {
       if (!tc_active_(loc, "$fullskew")) return;
-      if (!tc_skew_flags_ok_(loc, "$fullskew", have_flags)) return;
 	// $fullskew(ref, data, l1, l2) is a skew check in both
 	// directions: data may lag ref by at most l1, and ref may lag
 	// data by at most l2.
-      tc_pair_synth_(loc, "$fullskew", ref_ev, data_ev, lim1, true, notifier);
-      tc_pair_synth_(loc, "$fullskew", data_ev, ref_ev, lim2, true, notifier);
+	 tc_skew_pair_synth_(loc, "$fullskew", ref_ev, data_ev, lim1,
+			     notifier, event_based_flag, remain_active_flag);
+	 tc_skew_pair_synth_(loc, "$fullskew", data_ev, ref_ev, lim2,
+			     notifier, event_based_flag, remain_active_flag);
 }
 
 static bool tc_expr_is_zero_(PExpr*e)

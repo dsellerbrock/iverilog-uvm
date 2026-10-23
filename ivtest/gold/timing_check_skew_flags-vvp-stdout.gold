@@ -1,0 +1,8 @@
+ivltests/timing_check_skew_flags.v:15: Timing violation: $timeskew check in timing_check_skew_flags at time 5
+ivltests/timing_check_skew_flags.v:20: Timing violation: $timeskew check in timing_check_skew_flags at time 5
+ivltests/timing_check_skew_flags.v:22: Timing violation: $fullskew check in timing_check_skew_flags at time 5
+ivltests/timing_check_skew_flags.v:20: Timing violation: $timeskew check in timing_check_skew_flags at time 7
+ivltests/timing_check_skew_flags.v:22: Timing violation: $fullskew check in timing_check_skew_flags at time 7
+ivltests/timing_check_skew_flags.v:15: Timing violation: $timeskew check in timing_check_skew_flags at time 14
+PASS: skew event flags and remain-active behavior
+ivltests/timing_check_skew_flags.v:53: $finish called at 15 (1s)
