@@ -11879,8 +11879,10 @@ static std::string typename_format_type_(ivl_type_t type)
 	// A packed array of a non-vector element (e.g. a packed array of
 	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
 	// netvector_t and handled below, not netparray_t.
-      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
-	    return typename_format_type_(pa->element_type());
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type)) {
+	    std::string elem = typename_format_type_(pa->element_type());
+	    return elem + typename_format_packed_dims_(pa->static_dimensions());
+      }
 
       if (dynamic_cast<const netstring_t*>(type))
 	    return "string";

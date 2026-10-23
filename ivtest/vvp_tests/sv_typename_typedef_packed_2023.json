@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_typename_typedef_packed.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_typename_typedef_packed"
+}
