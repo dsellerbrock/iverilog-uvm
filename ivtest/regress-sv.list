@@ -5771,3 +5771,4 @@ sv_uninstantiated_generate_hier_read_fail CE,-g2017,-s,sv_uninstantiated_generat
 sv_uninstantiated_generate_hier_read_fail_2023 CE,-g2023,-s,sv_uninstantiated_generate_hier_read_fail ivltests gold=sv_uninstantiated_generate_hier_read_fail.gold
 sv_instantiated_generate_hier_read_2017 normal,-g2017,-s,sv_instantiated_generate_hier_read ivltests gold=sv_instantiated_generate_hier_read.gold
 sv_instantiated_generate_hier_read_2023 normal,-g2023,-s,sv_instantiated_generate_hier_read ivltests gold=sv_instantiated_generate_hier_read.gold
+sv_resistive_switch_strength normal,-g2017,-s,top ivltests gold=sv_resistive_switch_strength.gold
