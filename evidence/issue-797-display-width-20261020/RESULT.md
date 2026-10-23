@@ -83,3 +83,38 @@ it is superseded by the corrected run below.
   T2 staging gate also remains red, and no T2 rerun or merge was attempted.
 - Raw T0/T1 runner output and the `format`/`swrite` mismatch logs are in
   `attempt-02-repair/` for local review; generated logs are not source files.
+
+## M8 #797 current-head verification — 2026-10-23
+
+This is the M8 tenth selected issue. Tech-lead review directed continuing this
+existing PR #827 rather than opening a duplicate. The branch was 55 commits
+behind current main; I merged `origin/main` and resolved the single JSON list
+conflict by keeping both the #797 registrations and main's six new test rows.
+The merged branch head is `6df4c3fdf01a4613c8bcc060213966604b9fb23f`; current
+main remains `e9e72f6419170ac2e93a1cd5e16022d364b97bd3`.
+
+Fresh Mac verification on that exact source head:
+
+- Build/install passed (`make -j3`); 190.11 seconds, peak RSS 1,362,493,440 B.
+- T0 paired issue cases passed: legacy 2/2 and JSON 2/2, covering `-g2017`
+  and `-g2023`.
+- T1 display selection passed: legacy 25/25 and JSON 17/17. JSON cases were
+  individually wrapped with 120-second process-group limits; the legacy runner
+  has per-test 120-second limits.
+- `ci/run-smoke.sh` passed: smoke 56/56, VPI 135/135, all reproducers,
+  negative checks 152/152, and every VVP runtime check. The #544 open-array
+  mismatch is already classified as an expected compile error in current main;
+  its exact §7.6 diagnostics passed. No golden changed.
+- Test command/evidence logs and SHA-256 manifest are under
+  `attempt-05-main-merge/verified/`.
+
+The first combined local wrapper returned 1 only after all tests had run: its
+summary parser searched JSON output for `Total=`, while the JSON runner prints
+`Test results: Ran 1, Failed 0.` A separate traced smoke rerun exited 0; this
+was a reporting-script mismatch, not a test failure.
+
+The old PR description's 23/25 T1 result is superseded by the mode-aware fix
+at `52c1df441` and this current-head 25/25 T1 rerun. Exact-head Fast Linux and
+Windows lanes have not yet run on merge commit `6df4c3f`; changes include a new
+vvp export, so MINGW64, UCRT64, and CLANG64 must pass. T2 must also be rerun on
+a batch containing this current head before merge; no merge has been attempted.
