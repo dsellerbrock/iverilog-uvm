@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_unpacked_concat_vector_item_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"           : "sv_unpacked_concat_vector_item",
+    "vlog95"         : { "type" : "NI" }
+}
