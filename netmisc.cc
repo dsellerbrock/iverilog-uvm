@@ -5139,6 +5139,15 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
       NetNet::PortType dir = cb->signal_direction(sig_comp->name);
 	perm_string clockvar_name = sig_comp->name;
 
+      if (as_lvalue && !ident->is_clocking_drive_lval()
+	  && (dir == NetNet::POUTPUT || dir == NetNet::PINOUT)) {
+	    cerr << ident->get_fileline() << ": error: clocking-block output `"
+		 << cb->name << "." << sig_comp->name
+		 << "' may only be written using synchronous drive syntax "
+		 "(IEEE 1800-2017 14.16)." << endl;
+	    if (input_write) *input_write = true;
+      }
+
       if (as_lvalue && dir == NetNet::PINPUT) {
 	    cerr << ident->get_fileline() << ": error: clocking-block "
 		 << "input `" << cb->name << "." << sig_comp->name
