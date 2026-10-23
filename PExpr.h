@@ -268,6 +268,11 @@ class PExpr : public LineInfo {
       PExpr& operator= (const PExpr&);
 };
 
+// True while elaborating expressions that are part of a procedural
+// statement. Function calls with copy-out or reference arguments are only
+// permitted in this context (IEEE 1800-2017/2023 13.4).
+extern bool pform_procedural_expr_context;
+
 /* Boolean match predicate. Statement contexts install pattern variables in
  * their implicit true-arm/item scopes; use of a binding from the true operand
  * of a conditional expression remains outside this first slice. This node is

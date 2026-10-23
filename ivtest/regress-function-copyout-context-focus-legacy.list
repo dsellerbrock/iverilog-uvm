@@ -1,0 +1,5 @@
+# IEEE 1800-2017/2023 13.4 function copy-out/ref call contexts
+sv_function_output_arg_cont_assign_fail CE,-g2017 ivltests
+sv_function_output_arg_cont_assign_fail_2023 CE,-g2023 ivltests
+sv_function_const_ref_cont_assign normal,-g2017 ivltests gold=sv_function_const_ref_cont_assign.gold
+sv_function_const_ref_cont_assign_2023 normal,-g2023 ivltests gold=sv_function_const_ref_cont_assign.gold

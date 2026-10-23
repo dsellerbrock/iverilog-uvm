@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_function_const_ref_cont_assign.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_function_const_ref_cont_assign" ],
+    "gold"          : "sv_function_const_ref_cont_assign"
+}
