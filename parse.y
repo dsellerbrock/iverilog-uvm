@@ -9100,6 +9100,27 @@ sva_seq_atom
   | K_first_match '(' sva_seq_expr ')'
       { for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
 	$$ = $3; }
+  /* IEEE 1800-2017/2023 16.9.8: match items following the operand
+     belong to its ending match, and are considered inside first_match.
+     Keep them on the final step so the existing ordered match-item
+     lowering executes them only when that endpoint is selected. */
+  | K_first_match '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
+      { if (!$3->empty()) {
+	    sva_seq_step_t&st = $3->back();
+	    st.lv_name = lex_strings.make($5);
+	    st.lv_rhs = pform_sva_coerce_local_assignment(@5, $5, $7);
+	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	  } else delete $7;
+	delete[] $5;
+	$$ = $3; }
+  | K_first_match '(' sva_seq_expr ',' sva_match_call_list ')'
+      { if (!$3->empty()) {
+	    sva_seq_step_t&st = $3->back();
+	    st.match_calls.insert(st.match_calls.end(), $5->begin(), $5->end());
+	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	  } else { for (size_t i=0; i<$5->size(); i+=1) delete (*$5)[i]; }
+	delete $5;
+	$$ = $3; }
   | sva_seq_atom K_LBSTAR expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
   | sva_seq_atom K_LBSTAR expression ':' expression ']'
