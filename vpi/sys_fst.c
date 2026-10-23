@@ -42,6 +42,22 @@ static struct vcd_info *vcd_list = NULL;
 static struct vcd_info *vcd_const_list = NULL;
 static struct vcd_info *vcd_dmp_list = NULL;
 
+/*
+ * Packed struct/union members are FST variables of their own, in a struct
+ * or union scope next to the whole vector. They have no callback: when the
+ * vector changes, each member's bits are emitted from its value. The slices
+ * are kept by the vector's FST handle.
+ */
+struct fst_slice { fstHandle ident; unsigned lsb, width; };
+struct fst_slices { struct fst_slice *slice; unsigned count; };
+static struct fst_slices *slice_tab = NULL;
+static fstHandle slice_tab_size = 0;
+
+/* One FST enum table per enum typespec. */
+struct fst_enum_tab { vpiHandle typespec; fstEnumHandle handle; };
+static struct fst_enum_tab *enum_tabs = NULL;
+static unsigned enum_tab_count = 0;
+
 static PLI_UINT64 vcd_cur_time = 0;
 static int dump_is_off = 0;
 static long dump_limit = 0;
@@ -63,6 +79,155 @@ static const char*units_names[] = {
       "ps",
       "fs"
 };
+
+/* Emit the member values of the packed struct/union vector IDENT, whose
+ * current value (most significant bit first) is BITS. */
+static void emit_slices(fstHandle ident, const char*bits)
+{
+      const struct fst_slices*tab = &slice_tab[ident];
+      size_t size = strlen(bits);
+      char*buf = malloc(size + 1);
+      unsigned idx;
+
+      for (idx = 0 ; idx < tab->count ; idx += 1) {
+	    const struct fst_slice*sl = &tab->slice[idx];
+	    memcpy(buf, bits + size - sl->lsb - sl->width, sl->width);
+	    buf[sl->width] = 0;
+	    fstWriterEmitValueChange(dump_file, sl->ident, buf);
+      }
+      free(buf);
+}
+
+static void add_slice(fstHandle parent, fstHandle ident, unsigned lsb,
+                      unsigned width)
+{
+      struct fst_slices*tab;
+      if (parent >= slice_tab_size) {
+	    fstHandle size = parent + 64;
+	    slice_tab = realloc(slice_tab, size * sizeof(*slice_tab));
+	    memset(slice_tab + slice_tab_size, 0,
+	           (size - slice_tab_size) * sizeof(*slice_tab));
+	    slice_tab_size = size;
+      }
+      tab = &slice_tab[parent];
+      tab->slice = realloc(tab->slice, (tab->count + 1) * sizeof(*tab->slice));
+      tab->slice[tab->count].ident = ident;
+      tab->slice[tab->count].lsb = lsb;
+      tab->slice[tab->count].width = width;
+      tab->count += 1;
+}
+
+/* Return the FST enum table for an enum typespec, creating it on first use.
+ * The values are the enum constants as WIDTH binary digits. */
+static fstEnumHandle enum_table(vpiHandle typespec, unsigned width)
+{
+      vpiHandle iter, item;
+      const char**names = NULL;
+      const char**vals = NULL;
+      char**val_copies = NULL;
+      unsigned count = 0, idx;
+      fstEnumHandle handle;
+
+      for (idx = 0 ; idx < enum_tab_count ; idx += 1)
+	    if (enum_tabs[idx].typespec == typespec) return enum_tabs[idx].handle;
+
+      iter = vpi_iterate(vpiEnumConst, typespec);
+      while (iter && (item = vpi_scan(iter))) {
+	    s_vpi_value val;
+	    size_t len;
+	    val.format = vpiBinStrVal;
+	    vpi_get_value(item, &val);
+	    names = realloc(names, (count + 1) * sizeof(*names));
+	    vals = realloc(vals, (count + 1) * sizeof(*vals));
+	    val_copies = realloc(val_copies, (count + 1) * sizeof(*val_copies));
+	    names[count] = vpi_get_str(vpiName, item);
+	      /* Right-justify the value in WIDTH digits. */
+	    len = strlen(val.value.str);
+	    val_copies[count] = malloc(width + 1);
+	    memset(val_copies[count], '0', width);
+	    if (len >= width) memcpy(val_copies[count], val.value.str + len - width, width);
+	    else memcpy(val_copies[count] + width - len, val.value.str, len);
+	    val_copies[count][width] = 0;
+	    vals[count] = val_copies[count];
+	    count += 1;
+      }
+
+      handle = fstWriterCreateEnumTable(dump_file, "enum", count, width,
+                                        names, vals);
+      for (idx = 0 ; idx < count ; idx += 1) free(val_copies[idx]);
+      free(val_copies);
+      free(vals);
+      free(names);
+
+      enum_tabs = realloc(enum_tabs, (enum_tab_count + 1) * sizeof(*enum_tabs));
+      enum_tabs[enum_tab_count].typespec = typespec;
+      enum_tabs[enum_tab_count].handle = handle;
+      enum_tab_count += 1;
+      return handle;
+}
+
+static int is_struct_typespec(vpiHandle typespec)
+{
+      PLI_INT32 type = typespec ? vpi_get(vpiType, typespec) : 0;
+      return type == vpiStructTypespec || type == vpiUnionTypespec;
+}
+
+/*
+ * Declare the members of the packed struct/union TYPESPEC, whose bits start
+ * at LSB in the vector PARENT, as FST variables in the current scope. A
+ * member that is itself a struct gets its own vector and scope. When the
+ * vector is an alias of another, its members alias that vector's members,
+ * in the same order; *ALIAS_IDX walks them.
+ */
+static void declare_members(vpiHandle typespec, unsigned lsb, fstHandle parent,
+                            fstHandle alias_of, unsigned*alias_idx)
+{
+      int is_union = vpi_get(vpiType, typespec) == vpiUnionTypespec;
+      unsigned offset = is_union ? 0 : (unsigned)vpi_get(vpiSize, typespec);
+      vpiHandle iter = vpi_iterate(vpiTypespecMember, typespec);
+      vpiHandle member;
+
+      while (iter && (member = vpi_scan(iter))) {
+	    vpiHandle mtype = vpi_handle(vpiTypespec, member);
+	    PLI_INT32 mcode = vpi_get(vpiType, mtype);
+	    unsigned width = vpi_get(vpiSize, member);
+	      /* Copy the name: enum_table() reuses the VPI string buffer. */
+	    char*name = strdup(vpi_get_str(vpiName, member));
+	    char*buf = malloc(strlen(name) + 65);
+	    enum fstVarType type = FST_VT_VCD_REG;
+	    fstHandle alias = 0, ident;
+	    int left = width - 1, right = 0;
+
+	    if (!is_union) offset -= width;
+	    if (alias_of && *alias_idx < slice_tab[alias_of].count)
+		  alias = slice_tab[alias_of].slice[*alias_idx].ident;
+	    *alias_idx += 1;
+
+	    if (mcode == vpiLogicTypespec || mcode == vpiBitTypespec) {
+		  left = vpi_get(vpiLeftRange, mtype);
+		  right = vpi_get(vpiRightRange, mtype);
+		  if (mcode == vpiBitTypespec) type = FST_VT_SV_BIT;
+	    } else if (mcode == vpiEnumTypespec) {
+		  fstWriterEmitEnumTableRef(dump_file, enum_table(mtype, width));
+		  if (vpi_get(vpiBaseTypespec, mtype) == vpiBitVar)
+			type = FST_VT_SV_BIT;
+	    }
+	    if (width > 1 || left != 0) sprintf(buf, "%s [%d:%d]", name, left, right);
+	    else strcpy(buf, name);
+	    ident = fstWriterCreateVar(dump_file, type, FST_VD_IMPLICIT, width,
+	                               buf, alias);
+	    free(buf);
+	    if (!alias) add_slice(parent, ident, lsb + offset, width);
+
+	    if (is_struct_typespec(mtype)) {
+		  fstWriterSetScope(dump_file, mcode == vpiUnionTypespec ?
+		                    FST_ST_VCD_UNION : FST_ST_VCD_STRUCT, name, NULL);
+		  declare_members(mtype, lsb + offset, parent, alias_of, alias_idx);
+		  fstWriterSetUpscope(dump_file);
+	    }
+	    free(name);
+      }
+}
 
 static void show_this_item(struct vcd_info*info)
 {
@@ -87,6 +252,8 @@ static void show_this_item(struct vcd_info*info)
 	    value.format = vpiBinStrVal;
 	    vpi_get_value(info->item, &value);
 	    fstWriterEmitValueChange(dump_file, info->ident, (type != vpiNamedEvent) ? value.value.str : "1");
+	    if (info->ident < slice_tab_size && slice_tab[info->ident].count)
+		  emit_slices(info->ident, value.value.str);
       }
 }
 
@@ -103,9 +270,12 @@ static void show_this_item_x(struct vcd_info*info)
 	    /* Do nothing for named events. A string has no x value. */
       } else {
 	    int siz = vpi_get(vpiSize, info->item);
-	    char *xmem = malloc(siz);
+	    char *xmem = malloc(siz + 1);
 	    memset(xmem, 'x', siz);
+	    xmem[siz] = 0;
 	    fstWriterEmitValueChange(dump_file, info->ident, xmem);
+	    if (info->ident < slice_tab_size && slice_tab[info->ident].count)
+		  emit_slices(info->ident, xmem);
 	    free(xmem);
       }
 }
@@ -202,6 +372,7 @@ static PLI_INT32 dumpvars_cb(p_cb_data cause)
 static PLI_INT32 finish_cb(p_cb_data cause)
 {
       struct vcd_info *cur, *next;
+      fstHandle cur_slice;
 
       if (finish_status != 0) return 0;
 
@@ -227,6 +398,14 @@ static PLI_INT32 finish_cb(p_cb_data cause)
       vcd_const_list = 0;
       vcd_names_delete(&fst_tab);
       vcd_names_delete(&fst_var);
+      for (cur_slice = 0 ; cur_slice < slice_tab_size ; cur_slice += 1)
+	    free(slice_tab[cur_slice].slice);
+      free(slice_tab);
+      slice_tab = NULL;
+      slice_tab_size = 0;
+      free(enum_tabs);
+      enum_tabs = NULL;
+      enum_tab_count = 0;
       nexus_ident_delete();
       vcd_free_dump_path();
 
@@ -454,6 +633,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
       char *escname;
       const char *ident;
       fstHandle new_ident;
+      vpiHandle typespec;
       int64_t nexus_id;
       unsigned size;
       PLI_INT32 item_type;
@@ -597,6 +777,12 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	       *   FST_VD_INPUT, FST_VD_OUTPUT or FST_VD_INOUT */
 	    dir = FST_VD_IMPLICIT;
 
+	      /* An enum names its values through an FST enum table. */
+	    typespec = (item_type == vpiStringVar || item_type == vpiNamedEvent)
+		  ? NULL : vpi_handle(vpiTypespec, item);
+	    if (typespec && vpi_get(vpiType, typespec) == vpiEnumTypespec)
+		  fstWriterEmitEnumTableRef(dump_file, enum_table(typespec, size));
+
 	    if (item_type != vpiStringVar &&
 	        (size > 1 || vpi_get(vpiLeftRange, item) != 0)) {
 		  char *buf = malloc(strlen(escname) + 65);
@@ -620,6 +806,16 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 		  new_ident = fstWriterCreateVar(dump_file, type,
 		                                 dir, size, escname,
 		                                 (fstHandle)(intptr_t)ident);
+	    }
+	      /* A packed struct/union also gets a scope of its members. */
+	    if (is_struct_typespec(typespec)) {
+		  unsigned alias_idx = 0;
+		  fstWriterSetScope(dump_file,
+		                    vpi_get(vpiType, typespec) == vpiUnionTypespec ?
+		                    FST_ST_VCD_UNION : FST_ST_VCD_STRUCT, escname, NULL);
+		  declare_members(typespec, 0, new_ident,
+		                  (fstHandle)(intptr_t)ident, &alias_idx);
+		  fstWriterSetUpscope(dump_file);
 	    }
 	    free(escname);
 

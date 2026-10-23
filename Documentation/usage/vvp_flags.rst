@@ -100,7 +100,9 @@ format for every dump file instead.
 
 FST keeps the SystemVerilog variable types (``bit``, ``byte``, ``shortint``,
 ``int``, ``longint``) and dumps ``string`` variables and interface instances,
-which VCD cannot represent.
+which VCD cannot represent. Enum variables carry an enum table, so viewers show
+the value names, and a packed struct or union is dumped both as one vector and
+as a struct/union scope holding one variable per member.
 
 * -none/-vcd-none/-vcd-off/-fst-none
 

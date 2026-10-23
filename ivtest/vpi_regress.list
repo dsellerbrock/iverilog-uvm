@@ -224,3 +224,5 @@ fst_dump_control normal,-g2017 fst_text.c fst_dump_control.gold -lz
 fst_dump_control_2023 normal,-g2023 fst_text.c fst_dump_control_2023.gold -lz
 vpi_typespec normal,-g2017 vpi_typespec.c vpi_typespec.gold
 vpi_typespec_2023 normal,-g2023 vpi_typespec.c vpi_typespec_2023.gold
+fst_enum_struct normal,-g2017 fst_text.c fst_enum_struct.gold -lz
+fst_enum_struct_2023 normal,-g2023 fst_text.c fst_enum_struct_2023.gold -lz

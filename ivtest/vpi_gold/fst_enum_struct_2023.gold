@@ -1,0 +1,115 @@
+Compiling vpi/fst_text.c...
+Making fst_enum_struct_2023.vpi from  fst_text.o...
+FST info: dumpfile fst_enum_struct.fst opened for output.
+--- fst_enum_struct.fst: timescale 1e0 s, 0..5
+scope module top
+  var reg 7 in [6:0]
+  scope struct in
+    var reg 4 hi [3:0]
+    attr 0 7 enum 3 IDLE RUN DONE 00 01 11 1
+    attr 0 7  1
+    var reg 2 st [1:0]
+    var bit 1 flag
+  var reg 15 out [14:0]
+  scope struct out
+    var reg 7 in [6:0]
+    scope struct in
+      var reg 4 hi [3:0]
+      attr 0 7  1
+      var reg 2 st [1:0]
+      var bit 1 flag
+    var reg 8 pair [7:0]
+  attr 0 7  1
+  var reg 2 st [1:0]
+  var reg 7 u [6:0]
+  scope union u
+    var reg 7 raw [6:0]
+    var reg 7 in [6:0]
+    scope struct in
+      var reg 4 hi [3:0]
+      attr 0 7  1
+      var reg 2 st [1:0]
+      var bit 1 flag
+  attr 0 7 enum 3 A B C 001 010 100 2
+  attr 0 7  2
+  var bit 3 sm [2:0]
+dump off at 3
+dump on at 4
+#0
+  top.sm [2:0] = 001
+  top.u.in.flag = 0
+  top.u.in.st [1:0] = 00
+  top.u.in.hi [3:0] = 0000
+  top.u.in [6:0] = 0000000
+  top.u.raw [6:0] = 0000000
+  top.u [6:0] = 0000000
+  top.st [1:0] = 00
+  top.out.pair [7:0] = 00000000
+  top.out.in.flag = 0
+  top.out.in.st [1:0] = 00
+  top.out.in.hi [3:0] = 0000
+  top.out.in [6:0] = 0000000
+  top.out [14:0] = 000000000000000
+  top.in.flag = 0
+  top.in.st [1:0] = 00
+  top.in.hi [3:0] = 0000
+  top.in [6:0] = 0000000
+#1
+  top.in [6:0] = 1001111
+  top.in.hi [3:0] = 1001
+  top.in.st [1:0] = 11
+  top.in.flag = 1
+  top.out [14:0] = 000001001010000
+  top.out.in [6:0] = 0000010
+  top.out.in.hi [3:0] = 0000
+  top.out.in.st [1:0] = 01
+  top.out.in.flag = 0
+  top.out.pair [7:0] = 01010000
+  top.st [1:0] = 01
+  top.sm [2:0] = 100
+#2
+  top.u [6:0] = 1111110
+  top.u.raw [6:0] = 1111110
+  top.u.in [6:0] = 1111110
+  top.u.in.hi [3:0] = 1111
+  top.u.in.st [1:0] = 11
+  top.u.in.flag = 0
+#3
+  top.u.in.flag = x
+  top.u.in.st [1:0] = xx
+  top.u.in.hi [3:0] = xxxx
+  top.u.in [6:0] = xxxxxxx
+  top.u.raw [6:0] = xxxxxxx
+  top.u [6:0] = xxxxxxx
+  top.sm [2:0] = xxx
+  top.st [1:0] = xx
+  top.out.pair [7:0] = xxxxxxxx
+  top.out.in.flag = x
+  top.out.in.st [1:0] = xx
+  top.out.in.hi [3:0] = xxxx
+  top.out.in [6:0] = xxxxxxx
+  top.out [14:0] = xxxxxxxxxxxxxxx
+  top.in.flag = x
+  top.in.st [1:0] = xx
+  top.in.hi [3:0] = xxxx
+  top.in [6:0] = xxxxxxx
+#4
+  top.in [6:0] = 1001111
+  top.in.hi [3:0] = 1001
+  top.in.st [1:0] = 11
+  top.in.flag = 1
+  top.out [14:0] = 000001001010000
+  top.out.in [6:0] = 0000010
+  top.out.in.hi [3:0] = 0000
+  top.out.in.st [1:0] = 01
+  top.out.in.flag = 0
+  top.out.pair [7:0] = 01010000
+  top.st [1:0] = 01
+  top.sm [2:0] = 100
+  top.u [6:0] = 1111110
+  top.u.raw [6:0] = 1111110
+  top.u.in [6:0] = 1111110
+  top.u.in.hi [3:0] = 1111
+  top.u.in.st [1:0] = 11
+  top.u.in.flag = 0
+--- end
