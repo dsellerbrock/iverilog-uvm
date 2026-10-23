@@ -44106,20 +44106,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      } else if (nb > wide_auto_bin_limit) {
 					    nb = wide_auto_bin_limit;
 				      }
-				      // shortcut: wide auto bins use high-bit routing for power-of-two
-				      // counts; add wide range metadata for other counts.
+			      // Wide auto bins use equal ranges; the final bin receives
+			      // any remainder, as required by 19.5.3.
 				      if (cp_wide_auto_supported && nb <= wide_auto_bin_limit) {
-					    if ((nb & (nb - 1)) != 0) {
-						  cerr << pclass->get_fileline()
-						       << ": error: wide automatic bins currently require "
-							  "a power-of-two auto_bin_max." << endl;
-						  des->errors += 1;
-					    } else {
-						  unsigned prefix_bits = 0;
-						  for (uint64_t count = nb; count > 1; count >>= 1)
-							prefix_bits += 1;
 						  uint64_t meta = ((uint64_t)cp_value_width << 32)
-							| prefix_bits;
+							| nb;
 						  for (uint64_t k = 0; k < nb; k++) {
 							std::string bn = std::string("__bin_")
 							      + std::string(cp.label.str())
@@ -44134,12 +44125,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      + std::to_string(k) + "]").c_str());
 							d.wide_auto = true;
 							d.wide_auto_value = k;
-							d.wide_auto_bits = prefix_bits;
+							d.wide_auto_bits = (unsigned)nb;
 							d.source_prop = added;
 							vbins.push_back(d);
 						  }
 						  has_value_bins = true;
-					    }
 				      }
 				} else {
 				uint64_t nb = cp_abm;
