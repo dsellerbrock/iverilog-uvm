@@ -666,9 +666,17 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 
 	      /* Add a range for vectored values. */
 	    if (size > 1 || vpi_get(vpiLeftRange, item) != 0) {
-		  fprintf(dump_file, " [%i:%i]",
-			  (int)vpi_get(vpiLeftRange, item),
-			  (int)vpi_get(vpiRightRange, item));
+		  int left = vpi_get(vpiLeftRange, item);
+		  int right = vpi_get(vpiRightRange, item);
+
+		  /* VPI reports only the outer packed dimension for a
+		   * multidimensional packed variable. VCD has one vector range,
+		   * so collapse it to the total vector width. */
+		  if (size > 0 && abs(left - right) + 1 != (int)size) {
+			left = size - 1;
+			right = 0;
+		  }
+		  fprintf(dump_file, " [%i:%i]", left, right);
 	    }
 
 	    fprintf(dump_file, " $end\n");

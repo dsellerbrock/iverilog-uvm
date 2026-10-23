@@ -2505,6 +2505,7 @@ sv_ch20_isunbounded_type_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_type_f
 sv_ch20_isunbounded_arity_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_arity_fail.gold
 sv_system_return normal,-g2017,-s,main ivltests gold=sv_system_return.gold
 sv_system_return_2023 normal,-g2023,-s,main ivltests gold=sv_system_return.gold
+sv_vcd_packed_multidim_range normal,-g2017,-s,sv_vcd_packed_multidim_range ivltests gold=sv_vcd_packed_multidim_range.gold
 sv_system_too_many_args_fail CE,-g2017,-s,main ivltests
 sv_system_too_many_args_fail_2023 CE,-g2023,-s,main ivltests
 sv_struct_pattern_member_context_width normal,-g2017,-s,main ivltests gold=sv_struct_pattern_member_context_width.gold
