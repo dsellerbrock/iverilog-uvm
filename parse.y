@@ -2584,6 +2584,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <decl_assignments> list_of_variable_decl_assignments
 
 %type <data_type>  class_scoped_type_identifier
+%type <data_type>  specialized_class_scoped_type_identifier
 %type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_void
 %type <data_type>  data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
@@ -3368,6 +3369,9 @@ class_item /* IEEE1800-2005: A.1.8 */
 
     /* IEEE1800-2017: A.1.9 Class items: Class properties... */
 
+  | property_qualifier_opt specialized_class_scoped_type_identifier
+    list_of_variable_decl_assignments ';'
+      { pform_class_property(@2, $1, $2, $3); }
   | property_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@2, $1, $2, $3); }
   | property_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
@@ -10488,6 +10492,21 @@ type_declaration
 	}
 	delete[]$3;
       }
+  | K_typedef specialized_class_scoped_type_identifier
+    typedef_identifier_name dimensions_opt ';'
+      { perm_string name = lex_strings.make($3);
+	if ($1) {
+	      pform_requires_sv(@1, "User-defined nettype declaration");
+	      if ($4) {
+		    yyerror(@4, "error: A nettype name cannot have dimensions.");
+		    delete $4;
+	      }
+	      pform_declare_nettype(@3, name, $2, nullptr);
+	} else {
+	      pform_set_typedef(@3, name, $2, $4);
+	}
+	delete[]$3;
+      }
   | K_typedef data_type identifier_name K_with nettype_resolution_name ';'
       { perm_string name = lex_strings.make($3);
 	if ($1) {
@@ -15040,6 +15059,24 @@ class_scoped_type_identifier
       }
   ;
 
+/* Keep parameterized class qualifiers on declaration paths only. Adding
+   this alternative to data_type creates hundreds of reduce/reduce conflicts
+   with the expression grammar for TYPE_IDENTIFIER #( ... ). */
+specialized_class_scoped_type_identifier
+  : TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4, nullptr, $2);
+	delete[] $1.text;
+	delete[] $4;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, nullptr, $2);
+	delete[] $1.text;
+	delete[] $4.text;
+      }
+  ;
+
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
@@ -15933,6 +15970,24 @@ module_item
   /* IEEE1800-2017/2023 8.23: a complete class may qualify a member
      type in a module variable declaration. Keep this on the declaration
      frontier, alongside package-qualified types and module instantiations. */
+  | attribute_list_opt specialized_class_scoped_type_identifier dimensions_opt
+    list_of_variable_decl_assignments ';'
+      { data_type_t*type = $2;
+        if (type) {
+              if ($3) {
+                    type = new parray_type_t(type, $3);
+                    FILE_NAME(type, @2);
+              }
+              attributes_in_context = $1;
+              pform_make_var(@2, $4, type, attributes_in_context, 0);
+        } else {
+              delete $4;
+              delete $3;
+              pform_discard_call_attributes($1);
+        }
+        var_lifetime = LexicalScope::INHERITED;
+        pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
   | attribute_list_opt class_scoped_type_identifier dimensions_opt
     list_of_variable_decl_assignments ';'
       { data_type_t*type = $2;
