@@ -20334,7 +20334,10 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
+      bool old_procedural_expr_context = pform_procedural_expr_context;
+      pform_procedural_expr_context = false;
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
+      pform_procedural_expr_context = old_procedural_expr_context;
       if (rexp == 0)
 	    return 0;
 
@@ -26088,7 +26091,10 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 			statement_->dump(cerr, 2);
 		  }
 	    }
+	    bool old_procedural_expr_context = pform_procedural_expr_context;
+	    pform_procedural_expr_context = true;
 	    st = statement_->elaborate(des, scope);
+	    pform_procedural_expr_context = old_procedural_expr_context;
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": error: Unable to elaborate "
 			  "statement in function " << scope->basename() << "." << endl;
@@ -26408,7 +26414,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
       } else {
+	    bool old_procedural_expr_context = pform_procedural_expr_context;
+	    pform_procedural_expr_context = true;
 	    st = statement_->elaborate(des, task);
+	    pform_procedural_expr_context = old_procedural_expr_context;
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": Unable to elaborate "
 			"statement in task " << scope_path(task)
@@ -26675,7 +26684,10 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
       scope->in_final(type() == IVL_PR_FINAL);
+      bool old_procedural_expr_context = pform_procedural_expr_context;
+      pform_procedural_expr_context = true;
       NetProc*cur = statement_->elaborate(des, scope);
+      pform_procedural_expr_context = old_procedural_expr_context;
       scope->in_final(false);
       if (cur == 0) {
 	    return false;
