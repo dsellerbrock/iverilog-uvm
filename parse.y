@@ -16082,6 +16082,10 @@ module_item
 
   | class_declaration
 
+  /* IEEE 1800-2017 18.5.1: an external constraint block follows its
+     class declaration in the same module, interface, or program scope. */
+  | package_constraint_declaration
+
   /* M11-2: MODULE/interface-scope covergroup declaration (IEEE
      1800-2017 19.3): declares a type; instances are created with
      `new`. Coverpoint sources are scope signals, resolved at each
