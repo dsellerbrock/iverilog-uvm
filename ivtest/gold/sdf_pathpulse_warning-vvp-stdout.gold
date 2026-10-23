@@ -1,0 +1,2 @@
+SDF WARNING: ivltests/sdf_pathpulse_warning.sdf:10: PATHPULSE limits not supported; limits ignored.
+ivltests/sdf_pathpulse_warning.v:18: $finish called at 22000 (1ps)

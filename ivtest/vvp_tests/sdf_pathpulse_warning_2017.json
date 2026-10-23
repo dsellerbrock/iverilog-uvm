@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sdf_pathpulse_warning.v",
+    "iverilog-args": ["-g2017", "-gspecify"],
+    "gold": "sdf_pathpulse_warning"
+}

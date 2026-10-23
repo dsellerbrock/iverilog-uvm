@@ -1,0 +1,11 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "pulse_leaf")
+    (INSTANCE dut)
+    (DELAY
+      (ABSOLUTE
+        (IOPATH a y (4) (4)))
+      (PATHPULSE a y (2) (3))))
+)

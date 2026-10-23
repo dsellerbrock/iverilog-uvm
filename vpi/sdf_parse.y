@@ -305,7 +305,11 @@ deltype_list
 
 deltype
   : '(' K_PATHPULSE input_output_path_opt rvalue rvalue_opt ')'
+      { vpi_printf("SDF WARNING: %s:%d: PATHPULSE limits not supported; limits ignored.\n",
+		   sdf_parse_path, @2.first_line); }
   | '(' K_PATHPULSEPERCENT input_output_path_opt rvalue rvalue_opt ')'
+      { vpi_printf("SDF WARNING: %s:%d: PATHPULSEPERCENT limits not supported; limits ignored.\n",
+		   sdf_parse_path, @2.first_line); }
   | '(' K_ABSOLUTE del_def_list ')'
   | '(' K_INCREMENT del_def_list ')'
   | '(' error ')'
