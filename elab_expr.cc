@@ -30522,21 +30522,6 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	      // An x/z condition has to blend both arms.
       }
 
-	// Past the short circuit, both arms have to be evaluated and
-	// blended at run time. There is no run-time mux for a WHOLE
-	// unpacked array, so say so instead of building something the
-	// code generator cannot emit. A constant condition -- the usual
-	// case, and the one OpenTitan's `!CiphOpFwdOnly ? a : b' relies
-	// on -- never reaches here.
-      if (dynamic_cast<const netuarray_t*>(type)) {
-	    cerr << get_fileline() << ": sorry: a conditional with whole "
-		 << "unpacked array operands is only supported when the "
-		 << "condition is a constant." << endl;
-	    des->errors += 1;
-	    delete con;
-	    return 0;
-      }
-
       const bool vif_context = virtual_interface_type_(type);
       NetExpr*tru = vif_context
 	    ? elab_and_eval(des, scope, tru_, type,
@@ -30556,6 +30541,126 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    delete con; delete tru; delete fal;
 	    return 0;
+      }
+
+	/* A procedural expression cannot carry a whole unpacked array through
+	 * the packed IVL_EX_TERNARY interface. For the common signal operands,
+	 * lower the aggregate conditional to an array pattern whose elements are
+	 * ordinary scalar conditionals. This preserves the existing four-state
+	 * mux semantics and lets the normal array assignment path perform the
+	 * value copy. */
+      if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(type)) {
+	    /* Runtime whole-array conditionals are implemented for the editions
+	     * this change qualifies. Keep the older-edition rejection in place. */
+	    if (generation_flag < GN_VER2017) {
+	      cerr << get_fileline() << ": sorry: a conditional with whole "
+		   << "unpacked array operands is only supported when the "
+		   << "condition is a constant." << endl;
+	      des->errors += 1;
+	      delete con;
+	      delete tru;
+	      delete fal;
+	      return nullptr;
+	    }
+	    const NetESignal*true_array = dynamic_cast<const NetESignal*>(tru);
+	    const NetESignal*false_array = dynamic_cast<const NetESignal*>(fal);
+	    const netranges_t&dims = array_type->static_dimensions();
+	    if (true_array && false_array
+		&& !true_array->word_index() && !false_array->word_index()
+		&& dims.size() == true_array->sig()->unpacked_dims().size()
+		&& dims.size() == false_array->sig()->unpacked_dims().size()
+		&& true_array->sig()->net_type()->type_equivalent(
+		     false_array->sig()->net_type())
+		&& false_array->sig()->net_type()->type_equivalent(
+		     true_array->sig()->net_type())
+		&& true_array->sig()->net_type()->type_equivalent(
+		     array_type->element_type())
+		&& array_type->element_type()->type_equivalent(
+		     true_array->sig()->net_type())) {
+	  bool same_shape = true;
+	  for (size_t idx = 0; idx < dims.size(); idx += 1) {
+		const netrange_t&target_dim = dims[idx];
+		const netrange_t&true_dim = true_array->sig()->unpacked_dims()[idx];
+		const netrange_t&false_dim = false_array->sig()->unpacked_dims()[idx];
+		if (target_dim.get_msb() != true_dim.get_msb()
+		    || target_dim.get_lsb() != true_dim.get_lsb()
+		    || target_dim.get_msb() != false_dim.get_msb()
+		    || target_dim.get_lsb() != false_dim.get_lsb()) {
+		      same_shape = false;
+		      break;
+		}
+	  }
+	  if (same_shape) {
+		list<long>indices;
+		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
+		      vector<NetExpr*>items;
+		      const netrange_t&range = dims[dimension];
+		      const long step = range.get_msb() <= range.get_lsb() ? 1 : -1;
+		      for (long index = range.get_msb(); ; index += step) {
+			    indices.push_back(index);
+			    NetExpr*item = nullptr;
+			    if (dimension + 1 == dims.size()) {
+				  NetExpr*true_index = normalize_variable_unpacked(
+					true_array->sig(), indices);
+				  NetExpr*false_index = normalize_variable_unpacked(
+					false_array->sig(), indices);
+				  if (true_index && false_index) {
+					NetExpr*true_value = new NetESignal(
+					      const_cast<NetNet*>(true_array->sig()),
+					      true_index);
+					NetExpr*false_value = new NetESignal(
+					      const_cast<NetNet*>(false_array->sig()),
+					      false_index);
+					NetETernary*ternary = new NetETernary(
+					      con->dup_expr(), true_value, false_value,
+					      true_value->expr_width(),
+					      true_value->has_sign()
+						&& false_value->has_sign());
+					ternary->set_line(*this);
+					item = ternary;
+				  } else {
+					delete true_index;
+					delete false_index;
+				  }
+			    } else {
+				  item = build_array(dimension + 1);
+			    }
+			    indices.pop_back();
+			    if (!item) {
+				  for (NetExpr*existing : items) delete existing;
+				  return static_cast<NetExpr*>(nullptr);
+			    }
+			    items.push_back(item);
+			    if (index == range.get_lsb()) break;
+		      }
+		      ivl_type_t pattern_type = array_type;
+		      if (dimension != 0) {
+			    netranges_t subdims(dims.begin() + dimension, dims.end());
+			    pattern_type = new netuarray_t(
+				  subdims, array_type->element_type());
+		      }
+		      NetEArrayPattern*pattern = new NetEArrayPattern(
+			    pattern_type, items);
+		      pattern->set_line(*this);
+		      return pattern;
+		};
+		NetExpr*result = build_array(0);
+		if (result) {
+		      delete con;
+		      delete tru;
+		      delete fal;
+		      return result;
+		}
+	  }
+	}
+	cerr << get_fileline() << ": sorry: a whole unpacked-array "
+	     << "conditional requires direct, equivalent array operands." << endl;
+	    des->errors += 1;
+	    delete con;
+	    delete tru;
+	    delete fal;
+	    return nullptr;
       }
 
 	// packed_width() is only meaningful for a packed type; it is
