@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_chandle_event_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_chandle_event_fail" ],
+    "gold"          : "sv_chandle_event_fail"
+}

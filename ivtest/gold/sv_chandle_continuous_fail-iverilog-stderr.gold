@@ -1,0 +1,2 @@
+ivltests/sv_chandle_continuous_fail.v:3: error: chandle may not be used in a continuous assignment (IEEE 1800-2017/2023 6.14).
+1 error(s) during elaboration.

@@ -5793,6 +5793,19 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 6.14 permits only equality comparisons and
+	 * Boolean testing of a chandle. It is not an arithmetic operand. */
+      if (lp->net_type() == &netvector_t::chandle_type
+	  || rp->net_type() == &netvector_t::chandle_type) {
+	    cerr << get_fileline() << ": error: chandle may not be used with ";
+	    cerr << human_readable_op(op_)
+		 << " (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    delete lp;
+	    delete rp;
+	    return 0;
+      }
+
 	/* IEEE 1800-2017 11.8.1: after a binary expression's result size and
 	 * signedness are determined, context-determined operands are converted
 	 * to that common type. Passing expr_wid into elaborate_expr normally
