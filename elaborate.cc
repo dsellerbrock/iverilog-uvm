@@ -2259,6 +2259,28 @@ static bool reads_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
+                                             NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netclass_t*base_type = sr.net
+		  ? dynamic_cast<const netclass_t*>(sr.net->net_type()) : nullptr;
+	    if (sr.net && sr.net->is_virtual_interface()
+		&& base_type && base_type->is_interface()
+		&& !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
@@ -3489,6 +3511,20 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
             des, scope, this, rise_time, fall_time, decay_time,
             var_allowed_in_sv))
             return;
+
+	/* IEEE 1800-2017/2023 25.9 permits components reached through a
+	   virtual interface only in procedural statements. */
+      if (reads_virtual_interface_member_(this, des, scope,
+					  const_cast<PExpr*>(pin(0)))
+	  || reads_virtual_interface_member_(this, des, scope,
+					      const_cast<PExpr*>(pin(1)))) {
+	    cerr << get_fileline() << ": error: A component of a virtual interface "
+		 << "may not be used in a continuous assignment "
+		    "(IEEE 1800-2017/2023 25.9)." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
 
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).

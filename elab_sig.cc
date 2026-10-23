@@ -3791,8 +3791,10 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
 
       if (is_elaborating_) {
-	    if (sig_predeclared)
+	    if (sig_predeclared) {
+		  sig->set_virtual_interface(resolved_virtual_interface);
 		  return sig;
+	    }
 		    cerr << get_fileline() << ": error: Circular dependency "
 			    "detected in declaration of '" << name_ << "'."
 			 << " scope=" << scope_path(scope) << endl;
@@ -4074,6 +4076,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (user_type) {
             sig->set_user_nettype(user_type);
       }
+      sig->set_virtual_interface(resolved_virtual_interface);
 
       if (is_interconnect()) {
             sig->mark_interconnect(!sig->packed_dims().empty()
