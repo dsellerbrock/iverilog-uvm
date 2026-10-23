@@ -6359,6 +6359,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 {
       NetEvent*ev = new NetEvent(name_);
+      ev->set_declared_event();
       ev->lexical_pos(lexical_pos_);
       ev->lifetime_override(lifetime_override_);
       ev->set_line(*this);

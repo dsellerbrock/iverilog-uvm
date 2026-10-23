@@ -4254,6 +4254,9 @@ class NetEvent : public LineInfo {
 
       perm_string name() const;
 
+      bool is_declared_event() const { return is_declared_event_; }
+      void set_declared_event() { is_declared_event_ = true; }
+
       unsigned lexical_pos() const { return lexical_pos_; }
       void lexical_pos(unsigned lp) { lexical_pos_ = lp; }
 
@@ -4322,6 +4325,7 @@ class NetEvent : public LineInfo {
       unsigned lexical_pos_;
       bool local_flag_;
       ivl_lifetime_t lifetime_override_;
+      bool is_declared_event_ = false;
 
 	// Per-instance class event support (see is_class_event()).
       bool is_class_event_ = false;
