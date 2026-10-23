@@ -147,6 +147,8 @@ class PAssign_  : public Statement {
 
       const PExpr* lval() const  { return lval_; }
       PExpr* rval() const  { return rval_; }
+      // This PAssign is the synthesized process for a continuous driver.
+      void set_continuous_lval() { continuous_lval_ = true; }
       bool has_timing_control() const
       { return delay_ || event_ || count_; }
 
@@ -183,6 +185,7 @@ class PAssign_  : public Statement {
       PExpr* lval_;
       PExpr* rval_;
       bool is_constant_;
+      bool continuous_lval_ = false;
         // Whether the assignment is a variable initializer expression
       bool is_init_ = false;
         // Most assignments own their rvalue. Parse-time synthesized struct
@@ -233,12 +236,15 @@ class PAssignNB  : public PAssign_ {
       explicit PAssignNB(PExpr*lval, PExpr*cnt, PEventStatement*de, PExpr*ex);
       ~PAssignNB() override;
 
+      void mark_clocking_drive() { clocking_drive_ = true; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
     private:
       NetProc*assign_to_memory_(class NetMemory*, PExpr*,
 				Design*des, NetScope*scope) const;
+      bool clocking_drive_ = false;
 };
 
 /*

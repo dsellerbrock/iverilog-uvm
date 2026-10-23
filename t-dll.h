@@ -985,6 +985,7 @@ struct ivl_signal_s {
 struct ivl_statement_assign_aux_s {
       ivl_expr_t delay;
       ivl_expr_t count;
+      bool clocking_drive;
       union {
 	    ivl_event_t event;
 	    ivl_event_t*events;

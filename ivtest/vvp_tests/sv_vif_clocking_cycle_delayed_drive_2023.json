@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_clocking_cycle_delayed_drive.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_clocking_cycle_delayed_drive" ],
+    "gold"          : "sv_vif_clocking_cycle_delayed_drive"
+}

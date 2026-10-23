@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "sv_readmem_darray_queue.v",
+    "iverilog-args": ["-g2023"]
+}
