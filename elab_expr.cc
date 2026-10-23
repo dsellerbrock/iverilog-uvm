@@ -20289,6 +20289,27 @@ static bool bitstream_cast_type_(ivl_type_t type, bool destination)
       return bitstream_cast_type_(type, destination, active);
 }
 
+/* Return the fixed bit-stream width for an unpacked struct whose members
+ * are packed. A zero result means that this helper does not apply. */
+static unsigned fixed_struct_stream_width_(ivl_type_t type)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (!record || record->packed() || record->union_flag())
+	    return 0;
+
+      unsigned width = 0;
+      for (const netstruct_t::member_t&member : record->members()) {
+	    if (!member.net_type->packed())
+		  return 0;
+	    long member_width = member.net_type->packed_width();
+	    if (member_width <= 0 ||
+		  static_cast<unsigned long>(member_width) > UINT_MAX - width)
+		  return 0;
+	    width += static_cast<unsigned>(member_width);
+      }
+      return width;
+}
+
 static bool positional_container_integral_elements_(ivl_type_t type)
 {
       const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
@@ -20561,6 +20582,25 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       }
       if (sub == 0)
 	    return 0;
+
+	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
+	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
+	 * not have a packed_width(), so check their member widths before the
+	 * scalar conversion path can silently truncate or extend. */
+      unsigned source_struct_width = fixed_struct_stream_width_(sub->net_type());
+      unsigned target_struct_width = fixed_struct_stream_width_(target_type_);
+      if ((source_struct_width && target_type_ && target_type_->packed()
+	   && target_type_->packed_width() > 0
+	   && source_struct_width != static_cast<unsigned>(target_type_->packed_width()))
+	  || (target_struct_width && sub->net_type() && sub->net_type()->packed()
+	      && sub->net_type()->packed_width() > 0
+	      && target_struct_width != static_cast<unsigned>(sub->net_type()->packed_width()))) {
+	    cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
+		 << endl;
+	    des->errors += 1;
+	    delete sub;
+	    return nullptr;
+      }
 
 	/* IEEE 1800-2023 11.4.13 requires truncation when a real tolerance is
 	 * converted to an integral range type. The ordinary type-cast path rounds
