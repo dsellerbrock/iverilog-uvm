@@ -386,6 +386,8 @@ class vvp_cobject : public vvp_object {
 
 // Raw per-instance score, independent of get_inst_coverage mode selection.
 double vvp_covgrp_instance_coverage(vvp_cobject*obj,
-		bool*contributes = nullptr, int selected_item = -1);
+		bool*contributes = nullptr, int selected_item = -1,
+		long double*covered_bins = nullptr,
+		long double*defined_bins = nullptr);
 
 #endif /* IVL_vvp_cobject_H */

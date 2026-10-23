@@ -19455,12 +19455,58 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    // Covergroup get_inst_coverage(): returns real.
 		    if (method_name == perm_string::literal("get_inst_coverage")) {
 			  if (class_type && class_type->is_covergroup()) {
-				// Returns a real value: percentage of bins hit.
+				if (!parms_.empty() && parms_.size() != 2) {
+				      cerr << get_fileline() << ": error: Covergroup method "
+					   "get_inst_coverage expects either zero arguments or "
+					   "two ref int arguments (IEEE 1800-2017/2023 19.8)."
+					   << endl;
+				      des->errors += 1;
+				      delete sub_expr;
+				      return 0;
+				}
+				// The optional ref arguments receive covered and total bins.
 				NetESFunc*sys = new NetESFunc(
 					"$ivl_class_method$covgrp_get_inst_coverage",
 					&netreal_t::type_real, 1);
 				sys->set_line(*this);
 				sys->parm(0, sub_expr);
+				if (parms_.size() == 2) {
+				      NetAssign_*outputs[2] = { 0, 0 };
+				      for (unsigned idx = 0; idx < 2; idx += 1) {
+					    unsigned errors_before = des->errors;
+					    outputs[idx] = parms_[idx].parm
+						  ? parms_[idx].parm->elaborate_lval(
+							des, scope, false, false) : 0;
+					    if (!outputs[idx]) {
+						  if (des->errors == errors_before) {
+							cerr << get_fileline()
+							     << ": error: get_inst_coverage output "
+								"argument must be a writable int "
+								"variable (IEEE 1800-2017/2023 19.8)."
+							     << endl;
+							des->errors += 1;
+						  }
+						  delete outputs[0];
+						  delete outputs[1];
+						  delete sys;
+						  return 0;
+					    }
+					    if (outputs[idx]->more
+						      || outputs[idx]->lwidth() != 32) {
+						  cerr << parms_[idx].parm->get_fileline()
+						       << ": error: get_inst_coverage output argument "
+							  "must name one int variable (IEEE "
+							  "1800-2017/2023 19.8)." << endl;
+						  des->errors += 1;
+						  delete outputs[0];
+						  delete outputs[1];
+						  delete sys;
+						  return 0;
+					    }
+				      }
+				      sys->set_ref_output(outputs[0]);
+				      sys->set_ref_output2(outputs[1]);
+				}
 				return sys;
 			  }
 		    }
