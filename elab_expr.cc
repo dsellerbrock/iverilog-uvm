@@ -29772,6 +29772,26 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
       }
 
 
+      // IEEE 1800-2017/2023 8.7 and 8.18: constructing an object invokes
+      // its constructor, so a local constructor is callable only from a
+      // method in the class that declared it. This path resolves `new`
+      // directly instead of using ordinary method lookup, which enforces
+      // local visibility there.
+      const PTaskFunc*ctor = new_scope->func_pform();
+      if (!ctor) ctor = new_scope->task_pform();
+      if (ctor && ctor->method_qualifiers().test_local()) {
+            const NetScope*owner_scope = new_scope->parent();
+            const netclass_t*owner = owner_scope
+                  ? owner_scope->class_def() : nullptr;
+            if (!owner || !owner->test_scope_is_method(scope)) {
+                  cerr << get_fileline() << ": error: Local constructor of class `"
+                       << (owner ? owner->get_name() : ctype->get_name())
+                       << "` is not accessible in this context." << endl;
+                  des->errors += 1;
+                  return obj;
+            }
+      }
+
       // If the class has embedded covergroups, ensure elaborate_sig() has run
       // so the covergroup properties are visible inside new().  This must be done
       // before elaborating the constructor body — which may happen lazily before
