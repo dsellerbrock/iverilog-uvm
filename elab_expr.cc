@@ -6041,7 +6041,9 @@ const type_reference_t* type_operator_reference(const PExpr*expr)
  * checks total width/element-type -- not the member-by-member matching
  * 6.22.1 actually requires -- so accepting those risks a *wrong*
  * "matching" verdict rather than merely an incomplete one. Those kinds
- * are sorried instead (see the sv_type_operator1.v test).
+ * are sorried instead (see the sv_type_operator1.v test). Packed vector
+ * dimensions are checked separately below because packed_types_equivalent
+ * intentionally compares only flattened representation.
  */
 static bool type_operator_kind_supported_(ivl_type_t t)
 {
@@ -6076,6 +6078,23 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
 		 << "6.22.1 is not modeled for these operand shapes)." << endl;
 	    des->errors += 1;
 	    return false;
+      }
+
+      const netvector_t* lv = dynamic_cast<const netvector_t*>(lt);
+      const netvector_t* rv = dynamic_cast<const netvector_t*>(rt);
+      if (lv && rv) {
+	    const netranges_t& left_dims = lv->packed_dims();
+	    const netranges_t& right_dims = rv->packed_dims();
+	    if (left_dims.size() != right_dims.size()) {
+		  match = false;
+		  return true;
+	    }
+	    for (size_t idx = 0; idx < left_dims.size(); idx += 1) {
+		  if (left_dims[idx] != right_dims[idx]) {
+			match = false;
+			return true;
+		  }
+	    }
       }
 
       match = (lt == rt) || lt->type_equivalent(rt);
