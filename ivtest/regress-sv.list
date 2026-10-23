@@ -2332,6 +2332,7 @@ sv_rand_mode_static_inheritance_specialization normal,-g2012 ivltests gold=sv_ra
 sv_param_value_forward_compound_identity normal,-g2012 ivltests gold=sv_param_value_forward_compound_identity.gold
 
 # IEEE 1800-2017 randc transaction semantics
+sv_copy_base_handle_derived normal,-g2017 ivltests gold=sv_copy_base_handle_derived.gold
 sv_randc_txn_unsat_history normal,-g2012 ivltests gold=sv_randc_txn_unsat_history.gold
 sv_randc_txn_two_pass_commit normal,-g2012 ivltests gold=sv_randc_txn_two_pass_commit.gold
 sv_randc_txn_constrained_cycle normal,-g2012 ivltests gold=sv_randc_txn_constrained_cycle.gold
