@@ -217,6 +217,12 @@ void nodangle_f::signal(Design*, NetNet*sig)
       if (sig->get_refs() > 0)
 	    return;
 
+	/* Keep source-declared variables in the netlist even when there are no
+	   expression references. They are part of the VPI variable collection and
+	   must remain available to vpi_iterate() and vpi_handle_by_name(). */
+      if (sig->type() == NetNet::REG && !sig->local_flag())
+	    return;
+
 	/* Cannot delete the ports of tasks, functions or modules. There
 	   are too many places where they are referenced. */
       if ((sig->port_type() != NetNet::NOT_A_PORT) &&

@@ -87,6 +87,7 @@ event1			normal			event1.c		event1.log
 event2			normal			event2.c		event2.log
 final			normal,-g2009		final.c			final.gold
 find_sig		normal			find_sig.c		find_sig.gold
+sv_vpi_declared_unused	normal			sv_vpi_declared_unused.c	sv_vpi_declared_unused.gold
 force_reg		normal			force.c			force_reg.gold
 force_reg_pv		normal			force.c			force_reg_pv.gold
 force_reg_real		normal			force_real.c		force_reg_real.gold

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_vpi_declared_unused.v",
+    "iverilog-args": [ "-g2023" ],
+    "vpi-source": "vpi/sv_vpi_declared_unused.c"
+}

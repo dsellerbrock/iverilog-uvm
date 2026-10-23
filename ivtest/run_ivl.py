@@ -27,6 +27,8 @@ def assemble_vvp_cmd(options: dict, cfg: dict) -> list:
                             "--show-reachable=yes"]
     res += ["vvp"+cfg['suffix']]
     res += options['vvp_args']
+    if options.get('vpi_source'):
+        res += ["-M.", "-m" + options['key']]
     res.append(os.path.join("work", "a.out"))
     res += options['vvp_args_extended']
     return res
@@ -279,6 +281,15 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     it_key = options['key']
     build_runtime(it_key)
+
+    # Build and load the optional VPI plugin used by VPI-facing regressions.
+    if options.get('vpi_source'):
+        vpi_cmd = ["iverilog-vpi" + cfg['suffix'], "--name=" + it_key,
+                   options['vpi_source']]
+        vpi_res = run_cmd(vpi_cmd)
+        log_results(it_key, "iverilog-vpi", vpi_res)
+        if vpi_res.returncode != 0:
+            return [1, "Failed - VPI module build failed."]
 
     # Run the vlog95 translation if needed.
     if cfg['vlog95']:
