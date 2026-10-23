@@ -8539,6 +8539,20 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	    return 0;
       }
 
+	// IEEE 1800-2017/2023 Table 11-1 restricts bitwise and shift
+	// assignment operators to integral operands. These operators otherwise
+	// reach the real assignment code generator, which cannot implement them.
+      if (lv->expr_type() == IVL_VT_REAL
+	  && (op_ == '&' || op_ == '|' || op_ == '^'
+	      || op_ == 'l' || op_ == 'r' || op_ == 'R')) {
+	    cerr << get_fileline() << ": error: "
+		 << "bitwise and shift assignment operators may not have "
+		 << "REAL operands." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
+
 	// Compressed assignments should behave identically to the
 	// equivalent uncompressed assignments. This means we need
 	// to take the type of the LHS into account when determining

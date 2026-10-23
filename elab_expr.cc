@@ -31205,6 +31205,14 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '~':
+	    if (ip->expr_type() == IVL_VT_REAL) {
+		  cerr << get_fileline() << ": error: "
+		       << human_readable_op(op_, true)
+		       << " operator may not have a REAL operand." << endl;
+		  des->errors += 1;
+		  delete ip;
+		  return 0;
+	    }
 	    tmp = elaborate_expr_bits_(ip, expr_wid);
 	    break;
       }
