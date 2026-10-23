@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_covergroup_type_option_instance_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_covergroup_type_option_instance_fail_2023"]
+}
