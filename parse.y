@@ -9043,6 +9043,65 @@ sva_seq_atom
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
+  /* IEEE 1800-2017/2023 16.10: increment/decrement expressions are
+     sequence match items. Lower them to the resulting local-variable value
+     so the update uses the value carried by this assertion attempt. */
+  | '(' expression ',' IDENTIFIER K_INCR ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @4);
+	FILE_NAME(one, @4);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @4, $4, new PEBinary('+', lval, one));
+	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' K_INCR IDENTIFIER ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @5);
+	FILE_NAME(one, @5);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @5, $5, new PEBinary('+', lval, one));
+	delete[] $5;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' IDENTIFIER K_DECR ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @4);
+	FILE_NAME(one, @4);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @4, $4, new PEBinary('-', lval, one));
+	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' K_DECR IDENTIFIER ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @5);
+	FILE_NAME(one, @5);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @5, $5, new PEBinary('-', lval, one));
+	delete[] $5;
+	steps->push_back(st);
+	$$ = steps; }
   /* 16.11 bounded executable slice: calls alone, or calls after the local
      assignment. The latter order is semantically significant: the call's
      input arguments observe the value assigned by the preceding item. */
