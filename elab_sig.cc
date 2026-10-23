@@ -3384,13 +3384,37 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
       pdefs.resize(ports_->size());
       port_names.resize(ports_->size());
 
+      // Default expressions see the declaration scope, not any subroutine formal.
+      // Remove placeholders too, or symbol lookup can recreate a hidden formal.
+      vector<NetNet*>formal_signals(ports_->size(), nullptr);
+      vector<PWire*>formal_placeholders(ports_->size(), nullptr);
+      bool removed_formals = false;
+      for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+	    perm_string port_name = ports_->at(idx).port->basename();
+	    formal_signals[idx] = scope->find_signal(port_name);
+	    // The synthetic receiver is part of the class declaration context.
+	    if (port_name == perm_string::literal(THIS_TOKEN))
+		  continue;
+	    if (formal_signals[idx]) {
+		  scope->rem_signal(formal_signals[idx]);
+		  removed_formals = true;
+	    }
+	    formal_placeholders[idx] = scope->find_signal_placeholder(port_name);
+	    if (formal_placeholders[idx]) {
+		  scope->rem_signal_placeholder(formal_placeholders[idx]);
+		  removed_formals = true;
+	    }
+      }
+      if (removed_formals)
+	symbol_search_cache_clear();
+
       for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
 
 	    perm_string port_name = ports_->at(idx).port->basename();
 
 	    ports[idx] = 0;
 	    pdefs[idx] = 0;
-	    NetNet*tmp = scope->find_signal(port_name);
+	    NetNet*tmp = formal_signals[idx];
 	    NetExpr*tmp_def = 0;
 	    if (tmp == 0) {
 		  cerr << get_fileline() << ": internal error: "
@@ -3494,6 +3518,14 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	      // formals fail even though the caller retains the complete
 	      // array type and the target already carries word-array stores.
       }
+      for (NetNet*formal : formal_signals)
+	if (formal)
+	      scope->add_signal(formal);
+	for (PWire*formal : formal_placeholders)
+	if (formal)
+	      scope->add_signal_placeholder(formal);
+      if (removed_formals)
+	symbol_search_cache_clear();
 }
 
 void PBlock::elaborate_sig(Design*des, NetScope*scope) const

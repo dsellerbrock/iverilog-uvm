@@ -1,0 +1,8 @@
+ec92a9546be7c1c83b554e2b324988dc1c15f514385c25a9a8aca7722b937029  evidence/issue905-declaration-scope/attempt-05-local-a139/README.md
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evidence/issue905-declaration-scope/attempt-05-local-a139/autoconf.log
+fd37eace5d2bf53280f49e7342f01fee78f15c55600a0cb865f2671e7cc479f3  evidence/issue905-declaration-scope/attempt-05-local-a139/build.log
+635a366036339aac6ad0611659146df69e0fab96c5f84656998c893389a37bda  evidence/issue905-declaration-scope/attempt-05-local-a139/configure.log
+eb11a440b9ee50527f609ff52aa1213cc99109ef07e5f94246c6c8644d72042a  evidence/issue905-declaration-scope/attempt-05-local-a139/localrun.out
+548e18846282535f7f63f2fa5f28997ef9aabf0a3619b14d6539d3dbd38fcefe  evidence/issue905-declaration-scope/attempt-05-local-a139/metadata.txt
+cdde1c004b6740f69b82497d1f4180a6c0258d2d6c1ef38a3827566c688e9a49  evidence/issue905-declaration-scope/attempt-05-local-a139/run.sh
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evidence/issue905-declaration-scope/attempt-05-local-a139/stage-source.log

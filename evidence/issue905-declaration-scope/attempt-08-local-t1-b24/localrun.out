@@ -1,0 +1,44 @@
+=== T0-issue-legacy ===
+T0-issue-legacy: PASS
+        sv_default_argument_declaration_scope_2023: Passed.
+     sv_default_argument_declaration_scope_missing: Passed - CE.
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results:
+  Total=4, Passed=4, Failed=0, Not Implemented=0, Expected Fail=0
+=== T0-issue-json ===
+T0-issue-json: PASS
+             sv_default_argument_declaration_scope: Passed.
+        sv_default_argument_declaration_scope_2023: Passed.
+     sv_default_argument_declaration_scope_missing: Passed - CE.
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results: Ran 4, Failed 0.
+=== T1-related-legacy ===
+T1-related-legacy: PASS
+                         sv_default_formal_contexts: Passed.
+                    sv_method_default_argument_this: Passed.
+               sv_method_default_argument_this_2023: Passed.
+============================================================================
+Test results:
+  Total=20, Passed=20, Failed=0, Not Implemented=0, Expected Fail=0
+T1-related-json: PASS
+T0_T1_STATUS=0
+       11.56 real         2.47 user         6.01 sys
+            32849920  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              403162  page reclaims
+                5991  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   1  signals received
+               23527  voluntary context switches
+               17043  involuntary context switches
+           154660064  instructions retired
+            81239871  cycles elapsed
+             2638304  peak memory footprint

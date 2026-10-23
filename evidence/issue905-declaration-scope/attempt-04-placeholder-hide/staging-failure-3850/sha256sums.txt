@@ -1,0 +1,6 @@
+e6922489fa5a048674297a8914f39f80389260310af1e99193cdac519adf24f0  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/README.md
+0c87a40d2508c933c5fedc20d4f3e9e728ceb53a6e4948ae3e66dac4a679a654  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/logs/autoconf.log
+a643b81ac2ba6291fb6fb5c36245030976929f64fc14522932e9cae28a6a8455  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/logs/metadata.txt
+0c7381ab3f1c59532e9f72969e0fedb756e57df8a48bf1f9924e2298bb881bd0  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/logs/slurm-3850.out
+3e4c19cb861a028c46a7c739dbc24a12f2cf44b2d159f1076ffdeba4cf3747d2  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/run.sbatch
+3bf213a56266f50f14ee321b7def990645da1adfb65e8f599c5ae461535e43ac  evidence/issue905-declaration-scope/attempt-04-placeholder-hide/staging-failure-3850/sha256sums.txt

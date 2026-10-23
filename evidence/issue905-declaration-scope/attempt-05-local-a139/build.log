@@ -1,0 +1,1599 @@
+mkdir dep
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/async.cc -o async.o
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/design_dump.cc -o design_dump.o
+Using empty VERSION_TAG
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/discipline.cc -o discipline.o
+mv discipline.d dep/discipline.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/dup_expr.cc -o dup_expr.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/async.cc:23:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/design_dump.cc:29:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv async.d dep/async.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc -o elaborate.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/dup_expr.cc:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv dup_expr.d dep/dup_expr.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/sv_edition.cc -o sv_edition.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:46:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv design_dump.d dep/design_dump.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_expr.cc -o elab_expr.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/sv_edition.cc:20:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv sv_edition.d dep/sv_edition.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elaborate_analog.cc -o elaborate_analog.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_expr.cc:37:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:11499:55: warning: comparison of integers of different signs: 'long' and 'unsigned long' [-Wsign-compare]
+ 11499 |       if (!target_type || target_type->packed_width() != obuf->vector_width()
+       |                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elaborate_analog.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/AStatement.h:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv elaborate_analog.d dep/elaborate_analog.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_lval.cc -o elab_lval.o
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:36751:41: warning: declaration shadows a local variable [-Wshadow]
+ 36751 |             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+       |                                         ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:36726:34: note: previous declaration is here
+ 36726 |             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+       |                                  ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:34986:27: warning: comparison of integers of different signs: 'unsigned int' and 'const int' [-Wsign-compare]
+ 34986 |                       && (unsigned)qidx == dynforeach_emit_ctx_->prop_idx) {
+       |                          ~~~~~~~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:44249:19: warning: enumeration value 'SEL_WITH' not handled in switch [-Wswitch]
+ 44249 |                                       switch (s->op) {
+       |                                               ^~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/elaborate.cc:44249:19: note: add missing switch cases
+ 44249 |                                       switch (s->op) {
+       |                                               ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_lval.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv elab_lval.d dep/elab_lval.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_net.cc -o elab_net.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_net.cc:23:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv elab_net.d dep/elab_net.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_scope.cc -o elab_scope.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_scope.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elab_scope.cc:5181:65: warning: unused parameter 'scope' [-Wunused-parameter]
+ 5181 | static void complete_class_scope_in_place_(Design*des, NetScope*scope,
+      |                                                                 ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elab_scope.cc:5417:35: warning: declaration shadows a field of 'Module' [-Wshadow]
+ 5417 |                   NetScope::modport_port_list_t ports;
+      |                                                 ^
+/tmp/a3-issue905-local-a139.K42qzS/source/Module.h:168:28: note: previous declaration is here
+  168 |       std::vector<port_t*> ports;
+      |                            ^
+1 warning generated.
+mv elab_expr.d dep/elab_expr.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_sig.cc -o elab_sig.o
+3 warnings generated.
+mv elab_scope.d dep/elab_scope.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_sig_analog.cc -o elab_sig_analog.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_sig.cc:31:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Module.h:32:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_sig_analog.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/AStatement.h:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elab_sig.cc:3524:2: warning: misleading indentation; statement is not part of the previous 'for' [-Wmisleading-indentation]
+ 3524 |         for (PWire*formal : formal_placeholders)
+      |         ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elab_sig.cc:3521:7: note: previous statement is here
+ 3521 |       for (NetNet*formal : formal_signals)
+      |       ^
+1 warning generated.
+mv elab_sig_analog.d dep/elab_sig_analog.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/elab_type.cc -o elab_type.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/elab_type.cc:20:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/elab_type.cc:2769:13: warning: unused function 'finite_enum_index_range_' [-Wunused-function]
+ 2769 | static bool finite_enum_index_range_(const netenum_t*enum_type,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+mv elab_sig.d dep/elab_sig.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/emit.cc -o emit.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/emit.cc:29:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+2 warnings generated.
+mv elab_type.d dep/elab_type.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/eval_attrib.cc -o eval_attrib.o
+1 warning generated.
+mv emit.d dep/emit.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/eval_tree.cc -o eval_tree.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/eval_attrib.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/eval_tree.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv eval_attrib.d dep/eval_attrib.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/expr_synth.cc -o expr_synth.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/expr_synth.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv eval_tree.d dep/eval_tree.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/functor.cc -o functor.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/functor.cc:25:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv expr_synth.d dep/expr_synth.d
+flex -s -t /tmp/a3-issue905-local-a139.K42qzS/source/lexor.lex > lexor.cc
+bison --verbose -t -p VL --defines=parse.h -o parse.cc /tmp/a3-issue905-local-a139.K42qzS/source/parse.y
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:2757.5: warning: empty rule without %empty [-Wempty-rule]
+ 2757 |    | /* empty */
+      |     ^
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:2875.7-51: warning: empty rule without %empty [-Wempty-rule]
+ 2875 |       { pform_sva_set_assertion_label(0); $$ = 0; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:2890.5-19: warning: empty rule without %empty [-Wempty-rule]
+ 2890 |   | { $$ = false; }
+      |     ^~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:2982.7-2984.7: warning: empty rule without %empty [-Wempty-rule]
+ 2982 |       { clear_pending_class_params();
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3141.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 3141 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3149.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 3149 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3191.11-3192.7: warning: empty rule without %empty [-Wempty-rule]
+ 3191 | 	  { $$ = {nullptr, nullptr, false};
+      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |           %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3212.7-43: warning: empty rule without %empty [-Wempty-rule]
+ 3212 |       { $$ = new std::list<data_type_t*>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3219.7-43: warning: empty rule without %empty [-Wempty-rule]
+ 3219 |       { $$ = new std::list<data_type_t*>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3267.7-17: warning: empty rule without %empty [-Wempty-rule]
+ 3267 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:3275.4: warning: empty rule without %empty [-Wempty-rule]
+ 3275 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4204.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 4204 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4399.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4399 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4410.7-44: warning: empty rule without %empty [-Wempty-rule]
+ 4410 |       { $$ = new std::list<perm_string>(); }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4420.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4420 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4763.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4763 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4951.4: warning: empty rule without %empty [-Wempty-rule]
+ 4951 |   :
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4957.32-48: warning: empty rule without %empty [-Wempty-rule]
+ 4957 |   :                            { $$ = nullptr; }
+      |                                ^~~~~~~~~~~~~~~~~
+      |                                %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4963.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 4963 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4995.36-52: warning: empty rule without %empty [-Wempty-rule]
+ 4995 |   :                                { $$ = nullptr; }
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5000.36-52: warning: empty rule without %empty [-Wempty-rule]
+ 5000 |   :                                { $$ = nullptr; }
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5200.4: warning: empty rule without %empty [-Wempty-rule]
+ 5200 |   : /* empty */
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5696.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 5696 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5710.7-22: warning: empty rule without %empty [-Wempty-rule]
+ 5710 |       { /* Ignore */ }
+      |       ^~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5715.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 5715 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:5738.7-5742.7: warning: empty rule without %empty [-Wempty-rule]
+ 5738 |       { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nu...
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:6131.25: warning: empty rule without %empty [-Wempty-rule]
+ 6131 | endnew_opt : ':' K_new | ;
+      |                         ^
+      |                         %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:6182.5-21: warning: empty rule without %empty [-Wempty-rule]
+ 6182 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:6506.14-46: warning: empty rule without %empty [-Wempty-rule]
+ 6506 |   |          { $$ = LexicalScope::INHERITED; }
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |              %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:6553.5-15: warning: empty rule without %empty [-Wempty-rule]
+ 6553 |   : { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7086.4-20: warning: empty rule without %empty [-Wempty-rule]
+ 7086 |  | { $$ = nullptr; }
+      |    ^~~~~~~~~~~~~~~~~
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7201.7-7204.7: warning: empty rule without %empty [-Wempty-rule]
+ 7201 |       { std::list<perm_string>*tmp = new std::list<perm_string>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7208.4: warning: empty rule without %empty [-Wempty-rule]
+ 7208 |   : /* explicit virtual task/function forms are parsed directly */
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7212.4: warning: empty rule without %empty [-Wempty-rule]
+ 7212 |   :
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7675.7-17: warning: empty rule without %empty [-Wempty-rule]
+ 7675 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7680.19-29: warning: empty rule without %empty [-Wempty-rule]
+ 7680 |   |               { $$ = 0; }
+      |                   ^~~~~~~~~~~
+      |                   %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7690.4: warning: empty rule without %empty [-Wempty-rule]
+ 7690 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7747.4: warning: empty rule without %empty [-Wempty-rule]
+ 7747 |   :
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7768.25-39: warning: empty rule without %empty [-Wempty-rule]
+ 7768 |   :                     { $$ = false; }
+      |                         ^~~~~~~~~~~~~~~
+      |                         %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:8368.44: warning: empty rule without %empty [-Wempty-rule]
+ 8368 | package_item_list_opt : package_item_list | ;
+      |                                            ^
+      |                                            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:8389.20-46: warning: empty rule without %empty [-Wempty-rule]
+ 8389 |   |                { $$ = NetNet::PIMPLICIT; }
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:8610.7-23: warning: empty rule without %empty [-Wempty-rule]
+ 8610 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:9407.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9407 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:9427.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9427 |   | %prec sva_decl_expr_start { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:9437.5-47: warning: empty rule without %empty [-Wempty-rule]
+ 9437 |   | { $$ = property_qualifier_t::make_none(); }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:9978.27-56: warning: empty rule without %empty [-Wempty-rule]
+ 9978 |   : /* empty */           %prec no_timeunits_declaration
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                           %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:10092.5-10094.7: warning: empty rule without %empty [-Wempty-rule]
+10092 |   | { var_lifetime = LexicalScope::INHERITED;
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:10104.7-17: warning: empty rule without %empty [-Wempty-rule]
+10104 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:10429.5-47: warning: empty rule without %empty [-Wempty-rule]
+10429 |   | %prec block_item_decls_done { $$ = false; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:10645.7-10647.7: warning: empty rule without %empty [-Wempty-rule]
+10645 |       { $$ = new atom_type_t(atom_type_t::INT, true);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:10713.7-10715.7: warning: empty rule without %empty [-Wempty-rule]
+10713 |       { $$.packed_flag = false;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11094.4: warning: empty rule without %empty [-Wempty-rule]
+11094 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11161.12-28: warning: empty rule without %empty [-Wempty-rule]
+11161 |   |        { $$ = nullptr; }
+      |            ^~~~~~~~~~~~~~~~~
+      |            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11197.12-22: warning: empty rule without %empty [-Wempty-rule]
+11197 |   |        { $$ = 0; }
+      |            ^~~~~~~~~~~
+      |            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11280.27: warning: empty rule without %empty [-Wempty-rule]
+11280 | optional_semicolon : ';' | ;
+      |                           ^
+      |                           %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11361.4: warning: empty rule without %empty [-Wempty-rule]
+11361 |   : /* The BNF implies this can be blank, but I'm not sure exactly what
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11367.4: warning: empty rule without %empty [-Wempty-rule]
+11367 |   : /* config rules are optional. */
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11382.4: warning: empty rule without %empty [-Wempty-rule]
+11382 |   : /* The use clause takes an optional :config. */
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11394.4: warning: empty rule without %empty [-Wempty-rule]
+11394 |   : /* A NULL library means use the parents cell library. */
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11430.7-59: warning: empty rule without %empty [-Wempty-rule]
+11430 |       { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11449.5-47: warning: empty rule without %empty [-Wempty-rule]
+11449 |   | %prec sva_decl_expr_start { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:11834.5-21: warning: empty rule without %empty [-Wempty-rule]
+11834 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:12145.7-12147.7: warning: empty rule without %empty [-Wempty-rule]
+12145 |       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:12178.7-12182.7: warning: empty rule without %empty [-Wempty-rule]
+12178 |       { named_pexpr_t *tmp = new named_pexpr_t;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:12216.7-44: warning: empty rule without %empty [-Wempty-rule]
+12216 |       { $$ = new std::list<named_pexpr_t>; }
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:12225.7-17: warning: empty rule without %empty [-Wempty-rule]
+12225 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:14372.5-14373.17: warning: empty rule without %empty [-Wempty-rule]
+14372 |   | %prec block_item_decls_done
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15256.16-30: warning: empty rule without %empty [-Wempty-rule]
+15256 |   |            { $$ = false; }
+      |                ^~~~~~~~~~~~~~~
+      |                %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15262.16-29: warning: empty rule without %empty [-Wempty-rule]
+15262 |   |            { $$ = true; }
+      |                ^~~~~~~~~~~~~~
+      |                %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15475.25-35: warning: empty rule without %empty [-Wempty-rule]
+15475 |   |                     { $$ = 0; }
+      |                         ^~~~~~~~~~~
+      |                         %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15480.5-15: warning: empty rule without %empty [-Wempty-rule]
+15480 |   | { $$ = 0; }
+      |     ^~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15489.7-17: warning: empty rule without %empty [-Wempty-rule]
+15489 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15501.4: warning: empty rule without %empty [-Wempty-rule]
+15501 |   :
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:15509.4: warning: empty rule without %empty [-Wempty-rule]
+15509 |   :
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16390.7-17: warning: empty rule without %empty [-Wempty-rule]
+16390 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16428.4: warning: empty rule without %empty [-Wempty-rule]
+16428 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16482.4: warning: empty rule without %empty [-Wempty-rule]
+16482 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16561.14-39: warning: empty rule without %empty [-Wempty-rule]
+16561 |   |          { $$ = NetNet::IMPLICIT; }
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~
+      |              %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16621.68-78: warning: empty rule without %empty [-Wempty-rule]
+16621 | parameter_value_ranges_opt : parameter_value_ranges { $$ = $1; } | { ...
+      |                                                                    ^~
+      |                                                                    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16709.7-17: warning: empty rule without %empty [-Wempty-rule]
+16709 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16911.10-20: warning: empty rule without %empty [-Wempty-rule]
+16911 |   |      { $$ = 0; }
+      |          ^~~~~~~~~~~
+      |          %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:16982.7-16985.7: warning: empty rule without %empty [-Wempty-rule]
+16982 |       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17083.16-26: warning: empty rule without %empty [-Wempty-rule]
+17083 |   :            { $$ = 0; }
+      |                ^~~~~~~~~~~
+      |                %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17400.7-10: warning: empty rule without %empty [-Wempty-rule]
+17400 |       {  }
+      |       ^~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17565.10-22: warning: empty rule without %empty [-Wempty-rule]
+17565 |   |      { $$ = 0;   }
+      |          ^~~~~~~~~~~~~
+      |          %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17669.5-47: warning: empty rule without %empty [-Wempty-rule]
+17669 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17676.5-47: warning: empty rule without %empty [-Wempty-rule]
+17676 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17783.5-47: warning: empty rule without %empty [-Wempty-rule]
+17783 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17790.5-47: warning: empty rule without %empty [-Wempty-rule]
+17790 |     { $$ = new PTimingCheck::optional_args_t; }
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17853.7-23: warning: empty rule without %empty [-Wempty-rule]
+17853 |       { $$ = nullptr; }
+      |       ^~~~~~~~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:19980.28-44: warning: empty rule without %empty [-Wempty-rule]
+19980 |   |                        { $$ = nullptr; }
+      |                            ^~~~~~~~~~~~~~~~~
+      |                            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20102.24-40: warning: empty rule without %empty [-Wempty-rule]
+20102 |   |                    { $$ = nullptr; }
+      |                        ^~~~~~~~~~~~~~~~~
+      |                        %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20163.5-21: warning: empty rule without %empty [-Wempty-rule]
+20163 |   | { $$ = nullptr; }
+      |     ^~~~~~~~~~~~~~~~~
+      |     %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20190.7-17: warning: empty rule without %empty [-Wempty-rule]
+20190 |       { $$ = 0; }
+      |       ^~~~~~~~~~~
+      |       %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20235.18-28: warning: empty rule without %empty [-Wempty-rule]
+20235 |   |              { $$ = 0; }
+      |                  ^~~~~~~~~~~
+      |                  %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20243.30-40: warning: empty rule without %empty [-Wempty-rule]
+20243 |   |                          { $$ = 0; }
+      |                              ^~~~~~~~~~~
+      |                              %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20342.17-27: warning: empty rule without %empty [-Wempty-rule]
+20342 |   |             { $$ = 0; }
+      |                 ^~~~~~~~~~~
+      |                 %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20459.12-26: warning: empty rule without %empty [-Wempty-rule]
+20459 |   |        { $$ = false; };
+      |            ^~~~~~~~~~~~~~~
+      |            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20506.17-48: warning: empty rule without %empty [-Wempty-rule]
+20506 |   :             { $$ = IVL_CASE_QUALITY_BASIC; }
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                 %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20524.12-26: warning: empty rule without %empty [-Wempty-rule]
+20524 |  |         { $$ = false; }
+      |            ^~~~~~~~~~~~~~~
+      |            %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20529.13-27: warning: empty rule without %empty [-Wempty-rule]
+20529 |  |          { $$ = false; }
+      |             ^~~~~~~~~~~~~~~
+      |             %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20534.13-27: warning: empty rule without %empty [-Wempty-rule]
+20534 |  |          { $$ = false; }
+      |             ^~~~~~~~~~~~~~~
+      |             %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20539.15-29: warning: empty rule without %empty [-Wempty-rule]
+20539 |   |           { $$ = false; }
+      |               ^~~~~~~~~~~~~~~
+      |               %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:20544.4: warning: empty rule without %empty [-Wempty-rule]
+20544 |   |
+      |    ^
+      |    %empty
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: warning: 3 nonterminals useless in grammar [-Wother]
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: warning: 5 rules useless in grammar [-Wother]
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7207.1-16: warning: nonterminal useless in grammar: method_qualifier [-Wother]
+ 7207 | method_qualifier /* IEEE1800-2005: A.1.8 */
+      | ^~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:7714.1-15: warning: nonterminal useless in grammar: open_range_list [-Wother]
+ 7714 | open_range_list /* IEEE1800-2005 A.2.11 */
+      | ^~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:9983.1-11: warning: nonterminal useless in grammar: value_range [-Wother]
+ 9983 | value_range /* IEEE1800-2005: A.8.3 */
+      | ^~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: warning: 583 shift/reduce conflicts [-Wconflicts-sr]
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: warning: 1106 reduce/reduce conflicts [-Wconflicts-rr]
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+1 warning generated.
+mv functor.d dep/functor.d
+gperf -o -i 7 -C -k 1-4,6,9,$ -H keyword_hash -N check_identifier -t /tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf > lexor_keyword.cc || (rm -f lexor_keyword.cc ; false)
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:4097.7-4099.56: warning: rule useless in parser due to conflicts [-Wother]
+ 4097 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:8052.7-8053.103: warning: rule useless in parser due to conflicts [-Wother]
+ 8052 |       { pform_pop_scope();
+      |       ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:17977.40-67: warning: rule useless in parser due to conflicts [-Wother]
+17977 |   | package_scope hierarchy_identifier { lex_in_package_scope(0); } a...
+      |                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/link_const.cc -o link_const.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/link_const.cc:24:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv link_const.d dep/link_const.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/load_module.cc -o load_module.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/load_module.cc:23:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv load_module.d dep/load_module.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netlist.cc -o netlist.o
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y: warning: fix-its can be applied.  Rerun with option '--update'. [-Wother]
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netmisc.cc -o netmisc.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netlist.cc:28:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netmisc.cc:30:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv netlist.d dep/netlist.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/nettypes.cc -o nettypes.o
+mv nettypes.d dep/nettypes.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_analog.cc -o net_analog.o
+1 warning generated.
+mv netmisc.d dep/netmisc.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_assign.cc -o net_assign.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_analog.cc:25:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_analog.d dep/net_analog.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_design.cc -o net_design.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_assign.cc:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_assign.cc:348:28: warning: declaration shadows a local variable [-Wshadow]
+  348 |                   if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(etype)) {
+      |                                          ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_assign.cc:326:36: note: previous declaration is here
+  326 |             } else if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(ntype)) {
+      |                                           ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_design.cc:35:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+2 warnings generated.
+mv net_assign.d dep/net_assign.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netclass.cc -o netclass.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netclass.cc:21:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_design.d dep/net_design.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netdarray.cc -o netdarray.o
+5 warnings generated.
+mv elaborate.d dep/elaborate.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netenum.cc -o netenum.o
+mv netdarray.d dep/netdarray.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netparray.cc -o netparray.o
+1 warning generated.
+mv netclass.d dep/netclass.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netqueue.cc -o netqueue.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netenum.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv netparray.d dep/netparray.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netscalar.cc -o netscalar.o
+mv netqueue.d dep/netqueue.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netstruct.cc -o netstruct.o
+1 warning generated.
+mv netenum.d dep/netenum.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/netvector.cc -o netvector.o
+mv netscalar.d dep/netscalar.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_event.cc -o net_event.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netstruct.cc:20:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/netvector.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_event.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv netvector.d dep/netvector.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_expr.cc -o net_expr.o
+1 warning generated.
+mv netstruct.d dep/netstruct.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_func.cc -o net_func.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_expr.cc:21:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_func.cc:21:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_event.d dep/net_event.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc -o net_func_eval.o
+1 warning generated.
+mv net_func.d dep/net_func.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_link.cc -o net_link.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:20:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_expr.d dep/net_expr.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_modulo.cc -o net_modulo.o
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1352:32: warning: declaration shadows a local variable [-Wshadow]
+ 1352 |                   } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
+      |                                              ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1346:25: note: previous declaration is here
+ 1346 |                   if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg)) {
+      |                                       ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1360:30: warning: declaration shadows a local variable [-Wshadow]
+ 1360 |                   else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
+      |                                            ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1358:25: note: previous declaration is here
+ 1358 |                   if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg))
+      |                                       ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1397:32: warning: declaration shadows a local variable [-Wshadow]
+ 1397 |                   } else if (const NetECReal*number =
+      |                                              ^
+/tmp/a3-issue905-local-a139.K42qzS/source/net_func_eval.cc:1390:25: note: previous declaration is here
+ 1390 |                   if (const NetEConst*number = dynamic_cast<const NetEConst*>(evaluated)) {
+      |                                       ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_link.cc:27:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_modulo.cc:27:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_modulo.d dep/net_modulo.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_nex_input.cc -o net_nex_input.o
+4 warnings generated.
+mv net_func_eval.d dep/net_func_eval.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_nex_output.cc -o net_nex_output.o
+1 warning generated.
+mv net_link.d dep/net_link.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_proc.cc -o net_proc.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_nex_input.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_nex_output.cc:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_proc.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+1 warning generated.
+mv net_nex_output.d dep/net_nex_output.d
+mv net_proc.d dep/net_proc.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_scope.cc -o net_scope.o
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_tran.cc -o net_tran.o
+1 warning generated.
+mv net_nex_input.d dep/net_nex_input.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/net_udp.cc -o net_udp.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_scope.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = falsIn file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_tran.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+e;
+      |                             ^
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/net_udp.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv net_tran.d dep/net_tran.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/map_named_args.cc -o map_named_args.o
+1 warning generated.
+mv net_udp.d dep/net_udp.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pad_to_width.cc -o pad_to_width.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/map_named_args.cc:4:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pad_to_width.cc:23:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pad_to_width.d dep/pad_to_width.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse.cc -o parse.o
+1 warning generated.
+mv map_named_args.d dep/map_named_args.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.cc -o parse_misc.o
+1 warning generated.
+mv net_scope.d dep/net_scope.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform.cc -o pform.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse.y:27:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.h:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.cc:23:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.h:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv parse_misc.d dep/parse_misc.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_sva_nfa.cc -o pform_sva_nfa.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:25:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+parse.cc:21484:18: warning: missing field 'lexical_pos' initializer [-Wmissing-field-initializers]
+ 21484 |   = { 1, 1, 1, 1 }
+       |                  ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_sva_nfa.cc:18:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.h:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:1614:75: warning: unused parameter 'loc' [-Wunused-parameter]
+ 1614 | static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
+      |                                                                           ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:7504:60: warning: unused parameter 'loc' [-Wunused-parameter]
+ 7504 | void pform_set_clocking_default_skews(const struct vlltype&loc,
+      |                                                            ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:8295:52: warning: unused parameter 'loc' [-Wunused-parameter]
+ 8295 | void pform_end_clocking_block(const struct vlltype&loc)
+      |                                                    ^
+/tmp/a3-issue905-local-a139.K42qzS/source/parse.y:274:19: warning: unused variable 'recently_completed_class_method_' [-Wunused-variable]
+  274 | static PTaskFunc* recently_completed_class_method_ = 0;
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:13991:39: warning: unused parameter 'loc' [-Wunused-parameter]
+ 13991 | pform_sva_repeat(const struct vlltype&loc,
+       |                                       ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:16204:27: warning: unused parameter 'loc' [-Wunused-parameter]
+ 16204 |                                         const struct vlltype&loc, int op_type,
+       |                                                              ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:18737:13: warning: declaration shadows a local variable [-Wshadow]
+ 18737 |             PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+       |                    ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform.cc:18147:32: note: previous declaration is here
+ 18147 |       std::vector<perm_string> spawn (endpoint_fanout ? K : 0);
+       |                                ^
+1 warning generated.
+mv pform_sva_nfa.d dep/pform_sva_nfa.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_analog.cc -o pform_analog.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_analog.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pform_analog.d dep/pform_analog.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_disciplines.cc -o pform_disciplines.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_disciplines.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pform_disciplines.d dep/pform_disciplines.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_dump.cc -o pform_dump.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_dump.cc:28:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/pform_dump.cc:410:34: warning: expression with side effects will be evaluated despite being used as an operand to 'typeid' [-Wpotentially-evaluated-expression]
+  410 |       out << (type.get()? typeid(*type).name() : "<nil type>");
+      |                                  ^
+2 warnings generated.
+mv pform_dump.d dep/pform_dump.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_package.cc -o pform_package.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_package.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pform_package.d dep/pform_package.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_pclass.cc -o pform_pclass.o
+3 warnings generated.
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_pclass.cc:27:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv parse.d dep/parse.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/pform_types.cc -o pform_types.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform_types.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pform_types.d dep/pform_types.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/symbol_search.cc -o symbol_search.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/symbol_search.cc:21:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv pform_pclass.d dep/pform_pclass.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/sync.cc -o sync.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/sync.cc:23:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv symbol_search.d dep/symbol_search.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/sys_funcs.cc -o sys_funcs.o
+1 warning generated.
+mv sync.d dep/sync.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/verinum.cc -o verinum.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/sys_funcs.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv sys_funcs.d dep/sys_funcs.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/verireal.cc -o verireal.o
+mv verinum.d dep/verinum.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vpi_modules.cc -o vpi_modules.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/verireal.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv verireal.d dep/verireal.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/target.cc -o target.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/vpi_modules.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv vpi_modules.d dep/vpi_modules.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/Attrib.cc -o Attrib.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.cc:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv Attrib.d dep/Attrib.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/HName.cc -o HName.o
+1 warning generated.
+mv target.d dep/target.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/Module.cc -o Module.o
+mv HName.d dep/HName.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PClass.cc -o PClass.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Module.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Module.h:32:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PClass.d dep/PClass.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PDelays.cc -o PDelays.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PDelays.cc:25:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv Module.d dep/Module.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PEvent.cc -o PEvent.o
+1 warning generated.
+mv PDelays.d dep/PDelays.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.cc -o PExpr.o
+mv PEvent.d dep/PEvent.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PFunction.cc -o PFunction.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PFunction.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv PFunction.d dep/PFunction.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PGate.cc -o PGate.o
+7 warnings generated.
+mv pform.d dep/pform.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PGenerate.cc -o PGenerate.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PGate.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PGate.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv PExpr.d dep/PExpr.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PModport.cc -o PModport.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PGenerate.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PWire.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv PGate.d dep/PGate.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PNamedItem.cc -o PNamedItem.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PModport.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PModport.h:25:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv PGenerate.d dep/PGenerate.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PPackage.cc -o PPackage.o
+mv PNamedItem.d dep/PNamedItem.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PScope.cc -o PScope.o
+1 warning generated.
+mv PModport.d dep/PModport.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PSpec.cc -o PSpec.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PScope.cc:21:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PPackage.d dep/PPackage.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PTimingCheck.cc -o PTimingCheck.o
+mv PSpec.d dep/PSpec.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PTask.cc -o PTask.o
+1 warning generated.
+mv PScope.d dep/PScope.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PUdp.cc -o PUdp.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PTimingCheck.cc:20:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PTimingCheck.h:23:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PTask.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+mv PUdp.d dep/PUdp.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/PWire.cc -o PWire.o
+1 warning generated.
+mv PTimingCheck.d dep/PTimingCheck.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/Statement.cc -o Statement.o
+1 warning generated.
+mv PTask.d dep/PTask.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/AStatement.cc -o AStatement.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PWire.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PWire.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.cc:27:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/AStatement.cc:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/AStatement.h:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/Statement.h:30:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/PExpr.h:28:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv PWire.d dep/PWire.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/libmisc/LineInfo.cc -o LineInfo.o
+1 warning generated.
+mv AStatement.d dep/AStatement.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/libmisc/StringHeap.cc -o StringHeap.o
+mv LineInfo.d dep/LineInfo.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/cprop.cc -o cprop.o
+mv StringHeap.d dep/StringHeap.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/exposenodes.cc -o exposenodes.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/cprop.cc:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/exposenodes.cc:24:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv exposenodes.d dep/exposenodes.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/nodangle.cc -o nodangle.o
+1 warning generated.
+mv cprop.d dep/cprop.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/synth.cc -o synth.o
+1 warning generated.
+mv Statement.d dep/Statement.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/synth2.cc -o synth2.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/nodangle.cc:30:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/synth.cc:23:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/synth2.cc:23:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/synth2.cc:402:43: warning: unused parameter 'des' [-Wunused-parameter]
+  402 | NetNet* synth_blocking_read_signal(Design*des, NetScope*scope, NetNet*sig)
+      |                                           ^
+1 warning generated.
+mv synth.d dep/synth.d
+bison --verbose -t -p syn_ -o syn-rules.cc /tmp/a3-issue905-local-a139.K42qzS/source/syn-rules.y
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/t-dll.cc -o t-dll.o
+1 warning generated.
+mv nodangle.d dep/nodangle.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-api.cc -o t-dll-api.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll.cc:28:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-api.cc:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll.h:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv t-dll-api.d dep/t-dll-api.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-expr.cc -o t-dll-expr.o
+1 warning generated.
+mv t-dll.d dep/t-dll.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-proc.cc -o t-dll-proc.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-expr.cc:25:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll.h:22:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-proc.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+2 warnings generated.
+mv synth2.d dep/synth2.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-analog.cc -o t-dll-analog.o
+1 warning generated.
+mv t-dll-expr.d dep/t-dll-expr.d
+gcc -std=gnu23 -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -Wl,-all_load   -o version.exe -I. -I/tmp/a3-issue905-local-a139.K42qzS/source /tmp/a3-issue905-local-a139.K42qzS/source/version.c
+sed -e 's;@SHARED@;-bundle -undefined dynamic_lookup -flat_namespace;' -e 's;@PIC@;-fPIC;' \
+	    -e 's;@ENABLE_PLI1@;yes;' \
+	    -e 's;@SUFFIX@;;' \
+	    -e 's;@IVCC@;gcc -std=gnu23;' \
+	    -e 's;@IVCXX@;g++;' \
+	    -e 's;@IVCFLAGS@;-Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2;' \
+	    -e 's;@IVCXXFLAGS@;-Wall -Wextra -Wshadow   -g -O2 -std=c++11;' \
+	    -e 's;@IVCTARGETFLAGS@;;' \
+	    -e 's;@INCLUDEDIR@;/tmp/a3-issue905-local-a139.K42qzS/install/include/iverilog;' \
+	    -e 's;@LIBDIR@;/tmp/a3-issue905-local-a139.K42qzS/install/lib;' /tmp/a3-issue905-local-a139.K42qzS/source/iverilog-vpi.sh > iverilog-vpi
+chmod +x iverilog-vpi
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/main.cc -o main.o
+1 warning generated.
+mv t-dll-proc.d dep/t-dll-proc.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor.cc -o lexor.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/t-dll-analog.cc:26:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/target.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+1 warning generated.
+mv t-dll-analog.d dep/t-dll-analog.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor_keyword.cc -o lexor_keyword.o
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/main.cc:58:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/pform.h:22:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/lexor.lex:32:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+<stdout>:2854:13: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 2854 |             if ( ! (yy_state_buf) )
+      |             ^
+<stdout>:2852:9: note: previous statement is here
+ 2852 |         if ( ! (yy_state_buf) )
+      |         ^
+<stdout>:5096:3: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 5096 |                 return yy_is_jam ? 0 : yy_current_state;
+      |                 ^
+<stdout>:5093:2: note: previous statement is here
+ 5093 |         if ( ! yy_is_jam )
+      |         ^
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:14:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/parse_misc.h:24:
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/compiler.h:26:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:39:21: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   39 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                     ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:39:47: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   39 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                                               ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:70:3: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   70 |   register unsigned int hval = len;
+      |   ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:100:25: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  100 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                         ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:100:51: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  100 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                                                   ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/lexor_keyword.gperf:281:11: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  281 |           register const char *s = wordlist[key].name;
+      |           ^~~~~~~~
+7 warnings generated.
+mv lexor_keyword.d dep/lexor_keyword.d
+g++ -DHAVE_CONFIG_H -I. -I/tmp/a3-issue905-local-a139.K42qzS/source -I/tmp/a3-issue905-local-a139.K42qzS/source/libmisc  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c syn-rules.cc -o syn-rules.o
+1 warning generated.
+mv main.d dep/main.d
+./version.exe `head -1 /tmp/a3-issue905-local-a139.K42qzS/source/iverilog-vpi.man.in`'\n' > iverilog-vpi.man
+3 warnings generated.
+mv lexor.d dep/lexor.d
+In file included from /tmp/a3-issue905-local-a139.K42qzS/source/syn-rules.y:34:
+/tmp/a3-issue905-local-a139.K42qzS/source/netlist.h:1089:29: warning: default member initializer for bit-field is a C++20 extension [-Wc++20-extensions]
+ 1089 |       bool comb_written_: 1 = false;
+      |                             ^
+tail -n +2 /tmp/a3-issue905-local-a139.K42qzS/source/iverilog-vpi.man.in >> iverilog-vpi.man
+1 warning generated.
+mv syn-rules.d dep/syn-rules.d
+g++ -Wl,-all_load   -o ivl main.o async.o design_dump.o discipline.o dup_expr.o elaborate.o sv_edition.o elab_expr.o elaborate_analog.o elab_lval.o elab_net.o elab_scope.o elab_sig.o elab_sig_analog.o elab_type.o emit.o eval_attrib.o eval_tree.o expr_synth.o functor.o lexor.o lexor_keyword.o link_const.o load_module.o netlist.o netmisc.o nettypes.o net_analog.o net_assign.o net_design.o netclass.o netdarray.o netenum.o netparray.o netqueue.o netscalar.o netstruct.o netvector.o net_event.o net_expr.o net_func.o net_func_eval.o net_link.o net_modulo.o net_nex_input.o net_nex_output.o net_proc.o net_scope.o net_tran.o net_udp.o map_named_args.o pad_to_width.o parse.o parse_misc.o pform.o pform_sva_nfa.o pform_analog.o pform_disciplines.o pform_dump.o pform_package.o pform_pclass.o pform_types.o symbol_search.o sync.o sys_funcs.o verinum.o verireal.o vpi_modules.o target.o Attrib.o HName.o Module.o PClass.o PDelays.o PEvent.o PExpr.o PFunction.o PGate.o PGenerate.o PModport.o PNamedItem.o PPackage.o PScope.o PSpec.o PTimingCheck.o PTask.o PUdp.o PWire.o Statement.o AStatement.o LineInfo.o StringHeap.o cprop.o exposenodes.o nodangle.o synth.o synth2.o syn-rules.o t-dll.o t-dll-api.o t-dll-expr.o t-dll-proc.o t-dll-analog.o -ldl
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C libveriuser all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C cadpli all &&  true
+gcc -std=gnu23 -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/ivlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/ivlpp/..  -DHAVE_CONFIG_H  -c -o main.o /tmp/a3-issue905-local-a139.K42qzS/source/ivlpp/main.c
+flex -t /tmp/a3-issue905-local-a139.K42qzS/source/ivlpp/lexor.lex > lexor.c
+gcc -std=gnu23 -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/ivlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/ivlpp/..  -DHAVE_CONFIG_H  -c -o lexor.o lexor.c
+<stdout>:1922:13: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 1922 |             if ( ! (yy_state_buf) )
+      |             ^
+<stdout>:1920:9: note: previous statement is here
+ 1920 |         if ( ! (yy_state_buf) )
+      |         ^
+<stdout>:3730:3: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 3730 |                 return yy_is_jam ? 0 : yy_current_state;
+      |                 ^
+<stdout>:3727:2: note: previous statement is here
+ 3727 |         if ( ! yy_is_jam )
+      |         ^
+2 warnings generated.
+gcc -std=gnu23  main.o lexor.o -o ivlpp 
+mkdir dep
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/main.cc -o main.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/architec.cc -o architec.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/compiler.cc -o compiler.o
+mv compiler.d dep/compiler.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/entity.cc -o entity.o
+mv main.d dep/main.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/std_funcs.cc -o std_funcs.o
+mv architec.d dep/architec.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/std_types.cc -o std_types.o
+mv entity.d dep/entity.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression.cc -o expression.o
+mv std_funcs.d dep/std_funcs.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/package.cc -o package.o
+mv std_types.d dep/std_types.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/scope.cc -o scope.o
+mv package.d dep/package.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/sequential.cc -o sequential.o
+mv expression.d dep/expression.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/subprogram.cc -o subprogram.o
+mv sequential.d dep/sequential.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vsignal.cc -o vsignal.o
+mv subprogram.d dep/subprogram.d
+mv scope.d dep/scope.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vtype.cc -o vtype.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vtype_match.cc -o vtype_match.o
+mv vsignal.d dep/vsignal.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/architec_elaborate.cc -o architec_elaborate.o
+mv vtype_match.d dep/vtype_match.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/entity_elaborate.cc -o entity_elaborate.o
+mv vtype.d dep/vtype.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression_elaborate.cc -o expression_elaborate.o
+mv architec_elaborate.d dep/architec_elaborate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression_evaluate.cc -o expression_evaluate.o
+mv entity_elaborate.d dep/entity_elaborate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/sequential_elaborate.cc -o sequential_elaborate.o
+mv expression_evaluate.d dep/expression_evaluate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vtype_elaborate.cc -o vtype_elaborate.o
+mv expression_elaborate.d dep/expression_elaborate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/entity_stream.cc -o entity_stream.o
+mv sequential_elaborate.d dep/sequential_elaborate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression_stream.cc -o expression_stream.o
+mv vtype_elaborate.d dep/vtype_elaborate.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vtype_stream.cc -o vtype_stream.o
+mv entity_stream.d dep/entity_stream.d
+flex -s -olexor.cc /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor.lex
+bison --verbose -t --defines=parse.h -o parse.cc /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse.y
+mv expression_stream.d dep/expression_stream.d
+gperf -o -i 7 --ignore-case -C -k 1-4,6,9,$ -H keyword_hash -N check_identifier -t /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf > lexor_keyword.cc || (rm -f lexor_keyword.cc ; false)
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse_misc.cc -o parse_misc.o
+mv vtype_stream.d dep/vtype_stream.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/library.cc -o library.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vhdlreal.cc -o vhdlreal.o
+mv vhdlreal.d dep/vhdlreal.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vhdlint.cc -o vhdlint.o
+mv parse_misc.d dep/parse_misc.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/architec_emit.cc -o architec_emit.o
+mv vhdlint.d dep/vhdlint.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/entity_emit.cc -o entity_emit.o
+mv library.d dep/library.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression_emit.cc -o expression_emit.o
+mv architec_emit.d dep/architec_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/package_emit.cc -o package_emit.o
+mv entity_emit.d dep/entity_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/sequential_emit.cc -o sequential_emit.o
+mv expression_emit.d dep/expression_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/subprogram_emit.cc -o subprogram_emit.o
+mv package_emit.d dep/package_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/vtype_emit.cc -o vtype_emit.o
+mv sequential_emit.d dep/sequential_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/debug.cc -o debug.o
+mv vtype_emit.d dep/vtype_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/architec_debug.cc -o architec_debug.o
+mv subprogram_emit.d dep/subprogram_emit.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/expression_debug.cc -o expression_debug.o
+mv architec_debug.d dep/architec_debug.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/sequential_debug.cc -o sequential_debug.o
+mv expression_debug.d dep/expression_debug.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc/StringHeap.cc -o StringHeap.o
+mv debug.d dep/debug.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc/LineInfo.cc -o LineInfo.o
+mv StringHeap.d dep/StringHeap.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor.cc -o lexor.o
+mv LineInfo.d dep/LineInfo.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor_keyword.cc -o lexor_keyword.o
+mv sequential_debug.d dep/sequential_debug.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/../libmisc  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse.cc -o parse.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:55:20: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   55 | gperf_case_strcmp (register const char *s1, register const char *s2)
+      |                    ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:55:45: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   55 | gperf_case_strcmp (register const char *s1, register const char *s2)
+      |                                             ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:77:21: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   77 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                     ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:77:47: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   77 | Lkwd::keyword_hash (register const char *str, register unsigned int len)
+      |                                               ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:108:3: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  108 |   register unsigned int hval = len;
+      |   ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:138:25: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  138 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                         ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:138:51: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+  138 | Lkwd::check_identifier (register const char *str, register unsigned int len)
+      |                                                   ^~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/lexor_keyword.gperf:41:11: warning: 'register' storage class specifier is deprecated and incompatible with C++17 [-Wdeprecated-register]
+   41 |           register const char *s = wordlist[key].name;
+      |           ^~~~~~~~
+8 warnings generated.
+mv lexor_keyword.d dep/lexor_keyword.d
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse.y:2398:2: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 2398 |         (yyval.sequ_list) = tmp;
+      |         ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse.y:2396:5: note: previous statement is here
+ 2396 |     if((yyvsp[0].sequ))
+      |     ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse.y:2404:2: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 2404 |         (yyval.sequ_list) = tmp;
+      |         ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vhdlpp/parse.y:2402:5: note: previous statement is here
+ 2402 |     if((yyvsp[0].sequ))
+      |     ^
+parse.cc:2278:9: warning: variable 'yynerrs' set but not used [-Wunused-but-set-variable]
+ 2278 |     int yynerrs = 0;
+      |         ^
+mv lexor.d dep/lexor.d
+3 warnings generated.
+mv parse.d dep/parse.d
+g++ -o vhdlpp  main.o architec.o compiler.o entity.o std_funcs.o std_types.o expression.o package.o scope.o sequential.o subprogram.o vsignal.o vtype.o vtype_match.o architec_elaborate.o entity_elaborate.o expression_elaborate.o expression_evaluate.o sequential_elaborate.o vtype_elaborate.o entity_stream.o expression_stream.o vtype_stream.o lexor.o lexor_keyword.o parse.o parse_misc.o library.o vhdlreal.o vhdlint.o architec_emit.o entity_emit.o expression_emit.o package_emit.o sequential_emit.o subprogram_emit.o vtype_emit.o debug.o architec_debug.o expression_debug.o sequential_debug.o StringHeap.o LineInfo.o -lbz2 -lz -lpthread -lreadline -ltermcap  
+mkdir dep
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/lib_main.cc -o lib_main.o
+bison --verbose -t --defines=parse.h -o parse.cc /tmp/a3-issue905-local-a139.K42qzS/source/vvp/parse.y
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/parse_misc.cc -o parse_misc.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/parse.y: warning: 14 shift/reduce conflicts [-Wconflicts-sr]
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/parse.y: warning: 5 reduce/reduce conflicts [-Wconflicts-rr]
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/parse.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+mv parse_misc.d dep/parse_misc.d
+flex -s -Cf -olexor.cc /tmp/a3-issue905-local-a139.K42qzS/source/vvp/lexor.lex
+parse.cc:4356: warning: suspicious sequence in the output: m4_type [-Wother]
+parse.cc:4362: warning: suspicious sequence in the output: m4_type [-Wother]
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/arith.cc -o arith.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/array_common.cc -o array_common.o
+mv lib_main.d dep/lib_main.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/array.cc -o array.o
+mv array_common.d dep/array_common.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/bufif.cc -o bufif.o
+mv arith.d dep/arith.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/compile.cc -o compile.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/array.cc:1415:29: warning: declaration shadows a local variable [-Wshadow]
+ 1415 |             else if (vvp_wire_vec8*sig =
+      |                                    ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/array.cc:1412:24: note: previous declaration is here
+ 1412 |             if (vvp_wire_vec4*sig =
+      |                               ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/array.cc:1436:28: warning: declaration shadows a local variable [-Wshadow]
+ 1436 |                   else if (vvp_wire_vec8*sig =
+      |                                          ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/array.cc:1433:23: note: previous declaration is here
+ 1433 |                   if (vvp_wire_vec4*sig =
+      |                                     ^
+mv bufif.d dep/bufif.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/concat.cc -o concat.o
+mv concat.d dep/concat.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/dff.cc -o dff.o
+2 warnings generated.
+mv dff.d dep/dff.d
+mv array.d dep/array.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/class_type.cc -o class_type.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/enum_type.cc -o enum_type.o
+mv compile.d dep/compile.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/extend.cc -o extend.o
+mv enum_type.d dep/enum_type.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/file_line.cc -o file_line.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/class_type.cc:1868:16: warning: missing field 'argument_dependencies' initializer [-Wmissing-field-initializers]
+ 1868 |             is_virtual};
+      |                       ^
+mv extend.d dep/extend.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/latch.cc -o latch.o
+mv file_line.d dep/file_line.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/npmos.cc -o npmos.o
+mv latch.d dep/latch.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/part.cc -o part.o
+mv npmos.d dep/npmos.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/permaheap.cc -o permaheap.o
+mv permaheap.d dep/permaheap.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/reduce.cc -o reduce.o
+mv part.d dep/part.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/resolv.cc -o resolv.o
+mv reduce.d dep/reduce.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/sfunc.cc -o sfunc.o
+mv sfunc.d dep/sfunc.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/stop.cc -o stop.o
+mv resolv.d dep/resolv.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/substitute.cc -o substitute.o
+mv stop.d dep/stop.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/symbols.cc -o symbols.o
+mv substitute.d dep/substitute.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/ufunc.cc -o ufunc.o
+mv symbols.d dep/symbols.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/codes.cc -o codes.o
+mv ufunc.d dep/ufunc.d
+mv codes.d dep/codes.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc -o vthread.o
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/schedule.cc -o schedule.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:4740:25: warning: unused parameter 'thr' [-Wunused-parameter]
+ 4740 | bool of_QSORT(vthread_t thr, vvp_code_t cp)
+      |                         ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:4755:27: warning: unused parameter 'thr' [-Wunused-parameter]
+ 4755 | bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
+      |                           ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:4770:27: warning: unused parameter 'thr' [-Wunused-parameter]
+ 4770 | bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
+      |                           ^
+mv schedule.d dep/schedule.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/statistics.cc -o statistics.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:15186:18: warning: declaration shadows a local variable [-Wshadow]
+ 15186 |                     __vpiScope*child_scope = child->parent_scope;
+       |                                ^
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:14855:18: note: previous declaration is here
+ 14855 |       __vpiScope*child_scope = child->parent_scope;
+       |                  ^
+mv statistics.d dep/statistics.d
+gcc -std=gnu23 -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -Wl,-all_load   -o draw_tt /tmp/a3-issue905-local-a139.K42qzS/source/vvp/draw_tt.c
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:23160:36: warning: '/*' within block comment [-Wcomment]
+ 23160 | /* Container spec codes for %aa/viv/*: which empty inner container to
+       |                                    ^
+./draw_tt > tables.cc
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:23980:51: warning: '/*' within block comment [-Wcomment]
+ 23980 |  * c.aq[key].push_back(v) — a plain %aa/load/obj/* returns nil for a
+       |                                                 ^
+rm draw_tt
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/udp.cc -o udp.o
+mv udp.d dep/udp.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_island.cc -o vvp_island.o
+1 warning generated.
+mv class_type.d dep/class_type.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_net.cc -o vvp_net.o
+mv vvp_island.d dep/vvp_island.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_net_sig.cc -o vvp_net_sig.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:14414:13: warning: unused function 'copy_call_inputs_to_allocated_context_' [-Wunused-function]
+ 14414 | static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
+       |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:2406:21: warning: unused function 'lookup_scope_port_by_index_' [-Wunused-function]
+ 2406 | static vpiPortInfo* lookup_scope_port_by_index_(__vpiScope*scope, unsigned index)
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:12344:13: warning: unused function 'context_on_stacked_chain_' [-Wunused-function]
+ 12344 | static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
+       |             ^~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:28790:13: warning: unused function 'get_from_process_obj' [-Wunused-function]
+ 28790 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, double&val)
+       |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vthread.cc:28796:13: warning: unused function 'get_from_process_obj' [-Wunused-function]
+ 28796 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, string&val)
+       |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_net_sig.cc:2514:37: warning: unused function 'signal_object_aa_slot_from_raw' [-Wunused-function]
+ 2514 | static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*raw)
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv vvp_net.d dep/vvp_net.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_perf_stats.cc -o vvp_perf_stats.o
+mv vvp_perf_stats.d dep/vvp_perf_stats.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_object.cc -o vvp_object.o
+mv vvp_object.d dep/vvp_object.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_assoc.cc -o vvp_assoc.o
+1 warning generated.
+mv vvp_net_sig.d dep/vvp_net_sig.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_cobject.cc -o vvp_cobject.o
+mv vvp_assoc.d dep/vvp_assoc.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_darray.cc -o vvp_darray.o
+mv vvp_cobject.d dep/vvp_cobject.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp -I/tmp/a3-issue905-local-a139.K42qzS/source/vvp/..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.K42qzS/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_dpi.cc -o vvp_dpi.o
+/tmp/a3-issue905-local-a139.K42qzS/source/vvp/vvp_dpi.cc:15:12: fatal error: 'ffi.h' file not found
+   15 | # include  <ffi.h>
+      |            ^~~~~~~
+1 error generated.
+make[1]: *** [vvp_dpi.o] Error 1
+make[1]: *** Waiting for unfinished jobs....
+mv vvp_darray.d dep/vvp_darray.d
+11 warnings generated.
+mv vthread.d dep/vthread.d
+make: *** [all] Error 2
