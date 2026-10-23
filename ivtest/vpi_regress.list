@@ -130,6 +130,8 @@ putp2			PLI1			putp2.c			putp2.log
 putvalue		normal			putvalue.c		putvalue.log
 range1			normal			range1.c		range1.gold
 realcb			normal			realcb.c		realcb.log
+m8_vpi_real_put_2017	normal,-g2017	m8_vpi_real_put.c	m8_vpi_real_put_2017.log
+m8_vpi_real_put_2023	normal,-g2023	m8_vpi_real_put.c	m8_vpi_real_put_2023.log
 realtime		normal			realtime.c		realtime.log
 realtime2		normal			realtime2.c		realtime2.log
 ro_synch		normal			ro_synch.c		ro_synch.gold

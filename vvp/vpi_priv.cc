@@ -1074,6 +1074,13 @@ double real_from_vpi_value(s_vpi_value*vp)
 	    result = (double) vp->value.integer;
 	    break;
 
+	  case vpiScalarVal:
+	  case vpiVectorVal:
+	    vec4 = vec4_from_vpi_value(vp, 32);
+	    // A VPI vector carries no signedness; convert it as unsigned.
+	    vector4_to_value(vec4, result, false);
+	    break;
+
 	  case vpiBinStrVal:
 	    vpip_bin_str_to_vec4(vec4, vp->value.str);
 	    if (vp->value.str[0] == '-') is_signed = true;

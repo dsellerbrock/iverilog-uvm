@@ -1,0 +1,2 @@
+candidate.patch: OK
+/var/spool/slurmd/job03370/slurm_script: line 87: name: unbound variable

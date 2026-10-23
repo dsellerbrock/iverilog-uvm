@@ -1,0 +1,4 @@
+base=8c95b5cc10fc83d15b47e0364d2d7b4a2e12cac1
+cpu=12
+cpus_per_task=4
+window=100:2100

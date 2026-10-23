@@ -8345,6 +8345,7 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
       FILE_NAME(ectl, loc);
 
       PAssignNB*tmp = new PAssignNB(lval, cycles, ectl, rval);
+      tmp->mark_clocking_drive();
       FILE_NAME(tmp, loc);
       return tmp;
 }

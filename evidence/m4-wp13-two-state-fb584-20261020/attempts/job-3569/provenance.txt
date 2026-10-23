@@ -1,0 +1,7 @@
+host=DAN-DESKTOP
+pinned_base=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+patch_sha256=2c23a8574b3d6eeb8eaca3a6a60b2f45cc005bdc9877944997c11fee98f3f0a0
+qd_bfm=d1529c922da402943148a0fb22648f347e30eed9
+caliptra_rtl=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+rtl_adams_bridge=b77e3d899e828d626cfc2a0d26a6b5704cc121e0
+window=100:2100

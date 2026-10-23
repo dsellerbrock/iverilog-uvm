@@ -1,0 +1,4 @@
+test,base_cycles_per_second,candidate_cycles_per_second,stats_cycles_per_second,candidate_over_base,tier_counts
+smoke_test_dma_aes_gcm_short_1_dword,10.970354,10.852329,6.516908,0.989241,"{""T0"": 0, ""T1"": 0, ""T2"": 0, ""T3"": 0, ""T4"": 0}"
+smoke_test_sha256,10.670085,10.876127,6.642532,1.019310,"{""T0"": 0, ""T1"": 0, ""T2"": 0, ""T3"": 0, ""T4"": 0}"
+cptra_ss_test_rom,9.892345,10.116338,6.268677,1.022643,"{""T0"": 0, ""T1"": 0, ""T2"": 0, ""T3"": 0, ""T4"": 0}"

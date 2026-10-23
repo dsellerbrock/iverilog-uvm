@@ -1,0 +1,1 @@
+18 corpus outputs identical after one isolated waveform_fst retry; focused T0/T4 outputs identical; three Caliptra tests have identical normalized logs and complete tier/throughput records. The batch exited 1 only during final checksum generation because a directory was passed to sha256sum; all measurements and comparison steps had completed.

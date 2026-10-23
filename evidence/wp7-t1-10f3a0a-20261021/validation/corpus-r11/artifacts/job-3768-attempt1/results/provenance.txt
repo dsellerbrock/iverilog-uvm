@@ -1,0 +1,3 @@
+base=10f3a0a2509d0852c2556cb6622fb0025121fb2d
+cpu=9
+cpus_per_task=4

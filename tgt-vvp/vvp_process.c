@@ -1426,6 +1426,50 @@ static int show_stmt_assign_nb_real(ivl_statement_t net)
       return 0;
 }
 
+static int draw_evctl_vif_object_(ivl_statement_t net, ivl_event_t ev)
+{
+      unsigned root_pin = ivl_event_vif_root_pin(ev);
+      ivl_expr_t vif_object_expr = ivl_event_vif_object_expr(ev);
+      ivl_nexus_t this_nex = 0;
+      if (ivl_event_nany(ev) > root_pin)
+	    this_nex = ivl_event_any(ev, root_pin);
+      else if (ivl_event_npos(ev) > root_pin)
+	    this_nex = ivl_event_pos(ev, root_pin);
+      else if (ivl_event_nneg(ev) > root_pin)
+	    this_nex = ivl_event_neg(ev, root_pin);
+
+      if (!this_nex && !vif_object_expr) {
+	    fprintf(stderr,
+		    "%s:%u: error: virtual-interface event %s has no root nexus\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net),
+		    ivl_event_basename(ev));
+	    return 1;
+      }
+      if (vif_object_expr) {
+	    if (draw_eval_object(vif_object_expr)) return 1;
+      } else {
+	    draw_object_from_net(this_nex, ivl_event_scope(ev));
+      }
+
+      unsigned path_count = ivl_event_vif_path_count(ev);
+      if (path_count > 0) {
+	    for (unsigned idx = 0; idx < path_count; idx += 1)
+		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+			  ivl_event_vif_path_index(ev, idx));
+	    fprintf(vvp_out, "    %%pop/obj %u, 1;\n", path_count);
+      } else if (ivl_event_vif_N(ev) != UINT_MAX) {
+	    unsigned pre_N = ivl_event_vif_pre_N(ev);
+	    int has_pre = (pre_N != UINT_MAX);
+	    if (has_pre)
+		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+	    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+		    ivl_event_vif_N(ev));
+	    fprintf(vvp_out, "    %%pop/obj %u, 1;\n", has_pre ? 2 : 1);
+      }
+
+      return 0;
+}
+
 static int show_stmt_assign_nb(ivl_statement_t net)
 {
       ivl_lval_t lval;
@@ -1433,6 +1477,9 @@ static int show_stmt_assign_nb(ivl_statement_t net)
       ivl_expr_t del  = ivl_stmt_delay_expr(net);
       ivl_signal_t sig;
       unsigned nevents = ivl_stmt_nevent(net);
+      lval = ivl_stmt_lval(net, 0);
+      int property_lvalue = ivl_lval_property_idx(lval) >= 0
+	    || ivl_lval_nest(lval);
 
       show_stmt_file_line(net, "Nonblocking assignment.");
 
@@ -1479,6 +1526,29 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	/* If we have an event control build the control structure. */
       if (nevents) {
 	    assert(del == 0);
+	    ivl_event_t vif_event = 0;
+	    const char*vif_edge = 0;
+	    if (property_lvalue) {
+		  for (unsigned idx = 0; idx < nevents; idx += 1) {
+			ivl_event_t ev = ivl_stmt_events(net, idx);
+			if (ivl_event_is_vif_posedge(ev)
+			    || ivl_event_is_vif_negedge(ev)
+			    || ivl_event_is_vif_anyedge(ev)) {
+			      if (nevents != 1) {
+				    fprintf(stderr,
+					    "%s:%u: vvp.tgt sorry: event-controlled "
+					    "property assignments with multiple virtual-interface "
+					    "events are not yet supported.\n",
+					    ivl_stmt_file(net), ivl_stmt_lineno(net));
+				    return 1;
+			      }
+			      vif_event = ev;
+			      vif_edge = ivl_event_is_vif_posedge(ev) ? "posedge"
+					: ivl_event_is_vif_negedge(ev) ? "negedge"
+					: "anyedge";
+			}
+		  }
+	    }
 
 	    ivl_expr_t cnt = ivl_stmt_cond_expr(net);
 	    unsigned long count = 1;
@@ -1487,6 +1557,21 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 		  count = ivl_expr_uvalue(cnt);
 		  cnt = 0;
 	    }
+	    if (vif_event) {
+		  int count_index = -1;
+		  if (cnt) {
+			count_index = allocate_word();
+			draw_eval_expr_into_integer(cnt, count_index);
+		  }
+		  if (draw_evctl_vif_object_(net, vif_event)) return 1;
+		  unsigned member_word = ivl_event_vif_member_word(vif_event);
+		  const char*count_mode = !cnt ? "/i"
+			: ivl_expr_signed(cnt) ? "/s" : "";
+		  fprintf(vvp_out, "    %%evctl/vif/%s%s %u, %u, %lu;\n",
+			  vif_edge, count_mode, ivl_event_vif_M(vif_event),
+			  member_word, cnt ? (unsigned long)count_index : count);
+		  if (count_index >= 0) clr_word(count_index);
+	    } else {
 
 	    char name[256];
 	    if (nevents == 1) {
@@ -1519,6 +1604,7 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else {
 		  fprintf(vvp_out, "    %%evctl/i %s, %lu;\n", name, count);
 	    }
+	    }
       } else {
 	    assert(ivl_stmt_cond_expr(net) == 0);
       }
@@ -1538,10 +1624,10 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 
 	/* Nonblocking store to a class-object / virtual-interface property
 	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
-	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields
-	   are supported, including variable selectors and constant delays. Residual property
-	   forms are rejected below; executing them as blocking assignments
-	   would silently change their event-region semantics. */
+	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields are
+	   supported, including variable selectors, constant delays, and event
+	   controls. Residual property forms are rejected below; executing them as
+	   blocking assignments would silently change their event-region semantics. */
 	if (ivl_lval_property_idx(lval) >= 0 || ivl_lval_nest(lval) ||
 	    (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS)) {
 	    uint64_t prop_delay = 0;
@@ -1552,9 +1638,11 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else if (del) {
 		  can_delay = 0;
 	    }
-	    if (nevents == 0 && can_delay &&
-	        show_stmt_assign_nb_cobject(net, prop_delay) == 0)
+	    if (can_delay && show_stmt_assign_nb_cobject(net, prop_delay) == 0) {
+		  if (nevents)
+			fprintf(vvp_out, "    %%evctl/c;\n");
 		  return 0;
+	    }
 	    fprintf(stderr, "%s:%u: vvp.tgt error: this nonblocking "
 		    "property assignment form is not yet supported without "
 		    "changing its NBA semantics.\n",

@@ -1,0 +1,7 @@
+source=/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/source
+commit=cc25756d187314742d347267c2a513b3e640a7fb
+window=100:2100
+cpu=12
+perf=perf version 7.0.14
+host=DAN-DESKTOP
+model name	: Intel(R) Core(TM) Ultra 9 285K

@@ -19,6 +19,9 @@ void vvp_perf_stats_time_list_walk(unsigned length);
 void vvp_perf_stats_z3_context(void);
 void vvp_perf_stats_z3_check(void);
 void vvp_perf_stats_z3_model_eval(void);
+void vvp_perf_stats_z3_isolated_count_cache_hit(void);
+void vvp_perf_stats_z3_hull_cache_hit(void);
+void vvp_perf_stats_randomize_tier(unsigned tier);
 
 #endif
 #endif

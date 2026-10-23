@@ -24152,18 +24152,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(result, expr_wid, signed_flag_, *this);
 }
 
-/*
- * The SV-mode "Unable to bind ... (compile-progress: unresolved
- * reference)" WARNING exists for constructs whose typing/binding the
- * fork genuinely loses (clocking members, macro-collapsed names). A
- * reference that is package-scoped (`P::x`) or whose hierarchical
- * prefix names a REAL design scope (`m.x` where m is an instance) is
- * not such a case: the scope exists and the leaf name is genuinely
- * absent there -- e.g. imported names, which IEEE 1800-2017 26.3 says
- * are NOT visible through hierarchical or package-scoped paths
- * (ivtest sv_import_hier_fail1-3, sv_ps_hier_fail1/2). Those must
- * take the hard error.
- */
+/* Keep compile-progress warnings for unresolved frontend-stub names
+ * (clocking members, macro-collapsed names), but not for package-qualified
+ * names or hierarchical paths rooted in a real design scope. */
 static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
 					    const pform_scoped_name_t&path)
 {
@@ -24177,8 +24168,12 @@ static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
 	    if (! cur->index.empty())
 		  return false;
 	    prefix.push_back(hname_t(cur->name));
+	    // An inactive generate block leaves this full prefix absent, but a
+	    // real ancestor scope still makes the rest a hard unresolved path.
+	    if (des->find_scope(scope, prefix))
+		  return true;
       }
-      return des->find_scope(scope, prefix) != nullptr;
+      return false;
 }
 
 NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,

@@ -1,0 +1,588 @@
+=== sv_queue_slice_dollar_offset vvp_tests/sv_queue_slice_dollar_offset.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_offset: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_offset_lvalue_fail vvp_tests/sv_queue_slice_dollar_offset_lvalue_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_offset_lvalue_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left vvp_tests/sv_queue_slice_dollar_left.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left_2023 vvp_tests/sv_queue_slice_dollar_left_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left_fail vvp_tests/sv_queue_slice_dollar_left_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left_fail_2023 vvp_tests/sv_queue_slice_dollar_left_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left_lvalue_fail vvp_tests/sv_queue_slice_dollar_left_lvalue_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left_lvalue_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_dollar_left_lvalue_fail_2023 vvp_tests/sv_queue_slice_dollar_left_lvalue_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_dollar_left_lvalue_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_nonintegral_bound_fail vvp_tests/sv_queue_slice_nonintegral_bound_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_nonintegral_bound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_slice_variable_bounds vvp_tests/sv_queue_slice_variable_bounds.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_slice_variable_bounds: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_packed_part_select_variable_bound_fail vvp_tests/sv_packed_part_select_variable_bound_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_packed_part_select_variable_bound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_dynamic_array_slice_rvalue vvp_tests/sv_dynamic_array_slice_rvalue.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_rvalue: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_dynamic_array_slice_class_property vvp_tests/sv_dynamic_array_slice_class_property.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_class_property: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_dynamic_array_slice_class_property_2023 vvp_tests/sv_dynamic_array_slice_class_property_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_class_property_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_dynamic_array_slice_variable_bound_fail vvp_tests/sv_dynamic_array_slice_variable_bound_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_dynamic_array_slice_variable_bound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_associative_array_slice_fail vvp_tests/sv_associative_array_slice_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_associative_array_slice_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_ref_persistence vvp_tests/sv_queue_ref_persistence.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_ref_persistence: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_ref_arg_object_fork_detach vvp_tests/sv_ref_arg_object_fork_detach.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_ref_arg_object_fork_detach: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_darray_state_compat vvp_tests/sv_queue_darray_state_compat.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_darray_state_compat: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_darray_state_compat_2023 vvp_tests/sv_queue_darray_state_compat_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_darray_state_compat_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_darray_state_compat_fail vvp_tests/sv_queue_darray_state_compat_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_darray_state_compat_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_queue_darray_state_compat_fail_2023 vvp_tests/sv_queue_darray_state_compat_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_queue_darray_state_compat_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_commercial_unsafe_fail vvp_tests/sv_commercial_unsafe_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_commercial_unsafe_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_commercial_unsafe_fail_2023 vvp_tests/sv_commercial_unsafe_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_commercial_unsafe_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_commercial_unsafe_strict_fail vvp_tests/sv_commercial_unsafe_strict_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_commercial_unsafe_strict_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_commercial_unsafe_strict_fail_2023 vvp_tests/sv_commercial_unsafe_strict_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_commercial_unsafe_strict_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_bounded_queue_same_kind_contexts vvp_tests/sv_bounded_queue_same_kind_contexts.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_bounded_queue_same_kind_contexts: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_bounded_queue_same_kind_contexts_2023 vvp_tests/sv_bounded_queue_same_kind_contexts_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_bounded_queue_same_kind_contexts_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_destination vvp_tests/sv_container_cross_kind_destination.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_destination: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_destination_2023 vvp_tests/sv_container_cross_kind_destination_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_destination_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_contexts vvp_tests/sv_container_cross_kind_contexts.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_contexts: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_contexts_2023 vvp_tests/sv_container_cross_kind_contexts_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_contexts_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_lifetime vvp_tests/sv_task_output_container_lifetime.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_lifetime: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_lifetime_2023 vvp_tests/sv_task_output_container_lifetime_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_lifetime_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_untouched_default vvp_tests/sv_task_output_container_untouched_default.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_untouched_default: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_untouched_default_2023 vvp_tests/sv_task_output_container_untouched_default_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_untouched_default_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_formal_compat vvp_tests/sv_task_output_container_formal_compat.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_formal_compat: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_formal_compat_2023 vvp_tests/sv_task_output_container_formal_compat_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_formal_compat_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_formal_fail vvp_tests/sv_task_output_container_formal_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_formal_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_task_output_container_formal_fail_2023 vvp_tests/sv_task_output_container_formal_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_task_output_container_formal_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_container_formal_compat vvp_tests/sv_nonvoid_function_container_formal_compat.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_container_formal_compat: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_container_formal_compat_2023 vvp_tests/sv_nonvoid_function_container_formal_compat_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_container_formal_compat_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_fixed_output_copyback_shape vvp_tests/sv_fixed_output_copyback_shape.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_fixed_output_copyback_shape: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_fixed_output_copyback_shape_2023 vvp_tests/sv_fixed_output_copyback_shape_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_fixed_output_copyback_shape_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_container_formal_fail vvp_tests/sv_nonvoid_function_container_formal_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_container_formal_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_container_formal_fail_2023 vvp_tests/sv_nonvoid_function_container_formal_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_container_formal_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_subroutine_nested_container_formal_fail vvp_tests/sv_subroutine_nested_container_formal_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_subroutine_nested_container_formal_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_subroutine_nested_container_formal_fail_2023 vvp_tests/sv_subroutine_nested_container_formal_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_subroutine_nested_container_formal_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_subroutine_fixed_container_state_formal_fail vvp_tests/sv_subroutine_fixed_container_state_formal_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_subroutine_fixed_container_state_formal_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_subroutine_fixed_container_state_formal_fail_2023 vvp_tests/sv_subroutine_fixed_container_state_formal_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_subroutine_fixed_container_state_formal_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_empty_task_input_side_effect vvp_tests/sv_empty_task_input_side_effect.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_empty_task_input_side_effect: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_empty_task_input_side_effect_2023 vvp_tests/sv_empty_task_input_side_effect_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_empty_task_input_side_effect_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_static_task_output_auto_frame vvp_tests/sv_static_task_output_auto_frame.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_static_task_output_auto_frame: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_static_task_output_auto_frame_2023 vvp_tests/sv_static_task_output_auto_frame_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_static_task_output_auto_frame_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_builders vvp_tests/sv_container_cross_kind_builders.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_builders: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_builders_2023 vvp_tests/sv_container_cross_kind_builders_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_builders_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_selected_container_struct_fixed_member_read vvp_tests/sv_selected_container_struct_fixed_member_read.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_selected_container_struct_fixed_member_read: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_selected_container_struct_fixed_member_read_2023 vvp_tests/sv_selected_container_struct_fixed_member_read_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_selected_container_struct_fixed_member_read_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_unpacked_concat_nested_scalar_fail vvp_tests/sv_unpacked_concat_nested_scalar_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_unpacked_concat_nested_scalar_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_unpacked_concat_nested_scalar_fail_2023 vvp_tests/sv_unpacked_concat_nested_scalar_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_unpacked_concat_nested_scalar_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_provenance vvp_tests/sv_container_cross_kind_provenance.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_provenance: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_cross_kind_provenance_2023 vvp_tests/sv_container_cross_kind_provenance_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_cross_kind_provenance_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast vvp_tests/sv_container_explicit_cast.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast_2023 vvp_tests/sv_container_explicit_cast_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast vvp_tests/sv_positional_container_bitstream_cast.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast_2023 vvp_tests/sv_positional_container_bitstream_cast_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast_size_fail vvp_tests/sv_positional_container_bitstream_cast_size_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast_size_fail: Passed - EF.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast_size_fail_2023 vvp_tests/sv_positional_container_bitstream_cast_size_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast_size_fail_2023: Passed - EF.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast_bound_fail vvp_tests/sv_positional_container_bitstream_cast_bound_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast_bound_fail: Passed - EF.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_container_bitstream_cast_bound_fail_2023 vvp_tests/sv_positional_container_bitstream_cast_bound_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_container_bitstream_cast_bound_fail_2023: Passed - EF.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_conditional_explicit_cast vvp_tests/sv_container_conditional_explicit_cast.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_conditional_explicit_cast: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_conditional_explicit_cast_2023 vvp_tests/sv_container_conditional_explicit_cast_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_conditional_explicit_cast_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_conditional_explicit_cast_fail vvp_tests/sv_container_conditional_explicit_cast_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_conditional_explicit_cast_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_conditional_explicit_cast_fail_2023 vvp_tests/sv_container_conditional_explicit_cast_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_conditional_explicit_cast_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_assoc_element_same_type vvp_tests/sv_positional_assoc_element_same_type.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_assoc_element_same_type: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_assoc_element_same_type_2023 vvp_tests/sv_positional_assoc_element_same_type_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_assoc_element_same_type_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_assoc_element_cast_fail vvp_tests/sv_positional_assoc_element_cast_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_assoc_element_cast_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_positional_assoc_element_cast_fail_2023 vvp_tests/sv_positional_assoc_element_cast_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_positional_assoc_element_cast_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_assoc_element_formal_fail vvp_tests/sv_nonvoid_function_assoc_element_formal_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_assoc_element_formal_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_nonvoid_function_assoc_element_formal_fail_2023 vvp_tests/sv_nonvoid_function_assoc_element_formal_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_nonvoid_function_assoc_element_formal_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast_fail vvp_tests/sv_container_explicit_cast_fail.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast_fail_2023 vvp_tests/sv_container_explicit_cast_fail_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast_fail_reverse vvp_tests/sv_container_explicit_cast_fail_reverse.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast_fail_reverse: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== sv_container_explicit_cast_fail_reverse_2023 vvp_tests/sv_container_explicit_cast_fail_reverse_2023.json ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /home/dsell/slurm-runs/iverilog-uvm/A3/issue671-t0t1-20261020-r14/input/one-vvp.list
+----------------------------------------------------------------------------
+sv_container_explicit_cast_fail_reverse_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.

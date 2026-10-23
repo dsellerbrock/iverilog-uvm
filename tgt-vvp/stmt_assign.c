@@ -5116,12 +5116,12 @@ static void resize_property_vec4_wid(ivl_expr_t expr, unsigned wid)
 }
 
 /* Nonblocking assignment to a vec4 class-object / virtual-interface
-   property: `obj.prop <= [#d] value` or a packed field thereof
-   (IEEE 1800-2017 10.4.2). Evaluates the receiver and the r-value NOW and
-   schedules the store in the NBA region via %assign/prop/v[/bits]. Returns
-   0 on success and -1 when the l-value form is not supported here. The
-   caller must reject that residual; executing it as a blocking assignment
-   would be a silent event-region miscompile. */
+   property: `obj.prop <= [#d] value` or an event-controlled assignment,
+   including a packed field thereof (IEEE 1800-2017 10.4.2). Evaluates the
+   receiver and r-value NOW and schedules the store in the NBA region via
+   %assign/prop/v[/bits]. Returns 0 on success and -1 when the l-value form
+   is not supported here. The caller must reject that residual; executing it
+   as a blocking assignment would be a silent event-region miscompile. */
 int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 {
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -5201,6 +5201,9 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
+
+	if (ivl_stmt_is_clocking_drive(net))
+	      fprintf(vvp_out, "    %%evctl/sync;\n");
 
       if (dynamic_part_off) {
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);

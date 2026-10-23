@@ -1,59 +1,29 @@
 # VVP performance research and experiment order
 
-Reviewed 2026-10-17 against the pinned A5 source base
-`c7ebca768c21c251d9c165c9aff0e363768030b1`. The Gemini report is useful
+Reviewed 2026-10-20 against current main
+`cc25756d187314742d347267c2a513b3e640a7fb`. The Gemini report is useful
 for candidate generation; its speedup multipliers are Amdahl projections,
 not VVP measurements. No external simulator's speedup is treated as a VVP
 prediction.
 
 ## What the source already does
 
-- `of_PROP_INDEX_CHECK` is registered as an `OA_STRING` instruction. At every
-  execution it parses `cp->text`, resizes a local `std::vector` of dimensions,
-  pops the corresponding index values, and computes the flat index
-  ([`compile.cc`](../../vvp/compile.cc), [`vthread.cc`](../../vvp/vthread.cc)).
-  This is a real predecode target. The runtime also defines behavior for bad
-  counts and malformed dimensions: the count may determine how many stack
-  values are popped even when later metadata is invalid. A cached descriptor
-  must preserve that behavior. `vvp_code_s` has no `prop_desc` field; it has a
-  three-word instruction with a pointer union and an existing owned-data
-  cleanup pattern (`container_data` in [`codes.h`](../../vvp/codes.h) and
-  [`codes.cc`](../../vvp/codes.cc)).
-  The prototype was built and passed a 32-case focused check, including
-  malformed metadata. Predecode alone reduced the 100,000-access Callgrind
-  count to 1,052,269,912 (−6.744313%); packed result construction improved
-  that to 1,024,423,467 (−9.212159%). A single-dimension fast path worsened
-  it to 1,027,723,440 (−8.919704%). The 100,000-access microbenchmark remains
-  below the 10% bar. A paired Caliptra mcycle 100–200 screen on the same pin
-  measured 184,080,599,400 → 165,194,086,031 instructions (−10.259915%) for
-  predecode plus packed result construction. The 18-workload Callgrind outputs
-  all matched, with no non-target instruction increase above +0.038453%; the
-  focused legacy and JSON lists passed 19/19 each, and malformed metadata
-  returned X for all 16 reads. Its fixed ECC inputs and visible simulation
-  prefix matched; the window intentionally stops before testbench completion,
-  so this is a screen, not a firmware pass. Pinned-base full gates passed in
-  job 1457, with zero JSON failure delta versus the reference; A4 confirmed
-  the 16 shared JSON failures were existing fixture defects corrected by #595.
-  The candidate was rebased once onto `845f54a5724c4d2af13dde40eca6d290c80c41d9`.
-  Because the pinned-path diff changed 12 `vvp/` files, Slurm job 1496 rebuilt
-  both sides on that base and measured 183,325,396,223 → 164,442,681,700
-  Callgrind instructions (−10.300108%) over the same Caliptra mcycle 100–200
-  window. Generated inputs and visible output matched, and the inverted
-  regression assertion was rejected. The VPI screen ends the simulation at
-  mcycle 200; this is not a firmware pass. Final post-rebase correctness gates
-  passed in job 1497; PR #599 has since merged. The run is in
-  [Caliptra evidence](../../evidence/wp2-predecode-caliptra-c7eb-20261015/attempt-1420/README.md);
-  earlier variants remain in [focused evidence](../../evidence/wp2-predecode-c7eb-20261015/README.md).
-- `vpip_vec4_to_int64_saturated` already has a fast path for a 2-state value
-  that fits in one native word (`small_2state_word`). Its fallback scans bits
-  to reject X/Z and handle arbitrary-width signedness and saturation.
-  `vvp_vector4_t::has_xz()` scans the B plane a machine word at a time; it is
-  not a single-instruction guard for wide vectors. `vvp_vector4_t::add` and
-  `sub` already use native word arithmetic and reject X/Z by checking the B
-  plane, including a one-word fast path. The report's broad arithmetic rewrite
-  is therefore not new work. A useful target is the converter's bit-wise
-  fallback, after profiling its widths and value patterns; the proposed helper
-  and `raw_*word0()` names in the Gemini sketch do not exist.
+- `%prop/index/check` is compiled from its operand string into an owned
+  `property_index_data` descriptor when the VVP instruction is loaded
+  ([`compile.cc`](../../vvp/compile.cc), [`codes.h`](../../vvp/codes.h),
+  [`codes.cc`](../../vvp/codes.cc)). Runtime execution no longer parses the
+  string or allocates a dimensions vector. It still pops every declared index
+  after invalid metadata and returns X for malformed metadata, X/Z, bounds, or
+  arithmetic overflow ([`vthread.cc`](../../vvp/vthread.cc)). PR #599 merged
+  this predecode after pinned and post-rebase screens and final gates passed;
+  the archived measurements remain historical evidence, not an unimplemented
+  opportunity.
+- `vpip_vec4_to_int64_saturated` has a one-word 2-state fast path and a fused
+  word-plane fallback that checks X/Z, sign extension, and overflow. The
+  fallback was measured and merged in #601; `vvp_vector4_t::has_xz()` scans
+  the B plane word by word, while `add` and `sub` already use native word
+  arithmetic with a one-word path. There is no broad 2-state opcode family.
+  The Gemini helper and `raw_*word0()` names do not exist.
 - `vvp_vector4_t` stores up to one `unsigned long` per A/B plane inline and
   allocates the planes for wider values. The vthread vec4 stack is a
   `std::vector<vvp_vector4_t>`; pushing copies a value, and popping copies
@@ -133,17 +103,28 @@ prediction.
   `631b7a869faaa05216d8749224520227b4b23d43`. On the latter, all 18 broad
   outputs match, the largest positive instruction change is +0.000684%, and
   all five correctness gates pass in job 1955. The three-run wall table
-  records every spread. Exact-head Fast Linux run 39016147281 and full test.yml run 39016152877 passed on e2b41a7; PR #601 merged as 06553bf. The relevant runtime, benchmark, and build-path diff from that tested head to current main is empty. The next separate target is
-  `of_LOAD_VEC4`; stack-slot capacity reuse follows.
+  records every spread. Exact-head Fast Linux run 39016147281 and full test.yml run 39016152877 passed on e2b41a7; PR #601 merged as 06553bf. The relevant runtime, benchmark, and build-path diff from that tested head to current main is empty. Job 3383 now ranks the combined
+  `of_LOAD_VEC4`/`copy_from_big_` path as the next Caliptra screen; stack-slot
+  capacity reuse remains a separate follow-up.
   Broader 2-state opcodes, wider inline storage, NBA coalescing, type tags,
   superinstructions, and JIT work remain separate measured experiments rather
   than assumed consequences of the Gemini projections.
+
+- Slurm job 3383 profiled current main `cc25756d187314742d347267c2a513b3e640a7fb`
+  over three 2,000-mcycle Caliptra windows and all 18 corpus workloads, with
+  zero lost samples. Caliptra self samples consistently rank `of_LOAD_VEC4`
+  first at 9.04–9.39%, followed by `copy_from_big_` at 3.30–3.70% and
+  `vthread_run` at 3.25–3.65%. The load symbol alone misses the 10% screen;
+  measure the combined load/copy path using instructions. Corpus priorities
+  include `vvp_vector4_t::mul` in `wide_vectors` (30.61%), `send_vec4` in
+  `rtl_alu` (11.73%), and callbacks in `vpi_callbacks` (15.02%). These are
+  sample shares, not speedups. See [job 3383 profile evidence](../../evidence/m3-current-main-profile-cc25756-20261020/README.md).
 
 ## Gemini phase audit
 
 | Report phase | What source verification supports | Campaign treatment |
 | --- | --- | --- |
-| **1: predecode `%prop/index/check`** | The pinned base parses the operand string and builds a local dimensions vector at execution. The stack-pop contract continues after invalid dimensions, so a descriptor must retain the parsed count and malformed-metadata behavior. | Pinned Caliptra screen: −10.259915%; post-rebase screen on `845f54a`: −10.300108%. The 100,000-access microbenchmark is −9.212159%. Focused checks and all 18 broad outputs match; pinned-base and final post-rebase full gates pass. PR #599 has since merged; the pinned and post-rebase measurement evidence remains archived. Both Caliptra screens end at mcycle 200 and are not firmware passes. |
+| **1: predecode `%prop/index/check`** | Current main stores a parsed descriptor at VVP load time. Runtime still preserves the required pop count and returns X on invalid metadata. | PR #599 merged after pinned and post-rebase screens (−10.259915% and −10.300108% on bounded Caliptra windows), matching focused and broad outputs, and final gates. The 100,000-access microbenchmark was −9.212159%; the bounded windows are instruction screens, not firmware passes. |
 | **1: vec4 conversion, word arithmetic, 2-state specialization** | The small 2-state fast path and word-wise add/sub already exist. The converter has explicit wide X/Z and overflow handling; a generalized 2-state opcode family remains unimplemented. | The initial `has_xz()` fallback remained below the 10% process bar. On pin 631b7a8, the fused converter improved the focused process by 20.535580%, passed all 18 broad output checks, and had no broad count increase above 0.000684%. All five correctness gates and the final three-run wall table passed. Exact-head Fast Linux run 39016147281 and full test.yml run 39016152877 passed on e2b41a7; #601 merged as 06553bf. Current main has no relevant runtime, benchmark, or build-path changes from that tested head. Do not infer gains for a new opcode family. |
 | **1: allocation reduction** | `vvp_vector4_t` has one inline word per plane; wider values allocate. The vthread vec4 stack is a `std::vector`, and assignment-event objects already use a slab allocator. | First measure stack widths, copies, and allocation counts; prototype live stack-slot capacity reuse. Wider inline storage, read-only slice views, and whole-vector NBA coalescing remain separate experiments with representation, lifetime, and event-order risks. |
 | **2: type tags, subtype checks, virtual-call cache** | Dynamic casts exist, but their aggregate count is not a hot-site profile. Class ancestry is walked through `runtime_super()`. Virtual method target resolution already has a memo keyed by runtime class and base method scope. | Profile casts and the existing memo on UVM/Caliptra before changing dispatch. Do not assume tags fit in padding or that subtype lookup is O(1); avoid adding a second cache unless lookup cost is material. |
@@ -214,7 +195,9 @@ sketches, not current VVP members.
    unsigned conversion, saturation, a 65-bit tail, and X/Z. Full correctness gates passed in job 1733 and the isolated three-run wall
    table is recorded in job 1758. At that earlier checkpoint exact-head CI was
    still pending; the later 631b remeasurement and merged #601 validation are
-   recorded above. Next screen `of_LOAD_VEC4` and vec4 stack-slot capacity reuse separately.
+   recorded above. Job 3383 ranks the combined `of_LOAD_VEC4`/`copy_from_big_`
+   path as the next Caliptra screen; consider vec4 stack-slot capacity reuse
+   separately after that screen.
 6. In phase 2, profile the existing virtual-dispatch memo and hot cast sites.
    Then select one safe bytecode pair from the pinned WP0 histogram; do not
    implement the report's top-15 set or assume `musttail` is drop-in.
@@ -267,13 +250,103 @@ sketches, not current VVP members.
 
 11. Slurm job 3275 compared the campaign base, matched M2 main, and current main `8c95b5c` on three interleaved 2,000-mcycle top-level Caliptra tests, with three repeats each. The three-test geometric mean is +27.84% over campaign base and +0.97% over matched M2 main. The current ROM median is 9.914 cycles/s (12.89% spread), below the requested 13.3 cycles/s goal. The earlier 10.608 rate used a 500-mcycle window; on the matched 2,000-mcycle window, current main is +1.28% over M2 main (9.914 vs 9.789). All 39 firmware inputs and normalized logs matched. The initial job summary carried a stale `cae0356` label; a corrected analyzer was rerun over the archived raw windows. See [job 3275 evidence](../../evidence/caliptra-m3-throughput-8c95b5c-20261020/README.md).
 
-12. The user selected WP7 tiered randomization as the next M3 package after this measurement. WP7 must report per-tier call histograms and speedups on `randomize_z3`, `randomize_dv_txn`, Caliptra UVM, and a sequence-heavy UVM test; preserve byte-identical seeded values unless the user explicitly approves changes; compare cached Z3 with a time-boxed local Bitwuzla spike; and add no required Bitwuzla dependency. See [`PERFORMANCE_PLAN.md`](PERFORMANCE_PLAN.md) for the active sequence.
+12. M3 WP7 T0 remains merged in PR #828; M5 resumes WP7 on pinned base
+   `10f3a0a2509d0852c2556cb6622fb0025121fb2d`. T1 focused checks preserve
+   byte-identical outputs: the cached scalar path hits 35/64 range, 40/64
+   enum, and 63/64 constant-dist calls. Job 3657's focused Callgrind ratios
+   are 1.523x range, 1.604x enum, and 37.037x overlapping constant `dist`.
+   The headline `randomize_z3` and `randomize_dv_txn` controls remain T3 and T4.
+   Job 3657's full corpus passed: all 18 outputs are byte-identical, the target
+   Callgrind ratios are 0.999959x and 1.000019x, and no other workload regressed
+   by more than 2%. The histogram confirms T1 handles none of those target
+   calls. The earlier UVM output mismatch came from separately compiled
+   bytecode embedding different absolute roots; job 3657 compiles once and
+   reuses the bytecode across both runtimes. Job 3681 ran the three 2,000-mcycle Caliptra tests on both binaries;
+   each had zero `randomize()` calls. The in-job comparator stopped on a
+   wall-clock progress heartbeat difference, but the offline analyzer confirmed
+   byte-identical functional logs and firmware hashes after normalizing only
+   instrumentation timing and source-root paths. T1 has no Caliptra speedup
+   opportunity. The 10x goal remains unmet, so continue with T2/T3.
+   A follow-up cached the isolated wide `addr` intervals for `randomize_dv_txn`;
+   its 400-call seeded trace stayed byte-identical, but target Callgrind
+   instructions regressed 8.797406% (0.919140x), above the 2% limit. That
+   interval-cache extension was removed. See the
+   [rejected T1 interval-cache evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-independent-domain/README.md).
+   The first T2 small-domain screen replays the current first 64 proposals for
+   enumerable two-state components: `randomize_z3` improved 38.02% (1.613x),
+   with 282/800 calls on T2; `randomize_dv_txn` stayed T4 and changed +0.000265%.
+   The inherited/invalid-graph-guarded 18-workload validation is queued as
+   Slurm job 3731 on the same pinned base. Focused job 3735 passed the later
+   guarded-zero matcher with byte-identical traces: `randomize_z3` improved
+   38.02% (1.613415x; 282/800 T2 calls), while `randomize_dv_txn` remained T4
+   and changed +0.000511% (0.999995x). That run did not include the full
+   corpus. Focused Slurm job 3742 measured the cumulative T1/T2/T3 stack:
+   `randomize_z3` improved 55.62% (2.253425x), while `randomize_dv_txn`
+   improved 6.00% (1.063843x) and missed the 10% gate. Both default-seed
+   per-draw traces matched; context creations fell from 800 to 33 and 1,000 to
+   63. Candidate transaction RSS rose 3.26%. No full-corpus or multi-seed
+   validation was run, so the candidate is not ready to promote and the 10x
+   goal remains unmet. See [T2 evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t2-small-dom/README.md), [T3 evidence](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t3-context-reuse/README.md), and [solver details](SOLVER.md).
+   Focused T3 job 3752 measured a bounded per-context isolated-factor cache on
+   the same pin. Default-seed outputs matched, but the result was effectively
+   unchanged from job 3742: 2.253642x on `randomize_z3`, 1.063667x on
+   `randomize_dv_txn`, and +3.69% transaction peak RSS. It missed the 10% DVT
+   gate, so the analysis cache is rejected and the full corpus was not run.
+   The DVT inclusive profile assigns 23.38% to repeated isolated-domain count
+   work. T1 job 3759 tried a positive-only cache keyed by the full active
+   assertion list, but recorded zero hits and no additional target speedup;
+   that key is too narrow across per-draw pins. Job 3763 keyed by the exact
+   isolated factor AST, subject, width, and cap, hit 874/1,000 DVT calls, and
+   preserved default-seed outputs. Callgrind improved `randomize_z3` 2.254952x
+   and `randomize_dv_txn` 1.453790x. The screen passed; multi-seed and full-
+   corpus validation remain. See the
+   [profile](../../evidence/perf-research-20261014/profiles/randomize_dv_txn.txt),
+   [job 3763](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-factor-count-cache/artifacts/job-3763/),
+   and [job 3759](../../evidence/wp7-t1-10f3a0a-20261021/attempts/t1-positive-count-cache/artifacts/job-3759/)
+   and [solver details](SOLVER.md).
+   Bitwuzla's
+   hard QF_BV microbenchmark advantage does not close its soft/dist/solve-before
+   gaps, so Z3 remains the full-semantics recommendation; no seed or
+   distribution change is authorized. See [SOLVER.md](SOLVER.md), [M3 WP7
+   evidence](../../evidence/wp7-tiered-rand-8c95-20261020/README.md), and [M5
+   T1 evidence](../../evidence/wp7-t1-10f3a0a-20261021/README.md).
+   The frozen job-3763 candidate is now validated on its pinned base: eight
+   seeds matched byte-for-byte; the full 18-workload screen improved
+   `randomize_z3` 2.253387x and `randomize_dv_txn` 1.454097x, with no other
+   workload over the 2% regression limit; job 3769 passed the full correctness
+   gates. The three Caliptra cases made zero randomize calls and their
+   normalized functional logs and firmware hashes matched. FST required two
+   clean Callgrind pairs because Valgrind intermittently segfaulted; failed
+   partial profiles were excluded. The M5 10x target remains unmet. See the
+   [final WP7 validation](../../evidence/wp7-t1-10f3a0a-20261021/validation/corpus-r11/).
+13. Slurm job 3383 on main `cc25756d` was re-screened inclusively for WP13 on
+   the pinned M4 base `fb584a251`. Across the three Caliptra tests, the
+   deduplicated union of vector4-plane, arithmetic, copy, construction,
+   comparison, resize, propagation, and net-functor samples is 45.53–47.50%,
+   an ideal 1.836–1.905x Amdahl ceiling (1.869x equal-weight combined).
+   Generic load/store dispatch is reported separately and not credited. A
+   narrow elaboration-proven unforced `.net/2u` wire-read prototype measured
+   −0.87% over three tests and was rejected; the all-`vec4_value` upper bound
+   is 6.61–6.96% by symbol before restricting to eligible wires. See
+   [inclusive WP13 evidence](../../evidence/m4-wp13-two-state-fb584-20261020/README.md)
+   and [profile source](../../evidence/m3-current-main-profile-cc25756-20261020/README.md).
 
 WP1's prior screen was −3.31% `behav` instructions on its own pinned base,
 below the 10% keep threshold; do not repeat it unless its runtime code changes.
 Keep one active A5 PR and one pinned base per WP. Record that SHA in each
 evidence directory and PR table. Rebase once, immediately before merge, and
 remeasure only if the final runtime/benchmark/build-path diff requires it.
+
+
+## M4 structural screens
+
+The M4 measurement pin is fb584a251dd4cc91e56a75be662ccd5ee05c64e9. Slurm job 3383 profiled the same hot VVP load, scheduling, and net-propagation source paths on cc25756d; the intervening runtime diff is confined to class-object constraint tracking, performance counters, and the Z3 solver.
+
+The inclusive WP13 screen on pinned base `fb584a251` gives a 1.836–1.905x ideal ceiling across the three Caliptra profiles after deduplicating overlapping sample stacks (1.869x equal-weight combined). The 68 overlapping rows include vector construction/destruction, send/receive propagation, `copy_from_big_`, `vec4_value`, arithmetic, logic, comparison, resize, and wire/array propagation. Only an elaboration-proven, unforced `.net/2u` `vvp_wire_vec4` read could use the prototype; the other generic vector and propagation rows remain unchanged. The corrected X/Z force-fallback fixture passed on the candidate, but its three-test A/B measured −0.87% geometric mean, so the prototype was rejected. Job 3570 measured the pinned base at 10.547 cycles/s and the candidate at 10.455 cycles/s; both are below the 14.884 cycles/s target. WP12 has no eligible identical-trigger process group; `multi_clock`'s 15.65% `vthread_run` share comes from 32 processes with distinct clocks, while Caliptra's entire `vthread_run` share is 3.25–3.65%. WP11 has no group to levelize, and the earlier MUXZ candidate changed an observable delta trace. These are limits for the screened paths, not a global VVP ceiling. Details and throughput table are in [M4 closeout evidence](../../evidence/m4-structural-closeout-fb584-20261020/README.md).
+
+## M6 Caliptra early close-out
+
+On pinned base `65b8bf2045dfa7a66120bb8c81d8941e97d6daaa`, Slurm job 4323 measured 11.076984 cycles/s on DMA, 11.153798 on SHA-256, and 11.167282 on ROM (three-test geometric mean 11.132617; 2,000-mcycle windows). The fresh top ten has no remaining WP5–WP13 candidate with a supported +3% cycles/s projection: WP4 load work is merged; WP13's tested fast path regressed 0.87%; WP11/WP12 lack eligible fused work; allocator samples lack stack-slot attribution; the remaining individual symbols have sub-3% ideal ceilings. M6 closed under the early-stop rule without starting a WP. The Caliptra profiles are valid with zero lost samples and matching repeated outputs; the separate corpus pass failed on `waveform_fst` exit 139, so no full corpus result is claimed. See [M6 close-out evidence](../../evidence/m6-baseline-65b8bf2-20261022/README.md). This is not a global VVP ceiling.
 
 ## Sources
 

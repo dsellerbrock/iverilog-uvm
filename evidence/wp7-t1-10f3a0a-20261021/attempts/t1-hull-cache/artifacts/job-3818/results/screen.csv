@@ -1,0 +1,3 @@
+workload,base,current_pr,candidate,candidate_vs_current_pr
+randomize_dv_txn,106077741143,72981246600,44754551050,1.630700x
+randomize_z3,13023158864,5781316490,5782607074,0.999777x
