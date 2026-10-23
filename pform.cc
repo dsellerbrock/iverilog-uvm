@@ -13745,14 +13745,13 @@ void pform_flush_pending_sampled_calls()
 		    // small as `$rose(a) |-> b and c'. The location was
 		    // captured by value when the call was noted precisely
 		    // so this does not have to touch the node.
-		  cerr << p.loc.get_fileline() << ": warning: this sampled "
+		  cerr << p.loc.get_fileline() << ": error: this sampled "
 		       << "value function has no clocking event to sample on "
-		       << "(IEEE 1800-2017 16.9.3): it is not inside a "
+		       << "(IEEE 1800 16.9.3): it is not inside a "
 		       << "concurrent assertion, not inside an edge-triggered "
 		       << "always block, and the module declares no default "
-		       << "clocking. It falls back to the unsampled value -- "
-		       << "$past returns the current value and $rose/$fell "
-		       << "return 0." << endl;
+		       << "clocking." << endl;
+		  error_count += 1;
 	    }
 	    sampled_pending_.clear();
 	    return;
