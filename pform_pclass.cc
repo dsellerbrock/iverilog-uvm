@@ -261,7 +261,8 @@ void pform_blend_class_constructors(PClass*pclass)
       else if (use_new2 && use_new == 0)
             chain_new = use_new2->extract_chain_constructor();
 
-      if (pclass->type->base_default && chain_new
+      if ((pclass->type->base_default || !pclass->type->base_args.empty())
+          && chain_new
           && !chain_new->is_synthesized()) {
 	    cerr << pclass->get_fileline()
 		 << ": error: A class with arguments in its extends specifier "
