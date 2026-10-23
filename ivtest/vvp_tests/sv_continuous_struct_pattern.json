@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_continuous_struct_pattern.v",
+    "iverilog-args": ["-g2017", "-s", "sv_continuous_struct_pattern"],
+    "gold": "sv_continuous_struct_pattern"
+}
