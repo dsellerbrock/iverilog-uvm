@@ -30195,6 +30195,32 @@ bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
       thr->pop_object(1);
       if (!target) return true;
 
+      /* A nonparameterized mailbox retains each message's runtime type.
+       * The boxed representations distinguish the singular value kinds;
+       * reject a message that cannot have the receiver's type instead of
+       * silently manufacturing a zero/empty value during unboxing. */
+      bool type_matches = false;
+      switch (target->value_kind()) {
+          case vvp_lvalue_ref::VALUE_VEC4:
+            type_matches = item.peek<vvp_boxed_vec4>() != 0;
+            break;
+          case vvp_lvalue_ref::VALUE_REAL:
+            type_matches = item.peek<vvp_boxed_real>() != 0;
+            break;
+          case vvp_lvalue_ref::VALUE_STRING:
+            type_matches = item.peek<vvp_boxed_string>() != 0;
+            break;
+          case vvp_lvalue_ref::VALUE_OBJECT:
+            type_matches = item.peek<vvp_cobject>() != 0;
+            break;
+      }
+      if (!type_matches) {
+            cerr << thr->get_fileline()
+                 << "runtime error: mailbox message type is not equivalent to the receiver type."
+                 << endl;
+            return true;
+      }
+
       switch (target->value_kind()) {
           case vvp_lvalue_ref::VALUE_VEC4: {
             vvp_vector4_t value(target->value_width(), BIT4_0);

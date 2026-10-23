@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_mailbox_get_type_mismatch_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_mailbox_get_type_mismatch" ],
+    "gold"          : "sv_mailbox_get_type_mismatch"
+}
