@@ -4441,6 +4441,40 @@ static void validate_class_type_parameter_restrictions_(
       }
 }
 
+static void validate_module_type_parameter_restrictions_(
+	Design*des, const Module*module, NetScope*module_scope)
+{
+      for (std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+		   module->parameters.begin()
+	   ; param != module->parameters.end(); ++param) {
+	    if (!param->second || !param->second->type_flag)
+		  continue;
+
+	    PScope::typedef_map_t::const_iterator declared =
+		  module->typedefs.find(param->first);
+	    if (declared == module->typedefs.end() || !declared->second)
+		  continue;
+	    const type_parameter_t*type_parameter = dynamic_cast<const type_parameter_t*>(
+		  declared->second->get_data_type());
+	    if (!type_parameter
+		|| type_parameter->restriction == type_parameter_restriction_t::NONE)
+		  continue;
+
+	    ivl_type_t actual_type = 0;
+	    module_scope->get_parameter(des, param->first, actual_type);
+	    if (!actual_type || type_parameter_matches_restriction_(
+		  actual_type, type_parameter->restriction))
+		  continue;
+
+	    cerr << param->second->get_fileline()
+		 << ": error: Type argument for module type parameter `"
+		 << param->first << "' does not satisfy the `type "
+		 << type_parameter_restriction_name_(type_parameter->restriction)
+		 << "' restriction." << endl;
+	    des->errors += 1;
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -5474,6 +5508,10 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	// containing scope and meant for me.
 
       replace_scope_parameters(des, scope, *this, replacements);
+
+	// Type parameter overrides are now installed. Check restricted types
+	// before elaborating declarations that use those parameters.
+      validate_module_type_parameter_restrictions_(des, this, scope);
 
       elaborate_scope_enumerations(des, scope, enum_sets);
 

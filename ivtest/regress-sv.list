@@ -5866,3 +5866,6 @@ sv_multidimensional_array_equality_2023 normal,-g2023,-s,sv_multidimensional_arr
 # Enum unbased unsized fill values are evaluated in base type context.
 sv_enum_unbased_x normal,-g2017,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold
 sv_enum_unbased_x_2023 normal,-g2023,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold
+sv_module_restricted_type_param_2017 CE,-g2017,-s,sv_module_restricted_type_param ivltests gold=sv_module_restricted_type_param_2017.gold
+sv_module_restricted_type_param_2023 normal,-g2023,-s,sv_module_restricted_type_param ivltests gold=sv_module_restricted_type_param_2023.gold
+sv_module_restricted_type_param_bad_2023 CE,-g2023,-s,sv_module_restricted_type_param_bad ivltests gold=sv_module_restricted_type_param_bad_2023.gold

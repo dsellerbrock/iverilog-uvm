@@ -1,0 +1,7 @@
+ivltests/sv_module_restricted_type_param.v:11: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:15: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:19: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:23: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:27: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:31: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+ivltests/sv_module_restricted_type_param.v:35: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
