@@ -1,0 +1,3 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p18_05_9_global	0	124	0.01	12100	32.01	41692
+2023	p18_05_9_global	0	124	0.01	12064	32.01	41488

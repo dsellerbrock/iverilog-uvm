@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_16_repl_nonconst_integral.sv:1: error: A string concatenation or replication cannot be assigned to an integral target without an explicit cast.
+Elaboration failed

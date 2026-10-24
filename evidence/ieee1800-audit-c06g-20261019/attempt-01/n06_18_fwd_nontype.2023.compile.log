@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1: error: 'X' has already been declared in this scope.
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1:      : It was declared here as a symbol.

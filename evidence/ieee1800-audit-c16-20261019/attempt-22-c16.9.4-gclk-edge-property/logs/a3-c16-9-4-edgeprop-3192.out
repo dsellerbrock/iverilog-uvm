@@ -1,0 +1,9 @@
+job_id=3192
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:24:59-06:00
+e71dd88bdde1b0f703a5ccd4a6b1b9b6eb1150967afe0b29301b027dcbf586c3  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-edgeprop-20261019-22/input/p16_09_04_gclk_edge_property.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+edition=2017 compile_exit=0 run_exit=1
+edition=2023 compile_exit=0 run_exit=1

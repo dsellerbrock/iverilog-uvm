@@ -1,0 +1,1 @@
+After copying all source, result files, hashes, and Slurm output into this evidence directory, removed the unique Slurm run directories for jobs 3519 and 3520. This freed 20,759 + 10,741 = 31,500 bytes. The pinned read-only toolchain under `/home/dsell/toolchains/` was retained.

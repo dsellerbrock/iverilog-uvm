@@ -1,0 +1,4 @@
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 11
+A q=0 nc=1
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 44
+B nc=2

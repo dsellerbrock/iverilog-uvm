@@ -1,0 +1,21 @@
+RESULT rc=1 value=                              t1 raw=0000000000000000000000000000000000000000000000000000000000007431
+RESULT rc=1 value=                              t1 raw=0000000000000000000000000000000000000000000000000000000000007431
+RESULT rc=1 value=                              t1 raw=0000000000000000000000000000000000000000000000000000000000007431
+        0.07 real         0.01 user         0.00 sys
+             6373376  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1400  page reclaims
+                   9  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  32  involuntary context switches
+           137226610  instructions retired
+            43304984  cycles elapsed
+             3752320  peak memory footprint

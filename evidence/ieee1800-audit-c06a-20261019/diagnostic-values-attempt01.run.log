@@ -1,0 +1,4 @@
+member='obj' len=8 upper='OBJ'
+member_after_write='O' len=8
+arr0='a' arr1='bb' arr2='ccc'
+atohex_decimal=-559038737 hex=deadbeef equal=1

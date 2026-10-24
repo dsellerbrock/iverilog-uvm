@@ -1,0 +1,5 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_procedural_members.sv:8: sorry: procedural write of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_procedural_members.sv:9: sorry: procedural write of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_procedural_members.sv:10: sorry: procedural read of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_procedural_members.sv:10: sorry: procedural read of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
+4 error(s) during elaboration.

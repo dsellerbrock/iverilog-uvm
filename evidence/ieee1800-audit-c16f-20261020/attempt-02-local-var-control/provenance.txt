@@ -1,0 +1,4 @@
+Purpose: Positive syntax/runtime control for §16.13.7 probe.
+Control source: existing tests/1800_audit/c16/p16_10_local_vars_property.sv (local property variable without declaration initializer; explicit sequence match-item assignment).
+Compiler: pinned shared toolchain /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb.
+Slurm request: 1 CPU, 1 GiB, 10 minutes; compile/run command timeout 30 seconds each.

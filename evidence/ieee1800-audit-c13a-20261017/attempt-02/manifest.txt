@@ -1,0 +1,15 @@
+IEEE 1800 clause 13 probe c13a, attempt 02
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08
+Committed base: 1b682f5391d5b666bc940199a9d8961aaaf9d813
+This rerun uses only the five lead-assigned isolated sources (args_core, output-default, inout-default, implicit-static-ref negative, unresolved-input-default negative). Original mixed probe remains unchanged as attempt-01 evidence.
+Toolchain: protected shared Icarus from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66; `iverilog` SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; `vvp` SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a.
+Host: DAN-DESKTOP (Slurm); requested 1 CPU, 1 GiB, 10-minute cap. Per-compile 30 s and per-run 10 s, TERM then KILL after 2 s.
+?? evidence/ieee1800-audit-c13a-20261017/
+?? tests/1800_audit/c13/
+657f6727393619622189c6361bd713aacca58ad19bdc559389aff2fa5cd380a5  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_args_core.sv
+679057cc63aece63cf327e7bcb12bf186aa3e5c16adc29a6d306dfbe90c066d8  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_3_output_default.sv
+d2f8f8b1330c24579c664e9f160bb453cb94cd40e9fbef9b151b673555be95ff  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_3_inout_default.sv
+c0422771320397e387c1c9fa0d6e071a7f3d7fe83abd29216f5221534cf3ad7d  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_in_implicit_static_sub.sv
+14ab1cbd72f6ec8d0a9e32361ff4af9c75778bffe5e9e45c10a76a93a53b5c82  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_default_unresolved_input.sv
+2017 normative page check: printed p.332 contains §13.5.3 and states the optional argument direction may be input, inout, output, or ref; it also says the default is evaluated at each call using it and omitted arguments with no default are a compiler error. Printed p.333 has the output-default example. This confirms output and inout defaults are normative in 2017 as well as 2023.

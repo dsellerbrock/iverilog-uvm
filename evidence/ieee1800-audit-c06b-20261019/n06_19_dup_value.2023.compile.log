@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_19_dup_value.sv:2: error: Enumeration name d and c have the same value: 32'sd8
+1 error(s) during elaboration.

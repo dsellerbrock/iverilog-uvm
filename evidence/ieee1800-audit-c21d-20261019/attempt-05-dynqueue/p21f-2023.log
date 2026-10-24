@@ -1,0 +1,22 @@
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04b_dynqueue.sv:6: $readmemh's second argument must be a memory.
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04b_dynqueue.sv:7: $readmemh's second argument must be a memory.
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04b_dynqueue.sv:8: $writememh's second argument must be a memory.
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04b_dynqueue.sv:8: $readmemh's second argument must be a memory.
+        0.07 real         0.01 user         0.00 sys
+             6422528  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1308  page reclaims
+                   9  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  30  involuntary context switches
+           135126225  instructions retired
+            45541735  cycles elapsed
+             3785088  peak memory footprint

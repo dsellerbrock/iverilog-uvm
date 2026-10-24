@@ -1,0 +1,22 @@
+ERROR: tests/1800_audit/c20/r20_11_error.sv:1:
+tests/1800_audit/c20/r20_11_error.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+       During elaboration  Scope: genblk1
+2 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4882432  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1766  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  60  involuntary context switches
+            18559192  instructions retired
+             9899955  cycles elapsed
+             1245544  peak memory footprint

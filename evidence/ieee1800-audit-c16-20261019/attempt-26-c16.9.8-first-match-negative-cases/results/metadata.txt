@@ -1,0 +1,9 @@
+job_id=3196
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:33:32-06:00
+probe=composed edition=2017 compile_exit=1
+probe=match_item edition=2017 compile_exit=3
+probe=composed edition=2023 compile_exit=1
+probe=match_item edition=2023 compile_exit=3
+finished=2026-10-19T15:33:32-06:00

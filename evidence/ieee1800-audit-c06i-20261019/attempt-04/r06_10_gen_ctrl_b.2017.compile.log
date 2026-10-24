@@ -1,0 +1,1 @@
+tests/1800_audit/c06/r06_10_gen_ctrl_b.sv:1: warning: Unable to bind wire/reg/memory `w2' in `m' (compile-progress: unresolved reference).

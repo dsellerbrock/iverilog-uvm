@@ -1,0 +1,1 @@
+tests/1800_audit/c11/r11_12_decl_gen.sv:1: sorry: let declaration `f' outside direct module/interface scope is not supported yet; the let is dropped.

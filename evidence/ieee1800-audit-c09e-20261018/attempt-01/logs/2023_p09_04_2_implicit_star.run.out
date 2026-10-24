@@ -1,0 +1,7 @@
+PASS 9.4.2.2.star_includes_all_operands_and_function_args
+PASS 9.4.2.2.star_index_and_rhs_not_lvalue_base
+PASS 9.4.2.2.star_excludes_ids_only_in_event_expr
+FAIL 9.4.2.2.star_wakes_on_rhs_id
+PASS 9.4.2.2.inner_event_then_assign
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_implicit_star.sv:25: $finish called at 15 (1s)

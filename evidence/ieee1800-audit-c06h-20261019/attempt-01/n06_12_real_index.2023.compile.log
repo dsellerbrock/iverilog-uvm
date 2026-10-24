@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_12_real_index.sv:1: error: Index expression for v[+r] cannot be a real value.
+Elaboration failed

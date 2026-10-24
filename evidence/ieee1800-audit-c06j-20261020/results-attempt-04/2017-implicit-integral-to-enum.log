@@ -1,0 +1,3 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/n06_22b_implicit_integral_to_enum.sv:4: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.
+NEGATIVE COMPILE REJECT rc=1

@@ -1,0 +1,3 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-pastedge-20261019-21/input/p16_09_04_past_gclk_edge_funcs.sv:12: $rose_gclk expected 1 after sampled 0-to-1 transition
+       Time: 16000  Scope: test
+run_exit=1

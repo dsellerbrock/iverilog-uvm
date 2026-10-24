@@ -1,0 +1,10 @@
+QUERY=cast to a struct destination is not implemented
+[{"number":746,"state":"OPEN","title":"[IEEE 1800] §6.24.3 — bit-stream cast to a struct destination is not implemented","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/746"}]
+QUERY=cast to or from a fixed unpacked array is not implemented
+[{"number":747,"state":"OPEN","title":"[IEEE 1800] §6.24.3 — bit-stream cast to or from a fixed unpacked array is not implemented","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/747"}]
+QUERY=cast from a byte queue to string is not implemented
+[{"number":748,"state":"OPEN","title":"[IEEE 1800] §6.24.3 — bit-stream cast from a byte queue to string is not implemented","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/748"}]
+QUERY=cast from a struct or string source yields zeros
+[{"number":749,"state":"OPEN","title":"[IEEE 1800] §6.24.3 — bit-stream cast from a struct or string source yields zeros or a wrong size without an error","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/749"}]
+QUERY=struct-to-int cast with a size mismatch
+[{"number":750,"state":"OPEN","title":"[IEEE 1800] §6.24.3 — struct-to-int cast with a size mismatch is accepted instead of a compile-time error","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/750"}]

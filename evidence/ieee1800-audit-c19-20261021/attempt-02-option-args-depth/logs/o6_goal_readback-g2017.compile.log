@@ -1,0 +1,1 @@
+input/o6_goal_readback.sv:11: sorry: covergroup option members are not run-time state; this read evaluates to constant 0 (set options in the covergroup body instead).

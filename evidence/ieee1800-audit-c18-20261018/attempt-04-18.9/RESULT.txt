@@ -1,0 +1,7 @@
+# Clause 18.9 audit probe — attempt 04
+
+- Host: DAN-DESKTOP; Slurm job 2841 requested 1 CPU / 2 GiB and exited 1:0 immediately after the probe script's first negative case.
+- Positive `constraint_mode` probe compiled and ran successfully under both `-g2017` and `-g2023`, printing `PASS constraint_mode clause 18.9` in each edition.
+- `n18_09_nonexistent_constraint` under `-g2017` was rejected as expected with `Enable of unknown task ``it.nonexistent_c.constraint_mode''`.
+- The script stopped before remaining negative cases because its helper restored `set -e` before the caller captured the expected nonzero compiler status. This is a harness control-flow error, not a simulator test failure.
+- Raw compiler/VVP output, tool hashes, probe hashes, scheduler output, and script are retained alongside this record. Clause classification awaits the audit lead and a complete negative-case rerun if requested.

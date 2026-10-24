@@ -1,0 +1,19 @@
+fixed ['{1, 2, 3}]
+        0.05 real         0.02 user         0.01 sys
+             5488640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3271  page reclaims
+                  38  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   9  voluntary context switches
+                 129  involuntary context switches
+            32758725  instructions retired
+            15771146  cycles elapsed
+             1507712  peak memory footprint

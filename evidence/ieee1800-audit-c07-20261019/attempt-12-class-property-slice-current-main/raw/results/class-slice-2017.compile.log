@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c07-audit-20261019-12/source/tests/1800_audit/c07/p07_06_class_property_slice.sv:5: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+1 error(s) during elaboration.

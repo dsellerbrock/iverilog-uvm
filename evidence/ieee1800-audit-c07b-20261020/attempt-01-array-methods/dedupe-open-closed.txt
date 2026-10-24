@@ -1,0 +1,16 @@
+Required GitHub searches, run separately in open and closed state:
+- `array locator`: open #424; closed #422 and #43.
+- `find_index`: open none; closed #11.
+- `array reduction`: open #830 (foreach constraint loop-variable rules, unrelated); closed none.
+- `sum with`: open #775 (let/cast expansion, unrelated); closed #505 (DPI shortreal array args) and #544 (multidimensional open-array actuals), unrelated.
+- `sort with`: open none; closed #43, #11, and #27 (unrelated runtime tracker).
+- `item.index`: open none; closed none.
+- `7.12`: open none; closed none.
+Directly reviewed potential clause-7 overlap: #422 is locator support on multidimensional/non-integral/nonzero-based fixed-array receiver shapes; this probe uses a 1-D dynamic array. #424 concerns locator result types through wrappers/call expressions, not locator evaluation/order/reduction semantics. #11 concerns enum/queue advanced VPI methods; #43 concerns process/event/method-chain and unpacked-array method support, not the illegal `with` restriction or reduction result-width rule. No hit duplicates a gap from this probe.
+
+Additional searches for the two probe observations, separately open and closed:
+- `reverse with`: open none; closed #490 and #43. #490 was read directly: fixed class-property `.reverse()` runtime copyback only, unrelated to forbidden `with`; #43 is a broad completed array-method tracker, with `.reverse()` execution and `.min/.max/.sort()`, but not the §7.12.2 compile-time prohibition on `with`.
+- `shuffle with`: open none; closed #43, which does not state or test the illegal `with` restriction.
+- `reverse() with`, `shuffle() with`: no open or closed hits.
+- `array ordering`: open #425 associative-array min/max receiver, #430 unpacked-array NBA snapshot, #800 string formatting; closed #490 (class-property receiver), #491/#494 (constraint capture), #422 (locator shapes), #43 (array method support), #44 (parser cases). Reviewed related bodies; no duplicate for §7.12.2's illegal-with rule.
+- `nested array reduction`, `nested sum`, `2d reduction`, and `item.sum`: no open or closed hits.

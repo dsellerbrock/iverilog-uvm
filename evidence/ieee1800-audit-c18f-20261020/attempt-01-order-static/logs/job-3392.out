@@ -1,0 +1,16 @@
+edition	probe	compile_rc	run_rc
+2017	p18_05_order_static	0	0
+2017	p18_05_solve_real	1	NA
+2023	p18_05_order_static	0	0
+2023	p18_05_solve_real	0	1
+edition	probe	expected	compile_rc	first_diagnostic
+2017	p18_05_solve_real	nonzero	1	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020/input/p18_05_solve_real.sv:1: error: property 'a' of class C is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+2017	n18_05_solve_randc	nonzero	1	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020/input/n18_05_solve_randc.sv:1: error: 'randc' variables cannot be used in 'solve before' constraints.
+2017	n18_05_solve_nonrand	nonzero	0	
+2017	n18_05_solve_circular	nonzero	0	
+2017	n18_05_static_mismatch	nonzero	1	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020/input/n18_05_static_mismatch.sv:1: error: Out-of-body definition of constraint `e' does not match the prototype's static qualifier.
+2023	p18_05_solve_real	zero_and_run	0	ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real solve-before interval.
+2023	n18_05_solve_randc	nonzero	1	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020/input/n18_05_solve_randc.sv:1: error: 'randc' variables cannot be used in 'solve before' constraints.
+2023	n18_05_solve_nonrand	nonzero	0	
+2023	n18_05_solve_circular	nonzero	0	
+2023	n18_05_static_mismatch	nonzero	1	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020/input/n18_05_static_mismatch.sv:1: error: Out-of-body definition of constraint `e' does not match the prototype's static qualifier.

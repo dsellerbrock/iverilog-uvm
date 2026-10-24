@@ -1,0 +1,1 @@
+Additional paired-edition confirmation: `tests/1800_audit/c07/n07_12_shuffle_with.sv` (`initial s.shuffle with (item);`) compiles silently with rc 0 under both `-g2017` and `-g2023` on Icarus 13.0-devel `cc25756d1` (Slurm job 3513; raw logs: `evidence/ieee1800-audit-c07b-20261020/attempt-02-methods-r/`).

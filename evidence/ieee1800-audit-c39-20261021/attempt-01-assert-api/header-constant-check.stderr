@@ -1,0 +1,13 @@
+evidence/ieee1800-audit-c39-20261021/attempt-01-assert-api/header-constant-check.c:3:2: error: "IEEE Annex M vpiAssertionDisable is absent from sv_vpi_user.h"
+    3 | #error "IEEE Annex M vpiAssertionDisable is absent from sv_vpi_user.h"
+      |  ^
+evidence/ieee1800-audit-c39-20261021/attempt-01-assert-api/header-constant-check.c:6:2: error: "IEEE Annex M vpiAssertion is 744"
+    6 | #error "IEEE Annex M vpiAssertion is 744"
+      |  ^
+evidence/ieee1800-audit-c39-20261021/attempt-01-assert-api/header-constant-check.c:9:2: error: "IEEE Annex M vpiModport is 606"
+    9 | #error "IEEE Annex M vpiModport is 606"
+      |  ^
+evidence/ieee1800-audit-c39-20261021/attempt-01-assert-api/header-constant-check.c:12:2: error: "IEEE Annex M cbAssertionSysLock is missing from sv_vpi_user.h"
+   12 | #error "IEEE Annex M cbAssertionSysLock is missing from sv_vpi_user.h"
+      |  ^
+4 errors generated.

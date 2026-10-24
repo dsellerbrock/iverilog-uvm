@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv:4: warning: Unable to bind wire/reg/memory `g' in `top' (compile-progress: unresolved reference).
+Elaboration failed

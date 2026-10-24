@@ -1,0 +1,6 @@
+read_g=1
+write_g=1
+plus_g=1
+read_g=1
+write_g=1
+plus_g=1

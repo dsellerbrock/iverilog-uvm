@@ -1,0 +1,2 @@
+Q2 FAIL 25
+input/Q2_delay_1.sv:8: $finish called at 80 (1ns)

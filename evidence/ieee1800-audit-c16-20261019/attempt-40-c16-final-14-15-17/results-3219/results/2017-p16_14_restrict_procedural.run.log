@@ -1,0 +1,2 @@
+PASSED: §16.14 procedural restrict property
+/home/dsell/slurm-runs/iverilog-uvm/a3/c16-final-20261019-02/tests/1800_audit/c16/p16_14_restrict_procedural.sv:9: $finish called at 6 (1s)

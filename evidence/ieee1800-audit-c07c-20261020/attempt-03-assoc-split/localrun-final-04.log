@@ -1,0 +1,60 @@
+host=Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+date_utc=2026-10-20 17:49:46 UTC
+source_revision=cc25756d187314742d347267c2a513b3e640a7fb
+bison_version=bison (GNU Bison) 3.8.2
+f020677e0a56b162ec47e3f830da8861431762cfea9cc9734cacfa9496a61f6f  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a1_class_assoc_keys.sv
+a3befd9f16c64ee612f3631eb60f1a0100a8c8717af7d482bc5b6efac85f5682  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a2_derived_assoc_key.sv
+e183b43b26ebf281b5e7133c3d06eebc0e46e33db0cd3bccd85e9e9827154af4  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a3_null_assoc_key.sv
+a46de8317414e34d66362c2a61a2e7a5f35cb40154230de52909e68958ae1660  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a4_struct_assoc_key.sv
+5ac65d23a545144f26e1977d993eb4f0011f22f425657df11d854f117a1b50f3  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a5_assoc_array_assignment.sv
+62a466edcf9ac8350ab7d9f0d17ebedc5f9af8b19bcc4ad5735ebc07c7bd97d5  /tmp/a3-c07-assoc-cc257.liCmLZ/source/a6_assoc_array_args.sv
+build_rc=0
+tool_version=Icarus Verilog version 13.0 (devel) ()
+Unable to get version from "/tmp/a3-c07-assoc-cc257.liCmLZ/install/lib/ivl/ivlpp -V"
+Unable to get version from "/tmp/a3-c07-assoc-cc257.liCmLZ/install/lib/ivl/ivl -V -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh5f084bf" -C"/tmp/a3-c07-assoc-cc257.liCmLZ/install/lib/ivl/vvp.conf""
+5e3aecaddb84174c5d9151a24e627c61b418f53b741c5b9bc3ce400bc03414e4  /tmp/a3-c07-assoc-cc257.liCmLZ/install/bin/iverilog
+8f9c3fe2e0812520733c6eae38e4226d8501b5ed4a4f3b53bfcbb7538bceb3f8  /tmp/a3-c07-assoc-cc257.liCmLZ/install/bin/vvp
+BEGIN a1
+A1 2 1 2
+BEGIN a2
+A2 3 3
+BEGIN a3
+A3 1 4
+BEGIN a4
+BEGIN a5
+A5 1 9
+BEGIN a6
+A6 copy 1 9
+A6 byval 1
+A6 ref 200
+BEGIN a1
+A1 2 1 2
+BEGIN a2
+A2 3 3
+BEGIN a3
+A3 1 4
+BEGIN a4
+BEGIN a5
+A5 1 9
+BEGIN a6
+A6 copy 1 9
+A6 byval 1
+A6 ref 200
+       45.17 real        80.85 user        10.34 sys
+           845430784  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1416573  page reclaims
+               32589  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                 471  signals received
+                 976  voluntary context switches
+               65323  involuntary context switches
+           149408379  instructions retired
+            87467110  cycles elapsed
+             1966464  peak memory footprint

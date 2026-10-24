@@ -1,0 +1,2 @@
+C7b FAIL 20
+input/C7_explicit_overrides_default.sv:8: $finish called at 60 (1ns)

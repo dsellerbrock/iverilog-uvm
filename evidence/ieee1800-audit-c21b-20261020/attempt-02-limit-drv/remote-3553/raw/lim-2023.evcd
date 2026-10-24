@@ -1,0 +1,19 @@
+$date
+	Tue Oct 20 13:34:59 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module p21_evcd_limit.limited $end
+$var port 1 <0 d $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpports
+pD 6 0 <0
+$end
+$comment Dumpports file size limit (200 bytes) reached. $end
+$vcdclose #52000 $end

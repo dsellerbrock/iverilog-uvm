@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r25_wc_b.sv:10: error: Wildcard named port connection (.*) did not find a matching identifier for port 1 (sb_intf).
+1 error(s) during elaboration.

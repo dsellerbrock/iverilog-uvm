@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-02/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-02/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+2 error(s) during elaboration.

@@ -1,0 +1,2 @@
+Q3 FAIL 45
+input/Q3_delay_3.sv:8: $finish called at 80 (1ns)

@@ -1,0 +1,7 @@
+PASS 9.6.1.wait_fork_no_children_returns_immediately
+INFO 9.6.1.done_cnt=6 desc_done=2 elapsed=60
+FAIL 9.6.1.wait_fork_returns_at_last_immediate_child
+PASS 9.6.1.wait_fork_children_done
+FAIL 9.6.1.wait_fork_excludes_descendants
+PASS 9.6.1.descendants_still_ran
+DONE fails=2

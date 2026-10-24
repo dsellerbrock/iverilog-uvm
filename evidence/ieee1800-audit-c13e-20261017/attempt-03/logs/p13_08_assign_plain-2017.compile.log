@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: error: Unable to synthesize port 0 of call to dbl.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_plain.sv:3: internal error: Failed to synthesize expression: top.K.dbl(<null>, +a[31:0])
+3 error(s) during elaboration.

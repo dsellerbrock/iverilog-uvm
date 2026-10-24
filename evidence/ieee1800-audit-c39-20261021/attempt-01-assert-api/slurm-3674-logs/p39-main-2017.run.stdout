@@ -1,0 +1,12 @@
+HEADER_MISSING vpiAssertionDisable
+HEADER_VPI_ASSERTION 686
+ANNEX_ASSERTIONS 0
+ASSERT p39.pa
+ASSERTIONS 1
+CALLBACKS 2
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c39-20261021-01/input/p39.sv:6: 
+       Time: 5  Scope: p39
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c39-20261021-01/input/p39.sv:6: 
+       Time: 15  Scope: p39
+COUNTS 2 2
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c39-20261021-01/input/p39.sv:12: $finish called at 40 (1ns)

@@ -1,0 +1,2 @@
+W3 wait fork returned at 0
+input/w3_no_children.sv:8: $finish called at 0 (1ps)

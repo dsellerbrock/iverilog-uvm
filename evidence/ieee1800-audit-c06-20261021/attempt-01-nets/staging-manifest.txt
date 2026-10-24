@@ -1,0 +1,8 @@
+Purpose: lead-selected Clause 6.6 built-in and user-defined net types; 14 standalone cases, paired -g2017/-g2023.
+Local host: Mac; staged to DAN-DESKTOP Slurm.
+Branch: m7-1800-audit-c09
+Repository HEAD at staging: 8c954ecb2 (Clause 25.9 evidence pushed to draft PR #904).
+Working tree: audit evidence in progress; only these standalone inputs and run script are staged for the job.
+Pinned compiler: Icarus 13.0 devel cc25756d1 at /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb
+Resources requested: 1 CPU, 1 GiB, 20 min; every compile and simulation is capped at 30 seconds.
+Slurm job: 3764 (submitted after checking host uptime 7 days, 1:18; verilog partition 10/20 CPUs active, 10 idle).

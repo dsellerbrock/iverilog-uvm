@@ -1,0 +1,5 @@
+edition	case	compile_rc	run_rc	stdout_match
+2017	methods	1	NA	COMPILE_FAILED
+2017	reverse_with_negative	0	NA	ACCEPTED
+2023	methods	1	NA	COMPILE_FAILED
+2023	reverse_with_negative	0	NA	ACCEPTED

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-01/source/n10_10_fixed_size_mismatch.sv:3: error: unpacked array concatenation expects 3 element(s), found 2.
+Elaboration failed

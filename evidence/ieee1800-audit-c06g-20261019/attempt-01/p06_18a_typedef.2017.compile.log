@@ -1,0 +1,3 @@
+tests/1800_audit/c06/p06_18a_typedef.sv:11: error: C doesn't name a visible class.
+tests/1800_audit/c06/p06_18a_typedef.sv:14: syntax error
+tests/1800_audit/c06/p06_18a_typedef.sv:14: error: Syntax error in typedef clause.

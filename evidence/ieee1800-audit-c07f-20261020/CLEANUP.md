@@ -1,0 +1,1 @@
+After copying raw outputs, logs, sources, hashes, and results into the evidence tree, removed the unique run directories for jobs 3518, 3522, 3523, and 3524. Freed 21,587 + 14,196 + 32,729 + 43,226 = 111,738 bytes. Shared read-only inputs under `/home/dsell/toolchains/` were retained.

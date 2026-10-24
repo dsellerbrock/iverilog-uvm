@@ -1,0 +1,11 @@
+PASS 13.7.forward_ref_function
+PASS 13.7.forward_ref_task
+PASS 13.7.enclosing_scope_function_from_named_block
+PASS 13.8.spec_example_encoder_out
+PASS 13.8.spec_example_decoder_out
+PASS 13.8.encoder_C8
+PASS 13.8.decoder_C8
+PASS 13.8.encoder_C16_default_encode_w
+PASS 13.8.encoder_C4
+PASS 13.8.explicit_encode_w_override
+DONE fails=0

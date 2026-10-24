@@ -1,0 +1,70 @@
+r06_17_a g2017 compile rc=2
+tests/1800_audit/c06/r06_17_a.sv:1: syntax error
+tests/1800_audit/c06/r06_17_a.sv:1: error: Syntax error in event variable list.
+r06_17_b g2017 compile rc=2
+tests/1800_audit/c06/r06_17_b.sv:1: syntax error
+tests/1800_audit/c06/r06_17_b.sv:1: error: Syntax error in event variable list.
+r06_17_c g2017 compile rc=1
+tests/1800_audit/c06/r06_17_c.sv:1: warning: Could not find variable ``e2'' in ``m'' (compile-progress: assignment ignored).
+tests/1800_audit/c06/r06_17_c.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 2 error(s).
+run rc=0
+C 1
+r06_17_d g2017 compile rc=1
+tests/1800_audit/c06/r06_17_d.sv:1: warning: Could not find variable ``e'' in ``m'' (compile-progress: assignment ignored).
+tests/1800_audit/c06/r06_17_d.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 1 error(s).
+run rc=0
+D 1
+r06_17_e g2017 compile rc=0
+tests/1800_audit/c06/r06_17_e.sv:1: warning: Could not find variable ``e2'' in ``m'' (compile-progress: assignment ignored).
+run rc=0
+r06_17_f g2017 compile rc=1
+tests/1800_audit/c06/r06_17_f.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 2 error(s).
+run rc=0
+F 0
+r06_17_a g2023 compile rc=2
+tests/1800_audit/c06/r06_17_a.sv:1: syntax error
+tests/1800_audit/c06/r06_17_a.sv:1: error: Syntax error in event variable list.
+r06_17_b g2023 compile rc=2
+tests/1800_audit/c06/r06_17_b.sv:1: syntax error
+tests/1800_audit/c06/r06_17_b.sv:1: error: Syntax error in event variable list.
+r06_17_c g2023 compile rc=1
+tests/1800_audit/c06/r06_17_c.sv:1: warning: Could not find variable ``e2'' in ``m'' (compile-progress: assignment ignored).
+tests/1800_audit/c06/r06_17_c.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 2 error(s).
+run rc=0
+C 1
+r06_17_d g2023 compile rc=1
+tests/1800_audit/c06/r06_17_d.sv:1: warning: Could not find variable ``e'' in ``m'' (compile-progress: assignment ignored).
+tests/1800_audit/c06/r06_17_d.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 1 error(s).
+run rc=0
+D 1
+r06_17_e g2023 compile rc=0
+tests/1800_audit/c06/r06_17_e.sv:1: warning: Could not find variable ``e2'' in ``m'' (compile-progress: assignment ignored).
+run rc=0
+r06_17_f g2023 compile rc=1
+tests/1800_audit/c06/r06_17_f.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 2 error(s).
+run rc=0
+F 0
+        2.80 real         0.94 user         0.50 sys
+            16973824  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               84208  page reclaims
+                1069  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  11  signals received
+                 167  voluntary context switches
+                2333  involuntary context switches
+           162717759  instructions retired
+            91439003  cycles elapsed
+             2490848  peak memory footprint

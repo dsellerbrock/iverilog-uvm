@@ -1,0 +1,9 @@
+NB1 FAIL 5
+NB1 FAIL 15
+NB1 FAIL 25
+NB1 FAIL 35
+NB1 FAIL 45
+NB1 FAIL 55
+NB1 FAIL 65
+NB1 FAIL 75
+input/NB1_side_effect.sv:8: $finish called at 80 (1ns)

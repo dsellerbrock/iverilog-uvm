@@ -1,0 +1,4 @@
+top.u2.m v=5 t=5
+top.u2.m v=5 t=15
+top.u2.m v=5 t=25
+input/B3_instance_target.sv:16: $finish called at 30 (1ns)
