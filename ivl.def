@@ -431,6 +431,7 @@ ivl_type_queue_max_size
 ivl_type_constraints
 ivl_type_constraint_name
 ivl_type_constraint_ir
+ivl_type_constraint_static
 ivl_type_constraint_state_call_constraint
 ivl_type_constraint_state_call_dep
 ivl_type_constraint_state_call_dep_kind
