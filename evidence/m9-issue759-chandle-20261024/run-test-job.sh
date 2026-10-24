@@ -27,6 +27,6 @@ if [[ "$MODE" == fixed* ]]; then
     PATH="$PWD/local-install/bin:$PATH" bash ci/run-smoke.sh \
         > "evidence/m9-issue759-chandle-20261024/$MODE/t0/smoke.log" 2>&1
     bash evidence/m9-issue759-chandle-20261024/run-edge-probes.sh \
-        fixed "$PWD/local-install/bin/iverilog" "$PWD/local-install/bin/vvp" "$SOURCE_SHA"
+        "$MODE" "$PWD/local-install/bin/iverilog" "$PWD/local-install/bin/vvp" "$SOURCE_SHA"
 fi
 SOURCE_SHA="$SOURCE_SHA" bash evidence/m9-issue759-chandle-20261024/run-probes-and-collateral.sh "$MODE"
