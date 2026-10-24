@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_default_clocking_procedural_override.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "sv_default_clocking_procedural_override"
+}
