@@ -6213,7 +6213,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // If the port is unconnected, substitute the default
 	      // value. The parser ensures that a default value only
 	      // exists for input ports.
-	    if (pins[idx] == 0) {
+	    if (pins[idx] == 0 && !pins_is_explicitly_not_connected[idx]) {
 		  PExpr*default_value = rmod->get_port_default_value(idx);
 		  if (default_value) {
 			pins[idx] = default_value;

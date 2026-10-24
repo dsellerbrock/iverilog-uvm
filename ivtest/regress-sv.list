@@ -5789,3 +5789,4 @@ sv_format_string_byte_array_2017 normal,-g2017,-s,sv_format_string_byte_array iv
 sv_format_string_byte_array_2023 normal,-g2023,-s,sv_format_string_byte_array ivltests gold=sv_format_string_byte_array.gold
 sv_net_decl_mixed_init_2017 normal,-g2017,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2017.gold
 sv_net_decl_mixed_init_2023 normal,-g2023,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2023.gold
+sv_named_empty_input_default normal,-g2017,-s,sv_named_empty_input_default ivltests gold=sv_named_empty_input_default.gold
