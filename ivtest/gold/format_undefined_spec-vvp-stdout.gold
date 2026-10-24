@@ -1,0 +1,2 @@
+ERROR: ivltests/format_undefined_spec.v:3: unknown format $display<%q>.
+value=<%q>          1
