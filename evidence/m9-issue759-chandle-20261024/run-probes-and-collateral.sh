@@ -65,6 +65,10 @@ legacy_tests=(
     sv_vif_instance_runtime_index_extension_2023
 )
 json_tests=(
+    sv_chandle_assignment_incompatible_fail_2017
+    sv_chandle_assignment_incompatible_fail_2023
+    sv_chandle_nb_assignment_incompatible_fail_2017
+    sv_chandle_nb_assignment_incompatible_fail_2023
     sv_class_static_fixed_array_container_element_read_fail
     sv_packed_part_select_variable_bound_fail
     sv_vif_instance_runtime_index_extension
