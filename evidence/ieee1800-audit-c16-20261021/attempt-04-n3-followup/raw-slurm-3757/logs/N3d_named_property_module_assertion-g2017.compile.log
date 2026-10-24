@@ -1,0 +1,2 @@
+input/N3d_named_property_module_assertion.sv:12: error: Unable to bind wire/reg/memory `q1' in `tb'
+1 error(s) during elaboration.

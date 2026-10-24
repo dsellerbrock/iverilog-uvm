@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_port.sv:2: error: virtual interface variable `v' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

@@ -1,0 +1,80 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh53b4c7a7" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+2104ac8570ed7fac37fb4cd0d7c68919dd699d778d86600fbb960137db1da310  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_array_index.sv
+8f42a18dac82895f0c07851397e2f87b2ba33dba22b72533cb077677d067b70f  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_member_key.sv
+610351a16222c639f454c5109b87b8005891c29f446eb9c13b3e766fb8764b77  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_too_few_elements.sv
+d224ea8dc1ea2ed388adf6e6ccf1e25c044eb9ba5e041aaafc95300357a2d01a  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_uncovered_member.sv
+d7eebbae9da32dc2aa45afc7a7c5a6197915cf8eead7d248cda369cf61ce8a16  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_nested_default_controls.sv
+f778d77ce9a130b8221076c4f1f66456c7f2511086b36475c002d44800245921  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_patterns.sv
+d748bb33b85af63c4464dbdea32c3e218902d95cf4da3506ac969c783fb8ac3e  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_struct_default_nested_array.sv
+p10_09_patterns-2017 compile_rc=0
+p10_09_patterns-2017 run_rc=0
+P1 1 2 3 4.5
+P2 7 0 7 0.0
+P3 7 1 9 1.0
+P4 1 2 3 0.5
+A1 2 5 2 2
+A2 3 3
+A3 3 9 9
+A4 a5 a5
+A5 1 2 1 2
+p10_09_struct_default_nested_array-2017 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_struct_default_nested_array.sv:5: error: integer literal is not compatible with an unpacked type in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_struct_default_nested_array.sv:7: error: integer literal is not compatible with an unpacked type in this context.
+2 error(s) during elaboration.
+p10_09_nested_default_controls-2017 compile_rc=0
+p10_09_nested_default_controls-2017 run_rc=0
+M 4 4 4 4
+C1 0 5 5
+C2 1 6 6
+n10_09_duplicate_member_key-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_member_key.sv:4: error: Assignment pattern has multiple keys for member 'a'.
+Elaboration failed
+n10_09_duplicate_array_index-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_array_index.sv:3: error: Assignment pattern has multiple keys for array index 1.
+Elaboration failed
+n10_09_uncovered_member-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'c'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'r'.
+Elaboration failed
+n10_09_too_few_elements-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_too_few_elements.sv:3: error: Unpacked array assignment pattern expects 4 element(s) in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_too_few_elements.sv:3:      : Found 3 element(s).
+Elaboration failed
+p10_09_patterns-2023 compile_rc=0
+p10_09_patterns-2023 run_rc=0
+P1 1 2 3 4.5
+P2 7 0 7 0.0
+P3 7 1 9 1.0
+P4 1 2 3 0.5
+A1 2 5 2 2
+A2 3 3
+A3 3 9 9
+A4 a5 a5
+A5 1 2 1 2
+p10_09_struct_default_nested_array-2023 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_struct_default_nested_array.sv:5: error: integer literal is not compatible with an unpacked type in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/p10_09_struct_default_nested_array.sv:7: error: integer literal is not compatible with an unpacked type in this context.
+2 error(s) during elaboration.
+p10_09_nested_default_controls-2023 compile_rc=0
+p10_09_nested_default_controls-2023 run_rc=0
+M 4 4 4 4
+C1 0 5 5
+C2 1 6 6
+n10_09_duplicate_member_key-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_member_key.sv:4: error: Assignment pattern has multiple keys for member 'a'.
+Elaboration failed
+n10_09_duplicate_array_index-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_array_index.sv:3: error: Assignment pattern has multiple keys for array index 1.
+Elaboration failed
+n10_09_uncovered_member-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'c'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'r'.
+Elaboration failed
+n10_09_too_few_elements-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_too_few_elements.sv:3: error: Unpacked array assignment pattern expects 4 element(s) in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_too_few_elements.sv:3:      : Found 3 element(s).
+Elaboration failed

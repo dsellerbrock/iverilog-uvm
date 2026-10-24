@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-const-aggr-20261020-01/source/n11_02_incompatible_aggregate_eq.sv:3: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.

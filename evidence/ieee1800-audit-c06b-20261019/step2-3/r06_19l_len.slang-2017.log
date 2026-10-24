@@ -1,0 +1,8 @@
+tests/1800_audit/c06/r06_19l_len.sv:2:50: error: parentheses are required when chaining method calls
+ initial begin c = green; $display("len => %0d", c.name.len()); end endmodule
+                                                 ^~~~~~~~~~
+Top level design units:
+    t
+
+
+Build failed: 1 error, 0 warnings

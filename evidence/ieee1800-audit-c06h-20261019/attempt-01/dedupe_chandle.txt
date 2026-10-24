@@ -1,0 +1,2 @@
+759	OPEN	[IEEE 1800] §6.22.5/§6.14 — assignment of a chandle to an int is accepted	1800-audit	2026-10-20T05:01:59Z
+13	CLOSED	Phase 9: DPI completeness — tasks, output/inout args, chandle, open arrays		2026-05-05T15:24:44Z

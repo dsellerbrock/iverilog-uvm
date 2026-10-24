@@ -1,0 +1,4 @@
+tests/1800_audit/c14/neg/n14_07_clocking_in_task.sv:4: syntax error
+tests/1800_audit/c14/neg/n14_07_clocking_in_task.sv:4: error: Malformed statement
+tests/1800_audit/c14/neg/n14_07_clocking_in_task.sv:5: syntax error
+I give up.

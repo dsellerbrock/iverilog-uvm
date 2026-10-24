@@ -1,0 +1,5 @@
+case	edition	compile_exit	bin_dropped_diagnostic	run_exit
+arrayed	2017	0	true	0
+arrayed	2023	0	true	0
+scalar-control	2017	0	false	0
+scalar-control	2023	0	false	0

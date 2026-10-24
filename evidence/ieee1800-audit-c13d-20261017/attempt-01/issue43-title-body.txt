@@ -1,0 +1,17 @@
+Phase 71: Process introspection, event races, method chaining, array methods
+## Scope
+
+- **G07** process introspection (status updates, `name()` on handle)
+- **G08** event triggered/wait race (both waiters wake)
+- **G31** chained `enum.method()` on function-return
+- **G32** method-chain on class-handle returns (builder pattern)
+- **G34** `event arr[N]`
+- **G35** `unpacked.reverse()`
+- **G36** unpacked-array `.min()`/`.max()`/`.sort()` (extend Phase63b queue methods)
+- **G65** `pre_main_phase` body invoked twice — duplicate phase task call
+
+## Acceptance
+
+Probes p08, p12, p32, p52, p58, p61, p84 pass; 96+/98 regression.
+
+Estimated effort: 2 sessions.

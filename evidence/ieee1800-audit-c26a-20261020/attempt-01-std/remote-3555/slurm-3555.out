@@ -1,0 +1,46 @@
+--- -g2017 p26_07_std compile_rc=4 run_rc=not-run ---
+input/p26_07_std.sv:6: syntax error
+input/p26_07_std.sv:6: error: Invalid module instantiation
+input/p26_07_std.sv:7: error: Invalid module instantiation
+input/p26_07_std.sv:8: error: Invalid module instantiation
+--- -g2017 n26_07_std_qualified_types compile_rc=4 run_rc=not-run ---
+input/n26_07_std_qualified_types.sv:2: syntax error
+input/n26_07_std_qualified_types.sv:2: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:3: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:4: error: Invalid module instantiation
+--- -g2017 p26_07_std_implicit_types compile_rc=0 run_rc=0 ---
+I1 0
+I2 6
+I3 1
+--- -g2017 p26_07_std_randomize_only compile_rc=0 run_rc=0 ---
+R1 1 3
+--- -g2017 n26_07_package_std compile_rc=0 run_rc=0 ---
+STD_PACKAGE_DECLARED
+--- -g2017 p21_evcd_limit compile_rc=0 run_rc=0 ---
+EVCD info: dumpports file lim.evcd opened for output.
+EVCD info: dumpports file control.evcd opened for output.
+WARNING: Dumpports file limit (320 bytes) reached for lim.evcd.
+input/p21_evcd_limit.sv:27: $finish called at 52000 (1ps)
+--- -g2023 p26_07_std compile_rc=4 run_rc=not-run ---
+input/p26_07_std.sv:6: syntax error
+input/p26_07_std.sv:6: error: Invalid module instantiation
+input/p26_07_std.sv:7: error: Invalid module instantiation
+input/p26_07_std.sv:8: error: Invalid module instantiation
+--- -g2023 n26_07_std_qualified_types compile_rc=4 run_rc=not-run ---
+input/n26_07_std_qualified_types.sv:2: syntax error
+input/n26_07_std_qualified_types.sv:2: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:3: error: Invalid module instantiation
+input/n26_07_std_qualified_types.sv:4: error: Invalid module instantiation
+--- -g2023 p26_07_std_implicit_types compile_rc=0 run_rc=0 ---
+I1 0
+I2 6
+I3 1
+--- -g2023 p26_07_std_randomize_only compile_rc=0 run_rc=0 ---
+R1 1 3
+--- -g2023 n26_07_package_std compile_rc=0 run_rc=0 ---
+STD_PACKAGE_DECLARED
+--- -g2023 p21_evcd_limit compile_rc=0 run_rc=0 ---
+EVCD info: dumpports file lim.evcd opened for output.
+EVCD info: dumpports file control.evcd opened for output.
+WARNING: Dumpports file limit (320 bytes) reached for lim.evcd.
+input/p21_evcd_limit.sv:27: $finish called at 52000 (1ps)

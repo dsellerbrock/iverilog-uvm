@@ -1,0 +1,95 @@
+--- /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/results/expected.txt	2026-10-20 10:52:08.544344160 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/results/logs/p08_19_20-g2017.run.log	2026-10-20 10:52:08.550088240 -0600
+@@ -1,4 +1,4 @@
+ K1 9216 5
+ K2 3 4
+ V6 ok
+-V7 2
++V7 1
+--- /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/results/expected.txt	2026-10-20 10:52:08.544344160 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/results/logs/p08_19_20-g2023.run.log	2026-10-20 10:52:08.622090297 -0600
+@@ -1,4 +1,4 @@
+ K1 9216 5
+ K2 3 4
+ V6 ok
+-V7 2
++V7 1
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib	result
+2017	p08_19_20	0	0	0.00	11260	0.00	11812	FAIL
+2017	n08_19_const_global_reassign	1	NA	0.00	10376	NA	NA	REJECTED
+2017	n08_19_const_instance_outside_ctor	1	NA	0.00	10548	NA	NA	REJECTED
+2017	n08_19_const_static_instance	3	NA	0.00	10104	NA	NA	REJECTED
+2017	n08_19_const_external_write	1	NA	0.00	10360	NA	NA	REJECTED
+2017	n08_20_override_arg_name	0	NA	0.00	11048	NA	NA	FAIL_ACCEPTED
+2017	n08_20_override_arg_type	0	NA	0.00	10928	NA	NA	FAIL_ACCEPTED
+2017	n08_20_override_direction	0	NA	0.00	10784	NA	NA	FAIL_ACCEPTED
+2017	n08_20_override_return_type	0	NA	0.00	10744	NA	NA	FAIL_ACCEPTED
+2017	n08_20_override_default_presence	0	NA	0.00	10948	NA	NA	FAIL_ACCEPTED
+2017	r08_19_const_double_assignment	1	NA	0.00	10868	NA	NA	REJECTED_RECORD_ONLY
+2023	p08_19_20	0	0	0.00	11416	0.00	12008	FAIL
+2023	n08_19_const_global_reassign	1	NA	0.00	10216	NA	NA	REJECTED
+2023	n08_19_const_instance_outside_ctor	1	NA	0.00	10308	NA	NA	REJECTED
+2023	n08_19_const_static_instance	3	NA	0.00	10356	NA	NA	REJECTED
+2023	n08_19_const_external_write	1	NA	0.00	10452	NA	NA	REJECTED
+2023	n08_20_override_arg_name	0	NA	0.00	10856	NA	NA	FAIL_ACCEPTED
+2023	n08_20_override_arg_type	0	NA	0.00	10804	NA	NA	FAIL_ACCEPTED
+2023	n08_20_override_direction	0	NA	0.00	10784	NA	NA	FAIL_ACCEPTED
+2023	n08_20_override_return_type	0	NA	0.00	10768	NA	NA	FAIL_ACCEPTED
+2023	n08_20_override_default_presence	0	NA	0.00	10964	NA	NA	FAIL_ACCEPTED
+2023	r08_19_const_double_assignment	1	NA	0.00	10572	NA	NA	REJECTED_RECORD_ONLY
+--- n08_19_const_external_write-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_external_write.sv:9: error: Property size is constant in this method. (scope=n08_19_const_external_write)
+1 error(s) during elaboration.
+--- n08_19_const_external_write-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_external_write.sv:9: error: Property size is constant in this method. (scope=n08_19_const_external_write)
+1 error(s) during elaboration.
+--- n08_19_const_global_reassign-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_global_reassign.sv:4: error: Global constant class property `max_size' may be initialized only in its declaration (IEEE 1800 8.19).
+1 error(s) during elaboration.
+--- n08_19_const_global_reassign-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_global_reassign.sv:4: error: Global constant class property `max_size' may be initialized only in its declaration (IEEE 1800 8.19).
+1 error(s) during elaboration.
+--- n08_19_const_instance_outside_ctor-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_instance_outside_ctor.sv:5: error: Property size is constant in this method. (scope=$unit.BadInstanceConst.set)
+1 error(s) during elaboration.
+--- n08_19_const_instance_outside_ctor-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_instance_outside_ctor.sv:5: error: Property size is constant in this method. (scope=$unit.BadInstanceConst.set)
+1 error(s) during elaboration.
+--- n08_19_const_static_instance-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Assignment to const class property `size' is not allowed.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Unable to elaborate statement in function new.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:2: error: Const properties of class BadStaticConst are missing initialization.
+3 error(s) during elaboration.
+--- n08_19_const_static_instance-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Assignment to const class property `size' is not allowed.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:4: error: Unable to elaborate statement in function new.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_static_instance.sv:2: error: Const properties of class BadStaticConst are missing initialization.
+3 error(s) during elaboration.
+--- n08_20_override_arg_name-g2017.compile.log
+--- n08_20_override_arg_name-g2023.compile.log
+--- n08_20_override_arg_type-g2017.compile.log
+--- n08_20_override_arg_type-g2023.compile.log
+--- n08_20_override_default_presence-g2017.compile.log
+--- n08_20_override_default_presence-g2023.compile.log
+--- n08_20_override_direction-g2017.compile.log
+--- n08_20_override_direction-g2023.compile.log
+--- n08_20_override_return_type-g2017.compile.log
+--- n08_20_override_return_type-g2023.compile.log
+--- p08_19_20-g2017.compile.log
+--- p08_19_20-g2023.compile.log
+--- r08_19_const_double_assignment-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/r08_19_const_double_assignment.sv:5: error: instance constant `size' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+1 error(s) during elaboration.
+--- r08_19_const_double_assignment-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/r08_19_const_double_assignment.sv:5: error: instance constant `size' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+1 error(s) during elaboration.
+--- p08_19_20-g2017.run.log
+K1 9216 5
+K2 3 4
+V6 ok
+V7 1
+--- p08_19_20-g2023.run.log
+K1 9216 5
+K2 3 4
+V6 ok
+V7 1

@@ -1,0 +1,14 @@
+Host: MacBook-Air.local
+UTC start: 2026-10-19 06:53:42 UTC
+Git HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+Source SHA-256: 8fa2f3a91467d42ed23563d837f91cfd04303a3c47699dfe3bd3158781c66831  tests/1800_audit/c18/p18_14_stability.sv
+iverilog SHA-256: 5df81b269e1ff2c965dd00ad5a8071ca17717f416003b3661a18b2dde430e73c  /opt/homebrew/bin/iverilog
+vvp SHA-256: 1a9bdf1f40102f64f015514f5069f99a5dd9f9f38de343743ef4c169fb358392  /opt/homebrew/bin/vvp
+Icarus Verilog version 13.0 (stable) (v13_0)
+
+Unable to get version from "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/ivlpp -V"
+Unable to get version from "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/ivl -V -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh733e85a" -C"/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/vvp.conf""
+Icarus Verilog runtime version 13.0 (stable) (v13_0)
+
+Commands: iverilog -g2017/-g2023 -s test; vvp -n
+UTC end: 2026-10-19 06:53:42 UTC

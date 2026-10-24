@@ -1,0 +1,48 @@
+
+p06_11b_real_details -g2017 compile rc=0
+run rc=0
+SHORT value=1.500000000 bits=1 eq=1
+REALTIME value=3.250000000 bits=1 eq=1 real_bits=1
+REAL_FROM_RT value=3.250000000 eq=1
+
+p06_14b_void_chandle_core -g2017 compile rc=0
+run rc=0
+RESULT pass=8 fail=0
+
+p06_14c_void_tagged -g2017 compile rc=0
+run rc=0
+TAGGED void assigned
+TAGGED value assigned
+
+p06_11b_real_details -g2023 compile rc=0
+run rc=0
+SHORT value=1.500000000 bits=1 eq=1
+REALTIME value=3.250000000 bits=1 eq=1 real_bits=1
+REAL_FROM_RT value=3.250000000 eq=1
+
+p06_14b_void_chandle_core -g2023 compile rc=0
+run rc=0
+RESULT pass=8 fail=0
+
+p06_14c_void_tagged -g2023 compile rc=0
+run rc=0
+TAGGED void assigned
+TAGGED value assigned
+        1.44 real         0.54 user         0.26 sys
+            16957440  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               47679  page reclaims
+                 672  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  60  voluntary context switches
+                1319  involuntary context switches
+           103011784  instructions retired
+            51680431  cycles elapsed
+             2458080  peak memory footprint

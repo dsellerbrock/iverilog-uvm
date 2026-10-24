@@ -1,0 +1,5 @@
+edition	case	compile_rc	run_rc	stdout_match
+2017	methods_r	0	0	YES
+2017	shuffle_with_negative	0	NA	ACCEPTED
+2023	methods_r	0	0	YES
+2023	shuffle_with_negative	0	NA	ACCEPTED

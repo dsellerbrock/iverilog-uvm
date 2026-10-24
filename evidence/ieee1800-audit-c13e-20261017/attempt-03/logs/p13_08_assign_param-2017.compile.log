@@ -1,0 +1,7 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: error: Unable to synthesize port 0 of call to ENCODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:13: internal error: Failed to synthesize expression: top._ivl_4.ENCODER_f(<null>, encoder_in[7:0])
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: cannot synthesize expression: <null>
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: error: Unable to synthesize port 0 of call to DECODER_f.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13e-20261017-attempt03/input/p13_08_assign_param.sv:14: internal error: Failed to synthesize expression: top._ivl_5.DECODER_f(<null>, decoder_in[1:0])
+6 error(s) during elaboration.

@@ -1,0 +1,3 @@
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: Unable to elaborate statement in task m.t at tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1.
+1 error(s) during elaboration.

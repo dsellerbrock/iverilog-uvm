@@ -1,0 +1,52 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+Icarus Verilog version 13.0 (devel) ()
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+=== p19_05_02_transition_bins -g2017 ===
+P19_05_02_TRANSITION_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_02_transition_bins.sv:14: $finish called at 0 (1s)
+PASS: p19_05_02_transition_bins -g2017
+=== p19_05_02_transition_bins -g2023 ===
+P19_05_02_TRANSITION_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_02_transition_bins.sv:14: $finish called at 0 (1s)
+PASS: p19_05_02_transition_bins -g2023
+=== p19_05_03_auto_bins -g2017 ===
+P19_05_03_AUTO_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_03_auto_bins.sv:16: $finish called at 0 (1s)
+PASS: p19_05_03_auto_bins -g2017
+=== p19_05_03_auto_bins -g2023 ===
+P19_05_03_AUTO_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_03_auto_bins.sv:16: $finish called at 0 (1s)
+PASS: p19_05_03_auto_bins -g2023
+=== p19_05_04_wildcard_bins -g2017 ===
+P19_05_04_WILDCARD_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_04_wildcard_bins.sv:15: $finish called at 0 (1s)
+PASS: p19_05_04_wildcard_bins -g2017
+=== p19_05_04_wildcard_bins -g2023 ===
+P19_05_04_WILDCARD_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_04_wildcard_bins.sv:15: $finish called at 0 (1s)
+PASS: p19_05_04_wildcard_bins -g2023
+=== p19_05_05_ignore_bins -g2017 ===
+P19_05_05_IGNORE_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_05_ignore_bins.sv:20: $finish called at 0 (1s)
+PASS: p19_05_05_ignore_bins -g2017
+=== p19_05_05_ignore_bins -g2023 ===
+P19_05_05_IGNORE_BINS_PASS
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/p19_05_05_ignore_bins.sv:20: $finish called at 0 (1s)
+PASS: p19_05_05_ignore_bins -g2023
+=== n19_05_06_illegal_bins_runtime -g2017 ===
+BEFORE_ILLEGAL_SAMPLE
+ERROR: covergroup illegal_bin matched (prop_idx=6)
+AFTER_ILLEGAL_SAMPLE
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/n19_05_06_illegal_bins_runtime.sv:15: $finish called at 0 (1s)
+PASS: illegal-bin runtime diagnostic observed
+=== n19_05_06_illegal_bins_runtime -g2023 ===
+BEFORE_ILLEGAL_SAMPLE
+ERROR: covergroup illegal_bin matched (prop_idx=6)
+AFTER_ILLEGAL_SAMPLE
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/n19_05_06_illegal_bins_runtime.sv:15: $finish called at 0 (1s)
+PASS: illegal-bin runtime diagnostic observed

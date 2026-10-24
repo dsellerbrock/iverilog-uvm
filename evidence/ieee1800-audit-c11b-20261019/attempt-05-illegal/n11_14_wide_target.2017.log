@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_14_wide_target.sv:1: error: streaming concatenation produces a 96-bit stream, which does not fit in the 32-bit assignment target (IEEE 1800-2017 11.4.14).
+Elaboration failed

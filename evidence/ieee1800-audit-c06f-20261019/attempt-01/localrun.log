@@ -1,0 +1,106 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+CHECKOUT: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+SOURCE COMMIT: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+
+== p06_23a_type_op -g2017 compile rc=3
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: error: Cannot evaluate genvar case expression: <type>
+3 error(s) during elaboration.
+
+== p06_22a_instance_types -g2017 compile rc=0
+p06_22a_instance_types -g2017 run rc=0
+T22 v1=5
+n06_22_chandle_to_int -g2017 compile rc=0
+n06_22_class_to_int -g2017 compile rc=1
+tests/1800_audit/c06/neg/n06_22_class_to_int.sv:1: error: A class handle cannot be assigned to a non-class target (IEEE 1800-2017 8.4).
+Elaboration failed
+n06_22_inst_type -g2017 compile rc=1
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1: error: the type of the variable 's2.v5' doesn't match the context type.
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : variable type=11netstruct_t
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : context type=11netstruct_t
+Elaboration failed
+n06_22_int_to_class -g2017 compile rc=1
+tests/1800_audit/c06/neg/n06_22_int_to_class.sv:1: error: integer literal is not compatible with an unpacked type in this context.
+Elaboration failed
+n06_23_type_cmp_nontype -g2017 compile rc=1
+tests/1800_audit/c06/neg/n06_23_type_cmp_nontype.sv:1: sorry: type() may only be compared against another type() operand (IEEE 1800-2017 6.23).
+Elaboration failed
+n06_23_type_hier_ref -g2017 compile rc=0
+n06_23_var_missing -g2017 compile rc=2
+tests/1800_audit/c06/neg/n06_23_var_missing.sv:1: syntax error
+tests/1800_audit/c06/neg/n06_23_var_missing.sv:1: error: Invalid module item.
+
+== p06_23a_type_op -g2023 compile rc=3
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: error: Cannot evaluate genvar case expression: <type>
+3 error(s) during elaboration.
+
+== p06_22a_instance_types -g2023 compile rc=0
+p06_22a_instance_types -g2023 run rc=0
+T22 v1=5
+n06_22_chandle_to_int -g2023 compile rc=0
+n06_22_class_to_int -g2023 compile rc=1
+tests/1800_audit/c06/neg/n06_22_class_to_int.sv:1: error: A class handle cannot be assigned to a non-class target (IEEE 1800-2017 8.4).
+Elaboration failed
+n06_22_inst_type -g2023 compile rc=1
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1: error: the type of the variable 's2.v5' doesn't match the context type.
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : variable type=11netstruct_t
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : context type=11netstruct_t
+Elaboration failed
+n06_22_int_to_class -g2023 compile rc=1
+tests/1800_audit/c06/neg/n06_22_int_to_class.sv:1: error: integer literal is not compatible with an unpacked type in this context.
+Elaboration failed
+n06_23_type_cmp_nontype -g2023 compile rc=1
+tests/1800_audit/c06/neg/n06_23_type_cmp_nontype.sv:1: sorry: type() may only be compared against another type() operand (IEEE 1800-2017 6.23).
+Elaboration failed
+n06_23_type_hier_ref -g2023 compile rc=0
+n06_23_var_missing -g2023 compile rc=2
+tests/1800_audit/c06/neg/n06_23_var_missing.sv:1: syntax error
+tests/1800_audit/c06/neg/n06_23_var_missing.sv:1: error: Invalid module item.
+
+--- dedupe unique results ---
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+30	CLOSED	Phase 59: UVM port-imp virtual dispatch (seq_item_port.try_next_item)		2026-04-30T22:59:47Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+477	CLOSED	[IEEE 1800] §§13.5.2/6.22.2 — Reject non-equivalent ref actual types		2026-10-13T06:27:28Z
+483	CLOSED	[IEEE 1800] §13.5.2 — Allow const-ref forwarding to const-ref formals		2026-10-15T03:25:21Z
+485	OPEN	[IEEE 1800] §§7.6/7.8 — Validate variable-size associative pattern values transactionally		2026-10-08T15:24:54Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+544	CLOSED	[IEEE 1800] §7.4 — Accept multidimensional fixed arrays as open-array actuals	enhancement	2026-10-12T19:31:52Z
+611	OPEN	[IEEE 1800] §8.5 — Accept class-scoped type parameter as cast type (C#(3)::T'(x))	1800-audit	2026-10-17T18:51:24Z
+616	OPEN	[IEEE 1800] §8.12 — Shallow copy through base handle of derived object aborts vvp	1800-audit	2026-10-17T18:59:04Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+650	OPEN	[IEEE 1800] §9.4.2 — Built-in array method call (size()) in an event control expression fails to elaborate	1800-audit	2026-10-18T05:13:07Z
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members	from-caliptra-dv	2026-10-20T00:37:55Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+725	OPEN	[IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations	1800-audit	2026-10-19T22:21:21Z
+728	OPEN	[IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays	1800-audit	2026-10-19T22:48:15Z
+743	OPEN	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:24:01Z
+745	CLOSED	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:26:37Z
+       11.31 real         1.56 user         1.10 sys
+            46727168  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              151878  page reclaims
+                1280  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 117  messages sent
+                 110  messages received
+                 331  signals received
+                 297  voluntary context switches
+               11457  involuntary context switches
+           215802076  instructions retired
+           182527622  cycles elapsed
+             2556384  peak memory footprint

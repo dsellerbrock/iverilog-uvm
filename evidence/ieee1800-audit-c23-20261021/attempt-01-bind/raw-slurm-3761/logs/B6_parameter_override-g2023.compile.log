@@ -1,0 +1,4 @@
+input/B6_parameter_override.sv:9: warning: Port 2 (v) of module mon expects 7 bit(s), given 4.
+input/B6_parameter_override.sv:9:        : Padding 3 high bits of the port.
+input/B6_parameter_override.sv:9: warning: Port 2 (v) of module mon expects 7 bit(s), given 4.
+input/B6_parameter_override.sv:9:        : Padding 3 high bits of the port.

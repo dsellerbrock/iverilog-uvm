@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_incdec_match_item.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_incdec_match_item.sv:6: error: Malformed statement
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_incdec_match_item.sv:6: error: Error in property_spec of concurrent assertion item.
+compile_exit=3

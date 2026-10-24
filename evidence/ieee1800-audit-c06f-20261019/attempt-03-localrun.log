@@ -1,0 +1,68 @@
+
+p06_23b_type_scalar -g2017 compile rc=0
+p06_23b_type_scalar -g2017 run rc=0
+FAIL range_direction
+RESULT pass=4 fail=1
+
+p06_23c_type_cast -g2017 compile rc=3
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: error: Cast size expression must be constant and greater than zero.
+3 error(s) during elaboration.
+
+p06_23d_generate_case -g2017 compile rc=3
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: error: Cannot evaluate genvar case expression: <type>
+3 error(s) during elaboration.
+
+p06_23e_type_aggregates -g2017 compile rc=5
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:10: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:11: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:12: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:13: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:14: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+5 error(s) during elaboration.
+
+p06_23b_type_scalar -g2023 compile rc=0
+p06_23b_type_scalar -g2023 run rc=0
+FAIL range_direction
+RESULT pass=4 fail=1
+
+p06_23c_type_cast -g2023 compile rc=3
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23c_type_cast.sv:3: error: Cast size expression must be constant and greater than zero.
+3 error(s) during elaboration.
+
+p06_23d_generate_case -g2023 compile rc=3
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23d_generate_case.sv:7: error: Cannot evaluate genvar case expression: <type>
+3 error(s) during elaboration.
+
+p06_23e_type_aggregates -g2023 compile rc=5
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:10: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:11: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:12: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:13: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:14: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+5 error(s) during elaboration.
+        1.55 real         0.48 user         0.28 sys
+            16957440  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               42916  page reclaims
+                 548  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   2  signals received
+                  67  voluntary context switches
+                1095  involuntary context switches
+            95724210  instructions retired
+            53967487  cycles elapsed
+             2474464  peak memory footprint

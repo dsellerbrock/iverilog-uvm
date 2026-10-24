@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: error: No function named `s' found in this context (top.$unm_blk_1).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/neg/n09_04_2_4_automatic_seq_arg.sv:4: warning: Failed to evaluate event expression 's(av)' (compile-progress: event skipped).
+1 error(s) during elaboration.

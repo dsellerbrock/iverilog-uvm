@@ -1,0 +1,5 @@
+branch=m7-1800-audit-c09
+commit=0f8d0292d02126fef19f2f51b6fd58b0c086470f
+probe=k3 direct hierarchy, follow-up to Slurm 3743
+f7a940f875459ba160294c105001d7ec4e8d2eb94946656a5c5a797db25309af  input/k3_direct_hier_cycle_delayed_drive.sv
+dbcdcef410c10de917af78bc9ec81288e70742922d693412707720f54f66dd55  rerun-k3-direct.sbatch

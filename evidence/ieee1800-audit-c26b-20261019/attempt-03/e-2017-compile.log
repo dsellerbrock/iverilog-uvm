@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/r26_vp_e.sv:2: sorry: Port `a` of module `M` with type `<no_type>` is not supported.
+1 error(s) during elaboration.

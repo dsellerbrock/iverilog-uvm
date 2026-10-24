@@ -1,0 +1,10 @@
+evidence/ieee1800-audit-annexKM-20261021/attempt-01-header-diff/header_annex_k_probe.c:4:2: error: "IEEE Annex K standard macro vpiAlways is absent"
+    4 | #error "IEEE Annex K standard macro vpiAlways is absent"
+      |  ^
+evidence/ieee1800-audit-annexKM-20261021/attempt-01-header-diff/header_annex_k_probe.c:7:2: error: "IEEE Annex K standard macro cbAssign is absent"
+    7 | #error "IEEE Annex K standard macro cbAssign is absent"
+      |  ^
+evidence/ieee1800-audit-annexKM-20261021/attempt-01-header-diff/header_annex_k_probe.c:10:2: error: "IEEE Annex K standard macro vpiWidth is absent"
+   10 | #error "IEEE Annex K standard macro vpiWidth is absent"
+      |  ^
+3 errors generated.

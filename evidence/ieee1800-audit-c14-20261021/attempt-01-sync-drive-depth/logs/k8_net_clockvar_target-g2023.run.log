@@ -1,0 +1,3 @@
+INITIAL 1000 z
+DRIVEN 6000 1
+input/k8_net_clockvar_target.sv:28: $finish called at 6000 (1ps)

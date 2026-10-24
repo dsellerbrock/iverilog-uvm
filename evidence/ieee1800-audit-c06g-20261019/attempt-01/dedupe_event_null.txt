@@ -1,0 +1,7 @@
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+643	OPEN	[IEEE 1800] §9.6.1 — wait fork also waits for descendants of child processes	1800-audit	2026-10-18T04:55:58Z
+596	CLOSED	VVP aborts in vthread_add_event_wait for forked loop-local clock waits	from-caliptra-dv	2026-10-16T20:36:50Z
+439	CLOSED	[IEEE 1800] §15 — Support explicit triggered() calls on event expressions	enhancement	2026-10-14T22:51:59Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+29	CLOSED	Phase 58: wait()-loop sensitivity through virtual-interface signal chain		2026-04-30T23:00:01Z

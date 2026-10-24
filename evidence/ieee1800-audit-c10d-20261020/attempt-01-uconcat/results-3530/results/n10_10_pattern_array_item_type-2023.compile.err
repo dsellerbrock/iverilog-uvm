@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-01/source/n10_10_pattern_array_item_type.sv:6: error: Unpacked array assignment pattern expects 3 element(s) in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-01/source/n10_10_pattern_array_item_type.sv:6:      : Found 2 element(s).
+1 error(s) during elaboration.

@@ -1,0 +1,18 @@
+GitHub issue searches against dsellerbrock/iverilog-uvm, explicitly separated by state, each with --limit 100 and JSON number/title/state/url:
+- `gh issue list --state open --search "queue slice"`: []
+- `gh issue list --state closed --search "queue slice"`: []
+- `gh issue list --state open --search "queue insert"`: []
+- `gh issue list --state closed --search "queue insert"`: []
+- `gh issue list --state open --search "bounded queue"`: []
+- `gh issue list --state closed --search "bounded queue"`: []
+- `gh issue list --state open --search "pop_front empty"`: []
+- `gh issue list --state closed --search "pop_front empty"`: []
+- `gh issue list --state open --search "queue invalid index"`: []
+- `gh issue list --state closed --search "queue invalid index"`: []
+- `gh issue list --state open --search "7.10"`: []
+- `gh issue list --state closed --search "7.10"`: []
+
+Additional exact-reproducer searches (GitHub search punctuation normalization returns broad/noisy results for `$+1`; each was run for open and closed separately):
+- `Q[$+1]`: open hits #793, #792, #769, #794, #770, #841, #701, #798, #749, #635, #738; closed hits #487, #494, #44, #11. Reviewed the queue/parser-adjacent hits directly: #44 covers only its listed clocking/let/bind/assoc-string-unpacked-foreach/tagged-union/specify/intra-assignment-event/declarative-delay/config/global-clocking syntax cases; #11 is queue sort/find methods; #43 (from broad queue search) is array methods/process/event cases. None describes `$+1` queue l-value parsing or the invalid queue-element read default.
+- Broad `queue` search in `--state all` returned queue-adjacent open #424 (locator result type wrappers), #485 (variable-size values in associative assignment patterns), #652 (dynamic queue `$bits`), #748/#749 (bit-stream casts involving queues/structs), and #803 (readmem/writemem associative arrays); closed #491/#494 (constraint capture), #487 (packed-array rank), #11/#43 (array methods), and #44 (enumerated parser cases). Reviewed relevant issue bodies; all are distinct from these §7.10.1 behaviors.
+- Targeted open/closed searches `Q[$+1]`, `$+1`, `queue append`, `queue l-value`, `queue invalid read`, and `nonexistent queue` produced no title/body hit that duplicates either finding. The six lead-required terms above were separately searched in open and closed states and returned empty.

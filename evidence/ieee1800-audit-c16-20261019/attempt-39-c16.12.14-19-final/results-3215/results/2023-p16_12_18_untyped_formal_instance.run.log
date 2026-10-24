@@ -1,0 +1,2 @@
+PASSED: §16.12.18 untyped property formal instance
+/home/dsell/slurm-runs/iverilog-uvm/a3/c16-12-14-19-20261019-04/tests/1800_audit/c16/p16_12_18_untyped_formal_instance.sv:16: $finish called at 6 (1s)

@@ -1,0 +1,7 @@
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:8: sorry: constraint reference 'record.values' selects an unsupported unpacked-struct constraint path; only one-level scalar integral or enum members and selected elements of one-dimensional fixed integral member arrays are supported.
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:9: warning: Constraint item in 'array_shape' of class nested_item is not representable in the constraint solver; randomize() of this class will fail.
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:12: warning: Constraint item in 'array_values' of class nested_item is not representable in the constraint solver; randomize() of this class will fail.
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:24: sorry: this form of indexed struct member access is not yet supported.
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:25: sorry: this form of indexed struct member access is not yet supported.
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_04_struct_darray_sizes_foreach.sv:26: sorry: this form of indexed struct member access is not yet supported.
+4 error(s) during elaboration.

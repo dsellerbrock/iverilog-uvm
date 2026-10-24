@@ -1,0 +1,124 @@
+edition	case	compile_rc	run_rc	stdout_match
+2017	lv1	2	NA	COMPILE_FAILED
+2017	lv2	0	0	YES
+2017	lv3	0	0	YES
+2017	lv4	0	0	YES
+2017	lv5	2	NA	COMPILE_FAILED
+2017	queue_size	0	0	NO
+2023	lv1	2	NA	COMPILE_FAILED
+2023	lv2	0	0	YES
+2023	lv3	0	0	YES
+2023	lv4	0	0	YES
+2023	lv5	2	NA	COMPILE_FAILED
+2023	queue_size	0	0	NO
+--- lv1-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv1.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv1.sv:3: Syntax in assignment statement l-value.
+--- lv1-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv1.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv1.sv:3: Syntax in assignment statement l-value.
+--- lv2-g2017.compile.log
+--- lv2-g2023.compile.log
+--- lv3-g2017.compile.log
+--- lv3-g2023.compile.log
+--- lv4-g2017.compile.log
+--- lv4-g2023.compile.log
+--- lv5-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv5.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv5.sv:3: Syntax in assignment statement l-value.
+--- lv5-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv5.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/tests/1800_audit/c07/p07_10_lv5.sv:3: Syntax in assignment statement l-value.
+--- queue_size-g2017.compile.log
+--- queue_size-g2023.compile.log
+--- lv2-g2017.stdout.log
+9
+--- lv2-g2023.stdout.log
+9
+--- lv3-g2017.stdout.log
+8
+--- lv3-g2023.stdout.log
+8
+--- lv4-g2017.stdout.log
+3 50
+--- lv4-g2023.stdout.log
+3 50
+--- queue_size-g2017.stdout.log
+S1 0
+S2 1 20
+S3 0
+S4 2 10
+S5 2 40
+S6 0
+R1 0
+W1 5 50
+W2 5
+I1 6 15 20
+I2 6
+I3 60
+D1 6 15
+D2 6
+P1 15 5
+P2 60 4
+P3 1 2 6
+P4 0 x
+B1 4 4
+C1 5 7 1
+--- queue_size-g2023.stdout.log
+S1 0
+S2 1 20
+S3 0
+S4 2 10
+S5 2 40
+S6 0
+R1 0
+W1 5 50
+W2 5
+I1 6 15 20
+I2 6
+I3 60
+D1 6 15
+D2 6
+P1 15 5
+P2 60 4
+P3 1 2 6
+P4 0 x
+B1 4 4
+C1 5 7 1
+--- lv2-g2017.stderr.log
+--- lv2-g2023.stderr.log
+--- lv3-g2017.stderr.log
+--- lv3-g2023.stderr.log
+--- lv4-g2017.stderr.log
+--- lv4-g2023.stderr.log
+--- queue_size-g2017.stderr.log
+Warning: assigning to queue<vector>[9] is outside of size (5). 32'b00000000000000000000000001100011 was not added.
+Warning: inserting to queue<vector[32]>[9] is outside of size (6). 32'b00000000000000000000000001001101 was not added.
+Warning: cannot insert at a negative queue<vector[32]> index (-1). 32'b00000000000000000000000001001101 was not added.
+Warning: skipping out of range delete(42) on queue of size 6.
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: push_back(32'b00000000000000000000000000000101) skipped for already full bounded queue<vector[32]> [4].
+Warning: assigning to queue<vector>[4] is outside bound (4). 32'b00000000000000000000000000000110 was not added.
+--- queue_size-g2023.stderr.log
+Warning: assigning to queue<vector>[9] is outside of size (5). 32'b00000000000000000000000001100011 was not added.
+Warning: inserting to queue<vector[32]>[9] is outside of size (6). 32'b00000000000000000000000001001101 was not added.
+Warning: cannot insert at a negative queue<vector[32]> index (-1). 32'b00000000000000000000000001001101 was not added.
+Warning: skipping out of range delete(42) on queue of size 6.
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: push_back(32'b00000000000000000000000000000101) skipped for already full bounded queue<vector[32]> [4].
+Warning: assigning to queue<vector>[4] is outside bound (4). 32'b00000000000000000000000000000110 was not added.
+--- warning lines (verbatim with source filenames/line numbers)
+1:Warning: assigning to queue<vector>[9] is outside of size (5). 32'b00000000000000000000000001100011 was not added.
+2:Warning: inserting to queue<vector[32]>[9] is outside of size (6). 32'b00000000000000000000000001001101 was not added.
+3:Warning: cannot insert at a negative queue<vector[32]> index (-1). 32'b00000000000000000000000001001101 was not added.
+4:Warning: skipping out of range delete(42) on queue of size 6.
+5:Warning: pop_front() on empty queue<vector[32]>.
+6:Warning: push_back(32'b00000000000000000000000000000101) skipped for already full bounded queue<vector[32]> [4].
+7:Warning: assigning to queue<vector>[4] is outside bound (4). 32'b00000000000000000000000000000110 was not added.
+1:Warning: assigning to queue<vector>[9] is outside of size (5). 32'b00000000000000000000000001100011 was not added.
+2:Warning: inserting to queue<vector[32]>[9] is outside of size (6). 32'b00000000000000000000000001001101 was not added.
+3:Warning: cannot insert at a negative queue<vector[32]> index (-1). 32'b00000000000000000000000001001101 was not added.
+4:Warning: skipping out of range delete(42) on queue of size 6.
+5:Warning: pop_front() on empty queue<vector[32]>.
+6:Warning: push_back(32'b00000000000000000000000000000101) skipped for already full bounded queue<vector[32]> [4].
+7:Warning: assigning to queue<vector>[4] is outside bound (4). 32'b00000000000000000000000000000110 was not added.

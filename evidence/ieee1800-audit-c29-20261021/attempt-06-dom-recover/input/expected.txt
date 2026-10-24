@@ -1,0 +1,3 @@
+REC 0 0
+EDGE 1
+DOM 0

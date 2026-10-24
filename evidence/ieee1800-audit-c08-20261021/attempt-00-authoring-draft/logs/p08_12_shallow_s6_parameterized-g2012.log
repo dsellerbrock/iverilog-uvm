@@ -1,0 +1,22 @@
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:2: syntax error
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:2: error: Invalid module item.
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:4: syntax error
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:5: error: Invalid module item.
+        0.01 real         0.00 user         0.00 sys
+             3014656  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2053  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  36  involuntary context switches
+            14713743  instructions retired
+             5662437  cycles elapsed
+             1507712  peak memory footprint

@@ -1,0 +1,17 @@
+job_id=3197
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:40:58-06:00
+probe=p16_10_local_vars_property edition=2017 compile_exit=0 run_exit=0
+probe=p16_10_local_vars_sequence edition=2017 compile_exit=0 run_exit=0
+probe=p16_10_local_init edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_multi_assignment edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_subseq_match_item edition=2017 compile_exit=1 run_exit=NA
+probe=p16_10_incdec_match_item edition=2017 compile_exit=3 run_exit=NA
+probe=p16_10_local_vars_property edition=2023 compile_exit=0 run_exit=0
+probe=p16_10_local_vars_sequence edition=2023 compile_exit=0 run_exit=0
+probe=p16_10_local_init edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_multi_assignment edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_subseq_match_item edition=2023 compile_exit=1 run_exit=NA
+probe=p16_10_incdec_match_item edition=2023 compile_exit=3 run_exit=NA
+finished=2026-10-19T15:40:58-06:00

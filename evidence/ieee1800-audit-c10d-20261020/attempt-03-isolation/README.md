@@ -1,0 +1,5 @@
+# §10.10 unpacked-array concatenation — first isolation
+
+Slurm job 3532 tested the corrected positive and four negatives under Icarus 13.0-devel (`cc25756d1`), in both `-g2017` and `-g2023`; each compile and any run was limited to 30 seconds. The source replaced the invalid nested-unpacked-concatenation positive with the legal §10.10.3 sized-vector item (`U8`) and included the standard's byte-array concatenation (`U7`).
+
+The combined positive fails compilation at U3 (`C = {B, A}`) in both editions with `this expression (kind 18) cannot be evaluated in a vector context`; U1, U2, U4, U6, and U7 could not run in that combined file. The isolated vector control passes (`V 258`), but the U8 vector-concatenation item fails with `A concatenation cannot be elaborated in an assignment context of type netvector_t:bool signed[31:0]`. The legal nested string-concatenation item passes (`SQ 4 S1 element 0 element 3 is S2`). These array-concatenation cases need further isolation. All four negatives compile-reject in both editions. Full raw logs and per-case files are in `slurm-3532.out` and `results-3532/results/`.

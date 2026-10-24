@@ -1,0 +1,40 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+e1aa7e7691a0a046536678f4cc91ee5f16e207585597bd4ce807941555f585f4  ./edition_flags.sv
+c9e3ebbb8d03a9b08ef281bf107bcd8beca8862af9d00a8b51e4f3f8061c2170  ./n24_06_module_ref.sv
+b01e8abea8dee0b5ef98d47425e0ac5675dc8b2452e96d1a1befb1d12598f331  ./p16_13_4_ifelse_clock_flow.sv
+ea1a2c360798535a9bf30c5b38cf29cf5db3a31b176c0b85f9349a5c18101958  ./p24_06_anon.sv
+c1651eb7f80496242968206680954475aa7dbecb47e67aefd51c0c82e81fad3c  ./p24_07_exit.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+edition_flags edition=2017 compile_exit=0
+edition_flags edition=2017 run_exit=0
+edition_flags edition=2023 compile_exit=0
+edition_flags edition=2023 run_exit=0
+ifelse edition=2017 compile_exit=3
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:22: sorry: named property `mult_p8' uses a form that supports only one instantiation; this additional assertion is dropped.
+exit edition=2017 compile_exit=0
+exit edition=2017 run_exit=0
+P1 5
+anon edition=2017 compile_exit=2
+p24_06_anon.sv:2: syntax error
+I give up.
+module_ref edition=2017 compile_exit=2
+n24_06_module_ref.sv:2: syntax error
+I give up.
+ifelse edition=2023 compile_exit=3
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:22: sorry: named property `mult_p8' uses a form that supports only one instantiation; this additional assertion is dropped.
+exit edition=2023 compile_exit=0
+exit edition=2023 run_exit=0
+P1 5
+anon edition=2023 compile_exit=2
+p24_06_anon.sv:2: syntax error
+I give up.
+module_ref edition=2023 compile_exit=2
+n24_06_module_ref.sv:2: syntax error
+I give up.

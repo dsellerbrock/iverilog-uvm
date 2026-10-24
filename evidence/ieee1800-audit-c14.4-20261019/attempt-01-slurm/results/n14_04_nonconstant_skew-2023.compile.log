@@ -1,0 +1,2 @@
+tests/1800_audit/c14/neg/n14_04_nonconstant_skew.sv:6: error: A reference to a net or variable (`dyn_skew') is not allowed in a constant expression.
+1 error(s) during elaboration.

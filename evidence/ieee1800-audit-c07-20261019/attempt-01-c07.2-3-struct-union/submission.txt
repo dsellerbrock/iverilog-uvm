@@ -1,0 +1,5 @@
+branch=m7-1800-audit-c08
+head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+working_tree=dirty (pre-existing M7 audit changes; this run stages only tests/1800_audit/c07)
+probe_archive_sha256=bd320d959e1d4aef69b0e24c2a4d158d80d71f31503cdb1a57d6e54fb8c3b9fe
+script_sha256=61ba327c1604541f6991c90699f6c96d92eb396d85feb0ebd2114892b31cb451

@@ -1,0 +1,47 @@
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:5: error: 'p17_03_checker' cannot be used in an expression
+    p17_03_checker instance(clk, sig);
+    ^~~~~~~~~~~~~~
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:1:9: note: declared here
+checker p17_03_checker(input logic clk, input logic sig);
+        ^
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:19: error: expected ';'
+    p17_03_checker instance(clk, sig);
+                  ^
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:29: error: expression is not allowed as a statement
+    p17_03_checker instance(clk, sig);
+                            ^~~
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:32: error: expected ')'
+    p17_03_checker instance(clk, sig);
+                               ^
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:28: note: to match this '('
+    p17_03_checker instance(clk, sig);
+                           ^
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:34: error: expression is not allowed as a statement
+    p17_03_checker instance(clk, sig);
+                                 ^~~
+tests/1800_audit/c17/p17_03_procedural_checker_instance.sv:10:37: error: expected ';'
+    p17_03_checker instance(clk, sig);
+                                    ^
+Top level design units:
+    p17_03_procedural_checker_instance
+
+
+Build failed: 6 errors, 0 warnings
+        0.01 real         0.00 user         0.00 sys
+             6684672  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1348  page reclaims
+                 114  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 144  involuntary context switches
+            99288371  instructions retired
+            36294769  cycles elapsed
+             2720128  peak memory footprint

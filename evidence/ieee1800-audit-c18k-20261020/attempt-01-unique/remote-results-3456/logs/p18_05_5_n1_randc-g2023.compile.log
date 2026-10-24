@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_n1_randc.sv:6: error: 'randc' variables cannot be used in 'unique' constraints.
+1 error(s) during elaboration.

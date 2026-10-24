@@ -1,0 +1,4 @@
+Repository: dsellerbrock/iverilog-uvm
+Search mode: `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url`
+
+Queries before the probe: `randcase` and `random weighted case` returned no open or closed issues.

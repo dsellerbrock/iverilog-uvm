@@ -1,0 +1,20 @@
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4620288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1751  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                  92  involuntary context switches
+            19272720  instructions retired
+             7706305  cycles elapsed
+             1245544  peak memory footprint

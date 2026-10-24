@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-patterns-20261020-01/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'c'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-patterns-20261020-01/source/n10_09_uncovered_member.sv:4: error: Named struct pattern has no value for member 'r'.
+Elaboration failed

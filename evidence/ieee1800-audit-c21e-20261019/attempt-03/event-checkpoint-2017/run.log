@@ -1,0 +1,21 @@
+VCD info: dumpfile r3.vcd opened for output.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21v_event_checkpoint.sv:2: $finish called at 25 (1ns)
+        0.05 real         0.01 user         0.00 sys
+             6438912  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1316  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  28  involuntary context switches
+           137114247  instructions retired
+            44971828  cycles elapsed
+             3883392  peak memory footprint
+exit_code=0

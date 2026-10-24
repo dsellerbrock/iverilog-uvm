@@ -1,0 +1,5 @@
+input/U3_user_nettype_force_release.sv:14: sorry: an assignment pattern for a non-array unpacked value cannot be driven onto a net.
+input/U3_user_nettype_force_release.sv:14: internal error: Failed to synthesize expression: '{1.50000, 1'd1}
+input/U3_user_nettype_force_release.sv:15: sorry: an assignment pattern for a non-array unpacked value cannot be driven onto a net.
+input/U3_user_nettype_force_release.sv:15: internal error: Failed to synthesize expression: '{2.00000, 1'd0}
+4 error(s) during elaboration.

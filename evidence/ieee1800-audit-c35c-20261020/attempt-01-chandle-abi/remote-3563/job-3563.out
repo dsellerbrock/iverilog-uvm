@@ -1,0 +1,15 @@
+edition	compile_rc	link_rc	run_rc	stdout_match
+2017	0	0	0	YES
+2023	0	0	0	YES
+--- g2017.compile.log
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-chandle-abi-20261020-01/input/m10j_dpi_chandle_abi_test.sv:15: warning: Static variable initialization requires explicit lifetime in this context.
+--- g2023.compile.log
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-chandle-abi-20261020-01/input/m10j_dpi_chandle_abi_test.sv:15: warning: Static variable initialization requires explicit lifetime in this context.
+--- g2017.link.log
+--- g2023.link.log
+--- g2017.stdout.log
+PASS m10j_dpi_chandle_abi_test
+--- g2023.stdout.log
+PASS m10j_dpi_chandle_abi_test
+--- g2017.stderr.log
+--- g2023.stderr.log

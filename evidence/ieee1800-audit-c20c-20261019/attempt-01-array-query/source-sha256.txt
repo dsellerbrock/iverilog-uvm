@@ -1,0 +1,4 @@
+c3db79a3a67242ea0c67e4bad49ba81d0d34f14d9b7687c6d7677911fe0d8284  tests/1800_audit/c20/p20_07a_array_query.sv
+a2d81d7b61c9a1c2f89d7c2c5de990e58e12ca2c14f2549ceabb8d254212f303  tests/1800_audit/c20/neg/n20_07_dyn_dim_2.sv
+93c112480bbc4078ba3740797aa422b70bd9e3b84ebf4d3bf4a5f7b3acb4a1eb  tests/1800_audit/c20/neg/n20_07_dyn_type.sv
+20b5eca09052706c7daa24562f8b865ea5254f5a908b4a7dd7d48b1c415c7518  tests/1800_audit/c20/neg/n20_07_multi_var_size.sv

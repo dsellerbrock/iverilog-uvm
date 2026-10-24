@@ -1,0 +1,15 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+edition_flag=-g2012 (no edition-specific difference in §22.13)
+b057f759d9e9ed443d4a904e408e4a78f68f7b55fa4427c14c6fbd92fb2748cc  ivltests/br_gh782a.v
+5e34a1df752e3b05408eb4e911a9eed0659becfff91a7e95c04de9a82f73c46e  ivltests/br_gh782a.vi
+276f320b3fc0150cdd9fa9c0d775eb00e5b0736d15772ef58b66ff43ae9a1a6b  expected.gold
+File ./ivltests/br_gh782a.v line 4
+Included file ./ivltests/br_gh782a.vi line 1
+File ./ivltests/br_gh782a.v line 6
+Included file ./ivltests/br_gh782a.vi line 1
+File ./ivltests/br_gh782a.v line 8
+Included file ./ivltests/br_gh782a.vi line 1
+File ./ivltests/br_gh782a.v line 11
+Included file ./ivltests/br_gh782a.vi line 1
+File ./ivltests/br_gh782a.v line 14
+PROBE_RESULT=PASS
