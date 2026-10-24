@@ -14988,6 +14988,28 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
+  | hierarchy_identifier '[' '$' '+' expression ']'
+      { pform_requires_sv(@3, "Last element expression ($)");
+        pform_name_t * tmp = $1;
+	pform_name_t * size_path = new pform_name_t(*tmp);
+	size_path->push_back(name_component_t(lex_strings.make("size")));
+	std::vector<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
+	FILE_NAME(size_call, @3);
+	delete size_path;
+	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	PEBinary*offset_idx = new PEBinary('+', last_idx, $5);
+	FILE_NAME(offset_idx, @4);
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = offset_idx;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
