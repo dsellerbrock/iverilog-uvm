@@ -5838,3 +5838,5 @@ sv_class_type_param_cast_2017 normal,-g2017,-s,test ivltests gold=sv_class_type_
 sv_class_type_param_cast_2023 normal,-g2023,-s,test ivltests gold=sv_class_type_param_cast.gold
 sv_wait_fork_immediate_children_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_immediate_children.gold
 sv_wait_fork_immediate_children_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_immediate_children.gold
+sv_process_extend_fail_2017 CE,-g2017,-s,sv_process_extend_fail ivltests
+sv_process_extend_fail_2023 CE,-g2023,-s,sv_process_extend_fail ivltests
