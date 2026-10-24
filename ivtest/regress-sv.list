@@ -5912,3 +5912,4 @@ sv_exit_control normal,-g2017,-s,sv_exit_control ivltests gold=sv_exit_control.g
 sv_exit_control_2023 normal,-g2023,-s,sv_exit_control ivltests gold=sv_exit_control.gold
 sv_assoc_nonintegral_query_2017	CE,-g2017	ivltests
 sv_assoc_nonintegral_query_2023	CE,-g2023	ivltests
+sv_resistive_switch_strength normal,-g2017,-s,top ivltests gold=sv_resistive_switch_strength.gold
