@@ -1,0 +1,2 @@
+ivltests/sv_chandle_assignment_incompatible.v:4: error: chandle variables may only be assigned from another chandle or null (IEEE 1800-2017/2023 6.14).
+Elaboration failed
