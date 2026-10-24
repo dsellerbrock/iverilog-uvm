@@ -205,6 +205,8 @@ extern void pform_module_define_interconnect_port(
 
 extern Module::port_t* pform_module_port_reference(const struct vlltype&loc,
 						   perm_string name);
+extern void pform_module_defer_port_direction(perm_string name,
+						     NetNet::PortType direction);
 extern void pform_endmodule(const char*, bool inside_celldefine,
                             Module::UCDriveType uc_drive_def);
 

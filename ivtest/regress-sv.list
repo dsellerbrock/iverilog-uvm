@@ -5835,6 +5835,8 @@ sv_continuous_struct_variable normal,-g2017,-s,sv_continuous_struct_variable ivl
 sv_continuous_struct_variable_2023 normal,-g2023,-s,sv_continuous_struct_variable ivltests gold=sv_continuous_struct_variable.gold
 sv_continuous_struct_pattern normal,-g2017,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
 sv_continuous_struct_pattern_2023 normal,-g2023,-s,sv_continuous_struct_pattern ivltests gold=sv_continuous_struct_pattern.gold
+sv_ansi_explicit_port_inherit normal,-g2017,-s,sv_ansi_explicit_port_inherit ivltests gold=sv_ansi_explicit_port_inherit.gold
+sv_ansi_explicit_port_inherit_2023 normal,-g2023,-s,sv_ansi_explicit_port_inherit ivltests gold=sv_ansi_explicit_port_inherit.gold
 sv_continuous_struct_driver_conflict_fail CE,-g2017,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
 sv_continuous_struct_driver_conflict_fail_2023 CE,-g2023,-s,sv_continuous_struct_driver_conflict_fail ivltests gold=sv_continuous_struct_driver_conflict_fail.gold
 # IEEE 1800-2017/2023 §§23.6, 27.5: unselected conditional-generate blocks are absent from the hierarchy.

@@ -375,6 +375,8 @@ static list<set<perm_string> > conditional_block_names;
      always within an interface. */
 static PModport*pform_cur_modport = 0;
 static bool pform_parsing_modport_tf_prototype = false;
+static map<Module*, vector<pair<perm_string, NetNet::PortType> > >
+      pform_deferred_explicit_port_directions;
 static bool pform_pending_modport_tf_prototype = false;
 static perm_string pform_pending_modport_tf_name;
 static bool pform_pending_modport_tf_is_function = false;
@@ -2668,6 +2670,14 @@ Module::port_t* pform_module_port_reference(const struct vlltype&loc,
       return ptmp;
 }
 
+void pform_module_defer_port_direction(perm_string name,
+                                       NetNet::PortType direction)
+{
+      assert(!pform_cur_module.empty());
+      pform_deferred_explicit_port_directions[pform_cur_module.front()]
+            .push_back(make_pair(name, direction));
+}
+
 void pform_module_set_ports(vector<Module::port_t*>*ports)
 {
       assert(! pform_cur_module.empty());
@@ -2697,6 +2707,26 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
       perm_string mod_name = cur_module->mod_name();
+      map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
+            deferred = pform_deferred_explicit_port_directions.find(cur_module);
+      if (deferred != pform_deferred_explicit_port_directions.end()) {
+            for (const pair<perm_string, NetNet::PortType>&port
+                       : deferred->second) {
+                  PWire*wire = pform_get_wire_in_scope(port.first);
+                  if (!wire) {
+                        ostringstream msg;
+                        msg << "error: Explicit port expression signal `"
+                            << port.first << "' is not declared.";
+                        VLerror(msg.str().c_str());
+                  } else if (!wire->set_port_type(port.second)) {
+                        ostringstream msg;
+                        msg << "error: Explicit port expression signal `"
+                            << port.first << "' has conflicting port directions.";
+                        VLerror(msg.str().c_str());
+                  }
+            }
+            pform_deferred_explicit_port_directions.erase(deferred);
+      }
       if (!cur_module->default_clocking.nil()
 	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
 	      == cur_module->clocking_blocks.end())) {

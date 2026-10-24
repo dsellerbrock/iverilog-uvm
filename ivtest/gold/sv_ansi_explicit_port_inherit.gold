@@ -1,0 +1,2 @@
+PASS
+./ivltests/sv_ansi_explicit_port_inherit.v:13: $finish called at 1 (1s)
