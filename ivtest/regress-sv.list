@@ -5893,3 +5893,6 @@ sv_forward_class_scoped_typedef normal,-g2017,-s,sv_forward_class_scoped_typedef
 sv_forward_class_scoped_typedef_2023 normal,-g2023,-s,sv_forward_class_scoped_typedef_2023 ivltests gold=sv_forward_class_scoped_typedef.gold
 format_undefined_spec_2017 EF,-g2017,-s,format_undefined_spec_2017 ivltests gold=format_undefined_spec_2017.gold
 format_undefined_spec_2023 EF,-g2023,-s,format_undefined_spec_2023 ivltests gold=format_undefined_spec_2023.gold
+# IEEE 1800-2017/2023 20.2 and 24.7: program-only $exit and ignored module calls.
+sv_exit_control normal,-g2017,-s,sv_exit_control ivltests gold=sv_exit_control.gold
+sv_exit_control_2023 normal,-g2023,-s,sv_exit_control ivltests gold=sv_exit_control.gold

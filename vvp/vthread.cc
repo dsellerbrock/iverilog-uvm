@@ -34118,6 +34118,28 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 
       vpip_execute_vpi_call(thr, cp->handle);
 
+      /* $exit is a program control task, not an alias for $finish.  The
+       * program initial procedure that calls it completes here; the
+       * program-completion counter finishes simulation only after the
+       * remaining program initial procedures have completed.  Calls from
+       * module processes (and other non-program processes) are ignored. */
+      const char*called_task = cp->handle
+          ? vpi_get_str(vpiName, cp->handle) : nullptr;
+      if (called_task && strcmp(called_task, "$exit") == 0
+          && thr && thr->is_program_init) {
+            vpiHandle scope = vpi_handle(vpiScope, cp->handle);
+            bool in_program = false;
+            while (scope) {
+                  if (vpi_get(vpiType, scope) == vpiProgram) {
+                        in_program = true;
+                        break;
+                  }
+                  scope = vpi_handle(vpiScope, scope);
+            }
+            if (in_program)
+                  return of_END(thr, nullptr);
+      }
+
       if (trace) {
             fprintf(stderr,
                     "trace vpi-call: scope=%s tf=%s call_scope=%s stopped=%d finished=%d next_op=%s pc=%p\n",
