@@ -2407,6 +2407,8 @@ static Module::port_t *module_declare_port_continuation(
 
 %type <decl_assignments> net_decl_assigns
 %type <decl_assignment> net_decl_assign
+%type <decl_assignments> net_decl_assigns_mixed
+%type <decl_assignment> net_decl_assign_mixed
 
 %type <mport> port port_opt port_reference port_reference_list
 %type <mport> port_declaration
@@ -15614,19 +15616,6 @@ module_item
 	if ($4) delete $4;
       }
 
-  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
-
-      { data_type_t*data_type = $3;
-        pform_check_net_data_type(@2, $2, $3);
-	if (data_type == 0) {
-	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	      FILE_NAME(data_type, @2);
-	}
-	pform_set_net_delay(@2, $4, $5);
-	pform_set_data_type(@2, data_type, $5, $2, $1);
-	delete $1;
-      }
-
   | attribute_list_opt K_wreal delay3 net_variable_list ';'
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
 	pform_set_net_delay(@2, $3, $4);
@@ -15640,11 +15629,9 @@ module_item
 	delete $1;
       }
 
-  /* Very similar to the rule above, but this takes a list of
-     net_decl_assigns, which are <name> = <expr> assignment
-     declarations. */
+  /* Built-in net declarations accept an optional initializer on each name. */
 
-  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $3;
         pform_check_net_data_type(@2, $2, $3);
 	if (data_type == 0) {
@@ -15660,19 +15647,7 @@ module_item
      without an initializer has no assignment driver to which the strength
      applies, but it is nevertheless a legal net declaration. */
 
-  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
-      { data_type_t*data_type = $4;
-        pform_check_net_data_type(@2, $2, $4);
-	if (data_type == 0) {
-	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	      FILE_NAME(data_type, @2);
-	}
-	pform_set_net_delay(@2, $5, $6);
-	pform_set_data_type(@2, data_type, $6, $2, $1);
-	delete $1;
-      }
-
-  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $4;
         pform_check_net_data_type(@2, $2, $4);
 	if (data_type == 0) {
@@ -15687,7 +15662,7 @@ module_item
      after a nonempty data type/range. Restricting the carrier to the
      nonempty form avoids competing with the standards-order production
      when the data type is omitted. */
-  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $3;
         pform_check_net_data_type(@2, $2, $3);
 	pform_makewire(@2, $5, $4, $6, $2, data_type, $1);
@@ -16532,6 +16507,42 @@ net_decl_assigns
       }
   | net_decl_assign
       { std::list<decl_assignment_t*>*tmp = new std::list<decl_assignment_t*>;
+	tmp->push_back($1);
+	$$ = tmp;
+      }
+  ;
+
+/* Built-in net declarations use the optional initializer on every
+   declarator that net_decl_assignment specifies. */
+net_decl_assign_mixed
+  : IDENTIFIER dimensions_opt initializer_opt
+      { decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1), @1.lexical_pos };
+	if ($2) tmp->index.splice(tmp->index.end(), *$2);
+	tmp->expr.reset($3);
+	delete $2;
+	delete[]$1;
+	$$ = tmp;
+      }
+  | NETTYPE_IDENTIFIER dimensions_opt initializer_opt
+      { decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1.text), @1.lexical_pos };
+	if ($2) tmp->index.splice(tmp->index.end(), *$2);
+	tmp->expr.reset($3);
+	delete $2;
+	delete[]$1.text;
+	$$ = tmp;
+      }
+  ;
+
+net_decl_assigns_mixed
+  : net_decl_assigns_mixed ',' net_decl_assign_mixed
+	  { $1->push_back($3);
+	$$ = $1;
+      }
+  | net_decl_assign_mixed
+      { std::list<decl_assignment_t*>*tmp =
+		new std::list<decl_assignment_t*>;
 	tmp->push_back($1);
 	$$ = tmp;
       }
