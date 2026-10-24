@@ -19,6 +19,7 @@
  */
 
 # include "config.h"
+bool pform_procedural_expr_context = false;
 # include  <algorithm>
 # include  <utility>
 # include  <typeinfo>
@@ -17816,6 +17817,32 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 		 << " has no elaborated function signature." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	/* IEEE 1800-2017/2023 13.4: copy-out and reference function
+	 * arguments are only legal when the call occurs in a procedural
+	 * statement. A const ref formal is explicitly permitted. */
+      if (!pform_procedural_expr_context) {
+	    bool bad_direction = false;
+	    for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+		  const NetNet*formal = def->port(idx);
+		  if (formal->port_type() == NetNet::POUTPUT
+		      || formal->port_type() == NetNet::PINOUT
+		      || (formal->port_type() == NetNet::PREF
+			  && !formal->get_const())) {
+			bad_direction = true;
+			break;
+		  }
+	    }
+	    if (bad_direction) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments may only be called"
+			  " in a procedural statement (IEEE 1800-2017/2023 13.4)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
       }
 
       bool need_const = NEED_CONST & flags;
