@@ -7446,9 +7446,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property(@2, $2, $4);
+      { check_end_label(@8, "property", $2, $8);
+	pform_sva_declare_property(@2, $2, $4);
 	delete[] $2;
-	delete[] $8;
       }
   /* Focused unambiguous slice of assertion_variable_declaration for the
      ubiquitous built-in `int' local. Using the concrete keyword here avoids
@@ -7465,11 +7465,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_property IDENTIFIER ';' sva_int_local_declarations event_control
       property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
       { sva_property_t*p = $7;
+	check_end_label(@11, "property", $2, $11);
 	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
 	else { delete $5; delete $6; }
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
-	delete[] $11;
       }
   | K_property IDENTIFIER ';' sva_int_local_declarations
       property_spec_disable_iff_opt property_expr ';' K_endproperty
@@ -7481,10 +7481,10 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_property IDENTIFIER ';' sva_int_local_declarations
       property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
       { sva_property_t*p = $6;
+	check_end_label(@10, "property", $2, $10);
 	if (p) p->disable_iff_expr = $5; else delete $5;
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
-	delete[] $10;
       }
   /* An ordinary unclocked named sequence keeps the flat splice table. */
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
@@ -7560,9 +7560,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property_p(@2, $2, $4, $7);
+      { check_end_label(@11, "property", $2, $11);
+	pform_sva_declare_property_p(@2, $2, $4, $7);
 	delete[] $2;
-	delete[] $11;
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations property_spec ';' K_endproperty
@@ -7571,9 +7571,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property_p(@2, $2, $4, $8);
+      { check_end_label(@12, "property", $2, $12);
+	pform_sva_declare_property_p(@2, $2, $4, $8);
 	delete[] $2;
-	delete[] $12;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
