@@ -55,6 +55,14 @@ class netenum_t : public LineInfo, public ivl_type_s {
       const void* nominal_definition() const { return definition_; }
       const std::string& nominal_owner_identity() const
       { return owner_identity_; }
+      void set_generated_type_name(const std::string&name)
+      { generated_type_name_ = name; }
+      const std::string& generated_type_name() const
+      { return generated_type_name_; }
+      void set_typedef_type_name(const std::string&name) const
+      { if (typedef_type_name_.empty()) typedef_type_name_ = name; }
+      const std::string& typedef_type_name() const
+      { return typedef_type_name_; }
 
 	// The size() is the number of enumeration literals.
       size_t size() const;
@@ -91,6 +99,8 @@ class netenum_t : public LineInfo, public ivl_type_s {
 
       const void*definition_ = nullptr;
       std::string owner_identity_;
+      std::string generated_type_name_;
+      mutable std::string typedef_type_name_;
 
       std::map<perm_string,verinum> names_map_;
       std::vector<perm_string> names_;

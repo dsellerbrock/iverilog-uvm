@@ -46,6 +46,8 @@ br_gh687			vvp_tests/br_gh687.json
 br_gh703			vvp_tests/br_gh703.json
 sv_assert_first_match_continuation_2017	vvp_tests/sv_assert_first_match_continuation_2017.json
 sv_assert_first_match_continuation_2023	vvp_tests/sv_assert_first_match_continuation_2023.json
+sv_typename_scope791_2017	vvp_tests/sv_typename_scope791_2017.json
+sv_typename_scope791_2023	vvp_tests/sv_typename_scope791_2023.json
 br_gh710a			vvp_tests/br_gh710a.json
 br_gh710b			vvp_tests/br_gh710b.json
 br_gh710c			vvp_tests/br_gh710c.json

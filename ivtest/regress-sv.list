@@ -1828,6 +1828,8 @@ sv_deferred_cover_actions0	normal,-g2012		ivltests gold=sv_deferred_cover_action
 sv_deferred_cover_disabled0	normal,-g2012,-gno-assertions	ivltests gold=sv_deferred_cover_disabled0.gold
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
 sv_typename1 normal,-g2012 ivltests
+sv_typename_scope791_2017 normal,-g2017 ivltests gold=sv_typename_scope791.gold
+sv_typename_scope791_2023 normal,-g2023 ivltests gold=sv_typename_scope791.gold
 sv_type_operator1 normal,-g2012 ivltests
 sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
 sv_type_operator_generate_case normal,-g2017 ivltests gold=sv_type_operator_generate_case.gold

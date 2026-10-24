@@ -11864,6 +11864,13 @@ static std::string typename_format_enum_(const netenum_t*en)
 		 + typename_format_enum_value_(width, is_signed, en->value_at(idx));
       }
       out += "}";
+      if (!en->typedef_type_name().empty())
+	    out += en->typedef_type_name();
+      else if (!en->generated_type_name().empty()) {
+	    if (!en->nominal_owner_identity().empty())
+		  out += en->nominal_owner_identity() + "::";
+	    out += en->generated_type_name();
+      }
       return out;
 }
 
@@ -11876,7 +11883,7 @@ static std::string typename_format_type_(ivl_type_t type);
 
 static std::string typename_format_struct_(const netstruct_t*st)
 {
-      std::string out = st->union_flag() ? "union " : "struct ";
+      std::string out = st->union_flag() ? "union" : "struct";
       if (st->packed()) {
 	    out += "packed ";
 	    if (st->get_signed())
@@ -11889,6 +11896,8 @@ static std::string typename_format_struct_(const netstruct_t*st)
 		 + std::string(members[idx].name.str()) + ";";
       }
       out += "}";
+      if (!st->typedef_type_name().empty())
+	    out += st->typedef_type_name();
       return out;
 }
 
@@ -12464,20 +12473,6 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  if (ivl_type_t nt = sub->net_type()) {
 			tn = typename_format_type_(nt);
 
-			  // IEEE 1800-2017 20.6.1's own example for an
-			  // anonymous enum appends the declaration's name
-			  // after the structural expansion
-			  // ("enum{...}e1"). Icarus does not track
-			  // typedef association for enum types, so this
-			  // is applied uniformly; see the comment on
-			  // typename_format_enum_() above.
-			if (dynamic_cast<const netenum_t*>(nt)) {
-			      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
-				    perm_string leaf = peek_tail_name(id->path());
-				    if (!leaf.nil())
-					  tn += leaf.str();
-			      }
-			}
 		  } else {
 			tn = typename_format_basic_(sub->expr_type(),
 						    sub->expr_width(),
