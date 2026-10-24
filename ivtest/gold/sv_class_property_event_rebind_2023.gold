@@ -1,0 +1,2 @@
+PASS class-property-event-rebind
+./ivltests/sv_class_property_event_rebind_2023.v:27: $finish called at 21 (1s)

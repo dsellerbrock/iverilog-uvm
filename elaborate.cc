@@ -23310,7 +23310,12 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                                     is_direct_class_property_event_expr_(tmp)
                                     && deps.size() == 1
                                     && !deps.front().owner_expr
-                                    && !has_ordinary_dependency;
+                                    && !has_ordinary_dependency
+                                    /* A one-term event control must observe a
+                                     * change to its handle expression so it
+                                     * can retarget after a class-handle
+                                     * assignment. */
+                                    && expr_.size() != 1;
                               if (!precise_direct) {
                                     if (expr_.size() != 1
                                         || class_property_event_filter_expr) {
