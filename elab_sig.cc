@@ -3295,6 +3295,22 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
 
+	  // IEEE 1800-2017/2023 13.5.2: ordinary ref arguments require an
+	  // automatic-lifetime subroutine. IEEE 1800-2023's ref static form is
+	  // explicitly exempt because it has different lifetime semantics.
+	  if (!scope->is_auto()) {
+		for (NetNet*port : ports) {
+		      if (port && port->port_type() == NetNet::PREF
+			  && !port->get_ref_static()) {
+			    cerr << port->get_fileline() << ": error: static-lifetime "
+				    "function `" << scope->basename()
+				 << "' may not have a ref argument (IEEE 1800-2017/2023 "
+				    "13.5.2)." << endl;
+			    des->errors += 1;
+		      }
+		}
+	  }
+
 	  // IEEE 1800-2017/2023 9.3.2 applies to function ref formals too.
 	  for (NetNet*port : ports)
 	    check_ref_formal_detached_fork_use(des, port, statement_);
@@ -3377,6 +3393,23 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       vector<NetExpr*>pdefs;
       vector<perm_string> port_names;
       elaborate_sig_ports_(des, scope, ports, pdefs, port_names);
+
+	  // IEEE 1800-2017/2023 13.5.2: ordinary ref arguments require an
+	  // automatic-lifetime subroutine. IEEE 1800-2023's ref static form is
+	  // explicitly exempt because it has different lifetime semantics.
+	  if (!scope->is_auto()) {
+		for (NetNet*port : ports) {
+		      if (port && port->port_type() == NetNet::PREF
+			  && !port->get_ref_static()) {
+			    cerr << port->get_fileline() << ": error: static-lifetime "
+				    "task `" << scope->basename()
+				 << "' may not have a ref argument (IEEE 1800-2017/2023 "
+				    "13.5.2)." << endl;
+			    des->errors += 1;
+		      }
+		}
+	  }
+
       NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
       scope->set_task_def(def);
       scope->elaborate_nettypes(des);
