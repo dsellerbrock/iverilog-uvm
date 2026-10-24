@@ -5847,3 +5847,5 @@ sv_module_restricted_type_param_bad_2023 CE,-g2023,-s,sv_module_restricted_type_
 sv_type_operator_cast normal,-g2017 ivltests gold=sv_type_operator_cast.gold
 sv_let_scope_2017 normal,-g2017,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_let_scope_2023 normal,-g2023,-s,sv_let_scope ivltests gold=sv_let_scope.gold
+sv_forward_class_scoped_typedef normal,-g2017,-s,sv_forward_class_scoped_typedef ivltests gold=sv_forward_class_scoped_typedef.gold
+sv_forward_class_scoped_typedef_2023 normal,-g2023,-s,sv_forward_class_scoped_typedef_2023 ivltests gold=sv_forward_class_scoped_typedef.gold
