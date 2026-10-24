@@ -3065,6 +3065,23 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 		  return const_cast<netclass_t*>(current_class);
 	    }
 
+	    // IEEE 1800-2017/2023 6.23 prohibits hierarchical references in
+	    // a type() expression. A resolved path with multiple components
+	    // ending in a module scope is an explicit reference through an
+	    // instance (for example, sub.x), rather than a dotted data member.
+	    symbol_search_results sr;
+	    if (scope && path.name.size() > 1
+		&& symbol_search(this, des, scope, path, ident->lexical_pos(), &sr)
+		&& sr.net && sr.path_head.size() > 1 && sr.scope
+		&& sr.scope->type() == NetScope::MODULE) {
+		  cerr << get_fileline() << ": error: A hierarchical reference is "
+		       << "not allowed in a type() expression (IEEE 1800 6.23)."
+		       << endl;
+		  des->errors += 1;
+		  // Keep elaboration recovery well-typed after reporting the error.
+		  return new netvector_t(IVL_VT_LOGIC);
+	    }
+
 	    ivl_type_t use_type = ident->test_type_of_ident(des, scope);
 	    if (!use_type) {
 		  cerr << get_fileline() << ": sorry: type() could not resolve "
