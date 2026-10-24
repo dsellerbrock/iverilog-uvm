@@ -41159,6 +41159,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					      des->errors += 1;
 					      continue;
 					}
+					if (strncmp(kv.first.str(), "type_option.", 12) == 0) {
+					      const char* member = kv.first.str() + 12;
+					      auto is_member = [&](const char* name) {
+						    return strcmp(member, name) == 0;
+					      };
+					      bool valid = is_member("weight") || is_member("goal")
+						  || is_member("comment");
+					      if (strcmp(where, "covergroup") == 0) {
+						    valid = valid || is_member("strobe")
+							|| is_member("merge_instances")
+							|| is_member("distribute_first")
+							|| is_member("real_interval");
+					      } else if (strcmp(where, "coverpoint") == 0) {
+						    valid = valid || is_member("real_interval");
+					      }
+					      if (!valid) {
+						    if (kv.second) cerr << kv.second->get_fileline() << ": ";
+						    cerr << "error: '" << kv.first
+							 << "' is not a valid type option in " << where
+							 << "." << endl;
+						    des->errors += 1;
+					      }
+					      continue;
+					}
 					if (kv.first == "cross_retain_auto_bins"
 					    && strcmp(where, "coverpoint") == 0) {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
