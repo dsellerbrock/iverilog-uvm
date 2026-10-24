@@ -4262,6 +4262,19 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    }
       }
 
+	/* A string expression is not assignment-compatible with an integral
+	 * target; string literals retain their separate implicit-conversion
+	 * allowance under IEEE 1800-2017 6.16. */
+      if (type_is_vectorable(lv_type)
+	  && expr->expr_type() == IVL_VT_STRING
+	  && !dynamic_cast<const PEString*>(expr)) {
+	cerr << expr->get_fileline() << ": error: A string expression cannot be "
+	     << "assigned to an integral target without an explicit cast." << endl;
+	des->errors += 1;
+	delete rval;
+	return 0;
+      }
+
 	/* A nonconstant replication of string data is intrinsically string,
 	 * even when all of its operands are literals (Table 6-9). A string
 	 * expression is not implicitly assignment-compatible with an integral
