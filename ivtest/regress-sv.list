@@ -5888,3 +5888,5 @@ sv_assoc_nonintegral_query_2023	CE,-g2023	ivltests
 sv_resistive_switch_strength normal,-g2017,-s,top ivltests gold=sv_resistive_switch_strength.gold
 sv_protected_envelope_unsupported_2017 CE,-g2012,-s,sv_protected_envelope_unsupported_2017 ivltests
 sv_protected_envelope_unsupported_2023 CE,-g2012,-s,sv_protected_envelope_unsupported_2023 ivltests
+sv_udp_instance_array_2017 normal,-g2017,-s,sv_udp_instance_array ivltests gold=sv_udp_instance_array.gold
+sv_udp_instance_array_2023 normal,-g2023,-s,sv_udp_instance_array ivltests gold=sv_udp_instance_array.gold

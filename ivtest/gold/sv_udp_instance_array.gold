@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_udp_instance_array.v:29: $finish called at 3 (1s)
