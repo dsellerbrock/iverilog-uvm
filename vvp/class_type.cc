@@ -38,6 +38,8 @@
 # include  <map>
 # include  <set>
 # include  <iostream>
+# include  <fstream>
+# include  <sstream>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -4115,11 +4117,182 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 }
 
 static std::vector<const class_type*> covgrp_registry_;
+static std::string covgrp_db_name_;
+
+static std::string covgrp_db_encode_name_(const std::string&name)
+{
+      static const char hex[] = "0123456789abcdef";
+      std::string result;
+      for (unsigned char ch : name) {
+            result.push_back(hex[ch >> 4]);
+            result.push_back(hex[ch & 15]);
+      }
+      return result.empty() ? "-" : result;
+}
+
+static bool covgrp_db_decode_name_(const std::string&text, std::string&name)
+{
+      if (text == "-") { name.clear(); return true; }
+      if (text.size() & 1) return false;
+      name.clear();
+      for (size_t idx = 0; idx < text.size(); idx += 2) {
+            unsigned value = 0;
+            for (unsigned j = 0; j < 2; ++j) {
+                  char ch = text[idx + j];
+                  unsigned digit = ch >= '0' && ch <= '9' ? ch - '0'
+                        : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10
+                        : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : 16;
+                  if (digit == 16) return false;
+                  value = value * 16 + digit;
+            }
+            name.push_back(static_cast<char>(value));
+      }
+      return true;
+}
 
 const std::vector<const class_type*>& class_type::covgrp_registry()
 {
       return covgrp_registry_;
 }
+
+/* The coverage database stores cumulative TYPE counters, rather than
+ * instance handles or simulator-specific object state. Family/property IDs
+ * are stable for a given covergroup declaration; encoded scope and type names
+ * keep counters separated even when escaped identifiers contain whitespace. */
+void class_type::covgrp_db_set_name(const char*path)
+{
+      covgrp_db_name_ = path ? path : "";
+}
+
+bool class_type::covgrp_db_save_selected()
+{
+      return covgrp_db_name_.empty() || covgrp_db_save(covgrp_db_name_.c_str());
+}
+
+bool class_type::covgrp_db_save(const char*path)
+{
+      if (!path || !*path) return false;
+      std::ofstream out(path, std::ios::out | std::ios::trunc);
+      if (!out) return false;
+      out << "IVL_COVERAGE_DB 1\n";
+      for (const class_type*ct : covgrp_registry_) {
+            out << "T " << covgrp_db_encode_name_(ct->scope_path()) << ' '
+                << covgrp_db_encode_name_(ct->class_name()) << '\n';
+            for (size_t idx = 0; idx < ct->type_counts_.size(); ++idx)
+                  if (ct->type_counts_[idx])
+                        out << "P " << idx << ' ' << ct->type_counts_[idx] << '\n';
+            for (const auto&entry : ct->covgrp_dyn_type_counts_)
+                  out << "D " << entry.first.first << ' ' << entry.first.second
+                      << ' ' << entry.second << '\n';
+            for (const auto&entry : ct->covgrp_dyn_type_totals_) {
+                  unsigned __int128 value = entry.second;
+                  std::string digits;
+                  do {
+                        digits.insert(digits.begin(), char('0' + value % 10));
+                        value /= 10;
+                  } while (value);
+                  out << "N " << entry.first << ' ' << digits << '\n';
+            }
+            for (const auto&entry : ct->covgrp_dyn_type_ranges_)
+                  for (const auto&range : entry.second)
+                        out << "R " << entry.first << ' ' << range.first << ' '
+                            << range.second << '\n';
+            for (const auto&family : ct->covgrp_trans_type_bins_)
+                  for (const auto&entry : family.second) {
+                        out << "Q " << family.first << ' ' << entry.first.size();
+                        for (uint64_t value : entry.first) out << ' ' << value;
+                        out << ' ' << entry.second << '\n';
+                  }
+            for (const auto&family : ct->covgrp_cross_type_) {
+                  for (const auto&entry : family.second.bins) {
+                        out << "X " << family.first << ' ' << entry.first.size();
+                        for (const auto&term : entry.first)
+                              out << ' ' << term.first << ' ' << term.second;
+                        out << ' ' << entry.second << '\n';
+                  }
+                  for (unsigned prop : family.second.named_props)
+                        out << "Y " << family.first << ' ' << prop << '\n';
+            }
+            out << "E\n";
+      }
+      out.close();
+      return !out.fail();
+}
+
+bool class_type::covgrp_db_load(const char*path)
+{
+      if (!path || !*path) return false;
+      std::ifstream in(path);
+      std::string line;
+      if (!std::getline(in, line) || line != "IVL_COVERAGE_DB 1") return false;
+      class_type*current = nullptr;
+      while (std::getline(in, line)) {
+            std::istringstream row(line);
+            char tag;
+            if (!(row >> tag)) continue;
+            if (tag == 'T') {
+                  std::string scope_text, name_text, scope, name;
+                  if (!(row >> scope_text >> name_text)
+                      || !covgrp_db_decode_name_(scope_text, scope)
+                      || !covgrp_db_decode_name_(name_text, name)) return false;
+                  current = nullptr;
+                  for (const class_type*ct : covgrp_registry_)
+                        if (ct->scope_path() == scope && ct->class_name() == name) {
+                              current = const_cast<class_type*>(ct);
+                              break;
+                        }
+            } else if (tag == 'E') {
+                  current = nullptr;
+            } else if (current && tag == 'P') {
+                  unsigned prop; uint32_t count;
+                  if (!(row >> prop >> count)) return false;
+                  if (current->type_counts_.size() <= prop)
+                        current->type_counts_.resize(prop + 1, 0);
+                  current->type_counts_[prop] += count;
+            } else if (current && tag == 'D') {
+                  unsigned family; uint64_t bin; uint32_t count;
+                  if (!(row >> family >> bin >> count)) return false;
+                  current->covgrp_dyn_type_counts_[{family, bin}] += count;
+            } else if (current && tag == 'N') {
+                  unsigned family; std::string digits;
+                  if (!(row >> family >> digits)) return false;
+                  unsigned __int128 value = 0;
+                  for (char c : digits) {
+                        if (c < '0' || c > '9') return false;
+                        value = value * 10 + (c - '0');
+                  }
+                  auto&slot = current->covgrp_dyn_type_totals_[family];
+                  if (value > slot) slot = value;
+            } else if (current && tag == 'R') {
+                  unsigned family; uint64_t lo, hi;
+                  if (!(row >> family >> lo >> hi)) return false;
+                  current->covgrp_dyn_type_ranges_[family].push_back({lo, hi});
+            } else if (current && tag == 'Q') {
+                  unsigned family, size; std::vector<uint64_t> key; uint64_t bin;
+                  if (!(row >> family >> size)) return false;
+                  while (size--) { uint64_t value; if (!(row >> value)) return false; key.push_back(value); }
+                  if (!(row >> bin)) return false;
+                  current->covgrp_trans_type_bins_[family].emplace(key, bin);
+            } else if (current && tag == 'X') {
+                  unsigned family, size; std::vector<std::pair<unsigned,uint64_t>> key; uint64_t bin;
+                  if (!(row >> family >> size)) return false;
+                  while (size--) { unsigned item; uint64_t value; if (!(row >> item >> value)) return false; key.push_back({item, value}); }
+                  if (!(row >> bin)) return false;
+                  current->covgrp_cross_type_[family].bins.emplace(key, bin);
+            } else if (current && tag == 'Y') {
+                  unsigned family, prop;
+                  if (!(row >> family >> prop)) return false;
+                  current->covgrp_cross_type_[family].named_props.insert(prop);
+            }
+      }
+      return in.eof();
+}
+
+extern "C" void vpip_coverage_db_set_name(const char*path)
+{ class_type::covgrp_db_set_name(path); }
+
+extern "C" int vpip_coverage_db_load(const char*path)
+{ return class_type::covgrp_db_load(path) ? 1 : 0; }
 
 void class_type::covgrp_register(const class_type*ct)
 {
