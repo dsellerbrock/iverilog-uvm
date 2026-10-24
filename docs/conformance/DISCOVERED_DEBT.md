@@ -4515,3 +4515,168 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   d=0.0` and `edge2 b=50.0 d=50.0`.
 - **Reproducer status:** confirmed.
 - **Triage status:** untriaged; pre-existing sampler limitation, outside #457.
+
+### DD-127 — legal net partial-force overlap analogue is untested
+
+- **Discovered while working:** M9 #769 procedural force/release target validation.
+- **Observation:** The variable partial-force overlap test is now a compile-error
+  test under IEEE 1800-2023 §10.6.2. Constant part-selects of vector nets are
+  legal force/release targets, but a net release returns to the driven value,
+  so the variable test's held-value expectations cannot be reused as-is. The
+  overlap-ownership and wide-source cache behavior for a net analogue remains
+  unverified.
+- **File/function:** `ivtest/ivltests/sv_force_partial_live_overlap.v`;
+  procedural force target validation in `elab_lval.cc`.
+- **Possible clause:** IEEE 1800-2023 §10.6.2.
+- **Evidence:** Slurm 4588 reports seven §10.6.2 diagnostics for the variable
+  part-select targets; no net analogue was probed.
+- **Reproducer status:** separate net-only follow-up not written or run.
+- **Triage status:** follow-up outside #769.
+
+### DD-128 — packed-array index classification under §10.6 is inferred
+
+- **Discovered while working:** M9 #769 procedural continuous assignment and
+  force/release target validation.
+- **Observation:** The §10.6 diagnostics reject a selected packed-array member
+  such as `p[0]`. This treats the packed-array index as a bit-select on a
+  variable; §10.6.1/§10.6.2 prohibit bit-select and part-select variable
+  targets, but do not explicitly discuss this packed-array classification.
+  The same selected-target forms remain accepted in default 1364 mode as a
+  longstanding Icarus extension.
+- **File/function:** `elab_lval.cc`, procedural continuous assignment and
+  force/release lvalue validation.
+- **Possible clause:** IEEE 1800-2017/2023 §§10.6.1–10.6.2.
+- **Evidence:** `evidence/m9-issue769-20261023/assign-2017-iverilog.stderr`,
+  `assign-2023-iverilog.stderr`, `force-2017-iverilog.stderr`, and
+  `force-2023-iverilog.stderr`; default-mode control in
+  `proc_cont_var_select_1364_ext.v`.
+- **Reproducer status:** confirmed in both SV editions and default 1364 mode.
+- **Triage status:** boundary follows the standard's bit-select vocabulary;
+  this is an interpretation, not an explicit packed-array example in §10.6.
+
+### DD-129 — non-implemented mixed-assignment test contains selected force targets
+
+- **Discovered while working:** M9 #769 neighboring-test impact review.
+- **Observation:** `sv_mixed_assign2.v` has a module-level continuous
+  assignment to `v[7:4]` and later force/release statements on variable slices.
+  The module-level assignment is not the procedural `assign` governed by
+  §10.6.1. Its variable part-select force/release forms are prohibited by
+  §10.6.2, but the JSON test is registered as `NI` and does not run.
+- **File/function:** `ivtest/ivltests/sv_mixed_assign2.v` and
+  `ivtest/vvp_tests/sv_mixed_assign2.json`.
+- **Possible clause:** IEEE 1800-2017/2023 §§10.3 and 10.6.2.
+- **Evidence:** Slurm 4610 on exact `origin/main` `5a0094a8255f` and Slurm 4608
+  on the #769 branch both report `Not Implemented`; logs are in
+  `evidence/m9-issue769-20261023/baseline-ni-record/` and
+  `vpi-impact-record/`.
+- **Reproducer status:** no simulation occurs while the case remains NI.
+- **Triage status:** outside #769; retain the NI case unchanged.
+
+### DD-130 — force/release of unpacked-struct array-word member is unsupported
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force u.words[0]` in an unpacked struct fails during VVP
+  code generation with `vvp.tgt sorry: cannot %force/vec4 to the word of a
+  variable array (u[0]).` Adding `release u.words[0]` reports
+  `vvp.tgt sorry: cannot release a word of a non-integral variable array
+  (u[0]).` The force-only probe confirms force itself is unsupported.
+- **File/function:** VVP code generation for force/release l-values of an
+  unpacked-struct member array element.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  l-value; backend implementation remains incomplete.
+- **Evidence:** `evidence/m9-issue769-20261023/unpacked-struct-probe-record/`
+  (Slurm 4614 combined force/release and Slurm 4617 force-only).
+- **Reproducer status:** confirmed under `-g2017` and `-g2023`.
+- **Triage status:** separate backend defect; outside #769.
+
+### DD-131 — force of whole vector member in unpacked struct aborts compiler
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force u.f = 4'h1` in an unpacked struct aborts the
+  compiler with `ivl: vvp_process.c:2545: force_vector_to_lval: Assertion
+  'ivl_lval_width(lval) == ivl_signal_width(lsig)' failed.`
+- **File/function:** VVP code generation for force of a whole vector member in
+  an unpacked struct.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  l-value; backend implementation remains incomplete.
+- **Evidence:** `evidence/m9-issue769-20261023/unpacked-struct-probe-record/`
+  (Slurm 4614, both editions).
+- **Reproducer status:** confirmed under `-g2017` and `-g2023`.
+- **Triage status:** separate compiler defect; outside #769.
+
+### DD-132 — selected class-property assign/force bypasses §10.6 and aborts VVP
+
+- **Discovered while working:** M9 #769 procedural continuous assignment and
+  force/release target validation.
+- **Observation:** `assign c.q[0] = 1'b1; deassign c.q[0];` and
+  `force c.q[0] = 1'b1;` compile with rc=0 under `-g2017` and `-g2023`, but
+  VVP aborts at `of_CASSIGN_VEC4_OFF` (`vthread.cc:15757`) and
+  `of_FORCE_VEC4_OFF` (`vthread.cc:19681`), respectively. IEEE 1800-2017/2023
+  §§10.6.1–10.6.2 prohibit selected variable targets.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_net_class_member_`;
+  class-property l-values bypass the non-class parsed-path guard.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compile rc=0 is acceptance,
+  not a passing result, and runtime aborts are reproduced.
+- **Triage status:** related to active blocker #769; follow-up bug issue draft
+  is pending supervisor filing. Draft: `evidence/m9-issue769-class-probe-20261024/ISSUE_DRAFT_class_property_force_assign.md`.
+
+### DD-133 — whole class-property force aborts VVP target compilation
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force c.p = 1;` with `int p` compiles through parsing but
+  aborts in the VVP target with `force_vector_to_lval` at `vvp_process.c:2545`
+  under `-g2017` and `-g2023`. A whole class-property reference is a singular
+  variable reference under IEEE 1800-2023 §10.6.2; it must be supported or
+  diagnosed cleanly, never assert. Whole-property assign has not been probed.
+- **File/function:** class-property force lowering from
+  `PEIdent::elaborate_lval_net_class_member_` into VVP target generation.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compiler/target rc=134.
+- **Triage status:** related class-lvalue gap to DD-132 and active blocker #769;
+  follow-up bug issue draft is pending supervisor filing.
+
+### DD-134 — force/release of nested unpacked elements reports a misleading sorry
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** With `logic [3:0] d2[][], q2[$][$], e[][2]`, force/release of
+  whole nested elements such as `d2[0][0]` is rejected by the dynamic-array
+  l-value path with `sorry: assignment to a dynamic-array element bit-select
+  requires a simple vector element.` The target is a whole unpacked element,
+  not a packed bit select; the wording hides an unsupported nested-container
+  force/release path. Plain `d2[0][0] = 4'h1` compiles in both editions.
+- **File/function:** `elab_lval.cc`, dynamic-array l-value lowering around
+  `name_tail.index.size() == 2`.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  reference as a force target; this is an implementation gap, not a reason to
+  report a §10.6 violation.
+- **Evidence:** `evidence/m9-issue769-dynamic-rank-20261024/`; paired
+  `-g2017`/`-g2023` probes and pinned CE outputs.
+- **Reproducer status:** confirmed. The regression is explicitly named
+  unsupported and expects the current `sorry` output until nested-container
+  force/release support is implemented; the gold must flip when DD-134 is
+  implemented.
+- **Triage status:** separate backend/elaboration follow-up from #769's select
+  guard; the same sorry message also conflates the whole element with a
+  bit-select.
+
+### DD-135 — const-ref actual rank check may undercount nested containers
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** `addressable_const_ref` counts the signal's declared fixed
+  dimensions plus at most one dynamic dimension before comparing against the
+  actual's index count. A nested dynamic array or a fixed unpacked array inside
+  a dynamic element may therefore be mistaken for a packed selection.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_var_` around
+  `addressable_const_ref` (lines 1084–1094 in this branch).
+- **Possible clause:** IEEE 1800-2017/2023 §13.5.2 (const-ref actuals); source
+  inspection only, clause behavior not yet reprobed.
+- **Evidence:** source inspection on the #769 worktree; no reducer run.
+- **Reproducer status:** unverified; no runtime or compiler failure is claimed.
+- **Triage status:** follow-up candidate; confirm with a nested-array const-ref
+  probe before changing the separate ref-actual path.

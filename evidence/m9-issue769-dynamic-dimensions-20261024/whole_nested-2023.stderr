@@ -1,0 +1,2 @@
+/tmp/m9-769-nested-dynamic-20261024/whole_nested.sv:3: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+Elaboration failed

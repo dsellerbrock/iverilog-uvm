@@ -1,0 +1,37 @@
+host=MacBook-Air.local
+commit=f31c698305941900a5eb347fdeaae35d0b0e2cf6
+compiler=Icarus Verilog version 13.0 (devel) ()
+select -g2017 compile rc=0
+/tmp/m9-769-class-probe-20261024/run.sh: line 9: 98900 Abort trap: 6           "$VVP" "$TMPDIR/$case-$edition.vvp" > "$TMPDIR/$case-$edition.runtime.stdout" 2> "$TMPDIR/$case-$edition.runtime.stderr"
+select -g2017 runtime rc=134
+Assertion failed: (net->fil), function of_FORCE_VEC4_OFF, file vthread.cc, line 19681.
+whole -g2017 compile rc=134
+Assertion failed: (ivl_lval_width(lval) == ivl_signal_width(lsig)), function force_vector_to_lval, file vvp_process.c, line 2545.
+sh: line 1: 98906 Done                    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivlpp -L -F"/tmp/m9-769-class-probe-20261024/ivrlg263145f68" -f"/tmp/m9-769-class-probe-20261024/ivrlg63145f68" -p"/tmp/m9-769-class-probe-20261024/ivrli63145f68"
+     98907 Abort trap: 6           | /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivl -C"/tmp/m9-769-class-probe-20261024/ivrlh63145f68" -C"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/vvp.conf" -- -
+select -g2023 compile rc=0
+/tmp/m9-769-class-probe-20261024/run.sh: line 9: 98915 Abort trap: 6           "$VVP" "$TMPDIR/$case-$edition.vvp" > "$TMPDIR/$case-$edition.runtime.stdout" 2> "$TMPDIR/$case-$edition.runtime.stderr"
+select -g2023 runtime rc=134
+Assertion failed: (net->fil), function of_FORCE_VEC4_OFF, file vthread.cc, line 19681.
+whole -g2023 compile rc=134
+Assertion failed: (ivl_lval_width(lval) == ivl_signal_width(lsig)), function force_vector_to_lval, file vvp_process.c, line 2545.
+sh: line 1: 98921 Done                    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivlpp -L -g2023 -F"/tmp/m9-769-class-probe-20261024/ivrlg263183831" -f"/tmp/m9-769-class-probe-20261024/ivrlg63183831" -p"/tmp/m9-769-class-probe-20261024/ivrli63183831"
+     98922 Abort trap: 6           | /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivl -C"/tmp/m9-769-class-probe-20261024/ivrlh63183831" -C"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/vvp.conf" -- -
+        0.52 real         0.14 user         0.11 sys
+            11616256  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               15840  page reclaims
+                1152  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  38  voluntary context switches
+                2130  involuntary context switches
+            43790918  instructions retired
+            28175474  cycles elapsed
+             1671552  peak memory footprint
