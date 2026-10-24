@@ -21999,8 +21999,20 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      want_type = ntype;
 			      item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			}
-			NetExpr*tmp = parms_[idx]->elaborate_expr(
-			      des, scope, want_type, item_flags);
+			/* A nested vector concatenation is a self-determined value
+			 * item (IEEE 1800-2017/2023 10.10.3), not an
+			 * assignment-like context for its own operands. Elaborate it
+			 * at its computed width, then check its value type against the
+			 * destination element below. */
+			NetExpr*tmp;
+			if (dynamic_cast<const PEConcat*>(parms_[idx])
+			    && parms_[idx]->expr_type() != IVL_VT_STRING) {
+			      tmp = parms_[idx]->elaborate_expr(
+				    des, scope, parms_[idx]->expr_width(), item_flags);
+			} else {
+			      tmp = parms_[idx]->elaborate_expr(
+				    des, scope, want_type, item_flags);
+			}
 			/* Array parameters materialize as a fixed-typed pattern,
 			 * rather than as an IVL_EX_ARRAY signal. The pattern stores
 			 * words in numeric-index order; splice duplicates in the
