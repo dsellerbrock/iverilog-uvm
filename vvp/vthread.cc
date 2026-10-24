@@ -26124,26 +26124,92 @@ bool of_NEW_COBJ_EMBEDDED(vthread_t thr, vvp_code_t cp)
  * %stream/flatten/obj: pop a container object, push its bit stream
  * (element 0 leftmost, per the 11.4.14.1 foreach traversal).
  */
+static bool flatten_struct_bitstream_(vvp_cobject*obj, vvp_vector4_t&result)
+{
+      if (!obj) return false;
+      const class_type*defn = obj->get_defn();
+      if (!defn || !defn->is_struct_type()) return false;
+
+      std::vector<vvp_vector4_t> pieces;
+      uint64_t total = 0;
+      for (size_t pid = 0; pid < defn->property_count(); ++pid) {
+            if (defn->property_is_static(pid)) continue;
+            const std::string&bt = defn->property_base_type(pid);
+            uint64_t count = defn->property_array_size(pid);
+            if (!count) count = 1;
+            for (uint64_t idx = 0; idx < count; ++idx) {
+                  vvp_vector4_t piece;
+                  if (bt.compare(0, 3, "oc:") == 0) {
+                        vvp_object_t nested_obj;
+                        obj->get_object(pid, nested_obj, idx);
+                        if (!flatten_struct_bitstream_(
+                              nested_obj.peek<vvp_cobject>(), piece))
+                              return false;
+                  } else if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+                        vvp_object_t value;
+                        obj->get_object(pid, value, idx);
+                        vvp_darray*array = value.peek<vvp_darray>();
+                        if (!array) return false;
+                        piece = array->get_bitstream(true);
+                  } else if (bt == "S") {
+                        std::string value = obj->get_string(pid, idx);
+                        piece = vvp_vector4_t(8 * value.size(), BIT4_0);
+                        unsigned top = piece.size();
+                        for (unsigned ch = 0; ch < value.size(); ++ch) {
+                              unsigned char byte = (unsigned char)value[ch];
+                              top -= 8;
+                              for (unsigned bit = 0; bit < 8; ++bit)
+                                    if ((byte >> bit) & 1)
+                                          piece.set_bit(top + bit, BIT4_1);
+                        }
+                  } else {
+                        unsigned width = defn->property_vec4_width(pid);
+                        if (!width) return false;
+                        obj->get_vec4(pid, piece, idx);
+                        if (piece.size() != width) {
+                              vvp_vector4_t resized(width, BIT4_0);
+                              unsigned copy = std::min(width, piece.size());
+                              if (copy) resized.set_vec(width-copy,
+                                    piece.subvalue(piece.size()-copy, copy));
+                              piece = resized;
+                        }
+                  }
+                  if (piece.size() > UINT_MAX - total) return false;
+                  total += piece.size();
+                  pieces.push_back(piece);
+            }
+      }
+      result = vvp_vector4_t((unsigned)total, BIT4_0);
+      unsigned top = (unsigned)total;
+      for (const vvp_vector4_t&piece : pieces) {
+            top -= piece.size();
+            if (piece.size()) result.set_vec(top, piece);
+      }
+      return true;
+}
+
 bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
 {
-      static bool warned_bad_obj = false;
-
       vvp_object_t obj;
       thr->pop_object(obj);
 
       vvp_darray*dar = obj.peek<vvp_darray>();
       if (dar == 0) {
-	    // Null handles are skipped (not streamed) per 11.4.14.1;
-	    // any other object kind is unsupported here.
-	    if (!obj.test_nil() && !warned_bad_obj) {
-		  cerr << thr->get_fileline()
-		       << "VVP error: unsupported object kind in streaming "
-		          "concatenation; treating as empty stream "
-		          "(further similar messages suppressed)." << endl;
-		  warned_bad_obj = true;
-	    }
-	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
-	    return true;
+            vvp_vector4_t bits;
+            if (flatten_struct_bitstream_(obj.peek<vvp_cobject>(), bits)) {
+                  thr->push_vec4(bits);
+                  return true;
+            }
+            if (!obj.test_nil()) {
+                  cerr << thr->get_fileline()
+                       << "VVP error: unsupported object kind in bit-stream cast."
+                       << endl;
+                  vpip_set_return_value(1);
+                  if (!schedule_finished()) schedule_finish(0);
+                  return false;
+            }
+            thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+            return true;
       }
 
       thr->push_vec4(dar->get_bitstream(true));

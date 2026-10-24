@@ -254,7 +254,12 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		  clr_word(second_reg);
 		  clr_word(first_reg);
 	    } else {
-	    switch (ivl_expr_value(parm)) {
+	    ivl_type_t parm_type = ivl_expr_net_type(parm);
+	    if ((parm_type && ivl_type_base(parm_type) == IVL_VT_NO_TYPE)
+		|| ivl_expr_value(parm) == IVL_VT_NO_TYPE) {
+		  draw_eval_object(parm);
+		  fprintf(vvp_out, "    %%stream/flatten/obj;\n");
+	    } else switch (ivl_expr_value(parm)) {
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
 		  draw_eval_object(parm);
