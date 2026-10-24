@@ -14390,7 +14390,18 @@ expr_primary
   | expr_primary '\'' '(' expression ')'
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Size cast")) {
-	      PExpr*tmp = pform_self_package_type_cast(@1, $1, base);
+	      PExpr*tmp = 0;
+	      /* IEEE 1800-2017 6.23 permits a type() reference anywhere a
+	       * type name can be used, including as a cast target. */
+	      if (PETypename*type_expr = dynamic_cast<PETypename*>($1)) {
+		    if (dynamic_cast<type_reference_t*>(type_expr->get_type())) {
+			  tmp = new PECastType(type_expr->get_type(), base);
+			  FILE_NAME(tmp, @1);
+			  delete $1;
+		    }
+	      }
+	      if (!tmp)
+		    tmp = pform_self_package_type_cast(@1, $1, base);
 	      data_type_t*cast_type = tmp ? 0 : class_scoped_type_of_ident(@1, $1);
 	      if (cast_type) {
 		    // `C::enum_t'(x)' names a class-scoped type (IEEE 6.24.1).

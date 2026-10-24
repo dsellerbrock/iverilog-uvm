@@ -5839,3 +5839,4 @@ sv_enum_unbased_x_2023 normal,-g2023,-s,sv_enum_unbased_x ivltests gold=sv_enum_
 sv_module_restricted_type_param_2017 CE,-g2017,-s,sv_module_restricted_type_param ivltests gold=sv_module_restricted_type_param_2017.gold
 sv_module_restricted_type_param_2023 normal,-g2023,-s,sv_module_restricted_type_param ivltests gold=sv_module_restricted_type_param_2023.gold
 sv_module_restricted_type_param_bad_2023 CE,-g2023,-s,sv_module_restricted_type_param_bad ivltests gold=sv_module_restricted_type_param_bad_2023.gold
+sv_type_operator_cast normal,-g2017 ivltests gold=sv_type_operator_cast.gold
