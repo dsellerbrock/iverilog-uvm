@@ -10700,6 +10700,11 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    cp->set_line(*e);
 	    return cp;
       }
+      if (dynamic_cast<PENull*>(e)) {
+	    PENull*cp = new PENull();
+	    cp->set_line(*e);
+	    return cp;
+      }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled,
 					     live_operands, unsampled_locals);

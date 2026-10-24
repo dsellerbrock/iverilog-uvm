@@ -1,0 +1,2 @@
+ivltests/sv_assert_chandle_operand_fail.v:6: error: Concurrent assertion expressions shall not reference chandle variables (IEEE 1800-2017/2023 16.6).
+1 error(s) during elaboration.

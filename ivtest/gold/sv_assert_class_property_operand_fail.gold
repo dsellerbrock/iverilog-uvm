@@ -1,0 +1,2 @@
+./ivltests/sv_assert_class_property_operand_fail.v:10: error: Concurrent assertion expressions shall not reference non-static class properties (IEEE 1800-2017/2023 16.6).
+1 error(s) during elaboration.
