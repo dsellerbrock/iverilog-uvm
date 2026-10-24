@@ -39606,8 +39606,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + " L) (delem " + hdr + " M)))))";
 			}
 		  }
-		  if (cls && id && id->path().size() == 1
-		      && id->path().back().index.empty()) {
+		  if (cls && id && id->path().size() == 1) {
 			perm_string pname = id->path().back().name;
 			  // `x inside {tbl}' where tbl is a state array
 			  // (18.3): its elements are the set members, at
@@ -39618,8 +39617,72 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			     The element count is solved first, so emit the pairwise
 			     template the runtime expands once the size is known. It
 			     was silently dropped, leaving duplicates. */
-			if (pidx >= 0) {
+			if (pidx >= 0
+			    && (id->path().back().index.empty()
+				|| (id->path().back().index.size() == 1
+				    && id->path().back().index.front().sel
+					 == index_component_t::SEL_PART))) {
 			      ivl_type_t ptype = cls->get_prop_type((size_t)pidx);
+			      /* A slice of a one-dimensional unpacked array is a
+			       * sequence of array elements in the unique group, not a
+			       * packed part-select expression. Expand its constant bounds
+			       * to the same element atoms used for a whole array. */
+			      if (id->path().back().index.size() == 1) {
+				    const index_component_t&select =
+					  id->path().back().index.front();
+				    const netuarray_t*slice_array =
+					  dynamic_cast<const netuarray_t*>(ptype);
+				    if (slice_array && select.sel == index_component_t::SEL_PART
+					&& select.msb && select.lsb
+					&& cls->get_prop_qual((size_t)pidx).test_rand()) {
+					  const netranges_t&dims =
+						  slice_array->static_dimensions();
+					  ivl_type_t etype = slice_array->element_type();
+					  unsigned ewid = etype
+						  ? etype->packed_width() : 32;
+					  if (dims.size() != 1 || !dims[0].defined()
+					      || ewid == 0 || ewid > 64) return "";
+					  auto bound_value = [&](const PExpr*bound,
+							constraint_const_ir_t&value) -> bool {
+						unique_ptr<NetExpr> folded(elab_and_eval(
+						      constraint_ir_design_ctx_,
+						      const_cast<NetScope*>(scope),
+						      const_cast<PExpr*>(bound), -1, false, false));
+						const NetEConst*constant =
+						      dynamic_cast<const NetEConst*>(folded.get());
+						if (!constant || !constant->value().is_defined())
+						      return false;
+						const verinum&bits = constant->value();
+						return bits.len() != 0 && bits.len() <= 64
+						      && constraint_parse_const_ir_(
+							constraint_const_bits_ir_(bits, bits.len(),
+									  bits.has_sign()), value);
+					  };
+					  constraint_const_ir_t first, last;
+					  if (!bound_value(select.msb, first)
+					      || !bound_value(select.lsb, last)) return "";
+					  int64_t begin = (int64_t)constraint_resize_const_bits_(
+						first, 64, first.is_signed);
+					  int64_t end = (int64_t)constraint_resize_const_bits_(
+						last, 64, last.is_signed);
+					  int64_t step = begin <= end ? 1 : -1;
+					  uint64_t count = (uint64_t)(begin <= end
+						? end - begin : begin - end) + 1;
+					  if (count > dims[0].width()) return "";
+					  for (uint64_t n = 0; n < count; ++n) {
+						constraint_const_ir_t index = first;
+						index.value = (uint64_t)(begin + step * (int64_t)n);
+						uint64_t offset = 0;
+						if (!constraint_fixed_index_offset_(index,
+						      min(dims[0].get_msb(), dims[0].get_lsb()),
+						      dims[0].width(), offset)) return "";
+						atoms.push_back("e:" + to_string(pidx) + ":"
+						      + to_string(ewid) + ":" + to_string(offset)
+						      + ((etype && etype->get_signed()) ? ":s" : ""));
+					  }
+					  expanded = true;
+				    }
+			      }
 			      const netdarray_t*dyn = dynamic_cast<const netdarray_t*>(ptype);
 			      const netqueue_t*dq = dynamic_cast<const netqueue_t*>(ptype);
 			      if (dyn && !(dq && dq->assoc_compat())) {
@@ -39654,7 +39717,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netuarray_t*ua =
 				    dynamic_cast<const netuarray_t*>(
 					  cls->get_prop_type((size_t)pidx));
-			      if (ua) {
+			      if (ua && !expanded) {
 				    const netranges_t&dims =
 					  ua->static_dimensions();
 				    if (dims.size() != 1)
