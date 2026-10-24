@@ -672,6 +672,8 @@ sv_class_constructor_default_extends_super_call_2023 CE,-g2023,-s,test ivltests
 sv_class_constructor_default_extends_2017 CE,-g2017,-s,test ivltests
 sv_class_extends_args_super_new_fail_2017 CE,-g2017,-s,test ivltests
 sv_class_extends_args_super_new_fail_2023 CE,-g2023,-s,test ivltests
+sv_nba_dynamic_array_element_fail_2017 CE,-g2017,-s,sv_nba_dynamic_array_element_fail_2017 ivltests gold=sv_nba_dynamic_array_element_fail_2017.gold
+sv_nba_dynamic_array_element_fail_2023 CE,-g2023,-s,sv_nba_dynamic_array_element_fail_2023 ivltests gold=sv_nba_dynamic_array_element_fail_2023.gold
 sv_class_constructor_default_local_ref_2023 CE,-g2023,-s,test ivltests
 sv_class_empty_item	normal,-g2009		ivltests
 sv_class_extends_scoped	normal,-g2009		ivltests
