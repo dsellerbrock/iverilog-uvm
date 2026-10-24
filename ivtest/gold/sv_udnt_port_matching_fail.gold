@@ -1,0 +1,2 @@
+./ivltests/sv_udnt_port_matching_fail.v:10: error: Port 'p' connects user-defined nettype `nt_a' to nonmatching user-defined nettype `nt_b'.
+1 error(s) during elaboration.

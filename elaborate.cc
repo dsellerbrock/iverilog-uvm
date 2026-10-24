@@ -7336,6 +7336,31 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	      // Connect the sig expression that is the context of the
 	      // module instance to the ports of the elaborated module.
+	      // A user-defined nettype connection is valid only when each
+	      // internal port has the same canonical nettype as the external net.
+	      // Check here so scalar and arrayed module instances are covered.
+	    bool nettype_mismatch = false;
+	    const NetNetType*actual_udnt = sig->user_nettype();
+	    if (actual_udnt) {
+		  for (vector<NetNet*>::const_iterator cur = prts.begin();
+		       cur != prts.end(); ++cur) {
+			const NetNetType*formal_udnt = (*cur)->user_nettype();
+			if (formal_udnt && formal_udnt != actual_udnt) {
+			      cerr << pins[idx]->get_fileline()
+				   << ": error: Port '" << port_name
+				   << "' connects user-defined nettype `"
+				   << (*cur)->declared_user_nettype()->pform_type()->name()
+				   << "' to nonmatching user-defined nettype `"
+				   << sig->declared_user_nettype()->pform_type()->name()
+				   << "'." << endl;
+			      des->errors += 1;
+			      nettype_mismatch = true;
+			      break;
+			}
+		  }
+	    }
+	    if (nettype_mismatch)
+		  continue;
 
 	      // The prts_pin_count variable is the total width of the
 	      // port and is the maximum number of connections to
