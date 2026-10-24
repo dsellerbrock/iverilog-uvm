@@ -11843,6 +11843,29 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      // IEEE 1800-2017/2023 6.21 forbids nonblocking writes to elements
+      // of dynamically sized arrays. The automatic-allocation check above
+      // does not catch a module-scope dynamic array, so inspect the
+      // elaborated storage and selected word here.
+	const netdarray_t*target_darray = lv->sig()
+	      ? lv->sig()->darray_type() : nullptr;
+	if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
+	      const netclass_t*target_class =
+		    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+	      if (target_class)
+		    target_darray = dynamic_cast<const netdarray_t*>(
+			  target_class->get_prop_type(
+				(size_t)lv->get_property_idx()));
+	}
+      if (lv->word() && target_darray && !lv->sig()->queue_type()) {
+	    cerr << get_fileline() << ": error: elements of dynamically sized "
+		 "arrays may not be assigned values using non-blocking "
+		 "assignments (IEEE 1800 6.21)." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
+
 	/* A fixed unpacked-array property slice needs a persistent receiver and
 	 * one snapshot word per element in the NBA queue. The signal-array
 	 * lowering below has neither: allowing a one-element base-zero slice to
