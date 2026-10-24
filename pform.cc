@@ -13470,6 +13470,52 @@ static bool pform_auto_sampled_value_(const sampled_pending_t&pending,
       return true;
 }
 
+/* A clocking input's sampled value at this tick is its source's #1step
+   sample. The hidden clockvar register is updated in NBA, so reading it
+   from an Active-region history sampler would observe the previous tick.
+   Resolve the simple clockvar path back to its declared source before the
+   existing Preponed sampler captures it. */
+static PExpr* pform_clocking_input_source_(PExpr*expr)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() < 2
+	  || pform_cur_module.empty())
+	    return nullptr;
+
+      pform_name_t path = id->path().name;
+      const Module*module = pform_cur_module.front();
+      pform_name_t::iterator cb_comp = path.begin();
+      pform_name_t::iterator sig_comp = cb_comp;
+      ++sig_comp;
+      auto cb_it = module->clocking_blocks.find(cb_comp->name);
+      if (cb_it == module->clocking_blocks.end()) return nullptr;
+      const Module::PClocking*cb = cb_it->second;
+      perm_string sig_name = sig_comp->name;
+      NetNet::PortType dir = cb->signal_direction(sig_name);
+      if (dir != NetNet::PINPUT && dir != NetNet::PINOUT) return nullptr;
+
+      pform_name_t source_path;
+      auto da = cb->decl_assigns.find(sig_name);
+      if (da != cb->decl_assigns.end()) {
+	    PEIdent*source = dynamic_cast<PEIdent*>(da->second);
+	    if (!source || source->path().package) return nullptr;
+	    source_path = source->path().name;
+      } else {
+	    name_component_t source = *sig_comp;
+	    source.name = sig_name;
+	    source_path.push_back(source);
+      }
+      if (source_path.empty()) return nullptr;
+      pform_name_t::iterator suffix = sig_comp;
+      ++suffix;
+      pform_name_t new_path = source_path;
+      new_path.insert(new_path.end(), suffix, path.end());
+      PEIdent*result = new PEIdent(new_path, id->lexical_pos());
+      result->reloc_lexical_pos_bind(false);
+      result->set_line(*expr);
+      return result;
+}
+
 static void pform_capture_procedural_sampled_(
 	    const sampled_pending_t&pending, unsigned inst, unsigned&hist_idx,
 	    std::vector<Statement*>&pre, std::vector<Statement*>&post,
@@ -13480,10 +13526,6 @@ static void pform_capture_procedural_sampled_(
       PECallFunction*cf = pending.call;
       if (cf->sampled_subst()) return;
 
-      if (pending.clocking_input_operand) {
-	    live_operands += 1;
-	    return;
-      }
       if (pending.automatic_operand) {
 	    PExpr*current_value = nullptr;
 	    if (pform_auto_sampled_value_(pending, current_value))
@@ -13495,7 +13537,31 @@ static void pform_capture_procedural_sampled_(
 
       /* The sampler runs in Active. Capture static signal leaves through
 	 the existing Preponed read path before building their history. */
-      PExpr*source = sva_wrap_preponed_(cf, sampled, live_operands);
+      PECallFunction*sample_call = cf;
+      if (pending.clocking_input_operand) {
+	    const std::vector<named_pexpr_t>&args = cf->get_parms();
+	    PExpr*input = args.empty() ? nullptr
+		  : pform_clocking_input_source_(args[0].parm);
+	    if (!input) {
+		  live_operands += 1;
+		  return;
+	    }
+	    std::list<named_pexpr_t>copy_args;
+	    for (size_t i = 0; i < args.size(); ++i) {
+		  named_pexpr_t arg;
+		  arg.name = args[i].name;
+		  arg.parm = i == 0 ? input : sva_clone_expr_(args[i].parm);
+		  if (args[i].parm && !arg.parm) {
+			delete input;
+			return;
+		  }
+		  copy_args.push_back(arg);
+	    }
+	    sample_call = new PECallFunction(cf->path().name, copy_args);
+	    sample_call->set_line(*cf);
+      }
+      PExpr*source = sva_wrap_preponed_(sample_call, sampled, live_operands);
+      if (sample_call != cf) delete sample_call;
       if (!source) {
 	    live_operands += 1;
 	    source = cf;

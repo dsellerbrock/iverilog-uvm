@@ -1762,6 +1762,7 @@ sv_scope_randomize_null_fail CE,-g2023 ivltests gold=sv_scope_randomize_null_fai
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_sampled_value_missing_clock CE,-g2017 ivltests
 sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
+sv_sampled_value_clocking_input normal,-g2017 ivltests
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
 sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
 sv_assert_intersect_unequal_lengths normal,-g2017 ivltests gold=sv_assert_intersect_unequal_lengths.gold
