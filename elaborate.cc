@@ -12237,7 +12237,17 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-	/* IEEE 1800-2017 13.4.4 allows a function to spawn processes only
+	/* IEEE 1800-2017/2023 13.4.3 prohibits every fork construct in a
+	   constant function, including fork...join_none (which is otherwise
+	   permitted in a function by 13.4.4). */
+      if (scope->need_const_func() && bl_type_ != PBlock::BL_SEQ) {
+	    cerr << get_fileline() << ": error: A fork statement is not permitted "
+		    "in a constant function." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+	/* IEEE 1800-2017/2023 13.4.4 allows a function to spawn processes only
 	   with fork...join_none. A blocking join or join_any can suspend the
 	   function, even when all of its current branches happen to be
 	   zero-time. Check the lexical routine scope rather than just the
