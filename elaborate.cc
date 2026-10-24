@@ -20855,7 +20855,7 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
  * generator knows to evaluate the expression at run time.
  */
 /* IEEE 1800-2017 14.11: `## count [statement]` waits `count` events of
-   the default clocking block (14.12) visible in the nearest enclosing
+   the default clocking block (14.12) declared in the current
    module/interface/program scope. Lower it to
 
        repeat (count) @(<default clocking name>) ; <statement>
@@ -20873,18 +20873,20 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    if (walker->type() != NetScope::MODULE)
 		  continue;
 	    perm_string mn = walker->module_name();
-	    if (mn.nil()) continue;
+	    /* A module instance is a scope boundary for default clocking.
+	       Its parent may be a module that declares one, but IEEE 1800-2017
+	       14.12 explicitly excludes instantiated modules from that scope. */
+	    if (mn.nil()) break;
 	    auto pmod_it = pform_modules.find(mn);
-	    if (pmod_it == pform_modules.end()) continue;
-	    if (!pmod_it->second->default_clocking.nil()) {
+	    if (pmod_it != pform_modules.end()
+		&& !pmod_it->second->default_clocking.nil())
 		  cb_name = pmod_it->second->default_clocking;
-		  break;
-	    }
+	    break;
       }
 
       if (cb_name.nil()) {
 	    cerr << get_fileline() << ": error: ## cycle delay requires a "
-		 << "default clocking block in scope (IEEE 1800-2017 14.11)."
+		 << "default clocking block in scope (IEEE 1800 14.11)."
 		 << endl;
 	    des->errors += 1;
 	    return 0;
