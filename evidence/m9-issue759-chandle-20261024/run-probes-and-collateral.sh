@@ -37,6 +37,20 @@ run_probe() {
             set -e
         fi
         printf '%s\t%s\t%s\t%s\n' "$name" "$edition" "$compile_rc" "$run_rc" >> "$SUMMARY"
+        case "$name" in
+            rhs_chandle_to_int|rhs_chandle_to_bits|rhs_chandle_to_longint|\
+            rhs_chandle_to_real|rhs_chandle_to_string|\
+            rhs_chandle_class_property|rhs_chandle_class_method)
+                if [[ "$MODE" == baseline ]]; then
+                    [[ $compile_rc -eq 0 && $run_rc -eq 0 ]] || exit 1
+                else
+                    [[ $compile_rc -ne 0 ]] || exit 1
+                fi
+                ;;
+            *)
+                [[ $compile_rc -eq 0 && $run_rc -eq 0 ]] || exit 1
+                ;;
+        esac
     done
 }
 

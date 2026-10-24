@@ -43,10 +43,19 @@ for spec in \
         set -e
         printf '%s\t%s\t%s\t%s\n' "$name" "$edition" "$compile_rc" "$run_rc" \
             >> "$OUT/summary.tsv"
+        if [[ "$name" == nb_chandle_to_int ]]; then
+            if [[ "$MODE" == baseline ]]; then
+                [[ $compile_rc -eq 0 && $run_rc -eq 0 ]] || exit 1
+            else
+                [[ $compile_rc -ne 0 ]] || exit 1
+            fi
+        else
+            [[ $compile_rc -eq 0 && $run_rc -eq 0 ]] || exit 1
+        fi
     done
 done
 
-"$IVERILOG" -V > "$OUT/iverilog-version.txt" 2>&1
+"$IVERILOG" -V 2>&1 | sed -n '1p' > "$OUT/iverilog-version.txt"
 shasum -a 256 "$IVERILOG" "$VVP" > "$OUT/toolchain.sha256"
-printf 'mode=%s\ncompiler_source=%s\nhost=Mac\n' "$MODE" "$SOURCE_SHA" \
+printf 'mode=%s\ncompiler_source=%s\nhost=%s\n' "$MODE" "$SOURCE_SHA" "$(hostname -s)" \
     > "$OUT/run.meta"
