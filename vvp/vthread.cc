@@ -7658,6 +7658,55 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
       cobj->get_defn()->type_bump(prop);
 }
 
+static uint64_t covgrp_wide_auto_bin_(const vvp_vector4_t&value,
+				       unsigned bins)
+{
+	  unsigned width = value.size();
+	  vector<uint32_t> size((width + 31) / 32, 0);
+	  uint64_t remainder = 0;
+	  // Compute floor(2**width / bins), the common range size. The
+	  // standard assigns any non-divisible remainder to the last bin.
+	  for (unsigned pos = width + 1; pos-- > 0;) {
+		uint64_t next = (remainder << 1) | (pos == width ? 1 : 0);
+		remainder = next % bins;
+		if (pos < width && next / bins)
+		      size[pos / 32] |= uint32_t(1) << (pos % 32);
+	  }
+	  vector<uint32_t> sampled(size.size(), 0);
+	  uint64_t carry = 0;
+	  for (unsigned word = 0; word < size.size(); word++) {
+		unsigned count = min(32u, width - word * 32);
+		for (unsigned bit = 0; bit < count; bit++)
+		      if (value.value(word * 32 + bit) == BIT4_1)
+			    sampled[word] |= uint32_t(1) << bit;
+	  }
+	  unsigned low = 0, high = bins;
+	  while (low + 1 < high) {
+		unsigned bin = low + (high - low) / 2;
+		vector<uint32_t> boundary(size.size() + 1, 0);
+		carry = 0;
+		for (unsigned word = 0; word < size.size(); word++) {
+		      uint64_t part = uint64_t(size[word]) * bin + carry;
+		      boundary[word] = uint32_t(part);
+		      carry = part >> 32;
+		}
+		boundary[size.size()] = uint32_t(carry);
+		bool at_least = false;
+		for (unsigned word = size.size(); word-- > 0;) {
+		      uint32_t bound = boundary[word];
+		      uint32_t got = word < sampled.size() ? sampled[word] : 0;
+		      if (got != bound) {
+			    at_least = got > bound;
+			    break;
+		      }
+		      if (word == 0) at_least = true;
+		}
+		if (at_least) low = bin;
+		else high = bin;
+	  }
+	  return low;
+}
+
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
@@ -7686,16 +7735,10 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
       if (wide_val && wide_val->has_xz()) return false;
 	  if (bin.kind & 512) {
 	    unsigned width = bin.hi >> 32;
-	    unsigned bits = bin.hi & 0xffffffffu;
+	    unsigned bins = bin.hi & 0xffffffffu;
 	    if (!wide_val || width <= 64 || wide_val->size() != width
-		|| bits > 64 || bits > width
-		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
-	    unsigned start = width - bits;
-	    for (unsigned bit = 0; bit < bits; bit++)
-		if (wide_val->value(start + bit)
-		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
-		      return false;
-	    return true;
+		|| bins == 0 || bin.lo >= bins) return false;
+	    return covgrp_wide_auto_bin_(*wide_val, bins) == bin.lo;
       }
       if (bin.kind & 64) {
 	    unsigned width = bin.hi >> 16;
