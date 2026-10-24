@@ -7105,6 +7105,32 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 8.4 permits equality between class handles only
+	   when one operand's class type is assignment compatible with the other.
+	   The earlier width check sees only IVL_VT_CLASS and cannot distinguish
+	   unrelated class types. Do this after expression elaboration, where the
+	   concrete (including specialized) class types are available. */
+      if (lp->expr_type() == IVL_VT_CLASS
+	  && rp->expr_type() == IVL_VT_CLASS) {
+	    const netclass_t*left_class =
+		  dynamic_cast<const netclass_t*>(lp->net_type());
+	    const netclass_t*right_class =
+		  dynamic_cast<const netclass_t*>(rp->net_type());
+	    if (left_class && right_class
+		&& !left_class->is_interface() && !right_class->is_interface()
+		&& !left_class->type_compatible(right_class)
+		&& !right_class->type_compatible(left_class)) {
+		  cerr << get_fileline() << ": error: class handle operands of '"
+		       << human_readable_op(op_)
+		       << "' are not assignment compatible (IEEE 1800-2017/2023 8.4)."
+		       << endl;
+		  des->errors += 1;
+		  delete lp;
+		  delete rp;
+		  return 0;
+	    }
+      }
+
       const netclass_t*left_vif = comparison_virtual_interface_type_(lp);
       const netclass_t*right_vif = comparison_virtual_interface_type_(rp);
       if (left_vif || right_vif) {
