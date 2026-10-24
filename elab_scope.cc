@@ -4559,6 +4559,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 			  generic_caller->add_generic_dependent(cached_class);
 		    if (!fully_elaborate) {
 			  enqueue_pending_specialized_method_seed_(cached_class);
+			  if (!cached_class->generic_body_only())
+				enqueue_pending_specialized_class_body_(cached_class);
 			  return cached_result;
 		    }
 		    const PClass*cached_pclass = cached_class->class_scope()
@@ -4799,6 +4801,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 
 	      if (!fully_elaborate) {
 		    enqueue_pending_specialized_method_seed_(use_class);
+		    if (!use_class->generic_body_only())
+			  enqueue_pending_specialized_class_body_(use_class);
 		    return use_class;
 	      }
 
