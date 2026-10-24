@@ -843,6 +843,8 @@ class NetNet  : public NetObj, public PortType {
       bool get_const() const { return is_const_; }
       void set_ref_static(bool value) { is_ref_static_ = value; }
       bool get_ref_static() const { return is_ref_static_; }
+      void set_virtual_interface(bool value) { is_virtual_interface_ = value; }
+      bool is_virtual_interface() const { return is_virtual_interface_; }
 
       bool get_scalar() const;
 
@@ -1104,6 +1106,7 @@ class NetNet  : public NetObj, public PortType {
         // Whether the net is variable declared with the const keyword.
       bool is_const_ = false;
       bool is_ref_static_ = false;
+      bool is_virtual_interface_ = false;
 
 	/* Packed slice dimensions are retained for index conversion. Slice
 	 * widths are inexpensive products of these dimensions and are derived
