@@ -1,0 +1,3 @@
+ERROR: ivltests/elab_task_format_error.v:4: Parameter N has an invalid value of 9
+       During elaboration  Scope: genblk1
+1 error(s) during elaboration.

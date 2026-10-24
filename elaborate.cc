@@ -20190,6 +20190,46 @@ static bool get_value_as_string(const NetExpr*expr, string&str)
       return true;
 }
 
+static string format_elab_message(const string&fmt,
+				  const vector<NetExpr*>&args, unsigned first_arg)
+{
+      ostringstream result;
+      unsigned arg = first_arg;
+      for (size_t pos = 0; pos < fmt.size(); pos += 1) {
+	    if (fmt[pos] != '%' || pos + 1 == fmt.size()) {
+		  result << fmt[pos];
+		  continue;
+	    }
+	    if (fmt[pos+1] == '%') {
+		  result << '%';
+		  pos += 1;
+		  continue;
+	    }
+	    size_t spec = pos + 1;
+	    if (fmt[spec] == '0') spec += 1;
+	    if (spec >= fmt.size() || arg >= args.size()) {
+		  result << fmt[pos];
+		  continue;
+	    }
+	    const NetEConst*value = dynamic_cast<const NetEConst*>(args[arg]);
+	    char code = fmt[spec];
+	    if (value && (code == 'd' || code == 'D')) {
+		  result << value->value().as_long();
+		  pos = spec;
+		  arg += 1;
+	    } else if (value && (code == 's' || code == 'S')) {
+		  string text;
+		  if (get_value_as_string(value, text)) result << text;
+		  else result << value->value().as_long();
+		  pos = spec;
+		  arg += 1;
+	    } else {
+		  result << fmt[pos];
+	    }
+      }
+      return result.str();
+}
+
 /* Elaborate an elaboration task. */
 bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 {
@@ -20280,15 +20320,17 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 		  param_start += 1;
 	    }
 
-	      // FIXME: For now just handle a single string value.
 	    string str;
-	    if ((parm_count == param_start + 1) && (get_value_as_string(eparms[param_start], str))) {
-		  cerr << " " << str;
-	    } else if (param_start < parm_count) {
-		  cerr << endl;
-		  cerr << get_fileline() << ": sorry: Elaboration tasks "
-		          "currently only support a single string argument.";
-		  des->errors += 1;
+	    if (param_start < parm_count) {
+		  if (!get_value_as_string(eparms[param_start], str)) {
+			cerr << endl;
+			cerr << get_fileline() << ": error: Elaboration task "
+			        << name << "() formatting argument must be a string.";
+			des->errors += 1;
+		  } else {
+			cerr << " " << format_elab_message(str, eparms,
+							      param_start + 1);
+		  }
 	    }
 /*
 	    cerr << *eparms[0];
