@@ -8141,11 +8141,20 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 	    long pw = type->packed_width();
 	    if (pw > 0) use_wid = (unsigned)pw;
       }
-      return elaborate_expr(des, scope, use_wid, flags);
+      return elaborate_bitstream_cast(des, scope, use_wid, flags);
 }
 
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid, unsigned flags) const
+{
+	  cerr << get_fileline() << ": error: streaming concatenation used as an expression operand must be cast to a bit-stream type (IEEE 1800-2017 11.4.14)." << endl;
+	  des->errors += 1;
+	  return nullptr;
+}
+
+NetExpr* PEStreaming::elaborate_bitstream_cast(Design*des, NetScope*scope,
+					      unsigned expr_wid,
+					      unsigned flags) const
 {
       if (!inner_) return nullptr;
 
@@ -8168,6 +8177,20 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 	          "(IEEE 1800-2017 11.4.14.4)." << endl;
 	    des->errors += 1;
 	    return nullptr;
+      }
+
+	// Match the runtime stream operand path: a real expression is not a
+	// bit-stream type and must not silently contribute an empty stream.
+      std::vector<PExpr*> operands;
+      collect_operands_(operands);
+      for (size_t idx = 0; idx < operands.size(); idx += 1) {
+	    width_mode_t operand_mode = SIZED;
+	    operands[idx]->test_width(des, scope, operand_mode);
+	    if (operands[idx]->expr_type() == IVL_VT_REAL) {
+		  cerr << operands[idx]->get_fileline() << ": error: expression of type real is not a bit-stream type and cannot be a streaming concatenation operand (IEEE 1800-2017 11.4.14.1)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
       }
 
       width_mode_t m = SIZED;
@@ -8254,7 +8277,7 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return nullptr;
       }
-      NetExpr*packed = elaborate_expr(des, scope, w, NO_FLAGS);
+      NetExpr*packed = elaborate_bitstream_cast(des, scope, w, NO_FLAGS);
       if (!packed) return nullptr;
       if (lv_width == w) return packed;
 
@@ -20843,6 +20866,14 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	  }
     }
 
+	// A streaming concatenation is legal as the operand of this explicit
+	// bit-stream cast; preserve that context in the typed elaboration path.
+    if (PEStreaming*st = dynamic_cast<PEStreaming*>(base_)) {
+	  PExpr::width_mode_t mode = PExpr::SIZED;
+	  unsigned use_wid = base_->test_width(des, scope, mode);
+	  return st->elaborate_bitstream_cast(des, scope, use_wid, flags);
+    }
+
     // Casting array of vectors to dynamic array type
     if((darray = dynamic_cast<const netdarray_t*>(type)) &&
             (vector = dynamic_cast<const netvector_t*>(darray->element_type()))) {
@@ -20971,7 +21002,11 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		|| base_->expr_type() == IVL_VT_STRING)
 	      cast_width = 0;
 
-	    sub = base_->elaborate_expr(des, scope, cast_width, flags);
+	    if (PEStreaming*stream = dynamic_cast<PEStreaming*>(base_))
+		  sub = stream->elaborate_bitstream_cast(
+			des, scope, cast_width, flags);
+	    else
+		  sub = base_->elaborate_expr(des, scope, cast_width, flags);
       }
       if (sub == 0)
 	    return 0;
