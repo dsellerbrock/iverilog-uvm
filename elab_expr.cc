@@ -11146,6 +11146,33 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    return cp;
       }
 
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(e)) {
+	    PExpr*size = let_clone_expr_(cast->cast_size(), subst);
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (size == 0 || base == 0) { delete size; delete base; return 0; }
+	    PECastSize*cp = new PECastSize(size, base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (base == 0) return 0;
+	    PECastType*cp = new PECastType(cast->cast_target(), base,
+					   cast->truncate_real_to_integral());
+	    if (cast->tolerance_range()) cp->set_tolerance_range();
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(e)) {
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (base == 0) return 0;
+	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(e)) {
 	    if (call->receiver_expr()
 		|| !call->with_constraints().empty()
