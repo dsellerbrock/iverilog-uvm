@@ -354,6 +354,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%defer/cancel/process",of_DEFER_CANCEL_PROCESS,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
       { "%defer/enqueue",of_DEFER_ENQUEUE,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/enqueue/key",of_DEFER_ENQUEUE_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%defer/enqueue/taskkey",of_DEFER_ENQUEUE_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final",of_DEFER_FINAL,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/final/key",of_DEFER_FINAL_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final/taskkey",of_DEFER_FINAL_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },

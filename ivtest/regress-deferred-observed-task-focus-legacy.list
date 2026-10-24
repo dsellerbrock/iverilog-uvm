@@ -1,0 +1,2 @@
+# IEEE 1800-2017/2023 16.4 user task actions in observed deferred assertions.
+sv_deferred_observed_task0 normal,-g2017 ivltests gold=sv_deferred_observed_task0.gold

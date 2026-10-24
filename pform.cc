@@ -7003,7 +7003,8 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
  * loudly instead of silently executing or dropping the source call. */
 static Statement* deferred_final_task_action_(const struct vlltype&loc,
                                                unsigned source_id,
-                                               PCallTask*call)
+                                               PCallTask*call,
+                                               bool is_final)
 {
       auto make_marker = [&loc, source_id](const char*name) -> Statement* {
             std::list<named_pexpr_t> args;
@@ -7018,9 +7019,13 @@ static Statement* deferred_final_task_action_(const struct vlltype&loc,
       };
 
       std::vector<Statement*> statements;
-      statements.push_back(make_marker("$ivl_deferred_final_task_begin"));
+      statements.push_back(make_marker(is_final
+            ? "$ivl_deferred_final_task_begin"
+            : "$ivl_deferred_observed_task_begin"));
       statements.push_back(call);
-      statements.push_back(make_marker("$ivl_deferred_final_task_end"));
+      statements.push_back(make_marker(is_final
+            ? "$ivl_deferred_final_task_end"
+            : "$ivl_deferred_observed_task_end"));
 
       PBlock*block = new PBlock(PBlock::BL_SEQ);
       block->set_statement(statements);
@@ -7115,10 +7120,11 @@ static bool deferred_action_marker_(const struct vlltype&loc,
       }
 
       bool user_subroutine = !tail_name.nil() && tail_name[0] != '$';
-      if (is_final && user_subroutine && parms.empty()
+      if (user_subroutine && parms.empty()
           && call->leading_type_args() == 0
           && call->with_constraints().empty()) {
-            marker = deferred_final_task_action_(loc, source_id, call);
+            marker = deferred_final_task_action_(loc, source_id, call,
+                                                 is_final);
             return true;
       }
 
