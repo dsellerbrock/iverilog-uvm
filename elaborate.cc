@@ -3492,6 +3492,18 @@ void PGAlias::elaborate(Design*des, NetScope*scope) const
 		  des->errors += 1;
 		  return;
 	    }
+	    if (nets[idx] == nets[0]) {
+		  cerr << get_fileline() << ": error: Net alias cannot connect a net to itself."
+		       << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    if (!scope->record_alias_pair(nets[0], nets[idx])) {
+		  cerr << get_fileline() << ": error: Net alias connects the same nets more than once."
+		       << endl;
+		  des->errors += 1;
+		  return;
+	    }
 	    NetTran*join = new NetTran(scope, scope->local_symbol(),
 				       IVL_SW_TRAN, nets[0]->vector_width());
 	    join->set_line(*this);
