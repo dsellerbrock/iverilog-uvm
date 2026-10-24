@@ -113,7 +113,8 @@ PPackage *pform_find_potential_import(const struct vlltype&loc, LexicalScope*sco
 
 PPackage *pform_package_importable(PPackage *pkg, perm_string name)
 {
-	if (pkg->local_symbols.find(name) != pkg->local_symbols.end())
+	if (pkg->local_symbols.find(name) != pkg->local_symbols.end() ||
+	    pkg->lets.find(name) != pkg->lets.end())
 		  return pkg;
 
 	auto import_pkg = pkg->explicit_imports.find(name);

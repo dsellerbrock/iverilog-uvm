@@ -26,6 +26,8 @@
 # include  <iostream>
 # include  <vector>
 
+class PLet;
+
 /*
  * SystemVerilog supports class declarations with their own lexical
  * scope, etc. The parser arranges for these to be created and
@@ -50,6 +52,7 @@ class PPackage : public PScopeExtra, public LineInfo {
       };
 
       std::vector<export_t> exports;
+      std::map<perm_string,PLet*> lets;
 };
 
 #endif /* IVL_PPackage_H */

@@ -5870,3 +5870,5 @@ sv_interface_based_typedef normal,-g2017,-s,sv_interface_based_typedef ivltests 
 sv_interface_based_typedef_2023 normal,-g2023,-s,sv_interface_based_typedef ivltests gold=sv_interface_based_typedef.gold
 
 sv_bitstream_cast_unpacked_source normal,-g2012 ivltests gold=sv_bitstream_cast_unpacked_source.gold
+sv_let_scope_2017 normal,-g2017,-s,sv_let_scope ivltests gold=sv_let_scope.gold
+sv_let_scope_2023 normal,-g2023,-s,sv_let_scope ivltests gold=sv_let_scope.gold
