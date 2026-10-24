@@ -13218,7 +13218,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  PCase::Item*cur = (*items_)[idx];
 		  if (cur->expr.empty()) {
 			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
-			res->set_case(inum++, 0, st);
+		    res->set_case(inum++, 0, st, idx);
 			continue;
 		  }
 
@@ -13246,7 +13246,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 						? verinum::V1 : verinum::V0));
 			item->set_line(*cur_expr);
 			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
-			res->set_case(inum++, item, st);
+		    res->set_case(inum++, item, st, idx);
 		  }
 	    }
 	    return res;
@@ -13388,7 +13388,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  if (cur->stat)
 			st = cur->stat->elaborate(des, scope);
 
-		  res->set_case(inum, 0, st);
+		  res->set_case(inum, 0, st, idx);
 		  inum += 1;
 
 	    } else for (list<PExpr*>::iterator idx_expr = cur->expr.begin()
@@ -13410,7 +13410,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  if (cur->stat)
 			st = cur->stat->elaborate(des, scope);
 
-		  res->set_case(inum, gu, st);
+		  res->set_case(inum, gu, st, idx);
 		  inum += 1;
 	    }
       }
