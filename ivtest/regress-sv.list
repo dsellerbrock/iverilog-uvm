@@ -5897,3 +5897,5 @@ sv_udp_instance_array_2017 normal,-g2017,-s,sv_udp_instance_array ivltests gold=
 sv_udp_instance_array_2023 normal,-g2023,-s,sv_udp_instance_array ivltests gold=sv_udp_instance_array.gold
 sv_cover_property_pass_action normal,-g2017 ivltests
 sv_cover_property_pass_action_2023 normal,-g2023 ivltests
+sv_assert_increment_side_effect_2017 CE,-g2017,-gassertions,-s,sv_assert_increment_side_effect_2017 ivltests gold=sv_assert_increment_side_effect_2017.gold
+sv_assert_increment_side_effect_2023 CE,-g2023,-gassertions,-s,sv_assert_increment_side_effect_2023 ivltests gold=sv_assert_increment_side_effect_2023.gold
