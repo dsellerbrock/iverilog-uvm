@@ -17409,7 +17409,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		&& !scope->get_class_scope();
 	    if (peek_tail_name(path_) == perm_string::literal("randomize")
 		&& (explicit_std_randomize || unqualified_scope_randomize)
-		&& !parms_.empty()) {
+		&& (!parms_.empty() || !with_constraints().empty())) {
 		  if (!with_constraints().empty()
 		      || has_randomize_with_identifier_list()
 		      || std_randomize_args_need_solver(parms_, des, scope)) {
