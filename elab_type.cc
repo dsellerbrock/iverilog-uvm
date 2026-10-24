@@ -3305,12 +3305,14 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
       }
 
       if (!type_ok) {
-	    cerr << data_type->get_fileline() << " error: "
-	         << "Unexpected type `" << *elab_type << "` for `" << name
-		 << "`. It was forward declared as `" << basic_type
-		 << "` at " << get_fileline() << "."
-		 << endl;
-	    des->errors++;
+	    if (report_kind_mismatch_once()) {
+		  cerr << data_type->get_fileline() << " error: "
+		       << "Unexpected type `" << *elab_type << "` for `" << name
+		       << "`. It was forward declared as `" << basic_type
+		       << "` at " << get_fileline() << "."
+		       << endl;
+		  des->errors++;
+	    }
       }
 
       return elab_type;
