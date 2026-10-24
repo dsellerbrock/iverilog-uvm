@@ -1,0 +1,8 @@
+ivltests/sv_force_partial_live_overlap.v:21: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:33: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:42: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:49: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:52: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:64: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_partial_live_overlap.v:74: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+7 error(s) during elaboration.
