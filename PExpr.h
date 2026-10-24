@@ -622,6 +622,12 @@ class PEIdent : public PExpr {
       void set_clocking_access(perm_string name) { clocking_access_ = name; }
       perm_string clocking_access() const { return clocking_access_; }
 
+      // Set on the clockvar l-value of a parsed synchronous drive. Other
+      // procedural assignments to a clockvar are illegal (IEEE 1800-2017
+      // 14.16), even though assignments to its associated signal are legal.
+      void mark_clocking_drive_lval() { clocking_drive_lval_ = true; }
+      bool is_clocking_drive_lval() const { return clocking_drive_lval_; }
+
       virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
@@ -687,6 +693,7 @@ class PEIdent : public PExpr {
       bool scoped_type_prefix_ = false;
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
+      bool clocking_drive_lval_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
 
