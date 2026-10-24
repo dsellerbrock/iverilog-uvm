@@ -5417,6 +5417,8 @@ sv_std_randomize_zero_arg_checker normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ss
 sv_std_randomize_zero_arg_checker_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_zero_arg_checker ivltests gold=sv_std_randomize_zero_arg_checker.gold
 sv_bitstoreal_wide_arg normal,-g2017,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
 sv_bitstoreal_wide_arg_2023 normal,-g2023,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
+sv_real_conversion_constant_2017 normal,-g2017,-s,main ivltests gold=sv_real_conversion_constant.gold
+sv_real_conversion_constant_2023 normal,-g2023,-s,main ivltests gold=sv_real_conversion_constant.gold
 sv_ref_event_nonintegral_actual normal,-g2017,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
 sv_ref_event_nonintegral_actual_2023 normal,-g2023,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
 sv_break_continue_labeled_block normal,-g2017,-s,main ivltests gold=sv_break_continue_labeled_block.gold
