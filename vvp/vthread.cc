@@ -27295,6 +27295,15 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       if (!proc)
 	    return true;
 
+	vthread_t owner = logical_process_thread_(thr);
+      if (owner && proc->owner() == owner) {
+	    cerr << "runtime error: process::await() called on the current process."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
       unsigned status = proc->status();
       if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
 	    return true;
