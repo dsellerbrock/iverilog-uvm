@@ -1742,6 +1742,8 @@ sv_randomize_with_identifier_scope normal,-g2012 ivltests gold=sv_randomize_with
 sv_randomize_with_identifier_unknown_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_unknown_fail.gold
 sv_randomize_with_identifier_no_block_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_no_block_fail.gold
 sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_randomize_with_identifier_list_fail.gold
+sv_scope_randomize_null_fail CE,-g2017 ivltests gold=sv_scope_randomize_null_fail.gold
+sv_scope_randomize_null_fail CE,-g2023 ivltests gold=sv_scope_randomize_null_fail.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
