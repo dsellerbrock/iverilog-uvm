@@ -12798,6 +12798,22 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
       if (!expr_)
             return new NetBlock(NetBlock::SEQU, nullptr);
 
+      unsigned default_count = 0;
+      if (items_) {
+            for (const Item*item : *items_) {
+                  if (item && item->is_default)
+                        default_count += 1;
+            }
+      }
+      if (default_count > 1) {
+            cerr << get_fileline() << ": error: Multiple default items in "
+                 << "case statement are not allowed "
+                 << "(IEEE 1800-2017/2023 12.5)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+
       NetProc*cascade = nullptr;
       Item*default_item = nullptr;
       if (items_) {
@@ -12884,6 +12900,20 @@ NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
 NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+      unsigned default_count = 0;
+      for (const PCase::Item*item : *items_) {
+            if (item && item->expr.empty())
+                  default_count += 1;
+      }
+      if (default_count > 1) {
+            cerr << get_fileline() << ": error: Multiple default items in "
+                 << "case statement are not allowed "
+                 << "(IEEE 1800-2017/2023 12.5)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
 
 	/* A type() value has no run-time bit representation. For a type-valued
 	   case, lower the selector to constant true and every item to the
