@@ -5831,3 +5831,6 @@ issue790_package_struct_member_2023 normal,-g2023,-s,issue790_package_struct_mem
 # IEEE 1800-2017/2023 §8.10.
 sv_static_virtual_method_fail_2017 CE,-g2017,-s,sv_static_virtual_method_fail ivltests
 sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail ivltests
+# Enum unbased unsized fill values are evaluated in base type context.
+sv_enum_unbased_x normal,-g2017,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold
+sv_enum_unbased_x_2023 normal,-g2023,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold
