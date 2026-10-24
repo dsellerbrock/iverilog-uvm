@@ -1,0 +1,3 @@
+FAIL b 20
+PASSED
+./ivltests/sv_default_clocking_procedural_override.v:28: $finish called at 41 (1s)
