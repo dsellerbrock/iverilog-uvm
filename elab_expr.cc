@@ -12690,6 +12690,29 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	// case). Strings keep the VPI path ($high(str) = len-1).
       if ((nparms == 1 || nparms == 2) && parms_[0].parm
 	  && dynamic_cast<PEIdent*>(parms_[0].parm)
+	  && (strcmp(name, "$size") == 0 || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0 || strcmp(name, "$low") == 0
+	      || strcmp(name, "$high") == 0 || strcmp(name, "$increment") == 0)) {
+	    perm_string pname = lex_strings.make(name);
+	    NetExpr*arg = elab_sys_task_arg(des, scope, pname, 0,
+					    parms_[0].parm, false);
+	    const netqueue_t*assoc = arg
+		  ? dynamic_cast<const netqueue_t*>(arg->net_type()) : nullptr;
+	    if (assoc && assoc->assoc_compat()) {
+		  ivl_type_t index_type = assoc->assoc_index_type();
+		  if (!index_type || !index_type->packed()) {
+			cerr << get_fileline() << ": error: " << name
+			     << " cannot be used on an associative array with a non-integral index type."
+			     << endl;
+			des->errors += 1;
+			delete arg;
+			return 0;
+		  }
+	    }
+	    delete arg;
+      }
+      if ((nparms == 1 || nparms == 2) && parms_[0].parm
+	  && dynamic_cast<PEIdent*>(parms_[0].parm)
 	  && (strcmp(name, "$unpacked_dimensions") != 0 || nparms == 1)
 	  && (strcmp(name, "$size") == 0
 	      || strcmp(name, "$high") == 0
