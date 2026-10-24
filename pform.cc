@@ -12483,7 +12483,8 @@ static void tc_pair_synth_(const struct vlltype&loc,
 			   const PTimingCheck::event_t&check_ev,
 			   PExpr*limit,
 			   bool violation_if_greater,
-			   const pform_name_t*notifier)
+			   const pform_name_t*notifier,
+			   bool timer_based = false)
 {
       if (!tc_check_supported_(loc, check_name, stamp_ev)) return;
       if (!tc_check_supported_(loc, check_name, check_ev)) return;
@@ -12491,9 +12492,70 @@ static void tc_pair_synth_(const struct vlltype&loc,
       unsigned inst = tc_gensym_counter++;
       perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
 
+	// Timer-based skew checks need one outstanding expiration for the
+	// latest timestamp event. A detached timer lets the event process
+	// continue to observe later timestamps; checking the elapsed time
+	// against the limit makes older timers harmless after a newer stamp.
+	perm_string active_var;
+	if (timer_based) {
+	    active_var = tc_make_real_(loc, inst, "active");
+	}
+
 	// Timestamp process: stamp = $realtime.
       PAssign*rec = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
       FILE_NAME(rec, loc);
+      if (timer_based) {
+	    PAssign*enable = new PAssign(sva_id_(loc, active_var), tc_real_(loc, 1.0));
+	    FILE_NAME(enable, loc);
+	    std::vector<Statement*> launch;
+	    launch.push_back(rec);
+	    launch.push_back(enable);
+	    PExpr*delay_limit = sva_clone_expr_(limit);
+	    if (delay_limit == 0) {
+		cerr << loc.get_fileline() << ": sorry: " << check_name
+		     << " limit shape cannot be used for timer-based checking; "
+		     << "the check is dropped." << endl;
+		error_count += 1;
+		return;
+	    }
+	    PExpr*delta_timer = new PEBinary('-', tc_realtime_(loc),
+					     sva_id_(loc, stamp_var));
+	    PExpr*at_expiry = new PEBComp('e', delta_timer,
+					  sva_clone_expr_(limit));
+	    PExpr*guard = new PEBComp('e', sva_id_(loc, active_var),
+				       tc_real_(loc, 1.0));
+	    PCondit*fire = new PCondit(new PEBLogic('a', guard, at_expiry),
+				       tc_violation_(loc, check_name, notifier), nullptr);
+	    FILE_NAME(fire, loc);
+	    PAssign*disable = new PAssign(sva_id_(loc, active_var), tc_real_(loc, 0.0));
+	    FILE_NAME(disable, loc);
+	    std::vector<Statement*> timer_stmts;
+	    timer_stmts.push_back(fire);
+	    timer_stmts.push_back(disable);
+	    PDelayStatement*wait_limit = new PDelayStatement(delay_limit,
+							      new PDelayStatement(tc_real_(loc, 0.0),
+									  sva_block_(loc, timer_stmts)));
+	    FILE_NAME(wait_limit, loc);
+	    PBlock*detached = new PBlock(PBlock::BL_JOIN_NONE);
+	    std::vector<Statement*> detached_stmts(1, wait_limit);
+	    detached->set_statement(detached_stmts);
+	    FILE_NAME(detached, loc);
+	    launch.push_back(detached);
+	    tc_always_at_(loc, stamp_ev, sva_block_(loc, launch));
+	    PExpr*data_since = new PEBComp('G', tc_realtime_(loc),
+					    sva_id_(loc, stamp_var));
+	    PExpr*data_delta = new PEBinary('-', tc_realtime_(loc),
+					     sva_id_(loc, stamp_var));
+	    PExpr*within = new PEBComp('L', data_delta, sva_clone_expr_(limit));
+	    PExpr*stamp_valid = new PEBComp('G', sva_id_(loc, stamp_var),
+					     tc_real_(loc, 0.0));
+	    PCondit*disarm = new PCondit(new PEBLogic('a', stamp_valid,
+					      new PEBLogic('a', data_since, within)),
+					 new PAssign(sva_id_(loc, active_var), tc_real_(loc, 0.0)), nullptr);
+	    FILE_NAME(disarm, loc);
+	    tc_always_at_(loc, check_ev, disarm);
+	    return;
+      }
       tc_always_at_(loc, stamp_ev, rec);
 
 	// Timecheck process:
@@ -12688,7 +12750,7 @@ void pform_timing_check_timeskew(const struct vlltype&loc,
 	// violation when data lags the reference by MORE than the
 	// limit. (The flag arguments, rejected above, are what change
 	// the report granularity relative to $skew.)
-      tc_pair_synth_(loc, "$timeskew", ref_ev, data_ev, limit, true, notifier);
+      tc_pair_synth_(loc, "$timeskew", ref_ev, data_ev, limit, true, notifier, true);
 }
 
 void pform_timing_check_fullskew(const struct vlltype&loc,
@@ -12704,8 +12766,8 @@ void pform_timing_check_fullskew(const struct vlltype&loc,
 	// $fullskew(ref, data, l1, l2) is a skew check in both
 	// directions: data may lag ref by at most l1, and ref may lag
 	// data by at most l2.
-      tc_pair_synth_(loc, "$fullskew", ref_ev, data_ev, lim1, true, notifier);
-      tc_pair_synth_(loc, "$fullskew", data_ev, ref_ev, lim2, true, notifier);
+      tc_pair_synth_(loc, "$fullskew", ref_ev, data_ev, lim1, true, notifier, true);
+      tc_pair_synth_(loc, "$fullskew", data_ev, ref_ev, lim2, true, notifier, true);
 }
 
 static bool tc_expr_is_zero_(PExpr*e)
