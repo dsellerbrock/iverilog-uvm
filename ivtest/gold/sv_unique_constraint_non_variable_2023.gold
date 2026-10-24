@@ -1,0 +1,2 @@
+./ivltests/sv_unique_constraint_non_variable_2023.v:3: error: unique constraint items must denote scalar or array variables (IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4).
+1 error(s) during elaboration.
