@@ -5794,3 +5794,7 @@ sv_net_decl_mixed_init_2023 normal,-g2023,-s,sv_net_decl_mixed_init ivltests gol
 sv_named_empty_input_default normal,-g2017,-s,sv_named_empty_input_default ivltests gold=sv_named_empty_input_default.gold
 issue790_package_struct_member_2017 normal,-g2017,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
 issue790_package_struct_member_2023 normal,-g2023,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
+
+# IEEE 1800-2017/2023 §8.10.
+sv_static_virtual_method_fail_2017 CE,-g2017,-s,sv_static_virtual_method_fail ivltests
+sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail ivltests
