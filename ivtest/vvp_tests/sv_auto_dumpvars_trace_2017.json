@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "sv_auto_dumpvars_trace_2017.v",
+    "iverilog-args": ["-g2017"]
+}
