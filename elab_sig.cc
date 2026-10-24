@@ -3417,7 +3417,9 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 		      // If the port has a default expression, elaborate
 		      // that expression here.
 		    if (ports_->at(idx).defe != 0) {
-			  if (tmp->port_type() == NetNet::PINPUT) {
+			  if (tmp->port_type() == NetNet::PINPUT
+			      || tmp->port_type() == NetNet::POUTPUT
+			      || tmp->port_type() == NetNet::PINOUT) {
 				ivl_type_t formal_type = tmp->unpacked_dimensions() > 0
 				      && tmp->array_type()
 				      ? static_cast<ivl_type_t>(tmp->array_type())
@@ -3467,11 +3469,11 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
-		  } else {
-			cerr << get_fileline() << ": sorry: Default arguments "
-			        "for subroutine output or inout ports are not "
-			        "yet supported." << endl;
-			des->errors += 1;
+			  } else {
+				cerr << get_fileline() << ": sorry: Default arguments "
+				        "for subroutine ref ports are not yet supported."
+				     << endl;
+				des->errors += 1;
 		  }
 	    }
 
