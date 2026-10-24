@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_semaphore_negative_initial_count.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_semaphore_negative_initial_count"
+}

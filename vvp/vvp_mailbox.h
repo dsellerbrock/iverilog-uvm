@@ -104,13 +104,13 @@ class vvp_mailbox : public vvp_object {
  */
 class vvp_semaphore : public vvp_object {
     public:
-      explicit vvp_semaphore(size_t initial_count = 0);
+      explicit vvp_semaphore(int64_t initial_count = 0);
       ~vvp_semaphore() override;
 
       vvp_object* duplicate() const override;
       void shallow_copy(const vvp_object*) override {}
 
-      size_t count() const { return count_; }
+      int64_t count() const { return count_; }
 
       /* try_get: if count >= n, decrement and return true; else false. */
       bool try_get(size_t n = 1);
@@ -127,7 +127,7 @@ class vvp_semaphore : public vvp_object {
       static void cancel_waiter_cb_(void*owner, vthread_t thr);
       void cancel_waiter_(vthread_t thr);
 
-      size_t count_;
+      int64_t count_;
 
       struct waiter_t {
 	    vthread_t thr;
