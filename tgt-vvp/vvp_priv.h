@@ -564,6 +564,15 @@ static inline int queue_pattern_operand_is_collection_(ivl_expr_t expr,
 
       if (!expr)
             return 0;
+      /* A fixed unpacked array item contributes its elements to an
+       * unpacked-array concatenation just like a queue or dynamic array.
+       * The frontend has already checked the source element type against
+       * the destination element type. */
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY
+          && ivl_expr_signal(expr)
+          && ivl_signal_dimensions(ivl_expr_signal(expr)) > 0
+          && !type_is_object_like_(element_type))
+            return 1;
       if (type_is_object_like_(element_type))
             return queue_pattern_operand_is_object_collection_(expr, element_type);
       if ((ivl_expr_type(expr) == IVL_EX_SIGNAL

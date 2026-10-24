@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_unpacked_concat_fixed_array.v",
+  "iverilog-args": ["-g2017", "-s", "sv_unpacked_concat_fixed_array"],
+  "gold": "sv_unpacked_concat_fixed_array"
+}
