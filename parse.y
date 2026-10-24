@@ -25,6 +25,7 @@
 # include  <climits>
 # include  <cstdarg>
 # include  "parse_misc.h"
+# include  "parse_api.h"
 # include  "compiler.h"
 # include  "pform.h"
 # include  "PClass.h"
@@ -10630,6 +10631,43 @@ type_declaration
 	      pform_set_typedef(@3, name, $2, $4);
 	}
 	delete[]$3;
+      }
+  /* IEEE 1800-2017/2023 6.18: an interface type selected through an
+     interface port is not a hierarchical type reference. Resolve the
+     member in the declared interface scope and install a local alias. */
+  | K_typedef IDENTIFIER '.' IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { perm_string port_name = lex_strings.make($2);
+	perm_string member_name = lex_strings.make($4);
+	PWire*port = pform_get_wire_in_scope(port_name);
+	const data_type_t*port_type = port ? port->data_type() : nullptr;
+	const interface_type_t*interface_type =
+	      dynamic_cast<const interface_type_t*>(port_type);
+	if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(port_type)) {
+	      typedef_t*type = type_ref->typedef_ref();
+	      if (type) interface_type = dynamic_cast<const interface_type_t*>(
+	            type->get_data_type());
+	}
+	auto interface = interface_type
+	      ? pform_modules.find(interface_type->name) : pform_modules.end();
+	if (interface == pform_modules.end() || !interface->second->is_interface) {
+	      yyerror(@2, "error: `%s` is not an interface port.", $2);
+	      delete $6;
+	} else {
+	      auto type = interface->second->typedefs.find(member_name);
+	      if (type == interface->second->typedefs.end()) {
+	            yyerror(@4, "error: `%s` is not a type in interface `%s`.",
+	                    $4, interface_type->name.str());
+	            delete $6;
+	      } else {
+	            typeref_t*alias = new typeref_t(type->second, interface->second);
+	            FILE_NAME(alias, @4);
+	            perm_string name = lex_strings.make($5);
+	            pform_set_typedef(@5, name, alias, $6);
+	      }
+	}
+	delete[] $2;
+	delete[] $4;
+	delete[] $5;
       }
   | K_typedef data_type identifier_name K_with nettype_resolution_name ';'
       { perm_string name = lex_strings.make($3);
