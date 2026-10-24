@@ -5853,3 +5853,5 @@ sv_process_new_fail_2023 CE,-g2023,-s,sv_process_new_fail ivltests gold=sv_proce
 sv_shallow_copy_rng_state_2017 normal,-g2017 ivltests gold=sv_shallow_copy_rng_state.gold
 sv_shallow_copy_rng_state_2023 normal,-g2023 ivltests gold=sv_shallow_copy_rng_state.gold
 sv_covergroup_cross_foreign_fail CE,-g2012 ivltests
+sv_multidimensional_array_equality normal,-g2017,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold
+sv_multidimensional_array_equality_2023 normal,-g2023,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold

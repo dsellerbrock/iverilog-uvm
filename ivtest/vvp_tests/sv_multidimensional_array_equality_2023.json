@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_multidimensional_array_equality.v",
+    "iverilog-args": ["-g2023", "-s", "sv_multidimensional_array_equality"],
+    "gold": "sv_multidimensional_array_equality"
+}
