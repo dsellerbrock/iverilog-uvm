@@ -10464,6 +10464,38 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	      /* IEEE 1800-2017/2023 16.5.1: a clocking-block input used
+		as a concurrent-assertion operand must itself have #1step
+		sampling. Numeric input skews (including #0) cannot be
+		reinterpreted as the assertion's Preponed sample. */
+	    if (!id->path().package && id->path().name.size() >= 2
+		&& !pform_cur_module.empty()) {
+		  const pform_name_t&path = id->path().name;
+		  Module*mod = pform_cur_module.front();
+		  std::map<perm_string,Module::PClocking*>::const_iterator cb_it =
+			mod->clocking_blocks.find(path.front().name);
+		  if (cb_it != mod->clocking_blocks.end()) {
+			const Module::PClocking*cb = cb_it->second;
+			pform_name_t::const_iterator signal = path.begin();
+			++signal;
+			bool clocking_input =
+			      std::find(cb->signals.begin(), cb->signals.end(),
+					signal->name) != cb->signals.end()
+			      && (cb->signal_direction(signal->name) == NetNet::PINPUT
+				  || cb->signal_direction(signal->name) == NetNet::PINOUT);
+			PExpr*skew_delay = nullptr;
+			if (clocking_input
+			    && cb->input_skew(signal->name, skew_delay)
+				 == Module::PClocking::SKEW_DELAY) {
+			  cerr << id->get_fileline() << ": error: clocking-block input `"
+			       << cb->name << "." << signal->name
+			       << "' used in a concurrent assertion must be sampled with "
+			       << "#1step (IEEE 1800-2017/2023 16.5.1)." << endl;
+			  error_count += 1;
+			  return nullptr;
+			}
+		  }
+	    }
 	      /* A sequence local is per assertion attempt, not a design signal.
 		 The NFA caller replaces this fresh bare identifier with the
 		 corresponding slot register after the rest of the expression has
