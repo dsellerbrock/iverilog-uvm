@@ -26737,9 +26737,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (seq_bad || ante_bad) {
 		  sva_stree_t*fm_tree = nullptr;
 		  if (pform_sva_nfa_enabled() && !ante_bad
-		      && prop->op_type == 0 && !prop->antecedent)
+		      && (prop->op_type == 0 || prop->op_type == 1
+			  || prop->op_type == 2)
+		      && prop->seq
+		      && (prop->op_type == 0 ? !prop->antecedent
+			  : prop->antecedent != nullptr))
 			fm_tree = sva_expand_first_match_(loc, *prop->seq);
 		  if (fm_tree) {
+			if (prop->antecedent) {
+			      prop->ante_tree = sva_chain_take_tree_(prop->antecedent);
+			      prop->antecedent = nullptr;
+			}
 			delete prop->seq;
 			prop->seq = nullptr;
 			prop->tree = fm_tree;
