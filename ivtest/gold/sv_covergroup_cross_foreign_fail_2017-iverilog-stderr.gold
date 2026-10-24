@@ -1,0 +1,1 @@
+ivltests/sv_covergroup_cross_foreign_fail.v:11: error: A cross item must be a coverpoint or variable identifier in the enclosing covergroup.
