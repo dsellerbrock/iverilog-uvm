@@ -39896,6 +39896,81 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// indexed element, constant) is emitted through the ordinary
       // expression path. The result is a conjunction of pairwise (ne).
       if (const PEUnique*uq = dynamic_cast<const PEUnique*>(expr)) {
+	    /* Syntax 18-4's footnote restricts each operand to a variable
+	     * reference. Check that before lowering: the ordinary expression
+	     * emitter accepts operators and constants, which would turn them into
+	     * solver terms even though they are not uniqueness-group members. */
+	    ivl_type_t member_type = nullptr;
+	    for (const PExpr*item : uq->items()) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+		  if (!id) {
+			cerr << uq->get_fileline() << ": error: unique constraint items must "
+			     << "denote scalar or array variables (IEEE 1800-2017 18.5.5 / "
+			     << "1800-2023 18.5.4)."
+			     << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+		  ivl_type_t type = nullptr;
+		  if (id->path().size() == 1) {
+			perm_string name = id->path().back().name;
+			if (cls) {
+			      int idx = cls->property_idx_from_name(name);
+			      if (idx >= 0)
+				    type = cls->get_prop_type((size_t)idx);
+			} else if (scope_randomize_type_ctx_) {
+			      auto found = scope_randomize_type_ctx_->find(name);
+			      if (found != scope_randomize_type_ctx_->end())
+				    type = found->second;
+			}
+		  } else if (cls && !id->path().package) {
+			/* Nested class/struct variable paths are also variable
+			 * references. Resolve their terminal type with the same path
+			 * walker used by constraint lowering. */
+			vector<perm_string> names;
+			bool simple_path = true;
+			for (const name_component_t&component : id->path().name) {
+			      if (!component.index.empty() || component.local_scope) {
+				    simple_path = false;
+				    break;
+			      }
+			      names.push_back(component.name);
+			}
+			if (simple_path && !names.empty()
+			    && names.front() == perm_string::literal("this"))
+			      names.erase(names.begin());
+			if (simple_path && names.size() > 1)
+			      constraint_class_state_path_ir_(
+				    names, cls, false, 0, &type);
+		  }
+		  /* The class-constraint path also permits nested state references.
+		   * Their leaf type is determined by the path walker; direct class
+		   * properties and std::randomize operands are handled here. */
+		  if (!type) {
+			cerr << uq->get_fileline() << ": error: unique constraint items must "
+			     << "denote scalar or array variables (IEEE 1800-2017 18.5.5 / "
+			     << "1800-2023 18.5.4)."
+			     << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+		  const netuarray_t*array = dynamic_cast<const netuarray_t*>(type);
+		  const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
+		  if (array) type = array->element_type();
+		  else if (darray) type = darray->element_type();
+		  if (!member_type) member_type = type;
+		  else if (!member_type->type_equivalent(type)
+			   || !type->type_equivalent(member_type)) {
+			cerr << uq->get_fileline() << ": error: all members of a unique "
+			     << "constraint group shall have equivalent types "
+			     << "(IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4)." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
 	    constraint_randc_capture_t capture(uq, "unique");
 	    capture.seen = constraint_source_references_randc_(
 		  uq, cls, value_slots, scope, loop_env);
