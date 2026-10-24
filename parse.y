@@ -9314,21 +9314,7 @@ sva_seq_expr
         delete $4;
         $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$8)[0];
-	if ((pform_sva_overridable_bound($4)
-	     || pform_sva_overridable_bound($6))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
-	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $4; delete $6; }
+	{ pform_sva_range_delay(@3, (*$8)[0], $4, $6);
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
@@ -9381,21 +9367,7 @@ sva_seq_expr
         delete $4;
         $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$8)[0];
-	if ((pform_sva_overridable_bound($4)
-	     || pform_sva_overridable_bound($6))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
-	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $4; delete $6; }
+	  { pform_sva_range_delay(@3, (*$8)[0], $4, $6);
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
@@ -9454,38 +9426,10 @@ sva_seq_lead_delay
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if ((pform_sva_overridable_bound($3)
-	     || pform_sva_overridable_bound($5))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
-	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if ((pform_sva_overridable_bound($3)
-	     || pform_sva_overridable_bound($5))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
-	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
   | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
       { long lo = 0;
