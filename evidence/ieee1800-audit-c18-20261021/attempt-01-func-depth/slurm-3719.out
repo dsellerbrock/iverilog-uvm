@@ -1,0 +1,59 @@
+=== g1 -g2017 (60-second timeout) ===
+G1 ok=50 bad=0 length=2
+elapsed_seconds=0.10 max_rss_kib=40268
+exit=0
+=== g1 -g2023 (60-second timeout) ===
+G1 ok=50 bad=0 length=2
+elapsed_seconds=0.10 max_rss_kib=40316
+exit=0
+=== g2 -g2017 (60-second timeout) ===
+G2 ok=0 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g2.sv:24: G2 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g2
+Command exited with non-zero status 1
+elapsed_seconds=0.39 max_rss_kib=39532
+exit=1
+=== g2 -g2023 (60-second timeout) ===
+G2 ok=0 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g2.sv:24: G2 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g2
+Command exited with non-zero status 1
+elapsed_seconds=0.39 max_rss_kib=39428
+exit=1
+=== g3 -g2017 (60-second timeout) ===
+G3 ok=0 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g3.sv:24: G3 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g3
+Command exited with non-zero status 1
+elapsed_seconds=0.39 max_rss_kib=39488
+exit=1
+=== g3 -g2023 (60-second timeout) ===
+G3 ok=0 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g3.sv:24: G3 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g3
+Command exited with non-zero status 1
+elapsed_seconds=0.39 max_rss_kib=39536
+exit=1
+=== g4 -g2017 (60-second timeout) ===
+G4 ok=200 bad=0
+elapsed_seconds=0.45 max_rss_kib=40224
+exit=0
+=== g4 -g2023 (60-second timeout) ===
+G4 ok=200 bad=0
+elapsed_seconds=0.48 max_rss_kib=40284
+exit=0
+=== g5 -g2017 (60-second timeout) ===
+G5 ok=8 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g5.sv:25: G5 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g5
+Command exited with non-zero status 1
+elapsed_seconds=0.42 max_rss_kib=40524
+exit=1
+=== g5 -g2023 (60-second timeout) ===
+G5 ok=8 bad=0
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c18-func-depth-20261021-01/input/p18_05_12_depth_g5.sv:25: G5 unexpected result
+       Time: 0  Scope: p18_05_12_depth_g5
+Command exited with non-zero status 1
+elapsed_seconds=0.42 max_rss_kib=40480
+exit=1
+infra_timeout=0

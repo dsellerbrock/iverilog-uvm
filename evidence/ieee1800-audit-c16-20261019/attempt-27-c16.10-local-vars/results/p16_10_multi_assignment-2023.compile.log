@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_multi_assignment.sv:8: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-10-localvars-20261019-27/input/p16_10_multi_assignment.sv:10: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+compile_exit=1

@@ -1,0 +1,7 @@
+# §18 legal-combination uniformity measurement
+
+The probe samples 2,000 strictly increasing 8-bit triples. Under uniform selection from the `C(256,3)` legal combinations, the mean targets are 63.25, 127.5, and 191.75, each with a lead-provided 5σ window of ±5.5; `a < 32` should occur 662 times, with a ±105 window. The compiler warning and runtime per-call time are also recorded.
+
+The same source is compiled and run under `-g2017` and `-g2023`; each compile and each simulation has a 120-second timeout. See `STANDARD.md` and `DEDUPE.md`. Both runs completed: all measured values are inside the 5σ windows, and this probe emitted no enumeration warning. The separate warning on the standard's heap example remains documented in #843. Raw output and time measurements are in `results/` and `slurm-3721.out`.
+
+Slurm job 3721 uses 1 CPU, 128 MiB, and a 6-minute limit on DAN-DESKTOP. The memory request is based on the 41,348 KiB peak of the related job 3486. Inputs were staged from branch `m7-1800-audit-c08`, HEAD `27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e`; hashes are in `INPUT-SHA256SUMS.txt`. Toolchain: Icarus 13.0-devel at `/home/dsell/toolchains/iverilog-uvm-main-cc25756d187314742d347267c2a513b3e640a7fb`, commit `cc25756d`, with `iverilog` SHA-256 `87bb417df23d260bcfde3fb372b4a80eaad69e4fd2eea1ffb8b0eff10f7af08e` and `vvp` SHA-256 `dfc193c466a70a0917a16ab4198a111de616657d6004de79456db2a4b603b437`.

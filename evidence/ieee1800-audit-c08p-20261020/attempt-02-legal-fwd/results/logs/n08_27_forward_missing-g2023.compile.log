@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08p-20261020-02/input/tests/1800_audit/c08/n08_27_forward_missing.sv:2: error: Forward typedef `Missing` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.

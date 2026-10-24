@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_22_int_to_class.sv:1: error: integer literal is not compatible with an unpacked type in this context.
+Elaboration failed

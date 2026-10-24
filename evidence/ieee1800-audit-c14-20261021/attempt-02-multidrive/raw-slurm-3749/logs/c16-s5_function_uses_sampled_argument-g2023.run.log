@@ -1,0 +1,2 @@
+S5 FAIL 25
+inputs/c16/s5_function_uses_sampled_argument.sv:7: $finish called at 50 (1ns)

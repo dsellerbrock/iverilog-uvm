@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-string-array-20261020-01/input/p35_string_openarray.sv:11: wrong DPI open-array size
+       Time: 0  Scope: p35_string_openarray

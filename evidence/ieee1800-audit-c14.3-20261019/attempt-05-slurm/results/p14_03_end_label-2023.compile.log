@@ -1,0 +1,4 @@
+tests/1800_audit/c14/p14_03_end_label.sv:6: syntax error
+tests/1800_audit/c14/p14_03_end_label.sv:9: error: Invalid module item.
+tests/1800_audit/c14/p14_03_end_label.sv:11: syntax error
+I give up.

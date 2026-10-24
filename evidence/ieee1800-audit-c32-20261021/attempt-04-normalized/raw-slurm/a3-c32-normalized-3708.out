@@ -1,0 +1,176 @@
+host=DAN-DESKTOP
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+1fa82853199dbe6e4e7ba1466b2f60bff279f35f3cabf82f98620b0fa5af0544  ./p32_ic.sv
+c081495af176131a567b61d985b30a21657b4eb07add3c3599c7a4e4c3627f3f  ./p32_mtm.sv
+fd7f985a6403ef2bf0ed7ea527a78fc98fd9268f0a0e20ef5d2ea4084e57588a  ./p32_scale.sv
+a6064867edad938462764780110b41537dd953f6519a7f7cd6630ed6397ef42f  ./p32_tchk.sv
+0ca5b571512d3eea2919981671895e27b0ce560269b6482d16d6e27fa6a490b6  ./p32_ic.sdf
+bfd16bc41ee34bdbc6b097b76b5f3db28edecfb37006d588615f1582b1abe407  ./p32_mtm.sdf
+e6467afee64f54616c3af59d9831ae3e3886fa917a0972463b7223dd5d1dc5cb  ./p32_scale.sdf
+216facf777bff52089f6e010cc42c6c54c6a846605dd5ac9c8651e70ad3f92d2  ./p32_tchk.sdf
+67a48a7c5943b23741499312021ac4a3bf7c387015aaaab3ba2cb8e7dcf32a7c  expected/interconnect.txt
+bfca78c84b34b46926c78ca0514423cba59bdecb30884b8e960b5e9770942415  expected/mtm-maximum.txt
+4a528717b5bb44bc27941ff3686d5e42edc0fb6aa4fcbda333504309a28a77cc  expected/mtm-minimum.txt
+6021789a71f62fe48d4d16fee6f2649de4bd58599041531d43793fb019235da9  expected/mtm-typical.txt
+715da0c7feaf306f5ecf66731356fa7a35618b97a37e123ec3b345922f73dde1  expected/scale.txt
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+compile_ok test=p32_tchk edition=2017 mode=annotated
+run_ok test=p32_tchk edition=2017 mode=annotated
+compile_ok test=p32_tchk edition=2017 mode=control
+run_ok test=p32_tchk edition=2017 mode=control
+setup_violations edition=2017 annotated=0 control=0
+FEATURE_EXPECTATION_MISMATCH feature=timingcheck edition=2017
+compile_ok test=p32_mtm edition=2017 mode=MINIMUM
+run_ok test=p32_mtm edition=2017 mode=MINIMUM
+--- expected/mtm-minimum.txt	2026-10-21 04:13:14.799793505 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_mtm-2017-MINIMUM.y	2026-10-21 04:13:20.498148858 -0600
+@@ -1,2 +1,2 @@
+-Y 11 1
+-Y 34 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_mtm edition=2017 mode=MINIMUM
+compile_ok test=p32_mtm edition=2017 mode=TYPICAL
+run_ok test=p32_mtm edition=2017 mode=TYPICAL
+feature_expectation_match test=p32_mtm edition=2017 mode=TYPICAL
+compile_ok test=p32_mtm edition=2017 mode=MAXIMUM
+run_ok test=p32_mtm edition=2017 mode=MAXIMUM
+--- expected/mtm-maximum.txt	2026-10-21 04:13:14.843794756 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_mtm-2017-MAXIMUM.y	2026-10-21 04:13:20.518786685 -0600
+@@ -1,2 +1,2 @@
+-Y 13 1
+-Y 36 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_mtm edition=2017 mode=MAXIMUM
+compile_ok test=p32_scale edition=2017 mode=from-typical
+run_ok test=p32_scale edition=2017 mode=from-typical
+--- expected/scale.txt	2026-10-21 04:13:14.771792711 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_scale-2017-from-typical.y	2026-10-21 04:13:20.528570393 -0600
+@@ -1,2 +1,2 @@
+-Y 14 1
+-Y 40 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_scale edition=2017 mode=from-typical
+compile_ok test=p32_ic edition=2017 mode=interconnect
+run_ok test=p32_ic edition=2017 mode=interconnect
+feature_expectation_match test=p32_ic edition=2017 mode=interconnect
+compile_ok test=p32_tchk edition=2023 mode=annotated
+run_ok test=p32_tchk edition=2023 mode=annotated
+compile_ok test=p32_tchk edition=2023 mode=control
+run_ok test=p32_tchk edition=2023 mode=control
+setup_violations edition=2023 annotated=0 control=0
+FEATURE_EXPECTATION_MISMATCH feature=timingcheck edition=2023
+compile_ok test=p32_mtm edition=2023 mode=MINIMUM
+run_ok test=p32_mtm edition=2023 mode=MINIMUM
+--- expected/mtm-minimum.txt	2026-10-21 04:13:14.799793505 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_mtm-2023-MINIMUM.y	2026-10-21 04:13:20.574063947 -0600
+@@ -1,2 +1,2 @@
+-Y 11 1
+-Y 34 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_mtm edition=2023 mode=MINIMUM
+compile_ok test=p32_mtm edition=2023 mode=TYPICAL
+run_ok test=p32_mtm edition=2023 mode=TYPICAL
+feature_expectation_match test=p32_mtm edition=2023 mode=TYPICAL
+compile_ok test=p32_mtm edition=2023 mode=MAXIMUM
+run_ok test=p32_mtm edition=2023 mode=MAXIMUM
+--- expected/mtm-maximum.txt	2026-10-21 04:13:14.843794756 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_mtm-2023-MAXIMUM.y	2026-10-21 04:13:20.596399303 -0600
+@@ -1,2 +1,2 @@
+-Y 13 1
+-Y 36 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_mtm edition=2023 mode=MAXIMUM
+compile_ok test=p32_scale edition=2023 mode=from-typical
+run_ok test=p32_scale edition=2023 mode=from-typical
+--- expected/scale.txt	2026-10-21 04:13:14.771792711 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/A3/c32-remaining-20261021-02/logs/p32_scale-2023-from-typical.y	2026-10-21 04:13:20.606579311 -0600
+@@ -1,2 +1,2 @@
+-Y 14 1
+-Y 40 0
++Y 12 1
++Y 35 0
+FEATURE_EXPECTATION_MISMATCH test=p32_scale edition=2023 mode=from-typical
+compile_ok test=p32_ic edition=2023 mode=interconnect
+run_ok test=p32_ic edition=2023 mode=interconnect
+feature_expectation_match test=p32_ic edition=2023 mode=interconnect
+sdf_error_count=0 file=a3-c32-normalized-3708.out
+sdf_error_count=0 file=p32_ic-2017-interconnect.compile.stderr
+sdf_error_count=0 file=p32_ic-2017-interconnect.compile.stdout
+sdf_error_count=0 file=p32_ic-2017-interconnect.run.stderr
+sdf_error_count=0 file=p32_ic-2017-interconnect.run.stdout
+sdf_error_count=0 file=p32_ic-2017-interconnect.y
+sdf_error_count=0 file=p32_ic-2023-interconnect.compile.stderr
+sdf_error_count=0 file=p32_ic-2023-interconnect.compile.stdout
+sdf_error_count=0 file=p32_ic-2023-interconnect.run.stderr
+sdf_error_count=0 file=p32_ic-2023-interconnect.run.stdout
+sdf_error_count=0 file=p32_ic-2023-interconnect.y
+sdf_error_count=0 file=p32_mtm-2017-MAXIMUM.compile.stderr
+sdf_error_count=0 file=p32_mtm-2017-MAXIMUM.compile.stdout
+sdf_error_count=0 file=p32_mtm-2017-MAXIMUM.run.stderr
+sdf_error_count=0 file=p32_mtm-2017-MAXIMUM.run.stdout
+sdf_error_count=0 file=p32_mtm-2017-MAXIMUM.y
+sdf_error_count=0 file=p32_mtm-2017-MINIMUM.compile.stderr
+sdf_error_count=0 file=p32_mtm-2017-MINIMUM.compile.stdout
+sdf_error_count=0 file=p32_mtm-2017-MINIMUM.run.stderr
+sdf_error_count=0 file=p32_mtm-2017-MINIMUM.run.stdout
+sdf_error_count=0 file=p32_mtm-2017-MINIMUM.y
+sdf_error_count=0 file=p32_mtm-2017-TYPICAL.compile.stderr
+sdf_error_count=0 file=p32_mtm-2017-TYPICAL.compile.stdout
+sdf_error_count=0 file=p32_mtm-2017-TYPICAL.run.stderr
+sdf_error_count=0 file=p32_mtm-2017-TYPICAL.run.stdout
+sdf_error_count=0 file=p32_mtm-2017-TYPICAL.y
+sdf_error_count=0 file=p32_mtm-2023-MAXIMUM.compile.stderr
+sdf_error_count=0 file=p32_mtm-2023-MAXIMUM.compile.stdout
+sdf_error_count=0 file=p32_mtm-2023-MAXIMUM.run.stderr
+sdf_error_count=0 file=p32_mtm-2023-MAXIMUM.run.stdout
+sdf_error_count=0 file=p32_mtm-2023-MAXIMUM.y
+sdf_error_count=0 file=p32_mtm-2023-MINIMUM.compile.stderr
+sdf_error_count=0 file=p32_mtm-2023-MINIMUM.compile.stdout
+sdf_error_count=0 file=p32_mtm-2023-MINIMUM.run.stderr
+sdf_error_count=0 file=p32_mtm-2023-MINIMUM.run.stdout
+sdf_error_count=0 file=p32_mtm-2023-MINIMUM.y
+sdf_error_count=0 file=p32_mtm-2023-TYPICAL.compile.stderr
+sdf_error_count=0 file=p32_mtm-2023-TYPICAL.compile.stdout
+sdf_error_count=0 file=p32_mtm-2023-TYPICAL.run.stderr
+sdf_error_count=0 file=p32_mtm-2023-TYPICAL.run.stdout
+sdf_error_count=0 file=p32_mtm-2023-TYPICAL.y
+sdf_error_count=0 file=p32_scale-2017-from-typical.compile.stderr
+sdf_error_count=0 file=p32_scale-2017-from-typical.compile.stdout
+sdf_error_count=0 file=p32_scale-2017-from-typical.run.stderr
+sdf_error_count=0 file=p32_scale-2017-from-typical.run.stdout
+sdf_error_count=0 file=p32_scale-2017-from-typical.y
+sdf_error_count=0 file=p32_scale-2023-from-typical.compile.stderr
+sdf_error_count=0 file=p32_scale-2023-from-typical.compile.stdout
+sdf_error_count=0 file=p32_scale-2023-from-typical.run.stderr
+sdf_error_count=0 file=p32_scale-2023-from-typical.run.stdout
+sdf_error_count=0 file=p32_scale-2023-from-typical.y
+sdf_error_count=0 file=p32_tchk-2017-annotated.compile.stderr
+sdf_error_count=0 file=p32_tchk-2017-annotated.compile.stdout
+sdf_error_count=0 file=p32_tchk-2017-annotated.run.stderr
+sdf_error_count=0 file=p32_tchk-2017-annotated.run.stdout
+sdf_error_count=0 file=p32_tchk-2017-annotated.y
+sdf_error_count=0 file=p32_tchk-2017-control.compile.stderr
+sdf_error_count=0 file=p32_tchk-2017-control.compile.stdout
+sdf_error_count=0 file=p32_tchk-2017-control.run.stderr
+sdf_error_count=0 file=p32_tchk-2017-control.run.stdout
+sdf_error_count=0 file=p32_tchk-2017-control.y
+sdf_error_count=0 file=p32_tchk-2023-annotated.compile.stderr
+sdf_error_count=0 file=p32_tchk-2023-annotated.compile.stdout
+sdf_error_count=0 file=p32_tchk-2023-annotated.run.stderr
+sdf_error_count=0 file=p32_tchk-2023-annotated.run.stdout
+sdf_error_count=0 file=p32_tchk-2023-annotated.y
+sdf_error_count=0 file=p32_tchk-2023-control.compile.stderr
+sdf_error_count=0 file=p32_tchk-2023-control.compile.stdout
+sdf_error_count=0 file=p32_tchk-2023-control.run.stderr
+sdf_error_count=0 file=p32_tchk-2023-control.run.stdout
+sdf_error_count=0 file=p32_tchk-2023-control.y
+FEATURE_GAPS=8
+HARNESS_STATUS=0

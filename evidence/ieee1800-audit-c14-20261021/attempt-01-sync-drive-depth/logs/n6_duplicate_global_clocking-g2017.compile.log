@@ -1,0 +1,1 @@
+input/n6_duplicate_global_clocking.sv:9: error: multiple global clocking declarations in `test' (IEEE 1800-2017 14.14 allows at most one per module or program).

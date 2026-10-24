@@ -1,0 +1,2 @@
+434	CLOSED	[IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles	enhancement	2026-10-15T05:09:10Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z

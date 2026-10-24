@@ -1,0 +1,31 @@
+CASE std=2017 file=tests/1800_audit/c16/p16_14_procedural_assertions.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_14_restrict_module.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_14_restrict_procedural.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_15_disable_resolution.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_17_expect.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_14_procedural_assertions.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_14_restrict_module.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_14_restrict_procedural.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_15_disable_resolution.sv
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_17_expect.sv
+COMPILE_RC=0
+RUN_RC=0
+PROBE_SWEEP_COMPLETE

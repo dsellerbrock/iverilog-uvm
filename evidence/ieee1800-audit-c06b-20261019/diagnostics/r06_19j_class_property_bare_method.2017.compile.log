@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:7: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:8: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).

@@ -1,0 +1,4 @@
+SAMPLE 5000 0
+SAMPLE 15000 1
+SAMPLE 25000 2
+input/k5_vif_input_sample.sv:28: $finish called at 25000 (1ps)

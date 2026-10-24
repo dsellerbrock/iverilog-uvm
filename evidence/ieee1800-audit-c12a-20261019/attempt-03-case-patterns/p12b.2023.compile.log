@@ -1,0 +1,11 @@
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: syntax error
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: error: Incomprehensible case expression.
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: syntax error
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: error: Incomprehensible case expression.
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:23: syntax error
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:23: error: Malformed conditional expression.
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:24: syntax error
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:24: error: Malformed statement
+Assertion failed: (pform_peek_scope() == scope->block), function pform_finish_procedural_block, file parse.y, line 1435.
+sh: line 1: 54437 Done                    /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivlpp -L -g2023 -F"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg236881955" -f"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg36881955" -p"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli36881955"
+     54438 Abort trap: 6           | /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivl -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh36881955" -C"/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/vvp.conf" -- -

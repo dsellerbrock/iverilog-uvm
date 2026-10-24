@@ -1,0 +1,6 @@
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:10: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:11: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:12: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:13: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/p06_23e_type_aggregates.sv:14: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+5 error(s) during elaboration.

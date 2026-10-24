@@ -1,0 +1,2 @@
+git_head=b59d9fd6a52a1b1d7538a59d9cd87214f6565fed
+git_worktree=dirty; attempt 03 contains lead-corrected §9.4 probes and bisect variants

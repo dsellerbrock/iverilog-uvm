@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_19_int_to_enum.sv:5: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.

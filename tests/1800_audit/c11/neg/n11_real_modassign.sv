@@ -1,0 +1,1 @@
+module m; real r = 5.5, q; int i; initial begin r %= 2.0; $display("OUT q=%f i=%0d r=%f", q, i, r); end endmodule

@@ -1,0 +1,12 @@
+Repository: dsellerbrock/iverilog-uvm
+Search mode: `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url`
+
+Queries and results:
+
+- `"solve before"`: #491 CLOSED (queue-element solve-before identity) and #12 CLOSED (completed randomization umbrella mentioning generic solve-before).
+- `variable ordering constraint`: #491 and #494 CLOSED; #494 is queue-size capture for constraint functions.
+- `"solve...before"`: #491 and #12 CLOSED.
+- `"solve non-rand"`, `"solve before" non-rand`, `"solve before" nonrandom`, `"cyclic solve before"`, and `"circular solve"`: no results, except the broad `"solve before" non-rand` search also surfaced #12.
+- `"static constraint"`, `"static constraint_mode"`, `"constraint_mode" "all instances"`: no results.
+
+Reviewed complete bodies for #491, #12, and #494. #491 and #494 concern queue-specific target identity and queue-size function capture. #12 was closed COMPLETED; its comment says remaining solve-before G10 coverage was tracked elsewhere, so any ordering-validation filing needs lead review against that history. Static constraints did not match existing issues.

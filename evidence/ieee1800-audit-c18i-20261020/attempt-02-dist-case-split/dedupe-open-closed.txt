@@ -1,0 +1,25 @@
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist in:title"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+8	CLOSED	Phase 2 (deferred): constraint_mode() and dist weighted distributions		2026-04-24T22:49:30Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "distribution constraint"
+463	OPEN	[IEEE 1800] §18 — Expand rand real beyond scalar finite intervals	enhancement	2026-10-08T02:44:49Z
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+8	CLOSED	Phase 2 (deferred): constraint_mode() and dist weighted distributions		2026-04-24T22:49:30Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "18.5.4"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "randc dist"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist weight zero"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist expression requires"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "non-rand dist"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist requires rand"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z

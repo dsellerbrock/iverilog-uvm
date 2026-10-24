@@ -1,0 +1,16 @@
+edition	probe	case	compile_rc	run_rc
+2017	p18_05_3_dist2023	CASE=1	0	0
+2017	p18_05_3_dist2023	CASE=2	0	0
+2017	p18_05_3_dist2023	CASE=3	0	0
+2017	p18_05_3_dist2023	CASE=4	0	0
+2017	p18_05_3_default	E4	1	NA
+2023	p18_05_3_dist2023	CASE=1	0	0
+2023	p18_05_3_dist2023	CASE=2	0	0
+2023	p18_05_3_dist2023	CASE=3	0	0
+2023	p18_05_3_dist2023	CASE=4	0	0
+2023	p18_05_3_default	E4	0	124
+edition	probe	compile_rc	first_diagnostic
+2017	p18_05_3_n1_default_colon_eq	7	/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:4: syntax error
+2017	p18_05_3_n2_two_defaults	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n2_two_defaults.sv:4: error: the default item in a dist constraint requires IEEE1800-2023; compile with -g2023 (or -glatest).
+2023	p18_05_3_n1_default_colon_eq	7	/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:4: syntax error
+2023	p18_05_3_n2_two_defaults	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n2_two_defaults.sv:4: error: a dist list may contain at most one default item.

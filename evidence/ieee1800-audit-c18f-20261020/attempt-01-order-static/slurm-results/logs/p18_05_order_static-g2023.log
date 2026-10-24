@@ -1,0 +1,5 @@
+INFO s=1 unordered 0/400 ordered 197/400
+FAIL static_mode_shared
+FAIL static_off_all
+FAIL static_on_all
+RESULT pass=4 fail=3

@@ -1,0 +1,30 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+fa1a02481838d89adb41654ef727098a8aa1b05ca83392b83ef6b256a23c6a44  ./n24_05_mod_calls_prog.sv
+9830aa91ff7b03827d6f867909a5525a487f4334ba0907d789f95fca78baf44b  ./p24_05_calls.sv
+07a8544c9beba31f465357df43f2a48fa7743525837d200fdf8f34fc308e4fe1  ./r786.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+issue786 edition=2017 compile_exit=0
+issue786 edition=2017 run_exit=0
+calls edition=2017 compile_exit=0
+calls edition=2017 run_exit=0
+RETURN 5 0
+DESIGN 5 1
+NEXT 15 1
+p24_05_calls.sv:21: $finish called at 15 (1s)
+module_calls_program edition=2017 compile_exit=0
+module_calls_program edition=2017 run_exit=0
+HELLO
+issue786 edition=2023 compile_exit=0
+issue786 edition=2023 run_exit=0
+calls edition=2023 compile_exit=0
+calls edition=2023 run_exit=0
+RETURN 5 0
+DESIGN 5 1
+NEXT 15 1
+p24_05_calls.sv:21: $finish called at 15 (1s)
+module_calls_program edition=2023 compile_exit=0
+module_calls_program edition=2023 run_exit=0
+HELLO

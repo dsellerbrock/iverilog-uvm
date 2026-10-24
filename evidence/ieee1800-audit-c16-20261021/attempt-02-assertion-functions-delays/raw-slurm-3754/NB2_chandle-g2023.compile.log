@@ -1,0 +1,1 @@
+input/NB2_chandle.sv:10: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.

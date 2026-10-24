@@ -1,0 +1,9 @@
+PASS 9.4.5.rhs_sampled_before_delay
+PASS 9.4.5.data_swap
+PASS 9.4.5.event_rhs_sampled_at_encounter
+PASS 9.4.5.data_shift
+PASS 9.4.5.repeat_3
+PASS 9.4.5.repeat_negative
+PASS 9.4.5.repeat_zero
+PASS 9.4.5.repeat_unsigned_13
+PASS 9.4.5.repeat_count_once

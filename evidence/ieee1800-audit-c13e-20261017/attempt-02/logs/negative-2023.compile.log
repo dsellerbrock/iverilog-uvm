@@ -1,0 +1,2 @@
+tests/1800_audit/c13/neg/n13_08_new_virtual_class.sv:7: error: Can not create object of virtual class `C`.
+Elaboration failed

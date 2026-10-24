@@ -1,0 +1,6 @@
+PASS 9.6.3.join_any_then_disable_fork
+PASS 9.6.3.outstanding_killed
+PASS 9.6.3.kills_descendants_of_terminated_child
+PASS 9.6.3.only_own_children_killed
+PASS 9.6.2.disable_by_name_kills_foreign_fork
+DONE fails=0

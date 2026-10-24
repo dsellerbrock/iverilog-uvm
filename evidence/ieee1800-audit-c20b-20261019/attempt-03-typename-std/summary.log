@@ -1,0 +1,4 @@
+compile g2017 rc=2
+tests/1800_audit/c20/r20_06_typename_std.sv:7: error: Error in struct/union member.
+compile g2023 rc=2
+tests/1800_audit/c20/r20_06_typename_std.sv:7: error: Error in struct/union member.

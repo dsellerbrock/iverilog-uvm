@@ -1,0 +1,9 @@
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_missing_implementation	1	expected-nonzero	0.01	12104
+2017	n08_26_constraint_in_interface	1	expected-nonzero	0.01	12060
+2017	n08_26_nonpure_method	1	expected-nonzero	0.01	12048
+2017	n08_26_nested_interface	0	expected-nonzero	0.01	11972
+2023	n08_26_missing_implementation	1	expected-nonzero	0.01	12104
+2023	n08_26_constraint_in_interface	1	expected-nonzero	0.01	12052
+2023	n08_26_nonpure_method	1	expected-nonzero	0.01	12044
+2023	n08_26_nested_interface	0	expected-nonzero	0.01	12048

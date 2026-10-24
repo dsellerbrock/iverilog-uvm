@@ -1,0 +1,2 @@
+tests/1800_audit/c11/r11_12_decl_task.sv:1: syntax error
+tests/1800_audit/c11/r11_12_decl_task.sv:1: Syntax in assignment statement l-value.

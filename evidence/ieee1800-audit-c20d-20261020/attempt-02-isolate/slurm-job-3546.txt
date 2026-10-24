@@ -1,0 +1,7 @@
+JobId=3546 JobName=a3-c20-actl2
+JobState=COMPLETED ExitCode=0:0
+SubmitTime=2026-10-20T13:01:54 StartTime=2026-10-20T13:01:54 EndTime=2026-10-20T13:01:55
+RunTime=00:00:01 TimeLimit=00:10:00
+Partition=verilog NodeList=DAN-DESKTOP
+ReqTRES=cpu=1,mem=1G,node=1,billing=1
+Slurm accounting is disabled; peak RSS is unavailable. The controller no longer retained the completed job record during later evidence archival.

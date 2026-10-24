@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_type_param_nontype.sv:2: error: Type parameter `T` value `'sd5` is not a type.
+1 error(s) during elaboration.

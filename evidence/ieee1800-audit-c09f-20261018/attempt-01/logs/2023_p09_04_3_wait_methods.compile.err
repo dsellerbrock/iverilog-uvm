@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8: warning: wait expression is constant false.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:8:        : The statement will block permanently.

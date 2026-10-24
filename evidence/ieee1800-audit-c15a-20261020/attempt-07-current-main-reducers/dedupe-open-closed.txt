@@ -1,0 +1,19 @@
+GitHub dedupe search: --state all (open and closed), label 1800-audit.
+
+QUERY: semaphore
+[{"number":692,"state":"OPEN","title":"[IEEE 1800] §15.3.1 — Negative initial keyCount in semaphore new() wraps to unsigned keys","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/692"},{"number":691,"state":"OPEN","title":"[IEEE 1800] §15.3 — Negative keyCount in semaphore put(), get(), and try_get() does not result in an error","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/691"}]
+
+QUERY: wait_order
+[]
+
+QUERY: triggered
+[{"number":653,"state":"OPEN","title":"[IEEE 1800] §9.4.4 — Named sequence .triggered cannot be bound; wait (abc.triggered) falls through at t=0","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/653"},{"number":806,"state":"OPEN","title":"[IEEE 1800] §21.7.1.2 — an event that never triggers is not declared in the VCD file","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/806"},{"number":805,"state":"OPEN","title":"[IEEE 1800] §21.7.2.2 — VCD checkpoint blocks emit an event trigger marker for an event that did not trigger","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/805"},{"number":625,"state":"OPEN","title":"[IEEE 1800] §19.3 — Block event @@(end task) is a syntax error and crashes ivl (pform.cc:2723)","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/625"}]
+
+QUERY: nonblocking event
+[{"number":613,"state":"OPEN","title":"[IEEE 1800] §8.7 — Reject event control inside a class constructor","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/613"}]
+
+QUERY: event argument
+[{"number":635,"state":"OPEN","title":"[IEEE 1800] §13.4 — Reject output/inout/ref function calls outside procedural statements","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/635"},{"number":806,"state":"OPEN","title":"[IEEE 1800] §21.7.1.2 — an event that never triggers is not declared in the VCD file","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/806"},{"number":710,"state":"OPEN","title":"[IEEE 1800] §16.9.3 — Reject $past and value change functions when no clocking event can be inferred","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/710"}]
+
+QUERY: mailbox get
+[{"number":695,"state":"OPEN","title":"[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/695"},{"number":826,"state":"OPEN","title":"[IEEE 1800] §15.4.5 — mailbox get with a message variable of a non-equivalent type neither errors nor assigns","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/826"}]

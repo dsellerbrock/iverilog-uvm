@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_const_size_ram.sv:4: error: A reference to a net or variable (`Ram') is not allowed in a constant expression.
+1 error(s) during elaboration.

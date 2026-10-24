@@ -1,0 +1,8 @@
+[
+  {
+    "number": 801,
+    "state": "OPEN",
+    "title": "[IEEE 1800] \u00a721.2.1.7 \u2014 %p of an associative array of structs prints question marks for the element values",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/801"
+  }
+]

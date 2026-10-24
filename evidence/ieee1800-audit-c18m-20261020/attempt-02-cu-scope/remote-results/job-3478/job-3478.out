@@ -1,0 +1,91 @@
+edition	probe	compile_rc	run_rc	expected
+2017	p18_05_1_extern_inherit	0	0	run
+2017	p18_05_1_modscope	6	NA	run
+2017	p18_05_1_pkgscope	0	0	run
+2017	p18_05_1_n1	1	NA	reject
+2017	p18_05_1_n2	0	0	reject
+2017	p18_05_1_n3	0	0	reject
+2017	p18_05_1_n4	1	NA	reject
+2017	p18_05_1_n5	1	NA	reject
+2017	p18_05_1_n6	1	NA	reject
+2023	p18_05_1_extern_inherit	0	0	run
+2023	p18_05_1_modscope	6	NA	run
+2023	p18_05_1_pkgscope	0	0	run
+2023	p18_05_1_n1	1	NA	reject
+2023	p18_05_1_n2	0	0	reject
+2023	p18_05_1_n3	0	0	reject
+2023	p18_05_1_n4	1	NA	reject
+2023	p18_05_1_n5	1	NA	reject
+2023	p18_05_1_n6	1	NA	reject
+--- p18_05_1_extern_inherit-g2017.compile.log
+--- p18_05_1_extern_inherit-g2023.compile.log
+--- p18_05_1_modscope-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:5: error: Invalid module item.
+--- p18_05_1_modscope-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:5: error: Invalid module item.
+--- p18_05_1_n1-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.
+--- p18_05_1_n1-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.
+--- p18_05_1_n2-g2017.compile.log
+--- p18_05_1_n2-g2023.compile.log
+--- p18_05_1_n3-g2017.compile.log
+--- p18_05_1_n3-g2023.compile.log
+--- p18_05_1_n4-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n4.sv:1: error: A pure constraint may only be declared in a virtual class.
+--- p18_05_1_n4-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n4.sv:1: error: A pure constraint may only be declared in a virtual class.
+--- p18_05_1_n5-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n5.sv:2: error: Non-virtual class `X' does not implement inherited pure constraint `t'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n5.sv:1:      : Pure constraint `t' is declared here.
+1 error(s) during elaboration.
+--- p18_05_1_n5-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n5.sv:2: error: Non-virtual class `X' does not implement inherited pure constraint `t'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n5.sv:1:      : Pure constraint `t' is declared here.
+1 error(s) during elaboration.
+--- p18_05_1_n6-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n6.sv:1: error: Constraint `t' is already declared pure in this class.
+--- p18_05_1_n6-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n6.sv:1: error: Constraint `t' is already declared pure in this class.
+--- p18_05_1_pkgscope-g2017.compile.log
+--- p18_05_1_pkgscope-g2023.compile.log
+--- p18_05_1_extern_inherit-g2017.run.log
+C ok=50 bad=0
+C_P3 ok=50
+B ok=50 bad=0
+D ok=50 bad=0 n12=31 n14=19
+DV ok=50 bad=0 n12=24 n14=26
+E ok=50 bad=0
+W ok=50 bad=0
+--- p18_05_1_extern_inherit-g2023.run.log
+C ok=50 bad=0
+C_P3 ok=50
+B ok=50 bad=0
+D ok=50 bad=0 n12=31 n14=19
+DV ok=50 bad=0 n12=24 n14=26
+E ok=50 bad=0
+W ok=50 bad=0
+--- p18_05_1_n2-g2017.run.log
+RAN x=4
+--- p18_05_1_n2-g2023.run.log
+RAN x=4
+--- p18_05_1_n3-g2017.run.log
+RAN x=1
+--- p18_05_1_n3-g2023.run.log
+RAN x=1
+--- p18_05_1_pkgscope-g2017.run.log
+PKG bad=0
+--- p18_05_1_pkgscope-g2023.run.log
+PKG bad=0

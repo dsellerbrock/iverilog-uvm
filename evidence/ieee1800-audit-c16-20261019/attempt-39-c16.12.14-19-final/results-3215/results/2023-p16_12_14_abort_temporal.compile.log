@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c16-12-14-19-20261019-04/tests/1800_audit/c16/p16_12_14_abort_temporal.sv:9: sorry: `accept_on' is supported only with a boolean operand (no nested or sequence property); the assertion is dropped.

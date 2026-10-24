@@ -1,0 +1,4 @@
+A=2,6,5,1,0,3,4,7,
+B=8,13,15,11,10,14,9,12,
+PASS shuffle thread stability
+/home/dsell/slurm-runs/iverilog-uvm/a3/1800-c18r-20261020-03/input/p18_14_shuffle_stability.sv:38: $finish called at 1 (1s)

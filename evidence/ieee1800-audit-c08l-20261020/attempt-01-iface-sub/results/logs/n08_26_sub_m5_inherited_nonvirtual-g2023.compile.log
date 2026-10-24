@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m5_inherited_nonvirtual.sv:10: error: Method `f' in class `ExtClass2' must be virtual to implement an interface-class method.
+1 error(s) during elaboration.

@@ -1,0 +1,1 @@
+module m; virtual class V; rand bit [3:0] w; pure constraint t; constraint t { w == 1; } endclass class X extends V; constraint t { w == 2; } endclass initial begin X o = new; void'(o.randomize()); end endmodule

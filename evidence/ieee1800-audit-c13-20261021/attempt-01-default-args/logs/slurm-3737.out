@@ -1,0 +1,90 @@
+=== d1_input_default -g2017 ===
+D1 f()=5
+d1_input_default	2017	0	0
+=== d1_input_default -g2023 ===
+D1 f()=5
+d1_input_default	2023	0	0
+=== d2_handle_null_default -g2017 ===
+D2 null=1
+d2_handle_null_default	2017	0	0
+=== d2_handle_null_default -g2023 ===
+D2 null=1
+d2_handle_null_default	2023	0	0
+=== d3_output_variable_default -g2017 ===
+input/d3_output_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d3_output_variable_default.sv:4: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+d3_output_variable_default	2017	2	NA
+=== d3_output_variable_default -g2023 ===
+input/d3_output_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d3_output_variable_default.sv:4: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+d3_output_variable_default	2023	2	NA
+=== d4_inout_variable_default -g2017 ===
+input/d4_inout_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d4_inout_variable_default.sv:4: error: Missing argument 1 ('io') of call to task.
+2 error(s) during elaboration.
+d4_inout_variable_default	2017	2	NA
+=== d4_inout_variable_default -g2023 ===
+input/d4_inout_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d4_inout_variable_default.sv:4: error: Missing argument 1 ('io') of call to task.
+2 error(s) during elaboration.
+d4_inout_variable_default	2023	2	NA
+=== d5_ref_constant_default -g2017 ===
+input/d5_ref_constant_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d5_ref_constant_default.sv:3: error: Missing argument 1 ('x') of call to task.
+2 error(s) during elaboration.
+d5_ref_constant_default	2017	2	NA
+=== d5_ref_constant_default -g2023 ===
+input/d5_ref_constant_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d5_ref_constant_default.sv:3: error: Missing argument 1 ('x') of call to task.
+2 error(s) during elaboration.
+d5_ref_constant_default	2023	2	NA
+=== d5_ref_variable_default -g2017 ===
+input/d5_ref_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d5_ref_variable_default.sv:4: error: Missing argument 1 ('x') of call to task.
+2 error(s) during elaboration.
+d5_ref_variable_default	2017	2	NA
+=== d5_ref_variable_default -g2023 ===
+input/d5_ref_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d5_ref_variable_default.sv:4: error: Missing argument 1 ('x') of call to task.
+2 error(s) during elaboration.
+d5_ref_variable_default	2023	2	NA
+=== d6_const_ref_variable_default -g2017 ===
+input/d6_const_ref_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d6_const_ref_variable_default.sv:4: error: Missing/empty argument 1 ('x') in call to function cr: the formal has no default value (IEEE 1800-2017 13.5.3).
+2 error(s) during elaboration.
+d6_const_ref_variable_default	2017	2	NA
+=== d6_const_ref_variable_default -g2023 ===
+input/d6_const_ref_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d6_const_ref_variable_default.sv:4: error: Missing/empty argument 1 ('x') in call to function cr: the formal has no default value (IEEE 1800-2017 13.5.3).
+2 error(s) during elaboration.
+d6_const_ref_variable_default	2023	2	NA
+=== d7_no_outer_a -g2017 ===
+D7 no_outer_a=2
+d7_no_outer_a	2017	0	0
+=== d7_no_outer_a -g2023 ===
+D7 no_outer_a=2
+d7_no_outer_a	2023	0	0
+=== d7_outer_a_100 -g2017 ===
+D7 outer_a=2
+d7_outer_a_100	2017	0	0
+=== d7_outer_a_100 -g2023 ===
+D7 outer_a=2
+d7_outer_a_100	2023	0	0
+=== d8_empty_named_default -g2017 ===
+D8 f(.a())=5
+d8_empty_named_default	2017	0	0
+=== d8_empty_named_default -g2023 ===
+D8 f(.a())=5
+d8_empty_named_default	2023	0	0
+=== d9_package_default_scope -g2017 ===
+D9 value=27
+d9_package_default_scope	2017	0	0
+=== d9_package_default_scope -g2023 ===
+D9 value=27
+d9_package_default_scope	2023	0	0
+=== f1_constant_function_fork -g2017 ===
+f1_constant_function_fork	2017	0	0
+=== f1_constant_function_fork -g2023 ===
+f1_constant_function_fork	2023	0	0

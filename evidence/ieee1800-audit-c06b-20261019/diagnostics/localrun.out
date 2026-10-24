@@ -1,0 +1,68 @@
+== r06_19a_default_value -g2017 compile_rc=0
+run_rc=0
+INFO enum_integer_default=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx decimal=x
+== r06_19d_enum_name_member -g2017 compile_rc=0
+run_rc=0
+INFO name_member=green
+== r06_19e_enum_name_call -g2017 compile_rc=0
+run_rc=0
+INFO name_call=green
+== r06_19f_enum_name_len_chain -g2017 compile_rc=0
+run_rc=0
+INFO name_len_chain=5
+== r06_19g_class_property_method -g2017 compile_rc=0
+run_rc=0
+INFO class_name=green
+INFO class_next=2
+INFO class_first=0
+== r06_19h_array_element_method -g2017 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/r06_19h_array_element_method.sv:6: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/r06_19h_array_element_method.sv:7: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19i_queue_element_method -g2017 compile_rc=0
+run_rc=0
+INFO queue_name=yellow
+INFO queue_next=0
+== r06_19a_default_value -g2023 compile_rc=0
+run_rc=0
+INFO enum_integer_default=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx decimal=x
+== r06_19d_enum_name_member -g2023 compile_rc=0
+run_rc=0
+INFO name_member=green
+== r06_19e_enum_name_call -g2023 compile_rc=0
+run_rc=0
+INFO name_call=green
+== r06_19f_enum_name_len_chain -g2023 compile_rc=0
+run_rc=0
+INFO name_len_chain=5
+== r06_19g_class_property_method -g2023 compile_rc=0
+run_rc=0
+INFO class_name=green
+INFO class_next=2
+INFO class_first=0
+== r06_19h_array_element_method -g2023 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/r06_19h_array_element_method.sv:6: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/r06_19h_array_element_method.sv:7: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19i_queue_element_method -g2023 compile_rc=0
+run_rc=0
+INFO queue_name=yellow
+INFO queue_next=0
+        4.26 real         1.34 user         0.72 sys
+            16957440  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              114378  page reclaims
+                1476  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  13  signals received
+                 152  voluntary context switches
+                3197  involuntary context switches
+           193975853  instructions retired
+           128709284  cycles elapsed
+             2540000  peak memory footprint
