@@ -5241,3 +5241,5 @@ sv_std_randomize_zero_arg_checker_2023 vvp_tests/sv_std_randomize_zero_arg_check
 # IEEE 1800-2017/2023 §18.8: whole unpacked-struct rand_mode affects all members.
 sv_rand_mode_whole_struct_2017 vvp_tests/sv_rand_mode_whole_struct_2017.json
 sv_rand_mode_whole_struct_2023 vvp_tests/sv_rand_mode_whole_struct_2023.json
+sv_repeat_event_unknown_count_2017 vvp_tests/sv_repeat_event_unknown_count_2017.json
+sv_repeat_event_unknown_count_2023 vvp_tests/sv_repeat_event_unknown_count_2023.json

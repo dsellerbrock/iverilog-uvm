@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "sv_repeat_event_unknown_count.v",
+    "iverilog-args": ["-g2017"]
+}
