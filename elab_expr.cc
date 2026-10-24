@@ -31650,6 +31650,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
       NetAssign_*inc_lval = 0;
 
       if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+	    if (concurrent_assertion_expr_) {
+		  cerr << get_fileline() << ": error: Increment/decrement operators are not allowed in concurrent assertion expressions." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    inc_lval = expr_->elaborate_lval(des, scope, false, false);
 	    if (!inc_lval) return 0;
       }

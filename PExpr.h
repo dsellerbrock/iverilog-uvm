@@ -1226,6 +1226,8 @@ class PEUnary : public PExpr {
     public:
       inline char get_op() const { return op_; }
       inline PExpr*get_expr() const { return expr_; }
+      void mark_concurrent_assertion_expr() { concurrent_assertion_expr_ = true; }
+      bool concurrent_assertion_expr() const { return concurrent_assertion_expr_; }
 
     private:
       NetExpr* elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const;
@@ -1233,6 +1235,7 @@ class PEUnary : public PExpr {
     private:
       char op_;
       PExpr*expr_;
+      bool concurrent_assertion_expr_ = false;
 };
 
 class PEBinary : public PExpr {
