@@ -7394,18 +7394,21 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
                         program, and checker scope. */
   : K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@2, $2, $3); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", $2, $8);
+        pform_end_clocking_block(@7); }
   /* 14.12: named default clocking declaration. */
   | K_default K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@8); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@9, "clocking", $3, $9);
+        pform_end_clocking_block(@8); }
   /* 14.12: anonymous default clocking declaration. */
   | K_default K_clocking event_control ';'
       { pform_start_clocking_block(@2, 0, $3, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", nullptr, $8);
+        pform_end_clocking_block(@7); }
   /* A.1.4 module_or_generate_item_declaration: `default clocking id;`
      selects a clocking block declared elsewhere in this scope. */
   | K_default K_clocking IDENTIFIER ';'
@@ -7414,12 +7417,14 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      event (no items); referenced as $global_clock. */
   | K_global K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, false, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@8); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@9, "clocking", $3, $9);
+        pform_end_clocking_block(@8); }
   | K_global K_clocking event_control ';'
       { pform_start_clocking_block(@2, 0, $3, false, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", nullptr, $8);
+        pform_end_clocking_block(@7); }
   /* M9 (IEEE 1800-2017 16.15): `default disable iff expr;` applies to
      every concurrent assertion in this module that lacks its own
      disable clause.
