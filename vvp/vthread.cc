@@ -191,6 +191,8 @@ class vvp_process : public vvp_object {
       void mark_killed();
       unsigned status() const;
       vthread_t owner() const;
+      void add_descendant(vvp_object_t process);
+      const std::vector<vvp_object_t>& descendants() const;
 
 	/* Returns true when THR was actually queued, so that the %process/await
 	   opcode only parks a thread it managed to register. */
@@ -223,6 +225,7 @@ class vvp_process : public vvp_object {
 
     private:
       vthread_t owner_;
+      std::vector<vvp_object_t> descendants_;
       unsigned final_status_;
       bool final_status_valid_;
       std::set<vthread_t> waiters_;
@@ -1460,6 +1463,16 @@ unsigned vvp_process::status() const
 vthread_t vvp_process::owner() const
 {
       return owner_;
+}
+
+void vvp_process::add_descendant(vvp_object_t process)
+{
+      descendants_.push_back(process);
+}
+
+const std::vector<vvp_object_t>& vvp_process::descendants() const
+{
+      return descendants_;
 }
 
 bool vvp_process::add_waiter(vthread_t thr)
@@ -19994,6 +20007,17 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
 
+	/* Keep the logical process tree after vthread_reap reparents detached
+	   threads for wait fork. A finished process handle must still reach its
+	   live fork descendants when process::kill() is called later. */
+      if (!child->is_fork_v_child) {
+	    vthread_t parent_process = logical_process_thread_(thr);
+	    vvp_process*parent_obj = parent_process
+		  ? parent_process->process_obj_.peek<vvp_process>() : 0;
+	    if (parent_obj)
+		  parent_obj->add_descendant(child->process_obj_);
+      }
+
 	/* R3 (IEEE 1800-2017 18.13.1): a real independent process -- exactly
 	   the threads logical_process_thread_() does NOT walk past, i.e.
 	   whatever came out of the branch above still unmarked -- is seeded
@@ -27364,6 +27388,26 @@ static void kill_detached_subprocesses_(vthread_t thr)
       }
 }
 
+static void kill_process_descendants_(vvp_process*proc)
+{
+      if (!proc) return;
+
+      const std::vector<vvp_object_t>&descendants = proc->descendants();
+      for (size_t idx = 0 ; idx < descendants.size() ; idx += 1) {
+	    vvp_process*child = descendants[idx].peek<vvp_process>();
+	    if (!child) continue;
+
+	    kill_process_descendants_(child);
+	    vthread_t owner = child->owner();
+	    if (!owner) continue;
+
+	    kill_detached_subprocesses_(owner);
+	    unsigned status = child->status();
+	    if (status != PROCESS_STATE_FINISHED && status != PROCESS_STATE_KILLED)
+		  (void)do_disable(owner, owner);
+      }
+}
+
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -27374,11 +27418,18 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 	    return true;
 
       vthread_t target = proc->owner();
-      if (!target)
-	    return true;
-
       unsigned status = proc->status();
-      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED) {
+            /* IEEE 1800-2023 9.7 explicitly requires kill() on a terminal
+               process to still terminate its live descendants. 2017 9.7
+               likewise requires kill() to terminate all subprocesses. */
+	    kill_process_descendants_(proc);
+	    if (target)
+		  kill_detached_subprocesses_(target);
+	    return true;
+      }
+
+      if (!target)
 	    return true;
 
       vthread_t self_process = logical_process_thread_(thr);
