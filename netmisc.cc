@@ -4529,6 +4529,11 @@ bool ref_formal_is_bound(const NetNet*port)
       const NetScope*owner = port->scope();
       if (owner == 0)
 	    return false;
+      // A module ref port is bound once during instance initialization,
+      // rather than at a subroutine call site.  Its connection elaboration
+      // rejects missing or unsupported actuals before target emission.
+      if (owner->type() == NetScope::MODULE)
+	    return true;
       if (owner->type() != NetScope::TASK && owner->type() != NetScope::FUNC)
 	    return false;
 
