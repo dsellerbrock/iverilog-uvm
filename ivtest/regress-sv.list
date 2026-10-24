@@ -5904,3 +5904,5 @@ format_undefined_spec_2023 EF,-g2023,-s,format_undefined_spec_2023 ivltests gold
 # IEEE 1800-2017/2023 20.2 and 24.7: program-only $exit and ignored module calls.
 sv_exit_control normal,-g2017,-s,sv_exit_control ivltests gold=sv_exit_control.gold
 sv_exit_control_2023 normal,-g2023,-s,sv_exit_control ivltests gold=sv_exit_control.gold
+sv_assoc_nonintegral_query_2017	CE,-g2017	ivltests
+sv_assoc_nonintegral_query_2023	CE,-g2023	ivltests
