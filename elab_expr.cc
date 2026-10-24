@@ -11455,6 +11455,14 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 unsigned PECallFunction::test_width(Design*des, NetScope*scope,
                                     width_mode_t&mode)
 {
+      if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"
+	  && parms_.size() == 1 && parms_[0].parm) {
+	    expr_width_ = parms_[0].parm->test_width(des, scope, mode);
+	    expr_type_ = parms_[0].parm->expr_type();
+	    min_width_ = parms_[0].parm->min_width();
+	    signed_flag_ = parms_[0].parm->has_sign();
+	    return expr_width_;
+      }
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::test_width: "
 		 << "path_: " << path_ << endl;
@@ -16802,6 +16810,9 @@ static bool constant_function_declaration_is_legal_(
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
+      if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"
+	  && parms_.size() == 1 && parms_[0].parm)
+	    return parms_[0].parm->elaborate_expr(des, scope, expr_wid, flags);
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "path_: " << path_ << endl;
