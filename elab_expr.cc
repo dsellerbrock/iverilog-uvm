@@ -8271,7 +8271,16 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
+      stream_uarray_op_info_t s_info;
+      int s_have = stream_uarray_operand_(des, scope, inner_, s_info);
+      if (s_have < 0)
+            return nullptr;
+      unsigned w;
+      if (s_have > 0)
+            w = (unsigned)s_info.elem_type->packed_width()
+                  * s_info.elem_count;
+      else
+            w = inner_->test_width(des, scope, m);
       if (w == 0) {
             cerr << get_fileline() << ": error: streaming concatenation "
                   "requires a known-width source expression." << endl;
@@ -8289,7 +8298,9 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
       unsigned slice = resolve_slice_(des, scope);
       if (slice == 0) return nullptr;
 
-      NetExpr*body = inner_->elaborate_expr(des, scope, w, NO_FLAGS);
+      NetExpr*body = s_have > 0
+            ? stream_uarray_concat_(this, s_info)
+            : inner_->elaborate_expr(des, scope, w, NO_FLAGS);
       if (!body) return nullptr;
 
       if (w > lv_width) {
