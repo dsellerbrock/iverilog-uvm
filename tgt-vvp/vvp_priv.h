@@ -108,6 +108,11 @@ extern int scope_needs_call_frame(ivl_scope_t scope);
 extern void reset_evcd_metadata_budget(void);
 extern void note_array_signal_use(ivl_signal_t sig);
 extern void emit_deferred_array_decls(void);
+/* Record the enum or packed struct/union type of a scalar signal word and
+ * emit them all, as .vartype records, once every enumeration is drawn. */
+extern void note_signal_vartype(ivl_signal_t sig, const char*suffix);
+extern void emit_signal_vartypes(void);
+extern int enumeration_is_drawn(ivl_enumtype_t enumtype);
 
 extern void draw_lpm_mux(ivl_lpm_t net);
 extern void draw_lpm_substitute(ivl_lpm_t net);
