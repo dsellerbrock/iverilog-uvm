@@ -8129,6 +8129,36 @@ NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const
       return 0;
 }
 
+bool PAssign_::reject_chandle_assignment_(Design*des, NetScope*scope,
+					  ivl_type_t target_type) const
+{
+      if (!gn_system_verilog() || is_init_ || continuous_lval_
+	  || !target_type || target_type == &netvector_t::chandle_type)
+	    return false;
+
+      const PEIdent*source = dynamic_cast<const PEIdent*>(rval());
+      if (!source || source->leading_type_args()
+	  || source->path().name.empty())
+	    return false;
+      for (const auto&component : source->path().name) {
+	    if (!component.index.empty())
+		  return false;
+      }
+
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+	    return true;
+      if (source->test_type_of_ident(des, rval_scope)
+	  != &netvector_t::chandle_type)
+	    return false;
+
+      cerr << get_fileline() << ": error: chandles shall not be assigned "
+	   << "to variables of any other type (IEEE 1800-2017/2023 "
+	   << "6.14, 6.22.5)." << endl;
+      des->errors += 1;
+      return true;
+}
+
 /*
  * A constant assignment is normally reduced by elab_and_eval to one of the
  * scalar constant nodes below. Class-handle null is also a constant value,
@@ -10590,6 +10620,12 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       NetProc*indexed_slice_prelude = nullptr;
       const ivl_type_s*lv_net_type = lv->net_type();
 
+      if (reject_chandle_assignment_(des, scope, lv_net_type)) {
+	    delete lv;
+	    delete delay;
+	    return 0;
+      }
+
       const PEStreaming*stream_rval =
 	    dynamic_cast<const PEStreaming*>(rval());
       const bool dynamic_stream_target = stream_rval
@@ -11841,6 +11877,11 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	/* Elaborate the l-value. */
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+	    delete lv;
+	    return 0;
+      }
 
 	/* A fixed unpacked-array property slice needs a persistent receiver and
 	 * one snapshot word per element in the NBA queue. The signal-array
