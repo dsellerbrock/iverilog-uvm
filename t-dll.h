@@ -447,6 +447,7 @@ struct ivl_expr_s {
 		  unsigned   vif_methods;
 		  unsigned char *vif_parm_default;
 		  ivl_lval_t ref_lval;
+	      ivl_lval_t ref_lval2;
 	    } sfunc_;
 
 	    struct {

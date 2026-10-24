@@ -89,6 +89,7 @@ ivl_expr_union_active_member
 ivl_expr_property_idx
 ivl_expr_repeat
 ivl_expr_ref_lval
+ivl_expr_ref_lval2
 ivl_expr_scope
 ivl_expr_sel_type
 ivl_expr_signal

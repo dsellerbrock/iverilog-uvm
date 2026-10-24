@@ -950,6 +950,13 @@ extern "C" ivl_lval_t ivl_expr_ref_lval(ivl_expr_t net)
       return net->u_.sfunc_.ref_lval;
 }
 
+extern "C" ivl_lval_t ivl_expr_ref_lval2(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.ref_lval2;
+}
+
 extern "C" ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx)
 {
       assert(net);
