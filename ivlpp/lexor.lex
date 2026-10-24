@@ -356,6 +356,10 @@ struct include_stack_t
 
     /* A single line comment can be associated with this include. */
     char* comment;
+
+    /* Angle-bracket includes use the implementation include paths, but not
+     * the directory of the including source file. */
+    int angle_include;
 };
 
 static void ifdef_output_whitespace(const char* text, size_t length)
@@ -654,6 +658,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 
 <PPINCLUDE>\"[^\"]*\"   { include_filename(0); }  /* A normal (") string */
 <PPINCLUDE>`\"[^\"]*`\" { include_filename(1); }  /* A macro (`") string */
+<PPINCLUDE>\<[^<>]+\> { include_filename(0); } /* Angle-bracket include */
 
 <PPINCLUDE>[ \t\b\f] { ; }
 
@@ -2705,12 +2710,13 @@ static void include_filename(int macro_str)
     standby->path[strlen(standby->path)-1-macro_str] = 0;
     standby->lineno = 0;
     standby->comment = NULL;
+    standby->angle_include = yytext[0] == '<';
 }
 
 static void do_include(void)
 {
     /* standby is defined by include_filename() */
-    if (standby->path[0] == '/') {
+    if (standby->path[0] == '/' && !standby->angle_include) {
 	if ((standby->file = fopen(standby->path, "r"))) {
 	    standby->file_close = fclose;
 	    goto code_that_switches_buffers;
@@ -2735,7 +2741,7 @@ static void do_include(void)
 	if (cp != 0) {
 	    *cp = '\0';
 	    include_dir[0] = strdup(path);
-	    if (relative_include) start = 0;
+	    if (relative_include && !standby->angle_include) start = 0;
 	}
 
 	for (idx = start ;  idx < include_cnt ;  idx += 1) {
