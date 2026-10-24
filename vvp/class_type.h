@@ -537,6 +537,10 @@ class class_type : public __vpiHandle {
       static const std::vector<const class_type*>& covgrp_registry();
       static void covgrp_register(const class_type*ct);
       static void covgrp_report(FILE*fd);
+      static bool covgrp_db_load(const char*path);
+      static bool covgrp_db_save(const char*path);
+      static void covgrp_db_set_name(const char*path);
+      static bool covgrp_db_save_selected();
 
 	// M11-3: all live covergroup instances are registered for cumulative
 	// option semantics. For event-driven class-embedded covergroups, the

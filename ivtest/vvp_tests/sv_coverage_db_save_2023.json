@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_coverage_db_save.v",
+    "iverilog-args": ["-g2023", "-s", "sv_coverage_db"],
+    "gold": "sv_coverage_db_save"
+}

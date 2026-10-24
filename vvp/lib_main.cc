@@ -408,6 +408,9 @@ int vvp_run(const char *design_path)
 
       schedule_simulate();
 
+	  if (!class_type::covgrp_db_save_selected())
+		fprintf(stderr, "Warning: cannot write functional coverage database.\n");
+
 	// M11: end-of-simulation functional coverage report. Write to
 	// the file named by IVL_COVERAGE_REPORT ("-" for stderr) when
 	// any covergroup types exist.
