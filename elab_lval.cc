@@ -59,6 +59,66 @@ static const netvector_t*packed_select_view_(ivl_type_t type)
       return 0;
 }
 
+static bool procedural_continuous_var_select_(NetNet*reg,
+					     const name_component_t&target,
+					     const pform_name_t&tail_path)
+{
+      if (tail_path.empty())
+	    return target.index.size() > reg->unpacked_dimensions();
+
+      const netstruct_t*struct_type = reg->struct_type();
+	      if (!struct_type)
+	    return false;
+
+      const name_component_t&last = tail_path.back();
+      for (pform_name_t::const_iterator it = tail_path.begin();
+	   it != tail_path.end(); ++it) {
+	    const netstruct_t::member_t*member = 0;
+	    if (struct_type->packed()) {
+		  unsigned long offset = 0;
+		  member = struct_type->packed_member(it->name, offset);
+	    } else {
+		  for (const netstruct_t::member_t&candidate : struct_type->members())
+			if (candidate.name == it->name) {
+			      member = &candidate;
+			      break;
+			}
+	    }
+	    if (!member)
+		  return false;
+	    if (&*it == &last) {
+		  if (struct_type->packed())
+			return target.index.size() != 0;
+		  ivl_type_t selected = member->net_type;
+		  size_t unpacked_dims = 0;
+		  if (const netuarray_t*array =
+			    dynamic_cast<const netuarray_t*>(selected)) {
+			unpacked_dims = array->static_dimensions().size();
+			selected = array->element_type();
+		  }
+		  return selected && selected->packed()
+			&& selected->packed_width() > 0
+			&& target.index.size() > unpacked_dims;
+	    }
+	    ivl_type_t selected = member->net_type;
+	    if (!it->index.empty()) {
+		  if (const netuarray_t*array =
+			    dynamic_cast<const netuarray_t*>(selected)) {
+			if (it->index.size() != array->static_dimensions().size())
+			      return false;
+			selected = array->element_type();
+		  } else {
+			selected = packed_type_after_dims(selected, it->index.size());
+		  }
+	    }
+	    struct_type = dynamic_cast<const netstruct_t*>(selected);
+	    if (!struct_type)
+		  return false;
+      }
+
+      return false;
+}
+
 using namespace std;
 
 /* Reuse the live last-index expression used by queue reads. Ordinary indices
@@ -1063,6 +1123,22 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// example, the Verilog may be "a.b.c", so we are processing
 	// "c" at this point.
       const name_component_t&name_tail = path_.back();
+
+      if (gn_system_verilog() && (is_cassign || is_force)
+	  && (reg->type() == NetNet::REG
+	      || reg->type() == NetNet::IMPLICIT_REG)
+	  && !reg->darray_type() && !reg->queue_type() && !reg->class_type()
+	  && reg->data_type() != IVL_VT_STRING
+	  && procedural_continuous_var_select_(reg, name_tail, tail_path)) {
+	    const char*kind = is_cassign ? "procedural continuous assignment"
+					 : "force/release";
+	    const char*clause = is_cassign ? "10.6.1" : "10.6.2";
+	    cerr << get_fileline() << ": error: " << kind
+		 << " target shall not be a bit-select or part-select of a variable "
+		 << "(IEEE 1800-2017/2023 " << clause << ")." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
 	// Use the last index to determine what kind of select
 	// (bit/part/etc) we are processing. For example, the Verilog

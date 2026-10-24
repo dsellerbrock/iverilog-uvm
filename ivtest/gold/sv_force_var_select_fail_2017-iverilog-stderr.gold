@@ -1,0 +1,17 @@
+ivltests/sv_force_var_select_fail.v:14: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:15: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:16: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:17: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:18: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:19: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:20: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:21: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:22: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:22: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:23: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:24: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:25: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:26: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:27: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+ivltests/sv_force_var_select_fail.v:27: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+16 error(s) during elaboration.
