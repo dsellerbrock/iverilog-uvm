@@ -2837,10 +2837,10 @@ static void elaborate_function_outside_caller_fork_(Design*des,
 						    const PFunction*pfunc,
 						    NetScope*scope)
 {
-      unsigned saved_fork_depth = des->fork_depth();
-      des->restore_fork_depth(0);
+      std::vector<unsigned> saved_fork_context = des->fork_loop_context();
+      des->restore_fork_loop_context(std::vector<unsigned>());
       pfunc->elaborate(des, scope);
-      des->restore_fork_depth(saved_fork_depth);
+      des->restore_fork_loop_context(saved_fork_context);
 }
 
 static NetScope* find_lazy_function_scope_(Design*des, NetScope*scope,
