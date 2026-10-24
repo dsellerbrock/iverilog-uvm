@@ -56,6 +56,9 @@ extern "C" const char*optarg;
 bool verbose_flag = false;
 static int vvp_return_value = 0;
 static int vvp_used = 0;
+#if defined(HAVE_SYS_RESOURCE_H)
+static struct rusage finish_start_usage;
+#endif
 
 void vvp_set_stop_is_finish(bool flag, int exit_code)
 {
@@ -133,12 +136,24 @@ static void print_rusage(struct rusage *a, struct rusage *b)
 	      a->ru_ixrss/1024.0 );
 }
 
+extern "C" void vpip_print_finish_stats(void)
+{
+      struct rusage finish_usage;
+      my_getrusage(&finish_usage);
+      print_rusage(&finish_usage, &finish_start_usage);
+}
+
 #else // ! defined(HAVE_SYS_RESOURCE_H)
 
 // Provide dummies
 struct rusage { int x; };
 inline static void my_getrusage(struct rusage *) { }
 inline static void print_rusage(struct rusage *, struct rusage *){};
+
+extern "C" void vpip_print_finish_stats(void)
+{
+      vpi_mcd_printf(1, " ... CPU and memory statistics unavailable\n");
+}
 
 #endif // ! defined(HAVE_SYS_RESOURCE_H)
 
@@ -399,8 +414,12 @@ int vvp_run(const char *design_path)
 	    vpi_mcd_printf(1, " ... %8lu scopes\n",   count_vpi_scopes);
       }
 
+      my_getrusage(cycles+1);
+#if defined(HAVE_SYS_RESOURCE_H)
+      finish_start_usage = cycles[1];
+#endif
+
       if (verbose_flag) {
-	    my_getrusage(cycles+1);
 	    print_rusage(cycles+1, cycles+0);
 	    vpi_mcd_printf(1, "Running ...\n");
       }

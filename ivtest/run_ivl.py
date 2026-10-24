@@ -211,6 +211,22 @@ def check_run_outputs(options: dict, it_stdout: str, log_list: list,
     the output from the final command. This also takes a list of log files to check
     if there are gold files present.'''
 
+    # Check configured output markers before gold/PASSED checks. This is useful
+    # for runtime reports whose numeric measurements vary between machines.
+    if options.get('output_contains'):
+        output = it_stdout
+        for log_name in log_list:
+            if log_name in ('vvp-stderr', 'vvp-stdout'):
+                log_path = os.path.join("log", "{key}-{log}.log".format(
+                    key=options['key'], log=log_name))
+                if os.path.exists(log_path):
+                    with open(log_path, 'rt', encoding='utf-8') as fd:
+                        output += fd.read()
+        missing = [marker for marker in options['output_contains']
+                   if marker not in output]
+        if missing:
+            return [1, "Failed - Missing output marker(s): " + ", ".join(missing)]
+
     # Check the results against the gold file if it exists.
     if options['gold'] is not None:
         return check_gold(options, log_list)

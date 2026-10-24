@@ -106,7 +106,8 @@ def process_test(item: list, cfg: list) -> str:
         'gold'              : it_dict.get('gold', None),
         'diff'              : None,
         'vvp_args'          : it_dict.get('vvp-args', [ ]),
-        'vvp_args_extended' : it_dict.get('vvp-args-extended', [ ])
+        'vvp_args_extended' : it_dict.get('vvp-args-extended', [ ]),
+        'output_contains'   : it_dict.get('output-contains', [ ])
     }
 
     if cfg['strict']:
