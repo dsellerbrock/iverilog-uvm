@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "sv_begin_keywords_unpaired.v",
+    "iverilog-args": ["-g2023", "-ssv_begin_keywords_unpaired"]
+}
