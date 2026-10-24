@@ -5855,3 +5855,6 @@ sv_shallow_copy_rng_state_2023 normal,-g2023 ivltests gold=sv_shallow_copy_rng_s
 sv_covergroup_cross_foreign_fail CE,-g2012 ivltests
 sv_multidimensional_array_equality normal,-g2017,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold
 sv_multidimensional_array_equality_2023 normal,-g2023,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold
+# Enum unbased unsized fill values are evaluated in base type context.
+sv_enum_unbased_x normal,-g2017,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold
+sv_enum_unbased_x_2023 normal,-g2023,-s,sv_enum_unbased_x ivltests gold=sv_enum_unbased_x.gold

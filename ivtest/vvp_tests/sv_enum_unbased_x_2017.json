@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_enum_unbased_x.v",
+    "iverilog-args": ["-g2017", "-s", "sv_enum_unbased_x"],
+    "gold": "sv_enum_unbased_x"
+}
