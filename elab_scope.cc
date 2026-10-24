@@ -5407,6 +5407,26 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
+	// IEEE 1800-2017/2023 25.5 requires simple modport ports to name
+	// signals declared by this interface, not names found in an enclosing
+	// lexical scope or implicit nets.
+      if (is_interface) {
+	    for (std::map<perm_string,PModport*>::const_iterator mp = modports.begin()
+		       ; mp != modports.end() ; ++ mp) {
+		  if (!mp->second) continue;
+		  for (std::map<perm_string,PModport::simple_port_t>::const_iterator
+			     sp = mp->second->simple_ports.begin()
+			     ; sp != mp->second->simple_ports.end() ; ++ sp) {
+			if (sp->second.second == nullptr && wires.count(sp->first) == 0) {
+			      cerr << get_fileline() << ": error: Modport port '"
+				   << sp->first << "' is not declared in interface '"
+				   << mod_name() << "'." << endl;
+			      des->errors += 1;
+			}
+		  }
+	    }
+      }
+
 	// M12: record modport names on interface scopes for VPI —
 	// M12-6 adds each modport's port list with VPI direction
 	// codes (ref ports map to vpiNoDirection).
