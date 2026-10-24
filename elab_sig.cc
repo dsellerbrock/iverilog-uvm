@@ -555,6 +555,34 @@ static bool get_const_argument(NetExpr*exp, long&res)
 }
 #endif
 
+/* IEEE 1800-2017 6.7.1 permits a built-in net to have an unpacked
+ * structure (or fixed-size unpacked array) type when all of its leaves are
+ * 4-state integral values.  Unpacked aggregates have no scalar data_type(),
+ * so recognize the complete recursive type instead of rejecting them as
+ * IVL_VT_NO_TYPE. */
+static bool valid_builtin_net_data_type_(ivl_type_t type)
+{
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    if (array->static_dimensions().empty())
+		  return false;
+	    return valid_builtin_net_data_type_(array->element_type());
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->packed())
+		  return record->base_type() == IVL_VT_LOGIC;
+	    if (record->union_flag())
+		  return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!valid_builtin_net_data_type_(member.net_type))
+			return false;
+	    return true;
+      }
+
+      return type && type->packed()
+	    && type->base_type() == IVL_VT_LOGIC;
+}
+
 void Statement::elaborate_sig(Design*, NetScope*) const
 {
 }
@@ -576,7 +604,12 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (sig->user_nettype())
 	    return;
 
-      if ((sig->type() == NetNet::WIRE) && (sig->data_type() != IVL_VT_LOGIC)) {
+      const bool valid_unpacked_net = sig->type() == NetNet::WIRE
+	    && valid_builtin_net_data_type_(type);
+
+      if ((sig->type() == NetNet::WIRE)
+	  && (sig->data_type() != IVL_VT_LOGIC)
+	  && !valid_unpacked_net) {
 	    if (gn_cadence_types_flag) {
 		  sig->type(NetNet::UNRESOLVED_WIRE);
 	    } else {
@@ -596,6 +629,18 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 		  break;
 	    }
       }
+
+      if (valid_unpacked_net)
+	    return;
+
+      /* Variable ports may carry unpacked structures and unions of any
+       * supported member types.  Their data type is not constrained by the
+       * built-in net restrictions above. */
+      if (scope->type() == NetScope::MODULE
+	  && sig->port_type() != NetNet::NOT_A_PORT
+	  && wire->symbol_type() == PNamedItem::VAR
+	  && dynamic_cast<const netstruct_t*>(type))
+	    return;
 
       // Icarus allows real nets as an extension
       if (type->base_type() == IVL_VT_REAL)
