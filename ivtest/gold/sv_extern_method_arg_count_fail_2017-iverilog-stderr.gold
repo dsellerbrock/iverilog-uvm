@@ -1,0 +1,2 @@
+ivltests/sv_extern_method_arg_count_fail_2017.v:6: error: Out-of-block definition of function `f' has 2 arguments, but its extern prototype has 1 (IEEE 1800-2017/2023 8.24).
+ivltests/sv_extern_method_arg_count_fail_2017.v:10: error: Out-of-block definition of task `t' has 3 arguments, but its extern prototype has 2 (IEEE 1800-2017/2023 8.24).
