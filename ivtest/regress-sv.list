@@ -5874,3 +5874,5 @@ sv_type_operator_cast normal,-g2017 ivltests gold=sv_type_operator_cast.gold
 # IEEE 1800-2017/2023 6.18 interface-based typedef through an interface port.
 sv_interface_based_typedef normal,-g2017,-s,sv_interface_based_typedef ivltests gold=sv_interface_based_typedef.gold
 sv_interface_based_typedef_2023 normal,-g2023,-s,sv_interface_based_typedef ivltests gold=sv_interface_based_typedef.gold
+
+sv_bitstream_cast_unpacked_source normal,-g2012 ivltests gold=sv_bitstream_cast_unpacked_source.gold

@@ -20661,18 +20661,6 @@ static bool positional_container_expr_bitstream_(const NetExpr*source)
 	    && positional_container_expr_bitstream_(ternary->false_expr());
 }
 
-static bool positional_container_expr_integral_elements_(
-      const NetExpr*source)
-{
-      if (!source)
-	    return false;
-      if (source->net_type())
-	    return positional_container_integral_elements_(source->net_type());
-      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
-      return ternary
-	    && positional_container_expr_integral_elements_(ternary->true_expr())
-	    && positional_container_expr_integral_elements_(ternary->false_expr());
-}
 
 /* A queue/dynamic-array cast first follows assignment compatibility
  * (6.24.1 and 7.6). A non-assignment-compatible pair can still be a legal
@@ -20713,8 +20701,7 @@ static NetExpr* make_positional_container_cast_(
 	    bool bitstream_pair = bitstream_cast_type_(target_type, true)
 		  && positional_container_expr_bitstream_(source);
 	    if (bitstream_pair
-		&& positional_container_integral_elements_(target_type)
-		&& positional_container_expr_integral_elements_(source)) {
+		&& positional_container_integral_elements_(target_type)) {
 		  marker_name = "$ivl_stream$cast$r$1";
 	    } else if (bitstream_pair) {
 		  /* Preserve the existing general bit-stream cast path for legal
@@ -20799,6 +20786,9 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
             (vector = dynamic_cast<const netvector_t*>(darray->element_type()))) {
         PExpr::width_mode_t mode = PExpr::SIZED;
         unsigned use_wid = base_->test_width(des, scope, mode);
+        if (base_->expr_type() == IVL_VT_NO_TYPE
+            || base_->expr_type() == IVL_VT_STRING)
+              use_wid = 0;
         NetExpr*base = base_->elaborate_expr(des, scope, use_wid, NO_FLAGS);
 	if (!base)
 	      return nullptr;
@@ -20815,6 +20805,16 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	if (container_cast_status == POSITIONAL_CAST_REENTER_WIDTH) {
 	      delete base;
 	      return elaborate_expr(des, scope, (unsigned)0, flags);
+	}
+	if (container_cast_status == POSITIONAL_CAST_NOT_APPLICABLE
+	    && positional_container_integral_elements_(target_type_)
+	    && bitstream_cast_type_(target_type_, true)
+	    && positional_container_expr_bitstream_(base)) {
+	      NetESFunc*cast = new NetESFunc(
+		  "$ivl_stream$cast$r$1", target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
 	}
 
 	/* The width-based path owns the complete associative-array boundary.
@@ -20905,6 +20905,9 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    if (type_is_vectorable(base_->expr_type()) &&
 		(cast_width < expr_width_))
 		  cast_width = expr_width_;
+	    if (base_->expr_type() == IVL_VT_NO_TYPE
+		|| base_->expr_type() == IVL_VT_STRING)
+	      cast_width = 0;
 
 	    sub = base_->elaborate_expr(des, scope, cast_width, flags);
       }
@@ -21051,6 +21054,17 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		base_->expr_type() == IVL_VT_BOOL)
 		  return sub; // handled by the target as special cases
       } else if (target_type_ && target_type_->packed()) {
+	    /* An unpacked aggregate is represented by an object in VVP. Convert
+	       its recursive bit stream before applying a packed target type; the
+	       ordinary vector cast path cannot evaluate that object as vec4. */
+	    if (sub->net_type() && !sub->net_type()->packed()
+		&& bitstream_cast_type_(sub->net_type(), false)) {
+	      NetESFunc*cast = new NetESFunc(
+		  "$ivl_stream$cast$r$1", target_type_, 1);
+	      cast->parm(0, sub);
+	      cast->set_line(*this);
+	      return cast;
+	    }
 	    switch (target_type_->base_type()) {
 		case IVL_VT_BOOL:
 		  tmp = cast_to_int2(sub, expr_width_);
