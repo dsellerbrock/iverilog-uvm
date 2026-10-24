@@ -59,12 +59,33 @@ static const netvector_t*packed_select_view_(ivl_type_t type)
       return 0;
 }
 
+/* Count unpacked dimensions below the signal's declared fixed dimensions. */
+static unsigned unpacked_select_ranks_(const NetNet*reg)
+{
+      unsigned rank = reg->unpacked_dimensions();
+      ivl_type_t cur = reg->net_type();
+      while (cur) {
+	    if (const netdarray_t*darray = dynamic_cast<const netdarray_t*>(cur)) {
+		  rank += 1;
+		  cur = darray->element_type();
+	    } else if (const netuarray_t*uarray = dynamic_cast<const netuarray_t*>(cur)) {
+		  rank += uarray->static_dimensions().size();
+		  cur = uarray->element_type();
+	    } else {
+		  break;
+	    }
+      }
+      return rank;
+}
+
 static bool procedural_continuous_var_select_(NetNet*reg,
 					     const name_component_t&target,
 					     const pform_name_t&tail_path)
 {
       if (tail_path.empty())
-	    return target.index.size() > reg->unpacked_dimensions();
+	  {
+	    return target.index.size() > unpacked_select_ranks_(reg);
+	  }
 
       const netstruct_t*struct_type = reg->struct_type();
 	      if (!struct_type)
@@ -1127,7 +1148,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (gn_system_verilog() && (is_cassign || is_force)
 	  && (reg->type() == NetNet::REG
 	      || reg->type() == NetNet::IMPLICIT_REG)
-	  && !reg->darray_type() && !reg->queue_type() && !reg->class_type()
+	  && !reg->class_type()
 	  && reg->data_type() != IVL_VT_STRING
 	  && procedural_continuous_var_select_(reg, name_tail, tail_path)) {
 	    const char*kind = is_cassign ? "procedural continuous assignment"

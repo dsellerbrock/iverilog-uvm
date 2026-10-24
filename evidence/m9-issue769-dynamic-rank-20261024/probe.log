@@ -1,0 +1,23 @@
+host=MacBook-Air.local commit=f31c698305941900a5eb347fdeaae35d0b0e2cf6 compiler=Icarus Verilog version 13.0 (devel) ()
+plain -g2017 compile rc=0
+queue1 -g2017 compile rc=0
+plain -g2023 compile rc=0
+queue1 -g2023 compile rc=0
+        0.44 real         0.11 user         0.09 sys
+             9093120  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               12297  page reclaims
+                 654  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   2  signals received
+                  40  voluntary context switches
+                 804  involuntary context switches
+            33918835  instructions retired
+            24074750  cycles elapsed
+             1622400  peak memory footprint

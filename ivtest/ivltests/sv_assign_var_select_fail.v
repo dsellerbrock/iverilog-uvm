@@ -13,6 +13,8 @@ module sv_assign_var_select_fail;
   o_t o;
   u2_t u2;
   s_t [1:0] w[2];
+  logic [3:0] dyn[];
+  logic [3:0] queue[$];
 
   initial begin
     assign q[0] = 1'b1;                 // E1
@@ -35,6 +37,9 @@ module sv_assign_var_select_fail;
     assign w[0][1].f[0] = 1'b1;         // E1
     deassign v[1].f[0];                 // E1
     assign u.words[0][1] = 1'b1;        // E1
+    assign dyn[0][0] = 1'b1;            // E1
+    assign queue[0][1:0] = 2'b11;       // E1
+    deassign dyn[0][0];                 // E1
 
     assign q = 4'h5;
     deassign q;

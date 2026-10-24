@@ -4605,3 +4605,78 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   (Slurm 4614, both editions).
 - **Reproducer status:** confirmed under `-g2017` and `-g2023`.
 - **Triage status:** separate compiler defect; outside #769.
+
+### DD-132 — selected class-property assign/force bypasses §10.6 and aborts VVP
+
+- **Discovered while working:** M9 #769 procedural continuous assignment and
+  force/release target validation.
+- **Observation:** `assign c.q[0] = 1'b1; deassign c.q[0];` and
+  `force c.q[0] = 1'b1;` compile with rc=0 under `-g2017` and `-g2023`, but
+  VVP aborts at `of_CASSIGN_VEC4_OFF` (`vthread.cc:15757`) and
+  `of_FORCE_VEC4_OFF` (`vthread.cc:19681`), respectively. IEEE 1800-2017/2023
+  §§10.6.1–10.6.2 prohibit selected variable targets.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_net_class_member_`;
+  class-property l-values bypass the non-class parsed-path guard.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compile rc=0 is acceptance,
+  not a passing result, and runtime aborts are reproduced.
+- **Triage status:** related to active blocker #769; follow-up bug issue draft
+  is pending supervisor filing. Draft: `evidence/m9-issue769-class-probe-20261024/ISSUE_DRAFT_class_property_force_assign.md`.
+
+### DD-133 — whole class-property force aborts VVP target compilation
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force c.p = 1;` with `int p` compiles through parsing but
+  aborts in the VVP target with `force_vector_to_lval` at `vvp_process.c:2545`
+  under `-g2017` and `-g2023`. A whole class-property reference is a singular
+  variable reference under IEEE 1800-2023 §10.6.2; it must be supported or
+  diagnosed cleanly, never assert. Whole-property assign has not been probed.
+- **File/function:** class-property force lowering from
+  `PEIdent::elaborate_lval_net_class_member_` into VVP target generation.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compiler/target rc=134.
+- **Triage status:** related class-lvalue gap to DD-132 and active blocker #769;
+  follow-up bug issue draft is pending supervisor filing.
+
+### DD-134 — force/release of nested unpacked elements reports a misleading sorry
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** With `logic [3:0] d2[][], q2[$][$], e[][2]`, force/release of
+  whole nested elements such as `d2[0][0]` is rejected by the dynamic-array
+  l-value path with `sorry: assignment to a dynamic-array element bit-select
+  requires a simple vector element.` The target is a whole unpacked element,
+  not a packed bit select; the wording hides an unsupported nested-container
+  force/release path. Plain `d2[0][0] = 4'h1` compiles in both editions.
+- **File/function:** `elab_lval.cc`, dynamic-array l-value lowering around
+  `name_tail.index.size() == 2`.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  reference as a force target; this is an implementation gap, not a reason to
+  report a §10.6 violation.
+- **Evidence:** `evidence/m9-issue769-dynamic-rank-20261024/`; paired
+  `-g2017`/`-g2023` probes and pinned CE outputs.
+- **Reproducer status:** confirmed. The regression is explicitly named
+  unsupported and expects the current `sorry` output until nested-container
+  force/release support is implemented; the gold must flip when DD-134 is
+  implemented.
+- **Triage status:** separate backend/elaboration follow-up from #769's select
+  guard; the same sorry message also conflates the whole element with a
+  bit-select.
+
+### DD-135 — const-ref actual rank check may undercount nested containers
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** `addressable_const_ref` counts the signal's declared fixed
+  dimensions plus at most one dynamic dimension before comparing against the
+  actual's index count. A nested dynamic array or a fixed unpacked array inside
+  a dynamic element may therefore be mistaken for a packed selection.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_var_` around
+  `addressable_const_ref` (lines 1084–1094 in this branch).
+- **Possible clause:** IEEE 1800-2017/2023 §13.5.2 (const-ref actuals); source
+  inspection only, clause behavior not yet reprobed.
+- **Evidence:** source inspection on the #769 worktree; no reducer run.
+- **Reproducer status:** unverified; no runtime or compiler failure is claimed.
+- **Triage status:** follow-up candidate; confirm with a nested-array const-ref
+  probe before changing the separate ref-actual path.

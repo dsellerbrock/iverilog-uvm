@@ -13,6 +13,8 @@ module sv_force_var_select_fail;
   o_t o;
   u2_t u2;
   s_t [1:0] w[2];
+  logic [3:0] dyn[];
+  logic [3:0] queue[$];
   wire [15:0] bus;
   assign bus = 16'h1234;
 
@@ -37,6 +39,9 @@ module sv_force_var_select_fail;
     release v[1].f[0];                 // E1
     force w[0][1].f[0] = 1'b1;         // E1
     force u.words[0][1] = 1'b1;        // E1
+    force dyn[0][0] = 1'b1;             // E1
+    release dyn[0][0];                  // E1
+    force queue[0][1:0] = 2'b11;        // E1
 
     force q = 4'h5;
     release q;
