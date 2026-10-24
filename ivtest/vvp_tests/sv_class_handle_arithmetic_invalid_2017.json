@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_class_handle_arithmetic_invalid.sv",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_class_handle_arithmetic_invalid_2017"
+}
