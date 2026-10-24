@@ -163,6 +163,7 @@ class PAssign_  : public Statement {
 
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
+      bool reject_chandle_assignment_(Design*, NetScope*, ivl_type_t) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,
 			       ivl_variable_type_t lv_type,
 			       unsigned lv_width,

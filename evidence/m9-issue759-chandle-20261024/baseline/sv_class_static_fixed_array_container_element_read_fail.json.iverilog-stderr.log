@@ -1,0 +1,3 @@
+ivltests/sv_class_static_fixed_array_container_element_read_fail.v:17: sorry: this indexed static-property read form is not yet supported.
+ivltests/sv_class_static_fixed_array_container_element_read_fail.v:17: sorry: this indexed static-property read form is not yet supported.
+2 error(s) during elaboration.
