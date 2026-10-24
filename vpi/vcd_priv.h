@@ -141,6 +141,25 @@ EXTERN void  vcd_free_dump_path(void);
 EXTERN int dumpvars_status;
 
 /*
+ * The calltf routines of one dumper. vcd_register_dump_tasks() registers
+ * them for $dumpall .. $dumpvars. When a second (FST) table is given, the
+ * tasks dispatch to the dumper picked by the first $dump task executed:
+ * FST when the $dumpfile name (or the -dumpfile= default) ends in ".fst",
+ * otherwise the first table.
+ */
+struct vcd_dump_tasks {
+      PLI_INT32 (*dumpall)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumpfile)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumpflush)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumplimit)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumpoff)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumpon)(ICARUS_VPI_CONST PLI_BYTE8*);
+      PLI_INT32 (*dumpvars)(ICARUS_VPI_CONST PLI_BYTE8*);
+};
+EXTERN void vcd_register_dump_tasks(const struct vcd_dump_tasks*tasks,
+                                    const struct vcd_dump_tasks*fst_tasks);
+
+/*
  * The vcd_list is the list of all the objects that are tracked for
  * dumping. The vcd_checkpoint goes through the list to dump the current
  * values for everything. When the item has a value change, it is added to the

@@ -218,6 +218,9 @@ PLI_INT32 sys_dumpvars_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
           case vpiTimeVar:
           case vpiRealVar:
           case vpiNamedEvent:
+	    /* Only some dumpers (FST) dump these; the others warn. */
+          case vpiInterface:
+          case vpiStringVar:
             break;
 
           case vpiParameter: /* A constant! */
@@ -297,4 +300,102 @@ PLI_INT32 sys_dumpfile_common(const char*title, const char*suffix)
       vcd_dump_path = path;
 
       return 0;
+}
+
+static const struct vcd_dump_tasks*dump_tasks_default = NULL;
+static const struct vcd_dump_tasks*dump_tasks_fst = NULL;
+static const struct vcd_dump_tasks*dump_tasks = NULL;
+
+static int has_fst_suffix(const char*path)
+{
+      size_t len = strlen(path);
+      return len > 4 && path[len-4] == '.'
+	  && tolower((int)path[len-3]) == 'f'
+	  && tolower((int)path[len-2]) == 's'
+	  && tolower((int)path[len-1]) == 't';
+}
+
+/* $dumpfile and $dumpvars pick the dumper: FST when the file name (or,
+ * for $dumpvars, the default name) ends in ".fst". */
+static const struct vcd_dump_tasks*pick_dump_tasks(const char*path)
+{
+      if (!dump_tasks)
+	    dump_tasks = has_fst_suffix(path) ? dump_tasks_fst : dump_tasks_default;
+      return dump_tasks;
+}
+
+static PLI_INT32 pick_dumpfile(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      const char*path = vcd_dump_path_default;
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      s_vpi_value val;
+
+      if (argv) {
+	    val.format = vpiStringVal;
+	    vpi_get_value(vpi_scan(argv), &val);
+	    path = val.value.str;
+	    vpi_free_object(argv);
+      }
+      return pick_dump_tasks(path)->dumpfile(name);
+}
+
+static PLI_INT32 pick_dumpvars(ICARUS_VPI_CONST PLI_BYTE8*name)
+{ return pick_dump_tasks(vcd_dump_path_default)->dumpvars(name); }
+
+/* Before a dumper is picked no file is open, so the other tasks only set
+ * state ($dumplimit, $dumpoff/$dumpon): give it to both dumpers. */
+#define PICK_BOTH(task) \
+static PLI_INT32 pick_##task(ICARUS_VPI_CONST PLI_BYTE8*name) \
+{ \
+      if (dump_tasks) return dump_tasks->task(name); \
+      dump_tasks_default->task(name); \
+      return dump_tasks_fst->task(name); \
+}
+PICK_BOTH(dumpall)
+PICK_BOTH(dumpflush)
+PICK_BOTH(dumplimit)
+PICK_BOTH(dumpoff)
+PICK_BOTH(dumpon)
+#undef PICK_BOTH
+
+static const struct vcd_dump_tasks pick_tasks = {
+      pick_dumpall, pick_dumpfile, pick_dumpflush, pick_dumplimit,
+      pick_dumpoff, pick_dumpon, pick_dumpvars
+};
+
+static void register_dump_task(const char*tfname,
+                               PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*),
+                               PLI_INT32 (*compiletf)(ICARUS_VPI_CONST PLI_BYTE8*))
+{
+      s_vpi_systf_data tf_data;
+      vpiHandle res;
+
+      tf_data.type      = vpiSysTask;
+      tf_data.tfname    = tfname;
+      tf_data.calltf    = calltf;
+      tf_data.compiletf = compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = (PLI_BYTE8*)tfname;
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+}
+
+void vcd_register_dump_tasks(const struct vcd_dump_tasks*tasks,
+                             const struct vcd_dump_tasks*fst_tasks)
+{
+      if (fst_tasks) {
+	    dump_tasks_default = tasks;
+	    dump_tasks_fst = fst_tasks;
+	    tasks = &pick_tasks;
+      }
+
+	/* The compiletf routines are common to the dumpers. */
+      register_dump_task("$dumpall",   tasks->dumpall,   sys_no_arg_compiletf);
+      register_dump_task("$dumpfile",  tasks->dumpfile,  sys_one_string_arg_compiletf);
+      register_dump_task("$dumpflush", tasks->dumpflush, sys_no_arg_compiletf);
+      register_dump_task("$dumplimit", tasks->dumplimit, sys_one_numeric_arg_compiletf);
+      register_dump_task("$dumpoff",   tasks->dumpoff,   sys_no_arg_compiletf);
+      register_dump_task("$dumpon",    tasks->dumpon,    sys_no_arg_compiletf);
+      register_dump_task("$dumpvars",  tasks->dumpvars,  sys_dumpvars_compiletf);
 }
