@@ -1371,6 +1371,68 @@ static typedef_t *pform_get_typedef(const struct vlltype&loc, perm_string name)
       return td;
 }
 
+enum forward_typedef_kind_result_t {
+	FORWARD_TYPE_KIND_UNKNOWN,
+	FORWARD_TYPE_KIND_MATCH,
+	FORWARD_TYPE_KIND_MISMATCH
+};
+
+static forward_typedef_kind_result_t pform_forward_typedef_kind_(
+	const data_type_t*type, enum typedef_t::basic_type basic_type,
+	std::set<const typedef_t*>&seen)
+{
+	if (const array_base_t*array = dynamic_cast<const array_base_t*>(type))
+	      return pform_forward_typedef_kind_(
+		    array->base_type.get(), basic_type, seen);
+	if (dynamic_cast<const enum_type_t*>(type))
+	      return basic_type == typedef_t::ENUM
+		    ? FORWARD_TYPE_KIND_MATCH : FORWARD_TYPE_KIND_MISMATCH;
+	if (const struct_type_t*record =
+	      dynamic_cast<const struct_type_t*>(type))
+	      return record->union_flag
+		    ? (basic_type == typedef_t::UNION
+			? FORWARD_TYPE_KIND_MATCH : FORWARD_TYPE_KIND_MISMATCH)
+		    : (basic_type == typedef_t::STRUCT
+			? FORWARD_TYPE_KIND_MATCH : FORWARD_TYPE_KIND_MISMATCH);
+	if (dynamic_cast<const class_type_t*>(type))
+	      return basic_type == typedef_t::CLASS
+		    ? FORWARD_TYPE_KIND_MATCH : FORWARD_TYPE_KIND_MISMATCH;
+	if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
+	      typedef_t*target = ref->typedef_ref();
+	      if (!target || !seen.insert(target).second)
+		    return FORWARD_TYPE_KIND_UNKNOWN;
+	      if (target->get_basic_type() != typedef_t::ANY)
+		    return target->get_basic_type() == basic_type
+			  ? FORWARD_TYPE_KIND_MATCH : FORWARD_TYPE_KIND_MISMATCH;
+	      return pform_forward_typedef_kind_(target->get_data_type(),
+			  basic_type, seen);
+	}
+	/* All remaining parse-form types are concrete non-enum/struct/union/
+	 * class types. */
+	return FORWARD_TYPE_KIND_MISMATCH;
+}
+
+static void pform_validate_forward_typedefs_in_scope_()
+{
+	for (PScope::typedef_map_t::const_iterator cur =
+		      lexical_scope->typedefs.begin();
+	     cur != lexical_scope->typedefs.end(); ++cur) {
+	      typedef_t*td = cur->second;
+	      if (td->get_basic_type() == typedef_t::ANY || !td->get_data_type())
+		    continue;
+	      std::set<const typedef_t*>seen;
+	      if (pform_forward_typedef_kind_(td->get_data_type(),
+			    td->get_basic_type(), seen) != FORWARD_TYPE_KIND_MISMATCH
+		  || !td->report_kind_mismatch_once())
+		    continue;
+	      cerr << td->get_data_type()->get_fileline() << " error: Type identifier `"
+		   << td->name << "` does not conform to its forward declaration as `"
+		   << td->get_basic_type() << "` at " << td->get_fileline() << "."
+		   << endl;
+	      error_count++;
+        }
+}
+
 void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 			   enum typedef_t::basic_type basic_type)
 {
@@ -1384,6 +1446,10 @@ void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 	         << endl;
 	    error_count++;
       }
+
+	/* Forward declarations may legally follow their definitions, so also
+	 * validate typedefs whose definition was already parsed. */
+	pform_validate_forward_typedefs_in_scope_();
 }
 
 void pform_set_typedef(const struct vlltype&loc, perm_string name,
@@ -1403,6 +1469,8 @@ void pform_set_typedef(const struct vlltype&loc, perm_string name,
 	    error_count++;
 	    delete data_type;
       }
+	else
+	      pform_validate_forward_typedefs_in_scope_();
 }
 
 void pform_set_type_referenced(const struct vlltype&loc, const char*name)
