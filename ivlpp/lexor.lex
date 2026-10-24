@@ -522,6 +522,7 @@ static int macro_expansion_limit_reported = 0;
 %x CSTRING
 %x TRIPLESTRING
 %x ERROR_LINE
+%x PROTECTED
 
 %x IFDEF_NAME
 %x IFNDEF_NAME
@@ -557,6 +558,13 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
   * the main compiler.
   */
 ^[ \t]*"`pragma".* { handle_pragma_directive(); ECHO; }
+
+ /* Protected envelopes require decryption support. Do not pass their
+  * ciphertext to the SystemVerilog parser as source text.
+  */
+<PROTECTED>^[ \t]*"`pragma"[ \t]+protect[ \t]+end_protected.* { BEGIN(INITIAL); }
+<PROTECTED>[^\r\n]+ { }
+<PROTECTED>(\n|"\r\n"|"\n\r"|\r) { istack->lineno += 1; fputc('\n', yyout); }
 
  /* Detect single line comments, passing them directly to the output.
   */
@@ -1415,6 +1423,19 @@ static void handle_pragma_directive(void)
     }
     ++cp;
     while (isalnum((int)*cp) || *cp == '_' || *cp == '$') ++cp;
+
+      /* Icarus does not support protected-envelope decryption. Reject a
+       * begin_protected envelope before its opaque data is parsed as HDL.
+       */
+    if ((size_t)(cp - yytext) >= 7 &&
+	strncmp(cp - 7, "protect", 7) == 0 &&
+	strstr(cp, "begin_protected") != 0) {
+	emit_pathline(istack);
+	fprintf(stderr, "error: protected envelope decryption is unsupported.\n");
+	error_count += 1;
+	BEGIN(PROTECTED);
+	return;
+    }
 
       /* Verify that space, a comment or EOL is next. */
     cpr = cp;
