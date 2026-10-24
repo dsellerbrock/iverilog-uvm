@@ -343,6 +343,14 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   list<data_type_t*>*interface_types,
 				   bool base_default)
 {
+      if (interface_class && pform_cur_class
+	  && !pform_cur_class->type->interface_class
+	  && generation_flag < GN_VER2023) {
+	    cerr << loc << ": error: An interface class shall not be nested "
+		 << "within a class (IEEE 1800-2017 8.26)." << endl;
+	    error_count += 1;
+      }
+
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
       pform_enclosing_classes_.push_back(pform_cur_class);
