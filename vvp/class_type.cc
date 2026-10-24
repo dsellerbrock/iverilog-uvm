@@ -4018,7 +4018,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
-	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
+	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7) continue;
 	    if (k == 4 && bin.trans_family != COV_NO_FAMILY) {
 		  if (seen_trans_families.insert(bin.trans_family).second) {
 			uint64_t total = covgrp_trans_family_size(bin.trans_family);
@@ -4173,7 +4173,7 @@ void class_type::covgrp_report(FILE*fd)
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
 			const char*tag = (k == 2 || k == 5) ? "illegal"
-				       : (k == 3 || k == 6) ? "default"
+			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,

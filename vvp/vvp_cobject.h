@@ -254,6 +254,8 @@ class vvp_cobject : public vvp_object {
 	defn_->dyn_type_bump(family, type_bin); }
       void cov_dyn_bump(unsigned family, uint64_t bin)
       { cov_dyn_bump(family, bin, bin); }
+      void cov_default_array_bump(unsigned family, const std::string&value)
+      { cov_default_array_counts_[std::make_pair(family, value)] += 1; }
       bool cov_dyn_warn_once(unsigned family)
       { return cov_dyn_warned_.insert(std::make_pair(family, true)).second; }
       bool cov_dyn_resolved() const { return cov_dyn_resolved_; }
@@ -366,6 +368,7 @@ class vvp_cobject : public vvp_object {
       std::map<uint64_t, uint64_t> cov_trans_;
 	std::map<uint64_t, std::vector<cov_trans_state_t>> cov_trans_states_;
 	std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
+	std::map<std::pair<unsigned,std::string>,uint32_t> cov_default_array_counts_;
 	std::map<unsigned,covgrp_dyn_trans_state_t> cov_dyn_trans_states_;
       std::map<unsigned,bool> cov_dyn_warned_;
       std::map<unsigned,covgrp_dyn_state_t> cov_dyn_states_;

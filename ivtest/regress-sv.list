@@ -4619,6 +4619,8 @@ sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_n
 
 sv_covergroup_signed_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
 sv_covergroup_signed_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
+sv_covergroup_array_default_bins_2017 normal,-g2017,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
+sv_covergroup_array_default_bins_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
 sv_covergroup_open_end_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_transition normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_transition.gold
