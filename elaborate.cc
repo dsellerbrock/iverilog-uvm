@@ -17562,6 +17562,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			                                method_name, "$size");
 			    } else if (method_name == "reverse") {
 				  if (gn_system_verilog()) {
+					if (!with_constraints().empty()) {
+					      cerr << get_fileline() << ": error: 'reverse() with (...)' is not allowed."
+						   << endl;
+					      des->errors += 1;
+					      delete obj_expr;
+					      return 0;
+					}
 					/* Phase 63b/Q-methods (gap close): wire to %qreverse. */
 					NetNet*recv_net = make_ordering_method_recv_net_(
 					      this, scope, obj_expr, obj_type);
@@ -17703,6 +17710,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				  return 0;
 			    } else if (method_name=="shuffle") {
 				  if (gn_system_verilog()) {
+					if (!with_constraints().empty()) {
+					      cerr << get_fileline() << ": error: 'shuffle() with (...)' is not allowed."
+						   << endl;
+					      des->errors += 1;
+					      delete obj_expr;
+					      return 0;
+					}
 					/* Phase 63b/Q-methods (gap close): wire to %qshuffle. */
 					NetNet*recv_net = make_ordering_method_recv_net_(
 					      this, scope, obj_expr, obj_type);
