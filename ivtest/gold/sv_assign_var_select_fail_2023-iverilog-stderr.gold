@@ -1,17 +1,23 @@
-./ivltests/sv_assign_var_select_fail.v:12: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:13: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:14: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:15: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:16: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:17: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:18: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:19: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:20: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:20: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:21: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:22: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:23: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:24: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
 ./ivltests/sv_assign_var_select_fail.v:25: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-./ivltests/sv_assign_var_select_fail.v:25: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
-16 error(s) during elaboration.
+./ivltests/sv_assign_var_select_fail.v:26: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:26: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:27: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:28: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:29: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:30: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:31: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:31: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:32: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:33: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:34: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:35: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:36: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+./ivltests/sv_assign_var_select_fail.v:37: error: procedural continuous assignment target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.1).
+22 error(s) during elaboration.
