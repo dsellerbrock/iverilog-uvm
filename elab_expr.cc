@@ -160,7 +160,7 @@ extern string pexpr_to_rooted_class_constraint_ir(
  */
 string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 			      const netclass_t*class_type,
-			      const LineInfo*loc)
+			      const LineInfo*loc, Design*des)
 {
       bool any = false;
       for (size_t i = 0 ; i < parms.size() ; i += 1)
@@ -183,11 +183,11 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 		  pid = class_type->property_idx_from_name(
 			      id->path().back().name);
 	    if (pid < 0) {
-		  cerr << loc->get_fileline() << ": sorry: every argument of "
+		  cerr << loc->get_fileline() << ": error: every argument of "
 		       << "randomize() must name a property of the object "
-		       << "(IEEE 1800-2017 18.11). The argument list is "
-		       << "ignored, so every rand property is randomized."
+		       << "(expressions are not allowed; IEEE 1800-2017 18.11)."
 		       << endl;
+		  if (des) des->errors += 1;
 		  return "*";
 	    }
 	    if (!sel.empty()) sel += ",";
@@ -197,9 +197,9 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 }
 
 static string randomize_sel_(const PECallFunction*call,
-			     const netclass_t*class_type)
+			     const netclass_t*class_type, Design*des)
 {
-      return randomize_arg_selector(call->get_parms(), class_type, call);
+      return randomize_arg_selector(call->get_parms(), class_type, call, des);
 }
 
 static perm_string randomize_receiver_root_(const pform_name_t&path,
@@ -317,7 +317,7 @@ NetESFunc* make_randomize_with_expr(
 		     + to_string(n_vals) + "|"
 		     + (force_all_properties
 			? string("*")
-			: randomize_arg_selector(parms, class_type, call)) + "|"
+			: randomize_arg_selector(parms, class_type, call, des)) + "|"
 		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
@@ -17384,7 +17384,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      return rand_expr;
 			}
 			string rname = "$ivl_class_method$randomize";
-			string rsel = randomize_sel_(this, class_type);
+			string rsel = randomize_sel_(this, class_type, des);
 			if (rsel != "*") rname += "|" + rsel;
 			NetESFunc*rand_expr = new NetESFunc(
 			      rname.c_str(), IVL_VT_BOOL, 1, 1);
@@ -17506,7 +17506,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    }
 					    string rname =
 						  "$ivl_class_method$randomize";
-					    string rsel = randomize_sel_(this, class_type);
+					    string rsel = randomize_sel_(this, class_type, des);
 					    if (rsel != "*") rname += "|" + rsel;
 					    NetESFunc*rand_expr = new NetESFunc(
 						  rname.c_str(),
@@ -19679,7 +19679,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				      return rand_expr;
 				}
 				string rname = "$ivl_class_method$randomize";
-				string rsel = randomize_sel_(this, class_type);
+				string rsel = randomize_sel_(this, class_type, des);
 				if (rsel != "*") rname += "|" + rsel;
 				NetESFunc*rand_expr = new NetESFunc(
 					rname.c_str(),

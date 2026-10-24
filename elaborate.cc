@@ -81,7 +81,7 @@ extern const netclass_t* resolve_nested_clocking_child_type(
 extern std::string randomize_arg_selector(
       const std::vector<named_pexpr_t>&parms,
       const netclass_t*class_type,
-      const LineInfo*loc);
+      const LineInfo*loc, Design*des);
 extern NetESFunc* make_randomize_with_expr(
       const LineInfo*call,
       const std::vector<named_pexpr_t>&parms,
@@ -17817,7 +17817,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		    // to narrow the random set the same way.
 		  std::string rname = "$ivl_class_method$randomize";
 		  std::string rsel = randomize_arg_selector(parms_, class_type,
-							    this);
+							    this, des);
 		  if (rsel != "*") rname += "|" + rsel;
 		  return elaborate_method_func_(scope, obj_expr,
 					        &netvector_t::atom2s32,
