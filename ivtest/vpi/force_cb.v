@@ -15,8 +15,8 @@ module force_cb;
     #1 release w;
     #1 $vpi_force(r, "0110");     // VPI force, whole signal
     #1 $vpi_release(r);
-    #1 force r[1] = 1'b1;         // Verilog force on a bit-select
-    #1 release r[1];
+    #1 force r = 4'b0110;        // Verilog force on a variable
+    #1 release r;
     #1 $display("done r=%b w=%b", r, w);
   end
 endmodule

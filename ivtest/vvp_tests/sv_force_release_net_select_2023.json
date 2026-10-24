@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_force_release_net_select.v",
+    "iverilog-args": ["-g2023", "-s", "sv_force_release_net_select"],
+    "gold": "sv_force_release_net_select"
+}
