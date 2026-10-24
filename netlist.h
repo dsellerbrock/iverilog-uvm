@@ -5951,6 +5951,10 @@ class NetESFunc  : public NetExpr {
                   /* Available in all version of Verilog/SystemVerilog. */
                 ITOR   = 0x00020001,  /* $itor takes one argument. */
                 RTOI   = 0x00020002,  /* $rtoi takes one argument. */
+                BITSTOR = 0x00020029,  /* $bitstoreal takes one argument. */
+                REALTOB = 0x0002002a,  /* $realtobits takes one argument. */
+                SHORTTOB= 0x0002002b,  /* $shortrealtobits takes one argument. */
+                BITSTOS = 0x0002002c,  /* $bitstoshortreal takes one argument. */
                   /* Available in Verilog 2005 and later. */
                 ACOS   = 0x00020003,  /* $acos takes one argument. */
                 ACOSH  = 0x00020004,  /* $acosh takes one argument. */
@@ -6019,6 +6023,7 @@ class NetESFunc  : public NetExpr {
 
       static NetEConst* evaluate_rtoi_(const NetExpr*arg);
       static NetECReal* evaluate_itor_(const NetExpr*arg);
+      static NetExpr* evaluate_real_conversion_(ID id, const NetExpr*arg);
 
       NetEConst* evaluate_clog2_(const NetExpr*arg) const;
 
