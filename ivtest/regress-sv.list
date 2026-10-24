@@ -5836,3 +5836,5 @@ sv_percent_s_leading_zero_2017 normal,-g2017,-s,sv_percent_s_leading_zero_2017 i
 sv_percent_s_leading_zero_2023 normal,-g2023,-s,sv_percent_s_leading_zero_2023 ivltests gold=sv_percent_s_leading_zero_2023.gold
 sv_class_type_param_cast_2017 normal,-g2017,-s,test ivltests gold=sv_class_type_param_cast.gold
 sv_class_type_param_cast_2023 normal,-g2023,-s,test ivltests gold=sv_class_type_param_cast.gold
+sv_wait_fork_immediate_children_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_immediate_children.gold
+sv_wait_fork_immediate_children_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_immediate_children.gold
