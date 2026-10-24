@@ -711,6 +711,7 @@ extern bool of_TEST_NUL_OBJ_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_VPI_CALL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_FATAL(vthread_t thr, vvp_code_t code);
+extern bool of_VIF_NULLCHECK(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_ORDER(vthread_t thr, vvp_code_t code);

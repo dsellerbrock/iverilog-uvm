@@ -34988,6 +34988,25 @@ bool of_VIF_FATAL(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/* A null virtual-interface property receiver is a fatal component access
+ * under IEEE 1800-2017/2023 25.9. */
+bool of_VIF_NULLCHECK(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() < 1 || !thr->peek_object().test_nil())
+            return true;
+      static bool reported = false;
+      if (!reported) {
+            reported = true;
+            fprintf(stderr,
+                    "runtime error: attempted to use a null virtual interface;"
+                    " a virtual interface must be initialized before"
+                    " referencing one of its components.\n");
+            vpip_set_return_value(1);
+            schedule_finish(0);
+      }
+      return false;
+}
+
 /*
  * %vif/tickchg <M>
  *
