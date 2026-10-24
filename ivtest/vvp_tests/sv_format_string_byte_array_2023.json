@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_format_string_byte_array_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_format_string_byte_array"
+  ],
+  "gold": "sv_format_string_byte_array"
+}
