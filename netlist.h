@@ -3944,7 +3944,7 @@ class NetCase  : public NetProc {
               bool quality_if = false);
       ~NetCase() override;
 
-      void set_case(unsigned idx, NetExpr*ex, NetProc*st);
+      void set_case(unsigned idx, NetExpr*ex, NetProc*st, unsigned group);
 
       void prune();
 
@@ -3956,6 +3956,7 @@ class NetCase  : public NetProc {
 
       inline const NetExpr*expr(unsigned idx) const { return items_[idx].guard;}
       inline const NetProc*stat(unsigned idx) const { return items_[idx].statement; }
+      inline unsigned group(unsigned idx) const { return items_[idx].group; }
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
@@ -3987,9 +3988,10 @@ class NetCase  : public NetProc {
       bool quality_if_;
 
       struct Item {
-	    inline Item() : guard(0), statement(0) { }
+	    inline Item() : guard(0), statement(0), group(0) { }
 	    NetExpr*guard;
 	    NetProc*statement;
+	    unsigned group;
       };
 
       NetExpr* expr_;
