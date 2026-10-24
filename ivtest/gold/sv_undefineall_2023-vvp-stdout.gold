@@ -1,0 +1,5 @@
+PASS: REMOVE_ME defined before directive
+PASS: REMOVE_ME undefined
+PASS: ALSO_REMOVE_ME undefined
+PASS: line 22
+PASSED
