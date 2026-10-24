@@ -394,6 +394,9 @@ extern void pform_make_assertion(const struct vlltype&loc,
    enclosing `event_control statement_or_null' supplies its event, and
    anything still parked when the module (or checker) ends is an error. */
 extern void pform_sva_infer_procedural_clock(PEventStatement*ctl);
+extern Statement* pform_sva_sequence_event(
+						  const struct vlltype&loc,
+						  PEventStatement*ctl);
 extern void pform_sva_flush_pending_procedural(void);
 extern void pform_sva_flush_pending_named_properties(void);
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE

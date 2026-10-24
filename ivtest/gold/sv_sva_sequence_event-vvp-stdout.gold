@@ -1,0 +1,2 @@
+PASS: sequence events at 35 35 45
+ivltests/sv_sva_sequence_event.v:42: $finish called at 45 (1s)
