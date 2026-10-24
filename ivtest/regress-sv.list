@@ -1243,6 +1243,8 @@ sv_display_p_aggregates normal,-g2012 ivltests
 sv_display_explicit_width_2017 normal,-g2017,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
 sv_display_explicit_width_2023 normal,-g2023,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
 sv_process_suspend_resume normal,-g2012 ivltests
+sv_process_resume_event_rearm normal,-g2017 ivltests gold=sv_process_resume_event_rearm.gold
+sv_process_resume_event_rearm_2023 normal,-g2023 ivltests gold=sv_process_resume_event_rearm.gold
 sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests
