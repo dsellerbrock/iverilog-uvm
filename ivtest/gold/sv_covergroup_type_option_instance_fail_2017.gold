@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_type_option_instance_fail_2017.v:4: error: 'type_option.auto_bin_max' is not a valid type option in covergroup.
+1 error(s) during elaboration.
