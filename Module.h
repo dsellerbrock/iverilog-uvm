@@ -203,6 +203,7 @@ class Module : public PScopeExtra, public PNamedItem {
 	/* let declarations (IEEE 1800-2017 11.13), expanded by
 	   substitution at elaboration. */
       std::map<perm_string,PLet*> lets;
+      std::map<perm_string,PLet*> unit_lets;
 
 	// The mod_name() is the name of the module type.
       perm_string mod_name() const { return pscope_name(); }
