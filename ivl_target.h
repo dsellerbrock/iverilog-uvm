@@ -2750,6 +2750,7 @@ extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+extern int ivl_type_constraint_static(ivl_type_t net, int idx);
 extern int         ivl_type_constraint_state_calls(ivl_type_t net);
 extern int         ivl_type_constraint_state_call_constraint(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_state_call_scope_name(ivl_type_t net, int idx);

@@ -2364,6 +2364,8 @@ sv_randc_container_transactions normal,-g2012 ivltests gold=sv_randc_container_t
 
 # Fixed-unpacked-array rand_mode and independent randc leaf state
 sv_randc_fixed_array_modes normal,-g2012 ivltests gold=sv_randc_fixed_array_modes.gold
+sv_static_constraint_mode normal,-g2017,-s,test ivltests gold=sv_static_constraint_mode.gold
+sv_static_constraint_mode_2023 normal,-g2023,-s,test ivltests gold=sv_static_constraint_mode.gold
 sv_rand_array_mode_object_struct normal,-g2012 ivltests gold=sv_rand_array_mode_object_struct.gold
 sv_rand_mode_fixed_indexing normal,-g2012 ivltests gold=sv_rand_mode_fixed_indexing.gold
 sv_rand_mode_packed_select normal,-g2012 ivltests gold=sv_rand_mode_packed_select.gold

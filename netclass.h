@@ -262,11 +262,13 @@ class netclass_t : public ivl_type_s {
 	    bool is_signed;
       };
       void add_constraint_ir(const std::string&name, const std::string&ir,
-		const std::vector<constraint_state_call_t>&calls = {});
+		const std::vector<constraint_state_call_t>&calls = {},
+		bool is_static = false);
       size_t constraint_ir_count() const
 	    { merge_inherited_constraint_irs_(); return constraint_irs_.size(); }
       const std::string& constraint_ir_name(size_t idx) const;
       const std::string& constraint_ir_str(size_t idx)  const;
+      bool constraint_ir_is_static(size_t idx) const;
       size_t constraint_state_call_count() const;
       const constraint_state_call_t&constraint_state_call(size_t idx) const;
       void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
@@ -390,6 +392,7 @@ class netclass_t : public ivl_type_s {
 	    std::string ir;
 	    std::string flat_ir;
 	    std::vector<constraint_state_call_t> state_calls;
+	    bool is_static;
       };
       mutable std::vector<constraint_ir_t> constraint_irs_;
 	mutable std::vector<constraint_state_call_t> constraint_state_calls_;
