@@ -108,12 +108,13 @@ static void show_this_item(struct vcd_info*info)
       s_vpi_value value;
       PLI_INT32 type = vpi_get(vpiType, info->item);
 
-      if (type == vpiRealVar) {
+      if (type == vpiNamedEvent) {
+	    /* Checkpoints do not imply that an event was triggered. */
+	    return;
+      } else if (type == vpiRealVar) {
 	    value.format = vpiRealVal;
 	    vpi_get_value(info->item, &value);
 	    fprintf(dump_file, "r%.16g %s\n", value.value.real, info->ident);
-      } else if (type == vpiNamedEvent) {
-	    fprintf(dump_file, "1%s\n", info->ident);
       } else if (type == vpiParameter && vpi_get(vpiConstType, info->item) == vpiRealConst) {
 
 	    value.format = vpiRealVal;
@@ -175,7 +176,10 @@ static PLI_INT32 variable_cb_2(p_cb_data cause)
       }
 
       do {
-           show_this_item(info);
+	    if (vpi_get(vpiType, info->item) == vpiNamedEvent)
+		  fprintf(dump_file, "1%s\n", info->ident);
+	    else
+                  show_this_item(info);
            info->scheduled = 0;
       } while ((info = info->dmp_next) != 0);
 

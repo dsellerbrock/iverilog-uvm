@@ -67,6 +67,8 @@
 # gold or diff commands.
 #
 
+sv_vcd_event_checkpoint_2017 normal,-g2017,-s,sv_vcd_event_checkpoint ivltests gold=sv_vcd_event_checkpoint_2017.gold
+
 always_comb		normal,-g2005-sv	ivltests
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
