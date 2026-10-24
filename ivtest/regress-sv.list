@@ -3293,6 +3293,8 @@ sv_queue_last_lvalue_nba normal,-g2017 ivltests gold=sv_queue_last_lvalue_nba.go
 sv_queue_last_lvalue_nba_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue_nba.gold
 sv_queue_last_lvalue_invalid CE,-g2017 ivltests gold=sv_queue_last_lvalue_invalid.gold
 sv_queue_last_lvalue_invalid_2023 CE,-g2023 ivltests gold=sv_queue_last_lvalue_invalid.gold
+sv_class_local_constructor_visibility_2017 CE,-g2017 ivltests
+sv_class_local_constructor_visibility_2023 CE,-g2023 ivltests
 sv_process_kill_task_descendants normal,-g2017 ivltests gold=sv_process_kill_task_descendants.gold
 sv_process_kill_task_descendants_2023 normal,-g2023 ivltests gold=sv_process_kill_task_descendants.gold
 sv_process_kill_task_self normal,-g2017 ivltests gold=sv_process_kill_task_self.gold
