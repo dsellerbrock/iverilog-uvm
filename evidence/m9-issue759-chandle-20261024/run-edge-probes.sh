@@ -10,6 +10,8 @@ CASE_DIR="$ROOT/evidence/m9-issue759-chandle-20261024"
 OUT="$CASE_DIR/$MODE/edge-probes"
 SOURCE="$CASE_DIR/edge-probes.sv"
 mkdir -p "$OUT"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 printf 'probe\tedition\tcompile_rc\trun_rc\n' > "$OUT/summary.tsv"
 
 for spec in \
@@ -26,15 +28,16 @@ for spec in \
     read -r name top <<< "$spec"
     for edition in 2017 2023; do
         base="$OUT/$name-$edition"
+        image="$TMP/$name-$edition.vvp"
         set +e
         python3 "$ROOT/scripts/run_with_timeout.py" 120 -- \
-            "$IVERILOG" "-g$edition" -s "$top" -o "$base.vvp" "$SOURCE" \
+            "$IVERILOG" "-g$edition" -s "$top" -o "$image" "$SOURCE" \
             >"$base.compile.log" 2>&1
         compile_rc=$?
         run_rc=NA
         if [[ $compile_rc -eq 0 ]]; then
             python3 "$ROOT/scripts/run_with_timeout.py" 120 -- \
-                "$VVP" "$base.vvp" >"$base.run.log" 2>&1
+                "$VVP" "$image" >"$base.run.log" 2>&1
             run_rc=$?
         fi
         set -e

@@ -21,17 +21,18 @@ run_probe() {
     local edition
     for edition in 2017 2023; do
         local base="$OUT/probes/$name-$edition"
+        local image="$TMP/$name-$edition.vvp"
         local compile_rc run_rc=NA
         set +e
         python3 "$ROOT/scripts/run_with_timeout.py" 120 -- \
-            "$IVERILOG" "-g$edition" -s "$top" -o "$base.vvp" "$PROBE_SOURCE" \
+            "$IVERILOG" "-g$edition" -s "$top" -o "$image" "$PROBE_SOURCE" \
             >"$base.compile.log" 2>&1
         compile_rc=$?
         set -e
         if [[ $compile_rc -eq 0 ]]; then
             set +e
             python3 "$ROOT/scripts/run_with_timeout.py" 120 -- \
-                "$VVP" "$base.vvp" >"$base.run.log" 2>&1
+                "$VVP" "$image" >"$base.run.log" 2>&1
             run_rc=$?
             set -e
         fi
