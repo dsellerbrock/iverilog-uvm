@@ -950,6 +950,13 @@ extern "C" ivl_lval_t ivl_expr_ref_lval(ivl_expr_t net)
       return net->u_.sfunc_.ref_lval;
 }
 
+extern "C" ivl_lval_t ivl_expr_ref_lval2(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.ref_lval2;
+}
+
 extern "C" ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx)
 {
       assert(net);
@@ -4472,6 +4479,13 @@ extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->constraint_ir_str((size_t)idx).c_str();
       return "";
+}
+
+extern "C" int ivl_type_constraint_static(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type && idx >= 0
+	    ? class_type->constraint_ir_is_static((size_t)idx) : 0;
 }
 
 extern "C" int ivl_type_constraint_state_calls(ivl_type_t net)

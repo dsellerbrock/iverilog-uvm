@@ -81,7 +81,7 @@ extern const netclass_t* resolve_nested_clocking_child_type(
 extern std::string randomize_arg_selector(
       const std::vector<named_pexpr_t>&parms,
       const netclass_t*class_type,
-      const LineInfo*loc);
+      const LineInfo*loc, Design*des);
 extern NetESFunc* make_randomize_with_expr(
       const LineInfo*call,
       const std::vector<named_pexpr_t>&parms,
@@ -6213,7 +6213,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // If the port is unconnected, substitute the default
 	      // value. The parser ensures that a default value only
 	      // exists for input ports.
-	    if (pins[idx] == 0) {
+	    if (pins[idx] == 0 && !pins_is_explicitly_not_connected[idx]) {
 		  PExpr*default_value = rmod->get_port_default_value(idx);
 		  if (default_value) {
 			pins[idx] = default_value;
@@ -8534,6 +8534,20 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       if (dynamic_cast<const netenum_t*>(lv->net_type())) {
 	    cerr << get_fileline() << ": error: This assignment requires an "
 		    "explicit cast." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
+
+	// IEEE 1800-2017/2023 Table 11-1 restricts bitwise and shift
+	// assignment operators to integral operands. These operators otherwise
+	// reach the real assignment code generator, which cannot implement them.
+      if (lv->expr_type() == IVL_VT_REAL
+	  && (op_ == '&' || op_ == '|' || op_ == '^'
+	      || op_ == 'l' || op_ == 'r' || op_ == 'R')) {
+	    cerr << get_fileline() << ": error: "
+		 << "bitwise and shift assignment operators may not have "
+		 << "REAL operands." << endl;
 	    des->errors += 1;
 	    delete lv;
 	    return 0;
@@ -12223,7 +12237,17 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-	/* IEEE 1800-2017 13.4.4 allows a function to spawn processes only
+	/* IEEE 1800-2017/2023 13.4.3 prohibits every fork construct in a
+	   constant function, including fork...join_none (which is otherwise
+	   permitted in a function by 13.4.4). */
+      if (scope->need_const_func() && bl_type_ != PBlock::BL_SEQ) {
+	    cerr << get_fileline() << ": error: A fork statement is not permitted "
+		    "in a constant function." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+	/* IEEE 1800-2017/2023 13.4.4 allows a function to spawn processes only
 	   with fork...join_none. A blocking join or join_any can suspend the
 	   function, even when all of its current branches happen to be
 	   zero-time. Check the lexical routine scope rather than just the
@@ -12784,6 +12808,22 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
       if (!expr_)
             return new NetBlock(NetBlock::SEQU, nullptr);
 
+      unsigned default_count = 0;
+      if (items_) {
+            for (const Item*item : *items_) {
+                  if (item && item->is_default)
+                        default_count += 1;
+            }
+      }
+      if (default_count > 1) {
+            cerr << get_fileline() << ": error: Multiple default items in "
+                 << "case statement are not allowed "
+                 << "(IEEE 1800-2017/2023 12.5)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+
       NetProc*cascade = nullptr;
       Item*default_item = nullptr;
       if (items_) {
@@ -12870,6 +12910,20 @@ NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
 NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+      unsigned default_count = 0;
+      for (const PCase::Item*item : *items_) {
+            if (item && item->expr.empty())
+                  default_count += 1;
+      }
+      if (default_count > 1) {
+            cerr << get_fileline() << ": error: Multiple default items in "
+                 << "case statement are not allowed "
+                 << "(IEEE 1800-2017/2023 12.5)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
 
 	/* A type() value has no run-time bit representation. For a type-valued
 	   case, lower the selector to constant true and every item to the
@@ -17763,7 +17817,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		    // to narrow the random set the same way.
 		  std::string rname = "$ivl_class_method$randomize";
 		  std::string rsel = randomize_arg_selector(parms_, class_type,
-							    this);
+							    this, des);
 		  if (rsel != "*") rname += "|" + rsel;
 		  return elaborate_method_func_(scope, obj_expr,
 					        &netvector_t::atom2s32,
@@ -18718,6 +18772,21 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 					     NetFuncDef*def) const
 {
       NetScope*dscope = def->scope();
+
+	/* A void function cannot be part of the constant-function subset, and
+	 * statement-form calls do not pass through PECallFunction's constant-call
+	 * validation. Reject them when elaborating the body of a constant function. */
+      if (scope->need_const_func()) {
+	    cerr << get_fileline() << ": error: Void function `"
+		 << dscope->basename()
+		 << "' cannot be invoked within a constant function"
+		    " (IEEE 1800-2017/2023 13.4.3)." << endl;
+	    des->errors += 1;
+	    scope->is_const_func(false);
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
+      }
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PCallTask::elaborate_void_function_: "
@@ -20176,6 +20245,46 @@ static bool get_value_as_string(const NetExpr*expr, string&str)
       return true;
 }
 
+static string format_elab_message(const string&fmt,
+				  const vector<NetExpr*>&args, unsigned first_arg)
+{
+      ostringstream result;
+      unsigned arg = first_arg;
+      for (size_t pos = 0; pos < fmt.size(); pos += 1) {
+	    if (fmt[pos] != '%' || pos + 1 == fmt.size()) {
+		  result << fmt[pos];
+		  continue;
+	    }
+	    if (fmt[pos+1] == '%') {
+		  result << '%';
+		  pos += 1;
+		  continue;
+	    }
+	    size_t spec = pos + 1;
+	    if (fmt[spec] == '0') spec += 1;
+	    if (spec >= fmt.size() || arg >= args.size()) {
+		  result << fmt[pos];
+		  continue;
+	    }
+	    const NetEConst*value = dynamic_cast<const NetEConst*>(args[arg]);
+	    char code = fmt[spec];
+	    if (value && (code == 'd' || code == 'D')) {
+		  result << value->value().as_long();
+		  pos = spec;
+		  arg += 1;
+	    } else if (value && (code == 's' || code == 'S')) {
+		  string text;
+		  if (get_value_as_string(value, text)) result << text;
+		  else result << value->value().as_long();
+		  pos = spec;
+		  arg += 1;
+	    } else {
+		  result << fmt[pos];
+	    }
+      }
+      return result.str();
+}
+
 /* Elaborate an elaboration task. */
 bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 {
@@ -20266,15 +20375,17 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 		  param_start += 1;
 	    }
 
-	      // FIXME: For now just handle a single string value.
 	    string str;
-	    if ((parm_count == param_start + 1) && (get_value_as_string(eparms[param_start], str))) {
-		  cerr << " " << str;
-	    } else if (param_start < parm_count) {
-		  cerr << endl;
-		  cerr << get_fileline() << ": sorry: Elaboration tasks "
-		          "currently only support a single string argument.";
-		  des->errors += 1;
+	    if (param_start < parm_count) {
+		  if (!get_value_as_string(eparms[param_start], str)) {
+			cerr << endl;
+			cerr << get_fileline() << ": error: Elaboration task "
+			        << name << "() formatting argument must be a string.";
+			des->errors += 1;
+		  } else {
+			cerr << " " << format_elab_message(str, eparms,
+							      param_start + 1);
+		  }
 	    }
 /*
 	    cerr << *eparms[0];
@@ -20426,6 +20537,41 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
       PEEvent*cb_ev = new PEEvent(PEEvent::ANYEDGE, cb_id);
       PEventStatement*wait_stmt = new PEventStatement(cb_ev);
       wait_stmt->set_line(*this);
+
+	/* repeat (0) normally removes its body. IEEE 1800-2017 14.11
+	   instead makes ##0 wait for this time step's clocking event when
+	   that event has not happened yet. The public clocking event has a
+	   matching internal named event whose triggered property tracks that
+	   condition. */
+      NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
+      const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
+      bool zero_count = count_const && count_const->value().as_long() == 0;
+      delete count_expr;
+      if (zero_count) {
+	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
+	    perm_string trig_name = lex_strings.make(trig_name_str.c_str());
+	    pform_name_t trig_path;
+	    trig_path.push_back(name_component_t(trig_name));
+	    trig_path.push_back(name_component_t(perm_string::literal("triggered")));
+	    PEIdent*trig_id = new PEIdent(trig_path, UINT_MAX);
+	    trig_id->set_line(*this);
+	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
+	    wait_if_needed->set_line(*this);
+	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	    if (proc && statement_) {
+		  NetProc*sub = statement_->elaborate(des, scope);
+		  if (sub == 0) {
+			delete proc;
+			return 0;
+		  }
+		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+		  blk->set_line(*this);
+		  blk->append(proc);
+		  blk->append(sub);
+		  proc = blk;
+	    }
+            return proc;
+      }
       PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
       rep_stmt->set_line(*this);
 
@@ -23164,7 +23310,12 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                                     is_direct_class_property_event_expr_(tmp)
                                     && deps.size() == 1
                                     && !deps.front().owner_expr
-                                    && !has_ordinary_dependency;
+                                    && !has_ordinary_dependency
+                                    /* A one-term event control must observe a
+                                     * change to its handle expression so it
+                                     * can retarget after a class-handle
+                                     * assignment. */
+                                    && expr_.size() != 1;
                               if (!precise_direct) {
                                     if (expr_.size() != 1
                                         || class_property_event_filter_expr) {
@@ -24298,6 +24449,22 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	/* Check to see if this is a wait fork statement. */
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
+
+	/* The class-event and event-array fast paths below return directly, before
+	   elaborate_st() can enforce the function timing restriction. Constructors
+	   are functions too, so reject every event control before those paths. A
+	   positive event denotes the separate wait statement and is checked by
+	   elaborate_wait(). */
+      if (scope->in_func()) {
+	    for (const PEEvent*event : expr_) {
+		  if (event && event->type() != PEEvent::POSITIVE) {
+			cerr << get_fileline() << ": error: functions cannot have "
+			        "event statements." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+	    }
+      }
 
 	/* Conditional event expressions must retain one-shot wait semantics,
 	   so lower them before the specialized single-event fast paths below. */
@@ -40454,8 +40621,12 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
-	    if (!ir.empty())
-		  add_constraint_ir(string(cit.first), ir, state_calls);
+	    if (!ir.empty()) {
+		  const auto decl = pclass->type->constraint_declarations.find(cit.first);
+		  const bool is_static = decl != pclass->type->constraint_declarations.end()
+			&& decl->second.is_static;
+		  add_constraint_ir(string(cit.first), ir, state_calls, is_static);
+	    }
       }
 
       /* Synthesize an inside constraint for each random enum property. */
@@ -43030,6 +43201,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // preserves illegal_bins/ignore_bins = default.
 					unsigned default_kind = (base_kind == 2 ? 5u
 							    : base_kind == 1 ? 6u : 3u)
+						    | (bin.arrayed && base_kind == 0 ? 4u : 0u)
 						    | (cp_real_supported
 							 ? netclass_t::COVGRP_REAL_BIN : 0u);
 					      int default_added = add_unique_cov_counter(bstem);
@@ -44106,20 +44278,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      } else if (nb > wide_auto_bin_limit) {
 					    nb = wide_auto_bin_limit;
 				      }
-				      // shortcut: wide auto bins use high-bit routing for power-of-two
-				      // counts; add wide range metadata for other counts.
+			      // Wide auto bins use equal ranges; the final bin receives
+			      // any remainder, as required by 19.5.3.
 				      if (cp_wide_auto_supported && nb <= wide_auto_bin_limit) {
-					    if ((nb & (nb - 1)) != 0) {
-						  cerr << pclass->get_fileline()
-						       << ": error: wide automatic bins currently require "
-							  "a power-of-two auto_bin_max." << endl;
-						  des->errors += 1;
-					    } else {
-						  unsigned prefix_bits = 0;
-						  for (uint64_t count = nb; count > 1; count >>= 1)
-							prefix_bits += 1;
 						  uint64_t meta = ((uint64_t)cp_value_width << 32)
-							| prefix_bits;
+							| nb;
 						  for (uint64_t k = 0; k < nb; k++) {
 							std::string bn = std::string("__bin_")
 							      + std::string(cp.label.str())
@@ -44134,12 +44297,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      + std::to_string(k) + "]").c_str());
 							d.wide_auto = true;
 							d.wide_auto_value = k;
-							d.wide_auto_bits = prefix_bits;
+							d.wide_auto_bits = (unsigned)nb;
 							d.source_prop = added;
 							vbins.push_back(d);
 						  }
 						  has_value_bins = true;
-					    }
 				      }
 				} else {
 				uint64_t nb = cp_abm;

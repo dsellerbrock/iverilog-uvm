@@ -97,6 +97,7 @@ class PExpr : public LineInfo {
       static const unsigned NO_FLAGS     = 0x0;
       static const unsigned NEED_CONST   = 0x1;
       static const unsigned SYS_TASK_ARG = 0x2;
+      static const unsigned SYS_TASK_ARG_OUTPUT = 0x1000;
       static const unsigned ANNOTATABLE  = 0x4;
       // Permit the symbolic unbounded value only while evaluating a value
       // parameter assignment or the argument of $isunbounded().

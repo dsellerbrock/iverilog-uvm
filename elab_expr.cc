@@ -64,7 +64,7 @@ using namespace std;
 
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
-      pform_name_t&, perm_string*);
+      pform_name_t&, perm_string*, bool*);
 
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
@@ -160,7 +160,7 @@ extern string pexpr_to_rooted_class_constraint_ir(
  */
 string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 			      const netclass_t*class_type,
-			      const LineInfo*loc)
+			      const LineInfo*loc, Design*des)
 {
       bool any = false;
       for (size_t i = 0 ; i < parms.size() ; i += 1)
@@ -183,11 +183,11 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 		  pid = class_type->property_idx_from_name(
 			      id->path().back().name);
 	    if (pid < 0) {
-		  cerr << loc->get_fileline() << ": sorry: every argument of "
+		  cerr << loc->get_fileline() << ": error: every argument of "
 		       << "randomize() must name a property of the object "
-		       << "(IEEE 1800-2017 18.11). The argument list is "
-		       << "ignored, so every rand property is randomized."
+		       << "(expressions are not allowed; IEEE 1800-2017 18.11)."
 		       << endl;
+		  if (des) des->errors += 1;
 		  return "*";
 	    }
 	    if (!sel.empty()) sel += ",";
@@ -197,9 +197,9 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 }
 
 static string randomize_sel_(const PECallFunction*call,
-			     const netclass_t*class_type)
+			     const netclass_t*class_type, Design*des)
 {
-      return randomize_arg_selector(call->get_parms(), class_type, call);
+      return randomize_arg_selector(call->get_parms(), class_type, call, des);
 }
 
 static perm_string randomize_receiver_root_(const pform_name_t&path,
@@ -317,7 +317,7 @@ NetESFunc* make_randomize_with_expr(
 		     + to_string(n_vals) + "|"
 		     + (force_all_properties
 			? string("*")
-			: randomize_arg_selector(parms, class_type, call)) + "|"
+			: randomize_arg_selector(parms, class_type, call, des)) + "|"
 		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
@@ -430,6 +430,22 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
       return false;
 }
 
+static bool std_randomize_has_null_arg_(
+	      const vector<named_pexpr_t>&parms, Design*des,
+	      const LineInfo*loc)
+{
+      for (const named_pexpr_t&parm : parms) {
+	    if (parm.parm && dynamic_cast<const PENull*>(parm.parm)) {
+		  cerr << loc->get_fileline() << ": error: null is not allowed "
+		       << "in a scope randomize() call (IEEE 1800-2017/2023 18.7)."
+		       << endl;
+		  des->errors += 1;
+		  return true;
+	    }
+      }
+      return false;
+}
+
 /* A fixed unpacked array is one scope-randomize argument, but the VPI
  * implementation writes individual integral variables. Supply each
  * canonical memory word as an argument, retaining the existing RNG and
@@ -438,6 +454,7 @@ NetESFunc* make_std_randomize_simple_expr(
       const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
       const LineInfo*loc)
 {
+      if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       vector<NetExpr*> args;
       for (const named_pexpr_t&parm : parms) {
 	    if (!parm.parm) {
@@ -514,6 +531,7 @@ NetESFunc* make_std_randomize_with_expr(
       static const vector<perm_string> no_identifiers;
       const vector<perm_string>&effective_identifiers =
 	    has_with_identifier_list ? no_identifiers : with_identifiers;
+      if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       if (has_with_identifier_list) {
 	    cerr << loc->get_fileline() << ": error: A parenthesized lookup "
 		 << "restriction list after `with' is not allowed on scope "
@@ -12451,6 +12469,86 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    return cast_to_width_(sub, expr_wid);
       }
 
+	/* IEEE 1800-2017/2023 20.7: array query functions also accept a
+	   data_type. Unlike an expression argument, its shape is available
+	   directly from the elaborated type and must be evaluated here. */
+      if (parms_.size() >= 1 && parms_.size() <= 2 && parms_[0].parm
+	  && dynamic_cast<PETypename*>(parms_[0].parm)
+	  && (strcmp(name, "$size") == 0 || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0 || strcmp(name, "$low") == 0
+	      || strcmp(name, "$high") == 0 || strcmp(name, "$increment") == 0
+	      || strcmp(name, "$dimensions") == 0
+	      || strcmp(name, "$unpacked_dimensions") == 0)) {
+	    ivl_type_t type =
+		  dynamic_cast<PETypename*>(parms_[0].parm)->get_type()
+			->elaborate_type(des, scope);
+	    if (!type) return 0;
+	    if (dynamic_cast<const netdarray_t*>(type)
+		|| dynamic_cast<const netqueue_t*>(type)) {
+		  cerr << get_fileline() << ": error: Array query functions cannot "
+		       << "be used directly on a dynamically sized type identifier."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    netranges_t dims;
+	    for (ivl_type_t cur = type; cur; ) {
+		  if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur)) {
+			dims.insert(dims.end(), ua->static_dimensions().begin(),
+				    ua->static_dimensions().end());
+			cur = ua->element_type();
+		  } else {
+			netranges_t packed = cur->slice_dimensions();
+			if (packed.empty() && cur->packed() && cur->packed_width() > 0)
+			      packed.push_back(netrange_t(cur->packed_width()-1, 0));
+			dims.insert(dims.end(), packed.begin(), packed.end());
+			break;
+		  }
+	    }
+	    long value = 0;
+	    bool invalid_dimension = false;
+	    if (strcmp(name, "$dimensions") == 0)
+		  value = dims.empty() ? 0 : (long)dims.size();
+	    else if (strcmp(name, "$unpacked_dimensions") == 0) {
+		  value = 0;
+		  for (ivl_type_t cur = type; cur; ) {
+			const netuarray_t*ua = dynamic_cast<const netuarray_t*>(cur);
+			if (!ua) break;
+			value += ua->static_dimensions().size();
+			cur = ua->element_type();
+		  }
+	    } else {
+		  unsigned dim = 1;
+		  if (parms_.size() == 2 && parms_[1].parm) {
+			NetExpr*de = elab_sys_task_arg(des, scope, lex_strings.make(name),
+					       1, parms_[1].parm, true);
+			if (!de) return 0;
+			NetEConst*dc = dynamic_cast<NetEConst*>(de);
+			long dv = dc ? dc->value().as_long() : 0;
+			delete de;
+			if (dv <= 0) invalid_dimension = true;
+			else dim = (unsigned)dv;
+		  }
+		  if (!invalid_dimension && dim <= dims.size()) {
+			const netrange_t&r = dims[dim-1];
+			long left = r.get_msb(), right = r.get_lsb();
+			long low = std::min(left, right), high = std::max(left, right);
+			if (strcmp(name, "$size") == 0) value = r.width();
+			else if (strcmp(name, "$left") == 0) value = left;
+			else if (strcmp(name, "$right") == 0) value = right;
+			else if (strcmp(name, "$low") == 0) value = low;
+			else if (strcmp(name, "$high") == 0) value = high;
+			else value = left >= right ? 1 : -1;
+		  } else invalid_dimension = true;
+	    }
+	    NetExpr*res = invalid_dimension
+		  ? static_cast<NetExpr*>(new NetEConst(verinum(verinum::Vx,
+								 expr_wid, true)))
+		  : make_const_val(value);
+	    res->set_line(*this);
+	    return cast_to_width_(res, expr_wid);
+      }
+
 	/* Interpret the internal $is_signed system function to return
 	   a single bit flag -- 1 if the expression is signed, 0
 	   otherwise. */
@@ -12551,6 +12649,32 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			query_name = "$ivl_array_query$increment";
 
 		  if (query_name) {
+			/* Associative-array bounds that do not depend on allocated
+			 * entries are determined by the declared index type. */
+			const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(
+			      sub->net_type());
+			if (assoc && assoc->assoc_compat()
+			    && (strcmp(name, "$left") == 0
+				|| strcmp(name, "$increment") == 0
+				|| strcmp(name, "$right") == 0)) {
+			      long result = 0;
+			      if (strcmp(name, "$increment") == 0) result = -1;
+			      else if (strcmp(name, "$right") == 0) {
+				    ivl_type_t key = assoc->assoc_index_type();
+				    unsigned width = key ? key->packed_width() : 32;
+				    bool is_signed = key && key->get_signed();
+				    if (width == 0) width = 32;
+				    if (width >= sizeof(long) * CHAR_BIT)
+					  result = -1;
+				    else if (is_signed)
+					  result = (1L << (width - 1)) - 1;
+				    else result = (1L << width) - 1;
+			      }
+			      delete sub;
+			      NetExpr*res = make_const_val_s(result);
+			      res->set_line(*this);
+			      return cast_to_width_(res, expr_wid);
+			}
 			NetExpr*dim = 0;
 			if (nparms == 2 && parms_[1].parm)
 			      dim = elab_sys_task_arg(des, scope, pname, 1,
@@ -12728,7 +12852,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 		  if (!tmp)
 			tmp = elab_sys_task_arg(des, scope, name, idx,
-                                                expr, need_const);
+			                        expr, need_const,
+			                        name == "$value$plusargs" && idx == 1
+			                            ? SYS_TASK_ARG_OUTPUT : 0);
 			  if (tmp) {
 			bool type_ok = true;
 			if (coverage_control || coverage_query
@@ -15357,14 +15483,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
       pform_name_t rewritten_path;
       perm_string mapped_access = clocking_access();
+      bool output_read = false;
+      bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+	    ? nullptr : &output_read;
       if (rewrite_class_clocking_member_path(this, sr, rewritten_path,
-					      false, nullptr, &mapped_access)
+						      false, nullptr, &mapped_access,
+						      output_read_flag)
 	  || rewrite_nested_class_clocking_member_path(
-		this, des, scope, sr, rewritten_path, &mapped_access)
+		this, des, scope, sr, rewritten_path, &mapped_access,
+		output_read_flag)
 	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
-						      false, nullptr, &mapped_access)
+						      false, nullptr, &mapped_access,
+						      output_read_flag)
 	  || (!sr.net && rewrite_enclosing_scope_clocking_member_path(
-		this, scope, rewritten_path, false, nullptr, &mapped_access))) {
+		this, scope, rewritten_path, false, nullptr, &mapped_access,
+		output_read_flag))) {
+	    if (output_read) des->errors += 1;
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  mapped_ident.set_line(*this);
@@ -17260,7 +17394,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      return rand_expr;
 			}
 			string rname = "$ivl_class_method$randomize";
-			string rsel = randomize_sel_(this, class_type);
+			string rsel = randomize_sel_(this, class_type, des);
 			if (rsel != "*") rname += "|" + rsel;
 			NetESFunc*rand_expr = new NetESFunc(
 			      rname.c_str(), IVL_VT_BOOL, 1, 1);
@@ -17285,7 +17419,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		&& !scope->get_class_scope();
 	    if (peek_tail_name(path_) == perm_string::literal("randomize")
 		&& (explicit_std_randomize || unqualified_scope_randomize)
-		&& !parms_.empty()) {
+		&& (!parms_.empty() || !with_constraints().empty())) {
 		  if (!with_constraints().empty()
 		      || has_randomize_with_identifier_list()
 		      || std_randomize_args_need_solver(parms_, des, scope)) {
@@ -17382,7 +17516,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    }
 					    string rname =
 						  "$ivl_class_method$randomize";
-					    string rsel = randomize_sel_(this, class_type);
+					    string rsel = randomize_sel_(this, class_type, des);
 					    if (rsel != "*") rname += "|" + rsel;
 					    NetESFunc*rand_expr = new NetESFunc(
 						  rname.c_str(),
@@ -19455,12 +19589,58 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    // Covergroup get_inst_coverage(): returns real.
 		    if (method_name == perm_string::literal("get_inst_coverage")) {
 			  if (class_type && class_type->is_covergroup()) {
-				// Returns a real value: percentage of bins hit.
+				if (!parms_.empty() && parms_.size() != 2) {
+				      cerr << get_fileline() << ": error: Covergroup method "
+					   "get_inst_coverage expects either zero arguments or "
+					   "two ref int arguments (IEEE 1800-2017/2023 19.8)."
+					   << endl;
+				      des->errors += 1;
+				      delete sub_expr;
+				      return 0;
+				}
+				// The optional ref arguments receive covered and total bins.
 				NetESFunc*sys = new NetESFunc(
 					"$ivl_class_method$covgrp_get_inst_coverage",
 					&netreal_t::type_real, 1);
 				sys->set_line(*this);
 				sys->parm(0, sub_expr);
+				if (parms_.size() == 2) {
+				      NetAssign_*outputs[2] = { 0, 0 };
+				      for (unsigned idx = 0; idx < 2; idx += 1) {
+					    unsigned errors_before = des->errors;
+					    outputs[idx] = parms_[idx].parm
+						  ? parms_[idx].parm->elaborate_lval(
+							des, scope, false, false) : 0;
+					    if (!outputs[idx]) {
+						  if (des->errors == errors_before) {
+							cerr << get_fileline()
+							     << ": error: get_inst_coverage output "
+								"argument must be a writable int "
+								"variable (IEEE 1800-2017/2023 19.8)."
+							     << endl;
+							des->errors += 1;
+						  }
+						  delete outputs[0];
+						  delete outputs[1];
+						  delete sys;
+						  return 0;
+					    }
+					    if (outputs[idx]->more
+						      || outputs[idx]->lwidth() != 32) {
+						  cerr << parms_[idx].parm->get_fileline()
+						       << ": error: get_inst_coverage output argument "
+							  "must name one int variable (IEEE "
+							  "1800-2017/2023 19.8)." << endl;
+						  des->errors += 1;
+						  delete outputs[0];
+						  delete outputs[1];
+						  delete sys;
+						  return 0;
+					    }
+				      }
+				      sys->set_ref_output(outputs[0]);
+				      sys->set_ref_output2(outputs[1]);
+				}
 				return sys;
 			  }
 		    }
@@ -19509,7 +19689,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				      return rand_expr;
 				}
 				string rname = "$ivl_class_method$randomize";
-				string rsel = randomize_sel_(this, class_type);
+				string rsel = randomize_sel_(this, class_type, des);
 				if (rsel != "*") rname += "|" + rsel;
 				NetESFunc*rand_expr = new NetESFunc(
 					rname.c_str(),
@@ -25514,10 +25694,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    if (gn_system_verilog()) {
 			  pform_name_t rewritten;
 			  perm_string mapped_access = clocking_access();
+			  bool output_read = false;
+			  bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+				? nullptr : &output_read;
 			  if (rewrite_clocking_member_path_via_scope(
-				    this, sr, rewritten, false, nullptr, &mapped_access)
+				    this, sr, rewritten, false, nullptr, &mapped_access,
+				    output_read_flag)
 			      || rewrite_enclosing_scope_clocking_member_path(
-				    this, scope, rewritten, false, nullptr, &mapped_access)) {
+				    this, scope, rewritten, false, nullptr, &mapped_access,
+				    output_read_flag)) {
+				if (output_read) des->errors += 1;
 				PEIdent mapped(rewritten, lexical_pos_);
 				mapped.set_line(*this);
 				mapped.set_clocking_access(mapped_access);
@@ -25675,10 +25861,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	if (gn_system_verilog()) {
 	    pform_name_t rewritten;
 	    perm_string mapped_access = clocking_access();
+	    bool output_read = false;
+	    bool*output_read_flag = (flags & SYS_TASK_ARG_OUTPUT)
+		  ? nullptr : &output_read;
 	    if (rewrite_clocking_member_path_via_scope(
-		  this, sr, rewritten, false, nullptr, &mapped_access)
+		  this, sr, rewritten, false, nullptr, &mapped_access,
+		  output_read_flag)
 		|| rewrite_enclosing_scope_clocking_member_path(
-		  this, scope, rewritten, false, nullptr, &mapped_access)) {
+		  this, scope, rewritten, false, nullptr, &mapped_access,
+		  output_read_flag)) {
+		  if (output_read) des->errors += 1;
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  mapped.set_line(*this);
 		  mapped.set_clocking_access(mapped_access);
@@ -29767,6 +29959,26 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
       }
 
 
+      // IEEE 1800-2017/2023 8.7 and 8.18: constructing an object invokes
+      // its constructor, so a local constructor is callable only from a
+      // method in the class that declared it. This path resolves `new`
+      // directly instead of using ordinary method lookup, which enforces
+      // local visibility there.
+      const PTaskFunc*ctor = new_scope->func_pform();
+      if (!ctor) ctor = new_scope->task_pform();
+      if (ctor && ctor->method_qualifiers().test_local()) {
+            const NetScope*owner_scope = new_scope->parent();
+            const netclass_t*owner = owner_scope
+                  ? owner_scope->class_def() : nullptr;
+            if (!owner || !owner->test_scope_is_method(scope)) {
+                  cerr << get_fileline() << ": error: Local constructor of class `"
+                       << (owner ? owner->get_name() : ctype->get_name())
+                       << "` is not accessible in this context." << endl;
+                  des->errors += 1;
+                  return obj;
+            }
+      }
+
       // If the class has embedded covergroups, ensure elaborate_sig() has run
       // so the covergroup properties are visible inside new().  This must be done
       // before elaborating the constructor body — which may happen lazily before
@@ -31205,6 +31417,14 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '~':
+	    if (ip->expr_type() == IVL_VT_REAL) {
+		  cerr << get_fileline() << ": error: "
+		       << human_readable_op(op_, true)
+		       << " operator may not have a REAL operand." << endl;
+		  des->errors += 1;
+		  delete ip;
+		  return 0;
+	    }
 	    tmp = elaborate_expr_bits_(ip, expr_wid);
 	    break;
       }

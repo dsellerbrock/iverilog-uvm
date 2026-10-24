@@ -1,0 +1,7 @@
+{
+    "type" : "normal",
+    "source" : "sv_vcd_unused_event.v",
+    "gold" : "sv_vcd_unused_event",
+    "iverilog-args" : [ "-g2017" ],
+    "vvp-args-extended" : [ "-vcd" ]
+}

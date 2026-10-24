@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "elab_task_format_error.v",
+    "iverilog-args": ["-g2023", "-s", "elab_task_format_error"],
+    "gold": "elab_task_format_error"
+}

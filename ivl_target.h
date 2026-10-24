@@ -1092,6 +1092,7 @@ extern ivl_expr_t  ivl_expr_parm(ivl_expr_t net, unsigned idx);
 extern unsigned    ivl_expr_parms(ivl_expr_t net);
   /* IVL_EX_SFUNC: optional compiler-known ref-output destination. */
 extern ivl_lval_t  ivl_expr_ref_lval(ivl_expr_t net);
+extern ivl_lval_t  ivl_expr_ref_lval2(ivl_expr_t net);
   /* IVL_EX_SFUNC: exact concrete virtual-interface function candidates. */
 extern ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx);
 extern unsigned    ivl_expr_vif_methods(ivl_expr_t net);
@@ -2750,6 +2751,7 @@ extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+extern int ivl_type_constraint_static(ivl_type_t net, int idx);
 extern int         ivl_type_constraint_state_calls(ivl_type_t net);
 extern int         ivl_type_constraint_state_call_constraint(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_state_call_scope_name(ivl_type_t net, int idx);

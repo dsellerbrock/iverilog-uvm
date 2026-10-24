@@ -51,6 +51,17 @@ static bool param_is_type = false;
 static bool in_gen_region = false;
 static std::list<pform_range_t>* specparam_active_range = 0;
 
+/* IEEE 1800-2017/2023 19.5: an unlabeled coverpoint over one variable is
+ * named after that variable. Keep the existing internal fallback for
+ * expressions that do not name a single variable. */
+static perm_string pform_coverpoint_implicit_name_(PExpr*expr)
+{
+	  PEIdent*ident = dynamic_cast<PEIdent*>(expr);
+	  if (ident && !ident->path().name.empty())
+		return ident->path().name.back().name;
+	  return perm_string::literal("cp");
+}
+
 /* Port declaration lists use this structure for context. */
 static struct {
       NetNet::Type port_net_type;
@@ -226,10 +237,23 @@ static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
                             char*obj, char*field, PExpr*val)
 {
       if (strcmp(obj, "option") == 0) {
-	    dst[lex_strings.make(field)] = val;
+	    perm_string key = lex_strings.make(field);
+	    if (dst.find(key) != dst.end()) {
+		  yyerror(loc, "error: duplicate coverage option '%s'.", field);
+		  delete val;
+	    } else {
+		  dst[key] = val;
+	    }
       } else if (strcmp(obj, "type_option") == 0) {
 	    std::string k = std::string("type_option.") + field;
-	    dst[lex_strings.make(k.c_str())] = val;
+	    perm_string key = lex_strings.make(k.c_str());
+	    if (dst.find(key) != dst.end()) {
+		  yyerror(loc, "error: duplicate coverage option '%s.%s'.",
+			  obj, field);
+		  delete val;
+	    } else {
+		  dst[key] = val;
+	    }
       } else {
 	    cerr << loc.get_fileline() << ": sorry: covergroup item '"
 	         << obj << "." << field << " = ...' is not an option "
@@ -2407,6 +2431,8 @@ static Module::port_t *module_declare_port_continuation(
 
 %type <decl_assignments> net_decl_assigns
 %type <decl_assignment> net_decl_assign
+%type <decl_assignments> net_decl_assigns_mixed
+%type <decl_assignment> net_decl_assign_mixed
 
 %type <mport> port port_opt port_reference port_reference_list
 %type <mport> port_declaration
@@ -4804,7 +4830,7 @@ covergroup_item
   /* Unlabeled coverpoint: "coverpoint expr { ... }" */
   | K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
-	cp->label = perm_string::literal("cp");
+	cp->label = pform_coverpoint_implicit_name_($2);
 	cp->expr  = $2;
 	cp->iff_expr = $3;
 	if ($5) {
@@ -4818,7 +4844,7 @@ covergroup_item
   /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
   | K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
-	cp->label = perm_string::literal("cp");
+	cp->label = pform_coverpoint_implicit_name_($2);
 	cp->expr  = $2;
 	cp->iff_expr = $3;
 	$$ = cp;
@@ -5131,6 +5157,15 @@ bins_item
 	$$ = b;
 	  }
   /* Default bins compose with all three bin kinds. */
+  | bins_keyword bins_name '[' ']' '=' K_default ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->is_default = true;
+	delete[] $2;
+	$$ = b;
+      }
   | bins_keyword bins_name '=' K_default ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
@@ -6199,6 +6234,8 @@ function_declaration /* IEEE1800-2005: A.2.6 */
     statement_or_null_list_opt
     K_endfunction endnew_opt
       { current_function->set_ports($5);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@3, current_function);
 	current_function_set_statement(@3, $8);
 	pform_pop_scope();
 	current_function = 0;
@@ -7145,6 +7182,25 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
 	delete[]$1.text;
 	$$ = tmp;
       }
+  /* A package name occupies a separate namespace, so it remains a valid
+     declarator even though the lexer classifies it for package references. */
+  | PACKAGE_IDENTIFIER dimensions_opt var_decl_initializer_opt
+      { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
+	    && (var_lifetime == LexicalScope::INHERITED)) {
+	      cerr << @1 << ": warning: Static variable initialization requires "
+			    "explicit lifetime in this context." << endl;
+	      warn_count += 1;
+	}
+
+	decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { $1->pscope_name(), @1.lexical_pos };
+	if ($2) {
+	      tmp->index = *$2;
+	      delete $2;
+	}
+	tmp->expr.reset($3);
+	$$ = tmp;
+      }
   ;
 
 
@@ -7338,18 +7394,21 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
                         program, and checker scope. */
   : K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@2, $2, $3); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", $2, $8);
+        pform_end_clocking_block(@7); }
   /* 14.12: named default clocking declaration. */
   | K_default K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@8); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@9, "clocking", $3, $9);
+        pform_end_clocking_block(@8); }
   /* 14.12: anonymous default clocking declaration. */
   | K_default K_clocking event_control ';'
       { pform_start_clocking_block(@2, 0, $3, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", nullptr, $8);
+        pform_end_clocking_block(@7); }
   /* A.1.4 module_or_generate_item_declaration: `default clocking id;`
      selects a clocking block declared elsewhere in this scope. */
   | K_default K_clocking IDENTIFIER ';'
@@ -7358,12 +7417,14 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      event (no items); referenced as $global_clock. */
   | K_global K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, false, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@8); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@9, "clocking", $3, $9);
+        pform_end_clocking_block(@8); }
   | K_global K_clocking event_control ';'
       { pform_start_clocking_block(@2, 0, $3, false, true); }
-    clocking_items_opt K_endclocking
-      { pform_end_clocking_block(@7); }
+    clocking_items_opt K_endclocking label_opt
+      { check_end_label(@8, "clocking", nullptr, $8);
+        pform_end_clocking_block(@7); }
   /* M9 (IEEE 1800-2017 16.15): `default disable iff expr;` applies to
      every concurrent assertion in this module that lacks its own
      disable clause.
@@ -7431,9 +7492,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence(@2, $2, $4);
+      { check_end_label(@8, "sequence", $2, $8);
+	pform_sva_declare_sequence(@2, $2, $4);
 	delete[] $2;
-	delete[] $8;
       }
   /* A sequence_expr can carry a leading clocking_event and can itself be a
      multiclocked/combinator sequence.  Preserve the property-shaped IR. */
@@ -7444,11 +7505,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' event_control property_expr ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $5;
+      { check_end_label(@9, "sequence", $2, $9);
+	sva_property_t*p = $5;
 	if (p) p->clk_evt = $4; else delete $4;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $9;
       }
   /* A composite sequence is itself a sequence_expr and may continue through
      ##delay into an ordinary linear suffix. Keep this declaration-scoped
@@ -7461,11 +7522,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $5;
+      { check_end_label(@9, "sequence", $2, $9);
+	sva_property_t*p = $5;
 	if (p) p->clk_evt = $4; else delete $4;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $9;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
       property_expr ';' K_endsequence
@@ -7476,20 +7537,20 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
       property_expr ';' K_endsequence ':' IDENTIFIER
-      { sva_property_t*p = $6;
+      { check_end_label(@10, "sequence", $2, $10);
+	sva_property_t*p = $6;
 	if (p) p->clk_evt = $5; else delete $5;
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
-	delete[] $10;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence(@2, $2, $5);
 	delete[] $2;
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence(@2, $2, $5);
+      { check_end_label(@9, "sequence", $2, $9);
+	pform_sva_declare_sequence(@2, $2, $5);
 	delete[] $2;
-	delete[] $9;
       }
   /* M9D: parameterized named property/sequence declarations. Formal
      arguments (plain identifiers) are substituted with the actual
@@ -7519,9 +7580,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+      { check_end_label(@11, "sequence", $2, $11);
+	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
-	delete[] $11;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence
@@ -7530,9 +7591,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { pform_sva_declare_sequence_p(@2, $2, $4, $8);
+      { check_end_label(@12, "sequence", $2, $12);
+	pform_sva_declare_sequence_p(@2, $2, $4, $8);
 	delete[] $2;
-	delete[] $12;
       }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
      parameterized/complex forms are parsed and dropped via bison
@@ -9041,6 +9102,65 @@ sva_seq_atom
 	st.lv_name = lex_strings.make($4);
 	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
 	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  /* IEEE 1800-2017/2023 16.10: increment/decrement expressions are
+     sequence match items. Lower them to the resulting local-variable value
+     so the update uses the value carried by this assertion attempt. */
+  | '(' expression ',' IDENTIFIER K_INCR ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @4);
+	FILE_NAME(one, @4);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @4, $4, new PEBinary('+', lval, one));
+	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' K_INCR IDENTIFIER ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @5);
+	FILE_NAME(one, @5);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @5, $5, new PEBinary('+', lval, one));
+	delete[] $5;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' IDENTIFIER K_DECR ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @4);
+	FILE_NAME(one, @4);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @4, $4, new PEBinary('-', lval, one));
+	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' K_DECR IDENTIFIER ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	PExpr*one = new PENumber(new verinum(1));
+	FILE_NAME(lval, @5);
+	FILE_NAME(one, @5);
+	st.lv_rhs = pform_sva_coerce_local_assignment(
+	      @5, $5, new PEBinary('-', lval, one));
+	delete[] $5;
 	steps->push_back(st);
 	$$ = steps; }
   /* 16.11 bounded executable slice: calls alone, or calls after the local
@@ -14726,6 +14846,16 @@ hierarchy_identifier
 	$$->back().local_scope = true;
 	delete[]$3.text;
       }
+  | K_local K_SCOPE_RES K_this
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(perm_string::literal(THIS_TOKEN)));
+	$$->back().local_scope = true;
+      }
+  | K_local K_SCOPE_RES K_super
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(perm_string::literal(SUPER_TOKEN)));
+	$$->back().local_scope = true;
+      }
   | hierarchy_identifier '.' IDENTIFIER
       { pform_name_t * tmp = $1;
 	tmp->push_back(name_component_t(lex_strings.make($3)));
@@ -15614,19 +15744,6 @@ module_item
 	if ($4) delete $4;
       }
 
-  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
-
-      { data_type_t*data_type = $3;
-        pform_check_net_data_type(@2, $2, $3);
-	if (data_type == 0) {
-	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	      FILE_NAME(data_type, @2);
-	}
-	pform_set_net_delay(@2, $4, $5);
-	pform_set_data_type(@2, data_type, $5, $2, $1);
-	delete $1;
-      }
-
   | attribute_list_opt K_wreal delay3 net_variable_list ';'
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
 	pform_set_net_delay(@2, $3, $4);
@@ -15640,11 +15757,9 @@ module_item
 	delete $1;
       }
 
-  /* Very similar to the rule above, but this takes a list of
-     net_decl_assigns, which are <name> = <expr> assignment
-     declarations. */
+  /* Built-in net declarations accept an optional initializer on each name. */
 
-  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $3;
         pform_check_net_data_type(@2, $2, $3);
 	if (data_type == 0) {
@@ -15660,19 +15775,7 @@ module_item
      without an initializer has no assignment driver to which the strength
      applies, but it is nevertheless a legal net declaration. */
 
-  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
-      { data_type_t*data_type = $4;
-        pform_check_net_data_type(@2, $2, $4);
-	if (data_type == 0) {
-	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	      FILE_NAME(data_type, @2);
-	}
-	pform_set_net_delay(@2, $5, $6);
-	pform_set_data_type(@2, data_type, $6, $2, $1);
-	delete $1;
-      }
-
-  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $4;
         pform_check_net_data_type(@2, $2, $4);
 	if (data_type == 0) {
@@ -15687,7 +15790,7 @@ module_item
      after a nonempty data type/range. Restricting the carrier to the
      nonempty form avoids competing with the standards-order production
      when the data type is omitted. */
-  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns ';'
+  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $3;
         pform_check_net_data_type(@2, $2, $3);
 	pform_makewire(@2, $5, $4, $6, $2, data_type, $1);
@@ -15712,19 +15815,23 @@ module_item
      This creates the wire and sets the port type all at once. */
 
   | attribute_list_opt port_direction net_type_or_var data_type_or_implicit list_of_port_identifiers ';'
-      { pform_module_define_port(@2, $5, $2, $3, $4, $1); }
+      { pform_error_in_generate(@2, "port declaration");
+	pform_module_define_port(@2, $5, $2, $3, $4, $1); }
 
   | attribute_list_opt port_direction NETTYPE_IDENTIFIER list_of_port_identifiers ';'
-      { pform_set_nettype_referenced(@3, $3.text);
+      { pform_error_in_generate(@2, "port declaration");
+	pform_set_nettype_referenced(@3, $3.text);
 	pform_module_define_nettype_port(@2, $4, $2, $3.type, $1);
 	delete[]$3.text;
       }
 
   | attribute_list_opt port_direction K_interconnect interconnect_implicit_type list_of_port_identifiers ';'
-      { pform_module_define_interconnect_port(@2, $5, $2, $4, $1); }
+      { pform_error_in_generate(@2, "port declaration");
+	pform_module_define_interconnect_port(@2, $5, $2, $4, $1); }
 
   | attribute_list_opt port_direction K_wreal list_of_port_identifiers ';'
-      { real_type_t*real_type = new real_type_t(real_type_t::REAL);
+      { pform_error_in_generate(@2, "port declaration");
+	real_type_t*real_type = new real_type_t(real_type_t::REAL);
 	pform_module_define_port(@2, $4, $2, NetNet::WIRE, real_type, $1);
       }
 
@@ -15735,7 +15842,8 @@ module_item
        input signed [h:l] <list>;
    */
   | attribute_list_opt K_inout data_type_or_implicit list_of_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15747,7 +15855,8 @@ module_item
       }
 
   | attribute_list_opt K_input data_type_or_implicit list_of_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15759,7 +15868,8 @@ module_item
       }
 
   | attribute_list_opt K_output data_type_or_implicit list_of_variable_port_identifiers ';'
-      { NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
+      { pform_error_in_generate(@2, "port declaration");
+	NetNet::Type use_type = $3 ? NetNet::IMPLICIT : NetNet::NONE;
 	if (const vector_type_t*dtype = dynamic_cast<vector_type_t*> ($3)) {
 	      if (dtype->implicit_flag)
 		    use_type = NetNet::NONE;
@@ -15780,28 +15890,32 @@ module_item
       }
 
   | attribute_list_opt port_direction net_type_or_var data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($4) delete $4;
 	yyerrok;
       }
 
   | attribute_list_opt K_inout data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
       }
 
   | attribute_list_opt K_input data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
       }
 
   | attribute_list_opt K_output data_type_or_implicit error ';'
-      { yyerror(@2, "error: Invalid variable list in port declaration.");
+      { pform_error_in_generate(@2, "port declaration");
+	yyerror(@2, "error: Invalid variable list in port declaration.");
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
@@ -16532,6 +16646,42 @@ net_decl_assigns
       }
   | net_decl_assign
       { std::list<decl_assignment_t*>*tmp = new std::list<decl_assignment_t*>;
+	tmp->push_back($1);
+	$$ = tmp;
+      }
+  ;
+
+/* Built-in net declarations use the optional initializer on every
+   declarator that net_decl_assignment specifies. */
+net_decl_assign_mixed
+  : IDENTIFIER dimensions_opt initializer_opt
+      { decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1), @1.lexical_pos };
+	if ($2) tmp->index.splice(tmp->index.end(), *$2);
+	tmp->expr.reset($3);
+	delete $2;
+	delete[]$1;
+	$$ = tmp;
+      }
+  | NETTYPE_IDENTIFIER dimensions_opt initializer_opt
+      { decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1.text), @1.lexical_pos };
+	if ($2) tmp->index.splice(tmp->index.end(), *$2);
+	tmp->expr.reset($3);
+	delete $2;
+	delete[]$1.text;
+	$$ = tmp;
+      }
+  ;
+
+net_decl_assigns_mixed
+  : net_decl_assigns_mixed ',' net_decl_assign_mixed
+	  { $1->push_back($3);
+	$$ = $1;
+      }
+  | net_decl_assign_mixed
+      { std::list<decl_assignment_t*>*tmp =
+		new std::list<decl_assignment_t*>;
 	tmp->push_back($1);
 	$$ = tmp;
       }
@@ -19095,10 +19245,13 @@ statement_item /* This is roughly statement_item in the LRM */
 	      $$ = 0;
 	} else {
 	      tmp->set_statement($2);
+	      Statement*sequence_stmt =
+		pform_sva_sequence_event(@1, tmp);
+	      bool is_sequence_event = sequence_stmt != tmp;
 	      /* M9-10: a concurrent assertion inside this statement with
 		 no clock of its own inherits this event (16.14.6). */
-	      pform_sva_infer_procedural_clock(tmp);
-	      $$ = tmp;
+	      if (!is_sequence_event) pform_sva_infer_procedural_clock(tmp);
+	      $$ = sequence_stmt;
 	}
       }
   | '@' '*' statement_or_null
@@ -19799,7 +19952,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	bool is_std_rand = ($1 && $3
 			    && strcmp($1, "std")==0
 			    && strcmp($3, "randomize")==0
-			    && $4 && !$4->empty());
+			    && $4);
 	pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
@@ -20106,7 +20259,15 @@ rs_case_items
   : rs_case_item
       { $$ = new std::vector<rs_case_item_t>; $$->push_back(*$1); delete $1; }
   | rs_case_items rs_case_item
-      { $1->push_back(*$2); delete $2; $$ = $1; }
+      { if (!$2->expressions) {
+	    for (const rs_case_item_t&item : *$1) {
+		  if (!item.expressions) {
+			yyerror(@2, "error: Multiple default items in one randsequence case production.");
+			break;
+		  }
+	    }
+	}
+	$1->push_back(*$2); delete $2; $$ = $1; }
   ;
 
 rs_case_item

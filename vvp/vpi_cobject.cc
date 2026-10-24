@@ -212,6 +212,11 @@ int __vpiCobjectVar::get_type_code(void) const
 int __vpiCobjectVar::vpi_get(int code)
 {
       switch (code) {
+	case vpiIsStruct: {
+	      vvp_fun_signal_object*fun = get_object_fun_(this);
+	      const class_type*defn = get_declared_class_type_(fun);
+	      return defn && defn->is_struct_type() && !defn->is_union_type();
+	}
 	case vpiLineNo:
 	    return get_source_lineno();
 
@@ -474,6 +479,12 @@ class __vpiClassMember : public __vpiDarrayVar {
 		  }
 	    }
 	    switch (code) {
+		case vpiIsStruct: {
+		      const class_type*member_type =
+			    defn_->property_declared_class_type(idx_);
+		      return member_type && member_type->is_struct_type()
+			    && !member_type->is_union_type();
+		}
 		case vpiSize:      return (int)width_;
 		case vpiSigned:    return signed_ ? 1 : 0;
 		case vpiAutomatic: return 0;
@@ -1285,7 +1296,7 @@ class __vpiCovItem : public __vpiHandle {
 		  const class_type::cov_bin_t&bin = defn_->covgrp_bin(bi);
 		  if (bin.item_idx != item_) continue;
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7)
 			continue;
 		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
 		  bool seen = false;

@@ -261,7 +261,8 @@ void pform_blend_class_constructors(PClass*pclass)
       else if (use_new2 && use_new == 0)
             chain_new = use_new2->extract_chain_constructor();
 
-      if (pclass->type->base_default && chain_new
+      if ((pclass->type->base_default || !pclass->type->base_args.empty())
+          && chain_new
           && !chain_new->is_synthesized()) {
 	    cerr << pclass->get_fileline()
 		 << ": error: A class with arguments in its extends specifier "
@@ -490,8 +491,15 @@ void pform_set_recent_class_method_qualifiers(property_qualifier_t qual)
 
 void pform_mark_recent_class_method_virtual(void)
 {
-      if (pform_recent_class_method_)
-	    pform_recent_class_method_->set_virtual_method(true);
+	  if (pform_recent_class_method_) {
+		if (pform_recent_class_method_->method_qualifiers().test_static()) {
+		      cerr << pform_recent_class_method_->get_fileline()
+			   << ": error: Static methods cannot be virtual "
+			   << "(IEEE 1800 8.10)." << endl;
+		      error_count += 1;
+		}
+		pform_recent_class_method_->set_virtual_method(true);
+	  }
       pform_recent_class_method_ = 0;
 }
 

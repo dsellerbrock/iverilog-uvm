@@ -1,0 +1,1 @@
+ivltests/sv_covergroup_dup_option.v:5: error: duplicate coverage option 'weight'.

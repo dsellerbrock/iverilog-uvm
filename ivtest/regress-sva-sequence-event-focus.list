@@ -1,0 +1,2 @@
+sv_sva_sequence_event_2017 normal,-g2017,-s,sv_sva_sequence_event ivltests gold=sv_sva_sequence_event.gold
+sv_sva_sequence_event_2023 normal,-g2023,-s,sv_sva_sequence_event ivltests gold=sv_sva_sequence_event.gold

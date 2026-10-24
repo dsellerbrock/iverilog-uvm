@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "elab_task_format_info.v",
+    "iverilog-args": ["-g2017", "-s", "elab_task_format_info"]
+}

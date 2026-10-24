@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_property_event_rebind_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_class_property_event_rebind"
+  ],
+  "gold": "sv_class_property_event_rebind_2017"
+}

@@ -1,0 +1,2 @@
+ivltests/array_query_dynamic_type_err.v:3: error: Array query functions cannot be used directly on a dynamically sized type identifier.
+1 error(s) during elaboration.

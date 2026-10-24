@@ -1,0 +1,2 @@
+PASS
+ivltests/sv_assoc_array_query.v:33: $finish called at 0 (1s)

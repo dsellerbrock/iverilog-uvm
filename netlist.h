@@ -4254,6 +4254,9 @@ class NetEvent : public LineInfo {
 
       perm_string name() const;
 
+      bool is_declared_event() const { return is_declared_event_; }
+      void set_declared_event() { is_declared_event_ = true; }
+
       unsigned lexical_pos() const { return lexical_pos_; }
       void lexical_pos(unsigned lp) { lexical_pos_ = lp; }
 
@@ -4322,6 +4325,7 @@ class NetEvent : public LineInfo {
       unsigned lexical_pos_;
       bool local_flag_;
       ivl_lifetime_t lifetime_override_;
+      bool is_declared_event_ = false;
 
 	// Per-instance class event support (see is_class_event()).
       bool is_class_event_ = false;
@@ -5906,6 +5910,8 @@ class NetESFunc  : public NetExpr {
 	 * It is not an r-value parameter and is owned by this expression. */
       void set_ref_output(NetAssign_*lval);
       const NetAssign_* ref_output() const { return ref_output_; }
+      void set_ref_output2(NetAssign_*lval);
+      const NetAssign_* ref_output2() const { return ref_output2_; }
 
 	/* A dynamic virtual-interface function expression can select one of
 	 * several concrete interface-instance method scopes at run time. The
@@ -6000,6 +6006,7 @@ class NetESFunc  : public NetExpr {
       ivl_variable_type_t type_;
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
+      NetAssign_*ref_output2_;
       std::vector<NetScope*>vif_methods_;
       std::vector<bool>vif_default_parms_;
       bool is_overridden_;

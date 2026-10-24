@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_vcd_event_checkpoint_2017.v",
+  "iverilog-args": ["-g2017", "-s", "sv_vcd_event_checkpoint"],
+  "gold": "sv_vcd_event_checkpoint"
+}

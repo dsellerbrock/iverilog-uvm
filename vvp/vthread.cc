@@ -191,6 +191,8 @@ class vvp_process : public vvp_object {
       void mark_killed();
       unsigned status() const;
       vthread_t owner() const;
+      void add_descendant(vvp_object_t process);
+      const std::vector<vvp_object_t>& descendants() const;
 
 	/* Returns true when THR was actually queued, so that the %process/await
 	   opcode only parks a thread it managed to register. */
@@ -223,6 +225,7 @@ class vvp_process : public vvp_object {
 
     private:
       vthread_t owner_;
+      std::vector<vvp_object_t> descendants_;
       unsigned final_status_;
       bool final_status_valid_;
       std::set<vthread_t> waiters_;
@@ -925,6 +928,10 @@ struct vthread_s {
 	// suspended) so the process continues where it left off.
       unsigned suspended :1;
       unsigned suspend_resched :1;
+	// A named-event wait is removed when a blocked process is suspended.
+	// Resume must execute the wait opcode again instead of consuming an
+	// event occurrence that happened while the process was suspended.
+      unsigned resume_event_wait :1;
 	// True while the thread is parked on a procedural delay (#d). Unlike
 	// i_am_waiting / waiting_for_event this is not otherwise tracked
 	// (a delay just reschedules the thread on the timing wheel, which
@@ -1460,6 +1467,16 @@ unsigned vvp_process::status() const
 vthread_t vvp_process::owner() const
 {
       return owner_;
+}
+
+void vvp_process::add_descendant(vvp_object_t process)
+{
+      descendants_.push_back(process);
+}
+
+const std::vector<vvp_object_t>& vvp_process::descendants() const
+{
+      return descendants_;
 }
 
 bool vvp_process::add_waiter(vthread_t thr)
@@ -3246,6 +3263,28 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*array = recv.peek<vvp_darray>();
+	  vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
+
+	  if (assoc && dim == 1) {
+		int32_t value = 0;
+		if (cp->number == 0) {
+		      value = static_cast<int32_t>(assoc->size());
+		} else if (cp->number == 3 || cp->number == 4) {
+		      vvp_vector4_t key;
+		      bool found = cp->number == 3
+			    ? assoc->first_key(key, true) : assoc->last_key(key, true);
+		      if (!found) {
+			    vvp_vector4_t unknown(32, BIT4_X);
+			    thr->push_vec4(unknown);
+			    return true;
+		      }
+		      vector4_to_value(key, value, true, false);
+		}
+		vvp_vector4_t result;
+		size_to_vec4_(static_cast<uint32_t>(value), result);
+		thr->push_vec4(result);
+		return true;
+	  }
 
       for (int cur = 1 ; array && cur < dim ; cur += 1) {
 	    if (array->get_size() == 0) {
@@ -7623,6 +7662,55 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
       cobj->get_defn()->type_bump(prop);
 }
 
+static uint64_t covgrp_wide_auto_bin_(const vvp_vector4_t&value,
+				       unsigned bins)
+{
+	  unsigned width = value.size();
+	  vector<uint32_t> size((width + 31) / 32, 0);
+	  uint64_t remainder = 0;
+	  // Compute floor(2**width / bins), the common range size. The
+	  // standard assigns any non-divisible remainder to the last bin.
+	  for (unsigned pos = width + 1; pos-- > 0;) {
+		uint64_t next = (remainder << 1) | (pos == width ? 1 : 0);
+		remainder = next % bins;
+		if (pos < width && next / bins)
+		      size[pos / 32] |= uint32_t(1) << (pos % 32);
+	  }
+	  vector<uint32_t> sampled(size.size(), 0);
+	  uint64_t carry = 0;
+	  for (unsigned word = 0; word < size.size(); word++) {
+		unsigned count = min(32u, width - word * 32);
+		for (unsigned bit = 0; bit < count; bit++)
+		      if (value.value(word * 32 + bit) == BIT4_1)
+			    sampled[word] |= uint32_t(1) << bit;
+	  }
+	  unsigned low = 0, high = bins;
+	  while (low + 1 < high) {
+		unsigned bin = low + (high - low) / 2;
+		vector<uint32_t> boundary(size.size() + 1, 0);
+		carry = 0;
+		for (unsigned word = 0; word < size.size(); word++) {
+		      uint64_t part = uint64_t(size[word]) * bin + carry;
+		      boundary[word] = uint32_t(part);
+		      carry = part >> 32;
+		}
+		boundary[size.size()] = uint32_t(carry);
+		bool at_least = false;
+		for (unsigned word = size.size(); word-- > 0;) {
+		      uint32_t bound = boundary[word];
+		      uint32_t got = word < sampled.size() ? sampled[word] : 0;
+		      if (got != bound) {
+			    at_least = got > bound;
+			    break;
+		      }
+		      if (word == 0) at_least = true;
+		}
+		if (at_least) low = bin;
+		else high = bin;
+	  }
+	  return low;
+}
+
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
@@ -7651,16 +7739,10 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
       if (wide_val && wide_val->has_xz()) return false;
 	  if (bin.kind & 512) {
 	    unsigned width = bin.hi >> 32;
-	    unsigned bits = bin.hi & 0xffffffffu;
+	    unsigned bins = bin.hi & 0xffffffffu;
 	    if (!wide_val || width <= 64 || wide_val->size() != width
-		|| bits > 64 || bits > width
-		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
-	    unsigned start = width - bits;
-	    for (unsigned bit = 0; bit < bits; bit++)
-		if (wide_val->value(start + bit)
-		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
-		      return false;
-	    return true;
+		|| bins == 0 || bin.lo >= bins) return false;
+	    return covgrp_wide_auto_bin_(*wide_val, bins) == bin.lo;
       }
       if (bin.kind & 64) {
 	    unsigned width = bin.hi >> 16;
@@ -9762,6 +9844,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned item;
 	    unsigned cp;
       };
+	std::vector<default_special_t> default_array_props;
       std::vector<default_special_t> default_illegal;
       std::vector<default_special_t> default_ignore;
 
@@ -9776,6 +9859,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  if (!bin_enabled(first.guard_idx)) continue;
 		  default_props.push_back(std::make_pair(kv.first,
 						 first.item_idx));
+		  continue;
+	    }
+	    if (k == 7) {
+		  if (!bin_enabled(first.guard_idx)) continue;
+		  default_special_t special = { kv.first, first.item_idx,
+					first.cp_idx };
+		  default_array_props.push_back(special);
 		  continue;
 	    }
 	    if (k == 5 || k == 6) {
@@ -9958,6 +10048,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    covgrp_bump_count_(cobj, dp.first);
       }
+	for (auto&dp : default_array_props) {
+	    if (!item_enabled(dp.item)) continue;
+	    if (item_matched.count(dp.item) && item_matched[dp.item])
+		  continue;
+	    if (dp.cp >= ncp || !cp_sampled[dp.cp] || cp_suppressed[dp.cp])
+		  continue;
+	    // An array default bin is keyed by each unmatched sampled value.
+	    // These counters remain outside the coverage denominator, as required
+	    // for default bins, while retaining distinct value identities.
+	    std::string value_key;
+	    if (wide_vals[dp.cp].size() != 0) {
+		  unsigned width = wide_vals[dp.cp].size();
+		  value_key.append(reinterpret_cast<const char*>(&width), sizeof width);
+		  for (unsigned bit = 0; bit < width; bit++)
+			value_key.push_back(static_cast<char>(wide_vals[dp.cp].value(bit)));
+	    } else {
+		  uint64_t value = cp_vals[dp.cp];
+		  value_key.append(reinterpret_cast<const char*>(&value), sizeof value);
+	    }
+	    cobj->cov_default_array_bump(dp.prop, value_key);
+	}
 }
 
 /* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
@@ -10141,9 +10252,13 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * excluded from both numerator and denominator (19.11 option model).
  */
 double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
-				    int selected_item)
+				    int selected_item,
+				    long double*covered_bins,
+				    long double*defined_bins)
 {
       if (contributes) *contributes = false;
+      if (covered_bins) *covered_bins = 0.0L;
+      if (defined_bins) *defined_bins = 0.0L;
       double result = 0.0;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -10157,7 +10272,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7)
 			continue;
 		  if (k == 4 && bin.trans_family != class_type::COV_NO_FAMILY) {
 			if (seen_trans_families.insert(bin.trans_family).second) {
@@ -10257,6 +10372,8 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 			      hits += 1;
 		  }
 		  if (total == 0.0) continue;
+		  if (covered_bins) *covered_bins += hits;
+		  if (defined_bins) *defined_bins += total;
 		  double icov = (double)(100.0L * (long double)hits / total);
 		  if (selected_item >= 0) {
 		    if (contributes) *contributes = true;
@@ -10280,15 +10397,48 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
       return result;
 }
 
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+static bool of_COVGRP_GET_INST_COVERAGE_(vthread_t thr, bool has_output_refs)
 {
+	  vvp_object_t total_ref_obj, covered_ref_obj;
+	  if (has_output_refs) {
+		thr->pop_object(total_ref_obj);
+		thr->pop_object(covered_ref_obj);
+	  }
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-            ? cobj->get_defn()->type_coverage(cobj)
-            : vvp_covgrp_instance_coverage(cobj));
+      long double covered = 0.0L, defined = 0.0L;
+	  bool contributes = false;
+      double result = cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+	    ? cobj->get_defn()->type_coverage(cobj)
+	    : vvp_covgrp_instance_coverage(cobj, &contributes, -1,
+						 &covered, &defined);
+      if (has_output_refs) {
+	    vvp_lvalue_ref*covered_ref = covered_ref_obj.peek<vvp_lvalue_ref>();
+	    vvp_lvalue_ref*total_ref = total_ref_obj.peek<vvp_lvalue_ref>();
+	    auto store_count = [](vvp_lvalue_ref*ref, long double count) {
+		  if (!ref) return;
+		  uint32_t value = static_cast<uint32_t>(count);
+		  vvp_vector4_t data(ref->value_width(), BIT4_0);
+		  for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
+			if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
+		  ref->store_vec4(data);
+	    };
+	    store_count(covered_ref, contributes ? covered : 0.0L);
+	    store_count(total_ref, contributes ? defined : 0.0L);
+      }
+      thr->push_real(result);
       return true;
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      return of_COVGRP_GET_INST_COVERAGE_(thr, false);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t)
+{
+      return of_COVGRP_GET_INST_COVERAGE_(thr, true);
 }
 
 bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
@@ -17871,6 +18021,8 @@ bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t cp)
  * blocking task calls and named sequential blocks deliberately share that
  * process, while explicit fork branches retain their own queue.
  */
+static bool validate_final_deferred_task_thunk_(vvp_code_t action);
+
 bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 {
       vthread_t owner = logical_process_thread_(thr);
@@ -17881,7 +18033,9 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
       vvp_code_t key = cp->cptr2;
 
-      if (!process || !key || key->opcode != of_DEFER_ENQUEUE_KEY
+      bool task_key = key && key->opcode == of_DEFER_ENQUEUE_TASK_KEY;
+      if (!process || !key
+          || (key->opcode != of_DEFER_ENQUEUE_KEY && !task_key)
           || !key->number || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
@@ -17894,7 +18048,16 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       }
       vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
-      if (!capture_deferred_args_(thr, action_pc, action_args, "observed"))
+      if (task_key) {
+            if (!validate_final_deferred_task_thunk_(action_pc)) {
+                  fprintf(stderr,
+                          "vvp: malformed observed-deferred user-task thunk; "
+                          "expected a complete zero-formal task call and "
+                          "dropped the report.\n");
+                  return true;
+            }
+      } else if (!capture_deferred_args_(thr, action_pc, action_args,
+                                         "observed"))
 	    return true;
 
       process->enqueue_deferred_assert(
@@ -17903,6 +18066,11 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 }
 
 bool of_DEFER_ENQUEUE_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+bool of_DEFER_ENQUEUE_TASK_KEY(vthread_t, vvp_code_t)
 {
       return true;
 }
@@ -19903,6 +20071,17 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	  && (cp->scope->get_type_code() == vpiTask
 	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
+
+	/* Keep the logical process tree after vthread_reap reparents detached
+	   threads for wait fork. A finished process handle must still reach its
+	   live fork descendants when process::kill() is called later. */
+      if (!child->is_fork_v_child) {
+	    vthread_t parent_process = logical_process_thread_(thr);
+	    vvp_process*parent_obj = parent_process
+		  ? parent_process->process_obj_.peek<vvp_process>() : 0;
+	    if (parent_obj)
+		  parent_obj->add_descendant(child->process_obj_);
+      }
 
 	/* R3 (IEEE 1800-2017 18.13.1): a real independent process -- exactly
 	   the threads logical_process_thread_() does NOT walk past, i.e.
@@ -27205,6 +27384,15 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       if (!proc)
 	    return true;
 
+	vthread_t owner = logical_process_thread_(thr);
+      if (owner && proc->owner() == owner) {
+	    cerr << "runtime error: process::await() called on the current process."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
       unsigned status = proc->status();
       if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
 	    return true;
@@ -27265,6 +27453,26 @@ static void kill_detached_subprocesses_(vthread_t thr)
       }
 }
 
+static void kill_process_descendants_(vvp_process*proc)
+{
+      if (!proc) return;
+
+      const std::vector<vvp_object_t>&descendants = proc->descendants();
+      for (size_t idx = 0 ; idx < descendants.size() ; idx += 1) {
+	    vvp_process*child = descendants[idx].peek<vvp_process>();
+	    if (!child) continue;
+
+	    kill_process_descendants_(child);
+	    vthread_t owner = child->owner();
+	    if (!owner) continue;
+
+	    kill_detached_subprocesses_(owner);
+	    unsigned status = child->status();
+	    if (status != PROCESS_STATE_FINISHED && status != PROCESS_STATE_KILLED)
+		  (void)do_disable(owner, owner);
+      }
+}
+
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -27275,11 +27483,18 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 	    return true;
 
       vthread_t target = proc->owner();
-      if (!target)
-	    return true;
-
       unsigned status = proc->status();
-      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED) {
+            /* IEEE 1800-2023 9.7 explicitly requires kill() on a terminal
+               process to still terminate its live descendants. 2017 9.7
+               likewise requires kill() to terminate all subprocesses. */
+	    kill_process_descendants_(proc);
+	    if (target)
+		  kill_detached_subprocesses_(target);
+	    return true;
+      }
+
+      if (!target)
 	    return true;
 
       vthread_t self_process = logical_process_thread_(thr);
@@ -27367,6 +27582,20 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
 	    vthread_t part = parts[idx];
 	    part->suspended = 1;
 
+	      // A named-event wait is edge-like: an occurrence while suspended
+	      // must not satisfy it. Remove the waiter now and remember to arm
+	      // the same wait again when resume() is called. Other wait kinds
+	      // keep their existing wake behavior (notably wait conditions and
+	      // delays, whose state is re-evaluated on wake).
+	    if (part->waiting_for_event && part->last_pause_pc
+	        && part->last_pause_pc->opcode == &of_WAIT
+	        && part->last_pause_pc->net
+	        && part->last_pause_pc->net->fun
+	        && dynamic_cast<vvp_named_event*>(part->last_pause_pc->net->fun)) {
+		  vthread_cancel_event_wait(part);
+		  part->resume_event_wait = 1;
+	    }
+
 	      // A running/ready thread must be rescheduled by resume() to
 	      // make progress. A blocked one (waiting on an event or a join)
 	      // will have its reschedule armed by vthread_run when the wake
@@ -27418,6 +27647,12 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
 	    if (!part->suspended) continue;
 
 	    part->suspended = 0;
+
+	    if (part->resume_event_wait) {
+		  part->resume_event_wait = 0;
+		  part->pc = part->last_pause_pc;
+		  part->suspend_resched = 1;
+	    }
 
 	    if (part->suspend_resched) {
 		  part->suspend_resched = 0;
@@ -34966,6 +35201,25 @@ bool of_VIF_FATAL(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/* A null virtual-interface property receiver is a fatal component access
+ * under IEEE 1800-2017/2023 25.9. */
+bool of_VIF_NULLCHECK(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() < 1 || !thr->peek_object().test_nil())
+            return true;
+      static bool reported = false;
+      if (!reported) {
+            reported = true;
+            fprintf(stderr,
+                    "runtime error: attempted to use a null virtual interface;"
+                    " a virtual interface must be initialized before"
+                    " referencing one of its components.\n");
+            vpip_set_return_value(1);
+            schedule_finish(0);
+      }
+      return false;
+}
+
 /*
  * %vif/tickchg <M>
  *
@@ -35394,6 +35648,13 @@ bool of_SEM_GET(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.get() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
+      }
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
@@ -35422,6 +35683,13 @@ bool of_SEM_PUT(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.put() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
+      }
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
@@ -35447,13 +35715,16 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      bool negative = nval & (1UL << 31);
+      if (negative)
+	    cerr << "runtime error: semaphore.try_get() called with negative keyCount" << endl;
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
       vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
-      bool ok = sem ? sem->try_get(nval ? nval : 1) : false;
+      bool ok = !negative && sem ? sem->try_get(nval ? nval : 1) : false;
       vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
       return true;

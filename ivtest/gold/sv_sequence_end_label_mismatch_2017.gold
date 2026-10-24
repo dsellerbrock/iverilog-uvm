@@ -1,0 +1,1 @@
+./ivltests/sv_sequence_end_label_mismatch_2017.v:5: error: sequence end label `s_mismatched` doesn't match sequence name `s_correct`.

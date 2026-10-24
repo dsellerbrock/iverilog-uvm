@@ -67,6 +67,8 @@
 # gold or diff commands.
 #
 
+sv_vcd_event_checkpoint_2017 normal,-g2017,-s,sv_vcd_event_checkpoint ivltests gold=sv_vcd_event_checkpoint_2017.gold
+
 always_comb		normal,-g2005-sv	ivltests
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
@@ -668,6 +670,8 @@ sv_class_constructor_default_duplicate_2023 CE,-g2023,-s,test ivltests
 sv_class_constructor_default_extends_missing_2023 CE,-g2023,-s,test ivltests
 sv_class_constructor_default_extends_super_call_2023 CE,-g2023,-s,test ivltests
 sv_class_constructor_default_extends_2017 CE,-g2017,-s,test ivltests
+sv_class_extends_args_super_new_fail_2017 CE,-g2017,-s,test ivltests
+sv_class_extends_args_super_new_fail_2023 CE,-g2023,-s,test ivltests
 sv_class_constructor_default_local_ref_2023 CE,-g2023,-s,test ivltests
 sv_class_empty_item	normal,-g2009		ivltests
 sv_class_extends_scoped	normal,-g2009		ivltests
@@ -766,6 +770,8 @@ sv_end_label_fail	CE,-g2009		ivltests gold=sv_end_label_fail.gold
 sv_end_labels		normal,-g2009		ivltests
 sv_end_labels_bad	CE,-g2009		ivltests gold=sv_end_labels_bad.gold
 sv_end_labels_unnamed	CE,-g2009		ivltests gold=sv_end_labels_unnamed.gold
+sv_sequence_end_label_mismatch_2017	CE,-g2017	ivltests gold=sv_sequence_end_label_mismatch_2017.gold
+sv_sequence_end_label_mismatch_2023	CE,-g2023	ivltests gold=sv_sequence_end_label_mismatch_2023.gold
 sv_enum1		normal,-g2009		ivltests
 sv_export1		normal,-g2009		ivltests
 sv_export2		normal,-g2009		ivltests
@@ -1237,6 +1243,8 @@ sv_display_p_aggregates normal,-g2012 ivltests
 sv_display_explicit_width_2017 normal,-g2017,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
 sv_display_explicit_width_2023 normal,-g2023,-s,sv_display_explicit_width ivltests gold=sv_const_string_format.gold
 sv_process_suspend_resume normal,-g2012 ivltests
+sv_process_resume_event_rearm normal,-g2017 ivltests gold=sv_process_resume_event_rearm.gold
+sv_process_resume_event_rearm_2023 normal,-g2023 ivltests gold=sv_process_resume_event_rearm.gold
 sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests
@@ -1660,6 +1668,8 @@ sv_covergroup_wide_exact_cross normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop 
 sv_covergroup_wide_exact_cross_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_exact_cross.gold
 sv_covergroup_wide_auto_bins normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests
 sv_covergroup_wide_auto_bins_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests
+sv_covergroup_wide_nonpower_auto_bins_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests
+sv_covergroup_wide_nonpower_auto_bins_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests
 sv_covergroup_wide_open_array_named_cross normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_open_array_named_cross.gold
 sv_covergroup_wide_open_array_named_cross_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_open_array_named_cross.gold
 sv_covergroup_wide_reject_unsupported CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_reject_unsupported.gold
@@ -1738,7 +1748,10 @@ sv_randomize_with_identifier_scope normal,-g2012 ivltests gold=sv_randomize_with
 sv_randomize_with_identifier_unknown_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_unknown_fail.gold
 sv_randomize_with_identifier_no_block_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_no_block_fail.gold
 sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_randomize_with_identifier_list_fail.gold
+sv_scope_randomize_null_fail CE,-g2017 ivltests gold=sv_scope_randomize_null_fail.gold
+sv_scope_randomize_null_fail CE,-g2023 ivltests gold=sv_scope_randomize_null_fail.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
+sv_sampled_value_missing_clock CE,-g2017 ivltests
 sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
 sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
@@ -2014,6 +2027,7 @@ sv_bind_same_name_disjoint normal,-g2017,-ssv_bind_same_name_disjoint ivltests g
 sv_bind_same_name_disjoint_2023 normal,-g2023,-ssv_bind_same_name_disjoint ivltests gold=sv_bind_same_name_disjoint.gold
 sv_bind_same_name_target_overlap_fail CE,-g2017,-ssv_bind_same_name_target_overlap_fail ivltests gold=sv_bind_same_name_target_overlap_fail.gold
 sv_bind_same_name_target_overlap_fail_2023 CE,-g2023,-ssv_bind_same_name_target_overlap_fail ivltests gold=sv_bind_same_name_target_overlap_fail.gold
+sv_clocking_read_output CE,-g2017,-ssv_clocking_read_output ivltests gold=sv_clocking_read_output.gold
 sv_bind_same_name_list_overlap_fail CE,-g2017,-ssv_bind_same_name_list_overlap_fail ivltests gold=sv_bind_same_name_list_overlap_fail.gold
 sv_bind_same_name_list_overlap_fail_2023 CE,-g2023,-ssv_bind_same_name_list_overlap_fail ivltests gold=sv_bind_same_name_list_overlap_fail.gold
 sv_bind_target_list_invalid_first_fail CE,-g2017,-ssv_bind_target_list_invalid_first_fail ivltests gold=sv_bind_target_list_invalid_first_fail.gold
@@ -2362,6 +2376,8 @@ sv_randc_container_transactions normal,-g2012 ivltests gold=sv_randc_container_t
 
 # Fixed-unpacked-array rand_mode and independent randc leaf state
 sv_randc_fixed_array_modes normal,-g2012 ivltests gold=sv_randc_fixed_array_modes.gold
+sv_static_constraint_mode normal,-g2017,-s,test ivltests gold=sv_static_constraint_mode.gold
+sv_static_constraint_mode_2023 normal,-g2023,-s,test ivltests gold=sv_static_constraint_mode.gold
 sv_rand_array_mode_object_struct normal,-g2012 ivltests gold=sv_rand_array_mode_object_struct.gold
 sv_rand_mode_fixed_indexing normal,-g2012 ivltests gold=sv_rand_mode_fixed_indexing.gold
 sv_rand_mode_packed_select normal,-g2012 ivltests gold=sv_rand_mode_packed_select.gold
@@ -2497,6 +2513,10 @@ sv_dumpports_duplicate_scope_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate
 sv_dumpports_duplicate_file_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_file_fail.gold
 sv_dumpports_late_fail RE,-g2012 ivltests gold=sv_dumpports_late_fail.gold
 
+# IEEE 1800-2017/2023 §21.7.5: unpacked structures are fork scopes in VCD.
+sv_vcd_unpacked_struct_2017 normal,-g2017,-s,sv_vcd_unpacked_struct_2017 ivltests gold=sv_vcd_unpacked_struct_2017.gold
+sv_vcd_unpacked_struct_2023 normal,-g2023,-s,sv_vcd_unpacked_struct_2023 ivltests gold=sv_vcd_unpacked_struct_2023.gold
+
 # $finish drains already-scheduled work but event controls do not re-spawn it
 sv_finish_event_rearm normal,-g2012 ivltests gold=sv_finish_event_rearm.gold
 
@@ -2531,7 +2551,9 @@ sv_net_decl_delay_wide normal,-g2012 ivltests gold=sv_net_decl_delay_wide.gold
 sv_net_decl_delay_invalid_expr_fail CE,-g2012 ivltests gold=sv_net_decl_delay_invalid_expr_fail.gold
 sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_port_inline_fail.gold
 
-# IEEE 1800-2017/2023 13.4.4 function fork boundary and deferred side effects
+# IEEE 1800-2017/2023 13.4.3/13.4.4 function fork boundary and deferred side effects
+sv_const_function_fork_fail_2017 CE,-g2017 ivltests gold=sv_const_function_fork_fail_2017.gold
+sv_const_function_fork_fail_2023 CE,-g2023 ivltests gold=sv_const_function_fork_fail_2023.gold
 sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
 sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold
 sv_function_background_always_fork_ok normal,-g2012 ivltests gold=sv_function_background_always_fork_ok.gold
@@ -3283,6 +3305,8 @@ sv_queue_last_lvalue_nba normal,-g2017 ivltests gold=sv_queue_last_lvalue_nba.go
 sv_queue_last_lvalue_nba_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue_nba.gold
 sv_queue_last_lvalue_invalid CE,-g2017 ivltests gold=sv_queue_last_lvalue_invalid.gold
 sv_queue_last_lvalue_invalid_2023 CE,-g2023 ivltests gold=sv_queue_last_lvalue_invalid.gold
+sv_class_local_constructor_visibility_2017 CE,-g2017 ivltests
+sv_class_local_constructor_visibility_2023 CE,-g2023 ivltests
 sv_process_kill_task_descendants normal,-g2017 ivltests gold=sv_process_kill_task_descendants.gold
 sv_process_kill_task_descendants_2023 normal,-g2023 ivltests gold=sv_process_kill_task_descendants.gold
 sv_process_kill_task_self normal,-g2017 ivltests gold=sv_process_kill_task_self.gold
@@ -4607,6 +4631,8 @@ sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_n
 
 sv_covergroup_signed_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
 sv_covergroup_signed_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
+sv_covergroup_array_default_bins_2017 normal,-g2017,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
+sv_covergroup_array_default_bins_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
 sv_covergroup_open_end_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_transition normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_transition.gold
@@ -4897,6 +4923,8 @@ sv_whole_function_event_receiver_expression_2017 normal,-g2017,-ssv_whole_functi
 sv_whole_function_event_receiver_expression_2023 normal,-g2023,-ssv_whole_function_event_receiver_expression ivltests gold=sv_whole_function_event_receiver_expression_2023.gold
 sv_whole_function_event_receiver_rebind_2017 normal,-g2017,-ssv_whole_function_event_receiver_rebind ivltests gold=sv_whole_function_event_receiver_rebind_2017.gold
 sv_whole_function_event_receiver_rebind_2023 normal,-g2023,-ssv_whole_function_event_receiver_rebind ivltests gold=sv_whole_function_event_receiver_rebind_2023.gold
+sv_class_property_event_rebind_2017 normal,-g2017,-ssv_class_property_event_rebind ivltests gold=sv_class_property_event_rebind_2017.gold
+sv_class_property_event_rebind_2023 normal,-g2023,-ssv_class_property_event_rebind ivltests gold=sv_class_property_event_rebind_2023.gold
 sv_whole_function_event_selector_2017 normal,-g2017,-ssv_whole_function_event_selector ivltests gold=sv_whole_function_event_selector_2017.gold
 sv_whole_function_event_selector_2023 normal,-g2023,-ssv_whole_function_event_selector ivltests gold=sv_whole_function_event_selector_2023.gold
 sv_whole_function_event_static_forward_2017 normal,-g2017,-ssv_whole_function_event_static_forward ivltests gold=sv_whole_function_event_static_forward_2017.gold
@@ -4925,6 +4953,8 @@ sv_class_event_list_ordinary_control_2017 normal,-g2017,-score_ordinary_control 
 sv_class_event_list_ordinary_control_2023 normal,-g2023,-score_ordinary_control ivltests gold=sv_class_event_list_ordinary_control_2023.gold
 sv_class_event_list_invalid_member_2017 CE,-g2017,-ssv_class_event_list_invalid_member ivltests gold=sv_class_event_list_invalid_member_2017.gold
 sv_class_event_list_invalid_member_2023 CE,-g2023,-ssv_class_event_list_invalid_member ivltests gold=sv_class_event_list_invalid_member_2023.gold
+sv_function_own_name_duplicate_2017 CE,-g2017,-ssv_function_own_name_duplicate ivltests gold=sv_function_own_name_duplicate_2017.gold
+sv_function_own_name_duplicate_2023 CE,-g2023,-ssv_function_own_name_duplicate ivltests gold=sv_function_own_name_duplicate_2023.gold
 sv_class_event_triggered_2017 normal,-g2017,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
 sv_class_event_triggered_2023 normal,-g2023,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
 sv_event_triggered_call_2017 normal,-g2017,-I./ivltests,-ssv_event_triggered_call ivltests gold=sv_event_triggered_call.gold
@@ -5008,6 +5038,8 @@ sv_constraint_inline_function_caller_xz_2017 normal,-g2017,-s,caller_xz_2017 ivl
 sv_constraint_inline_function_caller_xz_2023 normal,-g2023,-s,caller_xz_2023 ivltests gold=sv_constraint_inline_function_caller_xz_2023.gold
 
 # Caller-scope object method calls in inline constraints.
+sv_constraint_local_this_super_2017 normal,-g2017,-s,sv_constraint_local_this_super_2017 ivltests gold=sv_constraint_local_this_super.gold
+sv_constraint_local_this_super_2023 normal,-g2023,-s,sv_constraint_local_this_super_2023 ivltests gold=sv_constraint_local_this_super.gold
 sv_constraint_caller_method normal,-g2017,-s,top ivltests gold=sv_constraint_caller_method.gold
 sv_constraint_caller_method_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_caller_method.gold
 sv_constraint_caller_nested_method normal,-g2017,-s,top ivltests gold=sv_constraint_caller_nested_method.gold
@@ -5372,6 +5404,8 @@ sv_std_randomize_unpacked_struct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv
 sv_std_randomize_unpacked_struct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
 sv_std_randomize_fixed_array_with_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
 sv_std_randomize_fixed_array_with_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
+sv_std_randomize_zero_arg_checker normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_zero_arg_checker ivltests gold=sv_std_randomize_zero_arg_checker.gold
+sv_std_randomize_zero_arg_checker_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_zero_arg_checker ivltests gold=sv_std_randomize_zero_arg_checker.gold
 sv_bitstoreal_wide_arg normal,-g2017,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
 sv_bitstoreal_wide_arg_2023 normal,-g2023,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
 sv_ref_event_nonintegral_actual normal,-g2017,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
@@ -5756,6 +5790,11 @@ sv_wait_order_duplicate_interpretation_2023 normal,-g2023,-s,sv_wait_order_dupli
 sv_wait_order_vlog95 CE,-g2017,-tvlog95,-s,sv_wait_order_target ivltests gold=sv_wait_order_vlog95.gold
 sv_wait_order_vhdl CE,-g2017,-tvhdl,-s,sv_wait_order_target ivltests gold=sv_wait_order_vhdl.gold
 sv_wait_order_synth CE,-g2017,-S,-tnull,-s,sv_wait_order_synthesis ivltests gold=sv_wait_order_synth.gold
+
+# IEEE 1800-2017 §12.5: multiple defaults in a case statement are illegal.
+sv_case_multiple_default_fail CE,-g2017,-s,sv_case_multiple_default_fail ivltests
+sv_case_matches_multiple_default_fail CE,-g2017,-s,sv_case_matches_multiple_default_fail ivltests
+sv_case_inside_multiple_default_fail CE,-g2017,-s,sv_case_inside_multiple_default_fail ivltests
 # IEEE 1800-2017 A.9.3 note 37 / 13.5.5 and 1800-2023 13.5.5.
 sv_class_method_noarg_string_concat_2017 normal,-g2017,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
 sv_class_method_noarg_string_concat_2023 normal,-g2023,-s,test ivltests gold=sv_class_method_noarg_string_concat.gold
@@ -5778,3 +5817,15 @@ sv_defparam_cross_generate_block_fail CE,-g2017,-s,sv_defparam_cross_generate_bl
 sv_defparam_cross_generate_block_fail_2023 CE,-g2023,-s,sv_defparam_cross_generate_block_fail ivltests gold=sv_defparam_cross_generate_block_fail_2023.gold
 sv_defparam_same_generate_block normal,-g2017,-s,sv_defparam_same_generate_block ivltests
 sv_defparam_same_generate_block_2023 normal,-g2023,-s,sv_defparam_same_generate_block ivltests
+# IEEE 1800-2017/2023 §21.2.1.8 permits unpacked byte arrays for %s.
+sv_format_string_byte_array_2017 normal,-g2017,-s,sv_format_string_byte_array ivltests gold=sv_format_string_byte_array.gold
+sv_format_string_byte_array_2023 normal,-g2023,-s,sv_format_string_byte_array ivltests gold=sv_format_string_byte_array.gold
+sv_net_decl_mixed_init_2017 normal,-g2017,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2017.gold
+sv_net_decl_mixed_init_2023 normal,-g2023,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2023.gold
+sv_named_empty_input_default normal,-g2017,-s,sv_named_empty_input_default ivltests gold=sv_named_empty_input_default.gold
+issue790_package_struct_member_2017 normal,-g2017,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
+issue790_package_struct_member_2023 normal,-g2023,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
+
+# IEEE 1800-2017/2023 §8.10.
+sv_static_virtual_method_fail_2017 CE,-g2017,-s,sv_static_virtual_method_fail ivltests
+sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail ivltests

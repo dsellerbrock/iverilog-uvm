@@ -1,0 +1,3 @@
+VCD info: dumpfile work/sv_vcd_event_checkpoint.vcd opened for output.
+PASSED
+ivltests/sv_vcd_event_checkpoint_2017.v:36: $finish called at 25 (1s)

@@ -1858,6 +1858,29 @@ void class_type::add_constraint(const string&name, const string&ir)
       c.name = name;
       c.ir = ir;
       constraints_.push_back(c);
+      static_constraints_.push_back(false);
+      static_constraint_modes_.push_back(true);
+}
+
+void class_type::set_constraint_static(size_t idx)
+{
+      if (idx < static_constraints_.size()) static_constraints_[idx] = true;
+}
+
+bool class_type::constraint_is_static(size_t idx) const
+{
+      return idx < static_constraints_.size() && static_constraints_[idx];
+}
+
+bool class_type::static_constraint_mode(size_t idx) const
+{
+      return idx < static_constraint_modes_.size() && static_constraint_modes_[idx];
+}
+
+void class_type::set_static_constraint_mode(size_t idx, bool mode) const
+{
+      if (idx < static_constraint_modes_.size())
+	    static_constraint_modes_[idx] = mode;
 }
 
 void class_type::add_constraint_state_call(unsigned constraint,
@@ -2833,10 +2856,12 @@ void compile_class_static_property(unsigned idx, char*storage)
       compile_class->bind_static_property(idx, storage);
 }
 
-void compile_class_constraint(char*name, char*ir)
+void compile_class_constraint(char*name, char*ir, uint64_t is_static)
 {
       assert(compile_class);
       compile_class->add_constraint(string(name), string(ir));
+      if (is_static)
+	    compile_class->set_constraint_static(compile_class->constraint_count() - 1);
       delete[]name;
       delete[]ir;
 }
@@ -3993,7 +4018,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
-	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
+	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7) continue;
 	    if (k == 4 && bin.trans_family != COV_NO_FAMILY) {
 		  if (seen_trans_families.insert(bin.trans_family).second) {
 			uint64_t total = covgrp_trans_family_size(bin.trans_family);
@@ -4148,7 +4173,7 @@ void class_type::covgrp_report(FILE*fd)
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
 			const char*tag = (k == 2 || k == 5) ? "illegal"
-				       : (k == 3 || k == 6) ? "default"
+			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,
