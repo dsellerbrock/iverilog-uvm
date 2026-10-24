@@ -11106,6 +11106,15 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    return cp;
       }
 
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
+	    PExpr*sub = let_clone_expr_(cast->cast_base(), subst);
+	    if (sub == 0) return 0;
+	    PECastType*cp = new PECastType(cast->cast_target(), sub,
+					   cast->truncate_real_to_integral());
+	    cp->set_line(*e);
+	    return cp;
+      }
+
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(e)) {
 	    PExpr*sub = let_clone_expr_(un->get_expr(), subst);
 	    if (sub == 0) return 0;
@@ -11219,11 +11228,13 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
       std::vector<PLet::let_port_t*> plist;
       if (ports) plist.assign(ports->begin(), ports->end());
 
+	// Variable dimensions following the formal identifier are distinct
+	// from the data type and are not represented by PECastType yet.
+	// Keep rejecting that shape rather than silently dropping its type.
       for (unsigned idx = 0 ; idx < plist.size() ; idx += 1) {
-	    if (plist[idx]->type_ != 0
-		|| (plist[idx]->range_ && !plist[idx]->range_->empty())) {
-		  cerr << use.get_fileline() << ": sorry: typed/ranged "
-		       << "let ports are not supported yet (let `"
+	    if (plist[idx]->range_ && !plist[idx]->range_->empty()) {
+		  cerr << use.get_fileline() << ": sorry: unpacked array "
+		       << "dimensions on let ports are not supported yet (let `"
 		       << let->pscope_name() << "', port `"
 		       << plist[idx]->name_ << "')." << endl;
 		  des->errors += 1;
@@ -11257,7 +11268,10 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 			return 0;
 		  }
 		  if (args[idx]->parm)
-			binding[plist[idx]->name_] = args[idx]->parm;
+			binding[plist[idx]->name_] = plist[idx]->type_
+			      ? static_cast<PExpr*>(new PECastType(
+				    plist[idx]->type_, args[idx]->parm))
+			      : args[idx]->parm;
 	    } else {
 		  seen_named = true;
 		  bool matched = false;
@@ -11265,7 +11279,10 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 			if (plist[pdx]->name_ == args[idx]->name) {
 			      matched = true;
 			      if (args[idx]->parm)
-				    binding[args[idx]->name] = args[idx]->parm;
+				    binding[args[idx]->name] = plist[pdx]->type_
+					  ? static_cast<PExpr*>(new PECastType(
+						plist[pdx]->type_, args[idx]->parm))
+					  : args[idx]->parm;
 			      break;
 			}
 		  }
@@ -11301,6 +11318,9 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 		  return 0;
 	    }
 	    binding[plist[idx]->name_] = defv;
+	    if (plist[idx]->type_)
+		  binding[plist[idx]->name_] = new PECastType(
+			plist[idx]->type_, binding[plist[idx]->name_]);
       }
 
       PExpr*body = let_clone_expr_(let->let_expr(), binding);
