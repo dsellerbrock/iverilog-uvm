@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_unique_case_item_match_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_unique_case_item_match"],
+  "gold": "sv_unique_case_item_match"
+}
