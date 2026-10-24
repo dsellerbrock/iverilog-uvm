@@ -87,6 +87,9 @@ EXTERN_C_START
 #define vpiCoverWeight      664
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
+/* Icarus extension: true when a vpiClassVar or member has a declared
+ * unpacked struct type. */
+#define vpiIsStruct         667
 
 /********* TYPESPECS *************/
 #define vpiClassTypespec    630
