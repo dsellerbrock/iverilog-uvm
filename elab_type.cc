@@ -3119,9 +3119,18 @@ NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
       if (scope) {
 	    if (NetScope*pkg = des->find_package(scope->pscope_name())) {
 		  s = pkg;
-	    } else if (s) {
-		  if (netclass_t*cls = ensure_visible_class_type(des, s, scope->pscope_name()))
-			s = const_cast<NetScope*>(cls->class_scope());
+	    } else {
+		  Module*interface_scope = dynamic_cast<Module*>(scope);
+		  if (interface_scope && interface_scope->is_interface) {
+			netclass_t*interface_class = elaborate_interface_type_(
+			      des, s, interface_scope);
+			if (interface_class && interface_class->class_scope())
+			      s = const_cast<NetScope*>(interface_class->class_scope());
+		  } else if (s) {
+			if (netclass_t*cls = ensure_visible_class_type(
+			      des, s, scope->pscope_name()))
+			      s = const_cast<NetScope*>(cls->class_scope());
+		  }
 	    }
       }
 
