@@ -51,6 +51,17 @@ static bool param_is_type = false;
 static bool in_gen_region = false;
 static std::list<pform_range_t>* specparam_active_range = 0;
 
+/* IEEE 1800-2017/2023 19.5: an unlabeled coverpoint over one variable is
+ * named after that variable. Keep the existing internal fallback for
+ * expressions that do not name a single variable. */
+static perm_string pform_coverpoint_implicit_name_(PExpr*expr)
+{
+	  PEIdent*ident = dynamic_cast<PEIdent*>(expr);
+	  if (ident && !ident->path().name.empty())
+		return ident->path().name.back().name;
+	  return perm_string::literal("cp");
+}
+
 /* Port declaration lists use this structure for context. */
 static struct {
       NetNet::Type port_net_type;
@@ -4806,7 +4817,7 @@ covergroup_item
   /* Unlabeled coverpoint: "coverpoint expr { ... }" */
   | K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
-	cp->label = perm_string::literal("cp");
+	cp->label = pform_coverpoint_implicit_name_($2);
 	cp->expr  = $2;
 	cp->iff_expr = $3;
 	if ($5) {
@@ -4820,7 +4831,7 @@ covergroup_item
   /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
   | K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
-	cp->label = perm_string::literal("cp");
+	cp->label = pform_coverpoint_implicit_name_($2);
 	cp->expr  = $2;
 	cp->iff_expr = $3;
 	$$ = cp;
