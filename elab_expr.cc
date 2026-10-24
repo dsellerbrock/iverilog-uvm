@@ -16259,6 +16259,25 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
+      // A static class method has no implicit object context.  Reject
+      // references to instance properties while elaborating its body rather
+      // than lowering them through the class scope's synthetic property net.
+      if (!qual.test_static() && sr.net
+	  && sr.net->name() == perm_string::literal(THIS_TOKEN)) {
+	    for (NetScope*cur = scope; cur; cur = cur->parent()) {
+		  const PTaskFunc*caller = cur->func_pform();
+		  if (!caller) caller = cur->task_pform();
+		  if (!caller) continue;
+		  if (caller->method_qualifiers().test_static()) {
+			cerr << get_fileline() << ": error: Access to non-static class member `"
+			     << class_type->get_prop_name(pidx)
+			     << "' from a static method is illegal." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  break;
+	    }
+      }
       if (qual.test_local() && ! class_type->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
@@ -17685,6 +17704,19 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
            const NetScope *c_scope = scope->get_class_scope();
            if (c_scope && (c_scope == dscope->get_class_scope())) {
 		 if (scope_method_uses_implicit_this(des, dscope)) {
+			  for (NetScope*cur = scope; cur; cur = cur->parent()) {
+				const PTaskFunc*caller = cur->func_pform();
+				if (!caller) caller = cur->task_pform();
+				if (!caller) continue;
+				if (caller->method_qualifiers().test_static()) {
+				      cerr << get_fileline() << ": error: Call to non-static class method `"
+					   << peek_tail_name(path_)
+					   << "' from a static method is illegal." << endl;
+				      des->errors += 1;
+				      return nullptr;
+				}
+				break;
+			  }
 				 if (debug_elaborate) {
 			       cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 				    << "Found a class method calling another method." << endl;
@@ -23374,6 +23406,21 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
       bool need_const = NEED_CONST & flags;
+
+      if (path_.size() == 1
+	  && peek_head_name(path_) == perm_string::literal(THIS_TOKEN)) {
+	    for (NetScope*cur = scope; cur; cur = cur->parent()) {
+		  const PTaskFunc*caller = cur->func_pform();
+		  if (!caller) caller = cur->task_pform();
+		  if (!caller) continue;
+		  if (caller->method_qualifiers().test_static()) {
+			cerr << get_fileline() << ": error: Access to `this' from a static method is illegal." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  break;
+	    }
+      }
 
 	// M5-3: a non-constant index into an interface-instance array used as
 	// a virtual-interface value becomes a runtime dispatch table.
