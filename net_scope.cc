@@ -1474,17 +1474,24 @@ void NetScope::add_tie_lo(Design*des)
       }
 }
 
-/* M13: let lookup — search this scope then walk up lexical parents,
-   stopping at (and including) the enclosing module scope so lets do
-   not leak across module instance boundaries. */
-PLet* NetScope::find_let(perm_string name) const
+/* M13: let lookup — search local and imported declarations before walking
+   lexical parents. Continue past the design-element scope only to its
+   compilation-unit scope; never cross into a containing module instance. */
+PLet* NetScope::find_let(const Design*des, perm_string name) const
 {
       const NetScope*cur = this;
       for (;;) {
 	    std::map<perm_string,PLet*>::const_iterator it
 		  = cur->lets_.find(name);
 	    if (it != cur->lets_.end()) return it->second;
-	    if (cur->type() == MODULE) return 0;
+	    NetScope*import_scope = const_cast<NetScope*>(cur)->find_import(des, name);
+	    if (import_scope) {
+		  std::map<perm_string,PLet*>::const_iterator imported
+			= import_scope->lets_.find(name);
+		  if (imported != import_scope->lets_.end()) return imported->second;
+	    }
+	    if (cur->type() == MODULE && cur->parent() &&
+		cur->parent()->type() == MODULE) return 0;
 	    cur = cur->parent();
 	    if (cur == 0) return 0;
       }

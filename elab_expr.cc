@@ -11284,12 +11284,14 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
 
       if (receiver_ || leading_type_args_) return 0;
       if (!with_constraints_.empty()) return 0;
-      if (path_.package) return 0;
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
       if (comp.name[0] == '$') return 0;
-      PLet*let = scope? scope->find_let(comp.name) : 0;
+      NetScope*lookup = scope;
+      if (path_.package)
+	    lookup = des->find_package(path_.package->pscope_name());
+      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
@@ -11301,11 +11303,13 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 {
       if (let_subst_tried_) return let_subst_;
 
-      if (path_.package) return 0;
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
-      PLet*let = scope? scope->find_let(comp.name) : 0;
+      NetScope*lookup = scope;
+      if (path_.package)
+	    lookup = des->find_package(path_.package->pscope_name());
+      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
