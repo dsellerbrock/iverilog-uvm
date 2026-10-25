@@ -20764,6 +20764,7 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
+      PExprProceduralContextGuard procedural_context(false);
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
       if (rexp == 0)
 	    return 0;
@@ -22529,6 +22530,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
       ivl_assert(*this, scope);
+
+	// Event expressions are not procedural statement expressions, even when
+	// the event control itself appears inside an initial/always statement.
+      PExprProceduralContextGuard procedural_context(false);
 
       if (scope->in_func()) {
 	    cerr << get_fileline() << ": error: functions cannot have "
@@ -26580,7 +26585,10 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 			statement_->dump(cerr, 2);
 		  }
 	    }
-	    st = statement_->elaborate(des, scope);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, scope);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": error: Unable to elaborate "
 			  "statement in function " << scope->basename() << "." << endl;
@@ -26901,7 +26909,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
       } else {
-	    st = statement_->elaborate(des, task);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, task);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": Unable to elaborate "
 			"statement in task " << scope_path(task)
@@ -27169,7 +27180,11 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
       scope->in_final(type() == IVL_PR_FINAL);
-      NetProc*cur = statement_->elaborate(des, scope);
+      NetProc*cur;
+      {
+	    PExprProceduralContextGuard procedural_context(true);
+	    cur = statement_->elaborate(des, scope);
+      }
       scope->in_final(false);
       if (cur == 0) {
 	    return false;

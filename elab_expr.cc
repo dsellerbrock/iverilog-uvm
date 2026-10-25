@@ -19,6 +19,9 @@
  */
 
 # include "config.h"
+bool pform_procedural_expr_context = false;
+bool pform_default_argument_context = false;
+bool pform_default_argument_requires_procedural_context = false;
 # include  <algorithm>
 # include  <utility>
 # include  <typeinfo>
@@ -17963,6 +17966,32 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 13.4: output, inout, and non-const ref
+	 * function arguments are only legal in a procedural statement. A
+	 * const ref formal is explicitly permitted in other expressions. */
+	  bool bad_direction = false;
+	  for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+		const NetNet*formal = def->port(idx);
+		if (formal->port_type() == NetNet::POUTPUT
+		    || formal->port_type() == NetNet::PINOUT
+		    || (formal->port_type() == NetNet::PREF
+			&& !formal->get_const())) {
+		      bad_direction = true;
+		      break;
+		}
+	  }
+	  if (bad_direction && pform_default_argument_context) {
+		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && !pform_procedural_expr_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments may only be called"
+			  " in a procedural statement (IEEE 1800-2017/2023 13.4)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+      }
+
       bool need_const = NEED_CONST & flags;
 
 	// Function expressions need the body materialized before target
@@ -18439,6 +18468,17 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			     << ": " << *parms[idx] << endl;
 
 	    } else if (def->port_defe(pidx)) {
+		  if (def->port_defe(pidx)->requires_procedural_context()
+		      && !pform_procedural_expr_context) {
+			cerr << get_fileline() << ": error: Default argument for function `"
+			     << def->scope()->basename()
+			     << "' contains a function with output, inout, or ref arguments; "
+				"the call must be within a procedural statement "
+				"(IEEE 1800-2017/2023 13.4/13.5.3)." << endl;
+			des->errors += 1;
+			parm_errors += 1;
+			continue;
+		  }
 		  if (! gn_system_verilog()) {
 			cerr << get_fileline() << ": internal error: "
 			     << "Found (and using) default function argument "
