@@ -4306,20 +4306,32 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       }
 
 	/* Class handles are type-incompatible with integral types (IEEE 1800
-	 * 6.22.5). The width-based elaborator can otherwise erase that source
-	 * type while applying its class-to-logic compile-progress fallback. A
-	 * bare `null' literal is not a class handle; keep its existing target-
-	 * specific handling for class handles and chandles. */
-      if (gn_system_verilog() && type_is_vectorable(lv_type)
-	  && !dynamic_cast<const PENull*>(expr)
-	  && (expr->expr_type() == IVL_VT_CLASS
-	      || dynamic_cast<const netclass_t*>(rval->net_type()))) {
-	    cerr << expr->get_fileline() << ": error: A class handle cannot be "
-		 << "assigned to an integral target (IEEE 1800-2017/2023 6.22.5)."
-		 << endl;
-	    des->errors += 1;
-	    delete rval;
-	    return 0;
+	 * 6.22.5). Check only source types from resolved declarations: this
+	 * elaborator can report IVL_VT_CLASS for calls, `new', and placeholders
+	 * produced by generic templates or forward class references. Those forms
+	 * retain the existing compile-progress behavior until their real type is
+	 * known. A concrete specialization is checked normally; the generic class
+	 * template itself is not a type (IEEE 1800 8.25). */
+	      if (gn_system_verilog() && type_is_vectorable(lv_type)) {
+		    const PEIdent*src_id = dynamic_cast<const PEIdent*>(expr);
+		    const netclass_t*src_class = src_id
+			  ? dynamic_cast<const netclass_t*>(
+				src_id->test_type_of_ident(des, scope))
+			  : nullptr;
+		    bool in_template = false;
+		    if (const NetScope*cscope = scope ? scope->get_class_scope() : nullptr) {
+			  const netclass_t*cd = cscope->class_def();
+			  in_template = scoped_class_is_unspecialized_parameterized_(cd)
+				|| (cd && cd->seed_derived());
+		    }
+		    if (src_class && !in_template) {
+			  cerr << expr->get_fileline() << ": error: A class handle cannot be "
+			       << "assigned to an integral target (IEEE 1800-2017/2023 6.22.5)."
+			       << endl;
+			  des->errors += 1;
+			  delete rval;
+			  return 0;
+		    }
       }
 
 	/* M10-1c: a WHOLE unpacked array is not assignment-compatible with a

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_class_handle_generic_template_new.v",
+  "iverilog-args": ["-g2017", "-s", "sv_class_handle_generic_template_new"],
+  "gold": "sv_class_handle_generic_template_new"
+}

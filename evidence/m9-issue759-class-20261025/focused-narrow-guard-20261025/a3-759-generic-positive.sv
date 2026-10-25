@@ -1,0 +1,20 @@
+class payload;
+  int value;
+  function new(); value = 1; endfunction
+endclass
+class pair #(type T1=int, type T2=int);
+  T1 first;
+  T2 second;
+  function new();
+    first = new;
+    second = new;
+  endfunction
+endclass
+module top;
+  pair#(payload, payload) p;
+  initial begin
+    p = new;
+    if (p.first == null || p.second == null) $fatal(1, "pair handles were not created");
+    $display("PASS");
+  end
+endmodule

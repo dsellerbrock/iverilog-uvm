@@ -1,3 +1,10 @@
+Historical initial broad-guard attempt; superseded by focused-narrow-guard-20261025/README.md.
+The function-return, property, and ternary outcomes below were collected before
+the provenance-restricted guard. After refinement, initializer and resolved
+property sources still reject, while function-return and ternary sources do not.
+Do not use this initial-attempt record to claim the narrowed implementation
+covers function-return or ternary assignments.
+
 Host: macOS local build, ./local-install/bin/iverilog
 Command: localrun 60 iverilog -g{2017|2023} -t null -s <top> <source>
 Expected: nonzero compile result whose stderr includes the §6.22.5 class-handle incompatibility diagnostic.

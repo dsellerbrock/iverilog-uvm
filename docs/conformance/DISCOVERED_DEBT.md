@@ -4716,10 +4716,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
 - **Triage status:** Known boundary; not part of #909.
 
-### DD-141 — class-to-integral rejection follows a compile-progress substitution warning
+### DD-141 — class-to-integral rejection has expression-provenance limits
 
 - **Discovered while working:** M9 #759.
-- **Observation:** The width-based class-to-logic fallback in `netmisc.cc` emits its existing “substituting 0” compile-progress warning before the new §6.22.5 check rejects the assignment. The warning's substituted value is discarded, but its text is confusing beside the error.
-- **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the rejection is in `elab_expr.cc::elaborate_rval_expr`.
-- **Triage:** Keep the general fallback unchanged in #759 because it also supports legal compile-progress contexts. Do not pin the warning in a golden. Revisit only with a focused legal/illegal fallback audit.
-- **Evidence:** [paired reducer diagnostics](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
+- **Observation:** The §6.22.5 rejection deliberately relies on a resolved identifier type because `expr_type()` can report a class placeholder for calls, ternaries, and `new` while generic templates or forward class references are still being elaborated. Current function-return and ternary reducers compile with only the existing fallback warning; those forms remain unchecked. Resolved identifier assignments reject, but the width-based class-to-logic fallback in `netmisc.cc` still emits its “substituting 0” warning first.
+- **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the scoped rejection is in `elab_expr.cc::elaborate_rval_expr`.
+- **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
+- **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-narrow-guard-20261025/a3-759-focused-evidence-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).

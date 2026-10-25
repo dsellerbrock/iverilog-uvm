@@ -1,1 +1,1 @@
-`include "sv_class_handle_compound_to_integral_assignment_fail.v"
+`include "ivltests/sv_class_handle_compound_to_integral_assignment_fail.v"
