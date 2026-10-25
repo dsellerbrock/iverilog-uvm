@@ -4779,3 +4779,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   nonblocking, and compound assignment forms now reject as required.
 - **Triage status:** adjacent initializer, function, event, continuous,
   procedural-continuous, and force forms remain separate follow-up contexts.
+
+### DD-140 — output clockvar variable-driver detection has static-net limits
+
+- **Discovered while working:** M9 issue #909.
+- **Observation:** The strict continuous/procedural-continuous driver check is keyed by elaborated `NetNet` identity. Clockvars skipped by the sample-buffer path for non-vector or unsupported array forms are not registered, and virtual-interface class-property writes do not traverse the same static net path. When a supported output clockvar names a selected slice, the current restriction applies to the whole underlying variable. A hierarchical continuous write from a parent module to an interface member associated with an output clockvar, with no user clocking drive, is rejected once by the existing hidden-writer overlap check; its generic “continuous and procedural drivers” wording does not cite §14.16.2, while the separate force case receives the clause-specific diagnostic. Preserve this distinction until the hidden writer can be distinguished safely from real procedural writers without changing virtual-interface overlap behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §14.16.2; whether selected-slice enforcement should be more granular needs a separate interpretation and regression.
+- **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; original output is retained in `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
+- **Triage status:** Known boundary; not part of #909.
