@@ -1,0 +1,149 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                                        sv_constraint_expr_width: Passed.
+                              sv_constraint_dist_boolean_subject: Passed.
+                            sv_constraint_dist_wide_literal_fail: Passed - CE.
+                                           sv_rand_distribution1: Passed.
+                                         sv_tolerance_range_2023: Passed.
+                                         sv_randc_txn_object_rng: Passed.
+                                          sv_randc_txn_dist_fail: Passed - CE.
+                               sv_randomize_global_sampling_fail: Passed.
+                          sv_randomize_global_sampling_fail_2023: Passed.
+                              sv_constraint_class_state_fixed_2d: Passed.
+                         sv_constraint_class_state_fixed_2d_2023: Passed.
+                      sv_constraint_dist_rejected_x_state_weight: Passed.
+                 sv_constraint_dist_rejected_x_state_weight_2023: Passed.
+                             sv_randomize_global_dist_components: Passed.
+                        sv_randomize_global_dist_components_2023: Passed.
+                             sv_randomize_global_components_fail: Passed.
+                        sv_randomize_global_components_fail_2023: Passed.
+                               sv_randomize_global_ordered_limit: Passed.
+                          sv_randomize_global_ordered_limit_2023: Passed.
+                                 sv_randomize_joint_ordered_dist: Passed.
+                            sv_randomize_joint_ordered_dist_2023: Passed.
+                     sv_randomize_joint_ordered_dist_transaction: Passed.
+                sv_randomize_joint_ordered_dist_transaction_2023: Passed.
+                          sv_randomize_joint_ordered_dist_ranges: Passed.
+                     sv_randomize_joint_ordered_dist_ranges_2023: Passed.
+                       sv_randomize_joint_unordered_dist_clipped: Passed.
+                  sv_randomize_joint_unordered_dist_clipped_2023: Passed.
+                            sv_randomize_joint_ordered_dist_fail: Passed.
+                       sv_randomize_joint_ordered_dist_fail_2023: Passed.
+                           sv_randomize_joint_element_order_dist: Passed.
+                      sv_randomize_joint_element_order_dist_2023: Passed.
+                   sv_randomize_joint_dynamic_element_order_dist: Passed.
+              sv_randomize_joint_dynamic_element_order_dist_2023: Passed.
+                     sv_randomize_joint_queue_element_order_dist: Passed.
+                sv_randomize_joint_queue_element_order_dist_2023: Passed.
+                          sv_randomize_joint_power_two_component: Passed.
+                     sv_randomize_joint_power_two_component_2023: Passed.
+                                sv_randomize_joint_multiple_dist: Passed.
+                           sv_randomize_joint_multiple_dist_2023: Passed.
+                           sv_randomize_joint_multiple_dist_fail: Passed.
+                      sv_randomize_joint_multiple_dist_fail_2023: Passed.
+                                sv_randomize_joint_ordered_randc: Passed.
+                           sv_randomize_joint_ordered_randc_2023: Passed.
+                           sv_randomize_joint_ordered_randc_fail: Passed.
+                      sv_randomize_joint_ordered_randc_fail_2023: Passed.
+                  sv_randomize_joint_ordered_randc_multiple_dist: Passed.
+             sv_randomize_joint_ordered_randc_multiple_dist_2023: Passed.
+         sv_randomize_joint_ordered_randc_multiple_dist_boundary: Passed.
+    sv_randomize_joint_ordered_randc_multiple_dist_boundary_2023: Passed.
+          sv_randomize_joint_unordered_randc_multiple_dist_large: Passed.
+     sv_randomize_joint_unordered_randc_multiple_dist_large_2023: Passed.
+     sv_randomize_joint_ordered_randc_multidist_range_cap_atomic: Passed.
+sv_randomize_joint_ordered_randc_multidist_range_cap_atomic_2023: Passed.
+                                 sv_struct_array_constraint_dist: Passed.
+                                 sv_dist_large_exact_probability: Passed.
+                            sv_dist_large_exact_probability_2023: Passed.
+                             sv_dist_large_exact_connected_state: Passed.
+                        sv_dist_large_exact_connected_state_2023: Passed.
+                                sv_dist_large_exact_pinned_state: Passed.
+                           sv_dist_large_exact_pinned_state_2023: Passed.
+                                  sv_dist_large_exact_boundaries: Passed.
+                             sv_dist_large_exact_boundaries_2023: Passed.
+                               sv_dist_large_exact_overflow_fail: Passed.
+                          sv_dist_large_exact_overflow_fail_2023: Passed.
+                           sv_dist_large_exact_coupled_projected: Passed.
+                      sv_dist_large_exact_coupled_projected_2023: Passed.
+                            sv_dist_large_exact_reject_projected: Passed.
+                       sv_dist_large_exact_reject_projected_2023: Passed.
+                        sv_dist_large_exact_singleton_expression: Passed.
+                sv_dist_large_exact_nonsingleton_expression_fail: Passed.
+                             sv_dist_large_exact_singleton_unsat: Passed.
+                   sv_dist_large_exact_singleton_expression_2023: Passed.
+           sv_dist_large_exact_nonsingleton_expression_fail_2023: Passed.
+                        sv_dist_large_exact_singleton_unsat_2023: Passed.
+                                     sv_dist_default_weight_2023: Passed.
+                                sv_dist_default_weight_2017_fail: Passed - CE.
+                             sv_dist_default_missing_weight_fail: Passed - CE.
+                              sv_dist_default_assign_weight_fail: Passed - CE.
+                                  sv_dist_default_duplicate_fail: Passed - CE.
+                        sv_constraint_rand_real_dist_points_2023: Passed.
+                                     sv_joint_proven_guard_macro: Passed.
+                                sv_joint_proven_guard_macro_2023: Passed.
+                                  sv_joint_proven_guard_positive: Passed.
+                             sv_joint_proven_guard_positive_2023: Passed.
+                                sv_joint_proven_guard_unresolved: Passed.
+                           sv_joint_proven_guard_unresolved_2023: Passed.
+                               sv_joint_proven_guard_conjunction: Passed.
+                          sv_joint_proven_guard_conjunction_2023: Passed.
+                                 sv_joint_proven_guard_selfproof: Passed.
+                            sv_joint_proven_guard_selfproof_2023: Passed.
+                                    sv_joint_ordered_guard_fiber: Passed.
+                               sv_joint_ordered_guard_fiber_2023: Passed.
+                                sv_joint_ordered_guard_tautology: Passed.
+                           sv_joint_ordered_guard_tautology_2023: Passed.
+                           sv_joint_ordered_guard_coupled_reject: Passed.
+                      sv_joint_ordered_guard_coupled_reject_2023: Passed.
+                         sv_joint_ordered_guard_independent_pair: Passed.
+                    sv_joint_ordered_guard_independent_pair_2023: Passed.
+                             sv_joint_ordered_guard_randc_reject: Passed.
+                        sv_joint_ordered_guard_randc_reject_2023: Passed.
+                        sv_joint_ordered_guard_prefix_cap_reject: Passed.
+                   sv_joint_ordered_guard_prefix_cap_reject_2023: Passed.
+                               sv_constraint_fixed_queue_content: Passed.
+                          sv_constraint_fixed_queue_content_2023: Passed.
+                                sv_joint_concat_dist_owned_class: Passed.
+                           sv_joint_concat_dist_owned_class_2023: Passed.
+                                  sv_csrng_packed_bit_joint_dist: Passed.
+                             sv_csrng_packed_bit_joint_dist_2023: Passed.
+                        sv_csrng_packed_bit_joint_dist_multileaf: Passed.
+                   sv_csrng_packed_bit_joint_dist_multileaf_2023: Passed.
+                           sv_randomize_joint_fixed_var_coupling: Passed.
+                      sv_randomize_joint_fixed_var_coupling_2023: Passed.
+                                     sv_dist_large_range_coupled: Passed.
+                                sv_dist_large_range_coupled_2023: Passed.
+                                  sv_std_randomize_dist_weighted: Passed.
+                             sv_std_randomize_dist_weighted_2023: Passed.
+                                    sv_dist_guarded_solve_before: Passed.
+                               sv_dist_guarded_solve_before_2023: Passed.
+                 sv_constraint_solve_before_packed_member_unsafe: Passed.
+            sv_constraint_solve_before_packed_member_unsafe_2023: Passed.
+                              sv_joint_ordered_independent_randc: Passed.
+                         sv_joint_ordered_independent_randc_2023: Passed.
+                      sv_joint_ordered_independent_randc_element: Passed.
+                 sv_joint_ordered_independent_randc_element_2023: Passed.
+                                  sv_joint_coupled_randc_ordered: Passed.
+                             sv_joint_coupled_randc_ordered_2023: Passed.
+                           sv_joint_coupled_randc_ordered_prefix: Passed.
+                      sv_joint_coupled_randc_ordered_prefix_2023: Passed.
+                          sv_joint_coupled_randc_ordered_element: Passed.
+                     sv_joint_coupled_randc_ordered_element_2023: Passed.
+                      sv_joint_coupled_randc_ordered_zero_weight: Passed.
+                 sv_joint_coupled_randc_ordered_zero_weight_2023: Passed.
+                      sv_joint_ordered_independent_randc_coupled: Passed.
+                 sv_joint_ordered_independent_randc_coupled_2023: Passed.
+                         sv_constraint_nested_fixed_element_dist: Passed.
+                    sv_constraint_nested_fixed_element_dist_2023: Passed.
+                   sv_constraint_function_priority_state_foreach: Passed.
+              sv_constraint_function_priority_state_foreach_2023: Passed.
+                              sv_randomize_isolated_wide_uniform: Passed.
+                         sv_randomize_isolated_wide_uniform_2023: Passed.
+                         sv_constraint_dist_state_only_fail_2017: Passed - CE.
+                         sv_constraint_dist_state_only_fail_2023: Passed - CE.
+                      sv_constraint_dist_rand_subject_forms_2017: Passed.
+                      sv_constraint_dist_rand_subject_forms_2023: Passed.
+============================================================================
+Test results:
+  Total=144, Passed=144, Failed=0, Not Implemented=0, Expected Fail=0
