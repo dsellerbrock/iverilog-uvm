@@ -4754,3 +4754,28 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** confirmed runtime conformance gap outside #836's
   classification fix. The feature regression keeps the mixed expression
   compile-only and tests each runtime-supported subject in its own class.
+
+### DD-139 — other chandle use contexts remain outside #759
+
+- **Discovered while working:** #759 / M9 culprit PR #1064 (2026-10-24).
+- **Observation:** Main accepted blocking, nonblocking and compound assignments
+  from a chandle identifier to an incompatible integral type. PR #1191 now
+  rejects all three forms for an unselected, unindexed identifier RHS, while
+  preserving valid chandle-to-chandle and chandle-to-null assignments. Other
+  accepted contexts were variable initialization, function argument/return,
+  event control, continuous assignment, procedural `assign`/`deassign`, and
+  `force`/`release`. Function probes checked compile/run status, not returned
+  values.
+- **File/function:** assignment type checks in `elaborate.cc`; neighboring
+  contexts use separate declaration, call, return, event, continuous-driver,
+  procedural-driver, and force paths.
+- **Possible clause:** IEEE 1800-2017/2023 §6.14 and §6.22.5. Continuous
+  assignments and event controls remain covered by open issue #763.
+- **Evidence:** the original baselines in
+  `evidence/m9-issue759-chandle-20261024/baseline/` and
+  `baseline-edge-probes/`; passing T0/T1 evidence is in
+  `final-t0-t1-4797/`.
+- **Reproducer status:** confirmed on main in both editions; #759's blocking,
+  nonblocking, and compound assignment forms now reject as required.
+- **Triage status:** adjacent initializer, function, event, continuous,
+  procedural-continuous, and force forms remain separate follow-up contexts.
