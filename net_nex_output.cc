@@ -51,6 +51,7 @@ void NetAlloc::nex_output(NexusSet&)
  */
 bool nex_output_precise_partsel = false;
 bool nex_output_precise_array_word = false;
+bool nex_output_static_array_prefix = false;
 
 void NetAssign_::nex_output(NexusSet&out)
 {
@@ -135,35 +136,9 @@ void NetAssign_::nex_output(NexusSet&out)
 	    return;
       }
 
-      unsigned use_word = 0;
+      auto add_word_output = [&](unsigned use_word) {
       unsigned use_base = 0;
       unsigned use_wid = lwidth();
-      if (word_) {
-	    const NetEConst*word_const = dynamic_cast<const NetEConst*>(word_);
-	    if (word_const) {
-		    // A constant word select, so add the selected word.
-		  if (!word_const->value().is_defined())
-			return;
-		  unsigned long tmp = word_const->value().as_ulong();
-		  if (tmp >= use_sig->pin_count())
-			return;
-		  use_word = static_cast<unsigned>(tmp);
-	    } else {
-		    // For always_comb sensitivity subtraction, claiming the
-		    // whole array could remove words that the block only reads.
-		    // Synthesis, however, needs every possible word in the output
-		    // map before it unrolls a loop and contextually evaluates the
-		    // word expression. Keep the precise walk conservative and
-		    // expose all words to the default synthesis walk.
-		  if (!nex_output_precise_array_word) {
-			for (unsigned idx = 0; idx < use_sig->pin_count(); idx += 1) {
-			      Nexus*word_nex = use_sig->pin(idx).nexus();
-			      out.add(word_nex, 0, word_nex->vector_width());
-			}
-		  }
-		  return;
-	    }
-      }
       Nexus*nex = use_sig->pin(use_word).nexus();
       if (base_) {
 
@@ -246,6 +221,46 @@ void NetAssign_::nex_output(NexusSet&out)
 	    }
       }
       out.add(nex, use_base, use_wid);
+      };
+
+      if (word_) {
+	    const NetEConst*word_const = dynamic_cast<const NetEConst*>(word_);
+	    if (word_const) {
+		    // A constant word select, so add the selected word.
+		  if (!word_const->value().is_defined())
+			return;
+		  unsigned long tmp = word_const->value().as_ulong();
+		  if (tmp >= use_sig->pin_count())
+			return;
+		  add_word_output(static_cast<unsigned>(tmp));
+	    } else {
+		  if (nex_output_static_array_prefix) {
+			unsigned first = has_array_word_prefix()
+			      ? array_word_first() : 0;
+			unsigned count = has_array_word_prefix()
+			      ? array_word_count() : use_sig->pin_count();
+			if (first >= use_sig->pin_count()) return;
+			count = std::min(count, use_sig->pin_count()-first);
+			for (unsigned idx = 0; idx < count; idx += 1)
+			      add_word_output(first+idx);
+			return;
+		  }
+		    // For always_comb sensitivity subtraction, claiming the
+		    // whole array could remove words that the block only reads.
+		    // Synthesis, however, needs every possible word in the output
+		    // map before it unrolls a loop and contextually evaluates the
+		    // word expression. Keep the precise walk conservative and
+		    // expose all words to the default synthesis walk.
+		  if (!nex_output_precise_array_word) {
+			for (unsigned idx = 0; idx < use_sig->pin_count(); idx += 1) {
+			      Nexus*word_nex = use_sig->pin(idx).nexus();
+			      out.add(word_nex, 0, word_nex->vector_width());
+			}
+		  }
+		  return;
+	    }
+      }
+	    if (!word_) add_word_output(0);
 }
 
 /*
