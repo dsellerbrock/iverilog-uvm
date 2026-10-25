@@ -1413,11 +1413,11 @@ sv_stream_with_unbounded_order_fail CE,-g2012 ivltests gold=sv_stream_with_unbou
 sv_stream_with_range_type_fail CE,-g2012 ivltests gold=sv_stream_with_range_type_fail.gold
 sv_stream_with_extreme_const_fail CE,-g2012 ivltests gold=sv_stream_with_extreme_const_fail.gold
 sv_stream_with_syntax_fail CE,-g2012 ivltests gold=sv_stream_with_syntax_fail.gold
-sv_checker_basic normal,-g2012 ivltests
+sv_checker_basic CE,-g2012 ivltests gold=sv_checker_basic.gold
 sv_checker_net_illegal_2017 CE,-g2017 ivltests gold=sv_checker_net_illegal_2017.gold
 sv_checker_net_illegal_2023 CE,-g2023 ivltests gold=sv_checker_net_illegal_2023.gold
 sv_checker_nested_instance normal,-g2012 ivltests
-sv_checker_bind normal,-g2012 ivltests
+sv_checker_bind CE,-g2012 ivltests gold=sv_checker_bind.gold
 sv_generic_interface_port normal,-g2012 ivltests
 sv_covergroup_standalone normal,-g2012 ivltests
 sv_covergroup_task_sample normal,-g2012 ivltests
