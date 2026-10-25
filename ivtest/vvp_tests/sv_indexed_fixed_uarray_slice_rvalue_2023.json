@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_indexed_fixed_uarray_slice_rvalue.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_indexed_fixed_uarray_slice_rvalue"
+}
