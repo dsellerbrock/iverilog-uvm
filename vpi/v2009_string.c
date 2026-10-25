@@ -194,7 +194,10 @@ static PLI_INT32 len_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       assert(arg);
       vpi_free_object(argv);
 
-      int res = vpi_get(vpiSize, arg);
+      s_vpi_value arg_value;
+      arg_value.format = vpiStringVal;
+      vpi_get_value(arg, &arg_value);
+      int res = arg_value.value.str ? strlen(arg_value.value.str) : 0;
 
       s_vpi_value value;
       value.format = vpiIntVal;
