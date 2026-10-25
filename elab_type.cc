@@ -3266,7 +3266,7 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 	    return netvector_t::integer_type();
 
       bool type_ok = true;
-      switch (basic_type) {
+      if (!has_checked_basic_type()) switch (basic_type) {
       case ENUM:
 	    type_ok = dynamic_cast<const netenum_t *>(elab_type);
 	    break;
@@ -3295,6 +3295,8 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 		 << endl;
 	    des->errors++;
       }
+	  if (basic_type != ANY)
+		mark_basic_type_checked();
 
       return elab_type;
 }
