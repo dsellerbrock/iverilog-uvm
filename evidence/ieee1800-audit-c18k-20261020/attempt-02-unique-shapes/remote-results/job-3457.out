@@ -1,0 +1,5 @@
+edition	probe	compile_rc	run_rc	expected	first_diagnostic
+2017	p18_05_5_unique_shapes	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-05/input/p18_05_5_unique_shapes.sv:4: warning: Constraint item in 'c' of class S1 is not representable in the constraint solver; randomize() of this class will fail.
+2017	p18_05_4_unique_real_scalar	7	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-05/input/p18_05_4_unique_real_scalar.sv:3: error: property 'r1' of class R1 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+2023	p18_05_5_unique_shapes	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-05/input/p18_05_5_unique_shapes.sv:4: warning: Constraint item in 'c' of class S1 is not representable in the constraint solver; randomize() of this class will fail.
+2023	p18_05_4_unique_real_scalar	0	0	run	

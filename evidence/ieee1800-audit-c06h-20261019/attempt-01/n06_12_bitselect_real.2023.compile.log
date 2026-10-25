@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_12_bitselect_real.sv:1: error: can not select part of real: r
+Elaboration failed

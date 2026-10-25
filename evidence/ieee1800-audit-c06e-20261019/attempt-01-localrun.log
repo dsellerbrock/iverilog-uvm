@@ -1,0 +1,83 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+AUDIT CHECKOUT HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+COMPILER SOURCE COMMIT: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+
+p06_21a_lifetime -g2017 compile_rc=0
+p06_21a_lifetime -g2017 run_rc=0
+M2 f1=1 f2=1
+RESULT pass=7 fail=0
+PROG loc=1 i=1
+PROG loc=1 i=2
+
+n06_21_class_prop_cont_assign -g2017 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_class_prop_cont_assign.sv:2: sorry: Unable to determine whether this interface member is declared as a net or a variable for continuous-assignment lowering.
+1 error(s) during elaboration.
+
+n06_21_hier_unnamed_block -g2017 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_hier_unnamed_block.sv:1: error: Unable to bind wire/reg/memory `m.x' in `m'
+1 error(s) during elaboration.
+
+n06_21_nba_automatic -g2017 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: Unable to elaborate statement in task m.t at tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1.
+1 error(s) during elaboration.
+
+n06_21_nba_dyn_elem -g2017 compile_rc=0
+
+n06_21_proc_assign_automatic -g2017 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1: error: automatically allocated variables may not be assigned values using procedural continuous assignments.
+tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1: Unable to elaborate statement in task m.t at tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1.
+1 error(s) during elaboration.
+
+n06_21_static_init_no_keyword -g2017 compile_rc=0
+tests/1800_audit/c06/neg/n06_21_static_init_no_keyword.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+
+p06_21a_lifetime -g2023 compile_rc=0
+p06_21a_lifetime -g2023 run_rc=0
+M2 f1=1 f2=1
+RESULT pass=7 fail=0
+PROG loc=1 i=1
+PROG loc=1 i=2
+
+n06_21_class_prop_cont_assign -g2023 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_class_prop_cont_assign.sv:2: sorry: Unable to determine whether this interface member is declared as a net or a variable for continuous-assignment lowering.
+1 error(s) during elaboration.
+
+n06_21_hier_unnamed_block -g2023 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_hier_unnamed_block.sv:1: error: Unable to bind wire/reg/memory `m.x' in `m'
+1 error(s) during elaboration.
+
+n06_21_nba_automatic -g2023 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1: Unable to elaborate statement in task m.t at tests/1800_audit/c06/neg/n06_21_nba_automatic.sv:1.
+1 error(s) during elaboration.
+
+n06_21_nba_dyn_elem -g2023 compile_rc=0
+
+n06_21_proc_assign_automatic -g2023 compile_rc=1
+tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1: error: automatically allocated variables may not be assigned values using procedural continuous assignments.
+tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1: Unable to elaborate statement in task m.t at tests/1800_audit/c06/neg/n06_21_proc_assign_automatic.sv:1.
+1 error(s) during elaboration.
+
+n06_21_static_init_no_keyword -g2023 compile_rc=0
+tests/1800_audit/c06/neg/n06_21_static_init_no_keyword.sv:1: warning: Static variable initialization requires explicit lifetime in this context.
+        2.55 real         0.78 user         0.46 sys
+            16891904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               75603  page reclaims
+                1122  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  10  signals received
+                 142  voluntary context switches
+                1668  involuntary context switches
+           155114280  instructions retired
+            99818690  cycles elapsed
+             2540000  peak memory footprint

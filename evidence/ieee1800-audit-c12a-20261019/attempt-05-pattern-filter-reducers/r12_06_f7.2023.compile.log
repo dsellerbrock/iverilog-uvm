@@ -1,0 +1,5 @@
+tests/1800_audit/c12/r12_06_f7.sv:2: syntax error
+tests/1800_audit/c12/r12_06_f7.sv:2: error: Malformed conditional expression.
+Assertion failed: (pform_peek_scope() == scope->block), function pform_finish_procedural_block, file parse.y, line 1435.
+sh: line 1: 55625 Done                    /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivlpp -L -g2023 -F"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg237b8c451" -f"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg37b8c451" -p"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli37b8c451"
+     55626 Abort trap: 6           | /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivl -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh37b8c451" -C"/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/vvp.conf" -- -

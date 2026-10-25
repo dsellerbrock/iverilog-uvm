@@ -1,0 +1,33 @@
+=== positive -g2017 ===
+command: iverilog -g2017 -s top tests/1800_audit/c13/p13_07_08_names_param.sv
+compile_rc=6
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: internal error: cannot synthesize expression: <null>
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: error: Unable to synthesize port 0 of call to ENCODER_f.
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: internal error: Failed to synthesize expression: $unit._ivl_0.ENCODER_f(<null>, encoder_in[7:0])
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: internal error: cannot synthesize expression: <null>
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: error: Unable to synthesize port 0 of call to DECODER_f.
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: internal error: Failed to synthesize expression: $unit._ivl_1.DECODER_f(<null>, decoder_in[1:0])
+6 error(s) during elaboration.
+=== negative -g2017 ===
+command: iverilog -g2017 -tnull -s n13_08_new_virtual_class tests/1800_audit/c13/neg/n13_08_new_virtual_class.sv
+tests/1800_audit/c13/neg/n13_08_new_virtual_class.sv:7: error: Can not create object of virtual class `C`.
+Elaboration failed
+compile_rc=1 (expected nonzero)
+PASS rejected specifically as virtual class instantiation
+=== positive -g2023 ===
+command: iverilog -g2023 -s top tests/1800_audit/c13/p13_07_08_names_param.sv
+compile_rc=6
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: internal error: cannot synthesize expression: <null>
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: error: Unable to synthesize port 0 of call to ENCODER_f.
+tests/1800_audit/c13/p13_07_08_names_param.sv:26: internal error: Failed to synthesize expression: $unit._ivl_0.ENCODER_f(<null>, encoder_in[7:0])
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: internal error: cannot synthesize expression: <null>
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: error: Unable to synthesize port 0 of call to DECODER_f.
+tests/1800_audit/c13/p13_07_08_names_param.sv:27: internal error: Failed to synthesize expression: $unit._ivl_1.DECODER_f(<null>, decoder_in[1:0])
+6 error(s) during elaboration.
+=== negative -g2023 ===
+command: iverilog -g2023 -tnull -s n13_08_new_virtual_class tests/1800_audit/c13/neg/n13_08_new_virtual_class.sv
+tests/1800_audit/c13/neg/n13_08_new_virtual_class.sv:7: error: Can not create object of virtual class `C`.
+Elaboration failed
+compile_rc=1 (expected nonzero)
+PASS rejected specifically as virtual class instantiation
+FINAL_STATUS=1

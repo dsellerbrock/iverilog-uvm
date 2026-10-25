@@ -1,0 +1,20 @@
+IEEE 1800 clause 13 probe c13c, attempt 01
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08
+Committed base: 162be2db341577782a0d4d4828b7c551c0f65e86
+Dirty state at staging: c13a citation correction, c13b tests/evidence, and these c13c tests/evidence; the Slurm job received only the listed c13c input sources.
+Toolchain: protected shared Icarus built from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66.
+Host: DAN-DESKTOP; Slurm request 1 CPU, 1 GiB, 10 minutes; per compile timeout 60 seconds; per simulation timeout 30 seconds, TERM then KILL after 2 seconds.
+Normative scope: IEEE 1800-2017 §§13.4–13.4.4, pp.325–327; IEEE 1800-2023 §§13.4–13.4.4, pp.341–347. The implicit-variable `F()` form is a 2023 addition; 2017 `F.member` remains required.
+
+257fa15674e4b217d364ec3a7e8e737f61f12ce2d23d9193d0c5984b2fdfc154  tests/1800_audit/c13/p13_04_functions.sv
+ced39367ead03cf2d3e23c95646977a7069cf00544f8c1d2717b258ca61e0685  tests/1800_audit/c13/p13_04_1_discard_warning.sv
+a1479b508e8f1a8aa02c422f540218091a424c5dade74f6d7f01424b3bfc886a  tests/1800_audit/c13/p13_04_1_implicit_var.sv
+6b23fe0a34a78dcc418bb7d9f01ad9a261d09cf12f555123f81c2814edd7098b  tests/1800_audit/c13/neg/n13_04_1_dup_name_scope.sv
+8118d078b8a311873e617ac1991b4a84b046742749c4d794238b412322c53c6f  tests/1800_audit/c13/neg/n13_04_1_dup_name_inside.sv
+0839744433e60b9faf90cf314e51d18b576b873912aa2b5c65c68c255eb2b0a0  tests/1800_audit/c13/neg/n13_04_1_return_no_expr.sv
+f737518115816417aa6fe5d37d95fb358f94893590b88076851f8f3c8cd4a706  tests/1800_audit/c13/neg/n13_04_output_arg_in_cont_assign.sv
+
+Slurm job: 2296.
+Submitted script SHA-256: 39909119cec50b3ef867b6b85a90840c57fb8b477d20b1bd0b3e6ebbb5ab99d3
+Controller state: job no longer in squeue; Slurm accounting is unavailable, but the result log contains FINAL_STATUS=1 after all cases completed.

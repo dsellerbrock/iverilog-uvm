@@ -1,0 +1,5 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_04f_nested_module_scope.sv:6: error: Unknown module type: inner
+1 error(s) during elaboration.
+*** These modules were missing:
+        inner referenced 1 times.
+***

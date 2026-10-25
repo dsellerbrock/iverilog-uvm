@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:3: error: 'f' has already been declared in this scope.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:2:      : It was declared here as a function.

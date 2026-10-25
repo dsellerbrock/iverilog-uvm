@@ -1,0 +1,4 @@
+BEFORE_ILLEGAL_SAMPLE
+ERROR: covergroup illegal_bin matched (prop_idx=6)
+AFTER_ILLEGAL_SAMPLE
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-5bins-20261019-01/input/n19_05_06_illegal_bins_runtime.sv:15: $finish called at 0 (1s)

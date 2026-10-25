@@ -1,0 +1,14 @@
+read_g=0
+write_g=0
+plus_g=0
+read_g=0
+write_g=0
+plus_g=0
+read_run_2017=1
+write_run_2017=1
+read_run_2023=1
+write_run_2023=1
+core_g2017=1
+index_g2017=1
+core_g2023=1
+index_g2023=1

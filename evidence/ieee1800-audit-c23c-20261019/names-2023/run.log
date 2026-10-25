@@ -1,0 +1,21 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_06a_names.sv:12: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_06a_names.sv:12: error: Invalid module item.
+        0.04 real         0.01 user         0.01 sys
+             6995968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2504  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                  47  involuntary context switches
+            57904031  instructions retired
+            24152665  cycles elapsed
+             2310624  peak memory footprint
+exit_code=2

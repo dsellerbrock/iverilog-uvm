@@ -1,0 +1,24 @@
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:14: warning: Unable to bind wire/reg/memory `LP' in `p20a' (compile-progress: unresolved reference).
+2 error(s) during elaboration.
+        0.04 real         0.01 user         0.01 sys
+             5849088  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1574  page reclaims
+                 262  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   9  voluntary context switches
+                 249  involuntary context switches
+            20083417  instructions retired
+             9654712  cycles elapsed
+             1245544  peak memory footprint

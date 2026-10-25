@@ -1,0 +1,3 @@
+tests/1800_audit/c11/r11_12_shape_cast.sv:1: sorry: the body of let `c3' (or an actual argument) has an expression shape the let expander cannot copy; the let call cannot be elaborated.
+tests/1800_audit/c11/r11_12_shape_cast.sv:1: error: No function named `c3' found in this context (m).
+2 error(s) during elaboration.

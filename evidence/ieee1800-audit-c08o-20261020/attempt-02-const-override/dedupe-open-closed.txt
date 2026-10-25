@@ -1,0 +1,47 @@
+QUERY: virtual override
+#842 [OPEN] [IEEE 1800] §18.5.1 — duplicate constraint definitions accepted silently (two external blocks for one prototype; prototype plus same-name in-class block) https://github.com/dsellerbrock/iverilog-uvm/issues/842
+#100 [CLOSED] Class-property unpacked array of real/string stores every element to the same slot https://github.com/dsellerbrock/iverilog-uvm/issues/100
+#30 [CLOSED] Phase 59: UVM port-imp virtual dispatch (seq_item_port.try_next_item) https://github.com/dsellerbrock/iverilog-uvm/issues/30
+#15 [CLOSED] Phase 11: UVM callbacks, virtual sequences, and sequence library https://github.com/dsellerbrock/iverilog-uvm/issues/15
+
+QUERY: override signature
+
+QUERY: method signature
+#847 [OPEN] [IEEE 1800] §8.24 — out-of-block method definition whose argument list does not match its extern prototype is accepted silently https://github.com/dsellerbrock/iverilog-uvm/issues/847
+#435 [OPEN] [IEEE 1800] §6 — Support class-method resolution functions for user-defined nettypes https://github.com/dsellerbrock/iverilog-uvm/issues/435
+
+QUERY: override argument
+#773 [OPEN] [IEEE 1800] §11.12 — a let declaration at package or compilation-unit scope is a syntax error https://github.com/dsellerbrock/iverilog-uvm/issues/773
+#27 [CLOSED] OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed https://github.com/dsellerbrock/iverilog-uvm/issues/27
+
+QUERY: override default
+#727 [OPEN] [IEEE 1800] §16.15 — default disable iff must apply regardless of lexical declaration order https://github.com/dsellerbrock/iverilog-uvm/issues/727
+#100 [CLOSED] Class-property unpacked array of real/string stores every element to the same slot https://github.com/dsellerbrock/iverilog-uvm/issues/100
+
+QUERY: covariant return
+
+QUERY: 8.20
+#846 [OPEN] [IEEE 1800] §8.21 — non-abstract subclass that does not implement an inherited pure virtual method is accepted and callable https://github.com/dsellerbrock/iverilog-uvm/issues/846
+#609 [OPEN] [IEEE 1800] §8.7 — Reject static or virtual class constructors https://github.com/dsellerbrock/iverilog-uvm/issues/609
+#455 [CLOSED] [IEEE 1800] §8 — Implement method override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/455
+
+QUERY: 8.19
+
+QUERY: const class property
+#47 [CLOSED] Phase 75: Fallback hardening — eliminate remaining warning noise https://github.com/dsellerbrock/iverilog-uvm/issues/47
+
+Reviewed search hits:
+- #847 OPEN is §8.24 out-of-block definition/prototype arity mismatch; it is not an in-class virtual override.
+- #455 CLOSED covers the 2023 :initial/:extends/:final method override specifiers and edition gating; it does not cover override signatures/default argument presence.
+- #846 OPEN is missing implementation of an inherited pure virtual method (§8.21), not signature validation.
+- #609 OPEN is invalid static/virtual constructors (§8.7), unrelated.
+- #435 OPEN is class-method resolution for user-defined nettypes (§6), unrelated.
+- #47 CLOSED tracked a runtime warning for const class-property writes, not legal declaration/constructor rules; current probe's invalid constant writes all reject.
+- #100 CLOSED fixed unpacked class-property array storage, not const semantics.
+- #842 OPEN is duplicate constraint definitions (§18.5.1), unrelated.
+- #727 OPEN is assertion default-disable ordering (§16.15), unrelated.
+- #773 OPEN is package/compilation-unit let declarations (§11.12), unrelated.
+- #30 CLOSED UVM virtual dispatch and #15 CLOSED callbacks/virtual sequences are unrelated UVM runtime work.
+- #27 CLOSED OpenTitan UART runtime stubs are unrelated.
+
+No inspected issue duplicates the five accepted §8.20 override-signature cases. Search terms and full result titles/states are in this directory; all searches used `gh issue list --state all --limit 100`.

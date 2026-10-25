@@ -1,0 +1,1 @@
+input/NB_module_into_interface.sv:6: error: module 'bound_mon' cannot be bound into interface 'bus_if'; an interface target requires an interface or checker instantiation.

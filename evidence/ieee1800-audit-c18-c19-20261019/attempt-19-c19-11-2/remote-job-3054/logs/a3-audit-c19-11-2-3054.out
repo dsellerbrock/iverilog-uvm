@@ -1,0 +1,4 @@
+/var/spool/slurmd/job03054/slurm_script: line 46: [: missing `]'
+/var/spool/slurmd/job03054/slurm_script: line 46: -s: command not found
+/var/spool/slurmd/job03054/slurm_script: line 46: [: missing `]'
+/var/spool/slurmd/job03054/slurm_script: line 46: -s: command not found

@@ -1,0 +1,5 @@
+edition	test	compile_rc	link_rc	run_rc	pass
+2017	m10_dpi_wide_vector_test	1	NA	NA	NO
+2017	m10_dpi_fixed_packed_array_abi_test	0	0	0	YES
+2023	m10_dpi_wide_vector_test	1	NA	NA	NO
+2023	m10_dpi_fixed_packed_array_abi_test	0	0	0	YES

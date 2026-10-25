@@ -1,0 +1,137 @@
+#474 [IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads
+## Gap
+
+A fixed unpacked-array parameter initialized with a fully keyed assignment pattern is rejected. Accepting the pattern also needs correct element lookup: a recorded attempted partial fix caused an assertion when selecting `TABLE[0]`, so a parser/elaboration-only acceptance is insufficient.
+
+## Reproducer
+
+```systemverilog
+package p;
+  typedef bit [7:0] bytes_t[2];
+  parameter bytes_t TABLE = '{0:8'h11, 1:8'h22};
+  localparam bit [7:0] FIRST = TABLE[0];
+endpackage
+```
+
+The current baseline rejects the keyed parameter value. See [DD-033](https://github.com/dsellerbrock/iverilog-uvm/blob/main/docs/conformance/DISCOVERED_DEBT.md#dd-033--package-scope-fixed-unpacked-array-parameter-with-a-keyed-assignment-pattern-value-2026-09-16) for the minimal strict Slang control and the element-select failure from an incomplete fix.
+
+## IEEE basis
+
+IEEE 1800-2017/2023 §§10.9 and 6.22.3 define assignment patterns and array assignment compatibility for fixed unpacked arrays.
+
+## Acceptance
+
+- Support keyed and positional patterns, defaults, direct-scope and wildcard-imported parameters.
+- Correctly index accepted array parameters without an assertion or scalar-value fallback.
+- Add paired positive and malformed-pattern regressions and retain focused diagnostics for invalid forms.
+
+## Dependencies
+
+None known.
+Confirmed fixed on pinned main `7f35ca38c86723ab40e6ebfe9fd77259827e23f9` by `d1d16aac99d491fa1163e3e45104f58807568f15` (“Elaborate typedef unpacked array parameters with keyed patterns”). IEEE 1800-2017/2023 §§10.9 and 6.22.3 cover assignment patterns and fixed-array assignment compatibility.
+
+The issue reproducer was compiled and run with both editions:
+```sh
+iverilog -g2017 -s issue474_exact -o exact-2017.vvp issue474_exact.sv && vvp exact-2017.vvp
+iverilog -g2023 -s issue474_exact -o exact-2023.vvp issue474_exact.sv && vvp exact-2023.vvp
+```
+Both commands exited 0 and printed `PASSED exact keyed package parameter and element read`. Positional, defaulted, and wildcard-imported parameter controls also passed in both editions. The existing mainline regression `sv_array_parameter_typedef_pattern.v` covers these forms and indexed reads; malformed duplicate and out-of-range keys have negative controls in the same fix commit. Closing as fixed.
+
+#728 [IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays
+### Standard clause
+- IEEE 1800-2017 §7.4.3 (array operations)
+- IEEE 1800-2023 §7.4.6 (array operations)
+
+### Normative requirement
+Both clauses permit equality operations on arrays, packed or unpacked, with equivalent operand types.
+
+### Probe and observed result
+Probe: `tests/1800_audit/c07/p07_04_multidimensional_array_equality.sv`, Slurm job 3225, using Icarus main `c31cbf1b` under both `-g2017` and `-g2023`. The standard-valid 2D unpacked-array comparisons `left != right` and `left == right` fail compilation in each edition with exit 4:
+
+```text
+error: Array left needs an array index here.
+error: Array right needs an array index here.
+error: Array left needs an array index here.
+error: Array right needs an array index here.
+```
+
+A one-dimensional unpacked-array equality/inequality control compiles and runs in both editions. This is distinct from closed issue #538, which covers VVP flag exhaustion on a large one-dimensional array.
+
+Evidence: `evidence/ieee1800-audit-c07-20261019/attempt-05-c07-multidimensional-array-equality-corrected/README.md` and `results-3225.tar.gz` (SHA-256 `e066507c8aa7f36ef6569af9e8911272c50f78f3f6c9ab6b49c339a104b525ec`).
+
+### Expected behavior
+Equality and inequality must operate on compatible unpacked arrays across all dimensions in both language editions.
+
+
+#97 ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)
+## Reproducer
+
+```systemverilog
+module m;
+  class c; int id; endclass
+  c arr[2];
+  initial begin
+    arr[0] = new;
+    arr[0].id = 5;             // <-- crashes ivl
+    $display("%0d", arr[0].id);
+    $finish(0);
+  end
+endmodule
+```
+
+```
+$ iverilog -g2012 -o /dev/null t.sv
+ivl: t-dll-api.cc:817: ivl_variable_type_t ivl_expr_value(ivl_expr_t): Assertion `net' failed.
+Aborted
+```
+
+Both a constant index (`arr[0].id`) and a variable/loop index (`arr[i].id`) crash. Reading (`arr[0].id` on the RHS) is fine; only the **store** crashes.
+
+## Expected behavior
+
+Legal SystemVerilog: assign `5` to the `id` property of the object held in `arr[0]`. Should compile and run, printing `5`.
+
+## Actual behavior
+
+Compiler (ivl) aborts on an assertion. Crashing, not silent.
+
+## IEEE clause
+
+8 (classes) / 7.4 (unpacked arrays) — property lvalue of an array-of-handles element.
+
+## Likely subsystem
+
+tgt-vvp code generation. Backtrace:
+
+```
+#7  ivl_expr_value (net=0x0) at t-dll-api.cc:817
+#8  draw_eval_expr_into_integer (expr=0x0, ix=4) at eval_expr.c:298
+#9  show_stmt_assign_sig_cobject (net=...) at stmt_assign.c:2472
+#10 show_stmt_assign (net=...) at stmt_assign.c:2514
+```
+
+`show_stmt_assign_sig_cobject` calls `draw_eval_expr_into_integer` with a NULL index expression when the cobject lvalue is itself an element of an array (the element-index expression is not being threaded through).
+
+## Severity
+
+P1 — compiler crash on legal SystemVerilog.
+
+## Notes
+
+Pre-existing; discovered while testing per-instance class events (PR #96), but entirely unrelated to events — the reproducer above uses no events. The array-of-object property-store lvalue path in `stmt_assign.c` needs to supply the element index to `draw_eval_expr_into_integer` (and handle the NULL case) rather than passing a null expression.
+The **crash is fixed** and **stores now work correctly** — `arr[i].prop = expr` for a static unpacked array of class handles compiles and lands in the addressed element (verified by reading back through a copied handle). Fix in PR #96 (commit `e370bdf`):
+
+1. `elab_lval.cc` misrouted the l-value — the whole-array early return keyed off `name_tail.index` (the member, which carries no index), so a member access was treated as a whole-array assignment. Guarded on empty `tail_path`.
+2. `elaborate_lval_net_class_member_` only applied the element index for dynamic arrays; added a static-array branch computing the canonical word index.
+3. `tgt-vvp` `draw_lval_expr` used the scalar `%load/obj` fallback for a static array (whose net_type reports as the element class directly); added an indexed `%load/obja` branch.
+
+Regression: `ivtest/ivltests/sv_array_obj_prop_store.v`. Full vendored ivtest name-diff clean.
+
+**Remaining (keeping this open):** the *direct read* `arr[i].prop` still returns the wrong element — its base evaluates to an `IVL_EX_SELECT` with a null index in the read/expression path (`draw_property_vec4` → `draw_eval_object` on a base whose word index was dropped during elaboration). This is a pre-existing silent bug independent of the store crash; stores are unaffected. Reading through a copied handle (`h = arr[i]; h.prop`) is a correct workaround. Follow-up will fix the base-expression elaboration so the array-element read carries its index.
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_
+Follow-up fixed too — the **direct read** `arr[i].prop` now returns the correct element. Root cause was the mirror of the store bug: `elaborate_root_indexed_class_base_expr_` (the property-read base builder) only applied the element index for dynamic arrays (`net->darray_type()`); for a static unpacked array it returned the whole-array signal, so the read addressed element 0. Added a static-array branch that builds an indexed `NetESignal` element access (the same shape as a plain `arr[i]` object read). The regression test now verifies via direct reads (`arr[i].prop`) as well as handle reads. Closing once the full ivtest gate confirms clean.
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_

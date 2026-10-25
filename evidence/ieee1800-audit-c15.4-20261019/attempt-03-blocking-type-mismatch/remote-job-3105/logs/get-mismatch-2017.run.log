@@ -1,0 +1,2 @@
+GET_MISMATCH_RETURNED value=0 num=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_get_mismatch.sv:12: $finish called at 0 (1s)

@@ -1,0 +1,12 @@
+candidate_commit=4bfe7d04ca190adc9ad74268445bf42a6f187f59
+host=DAN-DESKTOP
+started=2026-10-18T13:40:30-06:00
+cpus=1
+mem=2G
+modes-2017=PASS
+struct-2017=RUN_FAIL
+modes-2023=PASS
+struct-2023=RUN_FAIL
+override-2017=REJECTED rc=1; diagnostic requires review
+override-2023=REJECTED rc=1; diagnostic requires review
+finished=2026-10-18T13:40:30-06:00

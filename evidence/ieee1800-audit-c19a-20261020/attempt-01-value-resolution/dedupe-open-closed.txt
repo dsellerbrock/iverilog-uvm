@@ -1,0 +1,13 @@
+Repository: dsellerbrock/iverilog-uvm
+All text queries used gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url, so open and closed issues were included.
+
+Search results before probing:
+- value resolution: #497 and #458 are CLOSED issues about package-qualified static class calls and $timeunit/$timeprecision; #27 is CLOSED and unrelated UVM stubs.
+- bins warning: #522 and #19 are CLOSED. #522 repairs real-coverpoint legacy/JSON expectations and does not cover §19.5.7 value casting, warnings, bin-value exclusion, or range intersection; #19 is a broad phase issue.
+- bins out of range: no matches.
+- coverpoint bins signed: no matches.
+
+Open §19 issue titles reviewed for overlap:
+#622 §19.8 get_inst_coverage ref arguments; #623 §19.5.1 array default bins; #624 §19.4 embedded covergroup event; #625 §19.3 block event; #626 §19.8 set_inst_name; #627 §19.8 type coverage; #628 §19.4 embedded covergroup assignment; #630 §19.5 implicit coverpoint naming; #659 §19.4 parameterized class covergroup; #685 §19.6 cross-group items; #686 §19.7 duplicate option; #687 §19.7.1 type_option; #688 §19.9 coverage database tasks; #689 §19.10 procedural options; #696 §19.5.3 auto_bin_max. None describes §19.5.7 value casting or range intersection.
+
+Post-probe recheck, before lead classification or filing, repeated the same four --state all searches and returned the same results: value resolution [#497, #458, #27 closed and unrelated]; bins warning [#522, #19 closed and unrelated]; bins out of range []; coverpoint bins signed [].

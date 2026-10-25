@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/c07-audit-20261019-10/source/tests/1800_audit/c07/p07_08_invalid_assoc_index.sv:9: missing 4-state entry read did not return X without allocation
+       Time: 0  Scope: test

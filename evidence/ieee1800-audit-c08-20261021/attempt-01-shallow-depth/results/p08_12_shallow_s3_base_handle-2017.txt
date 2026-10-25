@@ -1,0 +1,1 @@
+vvp: vvp_cobject.cc:1190: virtual void vvp_cobject::shallow_copy(const vvp_object*): Assertion `defn_ == that->defn_' failed.

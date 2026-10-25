@@ -1,0 +1,8 @@
+Dedupe review:
+- #760 OPEN is forward-class class-scope type selection (`typedef C::T`), a different §6.18 behavior than using a forward class handle as a property type or specializing a forward-declared class handle.
+- #762 OPEN is a forward typedef whose actual definition has the wrong basic type (enum declaration followed by struct definition), not unresolved class forward references or parameterized class specialization.
+- #751 OPEN is the 2023-only `forward_type` modifier on module type parameters, not §8.27 class typedef declarations.
+- #766 OPEN covers selecting a type from a parameterized class scope (`C#(T,N)::t`), not a variable whose class type is supplied by a forward `typedef class P;`.
+- #19 CLOSED is an old broad language-edge tracker; its forward-declaration item is for structs, with no focused §8.27 class-forward/parameterized-handle issue.
+- Other all-state search hits were unrelated: #747/#738/#740 array casts and enum methods, #666/#680 UVM/randomization, #499 packed-struct indexing, #434 aggregate lifetime, #500 hierarchical calls, #100 class-array storage, #47 fallback tracking, #43 process/array methods, and #30 UVM virtual dispatch.
+No issue found duplicates the §8.27 test cases. #760 is recorded as the already-known nearest hit.

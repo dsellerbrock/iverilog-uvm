@@ -1,0 +1,7 @@
+local repo HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+relevant working-tree status:
+?? tests/1800_audit/c18/p18_05_5_real_pred.sv
+?? tests/1800_audit/c18/p18_05_6_impl_ifelse.sv
+?? tests/1800_audit/c18/p18_05_6_n_real_pred_2017.sv
+run.sbatch hash: 2a9f8688a17f4fbceabfce8373d9df051fcc10de083efb5dcd6871b744f3fc6e  evidence/ieee1800-audit-c18l-20261020/attempt-01-impl-ifelse/run.sbatch
+Slurm job: 3472 on DAN-DESKTOP, 1 CPU / 1 GiB / 3-minute allocation; each compiler/runtime process limited to 30 seconds.

@@ -1,0 +1,20 @@
+FAIL repeat_x
+RESULT pass=23 fail=1
+        0.02 real         0.00 user         0.00 sys
+             7389184  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 736  page reclaims
+                  20  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   2  voluntary context switches
+                  58  involuntary context switches
+            94139662  instructions retired
+            35476196  cycles elapsed
+             4096384  peak memory footprint

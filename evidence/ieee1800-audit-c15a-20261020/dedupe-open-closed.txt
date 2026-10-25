@@ -1,0 +1,12 @@
+
+QUERY mailbox
+[{"number":695,"state":"OPEN","title":"[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/695"}]
+
+QUERY mailbox get
+[{"number":695,"state":"OPEN","title":"[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/695"}]
+
+QUERY parameterized mailbox
+[]
+
+QUERY mailbox peek
+[{"number":695,"state":"OPEN","title":"[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/695"}]

@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_24_assoc_dest.sv:1: error: Array x needs an array index here.
+Elaboration failed

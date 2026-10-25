@@ -1,0 +1,149 @@
+
+=== p08_12_shallow_s1_base (-g2012; Icarus lacks -g2023; timeout=60s) ===
+PASS S1 base copy source=3 copy=4
+        0.01 real         0.00 user         0.00 sys
+             5226496  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2785  page reclaims
+                  34  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  48  involuntary context switches
+            15661048  instructions retired
+             6573729  cycles elapsed
+             1524096  peak memory footprint
+exit=0
+
+=== p08_12_shallow_s2_derived (-g2012; Icarus lacks -g2023; timeout=60s) ===
+PASS S2 derived source=3/8 copy=4/9
+        0.02 real         0.01 user         0.01 sys
+             5210112  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2803  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  54  involuntary context switches
+            15778106  instructions retired
+             6942102  cycles elapsed
+             1507712  peak memory footprint
+exit=0
+
+=== p08_12_shallow_s3_base_handle (-g2012; Icarus lacks -g2023; timeout=60s) ===
+tests/1800_audit/c08/p08_12_shallow_s3_base_handle.sv:10: Error: System task/function $cast() is not defined by any module.
+/tmp/a3-c08-shallow-final-1792580455/p08_12_shallow_s3_base_handle: Program not runnable, 1 errors.
+        0.03 real         0.01 user         0.01 sys
+             5111808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2805  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  78  involuntary context switches
+            15990324  instructions retired
+             8885406  cycles elapsed
+             1507712  peak memory footprint
+exit=1
+
+=== p08_12_shallow_s4_members (-g2012; Icarus lacks -g2023; timeout=60s) ===
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:4: sorry: Queues inside classes are not yet supported.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:10: error: Can't find task push_back in class Holder
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:10: error: Enable of unknown task ``a.q.push_back''.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:10: error: Can't find task push_back in class Holder
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:10: error: Enable of unknown task ``a.q.push_back''.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:11: sorry: Array index of array properties not supported.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:11: error: Index expressions don't apply to this type of property.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:11: error: The expression ''sd9' cannot be implicitly cast to the target type.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:13: sorry: Nested member path not yet supported for class properties.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:13: error: Unable to elaborate condition expression.
+tests/1800_audit/c08/p08_12_shallow_s4_members.sv:15: sorry: Nested member path not yet supported for class properties.
+9 error(s) during elaboration.
+        0.01 real         0.00 user         0.00 sys
+             3588096  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2085  page reclaims
+                  16  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  42  involuntary context switches
+            14094966  instructions retired
+             6212953  cycles elapsed
+             1507712  peak memory footprint
+exit=9
+
+=== p08_12_shallow_s5_access (-g2012; Icarus lacks -g2023; timeout=60s) ===
+PASS S5 local=4 protected=6
+        0.02 real         0.01 user         0.00 sys
+             5242880  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2810  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  43  involuntary context switches
+            15620196  instructions retired
+             6449237  cycles elapsed
+             1507712  peak memory footprint
+exit=0
+
+=== p08_12_shallow_s6_parameterized (-g2012; Icarus lacks -g2023; timeout=60s) ===
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:2: syntax error
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:2: error: Invalid module item.
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:4: syntax error
+tests/1800_audit/c08/p08_12_shallow_s6_parameterized.sv:5: error: Invalid module item.
+        0.01 real         0.00 user         0.00 sys
+             3031040  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2052  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  38  involuntary context switches
+            14098951  instructions retired
+             6176711  cycles elapsed
+             1507712  peak memory footprint
+exit=4
+
+outputs=/tmp/a3-c08-shallow-final-1792580455

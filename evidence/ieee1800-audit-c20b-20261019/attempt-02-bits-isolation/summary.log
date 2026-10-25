@@ -1,0 +1,24 @@
+r20_06_bits_pt g2017 compile rc=0
+r20_06_bits_pt g2017 run rc=0: pt 9
+r20_06_bits_ut g2017 compile rc=1
+tests/1800_audit/c20/r20_06_bits_ut.sv:1: error: Invalid data type for $bits().
+r20_06_bits_uv g2017 compile rc=0
+r20_06_bits_uv g2017 run rc=0: uv 3
+r20_06_bits_v g2017 compile rc=0
+r20_06_bits_v g2017 run rc=0: v 32
+p20_06b_query g2017 compile rc=0
+p20_06b_query g2017 run rc=0: FAIL tn_vec
+INFO tn L=[logic [7:0]] U=[int unsigned] B=[byte] SR=[shortreal] mt=[struct {logic valid;bit [8:1] data;}]
+RESULT pass=9 fail=1
+r20_06_bits_pt g2023 compile rc=0
+r20_06_bits_pt g2023 run rc=0: pt 9
+r20_06_bits_ut g2023 compile rc=1
+tests/1800_audit/c20/r20_06_bits_ut.sv:1: error: Invalid data type for $bits().
+r20_06_bits_uv g2023 compile rc=0
+r20_06_bits_uv g2023 run rc=0: uv 3
+r20_06_bits_v g2023 compile rc=0
+r20_06_bits_v g2023 run rc=0: v 32
+p20_06b_query g2023 compile rc=0
+p20_06b_query g2023 run rc=0: FAIL tn_vec
+INFO tn L=[logic [7:0]] U=[int unsigned] B=[byte] SR=[shortreal] mt=[struct {logic valid;bit [8:1] data;}]
+RESULT pass=9 fail=1

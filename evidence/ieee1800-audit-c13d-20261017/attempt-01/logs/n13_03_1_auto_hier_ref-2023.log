@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_03_1_auto_hier_ref.sv:3: error: Hierarchical reference to automatically allocated item `a' in path `t'
+3 error(s) during elaboration.

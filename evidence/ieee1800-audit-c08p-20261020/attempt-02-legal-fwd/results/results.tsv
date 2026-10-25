@@ -1,0 +1,6 @@
+edition	probe	compile_rc	run_rc	result
+2023	p08_20_spec_legal	0	0	PASS
+2017	p08_27_fwd	0	0	PASS
+2023	p08_27_fwd	0	0	PASS
+2017	n08_27_forward_missing	1	NA	REJECTED
+2023	n08_27_forward_missing	1	NA	REJECTED

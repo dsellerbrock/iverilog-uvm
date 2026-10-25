@@ -1,0 +1,15 @@
+PASS 13.5.4.fun(.j(2),.s(yes))
+PASS 13.5.4.fun(.s(yes))
+PASS 13.5.4.fun(,yes)
+PASS 13.5.4.fun(.j(2))
+PASS 13.5.4.fun(.s(yes),.j(2))
+PASS 13.5.4.fun(.s(),.j())
+PASS 13.5.4.fun(2)
+PASS 13.5.4.fun()
+PASS 13.5.4.fun(2,.s(yes))
+PASS 13.5.5.void_fn_no_args_no_parens
+PASS 13.5.5.void_fn_all_defaults_no_parens
+PASS 13.5.5.task_all_defaults_no_parens
+PASS 13.5.5.class_void_method_no_parens
+PASS 13.5.5.class_nonvoid_method_no_parens
+DONE fails=0

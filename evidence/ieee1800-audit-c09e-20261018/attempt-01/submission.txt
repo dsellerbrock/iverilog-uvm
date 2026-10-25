@@ -1,0 +1,6 @@
+Host: DAN-DESKTOP
+Run directory: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01
+Command: cd /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01 && sbatch --parsable a3-m7-c09e.sbatch
+Slurm job ID: 2549
+Resources: 1 CPU, 2 GiB RAM, 25 minutes; selected from prior §9 probes using the same pinned compiler with 1 CPU / 2 GiB; no build step
+Per-test limits: compile 60 seconds; run 30 seconds; TERM then KILL after 5 seconds

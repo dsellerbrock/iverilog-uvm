@@ -1,0 +1,12 @@
+=== compile -g2017 (120-second timeout) ===
+compile_exit=0
+=== run -g2017 (120-second timeout) ===
+U 62.93 125.85 190.87 670
+elapsed_seconds=2.77 max_rss_kib=40948
+run_exit=0
+=== compile -g2023 (120-second timeout) ===
+compile_exit=0
+=== run -g2023 (120-second timeout) ===
+U 62.93 125.85 190.87 670
+elapsed_seconds=2.74 max_rss_kib=41088
+run_exit=0

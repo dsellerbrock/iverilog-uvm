@@ -1,0 +1,10 @@
+257M	results/C2_continuous_struct_variable_assignment-g2017.vvp
+256M	results/C2_continuous_struct_variable_assignment-g2023.vvp
+4.0K	results/C3_always_comb_struct_pattern-g2017.vvp
+4.0K	results/C3_always_comb_struct_pattern-g2023.vvp
+8.0K	results/U1c_real_user_nettype_resolver-g2017.vvp
+8.0K	results/U1c_real_user_nettype_resolver-g2023.vvp
+8.0K	results/U2c_real_user_nettype_alias-g2017.vvp
+8.0K	results/U2c_real_user_nettype_alias-g2023.vvp
+8.0K	results/U3c_real_user_nettype_force_release-g2017.vvp
+8.0K	results/U3c_real_user_nettype_force_release-g2023.vvp

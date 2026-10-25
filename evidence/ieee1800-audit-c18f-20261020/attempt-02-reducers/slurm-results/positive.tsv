@@ -1,0 +1,7 @@
+edition	probe	compile_rc	run_rc
+2017	p18_05_order_dist	0	0
+2017	p18_05_static_mode	0	1
+2017	p18_05_solve_real	1	NA
+2023	p18_05_order_dist	0	0
+2023	p18_05_static_mode	0	1
+2023	p18_05_solve_real	0	0

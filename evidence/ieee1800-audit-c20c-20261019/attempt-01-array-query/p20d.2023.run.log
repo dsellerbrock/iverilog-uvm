@@ -1,0 +1,25 @@
+FAIL dims_type
+FAIL type_arg
+FAIL int_types
+FAIL assoc
+FAIL assoc_empty
+FAIL multi
+RESULT pass=10 fail=6
+        0.01 real         0.00 user         0.00 sys
+             7159808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 732  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   9  involuntary context switches
+            80931507  instructions retired
+            26738757  cycles elapsed
+             3965312  peak memory footprint

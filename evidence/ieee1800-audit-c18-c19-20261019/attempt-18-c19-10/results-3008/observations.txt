@@ -1,0 +1,6 @@
+option-structs-2017=PASS
+option-structs-2023=PASS
+procedural-members-2017=COMPILE_FAIL(exit=4)
+procedural-members-2023=COMPILE_FAIL(exit=4)
+nonexistent-member-2017=REJECTED(exit=1)
+nonexistent-member-2023=REJECTED(exit=1)

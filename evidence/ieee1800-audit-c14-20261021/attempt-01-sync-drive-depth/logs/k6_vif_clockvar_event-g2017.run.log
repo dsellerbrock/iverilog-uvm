@@ -1,0 +1,2 @@
+EVENT 15000 1
+input/k6_vif_clockvar_event.sv:28: $finish called at 16000 (1ps)

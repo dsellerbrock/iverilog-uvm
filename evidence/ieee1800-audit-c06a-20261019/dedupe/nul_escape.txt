@@ -1,0 +1,30 @@
+659	OPEN	[IEEE 1800] §19.4 — Embedded covergroup in a parameterized class: malformed runtime metadata and coverage 0.0
+706	OPEN	[IEEE 1800] §16.4 — Support user subroutine task actions in observed (#0) deferred assertions
+704	OPEN	[IEEE 1800] §14.11 — Pre-event ##0 cycle delay does not suspend until clocking event
+653	OPEN	[IEEE 1800] §9.4.4 — Named sequence .triggered cannot be bound; wait (abc.triggered) falls through at t=0
+675	OPEN	[IEEE 1800] §18.8 — rand_mode() on whole unpacked structure does not affect all members
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties
+692	OPEN	[IEEE 1800] §15.3.1 — Negative initial keyCount in semaphore new() wraps to unsigned keys
+691	OPEN	[IEEE 1800] §15.3 — Negative keyCount in semaphore put(), get(), and try_get() does not result in an error
+622	OPEN	[IEEE 1800] §19.8 — get_inst_coverage(ref int, ref int) does not assign covered/total bin counts
+705	OPEN	[IEEE 1800] §14.11 — Reject non-positive expression-valued cycle delays under 1800-2017
+643	OPEN	[IEEE 1800] §9.6.1 — wait fork also waits for descendants of child processes
+644	OPEN	[IEEE 1800] §9.7 — Reject extending the built-in process class
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members
+628	OPEN	[IEEE 1800] §19.4 — Reject assigning an embedded covergroup variable outside new()
+646	OPEN	[IEEE 1800] §9.7 — Diagnose await on the current process
+645	OPEN	[IEEE 1800] §9.7 — new on process must be an error, not create an object
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines
+648	OPEN	[IEEE 1800] §9.7 — Function self-suspend must be an error in 2023
+619	OPEN	[IEEE 1800] §8.17 — Reject super.new() when extends specifier supplies arguments
+680	OPEN	[IEEE 1800] evaluate non-random function calls in inline constraints
+652	OPEN	[IEEE 1800] §20.6.2 — $bits of a dynamically sized queue returns 1 instead of its current bit count
+670	OPEN	from-caliptra-dv: classify trailing empty $psprintf argument
+649	OPEN	[IEEE 1800] §9.7 — resume() replays an event that occurred while the process was suspended
+655	OPEN	[IEEE 1800-2023] §9.4.5 — repeat event control with an unknown (X) count waits forever
+615	OPEN	[IEEE 1800] §8.10 — Reject static virtual methods
+484	OPEN	[IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements
+679	OPEN	[IEEE 1800] default clocking for sampled-value functions in procedural event controls
+612	OPEN	[IEEE 1800] §8.4 — Reject equality between handles of unrelated classes
+609	OPEN	[IEEE 1800] §8.7 — Reject static or virtual class constructors
+614	OPEN	[IEEE 1800] §8.10 — Reject this and non-static members in static methods

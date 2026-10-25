@@ -1,0 +1,55 @@
+CASE std=2017 file=tests/1800_audit/c16/p16_12_14_abort_boolean.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_12_14_abort_temporal.sv expected=reject
+COMPILE_RC=1
+EXPECTED_COMPILE_REJECT
+CASE std=2017 file=tests/1800_audit/c16/p16_12_15_strength.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_12_17_recursive.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_12_18_untyped_formal_decl.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_12_18_untyped_formal_instance.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2017 file=tests/1800_audit/c16/p16_12_18_typed_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+CASE std=2017 file=tests/1800_audit/c16/p16_12_19_local_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+CASE std=2017 file=tests/1800_audit/c16/n16_12_19_local_output_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+CASE std=2023 file=tests/1800_audit/c16/p16_12_14_abort_boolean.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_12_14_abort_temporal.sv expected=reject
+COMPILE_RC=1
+EXPECTED_COMPILE_REJECT
+CASE std=2023 file=tests/1800_audit/c16/p16_12_15_strength.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_12_17_recursive.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_12_18_untyped_formal_decl.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_12_18_untyped_formal_instance.sv expected=run
+COMPILE_RC=0
+RUN_RC=0
+CASE std=2023 file=tests/1800_audit/c16/p16_12_18_typed_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+CASE std=2023 file=tests/1800_audit/c16/p16_12_19_local_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+CASE std=2023 file=tests/1800_audit/c16/n16_12_19_local_output_formal.sv expected=reject
+COMPILE_RC=0
+EXPECTED_COMPILE_REJECT
+TOTAL_UNEXPECTED=0

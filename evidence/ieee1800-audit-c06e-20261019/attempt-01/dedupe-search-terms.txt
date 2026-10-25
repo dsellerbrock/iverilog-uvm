@@ -1,0 +1,11 @@
+lifetime
+automatic
+static
+static initializer
+program automatic
+module automatic
+hierarchical static
+unnamed block
+nonblocking automatic
+class property continuous
+dynamic array element

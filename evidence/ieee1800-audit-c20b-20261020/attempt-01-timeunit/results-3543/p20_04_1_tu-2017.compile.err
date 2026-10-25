@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-timeunit-20261020-01/source/p20_04_1_tu.sv:4: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+4 error(s) during elaboration.

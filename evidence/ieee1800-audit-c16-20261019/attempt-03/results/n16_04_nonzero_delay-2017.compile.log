@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_nonzero_delay.sv:2: error: Delay value must be zero for deferred assertion.
