@@ -9,6 +9,7 @@ autoconf > "$RESULTS/autoconf.log" 2>&1
 make -j3 > "$RESULTS/build.log" 2>&1
 make install > "$RESULTS/install.log" 2>&1
 export PATH="$ROOT/local-install/bin:$PATH"
+"$ROOT/ci/run-smoke.sh" > "$RESULTS/t0-smoke.log" 2>&1
 : > "$RESULTS/reproducer.tsv"
 for edition in 2017 2023; do
   rc=0
