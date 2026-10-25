@@ -1055,6 +1055,25 @@ TU [munpf]
 		                |GN_KEYWORDS_1800_2005
 		                |GN_KEYWORDS_1800_2009
 		                |GN_KEYWORDS_1800_2012;
+	  } else if (strcmp(word,"1800-2017") == 0) {
+	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
+				        |GN_KEYWORDS_1364_2001
+				        |GN_KEYWORDS_1364_2001_CONFIG
+				        |GN_KEYWORDS_1364_2005
+				        |GN_KEYWORDS_1800_2005
+				        |GN_KEYWORDS_1800_2009
+				        |GN_KEYWORDS_1800_2012
+				        |GN_KEYWORDS_1800_2017;
+	  } else if (strcmp(word,"1800-2023") == 0) {
+	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
+				        |GN_KEYWORDS_1364_2001
+				        |GN_KEYWORDS_1364_2001_CONFIG
+				        |GN_KEYWORDS_1364_2005
+				        |GN_KEYWORDS_1800_2005
+				        |GN_KEYWORDS_1800_2009
+				        |GN_KEYWORDS_1800_2012
+				        |GN_KEYWORDS_1800_2017
+				        |GN_KEYWORDS_1800_2023;
       } else if (strcmp(word,"VAMS-2.3") == 0) {
 	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
 		                |GN_KEYWORDS_1364_2001
