@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue1182_sva_boolean.v:17: $finish called at 46 (1s)

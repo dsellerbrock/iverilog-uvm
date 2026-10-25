@@ -12158,7 +12158,14 @@ expr_mintypmax
      tie arises and the sub-sequence rule is the only one available. */
 sva_bool_atom
   : expression
-      { $$ = $1; }
+      { /* 16.6: assertion Boolean expressions have procedural-if truth.
+           Convert the integral operand to a one-bit logical value before
+           sequence lowering combines it with one-bit state. */
+	PEUnary*inner = new PEUnary('!', $1);
+	FILE_NAME(inner, @1);
+	PEUnary*outer = new PEUnary('!', inner);
+	FILE_NAME(outer, @1);
+	$$ = outer; }
   ;
 
 for_variable_identifier

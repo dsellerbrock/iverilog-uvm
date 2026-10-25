@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1182_sva_boolean.v",
+  "iverilog-args": ["-g2023", "-s", "issue1182_sva_boolean"],
+  "gold": "issue1182_sva_boolean"
+}
