@@ -672,6 +672,7 @@ extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
    available, unlike best-effort tracking for outer frames. */
 extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
+extern void vpip_print_finish_stats(void);
 /* Cancel pending deferred-immediate reports selected by hierarchy path. */
 extern void vpip_cancel_deferred_asserts(const char*selector,
                                          PLI_INT32 levels);
@@ -786,7 +787,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 11;
+static const PLI_UINT32 vpip_routines_version = 12;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -847,6 +848,7 @@ typedef struct {
     PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
     void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
                                                    PLI_INT32);
+    void        (*print_finish_stats)(void);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);
