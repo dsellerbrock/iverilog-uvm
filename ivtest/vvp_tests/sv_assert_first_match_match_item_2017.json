@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_first_match_match_item.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_assert_first_match_match_item"],
+  "gold": "sv_assert_first_match_match_item"
+}
