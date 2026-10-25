@@ -1,0 +1,2 @@
+./ivltests/sv_module_restricted_type_param.v:11: error: Type argument for module type parameter `T' does not satisfy the `type enum' restriction.
+1 error(s) during elaboration.
