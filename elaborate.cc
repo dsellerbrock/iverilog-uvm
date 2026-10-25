@@ -14125,6 +14125,17 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       for (unsigned idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    auto &parm = parms_[idx];
 
+	    /* IEEE 1800-2017/2023 13.3.2: automatic task variables are
+	       deallocated when the task returns and may not be traced by
+	       $monitor or $dumpvars. Reject these references during
+	       elaboration instead of relying on the VPI runtime check. */
+	    if ((name == "$monitor" || name == "$dumpvars")
+		&& parm.parm && parm.parm->has_aa_term(des, scope)) {
+		  cerr << parm.get_fileline() << ": error: " << name
+		       << " may not trace an automatic variable." << endl;
+		  des->errors += 1;
+	    }
+
 	    // System functions don't have named parameters
 	    if (!parm.name.nil()) {
 		  cerr << parm.get_fileline() << ": error: "
