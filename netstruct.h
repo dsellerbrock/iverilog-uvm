@@ -74,6 +74,9 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       const void* nominal_definition() const { return definition_; }
       const std::string& nominal_owner_identity() const
       { return owner_identity_; }
+      void set_typename_name(const std::string&name)
+      { if (typename_name_.empty()) typename_name_ = name; }
+      const std::string& typename_name() const { return typename_name_; }
 
       void packed(bool flag);
       bool packed(void) const override;
@@ -115,6 +118,7 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       bool soft_union_ = false;
       const void*definition_ = nullptr;
       std::string owner_identity_;
+      std::string typename_name_;
       std::vector<member_t>members_;
 };
 

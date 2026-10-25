@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_typename_scope791.v",
+  "iverilog-args": ["-g2023", "-s", "sv_typename_scope791"],
+  "gold": "sv_typename_scope791_2023"
+}

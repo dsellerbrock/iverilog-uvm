@@ -3265,6 +3265,15 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
       if (!elab_type)
 	    return netvector_t::integer_type();
 
+	// Preserve the source typedef's defining scope for $typename. The
+	// elaborated aggregate carrier intentionally keeps nominal identity
+	// separate from its display name, so attach the user-visible name here.
+      std::string separator = scope->type() == NetScope::PACKAGE ? "::" : ".";
+      std::ostringstream typename_name;
+      typename_name << scope_path(scope) << separator << name;
+      if (const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(elab_type))
+	    const_cast<netstruct_t*>(struct_type)->set_typename_name(typename_name.str());
+
       bool type_ok = true;
       switch (basic_type) {
       case ENUM:

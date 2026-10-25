@@ -11905,14 +11905,9 @@ static std::string typename_format_enum_value_(long width, bool is_signed,
 }
 
 /*
- * Format an enum type as the structural expansion IEEE 1800-2017
- * 20.6.1 shows for an anonymous enum: "enum{A=32'sd0,B=32'sd1}". Icarus
- * does not track whether an enum type came from a typedef (netenum_t
- * carries no name of its own), so this expansion is used uniformly for
- * both typedef'd and anonymous enums; the caller appends the argument's
- * own declared name afterward (matching the LRM example's trailing
- * "...}e1"), which is the closest approximation available without
- * typedef-name tracking. This is a documented implementation choice.
+ * Format the structural expansion IEEE 1800-2017/2023 20.6.1 shows for
+ * an anonymous enum. The caller adds either its generated name for a
+ * package-scoped enum expression or the existing simple identifier name.
  */
 static std::string typename_format_enum_(const netenum_t*en)
 {
@@ -11930,19 +11925,23 @@ static std::string typename_format_enum_(const netenum_t*en)
 }
 
 /*
- * Format a struct/union type. Neither packed nor unpacked structs
- * carry a typedef name in netstruct_t, so (as with enums, above) this
- * is always the structural member expansion.
+ * Format a struct/union type. The typedef scope prefix is available for
+ * typedefs used as unpacked-array element types; other aggregate results
+ * retain the existing structural expansion.
  */
-static std::string typename_format_type_(ivl_type_t type);
+static std::string typename_format_type_(ivl_type_t type,
+					 bool array_element = false);
 
-static std::string typename_format_struct_(const netstruct_t*st)
+static std::string typename_format_struct_(const netstruct_t*st,
+					   bool array_element)
 {
-      std::string out = st->union_flag() ? "union " : "struct ";
+	  std::string out = st->union_flag() ? "union " : "struct ";
+	  if (array_element)
+	    out = st->union_flag() ? "union" : "struct";
       if (st->packed()) {
-	    out += "packed ";
+	    out += array_element ? " packed" : "packed ";
 	    if (st->get_signed())
-		  out += "signed ";
+		  out += array_element ? " signed" : "signed ";
       }
       out += "{";
       const std::vector<netstruct_t::member_t>&members = st->members();
@@ -11951,6 +11950,8 @@ static std::string typename_format_struct_(const netstruct_t*st)
 		 + std::string(members[idx].name.str()) + ";";
       }
       out += "}";
+      if (array_element && !st->typename_name().empty())
+	    out += st->typename_name();
       return out;
 }
 
@@ -11973,13 +11974,13 @@ static std::string typename_format_class_(const netclass_t*cls)
 
 /*
  * Top-level dispatcher: walk an ivl_type_t and build its IEEE
- * 1800-2017 20.6.1 type name. Array/queue/associative-array wrappers
+ * 1800-2017/2023 20.6.1 type name. Array/queue/associative-array wrappers
  * recurse on their element type and append the "$[...]" notation the
  * LRM's own examples use (e.g. "int$[0:3]" for `int a[4]`, "$[]" for a
  * dynamic array, "$[$]" for a queue, "$[<index type>]" for an
  * associative array).
  */
-static std::string typename_format_type_(ivl_type_t type)
+static std::string typename_format_type_(ivl_type_t type, bool array_element)
 {
       if (!type)
 	    return "logic";
@@ -11991,13 +11992,13 @@ static std::string typename_format_type_(ivl_type_t type)
 	    return typename_format_enum_(en);
 
       if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(type))
-	    return typename_format_struct_(st);
+	    return typename_format_struct_(st, array_element);
 
 	// netqueue_t is also used to represent associative arrays
 	// (assoc_compat() set); check it before netdarray_t, which it
 	// derives from.
       if (const netqueue_t*q = dynamic_cast<const netqueue_t*>(type)) {
-	    std::string elem = typename_format_type_(q->element_type());
+	    std::string elem = typename_format_type_(q->element_type(), true);
 	    if (q->assoc_compat()) {
 		  if (ivl_type_t idx = q->assoc_index_type())
 			return elem + "$[" + typename_format_type_(idx) + "]";
@@ -12013,10 +12014,10 @@ static std::string typename_format_type_(ivl_type_t type)
       }
 
       if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(type))
-	    return typename_format_type_(da->element_type()) + "$[]";
+	    return typename_format_type_(da->element_type(), true) + "$[]";
 
       if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(type)) {
-	    std::string elem = typename_format_type_(ua->element_type());
+	    std::string elem = typename_format_type_(ua->element_type(), true);
 	    const netranges_t&dims = ua->static_dimensions();
 	      // Multi-dimensional unpacked array ordering (outermost vs.
 	      // innermost dimension first in dims_) is not exercised by
@@ -12037,7 +12038,7 @@ static std::string typename_format_type_(ivl_type_t type)
 	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
 	// netvector_t and handled below, not netparray_t.
       if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
-	    return typename_format_type_(pa->element_type());
+	    return typename_format_type_(pa->element_type(), array_element);
 
       if (dynamic_cast<const netstring_t*>(type))
 	    return "string";
@@ -12567,21 +12568,18 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
 		  if (ivl_type_t nt = sub->net_type()) {
 			tn = typename_format_type_(nt);
-
-			  // IEEE 1800-2017 20.6.1's own example for an
-			  // anonymous enum appends the declaration's name
-			  // after the structural expansion
-			  // ("enum{...}e1"). Icarus does not track
-			  // typedef association for enum types, so this
-			  // is applied uniformly; see the comment on
-			  // typename_format_enum_() above.
-			if (dynamic_cast<const netenum_t*>(nt)) {
+			if (const netenum_t*enum_type =
+			    dynamic_cast<const netenum_t*>(nt)) {
 			      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
-				    perm_string leaf = peek_tail_name(id->path());
-				    if (!leaf.nil())
-					  tn += leaf.str();
+				    if (id->path().package) {
+					  tn += enum_type->nominal_owner_identity() + "::"
+					       + enum_type->typename_name();
+				    } else if (!id->path().name.empty()) {
+					  tn += id->path().name.back().name.str();
+				    }
 			      }
 			}
+
 		  } else {
 			tn = typename_format_basic_(sub->expr_type(),
 						    sub->expr_width(),

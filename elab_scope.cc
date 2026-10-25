@@ -501,6 +501,25 @@ static void elaborate_scope_enumeration(Design*des, NetScope*scope,
 
       netenum_t *use_enum = scope->enumeration_for_key(enum_type);
 
+	// IEEE 1800-2017/2023 20.6.1 gives anonymous enum types a generated
+	// name. Keep numbering local to the defining scope, matching e$1 in
+	// the clause's package example.
+      bool has_typedef_name = false;
+      for (const auto&td : scope->local_typedefs()) {
+	    if (td.second && td.second->get_data_type() == enum_type) {
+		  has_typedef_name = true;
+		  break;
+	    }
+      }
+      if (!has_typedef_name && use_enum->typename_name().empty()) {
+	    static std::map<std::string,unsigned> anonymous_enum_counts;
+	    std::string owner = use_enum->nominal_owner_identity();
+	    unsigned number = ++anonymous_enum_counts[owner];
+	    ostringstream generated;
+	    generated << "e$" << number;
+	    use_enum->set_typename_name(generated.str());
+      }
+
 	// Class methods and parameterized type specializations may ask the
 	// same lexical scope to elaborate more than once. Enum literals are
 	// immutable once closed; reinserting them diagnoses each name as a
