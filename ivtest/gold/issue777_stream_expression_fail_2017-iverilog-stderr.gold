@@ -1,0 +1,5 @@
+ivltests/issue777_stream_expression_fail.v:9: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_expression_fail.v:10: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_expression_fail.v:11: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_expression_fail.v:12: error: expression of type real is not a bit-stream type and cannot be a streaming concatenation operand (IEEE 1800-2017 11.4.14.1).
+4 error(s) during elaboration.

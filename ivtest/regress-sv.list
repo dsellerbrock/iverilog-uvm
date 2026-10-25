@@ -78,6 +78,14 @@ sv_default_clocking_procedural_override normal,-g2017 ivltests gold=sv_default_c
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
 always_comb_fail4	CE,-g2005-sv		ivltests
+sv_always_comb_overlapping_writers_dynamic CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_dynamic_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_disjoint_writers normal,-g2017,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
+sv_always_comb_disjoint_writers_2023 normal,-g2023,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
 always_comb_no_sens	normal,-g2005-sv	ivltests
 always_comb_rfunc	normal,-g2005-sv	ivltests
 always_comb_trig	normal,-g2005-sv	ivltests
@@ -1485,6 +1493,10 @@ sv_clocking_output_nonlvalue_fail_2017 CE,-g2017,-ssv_clocking_output_nonlvalue_
 sv_clocking_output_nonlvalue_fail_2023 CE,-g2023,-ssv_clocking_output_nonlvalue_fail_2023 ivltests
 
 # Clocking-output/continuous-driver identity; 2023 pairs are in regress-vvp.list
+sv_interface_class_nested_ordinary_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_ordinary_2023 normal,-g2023,-s,top ivltests gold=sv_interface_class_nested_ordinary_2023-legacy.gold
+sv_interface_class_nested_interface_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_interface_2023 CE,-g2023,-s,top ivltests
 sv_clocking_output_continuous_alias_overlap CE,-g2017,-ssv_clocking_output_continuous_alias_overlap ivltests gold=sv_clocking_output_continuous_alias_overlap.gold
 sv_clocking_output_continuous_declaration_only normal,-g2017,-ssv_clocking_output_continuous_declaration_only ivltests gold=sv_clocking_output_continuous_declaration_only.gold
 sv_clocking_output_continuous_disjoint normal,-g2017,-ssv_clocking_output_continuous_disjoint ivltests gold=sv_clocking_output_continuous_disjoint.gold
@@ -2292,6 +2304,7 @@ sv_ustruct_member_defaults_edge normal,-g2012 ivltests gold=sv_ustruct_member_de
 sv_struct_member_defaults_invalid_kind_fail CE,-g2012 ivltests gold=sv_struct_member_defaults_invalid_kind_fail.gold
 sv_param_class_bare_static_property_lvalue_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_property_lvalue_fail.gold
 sv_enum_class_typedef_forward_kind_fail CE,-g2012 ivltests gold=sv_enum_class_typedef_forward_kind_fail.gold
+sv_typedef_fwd_wrong_kind CE,-g2017 ivltests
 sv_class_typedef_parameterized_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_parameterized_shadow_fail.gold
 sv_class_typedef_scoped_static_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_scoped_static_shadow_fail.gold
 sv_param_class_scoped_static_lvalue_invalid_fail CE,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_invalid_fail.gold
@@ -2428,6 +2441,8 @@ sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.
 # IEEE 1800-2017 parallel statement labels and conditional event controls
 sv_statement_label_parallel normal,-g2012 ivltests gold=sv_statement_label_parallel.gold
 sv_statement_label_parallel_fail CE,-g2012 ivltests gold=sv_statement_label_parallel_fail.gold
+sv_statement_labels_2017 normal,-g2017,-s,main ivltests gold=sv_statement_labels.gold
+sv_statement_labels_2023 normal,-g2023,-s,main ivltests gold=sv_statement_labels.gold
 sv_event_conditional normal,-g2012 ivltests gold=sv_event_conditional.gold
 sv_event_conditional_fail CE,-g2012 ivltests gold=sv_event_conditional_fail.gold
 
@@ -2605,6 +2620,7 @@ sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests g
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
+sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold
 sv_interface_port_array_direction_methods normal,-g2012,-ssv_interface_port_array_direction_methods ivltests gold=sv_interface_port_array_direction_methods.gold
 sv_interface_port_array_shape_fail CE,-g2012,-ssv_interface_port_array_shape_fail ivltests gold=sv_interface_port_array_shape_fail.gold
 sv_interface_port_array_forwarded_shape_fail CE,-g2012,-ssv_interface_port_array_forwarded_shape_fail ivltests gold=sv_interface_port_array_forwarded_shape_fail.gold
@@ -5949,3 +5965,4 @@ sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_i
 sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
 sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
 sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold
+issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_vector_array_concat.gold

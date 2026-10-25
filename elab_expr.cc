@@ -5766,6 +5766,24 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
 
+	// IEEE 1800-2017/2023 11.4.14 only permits a streaming
+	// concatenation as an expression operand after a bit-stream cast.
+	// Plain assignment sources are handled by their assignment path and
+	// remain legal; a cast node also hides its streaming base here.
+      if (op_ != '=') {
+	    const PExpr*stream = dynamic_cast<const PEStreaming*>(left_);
+	    if (!stream)
+		  stream = dynamic_cast<const PEStreaming*>(right_);
+	    if (stream) {
+		  cerr << stream->get_fileline() << ": error: streaming "
+			"concatenation used as an expression operand must first "
+			"be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
 	/* Phase 63b: SystemVerilog `string + string` should be string
 	   concatenation, not numeric add (which would treat strings
 	   as packed vec4 and crash on size mismatch).  Need test_width
@@ -5987,7 +6005,8 @@ NetExpr* PEBinary::elaborate_expr_base_div_(Design*des,
 	/* The % operator does not support real arguments in
 	   baseline Verilog. But we allow it in our extended
 	   form of Verilog. */
-      if (op_ == '%' && ! gn_icarus_misc_flag) {
+      if (op_ == '%' && (generation_flag >= GN_VER2017
+			 || ! gn_icarus_misc_flag)) {
 	    if (lp->expr_type() == IVL_VT_REAL ||
 		rp->expr_type() == IVL_VT_REAL) {
 		  cerr << get_fileline() << ": error: Modulus operator "
@@ -8170,6 +8189,28 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return nullptr;
       }
+
+	// Static packing historically elaborated the inner expression as a
+	// whole, which let real-valued stream expressions fall through the
+	// ordinary real-to-vector conversion. Check each stream_expression
+	// before lowering so non-bit-stream operands receive the required error.
+      std::vector<PExpr*> stream_ops;
+      collect_operands_(stream_ops);
+      bool invalid_operand = false;
+      for (size_t idx = 0; idx < stream_ops.size(); idx += 1) {
+	    PExpr*op = stream_ops[idx];
+	    width_mode_t op_mode = SIZED;
+	    op->test_width(des, scope, op_mode);
+	    if (op->expr_type() == IVL_VT_REAL) {
+		  cerr << op->get_fileline() << ": error: expression of type real "
+			"is not a bit-stream type and cannot be a streaming "
+			"concatenation operand (IEEE 1800-2017 11.4.14.1)."
+		       << endl;
+		  des->errors += 1;
+		  invalid_operand = true;
+	    }
+      }
+      if (invalid_operand) return nullptr;
 
       width_mode_t m = SIZED;
       unsigned w;
@@ -11884,6 +11925,20 @@ static std::string typename_format_vector_(const netvector_t*vec)
       return base;
 }
 
+static std::string typename_format_vector_(const netvector_t*vec,
+                                          const netranges_t&outer_dims)
+{
+      if (outer_dims.empty())
+	    return typename_format_vector_(vec);
+
+      std::string base = typename_format_vector_(vec);
+      std::string dims = typename_format_packed_dims_(outer_dims);
+      std::string::size_type own_dims = base.find(" [");
+      base.insert(own_dims == std::string::npos ? base.size() : own_dims,
+		  dims);
+      return base;
+}
+
 /*
  * Format a single enum member value the way IEEE 1800-2017 20.6.1's own
  * example shows it: "<width>'s?d<value>", e.g. "32'sd0". A negative
@@ -12033,11 +12088,17 @@ static std::string typename_format_type_(ivl_type_t type)
 	    return elem;
       }
 
-	// A packed array of a non-vector element (e.g. a packed array of
-	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
-	// netvector_t and handled below, not netparray_t.
-      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
-	    return typename_format_type_(pa->element_type());
+	// A packed array of a typedef-named scalar is represented as a
+	// netparray_t, while an ordinary `bit [msb:lsb]` is a netvector_t.
+	// Preserve those dimensions in the type name (IEEE 1800-2017 20.6.1).
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type)) {
+	    if (const netvector_t*vec =
+		  dynamic_cast<const netvector_t*>(pa->element_type()))
+		  return typename_format_vector_(vec, pa->static_dimensions());
+
+	    return typename_format_type_(pa->element_type())
+		  + typename_format_packed_dims_(pa->static_dimensions());
+      }
 
       if (dynamic_cast<const netstring_t*>(type))
 	    return "string";
@@ -22009,8 +22070,25 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      want_type = ntype;
 			      item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			}
-			NetExpr*tmp = parms_[idx]->elaborate_expr(
-			      des, scope, want_type, item_flags);
+			NetExpr*tmp;
+			/* An integral concatenation used as one scalar array item is
+			 * self-determined (IEEE 1800-2017/2023 10.10.3). Elaborate it
+			 * through the ordinary value path so its packed width is formed
+			 * before conversion to the destination element type. Passing the
+			 * element type directly would mistake these braces for an
+			 * unpacked-array concatenation and reject the legal vector item. */
+			const PEConcat*vector_concat =
+			      dynamic_cast<const PEConcat*>(parms_[idx]);
+			if (vector_concat
+			    && vector_concat->expr_type() == IVL_VT_LOGIC
+			    && (elem_type->base_type() == IVL_VT_BOOL
+				|| elem_type->base_type() == IVL_VT_LOGIC)) {
+			      tmp = elaborate_rval_expr(des, scope, elem_type,
+					       parms_[idx], false, false, item_flags);
+			} else {
+			      tmp = parms_[idx]->elaborate_expr(
+				    des, scope, want_type, item_flags);
+			}
 			/* Array parameters materialize as a fixed-typed pattern,
 			 * rather than as an IVL_EX_ARRAY signal. The pattern stores
 			 * words in numeric-index order; splice duplicates in the
@@ -31018,6 +31096,17 @@ bool NetETernary::test_operand_compat(ivl_variable_type_t l,
 NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 				  ivl_type_t type, unsigned flags) const
 {
+      const PExpr*stream = dynamic_cast<const PEStreaming*>(expr_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(tru_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(fal_);
+      if (stream) {
+	    cerr << stream->get_fileline() << ": error: streaming "
+		  "concatenation used as an expression operand must first "
+		  "be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       if (type == 0)
 	    return elaborate_expr(des, scope, 1u, flags);
 
@@ -31260,6 +31349,18 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, expr_);
       ivl_assert(*this, tru_);
       ivl_assert(*this, fal_);
+
+      const PExpr*stream = dynamic_cast<const PEStreaming*>(expr_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(tru_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(fal_);
+      if (stream) {
+	    cerr << stream->get_fileline() << ": error: streaming "
+		  "concatenation used as an expression operand must first "
+		  "be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
 	// Elaborate and evaluate the condition expression. Note that
 	// it is always self-determined.
@@ -31618,6 +31719,14 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
+
+      if (dynamic_cast<const PEStreaming*>(expr_)) {
+	    cerr << expr_->get_fileline() << ": error: streaming concatenation "
+		  "used as an expression operand must first be cast to a "
+		  "bit-stream type (IEEE 1800-2017 11.4.14)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       ivl_variable_type_t t;
       NetAssign_*inc_lval = 0;
 

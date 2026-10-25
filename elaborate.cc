@@ -75,6 +75,24 @@ extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
 
+static Module* find_module_type_(perm_string type, const NetScope*scope)
+{
+      for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const Module*owner = cur->module_definition();
+	    if (!owner)
+		  continue;
+	    std::map<perm_string,Module*>::const_iterator nested
+		  = owner->nested_modules.find(type);
+	    if (nested != owner->nested_modules.end()
+		&& !nested->second->is_checker)
+		  return nested->second;
+      }
+
+      std::map<perm_string,Module*>::const_iterator module
+	    = pform_modules.find(type);
+      return module == pform_modules.end()? 0 : module->second;
+}
+
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
  * the statement form `void'(obj.randomize(b))' narrows the random set
@@ -6841,7 +6859,91 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  member_port_bridge = true;
 	    }
 
-	    if (member_port_bridge) {
+	    /* IEEE 1800-2017/2023 23.3.3.5: a scalar port on an instance array
+	       can be connected to an unpacked array whose leading dimension has
+	       one element per instance. Map each left-to-right actual element to
+	       the corresponding instance instead of elaborating the aggregate in
+	       the scalar formal's type context. */
+	    bool instance_array_actual = false;
+	    if (instance.size() > 1 && mport.size() == 1
+	        && prts.size() == instance.size() && !prts.empty()
+	        && prts[0] && prts[0]->unpacked_dimensions() == 0) {
+	      const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx]);
+	      if (aid && aid->path().name.size() == 1
+	          && aid->path().name.front().index.empty()) {
+	            NetNet*actual = aid->elaborate_unpacked_net(des, scope);
+	            if (actual && actual->unpacked_dimensions() == 1
+	                && actual->unpacked_dims()[0].width() == instance.size()) {
+	                  bool matching = true;
+	                  for (NetNet*formal : prts)
+	                        if (!formal || formal->unpacked_dimensions() != 0
+	                            || formal->vector_width() != actual->vector_width())
+	                              matching = false;
+	                  if (matching) {
+	                        bool output_ok = true;
+	                        if (ptype == NetNet::POUTPUT
+	                            && actual->type() == NetNet::REG) {
+	                              if (actual->peek_lref() > 0) {
+	                                    cerr << pins[idx]->get_fileline()
+	                                         << ": error: Cannot connect port `"
+	                                         << port_name << "' to variable `"
+	                                         << actual->name()
+	                                         << "'. This conflicts with a procedural "
+	                                            "assignment." << endl;
+	                                    des->errors += 1;
+	                                    output_ok = false;
+	                              } else {
+	                                    actual->type(NetNet::UNRESOLVED_WIRE);
+	                              }
+	                        }
+	                        if (!output_ok)
+	                              continue;
+	                        for (unsigned inst = 0; inst < instance.size();
+	                             inst += 1) {
+	                              unsigned word = interface_array_ltr_word_(
+	                                    actual->unpacked_dims(), inst);
+	                              NetNet*formal = prts[inst];
+	                              if (ptype == NetNet::PINPUT
+	                                  || ptype == NetNet::POUTPUT) {
+	                                    NetBUFZ*buffer = new NetBUFZ(
+	                                          scope, scope->local_symbol(),
+	                                          formal->vector_width(), false);
+	                                    buffer->set_line(*this);
+	                                    des->add_node(buffer);
+	                                    if (ptype == NetNet::PINPUT) {
+	                                          connect(formal->pin(0),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  actual->pin(word));
+	                                    } else {
+	                                          connect(actual->pin(word),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  formal->pin(0));
+	                                    }
+	                              } else if (ptype == NetNet::PINOUT) {
+	                                    NetTran*tran = new NetTran(
+	                                          scope, scope->local_symbol(),
+	                                          actual->vector_width(),
+	                                          formal->vector_width(), 0);
+	                                    tran->set_line(*this);
+	                                    des->add_node(tran);
+	                                    connect(tran->pin(0),
+	                                            actual->pin(word));
+	                                    connect(tran->pin(1),
+	                                            formal->pin(0));
+	                              } else {
+	                                    connect(formal->pin(0), actual->pin(word));
+	                              }
+	                        }
+	                        instance_array_actual = true;
+	                  }
+	            }
+	      }
+	    }
+	    if (instance_array_actual) {
+	      continue;
+	    } else if (member_port_bridge) {
 		  /* The common width adjustment and per-instance connection code
 		     below connects the bridge to the formal port. */
 	    } else if (ptype == NetNet::PREF) {
@@ -8041,9 +8143,9 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end())
-	    return elaborate_sig_mod_(des, scope, (*mod).second);
+	    Module*mod = find_module_type_(type_, scope);
+      if (mod)
+	    return elaborate_sig_mod_(des, scope, mod);
 
 	// elaborate_sig_udp_ currently always returns true so skip all this
 	// for now.
@@ -8070,9 +8172,10 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_mod_(des, (*mod).second, scope);
+
+      Module*mod = find_module_type_(type_, scope);
+      if (mod) {
+	    elaborate_mod_(des, mod, scope);
 	    return;
       }
 
@@ -8220,9 +8323,10 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_scope_mod_(des, mod->second, sc);
+
+      Module*mod = find_module_type_(type_, sc);
+      if (mod) {
+	    elaborate_scope_mod_(des, mod, sc);
 	    return;
       }
 
@@ -8238,9 +8342,9 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       if (load_module(type_, parser_errors)) {
 
 	      // Try again to find the module type
-	    mod = pform_modules.find(type_);
-	    if (mod != pform_modules.end()) {
-		  elaborate_scope_mod_(des, mod->second, sc);
+	    mod = find_module_type_(type_, sc);
+	    if (mod) {
+		  elaborate_scope_mod_(des, mod, sc);
 		  return;
 	    }
 
@@ -8857,6 +8961,20 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       NetExpr*rv = elaborate_rval_(des, scope, 0, operand_type,
 				   operand_width, force_unsigned);
       if (rv == 0) return 0;
+
+	// IEEE 1800-2017/2023 Table 11-1 restricts modulus assignment to
+	// integral operands, just like the binary modulus operator.
+      if (op_ == '%' && (generation_flag >= GN_VER2017
+			 || !gn_icarus_misc_flag)
+	  && (lv->expr_type() == IVL_VT_REAL
+	      || rv->expr_type() == IVL_VT_REAL)) {
+	    cerr << get_fileline() << ": error: Modulus assignment operator "
+		    "may not have REAL operands." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    delete rv;
+	    return 0;
+      }
 
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
@@ -46609,6 +46727,16 @@ static ostream& operator<< (ostream&o, ivl_process_type_t t)
 bool Design::check_proc_delay() const
 {
       bool result = false;
+      struct write_range_t {
+	    const NetProcTop* process;
+	    unsigned base;
+	    unsigned width;
+      };
+      std::map<const Nexus*, std::vector<write_range_t> > output_by_nexus;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      bool saved_static_array_prefix = nex_output_static_array_prefix;
+      nex_output_precise_partsel = true;
+      nex_output_static_array_prefix = true;
 
       for (const NetProcTop*pr = procs_ ;  pr ;  pr = pr->next_) {
 	      /* If this is an always process and we have no or zero delay then
@@ -46637,9 +46765,14 @@ bool Design::check_proc_delay() const
 	      // (see NetNet::comb_written).
 	    if (pr->type() == IVL_PR_ALWAYS_COMB
 		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
-		  NexusSet written;
-		  const_cast<NetProc*>(pr->statement())->nex_output(written);
-		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
+	  NexusSet written;
+	  NexusSet exact_written;
+	  NexusSet* saved_exact_sink = nex_output_exact_sink;
+	  if (pr->type() == IVL_PR_ALWAYS_COMB)
+		nex_output_exact_sink = &exact_written;
+	  const_cast<NetProc*>(pr->statement())->nex_output(written);
+	  nex_output_exact_sink = saved_exact_sink;
+	  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
 			Nexus*nex = written[idx].lnk.nexus();
 			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
 			     cur ; cur = cur->next_nlink()) {
@@ -46647,7 +46780,37 @@ bool Design::check_proc_delay() const
 			      if (sig && sig->type() == NetNet::REG)
 				    sig->comb_written(true);
 			}
-		  }
+	  }
+	  if (pr->type() == IVL_PR_ALWAYS_COMB) {
+		    // shortcut: compare always_comb processes only, expand to other
+		    // process kinds and function writes when that analysis is added.
+		    bool reported = false;
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  const Nexus*nex = output.lnk.nexus();
+			  const std::vector<write_range_t>&previous = output_by_nexus[nex];
+			  for (const write_range_t&prior : previous) {
+				uint64_t prior_end = uint64_t(prior.base) + prior.width;
+				uint64_t output_end = uint64_t(output.base) + output.wid;
+				if (prior_end <= output.base || output_end <= prior.base)
+				      continue;
+				if (!reported) {
+				      cerr << pr->get_fileline()
+					   << ": error: always_comb process writes a variable "
+					      "also written by another always_comb process at "
+					   << prior.process->get_fileline() << "." << endl;
+				      reported = true;
+				}
+				result = true;
+				break;
+			  }
+		    }
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  output_by_nexus[output.lnk.nexus()].push_back(
+				{pr, output.base, output.wid});
+		    }
+	  }
 	    }
 
 	      // The always_comb/ff/latch processes have special delay rules
@@ -46711,6 +46874,9 @@ bool Design::check_proc_delay() const
 		  }
 	    }
       }
+
+      nex_output_precise_partsel = saved_precise_partsel;
+      nex_output_static_array_prefix = saved_static_array_prefix;
 
       return result;
 }
@@ -47295,6 +47461,22 @@ bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope)
       return reached;
 }
 
+static void elaborate_forward_typedef_kinds(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      for (const auto&entry : scope->local_typedefs()) {
+	    typedef_t*td = entry.second;
+	    if (td && td->get_basic_type() != typedef_t::ANY
+		&& td->get_data_type())
+		  td->elaborate_type(des, scope);
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_forward_typedef_kinds(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -47638,6 +47820,14 @@ Design* elaborate(list<perm_string>roots)
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, pkg);
 	for (NetScope*root : des->find_root_scopes())
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, root);
+
+	/* A typed forward declaration imposes a kind constraint even when the
+	 * typedef is never referenced. Resolve such declarations after all scope
+	 * bodies have been elaborated so their completed definitions are visible. */
+	for (NetScope*pkg : des->find_package_scopes())
+	    elaborate_forward_typedef_kinds(des, pkg);
+	for (NetScope*root : des->find_root_scopes())
+	    elaborate_forward_typedef_kinds(des, root);
 
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des, reached_typedef);

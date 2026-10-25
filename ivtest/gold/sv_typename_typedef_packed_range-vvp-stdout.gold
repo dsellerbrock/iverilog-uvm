@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_typename_typedef_packed_range.v:18: $finish called at 0 (1s)

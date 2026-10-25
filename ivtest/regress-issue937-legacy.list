@@ -1,0 +1,2 @@
+sv_statement_labels_2017 normal,-g2017,-s,main ivltests gold=sv_statement_labels.gold
+sv_statement_labels_2023 normal,-g2023,-s,main ivltests gold=sv_statement_labels.gold

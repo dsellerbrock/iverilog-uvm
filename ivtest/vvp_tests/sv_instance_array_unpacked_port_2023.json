@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_instance_array_unpacked_port.v",
+    "iverilog-args": ["-g2023", "-s", "sv_instance_array_unpacked_port"],
+    "gold": "sv_instance_array_unpacked_port"
+}

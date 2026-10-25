@@ -228,7 +228,7 @@ class data_type_t : public PNamedItem {
 
 struct typedef_t : public PNamedItem {
       explicit typedef_t(perm_string n)
-      : basic_type(ANY), unresolved_reported(false), name(n) { };
+      : basic_type(ANY), unresolved_reported(false), basic_type_checked(false), name(n) { };
 	// M11: the pform is process-lifetime and data_type_t objects
 	// are freely shared (comma declarations, typedef aliases, base
 	// types), so exit-time teardown must NOT delete through this
@@ -251,6 +251,8 @@ struct typedef_t : public PNamedItem {
 
       bool set_basic_type(basic_type bt);
       enum basic_type get_basic_type() const { return basic_type; }
+      bool has_checked_basic_type() const { return basic_type_checked; }
+      void mark_basic_type_checked() { basic_type_checked = true; }
 
       // A forward typedef that never receives its definition can be reached
       // from several elaboration paths (and from every specialization of a
@@ -264,6 +266,7 @@ struct typedef_t : public PNamedItem {
 protected:
       enum basic_type basic_type;
       bool unresolved_reported;
+      bool basic_type_checked;
       std::unique_ptr<data_type_t> data_type;
 public:
       perm_string name;
