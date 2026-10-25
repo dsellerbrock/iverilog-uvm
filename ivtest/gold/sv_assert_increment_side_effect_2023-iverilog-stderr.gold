@@ -1,0 +1,2 @@
+ivltests/sv_assert_increment_side_effect_2023.v:7: error: Increment/decrement operators are not allowed in concurrent assertion expressions.
+1 error(s) during elaboration.
