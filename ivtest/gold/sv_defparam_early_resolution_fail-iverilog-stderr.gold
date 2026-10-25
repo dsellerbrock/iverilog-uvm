@@ -1,0 +1,2 @@
+ivltests/sv_defparam_early_resolution_fail.v:8: error: defparam hierarchical name resolves to a different scope after elaboration (early: m.n, final: m.n.m.n).
+1 error(s) during elaboration.

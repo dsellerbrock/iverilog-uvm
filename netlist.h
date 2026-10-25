@@ -6426,6 +6426,10 @@ class Design {
 
       void run_defparams();
       void evaluate_parameters();
+      void record_defparam_resolution(NetScope* source_scope,
+				      const std::list<hname_t>& path,
+				      NetScope* target_scope, PExpr* value);
+      void check_defparam_resolutions();
 	// Look for defparams that never matched, and print warnings.
       void residual_defparams();
 
@@ -6540,6 +6544,16 @@ class Design {
       bool mark_constraint_dist_diagnostic(const PExpr*expr);
 
     private:
+      /* Keep successful early defparam lookups so they can be checked
+	 against the completed hierarchy after generate elaboration. */
+      struct defparam_resolution_t {
+	    NetScope* source_scope;
+	    std::list<hname_t> path;
+	    NetScope* target_scope;
+	    PExpr* value;
+      };
+      std::list<defparam_resolution_t> defparam_resolutions_;
+
       NetScope* find_scope_(NetScope*, const hname_t&name,
                             NetScope::TYPE type = NetScope::MODULE) const;
 
