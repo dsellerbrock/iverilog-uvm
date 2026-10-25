@@ -477,6 +477,13 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       if (pform_cur_class == 0)
 	    return;
 
+      if (net->pscope_name() == perm_string::literal("new") &&
+	  (net->method_qualifiers().test_static() || net->is_virtual_method())) {
+	    cerr << loc << ": error: A constructor shall not be declared as static or virtual "
+		 << "(IEEE 1800-2017/2023 8.7)." << endl;
+	    error_count += 1;
+      }
+
       if (net->is_pure_method() && !pform_cur_class->type->virtual_class) {
 	    cerr << loc << ": error: A pure virtual method may only be declared "
 		 << "in a virtual class." << endl;
@@ -502,8 +509,17 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
 
 void pform_set_recent_class_method_qualifiers(property_qualifier_t qual)
 {
-      if (pform_recent_class_method_)
+
+      if (pform_recent_class_method_) {
 	    pform_recent_class_method_->set_method_qualifiers(qual);
+	    if (pform_recent_class_method_->pscope_name() == perm_string::literal("new") &&
+		qual.test_static()) {
+		  cerr << pform_recent_class_method_->get_fileline()
+		       << ": error: A constructor shall not be declared as static or virtual "
+		       << "(IEEE 1800-2017/2023 8.7)." << endl;
+		  error_count += 1;
+	    }
+      }
 }
 
 void pform_mark_recent_class_method_virtual(void)
@@ -516,6 +532,12 @@ void pform_mark_recent_class_method_virtual(void)
 		      error_count += 1;
 		}
 		pform_recent_class_method_->set_virtual_method(true);
+		if (pform_recent_class_method_->pscope_name() == perm_string::literal("new")) {
+		      cerr << pform_recent_class_method_->get_fileline()
+			   << ": error: A constructor shall not be declared as static or virtual "
+			   << "(IEEE 1800-2017/2023 8.7)." << endl;
+		      error_count += 1;
+		}
 	  }
       pform_recent_class_method_ = 0;
 }
