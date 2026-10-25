@@ -2,7 +2,7 @@
 
 interface clocking_declaration_only_if(input logic clk);
   logic source, final_value;
-  assign final_value = source;
+  always begin final_value = source; @(source); end
   clocking sender_cb @(posedge clk);
     output final_value;
   endclocking
