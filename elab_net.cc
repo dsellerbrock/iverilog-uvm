@@ -21,6 +21,7 @@
 # include "config.h"
 
 # include  "PExpr.h"
+# include  "Module.h"
 # include  "PPackage.h"
 # include  "netlist.h"
 # include  "netmisc.h"
@@ -529,6 +530,18 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_.name, lexical_pos_, &sr);
+
+	  /* IEEE 1800-2017/2023 17.7.1: hierarchical checker-variable
+	   * references are not legal continuous-assignment targets. */
+	  if (sr.net && path_.name.size() > 1) {
+		const Module*definition = sr.net->scope()->module_definition();
+		if (definition && definition->is_checker) {
+		      cerr << get_fileline() << ": error: hierarchical reference to a checker variable `"
+			   << path_ << "' in an assignment is illegal (IEEE 1800-2017/2023 17.7.1)." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+	  }
 
       if (sr.eve != 0) {
 	    cerr << get_fileline() << ": error: named events (" << path_

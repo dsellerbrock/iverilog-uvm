@@ -3791,7 +3791,10 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		 << ", pin_count=" << lval->pin_count() << endl;
       }
 
+      bool saved_assignment_rhs_context = des->assignment_rhs_context();
+      des->set_assignment_rhs_context(true);
       NetExpr*rval_expr = elaborate_rval_expr(des, scope, lval->net_type(), pin(1));
+      des->set_assignment_rhs_context(saved_assignment_rhs_context);
 
       if (rval_expr == 0) {
 	    cerr << get_fileline() << ": error: Unable to elaborate r-value: "
@@ -10760,6 +10763,17 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+	/* Keep this state scoped to assignment elaboration. PEIdent uses it to
+	 * reject hierarchical checker-variable reads on assignment RHSs. */
+	struct assignment_rhs_guard_t {
+	      Design*des;
+	      bool saved;
+	      explicit assignment_rhs_guard_t(Design*design)
+		    : des(design), saved(design->assignment_rhs_context())
+	      { des->set_assignment_rhs_context(true); }
+	      ~assignment_rhs_guard_t() { des->set_assignment_rhs_context(saved); }
+	} assignment_rhs_guard(des);
 
 	/* If this is a compressed assignment, then handle the
 	   elaboration in a specialized function. */

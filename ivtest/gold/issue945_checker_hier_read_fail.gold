@@ -1,0 +1,3 @@
+./ivltests/issue945_checker_hier_read_fail.v:7: error: hierarchical reference to a checker variable `my_check.a' in an assignment is illegal (IEEE 1800-2017/2023 17.7.1).
+./ivltests/issue945_checker_hier_read_fail.v:7: error: Unable to elaborate r-value: my_check.a
+2 error(s) during elaboration.

@@ -227,6 +227,7 @@ Design:: Design()
       nodes_functor_nxt_ = 0;
       des_delay_sel_ = Design::TYP;
       package_subroutine_bodies_ready_ = false;
+      assignment_rhs_context_ = false;
 }
 
 Design::~Design()

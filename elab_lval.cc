@@ -840,6 +840,18 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	  /* IEEE 1800-2017/2023 17.7.1: a checker variable cannot be
+	   * referenced hierarchically in an assignment. */
+	  if (sr.net && path_.name.size() > 1) {
+		const Module*definition = sr.net->scope()->module_definition();
+		if (definition && definition->is_checker) {
+		      cerr << get_fileline() << ": error: hierarchical reference to a checker variable `"
+			   << path_ << "' in an assignment is illegal (IEEE 1800-2017/2023 17.7.1)." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+	  }
+
 	  scoped_lvalue_retarget_result_t scoped_result;
 	  if (has_scoped_type_prefix())
 	    scoped_result = retarget_scoped_static_lvalue_(

@@ -6382,6 +6382,11 @@ class Design {
       bool package_subroutine_bodies_ready() const;
       void set_package_subroutine_bodies_ready(bool ready);
 
+	/* Track assignment RHS elaboration so PEIdent can enforce restrictions
+	 * that apply to hierarchical references specifically in assignments. */
+      bool assignment_rhs_context() const { return assignment_rhs_context_; }
+      void set_assignment_rhs_context(bool value) { assignment_rhs_context_ = value; }
+
 	/* Attempt to set the precision to the specified value. If the
 	   precision is already more precise, the keep the precise
 	   setting. This is intended to hold the simulation precision
@@ -6589,6 +6594,7 @@ class Design {
       std::set<const PExpr*> constraint_order_diagnostic_sites_;
       std::set<const PExpr*> constraint_dist_diagnostic_sites_;
       bool package_subroutine_bodies_ready_;
+      bool assignment_rhs_context_;
 
     private: // not implemented
       Design(const Design&);

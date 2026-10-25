@@ -23755,6 +23755,18 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	  /* IEEE 1800-2017/2023 17.7.1 forbids hierarchical checker-variable
+	   * references in assignments, including a variable read on the RHS. */
+	  if (des->assignment_rhs_context() && sr.net && path_.name.size() > 1) {
+		const Module*definition = sr.net->scope()->module_definition();
+		if (definition && definition->is_checker) {
+		      cerr << get_fileline() << ": error: hierarchical reference to a checker variable `"
+			   << path_ << "' in an assignment is illegal (IEEE 1800-2017/2023 17.7.1)." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+	  }
+
       if (sr.scope_index_error)
 	    return 0;
 
@@ -24742,6 +24754,19 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    let_expand_depth_ -= 1;
 	    return res;
       }
+
+	  if (des->assignment_rhs_context() && path_.name.size() > 1) {
+		symbol_search_results sr;
+		symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+		const Module*definition = sr.net
+		      ? sr.net->scope()->module_definition() : nullptr;
+		if (definition && definition->is_checker) {
+		      cerr << get_fileline() << ": error: hierarchical reference to a checker variable `"
+			   << path_ << "' in an assignment is illegal (IEEE 1800-2017/2023 17.7.1)." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+	  }
 
       NetExpr *result;
 
