@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_string_to_integral_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_string_to_integral_fail" ],
+    "gold"          : "sv_string_to_integral_fail_2023"
+}

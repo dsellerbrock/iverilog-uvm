@@ -4288,18 +4288,29 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    }
       }
 
-	/* A nonconstant replication of string data is intrinsically string,
-	 * even when all of its operands are literals (Table 6-9). A string
-	 * expression is not implicitly assignment-compatible with an integral
-	 * target; only a string literal has that exception. Keep the check
-	 * source-shaped to concatenations so unrelated legacy string coercions
-	 * are not changed by this clause-focused repair. */
+	/* A string expression is not implicitly assignment-compatible with an
+	 * integral target; only a string literal has that exception. String
+	 * concatenations need a separate check because an all-literal string
+	 * concatenation is integral, while a nonconstant string replication is
+	 * intrinsically string (Table 6-9). */
+      if (type_is_vectorable(lv_type)
+	  && expr->expr_type() == IVL_VT_STRING
+	  && !dynamic_cast<PEString*>(expr)
+	  && !dynamic_cast<PEConcat*>(expr)) {
+	cerr << expr->get_fileline() << ": error: A string expression cannot "
+	     << "be assigned to an integral target without an explicit cast."
+	     << endl;
+	des->errors += 1;
+	delete rval;
+	return 0;
+      }
+
       if (type_is_vectorable(lv_type)
 	  && dynamic_cast<PEConcat*>(expr)
 	  && expr->expr_type() == IVL_VT_STRING) {
-	    cerr << expr->get_fileline() << ": error: A string concatenation or "
-		 << "replication cannot be assigned to an integral target without "
-		 << "an explicit cast." << endl;
+	cerr << expr->get_fileline() << ": error: A string concatenation or "
+	     << "replication cannot be assigned to an integral target without "
+	     << "an explicit cast." << endl;
 	    des->errors += 1;
 	    delete rval;
 	    return 0;
