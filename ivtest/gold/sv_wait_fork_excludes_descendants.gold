@@ -1,0 +1,3 @@
+PASS wait fork excludes descendants
+PASS wait fork waits for immediate child
+PASS descendant continues after wait fork
