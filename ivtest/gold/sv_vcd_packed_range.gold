@@ -1,0 +1,3 @@
+VCD info: dumpfile sv_vcd_packed_range.vcd opened for output.
+PASS
+./ivltests/sv_vcd_packed_range.v:31: $finish called at 1 (1s)
