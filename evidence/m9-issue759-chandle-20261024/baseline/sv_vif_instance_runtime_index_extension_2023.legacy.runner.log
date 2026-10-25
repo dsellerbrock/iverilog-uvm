@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+sv_vif_instance_runtime_index_extension_2023: Passed.
+============================================================================
+Test results:
+  Total=1, Passed=1, Failed=0, Not Implemented=0, Expected Fail=0
