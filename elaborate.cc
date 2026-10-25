@@ -12125,9 +12125,6 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
             delete lv;
             return 0;
       }
-	    delete lv;
-	    return 0;
-      }
 
 	/* A fixed unpacked-array property slice needs a persistent receiver and
 	 * one snapshot word per element in the NBA queue. The signal-array
