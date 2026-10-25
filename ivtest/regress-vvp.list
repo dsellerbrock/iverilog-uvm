@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+sv_packed_mixed_2state_read_2017	vvp_tests/sv_packed_mixed_2state_read_2017.json
+sv_packed_mixed_2state_read_2023	vvp_tests/sv_packed_mixed_2state_read_2023.json
 sv_urandom_extra_arg_fail_2017 vvp_tests/sv_urandom_extra_arg_fail_2017.json
 sv_urandom_extra_arg_fail_2023 vvp_tests/sv_urandom_extra_arg_fail_2023.json
 sv_assert_first_match_match_item_2017	vvp_tests/sv_assert_first_match_match_item_2017.json

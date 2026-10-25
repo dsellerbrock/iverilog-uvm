@@ -13645,6 +13645,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	  && base_index.size() == net->unpacked_dimensions())
 	    struct_type = dynamic_cast<const netstruct_t*>(net->array_type()->element_type());
       ivl_assert(*li, struct_type);
+      const netstruct_t*root_struct_type = struct_type;
 
 	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m`)
 	// reaches the packed member handling below with a struct that
@@ -14286,6 +14287,27 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
       if (var_off)
 	    base = make_packed_offset_sum(li, base, var_off);
+	// A mixed-state packed struct is represented by one 4-state vector,
+	// even when the selected member is 2-state. The select's type alone
+	// does not convert X/Z bits on a read, so keep the selected value
+	// 4-state until an explicit 2-state cast performs the required
+	// conversion (IEEE 1800-2017/2023 7.2.1).
+	if (root_struct_type->base_type() == IVL_VT_LOGIC
+	    && member_type->base_type() == IVL_VT_BOOL) {
+	      ivl_type_t result_type = member_type;
+	      if (use_width != (unsigned long)member_type->packed_width())
+		    result_type = new netvector_t(IVL_VT_BOOL,
+						  (long)use_width - 1, 0);
+	      ivl_type_t select_type = new netvector_t(IVL_VT_LOGIC,
+						       (long)use_width - 1, 0);
+	      NetESelect*sel = new NetESelect(sig, base, use_width, select_type);
+	      sel->set_line(*li);
+	      NetECast*cast = new NetECast('2', sel, use_width, false,
+					    result_type);
+	      cast->set_line(*li);
+	      return cast;
+	}
+
       NetESelect*sel = new NetESelect(sig, base, use_width, member_type);
 
       if (debug_elaborate) {
