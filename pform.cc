@@ -5493,6 +5493,17 @@ void pform_module_define_interconnect_port(const struct vlltype&li,
 PWire *pform_makewire(const vlltype&li, const pform_ident_t&name,
 		      NetNet::Type type, const std::list<pform_range_t> *indices)
 {
+      // IEEE 1800-2017/2023 17.7 permits variables in checker bodies,
+      // but explicitly prohibits defining nets there.
+      if (!pform_cur_module.empty()
+	  && pform_cur_module.front()->is_checker
+	  && type != NetNet::REG && type != NetNet::IMPLICIT_REG) {
+	    cerr << li << ": error: Net `" << name.first
+		 << "' shall not be defined in a checker body (IEEE 1800-2017/2023 17.7)."
+		 << endl;
+	    error_count += 1;
+      }
+
       PWire*cur = pform_get_or_make_wire(li, name, type, NetNet::NOT_A_PORT, SR_NET);
       ivl_assert(li, cur);
 

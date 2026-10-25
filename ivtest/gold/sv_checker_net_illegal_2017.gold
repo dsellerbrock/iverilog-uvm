@@ -1,0 +1,1 @@
+./ivltests/sv_checker_net_illegal_2017.v:3: error: Net `w' shall not be defined in a checker body (IEEE 1800-2017/2023 17.7).
