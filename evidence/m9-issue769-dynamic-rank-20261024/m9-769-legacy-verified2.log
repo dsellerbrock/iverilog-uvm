@@ -1,0 +1,40 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                   sv_assign_var_select_fail: Passed - CE.
+              sv_assign_var_select_fail_2023: Passed - CE.
+                    sv_force_var_select_fail: Passed - CE.
+               sv_force_var_select_fail_2023: Passed - CE.
+            sv_force_var_select_nested_legal: Passed - CO.
+       sv_force_var_select_nested_legal_2023: Passed - CO.
+             sv_force_var_select_nested_fail: Passed - CE.
+        sv_force_var_select_nested_fail_2023: Passed - CE.
+     sv_force_dyn_nested_element_unsupported: Passed - CE.
+sv_force_dyn_nested_element_unsupported_2023: Passed - CE.
+               sv_force_assign_legal_targets: Passed.
+          sv_force_assign_legal_targets_2023: Passed.
+               proc_cont_var_select_1364_ext: Passed.
+                         sv_force_array_word: Passed.
+                  sv_packed_subfield_release: Passed.
+               sv_force_packed_bank_rhs_live: Passed.
+               sv_force_partial_live_overlap: Passed - CE.
+============================================================================
+Test results:
+  Total=17, Passed=17, Failed=0, Not Implemented=0, Expected Fail=0
+        2.20 real         1.21 user         0.60 sys
+            16973824  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              113424  page reclaims
+                1447  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 123  voluntary context switches
+                4437  involuntary context switches
+           238141666  instructions retired
+           126548139  cycles elapsed
+             5243264  peak memory footprint
