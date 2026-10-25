@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_timing_skew_timer.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "gold": "sv_timing_skew_timer"
+}
