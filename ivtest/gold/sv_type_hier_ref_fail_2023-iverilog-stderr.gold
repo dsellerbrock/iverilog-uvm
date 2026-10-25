@@ -1,0 +1,2 @@
+ivltests/sv_type_hier_ref_fail.v:7: error: type() expression shall not contain hierarchical references or references to elements of dynamic objects.
+1 error(s) during elaboration.

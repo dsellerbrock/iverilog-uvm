@@ -3045,6 +3045,20 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	// counted structurally by PEIdent::test_type_of_ident().
       if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
 	    const pform_scoped_name_t&path = ident->path();
+	    // IEEE 1800-2017/2023 6.23 prohibits hierarchical references and
+	    // references to elements of dynamic objects in a type() operand.
+	    // Package-qualified and class-scoped names are scope resolutions,
+	    // while an unqualified multi-component path (or a dotted suffix after
+	    // a class scope) is a hierarchical/object member reference.
+	    if (path.name.size() > 1 && !path.package
+		&& (!ident->has_scoped_type_prefix() || ident->has_dotted_suffix())) {
+		  cerr << get_fileline()
+		       << ": error: type() expression shall not contain "
+		       << "hierarchical references or references to elements of "
+		       << "dynamic objects." << endl;
+		  des->errors += 1;
+		  return new netvector_t(IVL_VT_LOGIC);
+	    }
 	    if (path.name.size() == 1
 		&& path.name.front().name == perm_string::literal(THIS_TOKEN)) {
 		  // Keep rejected type(this) references non-null for error recovery.
