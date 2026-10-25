@@ -1176,6 +1176,9 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      opend->set_line(*cb);
 			}
 			any_output = true;
+			if (raw->type() == NetNet::REG
+			    || raw->type() == NetNet::IMPLICIT_REG)
+			      ivl_register_clocking_output_variable(raw, cb->name);
 			any = true;
 		  }
 	    }
