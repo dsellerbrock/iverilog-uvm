@@ -2054,6 +2054,18 @@ static void do_define(void)
     }
     *put = 0;
 
+    /* In IEEE 1800-2023, a backslash-newline within a triple-quoted
+     * string in macro text omits the backslash but keeps the newline.
+     * Preserve any escaped backslash pairs before the final backslash. */
+    if (define_triple_string_flag) {
+	char* end = yytext + strlen(yytext);
+	char* slash = end;
+	while ((slash > yytext) && (slash[-1] == '\\')) slash -= 1;
+	if (((end - slash) & 1) != 0) {
+	    memmove(end - 1, end, strlen(end) + 1);
+	}
+    }
+
     /* Trim trailing white space. */
     cp = yytext + strlen(yytext);
     while (cp > yytext) {

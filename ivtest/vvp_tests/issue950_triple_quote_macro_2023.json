@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue950_triple_quote_macro.v",
+    "iverilog-args": ["-g2023", "-s", "issue950_triple_quote_macro"],
+    "gold": "issue950_triple_quote_macro_2023"
+}

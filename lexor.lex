@@ -79,22 +79,41 @@ char* yytext_string_filter(const char*str, size_t str_len,
       if (str == 0) return 0;
       char*buf = new char[str_len+1];
       size_t didx = 0;
-      for (size_t sidx = 0 ; sidx < str_len ; sidx += 1, didx += 1) {
+      for (size_t sidx = 0 ; sidx < str_len ;) {
 	    if (str[sidx] == 0) {
 		  VLerror(yylloc, "error: Found nil (\\000) in string literal, replacing with space (\\015) character.");
-		  buf[didx] = ' ';
-	    } else if (str[sidx] == '\\') { /* Skip \\\n */
-		  if ((sidx+1 < str_len) && (str[sidx+1] == '\n')) {
-			sidx += 1;
-			didx -= 1;
+		  buf[didx++] = ' ';
+		  sidx += 1;
+	    } else if (str[sidx] == '\\') {
+		  if (!preserve_newlines) {
+			/* Preserve the existing quoted-string handling. */
+			if ((sidx + 1 < str_len) && (str[sidx+1] == '\n')) {
+			      sidx += 2;
+			} else {
+			      buf[didx++] = str[sidx++];
+			}
+			continue;
+		  }
+		  /* Only an odd run of backslashes escapes the following newline.
+		   * Even runs are pairs of escaped backslashes, so the newline
+		   * remains part of a triple-quoted string. */
+		  size_t run_end = sidx;
+		  while ((run_end < str_len) && (str[run_end] == '\\'))
+			run_end += 1;
+		  size_t run_length = run_end - sidx;
+		  if ((run_end < str_len) && (str[run_end] == '\n')
+		      && (run_length & 1)) {
+			while (sidx + 1 < run_end) buf[didx++] = str[sidx++];
+			sidx = run_end + 1;
 		  } else {
-			buf[didx] = str[sidx];
+			while (sidx < run_end) buf[didx++] = str[sidx++];
 		  }
 	    } else if (str[sidx] == '\n' && !preserve_newlines) {
 		  /* bare newline from macro stringification */
-		  buf[didx] = ' ';
+		  buf[didx++] = ' ';
+		  sidx += 1;
 	    } else {
-		  buf[didx] = str[sidx];
+		  buf[didx++] = str[sidx++];
 	    }
       }
       buf[didx] = 0;

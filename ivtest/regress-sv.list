@@ -5873,6 +5873,7 @@ sv_format_string_byte_array_2023 normal,-g2023,-s,sv_format_string_byte_array iv
 sv_net_decl_mixed_init_2017 normal,-g2017,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2017.gold
 sv_net_decl_mixed_init_2023 normal,-g2023,-s,sv_net_decl_mixed_init ivltests gold=sv_net_decl_mixed_init_2023.gold
 sv_named_empty_input_default normal,-g2017,-s,sv_named_empty_input_default ivltests gold=sv_named_empty_input_default.gold
+issue950_triple_quote_macro normal,-g2023,-s,issue950_triple_quote_macro ivltests gold=issue950_triple_quote_macro_2023.gold
 issue790_package_struct_member_2017 normal,-g2017,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
 issue790_package_struct_member_2023 normal,-g2023,-s,issue790_package_struct_member ivltests gold=issue790_package_struct_member.gold
 

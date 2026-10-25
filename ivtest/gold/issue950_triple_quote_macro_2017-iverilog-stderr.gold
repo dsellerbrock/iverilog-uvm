@@ -1,0 +1,1 @@
+ivltests/issue950_triple_quote_macro.v:7: error: Triple-quoted string literals require IEEE 1800-2023 (-g2023).

@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue950_triple_quote_macro.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "issue950_triple_quote_macro_2017"
+}
