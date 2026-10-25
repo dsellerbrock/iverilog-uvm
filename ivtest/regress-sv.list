@@ -5933,3 +5933,5 @@ sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltes
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_string_expression_to_byte_fail_2017 CE,-g2017,-s,sv_string_expression_to_byte_fail_2017 ivltests gold=sv_string_expression_to_byte_fail_2017.gold
+sv_string_expression_to_byte_fail_2023 CE,-g2023,-s,sv_string_expression_to_byte_fail_2023 ivltests gold=sv_string_expression_to_byte_fail_2023.gold
