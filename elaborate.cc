@@ -46609,6 +46609,16 @@ static ostream& operator<< (ostream&o, ivl_process_type_t t)
 bool Design::check_proc_delay() const
 {
       bool result = false;
+      struct write_range_t {
+	    const NetProcTop* process;
+	    unsigned base;
+	    unsigned width;
+      };
+      std::map<const Nexus*, std::vector<write_range_t> > output_by_nexus;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      bool saved_static_array_prefix = nex_output_static_array_prefix;
+      nex_output_precise_partsel = true;
+      nex_output_static_array_prefix = true;
 
       for (const NetProcTop*pr = procs_ ;  pr ;  pr = pr->next_) {
 	      /* If this is an always process and we have no or zero delay then
@@ -46637,9 +46647,14 @@ bool Design::check_proc_delay() const
 	      // (see NetNet::comb_written).
 	    if (pr->type() == IVL_PR_ALWAYS_COMB
 		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
-		  NexusSet written;
-		  const_cast<NetProc*>(pr->statement())->nex_output(written);
-		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
+	  NexusSet written;
+	  NexusSet exact_written;
+	  NexusSet* saved_exact_sink = nex_output_exact_sink;
+	  if (pr->type() == IVL_PR_ALWAYS_COMB)
+		nex_output_exact_sink = &exact_written;
+	  const_cast<NetProc*>(pr->statement())->nex_output(written);
+	  nex_output_exact_sink = saved_exact_sink;
+	  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
 			Nexus*nex = written[idx].lnk.nexus();
 			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
 			     cur ; cur = cur->next_nlink()) {
@@ -46647,7 +46662,37 @@ bool Design::check_proc_delay() const
 			      if (sig && sig->type() == NetNet::REG)
 				    sig->comb_written(true);
 			}
-		  }
+	  }
+	  if (pr->type() == IVL_PR_ALWAYS_COMB) {
+		    // shortcut: compare always_comb processes only, expand to other
+		    // process kinds and function writes when that analysis is added.
+		    bool reported = false;
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  const Nexus*nex = output.lnk.nexus();
+			  const std::vector<write_range_t>&previous = output_by_nexus[nex];
+			  for (const write_range_t&prior : previous) {
+				uint64_t prior_end = uint64_t(prior.base) + prior.width;
+				uint64_t output_end = uint64_t(output.base) + output.wid;
+				if (prior_end <= output.base || output_end <= prior.base)
+				      continue;
+				if (!reported) {
+				      cerr << pr->get_fileline()
+					   << ": error: always_comb process writes a variable "
+					      "also written by another always_comb process at "
+					   << prior.process->get_fileline() << "." << endl;
+				      reported = true;
+				}
+				result = true;
+				break;
+			  }
+		    }
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  output_by_nexus[output.lnk.nexus()].push_back(
+				{pr, output.base, output.wid});
+		    }
+	  }
 	    }
 
 	      // The always_comb/ff/latch processes have special delay rules
@@ -46711,6 +46756,9 @@ bool Design::check_proc_delay() const
 		  }
 	    }
       }
+
+      nex_output_precise_partsel = saved_precise_partsel;
+      nex_output_static_array_prefix = saved_static_array_prefix;
 
       return result;
 }
