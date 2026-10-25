@@ -42812,27 +42812,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (!id || id->path().name.empty()) return nullptr;
 			  auto comp = id->path().name.begin();
 			  ivl_type_t type = nullptr;
-			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
-				if (cgdef->sample_formals[fi] == comp->name) {
-				      if (fi < sample_formal_placeholders.size())
-					    type = sample_formal_placeholders[fi]->net_type();
-				      break;
+			  bool this_qualified = comp->name == perm_string::literal(THIS_TOKEN)
+				&& !comp->local_scope && comp->index.empty();
+			  if (this_qualified) {
+				type = this;
+				++comp;
+			  } else {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				      if (cgdef->sample_formals[fi] == comp->name) {
+					    if (fi < sample_formal_placeholders.size())
+						  type = sample_formal_placeholders[fi]->net_type();
+					    break;
+				      }
+				}
+				if (!type) {
+				      for (perm_string formal : cgdef->ctor_formals) {
+					    if (formal != comp->name) continue;
+					    int pidx = cg_class->property_idx_from_name(formal);
+					    if (pidx >= 0)
+						  type = cg_class->get_prop_type((size_t)pidx);
+					    break;
+				      }
+				}
+				if (!type) {
+				      int pidx = property_idx_from_name(comp->name);
+				      if (pidx >= 0) type = get_prop_type((size_t)pidx);
 				}
 			  }
-			  if (!type) {
-				for (perm_string formal : cgdef->ctor_formals) {
-				      if (formal != comp->name) continue;
-				      int pidx = cg_class->property_idx_from_name(formal);
-				      if (pidx >= 0)
-					    type = cg_class->get_prop_type((size_t)pidx);
-				      break;
-				}
-			  }
-			  if (!type) {
-				int pidx = property_idx_from_name(comp->name);
-				if (pidx >= 0) type = get_prop_type((size_t)pidx);
-			  }
-			  for (++comp; type && comp != id->path().name.end(); ++comp) {
+			  if (!this_qualified) ++comp;
+			  for (; type && comp != id->path().name.end(); ++comp) {
 				if (const netclass_t*ct =
 				      dynamic_cast<const netclass_t*>(type)) {
 				      int pidx = ct->property_idx_from_name(comp->name);
@@ -43036,19 +43044,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  int parent_prop = -1;
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
-				perm_string cp_var_name = peek_head_name(pe->path());
+				const pform_scoped_name_t&path = pe->path();
+				bool this_property = !path.package
+				      && !pe->has_scoped_type_prefix()
+				      && path.size() == 2
+				      && path.name.front().name == perm_string::literal(THIS_TOKEN)
+				      && !path.name.front().local_scope
+				      && path.name.front().index.empty()
+				      && path.name.back().index.empty();
+				perm_string cp_var_name = this_property
+				      ? path.name.back().name : peek_head_name(path);
 				  // M11-4: a sample() formal shadows a
 				  // parent-class property of the same
 				  // name (19.8.1) — the source binds to
 				  // the call argument, not the property.
 				bool is_formal = false;
 				for (auto&fn : cgdef->sample_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
 				for (auto&fn : cgdef->ctor_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
@@ -43056,10 +43073,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // A nested expression such as cfg.en_parity must be
 				  // elaborated as the complete expression; sampling the
 				  // `cfg` object handle itself is not equivalent.
-			const pform_scoped_name_t&path = pe->path();
-			bool direct = !path.package && !pe->has_scoped_type_prefix()
+			bool direct = this_property || (!path.package && !pe->has_scoped_type_prefix()
 			      && path.size() == 1 && !path.name.front().local_scope
-			      && path.name.front().index.empty();
+			      && path.name.front().index.empty());
 			if (!is_formal && direct && cp_decl_class)
 			      parent_prop = cp_decl_class->property_idx_from_name(
 				    cp_var_name);
