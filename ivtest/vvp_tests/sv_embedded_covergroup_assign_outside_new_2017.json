@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_embedded_covergroup_assign_outside_new_2017.v",
+  "iverilog-args": ["-g2017", "-s", "sv_embedded_covergroup_assign_outside_new_2017"],
+  "gold": "sv_embedded_covergroup_assign_outside_new_2017"
+}

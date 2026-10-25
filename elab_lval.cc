@@ -3692,6 +3692,34 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  next_modport = owner_class->get_prop_interface_modport(pidx);
 
 		  property_qualifier_t qual = owner_class->get_prop_qual(pidx);
+	      // IEEE 1800-2017/2023 19.4 restricts assignments to an embedded
+	      // covergroup variable to the constructor of its declaring class.
+	      // The synthesized covergroup type records its owning property; a
+	      // standalone covergroup handle has no such owner and remains an
+	      // ordinary class property for assignment purposes.
+	      const netclass_t*property_class =
+		    dynamic_cast<const netclass_t*>(owner_class->get_prop_type(pidx));
+	      const netclass_t*covergroup_declaring_class =
+		    owner_class->get_prop_declaring_class((size_t)pidx);
+	      if (!read_only_ref && property_class
+		  && property_class->is_covergroup()
+		  && property_class->covgrp_owner_prop() >= 0) {
+		    NetScope*method_scope = find_method_containing_scope(*this, scope);
+		    const netclass_t*method_class =
+			  find_class_containing_scope(*this, method_scope);
+		    bool corresponding_constructor = method_scope
+			  && (method_scope->basename() == perm_string::literal("new")
+			      || method_scope->basename() == perm_string::literal("new@"))
+			  && method_class == covergroup_declaring_class;
+		    if (!corresponding_constructor) {
+			  cerr << get_fileline() << ": error: Embedded covergroup variable `"
+			       << owner_class->get_prop_name(pidx)
+			       << "' may only be assigned in the new method "
+				  "(IEEE 1800 19.4)." << endl;
+			  des->errors += 1;
+			  return 0;
+		    }
+	      }
 		  if (qual.test_local() && ! owner_class->test_scope_is_method(scope)) {
 			cerr << get_fileline() << ": error: "
 			     << "Local property " << owner_class->get_prop_name(pidx)

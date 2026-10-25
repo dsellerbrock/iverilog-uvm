@@ -1,0 +1,3 @@
+ivltests/sv_embedded_covergroup_assign_outside_new_2017.v:6: error: Embedded covergroup variable `cv' may only be assigned in the new method (IEEE 1800 19.4).
+ivltests/sv_embedded_covergroup_assign_outside_new_2017.v:6: error: Unable to elaborate statement in function f.
+2 error(s) during elaboration.
