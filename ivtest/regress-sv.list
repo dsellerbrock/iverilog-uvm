@@ -26,6 +26,8 @@ sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=s
 # testname		testtype		directory
 #
 # The <testname> is the verilog file name minus an extension.
+sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_arg_fail_2017.gold
+sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
 #
 # The <testtype> can be one of the following:
 #
@@ -1548,6 +1550,8 @@ sv_covergroup_class_const_bin_ranges normal,-g2017 ivltests gold=sv_covergroup_c
 sv_covergroup_class_const_bin_ranges_2023 normal,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges.gold
 sv_covergroup_class_const_bin_ranges_fail CE,-g2017 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
 sv_covergroup_class_const_bin_ranges_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
+sv_covergroup_assignment_outside_new_2017 CE,-g2017 ivltests gold=sv_covergroup_assignment_outside_new_2017.gold
+sv_covergroup_assignment_outside_new_2023 CE,-g2023 ivltests gold=sv_covergroup_assignment_outside_new_2023.gold
 sv_class_instance_const_flow normal,-g2017 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_flow_2023 normal,-g2023 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_static_fail CE,-g2017 ivltests gold=sv_class_instance_const_static_fail.gold
@@ -4663,6 +4667,8 @@ sv_constraint_object_method_impure_override_fail CE,-g2017,-s,test ivltests gold
 sv_constraint_object_method_impure_override_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_object_method_impure_override_fail.gold
 sv_enum_bare_name_concat normal,-g2017,-s,test ivltests gold=sv_enum_bare_name_concat.gold
 sv_enum_bare_name_concat_2023 normal,-g2023,-s,test ivltests gold=sv_enum_bare_name_concat.gold
+sv_enum_unbased_fill_context_2017 normal,-g2017,-s,main ivltests
+sv_enum_unbased_fill_context_2023 normal,-g2023,-s,main ivltests
 sv_enum_bare_num_string_fail CE,-g2017,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 
@@ -5941,3 +5947,5 @@ sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_contex
 sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
 sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
 sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
+sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
+sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold

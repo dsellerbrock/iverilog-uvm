@@ -14125,6 +14125,17 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       for (unsigned idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    auto &parm = parms_[idx];
 
+	    /* IEEE 1800-2017/2023 13.3.2: automatic task variables are
+	       deallocated when the task returns and may not be traced by
+	       $monitor or $dumpvars. Reject these references during
+	       elaboration instead of relying on the VPI runtime check. */
+	    if ((name == "$monitor" || name == "$dumpvars")
+		&& parm.parm && parm.parm->has_aa_term(des, scope)) {
+		  cerr << parm.get_fileline() << ": error: " << name
+		       << " may not trace an automatic variable." << endl;
+		  des->errors += 1;
+	    }
+
 	    // System functions don't have named parameters
 	    if (!parm.name.nil()) {
 		  cerr << parm.get_fileline() << ": error: "
@@ -20893,7 +20904,18 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
-      bool zero_count = count_const && count_const->value().as_long() == 0;
+      long count_value = count_const ? count_const->value().as_long() : 1;
+      if (expression_value_ && generation_flag < GN_VER2023
+          && count_const && count_value <= 0) {
+	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
+		 << "must evaluate to a positive integer (IEEE 1800-2017 14.11)."
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    delete wait_stmt;
+	    return 0;
+      }
+      bool zero_count = count_const && count_value == 0;
       delete count_expr;
       if (zero_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
@@ -41638,6 +41660,45 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
 						 const char*where) {
+			  // IEEE 1800-2023 Tables 19-2 and 19-4 restrict
+			  // coverage options to particular syntactic levels.
+			  auto allowed_level = [&](const char*name) {
+				static const struct {
+				      const char* name;
+				      bool covergroup, coverpoint, cross;
+				} levels[] = {
+				      {"name", true, false, false},
+				      {"weight", true, true, true},
+				      {"goal", true, true, true},
+				      {"comment", true, true, true},
+				      {"at_least", true, true, true},
+				      {"auto_bin_max", true, true, false},
+				      {"cross_num_print_missing", true, false, true},
+				      {"cross_retain_auto_bins", true, false, true},
+				      {"detect_overlap", true, true, false},
+				      {"per_instance", true, false, false},
+				      {"get_inst_coverage", true, false, false},
+				      {"type_option.weight", true, true, true},
+				      {"type_option.goal", true, true, true},
+				      {"type_option.comment", true, true, true},
+				      {"type_option.strobe", true, false, false},
+				      {"type_option.merge_instances", true, false, false},
+				      {"type_option.distribute_first", true, false, false},
+				      {"type_option.real_interval", true, true, false},
+				      // Reject this invalid member instead of ignoring it as unknown.
+				      {"type_option.auto_bin_max", false, false, false},
+				      {nullptr, false, false, false}
+				};
+				for (const auto&level : levels) {
+				      if (strcmp(name, level.name) != 0) continue;
+				      if (strcmp(where, "covergroup") == 0)
+					    return level.covergroup;
+				      if (strcmp(where, "coverpoint") == 0)
+					    return level.coverpoint;
+				      return level.cross;
+				}
+				return true;
+			  };
 			  static const char*known[] = {
 				"at_least", "auto_bin_max", "weight", "goal",
 				"per_instance", "get_inst_coverage", "comment", "name",
@@ -41645,7 +41706,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
 		"type_option.comment", "type_option.strobe",
-		"type_option.merge_instances", "type_option.real_interval", 0 };
+		"type_option.merge_instances", "type_option.real_interval",
+		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
 					if (kv.first == "type_option.cross_retain_auto_bins") {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
@@ -41662,6 +41724,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					      des->errors += 1;
 					      continue;
 					}
+				if (!allowed_level(kv.first.str())) {
+				      if (kv.second) cerr << kv.second->get_fileline() << ": ";
+				      cerr << "error: coverage option '" << kv.first
+					   << "' is not allowed at the " << where
+					   << " syntactic level." << endl;
+				      des->errors += 1;
+				      continue;
+				}
 				bool okopt = false;
 			for (const char**k = known; *k; k++)
 			      if (kv.first == *k) { okopt = true; break; }
