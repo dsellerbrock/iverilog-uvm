@@ -1,0 +1,14 @@
+sv_class_handle_to_integral_assignment_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_to_integral_assignment_fail_2017-iverilog-stderr.log
+sv_class_handle_to_integral_assignment_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_to_integral_assignment_fail_2023-iverilog-stderr.log
+sv_class_handle_compound_to_integral_assignment_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_compound_to_integral_assignment_fail_2017-iverilog-stderr.log
+sv_class_handle_compound_to_integral_assignment_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_compound_to_integral_assignment_fail_2023-iverilog-stderr.log
+sv_class_handle_clockvar_to_integral_assignment_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_clockvar_to_integral_assignment_fail_2017-iverilog-stderr.log
+sv_class_handle_clockvar_to_integral_assignment_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_clockvar_to_integral_assignment_fail_2023-iverilog-stderr.log
+sv_class_handle_initializer_to_integral_assignment_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_initializer_to_integral_assignment_fail_2017-iverilog-stderr.log
+sv_class_handle_initializer_to_integral_assignment_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_initializer_to_integral_assignment_fail_2023-iverilog-stderr.log
+sv_class_handle_property_to_integral_assignment_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_property_to_integral_assignment_fail_2017-iverilog-stderr.log
+sv_class_handle_property_to_integral_assignment_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_property_to_integral_assignment_fail_2023-iverilog-stderr.log
+sv_class_handle_specialization_to_integral_fail_2017: 6.22.5=1; include_error=False; sv_class_handle_specialization_to_integral_fail_2017-iverilog-stderr.log
+sv_class_handle_specialization_to_integral_fail_2023: 6.22.5=1; include_error=False; sv_class_handle_specialization_to_integral_fail_2023-iverilog-stderr.log
+sv_class_static_fixed_array_container_element_read_fail JSON stderr: unsupported diagnostics=2
+Focused legacy and JSON/VVP #759 tests: 14/14 each; chandle-null and chandle-ident controls included in the positive case.

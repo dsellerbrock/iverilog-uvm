@@ -1,0 +1,91 @@
+Historical initial broad-guard attempt; superseded by focused-followup-20261025/a3-759-focused-followup-readme.md.
+The function-return, property, and ternary outcomes below were collected before
+the provenance-restricted guard. After refinement, initializer and resolved
+property sources still reject, while function-return and ternary sources do not.
+Do not use this initial-attempt record to claim the narrowed implementation
+covers function-return or ternary assignments.
+
+Host: macOS local build, ./local-install/bin/iverilog
+Command: localrun 60 iverilog -g{2017|2023} -t null -s <top> <source>
+Expected: nonzero compile result whose stderr includes the §6.22.5 class-handle incompatibility diagnostic.
+All legal positive controls passed in both editions: derived-to-base, null-to-class, class-return function, == null, and if(handle).
+
+sv_class_handle_to_integral_assignment_fail -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_to_integral_assignment_fail.v:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_to_integral_assignment_fail.v:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+sv_class_handle_to_integral_assignment_fail -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_to_integral_assignment_fail.v:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_to_integral_assignment_fail.v:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+sv_class_handle_compound_to_integral_assignment_fail -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+sv_class_handle_compound_to_integral_assignment_fail -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+sv_class_handle_clockvar_to_integral_assignment_fail -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_clockvar_to_integral_assignment_fail.v:9: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_clockvar_to_integral_assignment_fail.v:9: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+sv_class_handle_clockvar_to_integral_assignment_fail -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  ivtest/ivltests/sv_class_handle_clockvar_to_integral_assignment_fail.v:9: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  ivtest/ivltests/sv_class_handle_clockvar_to_integral_assignment_fail.v:9: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-init -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-init.sv:4: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-init.sv:4: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-init -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-init.sv:4: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-init.sv:4: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-function -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-function.sv:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-function.sv:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-function -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-function.sv:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-function.sv:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-property -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-property -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-ternary -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-ternary.sv:5: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-ternary.sv:5: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-ternary -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-ternary.sv:5: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-ternary.sv:5: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-compound -g2017: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-compound.sv:5: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-compound.sv:5: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed
+
+negative-compound -g2023: compiler exits nonzero; verified §6.22.5 diagnostic.
+  evidence/m9-issue759-class-20261025/reducers/negative-compound.sv:5: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+  evidence/m9-issue759-class-20261025/reducers/negative-compound.sv:5: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+  Elaboration failed

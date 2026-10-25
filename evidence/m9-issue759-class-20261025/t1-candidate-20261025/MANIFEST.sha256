@@ -1,0 +1,3 @@
+7d81da184bf57fdea00417608f1f0771ed9c41a7947c72ea7a521fb1b097f4d3  t1-candidate.log  # 2026-10-25 15:16:49 Slurm candidate before side-effect-free type lookup follow-up; smoke passed, T1 legacy 1478/1479, sole static-array diagnostic-count mismatch
+02cd181cc708b66186f5f37a7245be001cbd63299a83be68d714c940a837da5c  time.txt  # 2026-10-25 15:16:58 Slurm candidate before side-effect-free type lookup follow-up; smoke passed, T1 legacy 1478/1479
+4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865  exit.code  # 2026-10-25 15:16:58 Slurm candidate before side-effect-free type lookup follow-up; smoke passed, T1 legacy 1478/1479

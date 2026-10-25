@@ -1,0 +1,1 @@
+`include "ivltests/sv_class_handle_initializer_to_integral_assignment_fail.v"

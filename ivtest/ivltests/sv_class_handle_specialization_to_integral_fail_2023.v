@@ -1,0 +1,1 @@
+`include "ivltests/sv_class_handle_specialization_to_integral_fail.v"
