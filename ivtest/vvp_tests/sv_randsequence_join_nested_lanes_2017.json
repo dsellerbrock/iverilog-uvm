@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randsequence_join_nested_lanes.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_randsequence_join_nested_lanes"
+}
