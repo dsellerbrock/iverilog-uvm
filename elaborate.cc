@@ -2472,6 +2472,14 @@ static vector<pending_unsafe_interface_driver_t>
 /* A clocking-output declaration creates an apply process even if nothing
  * drives the clockvar. Record only source drives that were elaborated. */
 static set<const NetNet*>static_clocking_output_writers_;
+static map<const NetNet*,perm_string>clocking_output_variables_;
+struct pending_clocking_output_continuous_write_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+static vector<pending_clocking_output_continuous_write_t>
+      pending_clocking_output_continuous_writes_;
+static set<const NetNet*>reported_clocking_output_continuous_writes_;
 
 struct pending_interface_ref_actual_t {
       NetNet*handle;
@@ -2507,6 +2515,42 @@ void ivl_note_interface_continuous_member(NetNet*signal,
 					const LineInfo*location)
 {
       pending_direct_interface_members_.push_back({signal, location});
+}
+
+void ivl_register_clocking_output_variable(NetNet*signal,
+					   perm_string clocking_block)
+{
+      clocking_output_variables_[signal] = clocking_block;
+}
+
+void ivl_note_clocking_output_continuous_write(NetNet*signal,
+					       const LineInfo*location)
+{
+      pending_clocking_output_continuous_writes_.push_back(
+	    {signal, location});
+}
+
+bool ivl_reject_clocking_output_procedural_continuous(
+					Design*des, const NetAssign_*lval,
+					const LineInfo*location, const char*kind)
+{
+      for (const NetAssign_*cur = lval ; cur ; cur = cur->more) {
+	    const NetNet*signal = cur->sig();
+	    if (!signal)
+		  continue;
+	    auto clockvar = clocking_output_variables_.find(signal);
+	    if (clockvar == clocking_output_variables_.end())
+		  continue;
+	    cerr << location->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be written by a procedural continuous assignment ("
+		 << kind << ") (IEEE 1800-2017/2023 14.16.2, 10.6)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      return false;
 }
 
 class unsafe_task_body_guard_t {
@@ -3049,6 +3093,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		     << "' cannot have continuous and procedural drivers on the"
 		     << " same bits." << endl;
 		des->errors += 1;
+		if (clocking_output_variables_.count(member))
+		      reported_clocking_output_continuous_writes_.insert(member);
 		continue;
 	      }
 	    }
@@ -3084,6 +3130,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	       << "' cannot have continuous and procedural drivers on the"
 	       << " same bits." << endl;
 	  des->errors += 1;
+	  if (clocking_output_variables_.count(pending.signal))
+		reported_clocking_output_continuous_writes_.insert(pending.signal);
 	}
       }
       pending_direct_interface_members_.clear();
@@ -3098,9 +3146,30 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		       << "' cannot have continuous and procedural drivers on the "
 			  "same value." << endl;
 		  des->errors += 1;
+		  if (clocking_output_variables_.count(pending.signal))
+			reported_clocking_output_continuous_writes_.insert(
+			      pending.signal);
 	    }
       }
       pending_variable_continuous_drivers_.clear();
+
+      for (const pending_clocking_output_continuous_write_t&pending :
+	   pending_clocking_output_continuous_writes_) {
+	    auto clockvar = clocking_output_variables_.find(pending.signal);
+	    if (clockvar == clocking_output_variables_.end()
+		|| !reported_clocking_output_continuous_writes_.insert(
+		      pending.signal).second)
+		  continue;
+	    cerr << pending.location->get_fileline() << ": error: Variable '"
+		 << pending.signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be driven by a continuous assignment (including a "
+		    "primitive output or module output port connection) "
+		    "(IEEE 1800-2017/2023 14.16.2)." << endl;
+	    des->errors += 1;
+      }
+      pending_clocking_output_continuous_writes_.clear();
 
 }
 
@@ -3137,8 +3206,11 @@ static bool mark_unsafe_virtual_overrides_(
 
 static void finalize_unsafe_interface_drivers_(Design*des)
 {
-      if (pending_unsafe_interface_drivers_.empty())
+
+      if (pending_unsafe_interface_drivers_.empty()) {
+	    reported_clocking_output_continuous_writes_.clear();
 	return;
+      }
 
       /* A null caller is an executable process, including one-shot task
 	 declaration initializers. A call in a dead task becomes live only when
@@ -3178,6 +3250,8 @@ static void finalize_unsafe_interface_drivers_(Design*des)
 	}
 
       for (const auto&pending : pending_unsafe_interface_drivers_) {
+	if (reported_clocking_output_continuous_writes_.count(pending.signal))
+	  continue;
 	if (!unknown_reachable
 	    && pending.signal->only_unreachable_interface_task_drivers(
 		 reachable, unsafe_tasks_with_processes_))
@@ -3192,6 +3266,7 @@ static void finalize_unsafe_interface_drivers_(Design*des)
       }
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
+      reported_clocking_output_continuous_writes_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -20787,6 +20862,12 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "assign")) {
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
@@ -25104,6 +25185,12 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lval = lval_->elaborate_lval(des, scope, false, true);
       if (lval == 0)
 	    return 0;
+
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "force")) {
+	    delete lval;
+	    return 0;
+      }
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
@@ -47344,6 +47431,9 @@ Design* elaborate(list<perm_string>roots)
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
+      clocking_output_variables_.clear();
+      pending_clocking_output_continuous_writes_.clear();
+      reported_clocking_output_continuous_writes_.clear();
       pending_interface_ref_actuals_.clear();
       unresolved_interface_ref_properties_.clear();
       unsafe_task_calls_.clear();
