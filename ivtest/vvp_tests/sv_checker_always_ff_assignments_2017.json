@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_checker_always_ff_assignments.v",
+  "iverilog-args": ["-g2017", "-s", "sv_checker_always_ff_assignments"],
+  "gold": "sv_checker_always_ff_assignments"
+}
