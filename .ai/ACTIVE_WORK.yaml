@@ -791,7 +791,7 @@ active:
       branch: "agent/a3-m9-issue836-20261024"
       baseline: "origin/main 47177e047c2031e87d8f8a14a4858d8b9ae79c71"
       status: "in_progress"
-      phase: "T1_PASSED"
+      phase: "READY_FOR_BATCH"
       goal: "Reject dist subjects that contain no rand variable without rejecting legal random-variable subjects."
       standards: "IEEE 1800-2017 §18.5.4 and IEEE 1800-2023 §18.5.3."
       failing_reproducer: "The current-main compiler silently accepts class state-only `state dist {0,1}` and state-only `std::randomize` with-clauses in both editions; source/output are recorded under evidence/m9-issue836-probe-20261024/."
@@ -806,7 +806,7 @@ active:
       acceptance: "New negative tests fail before and pass after in legacy and JSON; positive rand forms pass both editions; all six #1114 culprit regressions and a dist-source sweep preserve baseline results; T0/T1/T2 and required Fast Linux gates pass."
       evidence: "evidence/m9-issue836-probe-20261024/"
       discovery_policy: "Record unrelated behavior in DISCOVERED_DEBT.md only; do not widen this implementation."
-      next_action: "Secret-scan, commit/push, open #836, and mark ready-for-batch; then run T2 with ready A3 PRs #1191 and #1238."
+      next_action: "Run T2 with A3 PRs #1191 and #1238; after a green batch merge, close culprit PR #1114 with a link to #1391."
       stop_after_completion: true
   perf:
     id: "PERF-WP7-T1"
