@@ -157,6 +157,15 @@ struct sva_seq_step_t {
       PExpr* rep_hi_expr = nullptr;
 };
 
+/* Sequence formals currently retain the subset needed by named-sequence
+ * substitution. A local input formal is represented as a per-attempt local
+ * variable initialized at the beginning of the instantiated sequence. */
+struct sva_sequence_formal_t {
+      perm_string name;
+      bool local_input = false;
+      data_type_t* type = nullptr;
+};
+
 /*
  * M9-NFA stage B: sequence-combinator tree over linear chains. A leaf
  * wraps a chain; interior nodes are the regular-language combinators
