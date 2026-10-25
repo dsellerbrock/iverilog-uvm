@@ -20486,6 +20486,18 @@ static bool positional_container_integral_elements_(ivl_type_t type)
 	    && type_is_vectorable(element->base_type());
 }
 
+static bool positional_container_byte_elements_(ivl_type_t type)
+{
+      const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
+      if (!container || (queue && queue->assoc_compat()))
+	    return false;
+      ivl_type_t element = container->element_type();
+      return element && element->packed() && element->packed_width() > 0
+	    && (element->packed_width() % 8) == 0
+	    && type_is_vectorable(element->base_type());
+}
+
 static bool positional_container_expr_bitstream_(const NetExpr*source)
 {
       if (!source)
@@ -20831,6 +20843,20 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (container_cast_status == POSITIONAL_CAST_MATERIALIZED
 	  || container_cast_status == POSITIONAL_CAST_ERROR)
 	    return container_cast;
+
+      /* A string is a dynamic array of bytes for bit-stream casts
+	 (IEEE 1800-2017/2023 6.24.3). Flatten integral queue/darray
+	 elements whose widths are whole bytes, then use the existing
+	 packed-vector-to-string conversion. */
+      if (dynamic_cast<const netstring_t*>(target_type_)
+	  && positional_container_byte_elements_(sub->net_type())
+	  && bitstream_cast_type_(sub->net_type(), false)) {
+	    NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					   target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
 
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
