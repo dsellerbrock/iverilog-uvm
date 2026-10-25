@@ -2490,6 +2490,14 @@ static vector<pending_unsafe_interface_driver_t>
 /* A clocking-output declaration creates an apply process even if nothing
  * drives the clockvar. Record only source drives that were elaborated. */
 static set<const NetNet*>static_clocking_output_writers_;
+static map<const NetNet*,perm_string>clocking_output_variables_;
+struct pending_clocking_output_continuous_write_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+static vector<pending_clocking_output_continuous_write_t>
+      pending_clocking_output_continuous_writes_;
+static set<const NetNet*>reported_clocking_output_continuous_writes_;
 
 struct pending_interface_ref_actual_t {
       NetNet*handle;
@@ -2525,6 +2533,42 @@ void ivl_note_interface_continuous_member(NetNet*signal,
 					const LineInfo*location)
 {
       pending_direct_interface_members_.push_back({signal, location});
+}
+
+void ivl_register_clocking_output_variable(NetNet*signal,
+					   perm_string clocking_block)
+{
+      clocking_output_variables_[signal] = clocking_block;
+}
+
+void ivl_note_clocking_output_continuous_write(NetNet*signal,
+					       const LineInfo*location)
+{
+      pending_clocking_output_continuous_writes_.push_back(
+	    {signal, location});
+}
+
+bool ivl_reject_clocking_output_procedural_continuous(
+					Design*des, const NetAssign_*lval,
+					const LineInfo*location, const char*kind)
+{
+      for (const NetAssign_*cur = lval ; cur ; cur = cur->more) {
+	    const NetNet*signal = cur->sig();
+	    if (!signal)
+		  continue;
+	    auto clockvar = clocking_output_variables_.find(signal);
+	    if (clockvar == clocking_output_variables_.end())
+		  continue;
+	    cerr << location->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be written by a procedural continuous assignment ("
+		 << kind << ") (IEEE 1800-2017/2023 14.16.2, 10.6)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      return false;
 }
 
 class unsafe_task_body_guard_t {
@@ -3067,6 +3111,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		     << "' cannot have continuous and procedural drivers on the"
 		     << " same bits." << endl;
 		des->errors += 1;
+		if (clocking_output_variables_.count(member))
+		      reported_clocking_output_continuous_writes_.insert(member);
 		continue;
 	      }
 	    }
@@ -3102,6 +3148,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	       << "' cannot have continuous and procedural drivers on the"
 	       << " same bits." << endl;
 	  des->errors += 1;
+	  if (clocking_output_variables_.count(pending.signal))
+		reported_clocking_output_continuous_writes_.insert(pending.signal);
 	}
       }
       pending_direct_interface_members_.clear();
@@ -3116,9 +3164,30 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		       << "' cannot have continuous and procedural drivers on the "
 			  "same value." << endl;
 		  des->errors += 1;
+		  if (clocking_output_variables_.count(pending.signal))
+			reported_clocking_output_continuous_writes_.insert(
+			      pending.signal);
 	    }
       }
       pending_variable_continuous_drivers_.clear();
+
+      for (const pending_clocking_output_continuous_write_t&pending :
+	   pending_clocking_output_continuous_writes_) {
+	    auto clockvar = clocking_output_variables_.find(pending.signal);
+	    if (clockvar == clocking_output_variables_.end()
+		|| !reported_clocking_output_continuous_writes_.insert(
+		      pending.signal).second)
+		  continue;
+	    cerr << pending.location->get_fileline() << ": error: Variable '"
+		 << pending.signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be driven by a continuous assignment (including a "
+		    "primitive output or module output port connection) "
+		    "(IEEE 1800-2017/2023 14.16.2)." << endl;
+	    des->errors += 1;
+      }
+      pending_clocking_output_continuous_writes_.clear();
 
 }
 
@@ -3155,8 +3224,11 @@ static bool mark_unsafe_virtual_overrides_(
 
 static void finalize_unsafe_interface_drivers_(Design*des)
 {
-      if (pending_unsafe_interface_drivers_.empty())
+
+      if (pending_unsafe_interface_drivers_.empty()) {
+	    reported_clocking_output_continuous_writes_.clear();
 	return;
+      }
 
       /* A null caller is an executable process, including one-shot task
 	 declaration initializers. A call in a dead task becomes live only when
@@ -3196,6 +3268,8 @@ static void finalize_unsafe_interface_drivers_(Design*des)
 	}
 
       for (const auto&pending : pending_unsafe_interface_drivers_) {
+	if (reported_clocking_output_continuous_writes_.count(pending.signal))
+	  continue;
 	if (!unknown_reachable
 	    && pending.signal->only_unreachable_interface_task_drivers(
 		 reachable, unsafe_tasks_with_processes_))
@@ -3210,6 +3284,7 @@ static void finalize_unsafe_interface_drivers_(Design*des)
       }
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
+      reported_clocking_output_continuous_writes_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -10716,8 +10791,38 @@ static NetProc* make_direct_darray_indexed_slice_store_(
       return block;
 }
 
+static ivl_process_type_t current_procedural_process_type = IVL_PR_INITIAL;
+
+class procedural_process_type_guard_t {
+    public:
+      explicit procedural_process_type_guard_t(ivl_process_type_t type)
+      : previous_(current_procedural_process_type)
+      { current_procedural_process_type = type; }
+
+      ~procedural_process_type_guard_t()
+      { current_procedural_process_type = previous_; }
+
+    private:
+      ivl_process_type_t previous_;
+};
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
+	bool in_checker = false;
+	for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	      const Module*module = owner->module_definition();
+	      if (module) {
+		    in_checker = module->is_checker;
+		    break;
+	      }
+	}
+	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
+	cerr << get_fileline() << ": error: blocking assignment is not allowed "
+	        "in a checker always_ff procedure." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+
       NetProc*result = elaborate_unwrapped_(des, scope);
       if (!result)
 	    return nullptr;
@@ -20916,6 +21021,12 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "assign")) {
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
@@ -25245,6 +25356,12 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "force")) {
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
@@ -27348,6 +27465,7 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       scope->in_final(type() == IVL_PR_FINAL);
       NetProc*cur;
       {
+	    procedural_process_type_guard_t process_type(type());
 	    PExprProceduralContextGuard procedural_context(true);
 	    cur = statement_->elaborate(des, scope);
       }
@@ -42930,27 +43048,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (!id || id->path().name.empty()) return nullptr;
 			  auto comp = id->path().name.begin();
 			  ivl_type_t type = nullptr;
-			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
-				if (cgdef->sample_formals[fi] == comp->name) {
-				      if (fi < sample_formal_placeholders.size())
-					    type = sample_formal_placeholders[fi]->net_type();
-				      break;
+			  bool this_qualified = comp->name == perm_string::literal(THIS_TOKEN)
+				&& !comp->local_scope && comp->index.empty();
+			  if (this_qualified) {
+				type = this;
+				++comp;
+			  } else {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				      if (cgdef->sample_formals[fi] == comp->name) {
+					    if (fi < sample_formal_placeholders.size())
+						  type = sample_formal_placeholders[fi]->net_type();
+					    break;
+				      }
+				}
+				if (!type) {
+				      for (perm_string formal : cgdef->ctor_formals) {
+					    if (formal != comp->name) continue;
+					    int pidx = cg_class->property_idx_from_name(formal);
+					    if (pidx >= 0)
+						  type = cg_class->get_prop_type((size_t)pidx);
+					    break;
+				      }
+				}
+				if (!type) {
+				      int pidx = property_idx_from_name(comp->name);
+				      if (pidx >= 0) type = get_prop_type((size_t)pidx);
 				}
 			  }
-			  if (!type) {
-				for (perm_string formal : cgdef->ctor_formals) {
-				      if (formal != comp->name) continue;
-				      int pidx = cg_class->property_idx_from_name(formal);
-				      if (pidx >= 0)
-					    type = cg_class->get_prop_type((size_t)pidx);
-				      break;
-				}
-			  }
-			  if (!type) {
-				int pidx = property_idx_from_name(comp->name);
-				if (pidx >= 0) type = get_prop_type((size_t)pidx);
-			  }
-			  for (++comp; type && comp != id->path().name.end(); ++comp) {
+			  if (!this_qualified) ++comp;
+			  for (; type && comp != id->path().name.end(); ++comp) {
 				if (const netclass_t*ct =
 				      dynamic_cast<const netclass_t*>(type)) {
 				      int pidx = ct->property_idx_from_name(comp->name);
@@ -43154,19 +43280,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  int parent_prop = -1;
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
-				perm_string cp_var_name = peek_head_name(pe->path());
+				const pform_scoped_name_t&path = pe->path();
+				bool this_property = !path.package
+				      && !pe->has_scoped_type_prefix()
+				      && path.size() == 2
+				      && path.name.front().name == perm_string::literal(THIS_TOKEN)
+				      && !path.name.front().local_scope
+				      && path.name.front().index.empty()
+				      && path.name.back().index.empty();
+				perm_string cp_var_name = this_property
+				      ? path.name.back().name : peek_head_name(path);
 				  // M11-4: a sample() formal shadows a
 				  // parent-class property of the same
 				  // name (19.8.1) — the source binds to
 				  // the call argument, not the property.
 				bool is_formal = false;
 				for (auto&fn : cgdef->sample_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
 				for (auto&fn : cgdef->ctor_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
@@ -43174,10 +43309,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // A nested expression such as cfg.en_parity must be
 				  // elaborated as the complete expression; sampling the
 				  // `cfg` object handle itself is not equivalent.
-			const pform_scoped_name_t&path = pe->path();
-			bool direct = !path.package && !pe->has_scoped_type_prefix()
+			bool direct = this_property || (!path.package && !pe->has_scoped_type_prefix()
 			      && path.size() == 1 && !path.name.front().local_scope
-			      && path.name.front().index.empty();
+			      && path.name.front().index.empty());
 			if (!is_formal && direct && cp_decl_class)
 			      parent_prop = cp_decl_class->property_idx_from_name(
 				    cp_var_name);
@@ -47499,6 +47633,9 @@ Design* elaborate(list<perm_string>roots)
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
+      clocking_output_variables_.clear();
+      pending_clocking_output_continuous_writes_.clear();
+      reported_clocking_output_continuous_writes_.clear();
       pending_interface_ref_actuals_.clear();
       unresolved_interface_ref_properties_.clear();
       unsafe_task_calls_.clear();

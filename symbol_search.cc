@@ -807,7 +807,13 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	    search_scope = des->find_package(path.package->pscope_name());
 	    if (!search_scope)
 		  return false;
-	    prefix_scope = true;
+	      // A package-qualified name can be forward-referenced, but $unit:: is
+	      // only a disambiguator for the compilation-unit scope. It does not
+	      // make later compilation-unit declarations visible (IEEE 1800-2017
+	      // 3.12.1). The compilation unit is the only PPackage without a
+	      // lexical parent, so let its lookup use the ordinary lexical-position
+	      // checks below while retaining prefix-scope behavior for packages.
+	    prefix_scope = path.package->parent_scope() != nullptr;
       }
 
       for (list<name_component_t>::const_iterator cur = path.name.begin()

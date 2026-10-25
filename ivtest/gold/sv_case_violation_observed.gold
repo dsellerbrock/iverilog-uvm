@@ -1,0 +1,15 @@
+D0
+D1 same process
+D2 other process, Inactive
+WARNING: ./ivltests/sv_case_violation_observed.v:7: value is unhandled for priority or unique case statement
+         Time: 0  Scope: sv_case_violation_observed
+F0
+F1 resumed same step
+P0
+P1 same process
+WARNING: ./ivltests/sv_case_violation_observed.v:37: value is unhandled for priority or unique case statement
+         Time: 2  Scope: sv_case_violation_observed
+G0
+WARNING: ./ivltests/sv_case_violation_observed.v:46: value is unhandled for priority or unique case statement
+         Time: 3  Scope: sv_case_violation_observed
+G1

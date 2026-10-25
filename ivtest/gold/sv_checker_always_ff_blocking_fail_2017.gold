@@ -1,0 +1,2 @@
+./ivltests/sv_checker_always_ff_blocking_fail_2017.v:3: error: blocking assignment is not allowed in a checker always_ff procedure.
+1 error(s) during elaboration.

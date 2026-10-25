@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_checker_nested_design_units.v",
+  "iverilog-args": ["-g2017", "-s", "sv_checker_nested_design_units"],
+  "gold": "sv_checker_nested_design_units_2017"
+}

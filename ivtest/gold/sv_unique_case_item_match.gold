@@ -1,3 +1,3 @@
+PASSED
 WARNING: ./ivltests/sv_unique_case_item_match.v:25: multiple case items match for unique or unique0 case statement
          Time: 0  Scope: sv_unique_case_item_match
-PASSED

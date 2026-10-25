@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue952_chained_package_export.v",
+  "iverilog-args": ["-g2023", "-s", "issue952_chained_package_export"],
+  "gold": "issue952_chained_package_export"
+}

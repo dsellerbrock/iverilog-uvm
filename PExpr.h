@@ -569,6 +569,8 @@ class PEIdent : public PExpr {
 	// duplicate the diagnostic.
       void set_quiet_bind() { quiet_bind_ = true; }
       bool quiet_bind() const { return quiet_bind_; }
+      void set_modport_expression_access() { modport_expression_access_ = true; }
+      bool modport_expression_access() const { return modport_expression_access_; }
 
       // Add another name to the string of hierarchy that is the
       // current identifier.
@@ -707,6 +709,7 @@ class PEIdent : public PExpr {
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
       bool clocking_drive_lval_ = false;
+      bool modport_expression_access_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
 
@@ -925,6 +928,10 @@ class PEIdent : public PExpr {
       bool eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,
 			     long&midx, long&lidx) const;
 };
+
+void push_modport_expression_context(const pform_name_t&root);
+void pop_modport_expression_context();
+const pform_name_t* modport_expression_context();
 
 class PEMemberAccess : public PExpr {
 
