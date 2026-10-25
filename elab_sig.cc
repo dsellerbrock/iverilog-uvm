@@ -1445,6 +1445,48 @@ static bool interface_method_has_body_(const NetScope*method)
       return false;
 }
 
+static void validate_pure_virtual_methods_(Design*des, netclass_t*type,
+					   const PClass*pclass)
+{
+      if (!type || !pclass || type->is_virtual())
+	    return;
+
+      vector<const netclass_t*>chain;
+      for (const netclass_t*base = type; base; base = base->get_super())
+	    chain.push_back(base);
+
+      map<perm_string,const NetScope*>unimplemented;
+      for (auto cls = chain.rbegin(); cls != chain.rend(); ++cls) {
+	    const NetScope*scope = (*cls)->class_scope();
+	    if (!scope)
+		  continue;
+	    for (const auto&child : scope->children()) {
+		  const NetScope*method = child.second;
+		  if (!method || (method->type() != NetScope::FUNC
+				  && method->type() != NetScope::TASK))
+			continue;
+		  const PTaskFunc*decl = method->type() == NetScope::FUNC
+			? static_cast<const PTaskFunc*>(method->func_pform())
+			: static_cast<const PTaskFunc*>(method->task_pform());
+		  if (decl && decl->is_pure_method())
+			unimplemented[child.first.peek_name()] = method;
+		  else if (unimplemented.count(child.first.peek_name())
+			   && interface_method_has_body_(method))
+			unimplemented.erase(child.first.peek_name());
+	    }
+      }
+
+      for (const auto&pure : unimplemented) {
+	    cerr << pclass->get_fileline() << ": error: Non-virtual class `"
+		 << type->get_name() << "' does not implement inherited pure virtual "
+		    "method `" << pure.first << "' (IEEE 1800-2017/2023 8.21)." << endl;
+	    cerr << pure.second->get_fileline()
+		 << ":      : Pure virtual method `" << pure.first
+		 << "' is declared here." << endl;
+	    des->errors += 1;
+      }
+}
+
 static void collect_interface_class_graph_(const netclass_t*type,
 					   vector<const netclass_t*>&nodes,
 					   set<const netclass_t*>&seen)
@@ -2747,6 +2789,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    ivl_assert(*cur->second, scope);
 	    cur->second->elaborate_sig(des, scope);
       }
+
+      validate_pure_virtual_methods_(des, this, pclass);
 
       class_scope_->elaborate_nettypes(des);
 

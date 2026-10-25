@@ -1,0 +1,3 @@
+ivltests/sv_pure_virtual_inherited_missing_fail.v:7: error: Non-virtual class `sv_pure_virtual_inherited_missing' does not implement inherited pure virtual method `send' (IEEE 1800-2017/2023 8.21).
+ivltests/sv_pure_virtual_inherited_missing_fail.v:4:      : Pure virtual method `send' is declared here.
+1 error(s) during elaboration.
