@@ -3269,7 +3269,8 @@ void compile_vpi_call(char*label, char*name,
                       long file_idx, long lineno,
                       unsigned argc, vpiHandle*argv,
 		      unsigned vec4_stack, unsigned real_stack,
-		      unsigned string_stack, unsigned object_stack)
+		      unsigned string_stack, unsigned object_stack,
+		      bool defer_observed)
 {
       if (label)
 	    compile_codelabel(label);
@@ -3285,6 +3286,7 @@ void compile_vpi_call(char*label, char*name,
                                          argc, argv, vec4_stack, real_stack,
                                          string_stack, object_stack,
 					 file_idx, lineno);
+      code->bit_idx[0] = defer_observed ? 1 : 0;
       if (code->handle == 0)
 	    compile_errors += 1;
 

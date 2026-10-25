@@ -948,6 +948,9 @@ struct vthread_s {
          point is the subsequent resume, not the earlier suspension and
          not a procedural-delay resume. */
       unsigned deferred_assert_flush_on_run :1;
+      /* A matured unique/priority case report executes its captured VPI
+         call on a fresh thread. Do not enqueue that call a second time. */
+      unsigned is_observed_report_action :1;
       unsigned owns_automatic_context :1;
       unsigned owned_context_is_chain :1;
 	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
@@ -1527,7 +1530,8 @@ static vvp_code_t deferred_action_next_code_(vvp_code_t code)
 static bool capture_deferred_args_(vthread_t thr,
                                    vvp_code_t action_pc,
                                    deferred_assert_args_s&out,
-                                   const char*mode)
+                                   const char*mode,
+                                   bool allow_warning = false)
 {
       if (!thr || !action_pc) {
             fprintf(stderr,
@@ -1559,14 +1563,18 @@ static bool capture_deferred_args_(vthread_t thr,
 
       const char*task_name = call->defn ? call->defn->info.tfname : 0;
       vvp_code_t action_end = deferred_action_next_code_(action_pc);
+      bool is_display = task_name && strcmp(task_name, "$display") == 0;
+      bool is_error = task_name && strcmp(task_name, "$error") == 0;
+      bool is_warning = task_name && strcmp(task_name, "$warning") == 0;
       if (!task_name
-          || (strcmp(task_name, "$display") != 0
-              && strcmp(task_name, "$error") != 0)
-          || !action_end || action_end->opcode != of_END) {
+          || (!is_display && !is_error && !(allow_warning && is_warning))
+          || ((is_display || is_error)
+              && (!action_end || action_end->opcode != of_END))) {
             fprintf(stderr,
                     "vvp: malformed %s-deferred VPI action thunk; expected "
-                    "exactly one $display/$error call followed by %%end; "
-                    "source stacks were not consumed.\n", mode);
+                    "a $display/$error action ending in %%end%s; "
+                    "source stacks were not consumed.\n", mode,
+                    allow_warning ? " or a $warning call" : "");
             return false;
       }
 
@@ -1915,6 +1923,7 @@ void vvp_process::mature_deferred_asserts()
 	    report.action_scope->threads.erase(action);
 	    action->is_reactive_process = 1;
 	    action->in_region_drain = 1;
+            action->is_observed_report_action = 1;
 	    for (size_t idx = 0 ; idx < report.action_args.vec4.size(); idx += 1)
 		  action->push_vec4(report.action_args.vec4[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.real.size(); idx += 1)
@@ -1923,7 +1932,15 @@ void vvp_process::mature_deferred_asserts()
 		  action->push_str(report.action_args.str[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.obj.size(); idx += 1)
 		  action->push_object(report.action_args.obj[idx]);
-	    schedule_vthread(action, 0, false);
+	    if (report.source_id == 0) {
+		  /* Case violation warnings are tool reports, not assertion action
+		     blocks. Emit them in the Observed callback itself after the
+		     process's pending report has matured. */
+		  vthread_mark_scheduled(action);
+		  vthread_run(action);
+	    } else {
+		  schedule_vthread(action, 0, false);
+	    }
       }
 }
 
@@ -10991,6 +11008,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->deferred_assert_flush_on_run = 0;
+      thr->is_observed_report_action = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context_is_chain = 0;
       thr->rand_sel_armed = false;
@@ -34029,6 +34047,25 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       const char*next_op = "<nullpc>";
       bool trace = false;
 
+      /* Unique/priority case diagnostics are evaluated in Active, but
+         IEEE 1800-2017 12.5.3.1 applies 12.4.2.1's Observed deferral and
+         process-resume flush mechanics to their reports. */
+      if (cp->bit_idx[0] && thr && !thr->is_observed_report_action) {
+	    vthread_t owner = logical_process_thread_(thr);
+	    vvp_process*process = owner
+		  ? owner->process_obj_.peek<vvp_process>() : 0;
+	    __vpiScope*scope = thr->parent_scope;
+	    deferred_assert_args_s args;
+	    if (!process || !scope
+		|| !capture_deferred_args_(thr, cp, args, "observed", true)) {
+		  fprintf(stderr,
+			  "vvp: unable to queue unique/priority case violation report.\n");
+		  return true;
+	    }
+	    process->enqueue_deferred_assert(0, cp, scope, args);
+	    return true;
+      }
+
       if (vpi_call_trace_enabled_()) {
             if (cp->handle) {
                   const char*name = vpi_get_str(vpiName, cp->handle);
@@ -34060,6 +34097,12 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       }
 
       vpip_execute_vpi_call(thr, cp->handle);
+
+      /* A matured unique/priority case warning borrows the source VPI-call
+         instruction, but its fresh action thread must stop after that call
+         rather than continuing through the original process body. */
+      if (thr && thr->is_observed_report_action)
+	    return of_END(thr, nullptr);
 
       /* $exit is a program control task, not an alias for $finish.  The
        * program initial procedure that calls it completes here; the
