@@ -2103,10 +2103,12 @@ class covergroup_constructor_order_classifier_t :
       public pform_constructor_order_classifier_t {
     public:
       covergroup_constructor_order_classifier_t(
-	    const netclass_t*parent, const PFunction*constructor,
-	    const map<size_t,const netclass_t*>&embedded_covergroups)
-      : parent_(parent), constructor_(constructor),
-	embedded_covergroups_(embedded_covergroups)
+	    const netclass_t*parent, const PTaskFunc*method,
+	    const map<size_t,const netclass_t*>&embedded_covergroups,
+	    bool outside_new = false)
+      : parent_(parent), constructor_(method),
+	embedded_covergroups_(embedded_covergroups),
+	outside_new_(outside_new)
       { }
 
       bool classify_instance_constant_initializer(
@@ -2136,6 +2138,8 @@ class covergroup_constructor_order_classifier_t :
 	    vector<pform_constructor_order_dependency_t>&dependencies)
 	    const override
       {
+	    if (outside_new_)
+		  return false;
 	    if (!assignment.plain_blocking
 		|| !dynamic_cast<const PENewClass*>(assignment.rval))
 		  return false;
@@ -2159,6 +2163,21 @@ class covergroup_constructor_order_classifier_t :
 		  dependencies.push_back(use_dep);
 	    }
 	    return !dependencies.empty();
+      }
+
+      bool classify_forbidden_embedded_covergroup_assignment(
+	    const pform_constructor_order_assignment_t&assignment,
+	    size_t&property_idx) const override
+      {
+	    if (!outside_new_)
+		  return false;
+	    int prop = property_from_lval_(assignment);
+	    if (prop < 0
+		|| embedded_covergroups_.find(static_cast<size_t>(prop))
+		   == embedded_covergroups_.end())
+		  return false;
+	    property_idx = static_cast<size_t>(prop);
+	    return true;
       }
 
       bool classify_repeat_count(const PExpr*count,
@@ -2218,8 +2237,9 @@ class covergroup_constructor_order_classifier_t :
 
     private:
       const netclass_t*parent_;
-      const PFunction*constructor_;
+      const PTaskFunc*constructor_;
       const map<size_t,const netclass_t*>&embedded_covergroups_;
+      bool outside_new_;
 
       static bool scope_declares_(const LexicalScope*scope, perm_string name)
       {
@@ -2347,6 +2367,11 @@ static void report_constructor_order_violations_(
 		       << "' can be assigned only once along every reachable path "
 			  "through its corresponding class constructor "
 			  "(IEEE 1800 8.19).";
+		  break;
+	    case PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW:
+		  cerr << "embedded covergroup variable `" << property
+		       << "' may only be assigned in the parent class new method "
+			  "(IEEE 1800 19.4).";
 		  break;
 	    }
 	    cerr << endl;
@@ -2814,6 +2839,14 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    if (cur->second != constructor_function) {
+		  covergroup_constructor_order_classifier_t method_classifier(
+			this, cur->second, embedded_covergroups, true);
+		  pform_constructor_order_result_t method_order =
+			audit_pform_constructor_order(
+			      cur->second->get_statement(), method_classifier);
+		  report_constructor_order_violations_(des, this, method_order);
+	    }
 	    cur->second->elaborate_sig(des, scope);
       }
 
@@ -2826,6 +2859,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    covergroup_constructor_order_classifier_t method_classifier(
+		  this, cur->second, embedded_covergroups, true);
+	    pform_constructor_order_result_t method_order =
+		  audit_pform_constructor_order(cur->second->get_statement(),
+					method_classifier);
+	    report_constructor_order_violations_(des, this, method_order);
 	    cur->second->elaborate_sig(des, scope);
       }
 
