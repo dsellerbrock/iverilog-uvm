@@ -2424,6 +2424,8 @@ sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.
 # IEEE 1800-2017 parallel statement labels and conditional event controls
 sv_statement_label_parallel normal,-g2012 ivltests gold=sv_statement_label_parallel.gold
 sv_statement_label_parallel_fail CE,-g2012 ivltests gold=sv_statement_label_parallel_fail.gold
+sv_statement_labels_2017 normal,-g2017,-s,main ivltests gold=sv_statement_labels.gold
+sv_statement_labels_2023 normal,-g2023,-s,main ivltests gold=sv_statement_labels.gold
 sv_event_conditional normal,-g2012 ivltests gold=sv_event_conditional.gold
 sv_event_conditional_fail CE,-g2012 ivltests gold=sv_event_conditional_fail.gold
 

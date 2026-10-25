@@ -1161,6 +1161,24 @@ template <class T> void append(vector<T>&out, const std::vector<T>&in)
 
 static unsigned foreach_block_counter = 0;
 
+static PBlock* pform_start_foreach_scope(const struct vlltype&loc,
+					 char*source_label)
+{
+      char generated_name[64];
+      const char*block_name = source_label;
+      if (!block_name) {
+	    snprintf(generated_name, sizeof generated_name,
+		     "$ivl_foreach%u", foreach_block_counter);
+	    foreach_block_counter += 1;
+	    block_name = generated_name;
+      }
+
+      PBlock*block = pform_push_block_scope(loc, block_name, PBlock::BL_SEQ);
+      current_block_stack.push(block);
+      delete[] source_label;
+      return block;
+}
+
 static void recover_stale_function_scope(const YYLTYPE&loc)
 {
       if (current_function == 0)
@@ -1491,6 +1509,20 @@ static PBlock* pform_finish_procedural_block(procedural_block_scope_t*scope)
       pform_unwind_parser_block_scope(scope);
       PBlock*block = scope->block;
       scope->block = nullptr;
+      return block;
+}
+
+/* A label on an ordinary procedural statement introduces the named block
+   scope required by IEEE 1800-2017/2023 9.3.5. */
+static Statement* pform_finish_labeled_statement(
+      procedural_block_scope_t*scope, Statement*statement)
+{
+      PBlock*block = pform_finish_procedural_block(scope);
+      if (statement) {
+	    std::vector<Statement*> statements(1, statement);
+	    block->set_statement(statements);
+      }
+      pform_destroy_procedural_block(scope);
       return block;
 }
 
@@ -2457,7 +2489,10 @@ static Module::port_t *module_declare_explicit_port(
 
 %type <text> label_opt class_declaration_endlabel_opt fork_block_start
 %type <procedural_block_scope> begin_scope_start labeled_begin_scope_start
+%type <procedural_block_scope> labeled_statement_scope_start
 %type <procedural_block_scope> compat_begin_scope_start fork_scope_start
+%type <text> foreach_statement_start
+%destructor { delete[] $$; } foreach_statement_start
 %destructor { pform_destroy_procedural_block($$); } <procedural_block_scope>
 %type <text> block_identifier_opt
 %type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix module_cg_port_prefix
@@ -6551,6 +6586,13 @@ labeled_begin_scope_start
       { $$ = pform_start_procedural_block(@1, $1, PBlock::BL_SEQ); }
   ;
 
+labeled_statement_scope_start
+  : IDENTIFIER ':'
+      { pform_requires_sv(@1, "Statement label");
+	$$ = pform_start_procedural_block(@1, $1, PBlock::BL_SEQ);
+      }
+  ;
+
 compat_begin_scope_start
   : ')' K_begin label_opt
       { $$ = pform_start_procedural_block(@2, $3, PBlock::BL_SEQ); }
@@ -6753,6 +6795,15 @@ for_variable_declaration_header
 
   /* Loop statements are kinds of statements. */
 
+foreach_statement_start
+  : K_foreach
+      { $$ = nullptr; }
+  | IDENTIFIER ':' K_foreach
+      { pform_requires_sv(@1, "Statement label");
+	$$ = $1;
+      }
+  ;
+
 loop_statement /* IEEE1800-2005: A.6.8 */
   : for_nondeclaration_header statement_or_null
       { $$ = pform_finish_for_nondeclaration($1, $2);
@@ -6796,14 +6847,9 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
       // When matching a foreach loop, implicitly create a named block
       // to hold the definitions for the index variables.
-  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' ')'
+  | foreach_statement_start '(' foreach_array_identifier '[' loop_variables ']' ')'
       { 
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
-	foreach_block_counter += 1;
-
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
+	pform_start_foreach_scope(@1, $1);
 
 	pform_make_foreach_declarations(@1, $3, $5);
       }
@@ -6841,15 +6887,10 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       // A selected outer dimension followed by the looped dimensions:
       // foreach (key[0][i]). This is distinct from foreach(key[,i]): the
       // first form fixes the outer index and iterates the selected value.
-  | K_foreach '(' foreach_array_identifier '[' expression ']' '['
+  | foreach_statement_start '(' foreach_array_identifier '[' expression ']' '['
     loop_variables ']' ')'
       {
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
-	foreach_block_counter += 1;
-
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
+	pform_start_foreach_scope(@1, $1);
 
 	/* Attach the fixed-selector index onto the array name NOW (not in
 	   the final action below, after the body is parsed) so
@@ -6886,15 +6927,10 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
       // Support foreach(arr[const].member[var]): fixed outer index, loop over
       // the inner member array. E.g. foreach (paths[0].slices[i]).
-  | K_foreach '(' foreach_array_identifier '[' expression ']' '.'
+  | foreach_statement_start '(' foreach_array_identifier '[' expression ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
-	foreach_block_counter += 1;
-
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
+	pform_start_foreach_scope(@1, $1);
 
         index_component_t itmp;
         itmp.sel = index_component_t::SEL_BIT;
@@ -6924,15 +6960,10 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       // A bare selected-prefix identifier reduces through loop_variables
       // because of the foreach header ambiguity. It is a selector expression,
       // not an additional loop-variable declaration (12.7.3).
-  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
+  | foreach_statement_start '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
-	foreach_block_counter += 1;
-
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
+	pform_start_foreach_scope(@1, $1);
 
         if ($5->size() == 1 && !$5->front().nil()) {
               index_component_t itmp;
@@ -6992,15 +7023,10 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       // m_changed_sev[string][string]' where `id' is already a local
       // variable). Confirmed independently: slang (--std 1800-2017)
       // accepts it, 0 errors.
-  | K_foreach '(' foreach_array_identifier foreach_selector_prefixes '['
+  | foreach_statement_start '(' foreach_array_identifier foreach_selector_prefixes '['
     loop_variables ']' ')'
       {
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
-	foreach_block_counter += 1;
-
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
+	pform_start_foreach_scope(@1, $1);
 
 	  /* Every selector in `arr[bank][part][i]' is checked the same way.
 	     The shape check alone (single non-nil identifier) cannot tell a
@@ -7148,7 +7174,7 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	yyerror(@1, "error: Error in do/while loop condition.");
       }
 
-  | K_foreach '(' foreach_array_identifier '[' error ']' ')' statement_or_null
+  | foreach_statement_start '(' foreach_array_identifier '[' error ']' ')' statement_or_null
       { $$ = 0;
         yyerror(@4, "error: Errors in foreach loop variables list.");
 	delete $3;
@@ -18604,7 +18630,21 @@ statement_item /* This is roughly statement_item in the LRM */
      off. This is stronger than any other assign, but weaker than the
      force assignments. */
 
-  : K_assign lpvalue '=' expression ';'
+  : labeled_statement_scope_start attribute_list_opt statement_item
+      { if ($3) pform_bind_attributes($3->attributes, $2);
+	else yyerror(@1, "error: A statement label cannot precede a declaration.");
+	$$ = pform_finish_labeled_statement($1, $3);
+	$1 = nullptr;
+	}
+
+  | labeled_statement_scope_start attribute_list_opt ';'
+      { PNoop*tmp = new PNoop;
+	FILE_NAME(tmp, @3);
+	pform_bind_attributes(tmp->attributes, $2);
+	$$ = pform_finish_labeled_statement($1, tmp);
+	$1 = nullptr;
+      }
+  | K_assign lpvalue '=' expression ';'
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
