@@ -1,0 +1,2 @@
+ivltests/sv_string_integral_assignment_cast_required_2023.v:5: error: An integral value cannot be implicitly converted to string; use an explicit string cast.
+Elaboration failed

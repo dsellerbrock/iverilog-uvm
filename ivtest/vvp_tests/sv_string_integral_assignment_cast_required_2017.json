@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_string_integral_assignment_cast_required_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_string_integral_assignment_cast_required" ],
+    "gold"          : "sv_string_integral_assignment_cast_required_2017"
+}

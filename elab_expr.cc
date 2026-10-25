@@ -4265,6 +4265,22 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 6.16 permits string literals and string
+	 * expressions to be assigned directly to a string variable, but an
+	 * integral value requires an explicit string cast.  PEString is the
+	 * literal exception; string-context concatenations already carry a
+	 * string expression type, while typed string casts do as well. */
+      if (lv_type == IVL_VT_STRING
+	  && type_is_vectorable(expr->expr_type())
+	  && !dynamic_cast<PEString*>(expr)) {
+	    cerr << expr->get_fileline() << ": error: An integral value cannot be "
+	         << "implicitly converted to string; use an explicit string cast."
+	         << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+      }
+
       /* The nested-child marker retains its source interface type. Check the
 	 assignment-like destination here, before copy-in can put a child of a
 	 different interface definition (or modport view) in a VIF formal. */
