@@ -14595,6 +14595,17 @@ static void sva_splice_sequences_(const struct vlltype&loc,
             return false;
       };
       unsigned entry_errors = error_count;
+      auto booleanize = [&loc](PExpr*&expr) {
+	    PEUnary*outer = dynamic_cast<PEUnary*>(expr);
+	    PEUnary*inner = outer && outer->get_op() == '!' ?
+		dynamic_cast<PEUnary*>(outer->get_expr()) : nullptr;
+	    if (inner && inner->get_op() == '!') return;
+	    PEUnary*not_expr = new PEUnary('!', expr);
+	    FILE_NAME(not_expr, loc);
+	    PEUnary*truth_expr = new PEUnary('!', not_expr);
+	    FILE_NAME(truth_expr, loc);
+	    expr = truth_expr;
+      };
       static int splice_depth = 0;
       if (++splice_depth > 64) {
 	    cerr << loc << ": error: SVA sequence instantiation nested too "
@@ -14647,12 +14658,20 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
 	    if (!id || id->path().package || id->path().name.size() != 1
 		|| !id->path().name.front().index.empty()) {
+		  booleanize(steps[i].expr);
+		  i += 1;
+		  continue;
+	    }
+	    std::map<sva_scoped_name_t, sva_property_t*>::iterator prop_it =
+		sva_resolve_(sva_module_properties, id->path().name.front().name, scope);
+	    if (prop_it != sva_module_properties.end() && prop_it->second) {
 		  i += 1;
 		  continue;
 	    }
 	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
 		  sva_resolve_(sva_module_sequences, id->path().name.front().name, scope);
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
+		  booleanize(steps[i].expr);
 		  i += 1;
 		  continue;
 	    }
