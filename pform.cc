@@ -10524,6 +10524,33 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 			  error_count += 1;
 			  return nullptr;
 			}
+			/* The sampled clockvar is updated in NBA. The assertion
+			   captures operands before then, so reading the clockvar
+			   directly observes the previous clocking event. Sample its
+			   raw input with the same Preponed mechanism used by the
+			   clocking block's required #1step skew. */
+			if (clocking_input) {
+			      perm_string clockvar_name = signal->name;
+			      pform_name_t raw_path;
+			      raw_path.insert(raw_path.end(), signal, path.end());
+			      PExpr*raw_source = nullptr;
+			      std::map<perm_string,PExpr*>::const_iterator alias =
+				    cb->decl_assigns.find(clockvar_name);
+			      if (alias != cb->decl_assigns.end())
+				    raw_source = alias->second;
+			      if (raw_source) {
+				    PExpr*raw_copy = sva_clone_expr_(raw_source);
+				    if (!raw_copy) return nullptr;
+				    PExpr*sampled_raw = sva_wrap_preponed_(raw_copy,
+					  sampled, live_operands, unsampled_locals);
+				    delete raw_copy;
+				    return sampled_raw;
+			      }
+			      PEIdent raw_id(raw_path, id->lexical_pos());
+			      raw_id.set_line(*id);
+			      return sva_wrap_preponed_(&raw_id, sampled,
+					  live_operands, unsampled_locals);
+			}
 		  }
 	    }
 	      /* A sequence local is per assertion attempt, not a design signal.
