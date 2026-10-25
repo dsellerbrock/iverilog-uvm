@@ -29,6 +29,7 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  <vector>
+# include  <algorithm>
 # include  <cstdio>
 # include  <cstdarg>
 # include  <cstring>
@@ -1179,13 +1180,33 @@ struct vpip_put_value_event : vvp_gen_event_s {
       vpiHandle handle;
       s_vpi_value value;
       int flags;
+      vvp_time64_t due;
+      bool canceled;
       virtual void run_run() override;
-      ~vpip_put_value_event() override { }
+      ~vpip_put_value_event() override;
 };
+
+static std::vector<vpip_put_value_event*> vpip_pending_put_values;
+
+static void vpip_untrack_put_value(vpip_put_value_event* event)
+{
+      std::vector<vpip_put_value_event*>::iterator found =
+            std::find(vpip_pending_put_values.begin(),
+                      vpip_pending_put_values.end(), event);
+      if (found != vpip_pending_put_values.end())
+            vpip_pending_put_values.erase(found);
+}
+
+vpip_put_value_event::~vpip_put_value_event()
+{
+      vpip_untrack_put_value(this);
+}
 
 void vpip_put_value_event::run_run()
 {
-      handle->vpi_put_value(&value, flags);
+      vpip_untrack_put_value(this);
+      if (!canceled)
+            handle->vpi_put_value(&value, flags);
       switch (value.format) {
 	    /* Free the copied string. */
 	  case vpiBinStrVal:
@@ -1292,6 +1313,8 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 
 	    vpip_put_value_event*put = new vpip_put_value_event;
 	    put->handle = obj;
+            put->due = schedule_simtime() + dly;
+            put->canceled = false;
 	    if (dynamic_cast<__vpiNamedEvent*>(obj)) {
 		  put->value.format = vpiIntVal;
 		  put->value.value.integer = 0;
@@ -1329,6 +1352,19 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 		  break;
 	    }
 	    put->flags = flags;
+            if (flags == vpiInertialDelay || flags == vpiTransportDelay ||
+                flags == vpiPureTransportDelay) {
+                  for (std::vector<vpip_put_value_event*>::iterator cur =
+                       vpip_pending_put_values.begin();
+                       cur != vpip_pending_put_values.end(); ++cur) {
+                        vpip_put_value_event* pending = *cur;
+                        if (vpi_compare_objects(pending->handle, obj) &&
+                            (flags == vpiInertialDelay ||
+                             pending->due > put->due))
+                              pending->canceled = true;
+                  }
+            }
+            vpip_pending_put_values.push_back(put);
 	    schedule_generic(put, dly, false, true, true);
 	    return 0;
       }

@@ -1,0 +1,8 @@
+Compiling vpi/issue958.c...
+Making issue958_2023.vpi from  issue958.o...
+12 22 22 22 00 00 00
+13 22 22 22 00 11 11
+14 22 22 22 00 11 11
+15 22 22 22 00 11 11
+16 22 22 22 22 22 22
+vpi/issue958_2023.v:18: $finish called at 16000 (1ps)
