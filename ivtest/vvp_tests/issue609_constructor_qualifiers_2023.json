@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue609_constructor_qualifiers.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue609_constructor_qualifiers"
+}
