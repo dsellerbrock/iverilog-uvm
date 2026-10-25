@@ -5862,3 +5862,5 @@ sv_let_scope_2017 normal,-g2017,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_let_scope_2023 normal,-g2023,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_forward_class_scoped_typedef normal,-g2017,-s,sv_forward_class_scoped_typedef ivltests gold=sv_forward_class_scoped_typedef.gold
 sv_forward_class_scoped_typedef_2023 normal,-g2023,-s,sv_forward_class_scoped_typedef_2023 ivltests gold=sv_forward_class_scoped_typedef.gold
+format_undefined_spec_2017 EF,-g2017,-s,format_undefined_spec_2017 ivltests gold=format_undefined_spec_2017.gold
+format_undefined_spec_2023 EF,-g2023,-s,format_undefined_spec_2023 ivltests gold=format_undefined_spec_2023.gold
