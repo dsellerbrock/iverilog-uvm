@@ -5939,6 +5939,8 @@ sv_assert_increment_side_effect_2023 CE,-g2023,-gassertions,-s,sv_assert_increme
 # IEEE 1800-2017/2023 §12.5.3: uniqueness is counted per case_item.
 sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
+sv_case_violation_observed_2017 normal,-g2017,-s,sv_case_violation_observed ivltests gold=sv_case_violation_observed.gold
+sv_case_violation_observed_2023 normal,-g2023,-s,sv_case_violation_observed ivltests gold=sv_case_violation_observed.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_function_copyout_context_fail_2017 CE,-g2017,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2017.gold

@@ -129,7 +129,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VAR K_VAR_COBJECT K_VAR_DARRAY
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
-%token K_vpi_call K_vpi_call_w K_vpi_call_i
+%token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
@@ -860,6 +860,11 @@ statement
     argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_call($1, $5, false, true, $3, $4,
 			 $6.argc, $6.argv, $8, $9, $10, $11); }
+
+  | label_opt K_vpi_call_observed T_NUMBER T_NUMBER T_STRING
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+      { compile_vpi_call($1, $5, false, true, $3, $4,
+			 $6.argc, $6.argv, $8, $9, $10, $11, true); }
 
   /* This version allows a function to be called as a task and does not
    * print a message. */

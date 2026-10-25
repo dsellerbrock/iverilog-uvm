@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_case_violation_observed.v",
+  "iverilog-args": ["-g2023", "-s", "sv_case_violation_observed"],
+  "gold": "sv_case_violation_observed"
+}

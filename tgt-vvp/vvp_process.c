@@ -2039,7 +2039,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 		    "\"multiple case items match for unique or unique0 case "
 		    "statement\" {0 0 0 0};\n",
 		    ivl_file_table_index(ivl_stmt_file(net)),
@@ -2085,7 +2085,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	      fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			  "\"value is unhandled for priority or unique case statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
@@ -2215,8 +2215,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
-              else
-		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		  else
+		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			    "\"value is unhandled for priority or unique case statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),

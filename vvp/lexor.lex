@@ -311,6 +311,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 
 "%vpi_call"   { return K_vpi_call; }
 "%vpi_call/w" { return K_vpi_call_w; }
+"%vpi_call/observed" { return K_vpi_call_observed; }
 "%vpi_call/i" { return K_vpi_call_i; }
 "%vpi_func"   { return K_vpi_func; }
 "%vpi_func/r" { return K_vpi_func_r; }
