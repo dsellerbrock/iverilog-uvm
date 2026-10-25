@@ -1,0 +1,6 @@
+./ivltests/sv_force_var_select_nested_fail_2023.v:4: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+./ivltests/sv_force_var_select_nested_fail_2023.v:5: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+./ivltests/sv_force_var_select_nested_fail_2023.v:6: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+./ivltests/sv_force_var_select_nested_fail_2023.v:7: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+./ivltests/sv_force_var_select_nested_fail_2023.v:8: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+5 error(s) during elaboration.
