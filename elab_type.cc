@@ -1483,23 +1483,22 @@ static bool validate_nettype_resolver_(Design*des, NetNetType*info,
             return false;
       }
 
+      if (func_scope->parent()
+          && func_scope->parent()->type() == NetScope::CLASS
+          && !pfunc->method_qualifiers().test_static()) {
+            cerr << decl->get_fileline() << ": error: class-method resolution "
+                 << "function '" << func_scope->basename()
+                 << "' for nettype '" << decl->name()
+                 << "' shall be static (IEEE 1800-2017/2023 6.6.7)." << endl;
+            des->errors += 1;
+            return false;
+      }
+
       if (func->port_count() != 1) {
             cerr << decl->get_fileline() << ": error: Resolution function for "
                  << "nettype `" << decl->name() << "' must have exactly one "
                  << "input dynamic-array argument of type "
                  << nettype_data_type_name_(info->data_type()) << "." << endl;
-            des->errors += 1;
-            return false;
-      }
-
-      if (func_scope->parent()
-          && func_scope->parent()->type() == NetScope::CLASS) {
-            cerr << decl->get_fileline() << ": sorry: class-method resolution "
-                 << "function '" << func_scope->basename()
-                 << "' cannot be used for nettype '" << decl->name()
-                 << "' because this frontend does not preserve the static "
-                 << "method qualifier needed to distinguish the legal form."
-                 << endl;
             des->errors += 1;
             return false;
       }

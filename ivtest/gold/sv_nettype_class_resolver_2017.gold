@@ -1,0 +1,2 @@
+PASS: static class nettype resolver
+./ivltests/sv_nettype_class_resolver.v:32: $finish called at 2 (1s)

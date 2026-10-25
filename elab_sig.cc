@@ -3428,6 +3428,25 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
 
+	  /* Class methods receive a synthetic `this` formal during parsing. A
+	   * static method has no receiver (IEEE 1800-2017/2023 8.10), so it must
+	   * not appear in the callable signature. In particular, user-defined
+	   * nettype resolvers require exactly one formal, their driver array
+	   * (6.6.7); retaining this made a legal static class resolver look like a
+	   * two-argument function. */
+	  if (method_of() && method_qualifiers().test_static()) {
+		vector<NetNet*>::iterator this_port = ports.begin();
+		while (this_port != ports.end()
+		       && (*this_port)->name() != perm_string::literal(THIS_TOKEN))
+		      ++this_port;
+		if (this_port != ports.end()) {
+		      size_t index = this_port - ports.begin();
+		      ports.erase(this_port);
+		      pdef.erase(pdef.begin() + index);
+		      port_names.erase(port_names.begin() + index);
+		}
+	  }
+
 	  // IEEE 1800-2017/2023 9.3.2 applies to function ref formals too.
 	  for (NetNet*port : ports)
 	    check_ref_formal_detached_fork_use(des, port, statement_);

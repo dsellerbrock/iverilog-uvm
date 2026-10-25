@@ -1,0 +1,3 @@
+./ivltests/sv_nettype_class_resolver_invalid.v:11: error: class-method resolution function 'instance_method' for nettype 'nonstatic_resolver_net' shall be static (IEEE 1800-2017/2023 6.6.7).
+./ivltests/sv_nettype_class_resolver_invalid.v:12: error: Resolution function for nettype `wrong_signature_net' must have exactly one input dynamic-array argument of type logic[7:0].
+2 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_nettype_class_resolver_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_nettype_class_resolver_2017"
+}
