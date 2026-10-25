@@ -11925,6 +11925,20 @@ static std::string typename_format_vector_(const netvector_t*vec)
       return base;
 }
 
+static std::string typename_format_vector_(const netvector_t*vec,
+                                          const netranges_t&outer_dims)
+{
+      if (outer_dims.empty())
+	    return typename_format_vector_(vec);
+
+      std::string base = typename_format_vector_(vec);
+      std::string dims = typename_format_packed_dims_(outer_dims);
+      std::string::size_type own_dims = base.find(" [");
+      base.insert(own_dims == std::string::npos ? base.size() : own_dims,
+		  dims);
+      return base;
+}
+
 /*
  * Format a single enum member value the way IEEE 1800-2017 20.6.1's own
  * example shows it: "<width>'s?d<value>", e.g. "32'sd0". A negative
@@ -12074,11 +12088,17 @@ static std::string typename_format_type_(ivl_type_t type)
 	    return elem;
       }
 
-	// A packed array of a non-vector element (e.g. a packed array of
-	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
-	// netvector_t and handled below, not netparray_t.
-      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
-	    return typename_format_type_(pa->element_type());
+	// A packed array of a typedef-named scalar is represented as a
+	// netparray_t, while an ordinary `bit [msb:lsb]` is a netvector_t.
+	// Preserve those dimensions in the type name (IEEE 1800-2017 20.6.1).
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type)) {
+	    if (const netvector_t*vec =
+		  dynamic_cast<const netvector_t*>(pa->element_type()))
+		  return typename_format_vector_(vec, pa->static_dimensions());
+
+	    return typename_format_type_(pa->element_type())
+		  + typename_format_packed_dims_(pa->static_dimensions());
+      }
 
       if (dynamic_cast<const netstring_t*>(type))
 	    return "string";
