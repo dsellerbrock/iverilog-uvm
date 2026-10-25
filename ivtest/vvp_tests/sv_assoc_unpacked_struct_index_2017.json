@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_unpacked_struct_index.v",
+    "iverilog-args" : [ "-g2017" ]
+}
