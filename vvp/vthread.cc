@@ -16346,8 +16346,12 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
  * pointer identity. A virtual interface represents an interface INSTANCE, so
  * separately materialized wrappers compare by their bound scope and interface
  * definition (IEEE 1800-2017/2023 25.9).
- * Pops both, sets flag 4 = 1 if equal, 0 if not.
+ * Pops both, sets flags 4 and 6 to the logical and exact results. Structs
+ * compare by value; ordinary objects retain handle identity.
  */
+static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
+			     vvp_bit4_t&logical, vvp_bit4_t&exact);
+
 bool of_CMPOBJ(vthread_t thr, vvp_code_t)
 {
       vvp_object_t re;
@@ -16356,13 +16360,26 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(le);
 
       bool eq = (le == re);
+      vvp_bit4_t logical = eq ? BIT4_1 : BIT4_0;
+      vvp_bit4_t exact = logical;
+      vvp_cobject*left_struct = le.peek<vvp_cobject>();
+      vvp_cobject*right_struct = re.peek<vvp_cobject>();
+      bool compare_struct = left_struct && right_struct
+	    && left_struct->get_defn() == right_struct->get_defn()
+	    && left_struct->get_defn()->is_struct_type()
+	    && !left_struct->get_defn()->is_union_type();
+      if (compare_struct) {
+	    struct_equality_(left_struct, right_struct, logical, exact);
+	    eq = logical == BIT4_1;
+      }
       vvp_vinterface*left_vif = le.peek<vvp_vinterface>();
       vvp_vinterface*right_vif = re.peek<vvp_vinterface>();
       if (left_vif && right_vif) {
 	    eq = left_vif->vif_scope() == right_vif->vif_scope()
 	       && left_vif->get_defn() == right_vif->get_defn();
       }
-      thr->flags[4] = eq ? BIT4_1 : BIT4_0;
+      thr->flags[4] = compare_struct ? logical : (eq ? BIT4_1 : BIT4_0);
+      thr->flags[6] = compare_struct ? exact : (eq ? BIT4_1 : BIT4_0);
 
       const char*scope_name = scope_name_or_unknown_(thr->parent_scope);
       if (scope_trace_enabled_("IVL_CMPOBJ_TRACE", scope_name)) {
@@ -16403,6 +16420,85 @@ static bool vector_equality_step_(const vvp_vector4_t&lv, const vvp_vector4_t&rv
 
 static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj,
 				vvp_bit4_t&logical, vvp_bit4_t&exact);
+
+/* Compare the stored members of an unpacked struct value. Structs are
+ * represented by cobjects at runtime, but equality is value equality rather
+ * than the handle identity used for ordinary class objects. */
+static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
+			     vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      logical = exact = BIT4_1;
+      if (!left || !right || left->get_defn() != right->get_defn()) {
+	    logical = exact = BIT4_0;
+	    return;
+      }
+      const class_type*defn = left->get_defn();
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    const std::string&type = defn->property_base_type(pid);
+	    size_t count = (size_t)defn->property_array_size(pid);
+	    if (count == 0) count = 1;
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  if (type == "S") {
+			if (left->get_string(pid, idx) != right->get_string(pid, idx)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (type == "r") {
+			if (left->get_real(pid, idx) != right->get_real(pid, idx)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (type.compare(0, 5, "oc:C") == 0) {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			vvp_cobject*lchild = lobj.peek<vvp_cobject>();
+			vvp_cobject*rchild = robj.peek<vvp_cobject>();
+			if (lchild && rchild && lchild->get_defn()->is_struct_type()
+			    && rchild->get_defn()->is_struct_type()) {
+			      vvp_bit4_t sub_logical, sub_exact;
+			      struct_equality_(lchild, rchild, sub_logical, sub_exact);
+			      if (sub_logical == BIT4_0) {
+				    logical = exact = BIT4_0;
+				    return;
+			      }
+			      if (sub_logical != BIT4_1) logical = BIT4_X;
+			      if (sub_exact != BIT4_1) exact = BIT4_0;
+			} else if (!(lobj == robj)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (!type.empty() && (type[0] == 'D'
+					       || type[0] == 'Q' || type[0] == 'M')) {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			vvp_bit4_t sub_logical, sub_exact;
+			container_equality_(lobj, robj, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (!type.empty() && type[0] == 'o') {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			if (!(lobj == robj)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else {
+			vvp_vector4_t lv, rv;
+			left->get_vec4(pid, lv, idx);
+			right->get_vec4(pid, rv, idx);
+			if (!vector_equality_step_(lv, rv, logical, exact))
+			      return;
+		  }
+	    }
+      }
+}
 
 /* Associative arrays are equal when they hold the same keys with equal
  * values. peek_entry walks both in key order. */

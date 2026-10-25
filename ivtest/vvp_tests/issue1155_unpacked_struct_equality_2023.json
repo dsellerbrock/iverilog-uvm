@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1155_unpacked_struct_equality_2023.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "issue1155_unpacked_struct_equality"
+}
