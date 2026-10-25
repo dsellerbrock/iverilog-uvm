@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_output_clockvar_variable_driver_controls.v:20: $finish called at 6000 (1ps)
