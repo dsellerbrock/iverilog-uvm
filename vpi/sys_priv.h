@@ -55,6 +55,9 @@ struct timeformat_info_s {
 
 extern struct timeformat_info_s timeformat_info;
 
+/* Return the lexical scope of the vthread currently executing a VPI call. */
+extern vpiHandle vpip_current_vthread_scope(void);
+
 extern unsigned is_constant_obj(vpiHandle obj);
 extern unsigned is_numeric_obj(vpiHandle obj);
 extern unsigned is_string_obj(vpiHandle obj);

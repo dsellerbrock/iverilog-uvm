@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1162_display_hierarchical_name_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1162_display_hierarchical_name"],
+  "gold": "issue1162_display_hierarchical_name"
+}

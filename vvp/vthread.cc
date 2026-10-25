@@ -2120,6 +2120,11 @@ __vpiScope* vthread_scope(struct vthread_s*thr)
       return thr->parent_scope;
 }
 
+extern "C" vpiHandle vpip_current_vthread_scope(void)
+{
+      return vpip_current_vthread ? vthread_scope(vpip_current_vthread) : 0;
+}
+
 struct vthread_s*running_thread = 0;
 
 /* DPI active scope (IEEE 1800-2017/2023 H.9 svGetScope/svSetScope). Set to
