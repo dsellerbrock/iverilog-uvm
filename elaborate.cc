@@ -39061,6 +39061,43 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().empty())
 		  return "";
 
+	    /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: constraint
+	     * foreach loop variables are scoped by this construct, but may not
+	     * reuse the array identifier, and there cannot be more variables than
+	     * dimensions in the array being iterated. Diagnose these before any
+	     * supported-shape dispatch can turn an invalid loop into solver IR. */
+	    perm_string foreach_array_name = cfe->array_name();
+	    if (!cfe->source_path().empty())
+		  foreach_array_name = cfe->source_path().back();
+	    else if (cfe->has_hierarchical_target()
+		     && !cfe->member_name().nil())
+		  foreach_array_name = cfe->member_name();
+	    for (perm_string loop_name : cfe->loop_vars()) {
+		  if (!loop_name.nil() && loop_name == foreach_array_name) {
+			cerr << cfe->get_fileline() << ": error: Constraint foreach loop variable `"
+			     << loop_name << "' has the same identifier as array `"
+			     << foreach_array_name << "'." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
+	    constraint_source_type_t foreach_source =
+		  constraint_foreach_source_type_(cfe, cls, value_slots, scope);
+	    size_t foreach_dimensions = foreach_source.unpacked_dimensions;
+	    const netvector_t*packed_foreach = dynamic_cast<const netvector_t*>(
+		  foreach_source.type);
+	    if (!foreach_dimensions && packed_foreach && !packed_foreach->get_isint())
+		  foreach_dimensions += packed_foreach->packed_dims().size();
+	    if (foreach_source.type
+		&& cfe->loop_vars().size() > foreach_dimensions) {
+		  cerr << cfe->get_fileline() << ": error: Constraint foreach has "
+		       << cfe->loop_vars().size() << " loop variables for an array with "
+		       << foreach_dimensions << " dimensions." << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
             // Selected-prefix names designate existing values, not new
             // iterators. Validate them even when the body never uses them.
             if (cfe->has_hierarchical_target() && cfe->member_name().nil()) {
