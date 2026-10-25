@@ -45302,18 +45302,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (w < 32 && ((uint64_t)1 << w) < nb)
 				      nb = (uint64_t)1 << w;
 				if (nb == 0) nb = 1;
+				unsigned __int128 space = ((unsigned __int128)1) << w;
+				unsigned __int128 per_bin = space / nb;
 				for (uint64_t k = 0; k < nb; k++) {
-				      uint64_t lo, hi;
-				      if (w >= 64) {
-					    unsigned __int128 space =
-						  ((unsigned __int128)1) << 64;
-					    lo = (uint64_t)((space * k) / nb);
-					    hi = (uint64_t)((space * (k+1)) / nb - 1);
-				      } else {
-					    uint64_t space = (uint64_t)1 << w;
-					    lo = space * k / nb;
-					    hi = space * (k+1) / nb - 1;
-				      }
+				      uint64_t lo = (uint64_t)(per_bin * k);
+				      uint64_t hi = k + 1 == nb
+					    ? (uint64_t)(space - 1)
+					    : (uint64_t)(per_bin * (k + 1) - 1);
 				      std::vector<std::pair<uint64_t,uint64_t>> rr1;
 				      rr1.push_back(std::make_pair(lo, hi));
 				      subtract_carved(rr1);
