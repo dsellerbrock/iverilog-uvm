@@ -1935,6 +1935,9 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       list<NetExpr*>unpacked_indices;
       list<long>unpacked_indices_const;
       string unpacked_indices_text;
+      bool have_array_word_prefix = false;
+      unsigned array_word_prefix_first = 0;
+      unsigned array_word_prefix_count = 0;
       indices_flags flags;
 	if (fixed_container_leaf) {
 	      const netsarray_t*fixed_type =
@@ -1961,6 +1964,77 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	    indices_to_expressions(des, scope, this,
 		   name_tail.index, reg->unpacked_dimensions(), false,
 		   flags, unpacked_indices, unpacked_indices_const);
+
+	      if (!flags.invalid && !flags.undefined) {
+		    const netsarray_t*fixed_array_type =
+			  dynamic_cast<const netsarray_t*>(reg->array_type());
+		    if (fixed_array_type) {
+			  const netranges_t&dims = fixed_array_type->static_dimensions();
+			  list<long>prefix_indices;
+			  size_t prefix_dims = 0;
+			  bool empty_prefix = false;
+			  bool prefix_supported = true;
+			  list<NetExpr*>::const_iterator index = unpacked_indices.begin();
+			  for (size_t dim = 0; dim < dims.size(); ++dim) {
+				if (index == unpacked_indices.end()) {
+				      prefix_supported = false;
+				      break;
+				}
+				const NetEConst*constant =
+				      dynamic_cast<const NetEConst*>(*index++);
+				if (!constant) break;
+				if (!constant->value().is_defined()) {
+				      empty_prefix = true;
+				      break;
+				}
+				if (!dims[dim].defined()
+				    || constant->value().len() > sizeof(long)*8) {
+				      prefix_supported = false;
+				      break;
+				}
+				long value = constant->value().as_long();
+				if (value < min(dims[dim].get_msb(), dims[dim].get_lsb())
+				    || value > max(dims[dim].get_msb(), dims[dim].get_lsb())) {
+				      empty_prefix = true;
+				      break;
+				}
+				prefix_indices.push_back(value);
+				prefix_dims += 1;
+			  }
+
+			  if (prefix_dims < dims.size()) {
+				if (empty_prefix) {
+				      have_array_word_prefix = true;
+				} else if (prefix_supported) {
+				      unsigned long first_word = 0;
+				      bool base_ok = true;
+				      if (prefix_dims) {
+					    NetExpr*base = normalize_variable_unpacked(
+						  fixed_array_type, prefix_indices);
+					    if (base) eval_expr(base);
+					    long value = 0;
+					    base_ok = base && eval_as_long(value, base)
+						  && value >= 0;
+					    if (base_ok)
+						  first_word = static_cast<unsigned long>(value);
+					    delete base;
+				      }
+				      netranges_t remaining_dims(
+					    dims.begin()+prefix_dims, dims.end());
+				      unsigned long word_count =
+					    netrange_width(remaining_dims);
+				      if (base_ok && first_word <= reg->pin_count()
+					  && word_count <= reg->pin_count()-first_word) {
+					    have_array_word_prefix = true;
+					    array_word_prefix_first =
+						  static_cast<unsigned>(first_word);
+					    array_word_prefix_count =
+						  static_cast<unsigned>(word_count);
+				      }
+			}
+		  }
+	    }
+	      }
 
             // Checked canonicalization consumes the expressions. Preserve
             // their spelling for later scalar-select diagnostics.
@@ -2044,6 +2118,9 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
       NetAssign_*lv = new NetAssign_(reg);
       lv->set_word(canon_index);
+      if (have_array_word_prefix)
+	    lv->set_array_word_prefix(array_word_prefix_first,
+				      array_word_prefix_count);
 
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Set array word=" << *canon_index << endl;

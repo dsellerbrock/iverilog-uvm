@@ -3560,6 +3560,12 @@ class NetAssign_ {
       ivl_select_type_t select_type() const;
 
       void set_word(NetExpr*);
+      void set_array_word_prefix(unsigned first, unsigned count)
+      { array_word_prefix_ = true; array_word_first_ = first;
+        array_word_count_ = count; }
+      bool has_array_word_prefix() const { return array_word_prefix_; }
+      unsigned array_word_first() const { return array_word_first_; }
+      unsigned array_word_count() const { return array_word_count_; }
 	// Mark this l-value as an unpacked-array *slice*: a partial index
 	// into a multi-dimensional unpacked array (e.g. `m[i]` where m is
 	// int[2][3]) that selects a whole sub-array rather than a scalar
@@ -3682,6 +3688,9 @@ class NetAssign_ {
       const NetScope*unsafe_task_body_owner_ = nullptr;
 	// Memory word index
       NetExpr*word_;
+      bool array_word_prefix_ = false;
+      unsigned array_word_first_ = 0;
+      unsigned array_word_count_ = 0;
 	// member/property if signal is a class.
       perm_string member_;
       int member_idx_ = -1;
