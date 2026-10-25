@@ -5567,3 +5567,7 @@ sv_indexed_fixed_uarray_slice_rvalue_2017 vvp_tests/sv_indexed_fixed_uarray_slic
 sv_indexed_fixed_uarray_slice_rvalue_2023 vvp_tests/sv_indexed_fixed_uarray_slice_rvalue_2023.json
 pla_output_net_fail_2017 vvp_tests/pla_output_net_fail_2017.json
 pla_output_net_fail_2023 vvp_tests/pla_output_net_fail_2023.json
+
+# IEEE 1800-2017/2023 §18.16 wide randcase weights
+issue1172_randcase_wide_2017 vvp_tests/issue1172_randcase_wide_2017.json
+issue1172_randcase_wide_2023 vvp_tests/issue1172_randcase_wide_2023.json

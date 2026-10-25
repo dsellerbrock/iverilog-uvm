@@ -13222,10 +13222,23 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 
       const unsigned nitems = items_->size();
 
+      // §18.16 gives every weight its self-determined precision and uses
+      // the widest weight precision for the unsigned sum and comparisons.
+      unsigned weight_width = 0;
+      for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
+            PCase::Item*cur = (*items_)[idx];
+            if (!cur || cur->expr.size() != 1 || cur->expr.front() == 0)
+                  continue;
+            PExpr::width_mode_t mode = PExpr::SIZED;
+            unsigned wid = cur->expr.front()->test_width(des, scope, mode);
+            if (wid > weight_width) weight_width = wid;
+      }
+      if (weight_width == 0) weight_width = 1;
+
       NetBlock*top = new NetBlock(NetBlock::SEQU, 0);
       top->set_line(*this);
 
-	// Evaluate each weight once into a 32-bit unsigned temp.
+	// Evaluate each weight once into an unsigned temp at the common sum width.
       vector<NetNet*> wsig (nitems);
       for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
 	    PCase::Item*cur = (*items_)[idx];
@@ -13238,7 +13251,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 		  return 0;
 	    }
 
-	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), 32,
+	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), weight_width,
 				       false, false, IVL_VT_BOOL, true);
 	    if (we == 0) {
 		  delete top;
@@ -13246,7 +13259,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    wsig[idx] = new NetNet(scope, scope->local_symbol(),
-				   NetNet::REG, &netvector_t::atom2u32);
+			   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
 	    wsig[idx]->set_line(*this);
 	    wsig[idx]->local_flag(true);
 
@@ -13257,7 +13270,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 
 	// sum = w0 + ... + wn
       NetNet*sum_sig = new NetNet(scope, scope->local_symbol(),
-				  NetNet::REG, &netvector_t::atom2u32);
+			  NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
       sum_sig->set_line(*this);
       sum_sig->local_flag(true);
       {
@@ -13266,7 +13279,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    for (unsigned idx = 1 ; idx < nitems ; idx += 1) {
 		  NetESignal*rd = new NetESignal(wsig[idx]);
 		  rd->set_line(*this);
-		  sum_expr = new NetEBAdd('+', sum_expr, rd, 32, false);
+		  sum_expr = new NetEBAdd('+', sum_expr, rd, weight_width, false);
 		  sum_expr->set_line(*this);
 	    }
 	    NetAssign*as = new NetAssign(new NetAssign_(sum_sig), sum_expr);
@@ -13274,23 +13287,32 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    top->append(as);
       }
 
-	// pick = $urandom_range(sum - 1)
+	// Draw enough process-RNG bits for the sum precision, then reduce to
+	// the weighted range.  $urandom_range has a 32-bit return type.
       NetNet*pick_sig = new NetNet(scope, scope->local_symbol(),
-				   NetNet::REG, &netvector_t::atom2u32);
+				   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
       pick_sig->set_line(*this);
       pick_sig->local_flag(true);
 
       NetBlock*inner = new NetBlock(NetBlock::SEQU, 0);
       inner->set_line(*this);
       {
+	    NetExpr*random_bits = 0;
+	    unsigned chunks = (weight_width + 31) / 32;
+	    NetEConcat*concat = new NetEConcat(chunks, 1, IVL_VT_LOGIC);
+	    for (unsigned idx = 0 ; idx < chunks ; idx += 1) {
+	          NetESFunc*ur = new NetESFunc("$urandom_range", IVL_VT_BOOL, 32, 1);
+	          ur->set_line(*this);
+	          ur->parm(0, make_const_val(0xffffffffU));
+	          concat->set(idx, ur);
+	    }
+	    random_bits = concat;
 	    NetESignal*sum_rd = new NetESignal(sum_sig);
 	    sum_rd->set_line(*this);
-	    NetExpr*maxv = new NetEBAdd('-', sum_rd, make_const_val(1), 32, false);
-	    maxv->set_line(*this);
-	    NetESFunc*ur = new NetESFunc("$urandom_range", IVL_VT_BOOL, 32, 1);
-	    ur->set_line(*this);
-	    ur->parm(0, maxv);
-	    NetAssign*as = new NetAssign(new NetAssign_(pick_sig), ur);
+	    NetExpr*pick_expr = new NetEBDiv('%', random_bits, sum_rd,
+	                                      weight_width, false);
+	    pick_expr->set_line(*this);
+	    NetAssign*as = new NetAssign(new NetAssign_(pick_sig), pick_expr);
 	    as->set_line(*this);
 	    inner->append(as);
       }
@@ -13321,7 +13343,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    for (int k = 1 ; k <= idx ; k += 1) {
 		  NetESignal*rd = new NetESignal(wsig[k]);
 		  rd->set_line(*this);
-		  thresh = new NetEBAdd('+', thresh, rd, 32, false);
+		  thresh = new NetEBAdd('+', thresh, rd, weight_width, false);
 		  thresh->set_line(*this);
 	    }
 	    NetESignal*pick_rd = new NetESignal(pick_sig);

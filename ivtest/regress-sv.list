@@ -1317,6 +1317,7 @@ sv_typeparam_formal_member normal,-g2012 ivltests
 sv_typeparam_receiver_method normal,-g2012 ivltests
 sv_typeparam_receiver_method_fail CE,-g2012 ivltests
 sv_randcase normal,-g2012 ivltests
+issue1172_randcase_wide normal,-g2017 ivltests gold=issue1172_randcase_wide.gold
 sv_scope_randomize_unqualified normal,-g2012 ivltests
 sv_std_randomize_scope normal,-g2012 ivltests
 sv_std_randomize_with_solver normal,-g2012 ivltests
