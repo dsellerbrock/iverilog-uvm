@@ -3041,6 +3041,7 @@ sv_randomize_member_nested_hooks_2023 normal,-g2023,-s,main ivltests gold=sv_ran
 # Simultaneous global constraints and priority.
 sv_randomize_global_domain normal,-g2017,-s,main ivltests gold=sv_randomize_global_domain.gold
 sv_randomize_global_domain_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_domain.gold
+sv_scope_randomize_thread_stability normal,-g2017,-s,main ivltests gold=sv_scope_randomize_thread_stability.gold
 sv_randomize_global_alias_soft normal,-g2017,-s,main ivltests gold=sv_randomize_global_alias_soft.gold
 sv_randomize_global_alias_soft_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_alias_soft.gold
 sv_randomize_global_soft_order normal,-g2017,-s,main ivltests gold=sv_randomize_global_soft_order.gold

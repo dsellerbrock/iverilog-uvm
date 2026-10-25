@@ -1012,7 +1012,11 @@ static PLI_INT32 sys_std_randomize_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
             s_vpi_vecval*vec = calloc(words, sizeof(s_vpi_vecval));
             for (PLI_INT32 w = 0 ; w < words ; w += 1) {
-                  vec[w].aval = urandom(0, UINT32_MAX, 0);
+                  unsigned int obj_rnd;
+                  if (vpip_object_urandom(0, &obj_rnd))
+                        vec[w].aval = obj_rnd;
+                  else
+                        vec[w].aval = urandom(0, UINT32_MAX, 0);
                   vec[w].bval = 0;
             }
               /* Mask unused top bits of the last word. */
