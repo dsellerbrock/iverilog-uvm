@@ -1,0 +1,2 @@
+issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
+issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold

@@ -1,0 +1,6 @@
+assoc ne
+assoc eq
+function eq
+function ne
+logical x
+case eq

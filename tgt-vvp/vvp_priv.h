@@ -765,6 +765,42 @@ static inline ivl_type_t property_expr_value_type_(ivl_expr_t expr)
       return prop_type;
 }
 
+/* Recover unpacked-struct values from signals, class properties, associative
+ * array selections, and function results. These expressions are object-backed
+ * despite carrying IVL_VT_NO_TYPE at the scalar ABI. */
+static inline int vvp_expr_is_unpacked_struct(ivl_expr_t expr)
+{
+      ivl_type_t type = 0;
+      if (!expr) return 0;
+      if (ivl_expr_type(expr) == IVL_EX_PROPERTY) {
+	    type = property_expr_value_type_(expr);
+      } else if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
+	    ivl_scope_t def = ivl_expr_def(expr);
+	    ivl_signal_t result = def && ivl_scope_ports(def) > 0
+		  ? ivl_scope_port(def, 0) : 0;
+	    type = result ? ivl_signal_net_type(result) : 0;
+      } else if (ivl_expr_type(expr) == IVL_EX_SELECT) {
+	    ivl_expr_t base = ivl_expr_oper1(expr);
+	    ivl_type_t container = ivl_expr_net_type(base);
+	    if (!container && base && ivl_expr_type(base) == IVL_EX_PROPERTY)
+		  container = property_expr_value_type_(base);
+	    if (!container && base
+		&& (ivl_expr_type(base) == IVL_EX_SIGNAL
+		    || ivl_expr_type(base) == IVL_EX_ARRAY)
+		&& ivl_expr_signal(base))
+		  container = ivl_signal_net_type(ivl_expr_signal(base));
+	    type = container ? ivl_type_element(container) : 0;
+      } else if ((ivl_expr_type(expr) == IVL_EX_SIGNAL
+		  || ivl_expr_type(expr) == IVL_EX_ARRAY)
+		 && ivl_expr_signal(expr)) {
+	    type = ivl_signal_net_type(ivl_expr_signal(expr));
+      } else {
+	    type = ivl_expr_net_type(expr);
+      }
+      return type && ivl_type_base(type) == IVL_VT_NO_TYPE
+	    && ivl_type_properties(type) > 0 && !ivl_type_is_union(type);
+}
+
 static inline int type_is_runtime_container_(ivl_type_t type)
 {
       return type && (ivl_type_base(type) == IVL_VT_QUEUE

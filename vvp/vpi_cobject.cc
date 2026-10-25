@@ -1508,7 +1508,7 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
                   cobj_net_ ? vvp_fun_as_signal_object(cobj_net_->fun) : nullptr;
             if (!fun)
                   fun = cobj_net_ ? vvp_fil_as_signal_object(cobj_net_->fil) : nullptr;
-            if (fun) obj = fun->peek_object();
+            if (fun) obj = fun->get_object();
             for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
                   vvp_cobject*cobj = obj.peek<vvp_cobject>();
                   if (!cobj) return vvp_object_t();
@@ -1631,7 +1631,7 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
                   cobj_net_ ? vvp_fun_as_signal_object(cobj_net_->fun) : nullptr;
             if (!fun)
                   fun = cobj_net_ ? vvp_fil_as_signal_object(cobj_net_->fil) : nullptr;
-            if (fun) obj = fun->peek_object();
+            if (fun) obj = fun->get_object();
             for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
                   vvp_cobject*cobj = obj.peek<vvp_cobject>();
                   if (!cobj) return vvp_object_t();

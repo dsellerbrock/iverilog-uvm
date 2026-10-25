@@ -67,6 +67,21 @@ static int draw_condition_binary_compare(ivl_expr_t expr)
 	    return draw_condition_fallback(expr);
       }
 
+	/* An unpacked struct is stored as a synthetic class object, but its
+	   equality is by value. Do not send it through the vector path (which
+	   reads the object's handle as a vector and can crash vvp). */
+      if (vvp_expr_is_unpacked_struct(le)
+	  && vvp_expr_is_unpacked_struct(re)) {
+	    draw_eval_object(le);
+	    draw_eval_object(re);
+	    fprintf(vvp_out, "    %%cmp/obj;\n");
+	    unsigned flag = (ivl_expr_opcode(expr) == 'E'
+			     || ivl_expr_opcode(expr) == 'N') ? 6 : 4;
+	    if (ivl_expr_opcode(expr) == 'n' || ivl_expr_opcode(expr) == 'N')
+		  fprintf(vvp_out, "    %%flag_inv %u;\n", flag);
+	    return flag;
+      }
+
 	/* Dynamic arrays and queues compare element-wise; the vec4 path
 	   below would compare "handle is non-null" flags instead. */
       if (ivl_expr_value(le)==IVL_VT_DARRAY || ivl_expr_value(le)==IVL_VT_QUEUE

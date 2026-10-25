@@ -1413,11 +1413,11 @@ sv_stream_with_unbounded_order_fail CE,-g2012 ivltests gold=sv_stream_with_unbou
 sv_stream_with_range_type_fail CE,-g2012 ivltests gold=sv_stream_with_range_type_fail.gold
 sv_stream_with_extreme_const_fail CE,-g2012 ivltests gold=sv_stream_with_extreme_const_fail.gold
 sv_stream_with_syntax_fail CE,-g2012 ivltests gold=sv_stream_with_syntax_fail.gold
-sv_checker_basic normal,-g2012 ivltests
+sv_checker_basic CE,-g2012 ivltests gold=sv_checker_basic.gold
 sv_checker_net_illegal_2017 CE,-g2017 ivltests gold=sv_checker_net_illegal_2017.gold
 sv_checker_net_illegal_2023 CE,-g2023 ivltests gold=sv_checker_net_illegal_2023.gold
 sv_checker_nested_instance normal,-g2012 ivltests
-sv_checker_bind normal,-g2012 ivltests
+sv_checker_bind CE,-g2012 ivltests gold=sv_checker_bind.gold
 sv_generic_interface_port normal,-g2012 ivltests
 sv_covergroup_standalone normal,-g2012 ivltests
 sv_covergroup_task_sample normal,-g2012 ivltests
@@ -3162,6 +3162,8 @@ sv_randomize_global_ordered normal,-g2017,-s,main ivltests gold=sv_randomize_glo
 sv_randomize_global_ordered_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered.gold
 sv_randomize_global_ordered_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
 sv_randomize_global_ordered_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
+sv_randomize_plain_cycle_fail normal,-g2017,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
+sv_randomize_plain_cycle_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
 sv_randomize_global_ordered_limit normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
 sv_randomize_global_ordered_limit_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
 sv_constraint_inline_reject CE,-g2017,-s,main ivltests gold=sv_constraint_inline_reject.gold
@@ -5998,3 +6000,5 @@ issue947_unit_forward_reference_fail CE,-g2017 ivltests
 sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
 pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold
+issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
+issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold

@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: cyclic solve-before ordering.
+PASSED

@@ -1,0 +1,5 @@
+./ivltests/sv_checker_basic.v:48: error: Hierarchical reference `main.chk_good.fails' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+./ivltests/sv_checker_basic.v:49: error: Hierarchical reference `main.chk_bad.fails' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+./ivltests/sv_checker_basic.v:52: error: Hierarchical reference `main.c1.fails' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+./ivltests/sv_checker_basic.v:53: error: Hierarchical reference `main.c2.fails' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+4 error(s) during elaboration.
