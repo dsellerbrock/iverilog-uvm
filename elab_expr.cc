@@ -4306,18 +4306,13 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       }
 
 	/* Class handles are type-incompatible with integral types (IEEE 1800
-	 * 6.22.5). Check only source types from resolved declarations: this
-	 * elaborator can report IVL_VT_CLASS for calls, `new', and placeholders
-	 * produced by generic templates or forward class references. Those forms
-	 * retain the existing compile-progress behavior until their real type is
-	 * known. A concrete specialization is checked normally; the generic class
-	 * template itself is not a type (IEEE 1800 8.25). */
+	 * 6.22.5). The type is on the PExpr from test_width before netmisc's
+	 * compile-progress fallback replaces the r-value. Use it only for an
+	 * identifier source and outside generic template scopes. */
 	      if (gn_system_verilog() && type_is_vectorable(lv_type)) {
 		    const PEIdent*src_id = dynamic_cast<const PEIdent*>(expr);
-		    const netclass_t*src_class = src_id
-			  ? dynamic_cast<const netclass_t*>(
-				src_id->test_type_of_ident(des, scope))
-			  : nullptr;
+		    const bool src_class = src_id
+			  && expr->expr_type() == IVL_VT_CLASS;
 		    bool in_template = false;
 		    if (const NetScope*cscope = scope ? scope->get_class_scope() : nullptr) {
 			  const netclass_t*cd = cscope->class_def();

@@ -1,4 +1,4 @@
-Historical initial broad-guard attempt; superseded by focused-narrow-guard-20261025/README.md.
+Historical initial broad-guard attempt; superseded by focused-followup-20261025/a3-759-focused-followup-readme.md.
 The function-return, property, and ternary outcomes below were collected before
 the provenance-restricted guard. After refinement, initializer and resolved
 property sources still reject, while function-return and ternary sources do not.

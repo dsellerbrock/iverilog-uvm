@@ -14,7 +14,10 @@ module sv_class_handle_generic_template_new;
   endclass
 
   pair#(payload, payload) p;
+  chandle raw_a, raw_b;
   initial begin
+    raw_a = null;
+    raw_b = raw_a;
     p = new;
     if (p.first == null || p.second == null)
       $fatal(1, "pair handles were not created");
