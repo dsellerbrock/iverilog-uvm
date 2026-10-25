@@ -218,3 +218,7 @@ event_callback_parent_atomic_high normal,-g2017 event_callback_parent_atomic_hig
 event_callback_parent_atomic_high_2023 normal,-g2023 event_callback_parent_atomic_high.c event_callback_parent_atomic_high_2023.log
 event_callback_nested_depth normal,-g2017 event_callback_nested_depth.c event_callback_nested_depth.log
 event_callback_nested_depth_2023 normal,-g2023 event_callback_nested_depth.c event_callback_nested_depth_2023.log
+fst_sv_types normal,-g2017 fst_text.c fst_sv_types.gold -lz
+fst_sv_types_2023 normal,-g2023 fst_text.c fst_sv_types_2023.gold -lz
+fst_dump_control normal,-g2017 fst_text.c fst_dump_control.gold -lz
+fst_dump_control_2023 normal,-g2023 fst_text.c fst_dump_control_2023.gold -lz
