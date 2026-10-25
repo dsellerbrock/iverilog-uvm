@@ -6896,6 +6896,8 @@ vector<PWire*>* pform_make_udp_input_ports(list<pform_ident_t>*names)
  * shares with the assertion engine. */
 static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 					   Statement*st);
+static void pform_bind_checker_ff_sampled_(ivl_process_type_t type,
+					   Statement*st);
 
 /* Concurrent assertions are lowered into ordinary-looking behavioral
  * processes for simulation. Keep an explicit provenance marker while that
@@ -6935,6 +6937,7 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 			      list<named_pexpr_t>*attr)
 {
       pform_bind_procedural_sampled_(type, st);
+      pform_bind_checker_ff_sampled_(type, st);
 
 	/* Remember the named outer block of a process so the VVP backend can
 	   flush its pending deferred reports on `disable`. */
@@ -14108,6 +14111,208 @@ static void pform_make_sampled_history_process_(
 	    const std::vector<PEEvent*>&events,
 	    std::vector<Statement*>&post,
 	    std::vector<Statement*>&init);
+
+/* IEEE 1800-2017/2023 17.5: expressions in a checker always_ff body
+   (other than its event control) are evaluated from Preponed values. The
+   existing SVA wrapper provides the same signal-level Preponed read for
+   these procedural expressions. */
+static bool pform_sample_checker_ff_expr_(
+	    PExpr*&expr, std::map<std::string,pform_name_t>&sampled,
+	    unsigned&live_operands)
+{
+      if (!expr) return true;
+      PExpr*replacement = sva_wrap_preponed_(expr, sampled, live_operands);
+      if (!replacement) return false;
+      expr = replacement;
+      return true;
+}
+
+static bool pform_sample_checker_ff_stmt_(
+	    Statement*stmt, std::map<std::string,pform_name_t>&sampled,
+	    unsigned&live_operands)
+{
+      if (!stmt) return true;
+      if (PEventStatement*event = dynamic_cast<PEventStatement*>(stmt))
+	    return pform_sample_checker_ff_stmt_(event->statement(), sampled,
+						 live_operands);
+      if (PBlock*block = dynamic_cast<PBlock*>(stmt)) {
+	    const std::vector<Statement*>&items = block->statements();
+	    for (size_t i = 0; i < items.size(); ++i)
+		  if (!pform_sample_checker_ff_stmt_(items[i], sampled,
+							     live_operands))
+			return false;
+	    return true;
+      }
+      if (PAssign_*assign = dynamic_cast<PAssign_*>(stmt)) {
+	    PExpr*rhs = assign->rval();
+	    if (!pform_sample_checker_ff_expr_(rhs, sampled, live_operands))
+		  return false;
+	    assign->replace_rval(rhs);
+	    return true;
+      }
+      if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
+	    PExpr*expr = cond->release_cond_expr();
+	    PExpr*original = expr;
+	    bool ok = pform_sample_checker_ff_expr_(expr, sampled, live_operands);
+	    if (ok) delete original;
+	    cond->replace_cond_expr(expr);
+	    return ok && pform_sample_checker_ff_stmt_(cond->if_clause(), sampled,
+							       live_operands)
+		  && pform_sample_checker_ff_stmt_(cond->else_clause(), sampled,
+							       live_operands);
+      }
+      if (PCase*cs = dynamic_cast<PCase*>(stmt)) {
+	    PExpr*expr = cs->case_expr();
+	    if (!pform_sample_checker_ff_expr_(expr, sampled, live_operands))
+		  return false;
+	    cs->replace_case_expr(expr);
+	    std::vector<PCase::Item*>*items = cs->mutable_items();
+	    for (size_t i = 0; items && i < items->size(); ++i) {
+		  PCase::Item*item = (*items)[i];
+		  for (std::list<PExpr*>::iterator it = item->expr.begin();
+		       it != item->expr.end(); ++it) {
+			PExpr*value = *it;
+			if (!pform_sample_checker_ff_expr_(value, sampled,
+							       live_operands))
+			      return false;
+			delete *it;
+			*it = value;
+		  }
+		  for (std::list<inside_range_t>::iterator it =
+			       item->inside_ranges.begin();
+		       it != item->inside_ranges.end(); ++it) {
+			if (it->lo) {
+			      PExpr*value = it->lo;
+			      if (!pform_sample_checker_ff_expr_(value, sampled,
+								 live_operands))
+				    return false;
+			      delete it->lo; it->lo = value;
+			}
+			if (it->hi) {
+			      PExpr*value = it->hi;
+			      if (!pform_sample_checker_ff_expr_(value, sampled,
+								 live_operands))
+				    return false;
+			      delete it->hi; it->hi = value;
+			}
+		  }
+		  if (!pform_sample_checker_ff_stmt_(item->stat, sampled,
+						     live_operands))
+			return false;
+	    }
+	    return true;
+      }
+      if (PWhile*loop = dynamic_cast<PWhile*>(stmt)) {
+	    PExpr*expr = loop->cond_expr();
+	    if (!pform_sample_checker_ff_expr_(expr, sampled, live_operands))
+		  return false;
+	    loop->replace_cond_expr(expr);
+	    return pform_sample_checker_ff_stmt_(loop->body(), sampled,
+						 live_operands);
+      }
+      if (PDoWhile*loop = dynamic_cast<PDoWhile*>(stmt)) {
+	    PExpr*expr = loop->cond_expr();
+	    if (!pform_sample_checker_ff_expr_(expr, sampled, live_operands))
+		  return false;
+	    loop->replace_cond_expr(expr);
+	    return pform_sample_checker_ff_stmt_(loop->body(), sampled,
+						 live_operands);
+      }
+      if (PRepeat*loop = dynamic_cast<PRepeat*>(stmt)) {
+	    PExpr*expr = loop->count_expr();
+	    if (!pform_sample_checker_ff_expr_(expr, sampled, live_operands))
+		  return false;
+	    loop->replace_count_expr(expr);
+	    return pform_sample_checker_ff_stmt_(loop->body(), sampled,
+						 live_operands);
+      }
+      if (PForStatement*loop = dynamic_cast<PForStatement*>(stmt)) {
+	    if (!pform_sample_checker_ff_stmt_(loop->initialization(), sampled,
+						       live_operands))
+		  return false;
+	    PExpr*expr = loop->cond_expr();
+	    if (expr) {
+		  if (!pform_sample_checker_ff_expr_(expr, sampled, live_operands))
+			return false;
+		  loop->replace_cond_expr(expr);
+	    }
+	    return pform_sample_checker_ff_stmt_(loop->step_stmt(), sampled,
+						 live_operands)
+		  && pform_sample_checker_ff_stmt_(loop->body(), sampled,
+							 live_operands);
+      }
+      if (PCallTask*call = dynamic_cast<PCallTask*>(stmt)) {
+	    PExpr*receiver = call->receiver_expr();
+	    if (receiver) {
+		  if (!pform_sample_checker_ff_expr_(receiver, sampled,
+							      live_operands))
+			return false;
+		  call->replace_receiver_expr(receiver);
+	    }
+	    std::vector<named_pexpr_t>&args = call->mutable_parms();
+	    for (size_t i = 0; i < args.size(); ++i) {
+		  if (!args[i].parm) continue;
+		  PExpr*arg = args[i].parm;
+		  if (!pform_sample_checker_ff_expr_(arg, sampled, live_operands))
+			return false;
+		  delete args[i].parm;
+		  args[i].parm = arg;
+	    }
+	    std::vector<PExpr*>&constraints = call->mutable_with_constraints();
+	    for (size_t i = 0; i < constraints.size(); ++i) {
+		  PExpr*constraint = constraints[i];
+		  if (!pform_sample_checker_ff_expr_(constraint, sampled,
+							      live_operands))
+			return false;
+		  delete constraints[i];
+		  constraints[i] = constraint;
+	    }
+	    return true;
+      }
+      if (PForeach*loop = dynamic_cast<PForeach*>(stmt))
+	    return pform_sample_checker_ff_stmt_(loop->body(), sampled,
+						 live_operands);
+      if (PForever*loop = dynamic_cast<PForever*>(stmt))
+	    return pform_sample_checker_ff_stmt_(loop->body(), sampled,
+						 live_operands);
+      if (dynamic_cast<PNoop*>(stmt) || dynamic_cast<PBreak*>(stmt)
+	  || dynamic_cast<PContinue*>(stmt))
+	    return true;
+      cerr << stmt->get_fileline() << ": error: unsupported statement in "
+	   "checker always_ff Preponed sampling lowering." << endl;
+      return false;
+}
+
+static void pform_bind_checker_ff_sampled_(ivl_process_type_t type,
+					   Statement*st)
+{
+      if (type != IVL_PR_ALWAYS_FF || pform_cur_module.empty()
+	  || !pform_cur_module.front()->is_checker || !st)
+	    return;
+
+      PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
+      if (!ev || !ev->statement()) return;
+
+      std::map<std::string,pform_name_t> sampled;
+      std::vector<Statement*> init;
+      unsigned live_operands = 0;
+      bool ok = pform_sample_checker_ff_stmt_(ev->statement(), sampled,
+						      live_operands);
+      if (!ok || live_operands != 0) {
+	    cerr << st->get_fileline() << ": error: checker always_ff "
+		 << "expression could not be lowered with IEEE 1800-2017 "
+		 << "17.5 Preponed sampling semantics." << endl;
+	    error_count += 1;
+      } else if (!sampled.empty()) {
+	    vlltype loc = {};
+	    loc.first_line = st->get_lineno();
+	    loc.text = st->get_file() ? st->get_file().str() : "";
+	    pform_enable_procedural_sampled_history_(loc, sampled, init);
+	    PProcess*ip = new PProcess(IVL_PR_INITIAL, sva_block_(loc, init));
+	    FILE_NAME(ip, loc);
+	    pform_put_behavior_in_scope(ip);
+      }
+}
 
 static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 					   Statement*st)

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_checker_always_ff_sample.v",
+  "iverilog-args": ["-g2023", "-s", "sv_checker_always_ff_sample"],
+  "gold": "sv_checker_always_ff_sample_2023"
+}
