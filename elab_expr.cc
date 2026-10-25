@@ -12752,6 +12752,14 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       unsigned nparms = parms_.size();
 
+      /* IEEE 1800-2017/2023 18.13.1 permits at most one seed argument. */
+      if (name == "$urandom" && nparms > 1) {
+	    cerr << get_fileline() << ": error: The $urandom function takes zero or one argument; found "
+		 << nparms << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       if (name == "$system" && nparms > 1) {
 	    cerr << get_fileline() << ": error: The $system function takes zero or one argument; found "
 		 << nparms << "." << endl;

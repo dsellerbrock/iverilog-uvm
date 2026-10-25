@@ -26,6 +26,8 @@ sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=s
 # testname		testtype		directory
 #
 # The <testname> is the verilog file name minus an extension.
+sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_arg_fail_2017.gold
+sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
 #
 # The <testtype> can be one of the following:
 #
