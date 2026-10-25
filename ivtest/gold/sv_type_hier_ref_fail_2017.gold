@@ -1,0 +1,2 @@
+./ivltests/sv_type_hier_ref_fail_2017.v:7: error: hierarchical references are not allowed in a type() expression (IEEE 1800 6.23).
+1 error(s) during elaboration.

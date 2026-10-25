@@ -3065,6 +3065,22 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 		  return const_cast<netclass_t*>(current_class);
 	    }
 
+	    // IEEE 1800-2017/2023 6.23 forbids hierarchical references in
+	    // type() operands. Keep this check here, rather than in
+	    // PEIdent::test_type_of_ident(), which is also used for ordinary
+	    // elaboration queries such as foreach array element inference.
+	    symbol_search_results sr;
+	    bool found = symbol_search(ident, des, scope, ident->path(),
+			       ident->lexical_pos(), &sr);
+	    if (found && ident->path().name.size() > 1 && sr.scope
+		&& sr.scope->type() == NetScope::MODULE && scope != sr.scope) {
+		  cerr << get_fileline() << ": error: hierarchical references are "
+		       << "not allowed in a type() expression (IEEE 1800 6.23)."
+		       << endl;
+		  des->errors += 1;
+		  return new netvector_t(IVL_VT_LOGIC);
+	    }
+
 	    ivl_type_t use_type = ident->test_type_of_ident(des, scope);
 	    if (!use_type) {
 		  cerr << get_fileline() << ": sorry: type() could not resolve "

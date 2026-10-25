@@ -5941,3 +5941,5 @@ sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_contex
 sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
 sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
 sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
+sv_type_hier_ref_fail_2017 CE,-g2017,-s,sv_type_hier_ref_fail ivltests gold=sv_type_hier_ref_fail_2017.gold
+sv_type_hier_ref_fail_2023 CE,-g2023,-s,sv_type_hier_ref_fail ivltests gold=sv_type_hier_ref_fail_2023.gold
