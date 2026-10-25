@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1165_interface_member_contassign_select.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue1165_interface_member_contassign_select" ],
+    "gold"          : "issue1165_interface_member_contassign_select"
+}
