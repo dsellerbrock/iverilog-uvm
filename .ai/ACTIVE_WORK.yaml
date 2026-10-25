@@ -791,7 +791,7 @@ active:
       branch: "agent/a3-m9-issue836-20261024"
       baseline: "origin/main 40da1e333a8fce90ffd7ba06419949b5fba905f4 (rebase complete)"
       status: "in_progress"
-      phase: "REBASED_T0_T1_PENDING"
+      phase: "REBASED_T1_PASSED; EXACT_HEAD_FAST_LINUX_PENDING_AFTER_EVIDENCE"
       goal: "Reject dist subjects that contain no rand variable without rejecting legal random-variable subjects."
       standards: "IEEE 1800-2017 §18.5.4 and IEEE 1800-2023 §18.5.3."
       failing_reproducer: "The current-main compiler silently accepts class state-only `state dist {0,1}` and state-only `std::randomize` with-clauses in both editions; source/output are recorded under evidence/m9-issue836-probe-20261024/."
@@ -804,9 +804,9 @@ active:
       dependencies: "Branch-local autotools build with Z3 and libffi; paired legacy and JSON regression runners."
       completion_requirements: "Negative and positive paired regressions pass; preserve all six #1114 culprit tests and pre-patch results for every ivtest source containing dist; T0/T1/T2 and exact-head Fast Linux pass before batch merge."
       acceptance: "New negative tests fail before and pass after in legacy and JSON; positive rand forms pass both editions; all six #1114 culprit regressions and a dist-source sweep preserve baseline results; T0/T1/T2 and required Fast Linux gates pass."
-      evidence: "evidence/m9-issue836-probe-20261024/"
+      evidence: "evidence/m9-issue836-probe-20261024/t1-rebased-40da1e333-20261025/ (current-main T1: 144 legacy, 151 JSON, 367 UVM passed; Slurm job 4793 exit 0)."
       discovery_policy: "Record unrelated behavior in DISCOVERED_DEBT.md only; do not widen this implementation."
-      next_action: "Run T2 with A3 PRs #1191 and #1238; after a green batch merge, close culprit PR #1114 with a link to #1391."
+      next_action: "Commit this current-main T1 evidence and active record; rerun exact-head Fast Linux. Then finish current-main T0/T1 for #1191 and #1238 before the combined T2 batch; close culprit #1114 after merge."
       stop_after_completion: true
   perf:
     id: "PERF-WP7-T1"
