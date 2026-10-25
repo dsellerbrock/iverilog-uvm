@@ -6421,11 +6421,20 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // so the mapping into the replace list is much easier.
 	    if (parms_) {
 		  ivl_assert(*this, overrides_ == 0);
+		  set<perm_string> assigned_parameters;
 		  for (unsigned jdx = 0 ;  jdx < nparms_ ;  jdx += 1) {
 		          // No expression means that the parameter is not
 		          // replaced.
-			if (parms_[jdx].parm)
+			if (parms_[jdx].parm) {
+			      if (!assigned_parameters.insert(parms_[jdx].name).second) {
+				    des->errors += 1;
+				    cerr << parms_[jdx].parm->get_fileline()
+				         << ": error: Parameter `" << parms_[jdx].name
+				         << "' is assigned more than once in this instance."
+				         << endl;
+			      }
 			      replace[parms_[jdx].name] = parms_[jdx].parm;
+			}
 		  }
 
 	    }

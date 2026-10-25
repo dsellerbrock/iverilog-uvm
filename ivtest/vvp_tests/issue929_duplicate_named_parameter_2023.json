@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue929_duplicate_named_parameter.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue929_duplicate_named_parameter_2023"
+}
