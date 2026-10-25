@@ -5962,3 +5962,4 @@ sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_i
 sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
 sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
 sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold
+issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_vector_array_concat.gold

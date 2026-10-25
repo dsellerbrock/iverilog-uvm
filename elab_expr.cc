@@ -22070,8 +22070,25 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      want_type = ntype;
 			      item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			}
-			NetExpr*tmp = parms_[idx]->elaborate_expr(
-			      des, scope, want_type, item_flags);
+			NetExpr*tmp;
+			/* An integral concatenation used as one scalar array item is
+			 * self-determined (IEEE 1800-2017/2023 10.10.3). Elaborate it
+			 * through the ordinary value path so its packed width is formed
+			 * before conversion to the destination element type. Passing the
+			 * element type directly would mistake these braces for an
+			 * unpacked-array concatenation and reject the legal vector item. */
+			const PEConcat*vector_concat =
+			      dynamic_cast<const PEConcat*>(parms_[idx]);
+			if (vector_concat
+			    && vector_concat->expr_type() == IVL_VT_LOGIC
+			    && (elem_type->base_type() == IVL_VT_BOOL
+				|| elem_type->base_type() == IVL_VT_LOGIC)) {
+			      tmp = elaborate_rval_expr(des, scope, elem_type,
+					       parms_[idx], false, false, item_flags);
+			} else {
+			      tmp = parms_[idx]->elaborate_expr(
+				    des, scope, want_type, item_flags);
+			}
 			/* Array parameters materialize as a fixed-typed pattern,
 			 * rather than as an IVL_EX_ARRAY signal. The pattern stores
 			 * words in numeric-index order; splice duplicates in the
