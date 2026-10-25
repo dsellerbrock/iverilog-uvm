@@ -2006,6 +2006,15 @@ NetNet* find_array_method_iter_index(const NetNet*iter_net,
       return 0;
 }
 
+static NetNet* find_struct_array_method_iter_index_(
+	const NetNet*iter_net, perm_string member_name)
+{
+      const netstruct_t*struct_type = iter_net ? iter_net->struct_type() : 0;
+      if (!struct_type || struct_type->member_index(member_name) != (unsigned)-1)
+	    return 0;
+      return find_array_method_iter_index(iter_net, member_name);
+}
+
 static bool array_method_iter_index_forbidden_(const NetNet*iter_net,
 					       perm_string index_name =
 					       perm_string::literal("index"))
@@ -23273,8 +23282,12 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       if (found_symbol && sr.net
 	  && sr.path_tail.size() == 1
 	  && sr.path_tail.front().index.empty()) {
-	    if (NetNet*idx_net = find_array_method_iter_index(
-		  sr.net, sr.path_tail.front().name)) {
+	    NetNet*idx_net = sr.net->struct_type()
+		  ? find_struct_array_method_iter_index_(
+			sr.net, sr.path_tail.front().name)
+		  : find_array_method_iter_index(
+			sr.net, sr.path_tail.front().name);
+	    if (idx_net) {
 		expr_type_   = idx_net->data_type();
 		expr_width_  = idx_net->vector_width();
 		min_width_   = expr_width_;
@@ -23882,6 +23895,26 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && net->unpacked_dimensions() == 0
 		  && (net->darray_type() || net->queue_type());
+
+	    if (gn_system_verilog() && net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			net, member_name)) {
+			if (array_method_iter_index_forbidden_(net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!indexed_container_member_path
 		&& (net->struct_type()
@@ -25005,6 +25038,26 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && sr.net->unpacked_dimensions() == 0
 		  && (sr.net->darray_type() || sr.net->queue_type());
+
+	    if (gn_system_verilog() && sr.net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			sr.net, member_name)) {
+			if (array_method_iter_index_forbidden_(sr.net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!sr.path_tail.empty()
 		&& !indexed_container_member_path
