@@ -5987,3 +5987,4 @@ issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_ve
 sv_invalid_container_element_default_2017 normal,-g2017 ivltests gold=sv_invalid_container_element_default.gold
 sv_invalid_container_element_default_2023 normal,-g2023 ivltests gold=sv_invalid_container_element_default.gold
 issue947_unit_forward_reference_fail CE,-g2017 ivltests
+sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
