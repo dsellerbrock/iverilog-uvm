@@ -396,6 +396,7 @@ class PCallTask  : public Statement {
 	// Sets *via to a temporary when the actual could not be named
 	// directly, in which case the caller copies through it.
       NetProc*elaborate_ref_bind_(Design*des, NetScope*scope,
+				  NetScope*default_scope,
 				  NetNet*port, PExpr*actual,
 				  unsigned argno, NetNet**via) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
