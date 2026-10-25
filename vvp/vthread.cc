@@ -971,6 +971,8 @@ struct vthread_s {
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
       set<struct vthread_s*>detached_children;
+	/* Immediate detached subprocesses, excluding promoted descendants. */
+      set<struct vthread_s*>wait_fork_children;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* DPI export (35.5): non-null on an exported SV *task* thread that is
@@ -11145,11 +11147,8 @@ static void vthread_reap(vthread_t thr)
 	    thr->children.erase(cur);
       }
       while (! thr->detached_children.empty()) {
-	      /* When a thread ends with detached children still alive,
-	       * SystemVerilog `wait fork` semantics require those grandchildren
-	       * to remain reachable from the still-living grandparent so that
-	       * an outer `wait fork` can wait for them.  Reparent them to
-	       * thr->parent and keep them in detached_children. */
+	      /* Keep detached descendants reachable for process control, but
+	       * do not make them children of the grandparent for wait fork. */
 	    set<vthread_t>::iterator cur = thr->detached_children.begin();
 	    vthread_t child = *cur;
 	    assert(child);
@@ -11159,10 +11158,13 @@ static void vthread_reap(vthread_t thr)
 		  child->parent = thr->parent;
 		  child->is_reactive_process |= thr->is_reactive_process;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(cur);
       }
       if (thr->parent) {
@@ -11176,6 +11178,7 @@ static void vthread_reap(vthread_t thr)
 				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
 		  }
 		  assert(res == 1);
+		  thr->parent->wait_fork_children.erase(thr);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
 		  if (res != 1) {
@@ -18513,7 +18516,8 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
 	       * the parent's detached_children, so do not erase manually. */
 	    if (parent && parent->i_am_waiting
-		&& parent->detached_children.size() == 1) {
+		&& parent->wait_fork_children.size() == 1
+		&& parent->wait_fork_children.count(thr)) {
 		    /* This is the last detached child; the wait fork
 		     * predicate will become true once we reap. */
 		  parent->i_am_waiting = 0;
@@ -19193,10 +19197,8 @@ bool of_END(vthread_t thr, vvp_code_t)
             }
       }
 
-	/* Move any detached children to the parent.  This preserves
-	 * SystemVerilog `wait fork` semantics: an outer `wait fork` must
-	 * wait for grandchildren whose intermediate parent has already
-	 * ended.  If we have no parent, fully orphan them as before. */
+	/* Move detached children to the parent for process control.  They
+	 * remain descendants, so they are not added to its wait-fork set. */
       while (! thr->detached_children.empty()) {
 	    vthread_t child = *(thr->detached_children.begin());
 	    assert(child);
@@ -19205,10 +19207,13 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    if (thr->parent) {
 		  child->parent = thr->parent;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(thr->detached_children.begin());
       }
 
@@ -19237,7 +19242,8 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* If the parent is waiting for the detached children to
 	       * finish then the last detached child needs to tell the
 	       * parent to wake up when it is finished. */
-	    if (tmp->i_am_waiting && tmp->detached_children.empty()) {
+	    if (tmp->i_am_waiting && tmp->wait_fork_children.size() == 1
+		&& tmp->wait_fork_children.count(thr)) {
 		  tmp->i_am_waiting = 0;
 		  tmp->deferred_assert_flush_on_run = 1;
 		  schedule_vthread(tmp, 0, true);
@@ -19245,6 +19251,7 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* Fully detach this thread so it will be reaped below. */
 	    thr->i_am_detached = 0;
 	    thr->parent = 0;
+	    tmp->wait_fork_children.erase(thr);
       }
 
 	/* If I have no parent, then no one can %join me and there is
@@ -21822,6 +21829,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		  assert(res == 1);
 		  child->i_am_detached = 1;
 		  thr->detached_children.insert(child);
+		  thr->wait_fork_children.insert(child);
 	    }
       }
 
@@ -34270,9 +34278,9 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children when waiting. */
       assert(thr->children.empty());
 
-	/* If there are no detached children then there is nothing to
+	/* If there are no immediate detached children then there is nothing to
 	 * wait for. */
-      if (thr->detached_children.empty()) return true;
+	if (thr->wait_fork_children.empty()) return true;
 
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */

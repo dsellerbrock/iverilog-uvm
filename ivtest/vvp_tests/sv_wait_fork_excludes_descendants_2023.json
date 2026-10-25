@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_wait_fork_excludes_descendants.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_wait_fork_excludes_descendants"
+}
