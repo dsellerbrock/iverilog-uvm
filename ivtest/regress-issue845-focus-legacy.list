@@ -1,0 +1,4 @@
+sv_interface_class_nested_ordinary_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_ordinary_2023 normal,-g2023,-s,top ivltests gold=sv_interface_class_nested_ordinary_2023-legacy.gold
+sv_interface_class_nested_interface_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_interface_2023 CE,-g2023,-s,top ivltests

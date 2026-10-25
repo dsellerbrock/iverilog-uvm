@@ -3017,6 +3017,26 @@ class_declaration_start
       }
   | K_interface_class K_class identifier_name class_type_parameter_port_list_opt interface_class_extends_opt ';'
       {
+	/* IEEE 1800-2017 8.26 prohibited an interface class from being
+	 * nested within any class. IEEE 1800-2023 8.26 permits nesting in an
+	 * ordinary class, but still prohibits nesting within an interface
+	 * class. Check all enclosing class scopes so an ordinary class nested
+	 * in an interface class does not hide the prohibited nesting. */
+	bool enclosing_class = false;
+	bool enclosing_interface_class = false;
+	for (LexicalScope* scope = pform_peek_scope(); scope;
+	     scope = scope->parent_scope()) {
+	      PClass* enclosing = dynamic_cast<PClass*>(scope);
+	      if (!enclosing)
+		    continue;
+	      enclosing_class = true;
+	      if (enclosing->type && enclosing->type->interface_class)
+		    enclosing_interface_class = true;
+	}
+	if ((generation_flag < GN_VER2023 && enclosing_class)
+	    || enclosing_interface_class)
+	      yyerror(@1, "error: An interface class cannot be nested within this class (IEEE 1800-2017/2023 8.26).");
+
 	perm_string name = lex_strings.make($3);
 	class_type_t *class_type = new class_type_t(name);
 	FILE_NAME(class_type, @3);
