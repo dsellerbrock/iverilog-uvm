@@ -658,6 +658,10 @@ static void finish_interface_declaration_scope_(Design*des, NetScope*scope,
 	    if (cur->second)
 		  scope->add_signal_placeholder(cur->second);
 
+      for (map<perm_string,PLet*>::const_iterator cur = mod->unit_lets.begin();
+	   cur != mod->unit_lets.end(); ++cur)
+	    scope->add_let(cur->first, cur->second);
+
       for (map<perm_string,PLet*>::const_iterator cur = mod->lets.begin();
 		 cur != mod->lets.end(); ++cur)
 	    scope->add_let(cur->first, cur->second);

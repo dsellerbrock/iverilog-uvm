@@ -5419,6 +5419,10 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
       scope->add_typedefs(&typedefs);
       scope->add_nettypes(des, &nettypes);
 
+      for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+		 ; lt != lets.end() ; ++ lt)
+	    scope->add_let(lt->first, lt->second);
+
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
@@ -5467,6 +5471,11 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    }
       }
 
+	// Compilation-unit lets are visible in each design element in that
+	// compilation unit; local lets take precedence over them.
+	for (std::map<perm_string,PLet*>::const_iterator lt = unit_lets.begin()
+	     ; lt != unit_lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
 	// M13: make let declarations visible to expression elaboration.
       for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
 		 ; lt != lets.end() ; ++ lt)

@@ -8002,6 +8002,10 @@ package_export_item_list
 
 package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
+  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
+      { perm_string tmp2 = lex_strings.make($2);
+        pform_make_let(@1, tmp2, $3, $5);
+      }
   | parameter_declaration
   | type_declaration
   | package_function_declaration
