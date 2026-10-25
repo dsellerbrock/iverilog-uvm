@@ -28517,44 +28517,62 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       variable holds 'z until the first clocking drive. A
 		       variable, including one with a continuous assignment that was
 		       coerced to UNRESOLVED_WIRE, keeps the procedural clocking write. */
-		  if (raw->unpacked_dimensions() > 0
-		      && raw->type() != NetNet::REG
-		      && raw->type() != NetNet::IMPLICIT_REG
+		  std::vector<NetNet*> array_net_drives;
+		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
 		      && (raw->type() != NetNet::UNRESOLVED_WIRE
 			  || !raw->coerced_to_uwire())) {
-		    cerr << cb->get_fileline() << ": sorry: a clocking "
-			 << "output array of nets requires per-word net "
-			 << "drivers." << endl;
-		    des->errors += 1;
-		    continue;
-		  }
-		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
-		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
 			string vname = string("_ivl_odrv$") + cb->name.str()
 			      + "$" + sig_it->str();
-			NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
-						  NetNet::REG, raw->net_type());
-			drive->set_line(*cb);
-			drive->local_flag(true);
-			NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
-						     raw->vector_width(), false);
-			buffer->set_line(*cb);
-			des->add_node(buffer);
-			connect(drive->pin(0), buffer->pin(1));
-			connect(raw->pin(0), buffer->pin(0));
-			verinum z_v (verinum::Vz, raw->vector_width());
-			NetEConst*z = new NetEConst(z_v);
-			z->set_line(*cb);
-			NetAssign*init = new NetAssign(new NetAssign_(drive), z);
-			init->set_line(*cb);
-			prologue->append(init);
-			raw = drive;
+		if (raw->unpacked_dimensions() > 0) {
+		      for (unsigned word = 0; word < raw->pin_count(); ++word) {
+			    string wname = vname + "$" + std::to_string(word);
+			    NetNet*drive = new NetNet(scope,
+				  lex_strings.make(wname.c_str()), NetNet::REG,
+				  raw->net_type());
+			    drive->set_line(*cb);
+			    drive->local_flag(true);
+			    array_net_drives.push_back(drive);
+			    NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+					 raw->vector_width(), false);
+			    buffer->set_line(*cb);
+			    des->add_node(buffer);
+			    connect(drive->pin(0), buffer->pin(1));
+			    connect(raw->pin(word), buffer->pin(0));
+			    verinum z_v (verinum::Vz, raw->vector_width());
+			    NetEConst*z = new NetEConst(z_v);
+			    z->set_line(*cb);
+			    NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+			    init->set_line(*cb);
+			    prologue->append(init);
+		      }
+		} else {
+		      NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
+					NetNet::REG, raw->net_type());
+		      drive->set_line(*cb);
+		      drive->local_flag(true);
+		      NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+					   raw->vector_width(), false);
+		      buffer->set_line(*cb);
+		      des->add_node(buffer);
+		      connect(drive->pin(0), buffer->pin(1));
+		      connect(raw->pin(0), buffer->pin(0));
+		      verinum z_v (verinum::Vz, raw->vector_width());
+		      NetEConst*z = new NetEConst(z_v);
+		      z->set_line(*cb);
+		      NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+		      init->set_line(*cb);
+		      prologue->append(init);
+		      raw = drive;
+		}
 		  }
 		  unsigned words = obuf->unpacked_count();
 		  for (unsigned word = 0; word < words; ++word) {
-		    std::unique_ptr<NetAssign_> target(
-			  clone_clocking_selected_lval_(raw, target_shape.get()));
-		    if (obuf->unpacked_dimensions() && !target->word())
+		    std::unique_ptr<NetAssign_> target;
+		    if (!array_net_drives.empty())
+			  target.reset(new NetAssign_(array_net_drives[word]));
+		    else
+			  target.reset(clone_clocking_selected_lval_(raw, target_shape.get()));
+		    if (array_net_drives.empty() && obuf->unpacked_dimensions() && !target->word())
 			  target->set_word(make_const_val_s(word));
 		    out_targets.push_back(std::move(target));
 		    out_bufs.push_back(obuf);
