@@ -12080,6 +12080,23 @@ static bool clocking_static_interface_member_(const NetEProperty*prop)
       return interface_type && interface_type->is_interface();
 }
 
+/* Concurrent assertion operands may not refer to per-instance class
+   properties (IEEE 1800-2017/2023 16.6). Interface members are not class
+   properties, and static class properties are permitted. */
+static bool assertion_nonstatic_class_property_(const NetEProperty*prop)
+{
+      if (!prop) return false;
+
+      ivl_type_t base_type = prop->get_sig()
+	    ? prop->get_sig()->net_type()
+	    : prop->get_base() ? prop->get_base()->net_type() : nullptr;
+      const netclass_t*class_type =
+	    dynamic_cast<const netclass_t*>(base_type);
+      return class_type && !class_type->is_interface()
+	    && prop->property_idx() < class_type->get_properties()
+	    && !class_type->get_prop_qual(prop->property_idx()).test_static();
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -12296,6 +12313,31 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    NetExpr*sub = arg->elaborate_expr(des, scope, arg->expr_width(),
 					      flags);
 	    if (sub == 0) return 0;
+
+	      /* §16.6 prohibits these operand kinds outright. They cannot be
+		made conforming by the live-read fallback below. */
+	    ivl_type_t operand_type = sub->net_type();
+	    if (!operand_type) {
+		  const NetESignal*signal = dynamic_cast<const NetESignal*>(sub);
+		  if (signal) operand_type = signal->sig()->net_type();
+	    }
+	    if (operand_type && ivl_type_is_chandle(operand_type)) {
+		  cerr << get_fileline() << ": error: Concurrent assertion "
+	       << "expressions shall not reference chandle variables "
+	       << "(IEEE 1800-2017/2023 16.6)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return 0;
+	    }
+	    if (assertion_nonstatic_class_property_(
+		  dynamic_cast<const NetEProperty*>(sub))) {
+		  cerr << get_fileline() << ": error: Concurrent assertion "
+	       << "expressions shall not reference non-static class properties "
+	       << "(IEEE 1800-2017/2023 16.6)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return 0;
+	    }
 
 	      /* %load/preponed reads a whole SIGNAL and pushes its full
 		 width. A bit- or part-select of one is still a sampled
