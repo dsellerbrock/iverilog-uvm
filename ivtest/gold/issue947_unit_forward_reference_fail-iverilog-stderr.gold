@@ -1,0 +1,6 @@
+ivltests/issue947_unit_forward_reference_fail.v:3: error: Unable to bind wire/reg/memory `$unit::unit_forward_task_var' in `$unit.unit_forward_task'
+ivltests/issue947_unit_forward_reference_fail.v:10:      : A symbol with that name was declared here. Check for declaration after use.
+ivltests/issue947_unit_forward_reference_fail.v:3: Unable to elaborate statement in task $unit.unit_forward_task at ivltests/issue947_unit_forward_reference_fail.v:1.
+ivltests/issue947_unit_forward_reference_fail.v:7: error: Unable to bind wire/reg/memory `$unit::unit_forward_module_var' in `unit_forward_module'
+ivltests/issue947_unit_forward_reference_fail.v:11:      : A symbol with that name was declared here. Check for declaration after use.
+Elaboration failed
