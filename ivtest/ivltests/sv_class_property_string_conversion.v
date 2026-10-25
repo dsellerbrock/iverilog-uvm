@@ -26,7 +26,7 @@ module test;
 
     // read: int property -> string (packed bytes, leading zero bytes dropped)
     obj.val = 42; // 0x2A = '*'
-    s = obj.val;
+    s = string'(obj.val);
     if (s != "*") begin
       $display("FAILED: int read got '%s' (%0d chars)", s, s.len());
       errors++;
@@ -34,7 +34,7 @@ module test;
 
     // read: zero value -> empty string (every byte dropped)
     obj.val = 0;
-    s = obj.val;
+    s = string'(obj.val);
     if (s != "") begin
       $display("FAILED: zero read got '%s' len=%0d", s, s.len());
       errors++;
@@ -42,7 +42,7 @@ module test;
 
     // read: byte property
     obj.b = 8'h41;
-    s = obj.b;
+    s = string'(obj.b);
     if (s != "A") begin
       $display("FAILED: byte read got '%s'", s);
       errors++;
@@ -50,7 +50,7 @@ module test;
 
     // read: bit vector property
     obj.bv = 32'h41;
-    s = obj.bv;
+    s = string'(obj.bv);
     if (s != "A") begin
       $display("FAILED: bit vector read got '%s'", s);
       errors++;
@@ -58,7 +58,7 @@ module test;
 
     // read: logic vector property
     obj.lv = 32'h41;
-    s = obj.lv;
+    s = string'(obj.lv);
     if (s != "A") begin
       $display("FAILED: logic vector read got '%s'", s);
       errors++;

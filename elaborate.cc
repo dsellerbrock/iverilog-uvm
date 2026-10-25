@@ -8464,6 +8464,24 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 {
       ivl_assert(*this, rval_);
 
+	/* IEEE 1800-2017/2023 6.16 permits implicit string assignment from
+	 * string literals and string expressions, but integral values require
+	 * an explicit string'() cast. Check the source type before elaborating
+	 * it in the destination context, which otherwise performs that cast
+	 * implicitly. */
+      if (lv_type == IVL_VT_STRING) {
+	    PExpr::width_mode_t source_mode = PExpr::SIZED;
+	    rval_->test_width(des, scope, source_mode);
+	    if (rval_->expr_type() == IVL_VT_LOGIC
+		|| rval_->expr_type() == IVL_VT_BOOL) {
+		  cerr << get_fileline() << ": error: integral value assigned to a "
+		       << "string variable requires an explicit string'() cast "
+		       << "(IEEE 1800-2017/2023 6.16)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
       NetScope*rval_scope = elaborate_rval_scope_(des, scope);
       if (!rval_scope)
             return 0;
