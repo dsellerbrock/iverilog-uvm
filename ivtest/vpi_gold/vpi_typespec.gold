@@ -1,0 +1,45 @@
+Compiling vpi/vpi_typespec.c...
+Making vpi_typespec.vpi from  vpi_typespec.o...
+top.st: enum 2
+  IDLE = 00
+  RUN = 01
+  DONE = 11
+top.sm: enum 3
+  A = 001
+  B = 010
+  C = 100
+top.in: struct 7 packed=1
+  hi: logic [3:0]
+  st: enum 2
+    IDLE = 00
+    RUN = 01
+    DONE = 11
+  flag: bit [0:0]
+top.out: struct 47 packed=1
+  in: struct 7 packed=1
+    hi: logic [3:0]
+    st: enum 2
+      IDLE = 00
+      RUN = 01
+      DONE = 11
+    flag: bit [0:0]
+  pair: logic [7:0]
+  count: bit [31:0]
+top.u: union 7 packed=1
+  raw: logic [6:0]
+  in: struct 7 packed=1
+    hi: logic [3:0]
+    st: enum 2
+      IDLE = 00
+      RUN = 01
+      DONE = 11
+    flag: bit [0:0]
+top.win: struct 7 packed=1
+  hi: logic [3:0]
+  st: enum 2
+    IDLE = 00
+    RUN = 01
+    DONE = 11
+  flag: bit [0:0]
+top.plain: no typespec
+top.tg: no typespec
