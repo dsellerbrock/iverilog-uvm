@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_queue_write_dollar_plus.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_queue_write_dollar_plus"
+}
