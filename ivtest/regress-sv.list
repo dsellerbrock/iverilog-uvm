@@ -5998,3 +5998,5 @@ issue947_unit_forward_reference_fail CE,-g2017 ivltests
 sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
 pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold
+issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
+issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
