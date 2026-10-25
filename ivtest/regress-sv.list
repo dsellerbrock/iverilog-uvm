@@ -5829,3 +5829,5 @@ issue790_package_struct_member_2023 normal,-g2023,-s,issue790_package_struct_mem
 # IEEE 1800-2017/2023 §8.10.
 sv_static_virtual_method_fail_2017 CE,-g2017,-s,sv_static_virtual_method_fail ivltests
 sv_static_virtual_method_fail_2023 CE,-g2023,-s,sv_static_virtual_method_fail ivltests
+sv_class_type_param_cast_2017 normal,-g2017,-s,test ivltests gold=sv_class_type_param_cast.gold
+sv_class_type_param_cast_2023 normal,-g2023,-s,test ivltests gold=sv_class_type_param_cast.gold
