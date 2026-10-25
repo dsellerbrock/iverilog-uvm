@@ -787,6 +787,10 @@ extern bool nex_output_precise_partsel;
    on any word and therefore must claim every possible destination. */
 extern bool nex_output_precise_array_word;
 
+/* For always_comb conflict checking, use the static unpacked-array prefix
+   recorded on a dynamic l-value instead of dropping or widening its output. */
+extern bool nex_output_static_array_prefix;
+
 /* During synchronous synthesis, intercept eligible unpacked-array writes so
    the process output/enable machinery can use one synthetic token instead of
    materializing every possible word. Returns true when the active compact
