@@ -5904,3 +5904,4 @@ sv_force_assign_legal_targets normal,-g2017,-s,sv_force_assign_legal_targets ivl
 sv_force_assign_legal_targets_2023 normal,-g2023,-s,sv_force_assign_legal_targets ivltests gold=sv_force_assign_legal_targets.gold
 sv_assoc_nonintegral_query_2017	CE,-g2017	ivltests
 sv_assoc_nonintegral_query_2023	CE,-g2023	ivltests
+sv_resistive_switch_strength normal,-g2017,-s,top ivltests gold=sv_resistive_switch_strength.gold
