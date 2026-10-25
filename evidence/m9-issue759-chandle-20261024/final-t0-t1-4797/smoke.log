@@ -1,0 +1,554 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                                          sv_macro: Passed.
+                       sv_macro_definition_context: Passed.
+                 sv_macro_unterminated_string_fail: Passed - CE.
+                                   sv_cast_typedef: Passed.
+                                          sv_enum1: Passed.
+      sv_modport_tf_prototype_syntax_recovery_fail: Passed - CE.
+ sv_modport_tf_prototype_syntax_recovery_fail_2023: Passed - CE.
+                   sv_class_nested_ctor_provenance: Passed.
+                    sv_class_fixed_array_reduction: Passed.
+                     sv_unit_import_interface_type: Passed.
+                    sv_interface_port_array_member: Passed.
+                sv_foreach_indexed_instance_target: Passed.
+                     sv_cast_container_destination: Passed.
+                           sv_ustruct_array_member: Passed.
+                    sv_struct_array_member_element: Passed.
+                   sv_struct_array_member_open_arg: Passed.
+                                     sv_ap_parray1: Passed.
+                                     sv_ap_parray2: Passed.
+                                     sv_ap_parray3: Passed.
+                                     sv_ap_parray4: Passed.
+                                     sv_ap_struct1: Passed.
+                                     sv_ap_struct2: Passed.
+                                     sv_ap_struct3: Passed.
+                                     sv_ap_struct4: Passed.
+                                sv_fork_auto_init1: Passed.
+                 sv_fork_join_none_automatic_frame: Passed.
+                                        sv_darray1: Passed.
+                                        sv_darray2: Passed.
+                                        sv_darray3: Passed.
+                   sv_container_elem_queue_autoviv: Passed.
+                              sv_inside_queue_expr: Passed.
+                      sv_class_prop_darray_assign1: Passed.
+                       sv_assoc_class_key_lifetime: Passed.
+                         sv_assoc_signed_traversal: Passed.
+                sv_darray_new_default_runtime_size: Passed.
+              sv_typed_string_repeat_runtime_error: Passed.
+                              sv_constraint_unique: Passed.
+                  sv_constraint_small_domain_probe: Passed.
+                    sv_constraint_inside_container: Passed.
+               sv_constraint_fixed_array_reduction: Passed.
+                sv_constraint_dist_boolean_subject: Passed.
+              sv_constraint_nested_unpacked_struct: Passed.
+         sv_constraint_nested_unpacked_struct_2023: Passed.
+               sv_constraint_darray_size_parenless: Passed.
+                 sv_randomize_global_sampling_fail: Passed.
+            sv_randomize_global_sampling_fail_2023: Passed.
+               sv_randomize_global_components_fail: Passed.
+          sv_randomize_global_components_fail_2023: Passed.
+     sv_randomize_joint_dynamic_element_order_fail: Passed.
+sv_randomize_joint_dynamic_element_order_fail_2023: Passed.
+       sv_randomize_joint_queue_element_order_fail: Passed.
+  sv_randomize_joint_queue_element_order_fail_2023: Passed.
+                 sv_cov_ctor_transition_empty_fail: Passed - RE.
+            sv_cov_ctor_transition_empty_fail_2023: Passed - RE.
+                   sv_cov_ctor_transition_cap_fail: Passed - RE.
+              sv_cov_ctor_transition_cap_fail_2023: Passed - RE.
+============================================================================
+Test results:
+  Total=56, Passed=56, Failed=0, Not Implemented=0, Expected Fail=0
+Running VPI tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                               br_gh59: Passed.
+                              br_gh73a: Passed.
+                              br_gh73b: Passed.
+                              br_gh117: Passed.
+                             br_gh169a: Passed.
+                             br_gh169b: Passed.
+                              br_gh184: Passed.
+                              br_gh235: Passed.
+                              br_gh308: Passed.
+                              br_gh317: Passed.
+                              br_gh496: Passed.
+                             br_gh1037: Passed.
+                             br_gh1041: Passed.
+                            br_gh1041b: Passed.
+                         br_ml20191013: Passed.
+                              by_index: Passed.
+                               by_name: Passed.
+                             callback1: Passed.
+                  wide_part_select_vpi: Passed.
+                            celldefine: Passed.
+                 dumpports_activity_cb: Passed.
+                         check_version: Passed.
+                         display_array: Passed.
+                          vpi_typespec: Passed.
+                     vpi_typespec_2023: Passed.
+                  class_event_lifetime: Passed.
+                                event1: Passed.
+                                event2: Passed.
+                                 final: Passed.
+                              find_sig: Passed.
+                             force_reg: Passed.
+                          force_reg_pv: Passed.
+                        force_reg_real: Passed.
+                            force_wire: Passed.
+                         force_wire_pv: Passed.
+                       force_wire_real: Passed.
+                          genblk_named: Passed.
+                        genblk_unnamed: Passed.
+                         genblk_direct: Passed.
+                            hello_poke: Passed.
+                             hello_vpi: Passed.
+                            hello_vpi2: Passed.
+                            listparams: Passed.
+                       nextsimtime_cb1: Passed.
+                       nextsimtime_cb2: Passed.
+                       nextsimtime_cb3: Passed.
+                       nextsimtime_cb4: Passed.
+                                memmon: Passed.
+                               memwide: Passed.
+                               myscope: Passed.
+                                nulls1: Passed.
+                          poke_escaped: Passed.
+                              pokevent: Passed.
+                               pokereg: Passed.
+                          ports_params: Passed.
+                                 pr686: Passed.
+                                 pr723: Passed.
+                             pr1693971: Passed.
+                             pr2048463: Passed.
+                             pr2314742: Passed.
+                             pr2966059: Passed.
+                             pr2971220: Passed.
+                   pure_comb_finish_cb: Passed.
+                              putvalue: Passed.
+                                range1: Passed.
+                                realcb: Passed.
+                  m8_vpi_real_put_2017: Passed.
+                  m8_vpi_real_put_2023: Passed.
+                              realtime: Passed.
+                             realtime2: Passed.
+                              ro_synch: Passed.
+                               scanmem: Passed.
+                              scanmem2: Passed.
+                              scanmem3: Passed.
+                                scopes: Passed.
+                          sim_time_cb1: Passed.
+                          sim_time_cb2: Passed.
+                           spec_delays: Passed.
+                     start_of_simtime1: Passed.
+                  static_class_storage: Passed.
+        static_class_storage_callbacks: Passed.
+                      value_change_cb1: Passed.
+                      value_change_cb2: Passed.
+                      value_change_cb3: Passed.
+                      value_change_cb4: Passed.
+                           vpi_control: Passed.
+                        m12_sv_objects: Passed.
+                       m12_assoc_write: Passed.
+                      m12_container_cb: Passed.
+                   m12_container_props: Passed.
+                    m12_nested_members: Passed.
+                      m12_covgrp_drill: Passed.
+                      m12_modport_dirs: Passed.
+                     m12_decl_lifetime: Passed.
+               m12_decl_lifetime_words: Passed.
+                          m12_lifetime: Passed.
+                    m12_assert_attempt: Passed.
+                         m12_bit_force: Passed.
+                   m12_force_cb_regbit: Passed.
+              m12_force_cb_regbit_2023: Passed.
+                 m12_force_cb_stmt_obj: Passed.
+            m12_force_cb_stmt_obj_2023: Passed.
+                       m12_assert_step: Passed.
+             m12_assert_start_identity: Passed.
+                          m6b_nba_sync: Passed.
+                         m12_sv_scopes: Passed.
+                       m12_sv_coverage: Passed.
+                       m12b_assert_vpi: Passed.
+                      m12bcb_assert_cb: Passed.
+                sv_deferred_vpi_reset0: Passed.
+                 sv_deferred_vpi_kill0: Passed.
+                m12_endpoint_fanout_cb: Passed.
+              m12_endpoint_fanout_step: Passed.
+                              force_cb: Passed.
+                      m12br_assert_cb2: Passed.
+                 m12_vacuous_action_cb: Passed.
+                m12_symbolic_parent_cb: Passed.
+                 string_literal_vector: Passed.
+            string_literal_vector_2023: Passed.
+       sv_assert_long_fixed_antecedent: Passed.
+  sv_assert_long_fixed_antecedent_2023: Passed.
+                   packed_multidim_api: Passed.
+              packed_multidim_api_2023: Passed.
+                  packed_force_overlap: Passed.
+             packed_force_overlap_2023: Passed.
+                    packed_forward_net: Passed.
+               packed_forward_net_2023: Passed.
+                 event_callback_origin: Passed.
+            event_callback_origin_2023: Passed.
+          event_callback_parent_atomic: Passed.
+     event_callback_parent_atomic_2023: Passed.
+     event_callback_parent_atomic_late: Passed.
+event_callback_parent_atomic_late_2023: Passed.
+     event_callback_parent_atomic_high: Passed.
+event_callback_parent_atomic_high_2023: Passed.
+           event_callback_nested_depth: Passed.
+      event_callback_nested_depth_2023: Passed.
+                          fst_sv_types: Passed.
+                     fst_sv_types_2023: Passed.
+                      fst_dump_control: Passed.
+                 fst_dump_control_2023: Passed.
+============================================================================
+Test results: Total=141, Passed=141, Failed=0, Not Implemented=0
+=== reproducer: cast_container_destination ===
+PASSED
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/cast_container_destination.sv:83: $finish called at 0 (1s)
+=== reproducer: covergroup_sample_from_module_task ===
+sample() from a module task: 100.0% (want 100)
+=== reproducer: foreach_indexed_instance ===
+plain hier=3 (want 3)   indexed instance=3 (want 3)
+=== reproducer: fork_join_none_automatic_local ===
+  inside t4: loc=3
+after fork: a=3 (want 3)
+  inside t4: loc=3
+after direct call: a=3 (want 3)
+=== reproducer: fork_join_none_body_shapes ===
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/fork_join_none_body_shapes.sv:15: warning: Static variable initialization requires explicit lifetime in this context.
+fork <task>       : 3 (want 3)
+fork begin..end   : 3 (want 3)
+fork <method>     : 3 (want 3)
+fork begin <task> : 3 (want 3)
+=== reproducer: fork_join_none_concurrent_frames ===
+PASSED
+=== reproducer: fork_join_none_hoist_minimal ===
+noargs=3 withport=3 (want 3 3)
+=== reproducer: fork_join_none_port_count ===
+zero-port task under fork/join_none : 3 (want 3)
+one-port task under fork/join_none  : 3 (want 3)
+same two called directly            : 3 3 (want 3 3)
+=== reproducer: struct_array_member_access_matrix ===
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/struct_array_member_access_matrix.sv:17: warning: Static variable initialization requires explicit lifetime in this context.
+PASSED
+=== reproducer: struct_array_member_darray ===
+size=3 (want 3)
+elems=10 20 30 (want 10 20 30)
+tag=5 (want 5)
+plain darray[1]=20 (want 20)
+queue member size=2 (want 2) elem=8 (want 8)
+=== reproducer: struct_array_member_dpi ===
+Compiling /home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/struct_array_member_dpi.c...
+Making struct_array_member_dpi.vpi from  struct_array_member_dpi.o...
+PASSED
+=== reproducer: struct_array_member_open_array_io ===
+PASS #544: incompatible faster-varying array element type rejected
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/struct_array_member_open_array_io.sv:115: error: fixed unpacked-array value and queue/dynamic-array context may differ only in the slowest-varying unpacked dimension and require equivalent element types (IEEE 1800-2017/2023 7.6).
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/struct_array_member_open_array_io.sv:115: error: fixed unpacked-array value and queue/dynamic-array context may differ only in the slowest-varying unpacked dimension and require equivalent element types (IEEE 1800-2017/2023 7.6).
+2 error(s) during elaboration.
+=== reproducer: struct_array_member_reads_width ===
+struct member elems : 200 201 202 203 (want 200 201 202 203)
+the scalar member   : 7 (want 7)
+a plain array       : 200 202 (want 200 202)
+=== reproducer: vpi_class_member_report ===
+Compiling /home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/vpi_class_member_report.c...
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/vpi_class_member_report.c: In function ‘probe_calltf’:
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/repros/vpi_class_member_report.c:11:19: warning: variable ‘val’ set but not used [-Wunused-but-set-variable]
+   11 |       s_vpi_value val;
+      |                   ^~~
+Making vpi_class_member_report.vpi from  vpi_class_member_report.o...
+PROBE member sc     type=612(vpiIntVar) size=32
+PROBE member fa     type=612(vpiIntVar) size=32
+PROBE member dq     type=116(vpiRegArray) size=2
+PROBE member da     type=116(vpiRegArray) size=3
+PROBE member aa     type=116(vpiRegArray) size=1
+=== negative-suite ===
+  aggregate_to_scalar                      PASS (rejected with diagnostic)
+  array_parameter_typedef_duplicate_key    PASS (rejected with diagnostic)
+  array_parameter_typedef_out_of_range_key PASS (rejected with diagnostic)
+  assert_unclocked_no_enclosing_event      PASS (rejected with diagnostic)
+  assert_unclocked_sibling_always          PASS (rejected with diagnostic)
+  assoc_method_missing_arg                 PASS (rejected with diagnostic)
+  bind_bad_instance_path                   PASS (rejected with diagnostic)
+  checker_free_variable                    PASS (rejected with diagnostic)
+  class_handle_to_scalar                   PASS (rejected with diagnostic)
+  class_new_bad_target                     PASS (rejected with diagnostic)
+  config_block                             PASS (rejected with diagnostic)
+  darray_elem_type_mismatch                PASS (rejected with diagnostic)
+  darray_scalar_assign                     PASS (rejected with diagnostic)
+  enum_implicit_cast                       PASS (rejected with diagnostic)
+  event_automatic_lifetime                 PASS (rejected with diagnostic)
+  export_local_conflict                    PASS (rejected with diagnostic)
+  g01_cycle_delay_no_default               PASS (rejected with diagnostic)
+  g01_multiple_default_clocking            PASS (rejected with diagnostic)
+  g01_undeclared_default_clocking          PASS (rejected with diagnostic)
+  g10_reduction_non_integral               PASS (rejected with diagnostic)
+  g12_stream_source_too_small              PASS (rejected with diagnostic)
+  g12_stream_target_too_small              PASS (rejected with diagnostic)
+  g26_modport_input_write                  PASS (rejected with diagnostic)
+  generic_interface_port                   PASS (rejected with diagnostic)
+  import_not_hierarchical                  PASS (rejected with diagnostic)
+  m10_dpi_export_c_name_abi_collision      PASS (rejected with diagnostic)
+  m10_dpi_export_c_name_packed_shape_collision PASS (rejected with diagnostic)
+  m10_dpi_export_class_handle_argument     PASS (rejected with diagnostic)
+  m10_dpi_export_open_array_argument       PASS (rejected with diagnostic)
+  m10_dpi_export_same_scope_c_name         PASS (rejected with diagnostic)
+  m10_dpi_export_same_subroutine_twice     PASS (rejected with diagnostic)
+  m10_dpi_import_export_same_subroutine    PASS (rejected with diagnostic)
+  m10_dpi_packed_enum_function_return      PASS (rejected with diagnostic)
+  m10_dpi_packed_function_return           PASS (rejected with diagnostic)
+  m10_dpi_pure_task                        PASS (rejected with diagnostic)
+  m10_dpi_unpacked_struct_function_return  PASS (rejected with diagnostic)
+  m13_bind_bad_port_ref                    PASS (rejected with diagnostic)
+  m13_bind_self_recursive                  PASS (rejected with diagnostic)
+  m13_bind_unknown_target                  PASS (rejected with diagnostic)
+  m13_let_bad_args                         PASS (rejected with diagnostic)
+  m13_let_recursive                        PASS (rejected with diagnostic)
+  m13_trireg_unsupported                   PASS (rejected with diagnostic)
+  m14_checker_unsupported                  PASS (rejected with diagnostic)
+  m1_bad_enum_method_on_call               PASS (rejected with diagnostic)
+  m1_bad_method_on_call_result             PASS (rejected with diagnostic)
+  m1b3_unresolved_class_method_stub        PASS (rejected with diagnostic)
+  m1b3_unresolved_free_function_stub       PASS (rejected with diagnostic)
+  m1b3_unresolved_size_method_stub         PASS (rejected with diagnostic)
+  m2_uarray_size_mismatch                  PASS (rejected with diagnostic)
+  m8_clocking_input_write                  PASS (rejected with diagnostic)
+  m8_global_clocking_items                 PASS (rejected with diagnostic)
+  m8_vif_clocking_input_write              PASS (rejected with diagnostic)
+  m9b_intersect_variable_len               PASS (rejected with diagnostic)
+  m9c_eventually_unbounded                 PASS (rejected with diagnostic)
+  m9c_nexttime_sequence_operand            PASS (rejected with diagnostic)
+  m9c_throughout_range                     PASS (rejected with diagnostic)
+  m9c_until_sequence_operand               PASS (rejected with diagnostic)
+  m9c_within_left_longer                   PASS (rejected with diagnostic)
+  m9d_param_arity_mismatch                 PASS (rejected with diagnostic)
+  macro_unterminated_actual_argument       PASS (rejected with diagnostic)
+  null_illegal_contexts                    PASS (rejected with diagnostic)
+  object_array_as_handle_arg               PASS (rejected with diagnostic)
+  object_array_to_handle                   PASS (rejected with diagnostic)
+  packed_pattern_arity_mismatch            PASS (rejected with diagnostic)
+  packed_pattern_arity_nested              PASS (rejected with diagnostic)
+  packed_pattern_arity_underfill           PASS (rejected with diagnostic)
+  packed_pattern_arity_w32                 PASS (rejected with diagnostic)
+  param_array_pattern_arity                PASS (rejected with diagnostic)
+  param_hier_ref                           PASS (rejected with diagnostic)
+  param_too_many_indices                   PASS (rejected with diagnostic)
+  rand_chandle_illegal                     PASS (rejected with diagnostic)
+  rand_event_illegal                       PASS (rejected with diagnostic)
+  rand_real_illegal                        PASS (rejected with diagnostic)
+  rand_string_illegal                      PASS (rejected with diagnostic)
+  randsequence_recursion                   PASS (rejected with diagnostic)
+  stmt_input_outside_task                  PASS (rejected with diagnostic)
+  sv_assign_pattern_no_context             PASS (rejected with diagnostic)
+  sv_cond_unelaborable                     PASS (rejected with diagnostic)
+  sv_enum_packed_sel_not_enum              PASS (rejected with diagnostic)
+  sv_enum_packed_sel_type_mismatch         PASS (rejected with diagnostic)
+  sv_pkg_import_without_export             PASS (rejected with diagnostic)
+  sv_struct_member_real_overlap            PASS (rejected with diagnostic)
+  sv_uarray_nb_pattern_evctl               PASS (rejected with diagnostic)
+  sv_uarray_runtime_ternary                PASS (rejected with diagnostic)
+  sv_uwire_generate_overlap_part           PASS (rejected with diagnostic)
+  sv_uwire_generate_runtime_index          PASS (rejected with diagnostic)
+  sv_uwire_generate_same_element           PASS (rejected with diagnostic)
+  sv_uwire_generate_whole_signal           PASS (rejected with diagnostic)
+  sv_vec4_bad_value_type                   PASS (rejected with diagnostic)
+  sva_abort_sequence_operand               PASS (rejected with diagnostic)
+  sva_endpoint_branch_local_antecedent     PASS (rejected with diagnostic)
+  sva_endpoint_branch_local_consequence    PASS (rejected with diagnostic)
+  sva_endpoint_dependent_local_rhs_call    PASS (rejected with diagnostic)
+  sva_endpoint_dependent_local_rhs_future_collision PASS (rejected with diagnostic)
+  sva_endpoint_dependent_local_rhs_unassigned PASS (rejected with diagnostic)
+  sva_endpoint_dependent_local_rhs_unassigned_collision PASS (rejected with diagnostic)
+  sva_endpoint_fused_local_antecedent      PASS (rejected with diagnostic)
+  sva_endpoint_fused_local_consequence     PASS (rejected with diagnostic)
+  sva_endpoint_fused_zero_range_antecedent PASS (rejected with diagnostic)
+  sva_endpoint_fused_zero_range_consequence PASS (rejected with diagnostic)
+  sva_endpoint_fused_zero_unbounded_antecedent PASS (rejected with diagnostic)
+  sva_endpoint_fused_zero_unbounded_consequence PASS (rejected with diagnostic)
+  sva_endpoint_var                         PASS (rejected with diagnostic)
+  sva_expect_unsupported                   PASS (rejected with diagnostic)
+  sva_first_match_composed                 PASS (rejected with diagnostic)
+  sva_goto_nonconsec                       PASS (rejected with diagnostic)
+  sva_goto_rep_tail                        PASS (rejected with diagnostic)
+  sva_grouped_composite_concat_negative_delay PASS (rejected with diagnostic)
+  sva_implies_sequence_operand             PASS (rejected with diagnostic)
+  sva_late_default_no_cross_module         PASS (rejected with diagnostic)
+  sva_late_default_undeclared_ref          PASS (rejected with diagnostic)
+  sva_local_var_window                     PASS (rejected with diagnostic)
+  sva_match_item_dynamic_select            PASS (rejected with diagnostic)
+  sva_match_item_intermediate              PASS (rejected with diagnostic)
+  sva_match_item_multiclock                PASS (rejected with diagnostic)
+  sva_match_item_non_display               PASS (rejected with diagnostic)
+  sva_match_item_ranged                    PASS (rejected with diagnostic)
+  sva_match_item_repeated                  PASS (rejected with diagnostic)
+  sva_match_item_selected_implication      PASS (rejected with diagnostic)
+  sva_match_item_selected_variable_delay   PASS (rejected with diagnostic)
+  sva_match_item_tree                      PASS (rejected with diagnostic)
+  sva_multiclock_bad_boundary              PASS (rejected with diagnostic)
+  sva_multiclock_chain_bad_boundary        PASS (rejected with diagnostic)
+  sva_multiclock_property_if               PASS (rejected with diagnostic)
+  sva_multiclock_unary_property            PASS (rejected with diagnostic)
+  sva_named_param_consequent_multistep     PASS (rejected with diagnostic)
+  sva_named_param_consequent_unknown       PASS (rejected with diagnostic)
+  sva_named_prop_tree_reuse                PASS (rejected with diagnostic)
+  sva_not_nested_property                  PASS (rejected with diagnostic)
+  sva_past_zero_depth                      PASS (rejected with diagnostic)
+  sva_seq_module_level_duplicate           PASS (rejected with diagnostic)
+  sva_strong_seq                           PASS (rejected with diagnostic)
+  sva_undefined_indexed_inert              PASS (rejected with diagnostic)
+  sva_undefined_name_inert                 PASS (rejected with diagnostic)
+  type_operator_mixed_operand              PASS (rejected with diagnostic)
+  type_operator_relational                 PASS (rejected with diagnostic)
+  type_operator_struct_compare             PASS (rejected with diagnostic)
+  vif_comparison_case_operators            PASS (rejected with diagnostic)
+  vif_comparison_concrete_instances        PASS (rejected with diagnostic)
+  vif_comparison_different_interfaces      PASS (rejected with diagnostic)
+  vif_comparison_scalar_operand            PASS (rejected with diagnostic)
+  vif_comparison_shadowed_instance_array   PASS (rejected with diagnostic)
+  vif_comparison_wildcard_operators        PASS (rejected with diagnostic)
+  vif_explicit_interface_class_missing     PASS (rejected with diagnostic)
+  vif_explicit_interface_class_modport_unlisted PASS (rejected with diagnostic)
+  vif_explicit_interface_class_noninterface PASS (rejected with diagnostic)
+  vif_forbidden_interface_item_direct_typedef PASS (rejected with diagnostic)
+  vif_forbidden_interface_item_type_parameter PASS (rejected with diagnostic)
+  vif_forbidden_port_direct_typedef        PASS (rejected with diagnostic)
+  vif_forbidden_union_member_direct_typedef PASS (rejected with diagnostic)
+  vif_modport_input_write                  PASS (rejected with diagnostic)
+  vif_modport_unlisted_member              PASS (rejected with diagnostic)
+
+Negative tests: 152 passed, 0 failed
+=== run_array_lifetime_legacy.sh ===
+PASS legacy unmarked .array lifetime compatibility
+=== run_array_slice_marshal_malformed.sh ===
+PASS array-slice marshal textual-IR/recovery invariants (7/7)
+=== run_assoc_set_default_malformed_width.sh ===
+PASS associative default setter width-mismatch invariants
+=== run_assoc_traversal_key_width.sh ===
+PASS associative traversal key width invariant (1/1)
+=== run_boolean_automatic_history.sh ===
+PASS automatic Boolean partial operand history and frame reuse
+=== run_bounded_queue_metadata_malformed.sh ===
+PASS malformed bounded-queue metadata rejection (15/15)
+=== run_concat_malformed_arity.sh ===
+PASS concat malformed-arity invariants (2/2)
+=== run_container_conversion.sh ===
+PASS container conversion runtime/parser invariants (42/42)
+=== run_copyout_context.py ===
+PASS copy-out context malformed-bytecode checks (6/6)
+=== run_covergroup_extension_implicit_cross.sh ===
+PASS implicit cross: base=80.000 flat=80.000 direct=80.000 flat-direct=80.000
+PASS unsupported indexed cross rejected during elaboration
+PASS 2017 extension edition diagnostic
+=== run_covgrp_exports.py ===
+PASS: all 76 covergroup API functions exported
+=== run_covgrp_metadata.sh ===
+PASS covergroup transition/option/cross/parent metadata bounds
+=== run_covgrp_options_report.sh ===
+PASS covergroup procedural option/report invariants (3/3)
+=== run_covgrp_per_instance_report.sh ===
+PASS per-instance constructor options and report retention (4/4)
+=== run_cross_product_limit.sh ===
+PASS cross product limit (-g2017)
+PASS cross product limit (-g2023)
+=== run_darray_default_fill_malformed.sh ===
+PASS dynamic-array default-fill malformed-stack invariants (8/8)
+=== run_dist_ir_compat.sh ===
+PASS dist IR compatibility/recovery invariants (2/2)
+=== run_dpi_disable_protocol.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-disable-protocol.L5LDoA/dpi_disable_protocol.dpiexport.c (compile it into your DPI object).
+PASS m10l_dpi_disable_protocol_test
+PASS DPI disable protocol
+=== run_dpi_disable_protocol_negatives.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-disable-negative.EMaBl0/dpi_disable_task_bad_zero/dpi_disable_task_bad_zero.dpiexport.c (compile it into your DPI object).
+PASS dpi_disable_task_bad_zero (expected fatal)
+PASS dpi_disable_task_bad_one (expected fatal)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-disable-negative.EMaBl0/dpi_disable_function_missing_ack/dpi_disable_function_missing_ack.dpiexport.c (compile it into your DPI object).
+PASS dpi_disable_function_missing_ack (expected fatal)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-disable-negative.EMaBl0/dpi_disable_export_after_state/dpi_disable_export_after_state.dpiexport.c (compile it into your DPI object).
+PASS dpi_disable_export_after_state (expected fatal)
+PASS DPI disable-protocol expected-fatals (4/4)
+=== run_dpi_export_fixed_array.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.5U5mJw/export-fixed-array-2017.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-fixed-array.5U5mJw/export-fixed-array-2023.dpiexport.c (compile it into your DPI object).
+PASS m10_dpi_export_fixed_array_test
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/tests/m10_dpi_export_fixed_array_test.sv:35: $finish called at 0 (1s)
+=== run_dpi_export_output_logic_default.sh ===
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-export-output-logic.DGo4Wq/output_logic.dpiexport.c (compile it into your DPI object).
+  scalar output defaults: untouched=3 observed=3 result=3
+PASS m10_dpi_export_output_logic_default_test
+/home/dsell/slurm-runs/iverilog-uvm-m9-issue759-20261025/A3/m9-759-final-t0-t1-20261024-230537/source/tests/m10_dpi_export_output_logic_default_test.sv:19: $finish called at 0 (1s)
+PASS DPI export scalar output logic default-X reducer
+=== run_dpi_legacy_task_void_compat.sh ===
+PASS legacy DPI task void-ABI compatibility
+iverilog: note: wrote DPI export C stubs to /tmp/dpi-legacy-task-void.yZIwde/dpi_legacy_disabled_modern.dpiexport.c (compile it into your DPI object).
+PASS legacy disabled DPI task fails loudly without an ack channel
+=== run_dpi_narrow_return_metadata.sh ===
+PASS exact narrow DPI return metadata (9/9)
+=== run_dpi_plain_char_abi.sh ===
+PASS plain-char DPI ABI (flags=default)
+=== run_dpi_prefixless_vec4_compat.sh ===
+PASS prefixless DPI vec4 call compatibility
+=== run_dpi_return_prefix_malformed.sh ===
+PASS DPI return-prefix malformed-bytecode invariants (9/9)
+=== run_dpi_scalar_inout_logic_actual.sh ===
+PASS DPI scalar inout logic actual (2017/2023)
+=== run_dpi_scope_instance.sh ===
+PASS DPI context instance scope (2017/2023)
+=== run_dpi_shortreal_array.sh ===
+PASS DPI shortreal array arguments (2017/2023)
+=== run_force_array_runtime.sh ===
+PASS force-array alias and extreme-offset invariants (2/2)
+=== run_indexed_darray_slice.py ===
+indexed dynamic-array slice: PASS 16/16
+=== run_merged_transition_cardinality.sh ===
+PASS merged transition cardinality (-g2017)
+PASS merged transition cardinality (-g2023)
+=== run_mixed_wait_malformed.sh ===
+PASS mixed wait recipe ABI invariants (10/10)
+=== run_process_kill_call_context.sh ===
+PASS process-kill automatic call-context release (modern + legacy)
+=== run_prop_const_init_malformed.sh ===
+PASS instance-constant guard malformed-stack invariant (1/1)
+=== run_property_index_metadata_malformed.sh ===
+PASS malformed property-index descriptor (16/16 X results)
+=== run_queue_slice_legacy.sh ===
+PASS legacy queue-slice bytecode compatibility (3/3)
+=== run_rand_mode_stack_underflow.sh ===
+PASS rand_mode malformed-stack invariants (13/13)
+=== run_scope_solver_unknown.py ===
+PASS 2017 scope_solver_sat_unsat normal
+PASS 2017 scope_solver_unknown normal
+PASS 2017 scope_solver_unknown injected
+PASS 2023 scope_solver_sat_unsat normal
+PASS 2023 scope_solver_unknown normal
+PASS 2023 scope_solver_unknown injected
+=== run_state_foreach_invariants.py ===
+PASS state foreach runtime invariants (15/15)
+=== run_static_property_binding.sh ===
+PASS missing-label rc=134
+PASS wrong-kind rc=134
+PASS wrong-width rc=134
+PASS static property binding invariants (3/3)
+=== run_stream_target_split_malformed.sh ===
+PASS stream target split malformed/exact-width invariants (4/4)
+=== run_string_repeat_ir_compat.sh ===
+PASS string-repeat VVP compatibility and typed opcodes (6/6)
+=== run_svdpi_bitsel.sh ===
+PASS svdpi bit-select helpers
+PASS svdpi bit-select helpers
+=== run_ufunc_resolver_malformed.sh ===
+PASS ufunc resolver malformed metadata invariants (2/2)
+=== run_vartype_malformed.sh ===
+PASS width-mismatch
+PASS bad-syntax
+PASS missing-signal
+PASS missing-enum
+=== run_vif_indexed_wait_malformed.sh ===
+PASS indexed VIF wait malformed-bytecode invariants (3/3)
+=== run_vpi_source_location.sh ===
+PASS VPI source locations (-g2017)
+PASS VPI source locations (-g2023)

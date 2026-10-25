@@ -1,0 +1,2 @@
+ivtest/ivltests/sv_chandle_assignment_incompatible_fail.v:5: error: chandles shall not be assigned to variables of any other type (IEEE 1800-2017/2023 6.14, 6.22.5).
+Elaboration failed
