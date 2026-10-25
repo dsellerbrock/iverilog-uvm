@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "issue1472_constant_class_array_oob_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold" : "issue1472_constant_class_array_oob"
+}

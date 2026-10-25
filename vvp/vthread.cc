@@ -5124,7 +5124,7 @@ class randomize_graph_session_t {
                         objects.push_back(entry.hold);
       }
 
-      void rollback()
+      void rollback(bool restore_rng = true)
       {
             while (!pending_randc_.empty()) {
                   pending_randc_.back()->randc_transaction_rollback();
@@ -5133,7 +5133,8 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
-		  (void)it->cobj->rng_set_state(it->rng_state);
+		  if (restore_rng)
+			(void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -5142,6 +5143,20 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_static_value_s>::reverse_iterator it =
 		       static_values_.rbegin(); it != static_values_.rend(); ++it)
 		  it->defn->static_randomize_transaction_rollback(it->pid);
+      }
+
+      std::vector<std::string> rng_states() const
+      {
+            std::vector<std::string> states;
+            for (const randomize_graph_entry_s&entry : entries_)
+                  states.push_back(entry.cobj->rng_get_state());
+            return states;
+      }
+
+      void set_rng_states(const std::vector<std::string>&states)
+      {
+            for (size_t idx = 0; idx < entries_.size() && idx < states.size(); ++idx)
+                  (void)entries_[idx].cobj->rng_set_state(states[idx]);
       }
 
     private:
@@ -6192,12 +6207,13 @@ static bool randomize_free_hook_(vthread_t thr, __vpiScope*&scope);
 static bool randomize_invoke_state_call_(vthread_t thr,
                                         randomize_call_context_s&call);
 
-static bool randomize_staged_finish_(vthread_t thr, bool success)
+static bool randomize_staged_finish_(vthread_t thr, bool success,
+                                     bool keep_rng_advance = false)
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
       if (success) success = state->session.commit();
-      if (!success) state->session.rollback();
+      if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
       call.staged.reset();
@@ -6267,24 +6283,49 @@ static bool randomize_staged_resume_(vthread_t thr)
                   if (call.state_call_pending || !running) return running;
                   if (!call.state_calls_ok) return randomize_staged_finish_(thr, false);
             }
-            auto objects = state->session.solve_objects;
-            for (size_t idx = 0; idx < objects.size(); ++idx) {
-                  auto&object = objects[idx];
-                  object.staged_selection = true;
-                  object.staged_active = stage.active.at(idx);
-                  object.include_class_constraints = false;
-                  object.inherited_ir.clear();
-                  object.extra_ir.clear();
-                  object.planned_class_ir.clear();
-                  object.class_slot_vals = call.state_values[object.object];
+            /* Build the object vector for the current priority set. With
+             * independent_only, omit items whose outcome depends on an
+             * earlier set (item.ordered, set by vvp_z3_plan_function_stages);
+             * that subset is used only to classify a failure. */
+            auto build_stage_objects = [&](bool independent_only) {
+                  auto staged_objects = state->session.solve_objects;
+                  for (size_t idx = 0; idx < staged_objects.size(); ++idx) {
+                        auto&object = staged_objects[idx];
+                        object.staged_selection = true;
+                        object.staged_active = stage.active.at(idx);
+                        object.include_class_constraints = false;
+                        object.inherited_ir.clear();
+                        object.extra_ir.clear();
+                        object.planned_class_ir.clear();
+                        object.class_slot_vals = call.state_values[object.object];
+                  }
+                  for (const auto&item : stage.items) {
+                        if (independent_only && item.ordered) continue;
+                        auto&object = staged_objects.at(item.object);
+                        if (item.class_ir) object.planned_class_ir.push_back(item.ir);
+                        else object.extra_ir.push_back(item.ir);
+                  }
+                  return staged_objects;
+            };
+            auto objects = build_stage_objects(false);
+            if (!vvp_z3_randomize_graph(objects)) {
+                  /* A later priority set failed. If its items that do not
+                   * depend on an earlier set are already infeasible, no earlier
+                   * outcome could help: restore everything including the RNG.
+                   * Otherwise the miss came from the earlier draw: values and
+                   * randc history roll back, but the draw stays consumed.
+                   * shortcut: ordered-only intrinsic conflicts keep the draw;
+                   * upgrade if an earlier-outcome independence proof is added. */
+                  bool keep_advance = false;
+                  if (state->stage > 0) {
+                        std::vector<std::string> after_failed =
+                              state->session.rng_states();
+                        keep_advance = vvp_z3_randomize_graph(
+                              build_stage_objects(true));
+                        state->session.set_rng_states(after_failed);
+                  }
+                  return randomize_staged_finish_(thr, false, keep_advance);
             }
-            for (const auto&item : stage.items) {
-                  auto&object = objects.at(item.object);
-                  if (item.class_ir) object.planned_class_ir.push_back(item.ir);
-                  else object.extra_ir.push_back(item.ir);
-            }
-            if (!vvp_z3_randomize_graph(objects))
-                  return randomize_staged_finish_(thr, false);
             state->stage += 1;
             state->next_call = 0;
       }
@@ -34292,12 +34333,7 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
-      if (!net) {
-	      /* Out-of-range index: nothing to wait on. Treat like an
-		 immediately-false wait so the thread does not hang
-		 forever on a malformed index. */
-	    return true;
-      }
+      if (!net) net = event_array_null_net();
 
       if (thr->i_am_in_function)
 	    thr->i_am_in_function = 0;

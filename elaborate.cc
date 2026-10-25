@@ -9989,6 +9989,98 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out)
 {
+	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+	  if (ident && !ident->path().name.empty()) {
+	      const list<index_component_t>&indices =
+		    ident->path().name.back().index;
+	      if (indices.size() == 1
+		  && (indices.front().sel == index_component_t::SEL_IDX_UP
+		      || indices.front().sel == index_component_t::SEL_IDX_DO)) {
+		    symbol_search_results sr;
+		    if (symbol_search(&loc, des, scope, ident->path(),
+				      ident->lexical_pos(), &sr)
+			&& sr.net && sr.path_tail.empty()
+			&& sr.net->unpacked_dimensions() == 1) {
+			  const index_component_t&select = indices.front();
+			  NetExpr*base = elab_and_eval(des, scope, select.msb, -1, false);
+			  NetExpr*width = elab_and_eval(des, scope, select.lsb, -1, false);
+			  long width_value = 0;
+			  bool width_ok = width && eval_as_long(width_value, width)
+				&& width_value > 0;
+			  if (!base || !width_ok
+			      || (base->expr_type() != IVL_VT_BOOL
+				  && base->expr_type() != IVL_VT_LOGIC)) {
+				cerr << loc.get_fileline() << ": error: indexed unpacked-array"
+				     << " slice width must be a positive constant and its base"
+				     << " must be integral." << endl;
+				des->errors += 1;
+				delete base;
+				delete width;
+				return -1;
+			  }
+			  delete width;
+
+			  const netrange_t&declared = sr.net->unpacked_dims().front();
+			  NetExpr*low = pad_to_width(base, 128, loc);
+			  if (select.sel == index_component_t::SEL_IDX_DO
+			      && width_value > 1) {
+				NetEConst*offset = new NetEConst(verinum(
+				      static_cast<uint64_t>(width_value - 1), 128));
+				offset->set_line(loc);
+				NetEBAdd*down = new NetEBAdd('-', low, offset, 128, true);
+				down->set_line(loc);
+				low = down;
+			  }
+			  long declared_low = min(declared.get_msb(),
+						  declared.get_lsb());
+			  if (declared_low != 0) {
+				NetEConst*origin = make_const_val_s(declared_low);
+				origin->set_line(loc);
+				NetEBAdd*canonical = new NetEBAdd('-', low, origin,
+								  128, true);
+				canonical->set_line(loc);
+				low = canonical;
+			  }
+			  eval_expr(low);
+			  low->set_line(loc);
+			  if (const NetEConst*constant =
+				    dynamic_cast<const NetEConst*>(low)) {
+				if (constant->value().is_defined()) {
+				      long value = 0;
+				      if (!eval_as_long(value, low) || value < 0
+					  || static_cast<unsigned long>(value)
+					       >= sr.net->pin_count()
+					  || static_cast<unsigned long>(width_value)
+					       > sr.net->pin_count()
+						 - static_cast<unsigned long>(value)) {
+					cerr << loc.get_fileline() << ": error: indexed"
+					     << " unpacked-array slice is outside declared"
+					     << " bounds." << endl;
+					des->errors += 1;
+					delete low;
+					return -1;
+			      }
+			      out.canonical_base = value;
+			      delete low;
+			} else {
+			      out.canonical_base_expr = low;
+			}
+			  } else {
+				out.canonical_base_expr = low;
+			  }
+			  out.sig = sr.net;
+			  out.count = static_cast<unsigned long>(width_value);
+			  bool ascending = declared.get_msb() < declared.get_lsb();
+			  out.remaining_dims.push_back(ascending
+				? netrange_t(0, width_value - 1)
+				: netrange_t(width_value - 1, 0));
+			  out.element_type = sr.net->net_type();
+			  out.range_slice = true;
+			  return 1;
+		    }
+	      }
+	  }
+
       fixed_uarray_slice_t range_slice;
       int range_rc = decode_fixed_uarray_slice(
 	    des, scope, loc, pe, false, range_slice);
@@ -10004,7 +10096,7 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 	    return 1;
       }
 
-      const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+      ident = dynamic_cast<const PEIdent*>(pe);
       if (!ident)
 	    return 0;
 
@@ -14402,6 +14494,43 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 			des->errors += 1;
 		  }
 	    }
+      }
+
+      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
+       * is a variable_lvalue. Ordinary system-task argument elaboration
+       * preserves signal l-values, but does not distinguish variables
+       * from nets. Check the resulting l-value tree before passing it to
+       * the VPI task. */
+      const bool pla_task =
+	   name == "$async$and$array" || name == "$async$nand$array"
+	|| name == "$async$or$array" || name == "$async$nor$array"
+	|| name == "$async$and$plane" || name == "$async$nand$plane"
+	|| name == "$async$or$plane" || name == "$async$nor$plane"
+	|| name == "$sync$and$array" || name == "$sync$nand$array"
+	|| name == "$sync$or$array" || name == "$sync$nor$array"
+	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
+	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      if (pla_task && parm_count == 3 && eparms[2]) {
+	  std::function<bool(const NetExpr*)> variable_lvalue =
+		[&variable_lvalue](const NetExpr*expr) -> bool {
+		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+			NetNet::Type type = sig->sig()->type();
+			return type == NetNet::REG || type == NetNet::IMPLICIT_REG;
+		  }
+		  if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+			return variable_lvalue(select->sub_expr());
+		  if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+			for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
+			      if (!variable_lvalue(concat->parm(idx))) return false;
+			return concat->nparms() != 0;
+		  }
+		  return false;
+		};
+	  if (!variable_lvalue(eparms[2])) {
+		  cerr << parms_[2].get_fileline() << ": error: argument 3 of "
+		       << name << " must be a variable lvalue." << endl;
+		  des->errors += 1;
+	  }
       }
 
       if (name == "$cast" && parm_count == 2) {

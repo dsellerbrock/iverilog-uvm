@@ -1,0 +1,2 @@
+./ivltests/pla_output_net_fail_2017.v:5: error: argument 3 of $async$and$array must be a variable lvalue.
+1 error(s) during elaboration.

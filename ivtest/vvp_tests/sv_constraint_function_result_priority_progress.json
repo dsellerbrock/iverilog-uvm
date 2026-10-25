@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_result_priority_progress.v",
+    "iverilog-args": ["-g2017", "-s", "test"]
+}

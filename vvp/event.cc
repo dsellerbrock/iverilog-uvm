@@ -2463,6 +2463,16 @@ vvp_net_t* event_array_slot_net(uint32_t slot)
       return net;
 }
 
+vvp_net_t* event_array_null_net()
+{
+      static vvp_net_t*net = 0;
+      if (!net) {
+	    net = new vvp_net_t;
+	    net->fun = new vvp_named_event_dyn;
+      }
+      return net;
+}
+
 void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
