@@ -2455,6 +2455,8 @@ struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
       size_t property_idx;
+      unsigned msb;
+      unsigned lsb;
       const LineInfo*location;
 };
 
@@ -2759,6 +2761,47 @@ static bool interface_member_static_binding_(const NetAssign_*lval,
       return true;
 }
 
+/* Return the statically selected bit range of an interface variable
+ * continuous-assignment l-value. A missing part-select denotes the complete
+ * packed member; an explicit select is already expressed as a canonical bit
+ * offset by l-value elaboration. */
+static bool interface_member_static_range_(const NetAssign_*lval,
+					   unsigned member_width,
+					   unsigned&msb, unsigned&lsb)
+{
+      if (!lval || member_width == 0)
+	    return false;
+
+      lsb = 0;
+      unsigned width = lval->lwidth();
+      if (const NetExpr*base = lval->get_base()) {
+	    unique_ptr<NetExpr>base_value(base->dup_expr());
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(base_value.get());
+	    if (!constant) {
+		  unsigned saved_opt_const_func = opt_const_func;
+		  opt_const_func = std::max(opt_const_func, 2u);
+		  NetExpr*folded = base_value.release();
+		  eval_expr(folded, -1);
+		  base_value.reset(folded);
+		  opt_const_func = saved_opt_const_func;
+		  constant = dynamic_cast<const NetEConst*>(base_value.get());
+	    }
+	    if (!constant || !constant->value().is_defined())
+		  return false;
+	    unsigned long offset = constant->value().as_ulong();
+	    if (offset > member_width || width > member_width - offset)
+		  return false;
+	    lsb = static_cast<unsigned>(offset);
+      } else if (width != member_width) {
+	    return false;
+      }
+      if (width == 0 || width > member_width - lsb)
+	    return false;
+      msb = lsb + width - 1;
+      return true;
+}
+
 /* A virtual clocking-output drive writes generated buffer, pending-mask and
  * kick properties. The buffer and pending mask belong to one raw clockvar;
  * the kick alone is only an event trigger. Match the defining clocking
@@ -3049,14 +3092,14 @@ static void finalize_interface_continuous_drivers_(Design*des)
       }
       pending_interface_continuous_drivers_.clear();
 
-	/* A continuous assignment to a variable has one driver. Interface
-	 * property lowering is behavioral and therefore cannot use the ordinary
-	 * elaborate_lnet conversion to an unresolved wire. Reserve the bound
-	 * member's complete packed word here, after port binding, so aliases
-	 * through separate module ports still collide on the concrete signal.
+	/* Interface variable property lowering is behavioral and therefore cannot
+	 * use the ordinary elaborate_lnet conversion to an unresolved wire.
+	 * Reserve the bound member's selected packed bits here, after port binding,
+	 * so aliases through separate module ports still collide on the concrete signal.
 	 * An unbound simulation root has no concrete member signal, so retain a
 	 * parallel key set to diagnose multiple drivers on that formal member. */
-      set<tuple<const NetNet*,unsigned,size_t> >unbound_root_drivers;
+      set<tuple<const NetNet*,unsigned,size_t,unsigned> >
+	    unbound_root_driver_bits;
       for (const pending_interface_variable_continuous_driver_t&pending :
 	   pending_interface_variable_continuous_drivers_) {
 	    const NetNet*unbound_root = 0;
@@ -3065,9 +3108,14 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  pending.port_word, pending.property_idx,
 		  &unbound_root, &unbound_word);
 	    if (!member && unbound_root) {
-		  tuple<const NetNet*,unsigned,size_t>key(
-			unbound_root, unbound_word, pending.property_idx);
-		  if (!unbound_root_drivers.insert(key).second) {
+		  bool overlap = false;
+		  for (unsigned bit = pending.lsb; bit <= pending.msb; bit += 1) {
+			tuple<const NetNet*,unsigned,size_t,unsigned>key(
+			      unbound_root, unbound_word, pending.property_idx, bit);
+			overlap = !unbound_root_driver_bits.insert(key).second
+			      || overlap;
+		  }
+		  if (overlap) {
 			const netclass_t*interface_type =
 			      dynamic_cast<const netclass_t*>(
 				    unbound_root->net_type());
@@ -3095,12 +3143,12 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  continue;
 	    }
 
-	    unsigned msb = member->vector_width() - 1;
 	    const netclass_t*interface_type = dynamic_cast<const netclass_t*>(
 		  pending.port->net_type());
 	    bool property_writer = interface_member_has_property_writer_(
 		  member, interface_type);
-	    if (member->test_part_procedurally_driven(msb, 0, 0)
+	    if (member->test_part_procedurally_driven(
+		  pending.msb, pending.lsb, 0)
 		|| property_writer) {
 	      if (gn_commercial_unsafe_flag && !property_writer
 		  && member->scope() && member->scope()->is_interface())
@@ -3116,14 +3164,15 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		continue;
 	      }
 	    }
-	    if (member->test_part_driven(msb, 0, 0)) {
+	    if (member->test_part_driven(pending.msb, pending.lsb, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable "
 		       << "interface member `" << member->name()
 		       << "' cannot have multiple drivers." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
-	    bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+	    bool overlap = member->test_and_set_part_driver(
+		  pending.msb, pending.lsb, 0);
 	    ivl_assert(*pending.location, !overlap);
       }
       pending_interface_variable_continuous_drivers_.clear();
@@ -3759,25 +3808,28 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			NetNet*port = 0;
 			unsigned port_word = 0;
 			size_t property_idx = 0;
-			bool complete_packed_member =
+			unsigned driven_msb = 0;
+			unsigned driven_lsb = 0;
+			bool packed_member =
 			      !property_lval->word()
-			      && !property_lval->get_base()
 			      && declaration.type
 			      && !dynamic_cast<const netuarray_t*>(declaration.type)
 			      && !dynamic_cast<const netdarray_t*>(declaration.type)
 			      && !dynamic_cast<const netqueue_t*>(declaration.type)
-			      && type_is_vectorable(declaration.type->base_type())
-			      && property_lval->lwidth()
-				 == declaration.type->packed_width();
-			bool static_binding = complete_packed_member
+			      && type_is_vectorable(declaration.type->base_type());
+			bool static_range = packed_member
+			      && interface_member_static_range_(property_lval.get(),
+					 declaration.type->packed_width(),
+					 driven_msb, driven_lsb);
+			bool static_binding = static_range
 			      && interface_member_static_binding_(
 				    property_lval.get(), port, port_word,
 				    property_idx);
 			if (!static_binding) {
 			      cerr << get_fileline() << ": sorry: A continuous "
 				   << "assignment to an interface variable member "
-				      "currently requires one statically bound "
-				      "complete packed member." << endl;
+				      "currently requires one statically bound packed "
+				      "member or constant part-select." << endl;
 			      des->errors += 1;
 			      delete_unique_delays_(
 				    rise_time, fall_time, decay_time);
@@ -3790,7 +3842,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      const_cast<PExpr*>(pin(1)), nullptr, true);
 			if (ok) {
 			      pending_interface_variable_continuous_driver_t pending = {
-				    port, port_word, property_idx, this
+				    port, port_word, property_idx,
+				    driven_msb, driven_lsb, this
 			      };
 			      pending_interface_variable_continuous_drivers_.push_back(
 				    pending);
