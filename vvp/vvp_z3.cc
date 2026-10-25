@@ -15366,13 +15366,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    if (changed) {
-		  static bool warned_cycle = false;
-		  if (!warned_cycle) {
-			fprintf(stderr, "Warning: cyclic solve...before"
-				" ordering; directive ignored (further"
-				" similar warnings suppressed)\n");
-			warned_cycle = true;
-		  }
+		  return fail_joint("cyclic solve-before ordering");
 	    } else {
 		  unsigned max_rank = 0;
 		  for (const auto& rv : rank)
