@@ -4709,7 +4709,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   Track initializer, function argument/return, procedural assign, and force
   separately if they remain actionable after #763.
 
-### DD-140 — associative `find_index` on struct values aborts code generation
+### DD-141 — associative `find_index` on struct values aborts code generation
 
 - **Discovered while working:** M9 #854, while qualifying custom iterator-index
   lookup for struct array items.
