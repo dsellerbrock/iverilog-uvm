@@ -5932,3 +5932,5 @@ sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltes
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
+sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold

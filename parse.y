@@ -9159,6 +9159,18 @@ sva_seq_atom
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
+  /* IEEE 1800-2017/2023 16.10: a match item can be attached to a
+     parenthesized syntactic subsequence, including a cycle-delayed chain.
+     The assignment belongs to the endpoint, so retain the parsed chain and
+     attach it to its final step. */
+  | '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
+      { if (!$2->empty()) {
+	    sva_seq_step_t&st = $2->back();
+	    st.lv_name = lex_strings.make($4);
+	    st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	  } else delete $6;
+	delete[] $4;
+	$$ = $2; }
   /* IEEE 1800-2017/2023 16.10: increment/decrement expressions are
      sequence match items. Lower them to the resulting local-variable value
      so the update uses the value carried by this assertion attempt. */

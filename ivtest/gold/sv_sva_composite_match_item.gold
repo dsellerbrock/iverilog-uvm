@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_sva_composite_match_item.v:20: $finish called at 40 (1s)
