@@ -1,0 +1,7 @@
+{
+    "__comment"     : "IEEE 1800-2023 clause 23.10.4.2 requires an error when early and final defparam name resolution differ.",
+    "type"          : "CE",
+    "source"        : "sv_defparam_early_resolution_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "m" ],
+    "gold"          : "sv_defparam_early_resolution_fail"
+}

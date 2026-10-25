@@ -24872,6 +24872,14 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());
 	    canon_index = normalize_variable_unpacked(net, unpacked_indices_const);
+	    if (!canon_index && net->unpacked_count() > 0
+		&& !net->darray_type() && !net->queue_type()) {
+		  /* A constant out-of-range read still needs an index expression.
+		   * Use the first canonical address beyond the fixed array so the
+		   * normal runtime array load returns that element type's default
+		   * value (IEEE 1800-2017 7.4.6 / 2023 7.4.5, Table 7-1). */
+		  canon_index = new NetEConst(verinum((uint64_t)net->unpacked_count(), 32));
+	    }
       }
 
       ivl_assert(*this, canon_index);

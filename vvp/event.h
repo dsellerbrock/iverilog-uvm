@@ -657,6 +657,9 @@ class vvp_named_event_dyn : public vvp_named_event {
  */
 extern class vvp_net_t* event_array_slot_net(uint32_t slot);
 
+/* The null event used when an event-array read has an invalid index. */
+extern class vvp_net_t* event_array_null_net();
+
 extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
                               char*root,
                               unsigned root_word, unsigned member,

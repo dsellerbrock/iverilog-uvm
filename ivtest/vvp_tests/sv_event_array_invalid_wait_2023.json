@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_event_array_invalid_wait.v",
+  "iverilog-args": ["-g2023", "-s", "sv_event_array_invalid_wait"],
+  "gold": "sv_event_array_invalid_wait_2023"
+}
