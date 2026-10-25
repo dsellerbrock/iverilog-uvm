@@ -34249,12 +34249,7 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
-      if (!net) {
-	      /* Out-of-range index: nothing to wait on. Treat like an
-		 immediately-false wait so the thread does not hang
-		 forever on a malformed index. */
-	    return true;
-      }
+      if (!net) net = event_array_null_net();
 
       if (thr->i_am_in_function)
 	    thr->i_am_in_function = 0;
