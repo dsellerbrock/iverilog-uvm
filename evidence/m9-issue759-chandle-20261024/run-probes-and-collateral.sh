@@ -40,7 +40,8 @@ run_probe() {
         case "$name" in
             rhs_chandle_to_int|rhs_chandle_to_bits|rhs_chandle_to_longint|\
             rhs_chandle_to_real|rhs_chandle_to_string|\
-            rhs_chandle_class_property|rhs_chandle_class_method)
+            rhs_chandle_class_property|rhs_chandle_class_method|\
+            compound_chandle_to_int)
                 if [[ "$MODE" == baseline ]]; then
                     [[ $compile_rc -eq 0 && $run_rc -eq 0 ]] || exit 1
                 else
@@ -82,6 +83,8 @@ legacy_tests=(
 json_tests=(
     sv_chandle_assignment_incompatible_fail_2017
     sv_chandle_assignment_incompatible_fail_2023
+    sv_chandle_compound_assignment_incompatible_fail_2017
+    sv_chandle_compound_assignment_incompatible_fail_2023
     sv_chandle_nb_assignment_incompatible_fail_2017
     sv_chandle_nb_assignment_incompatible_fail_2023
     sv_class_static_fixed_array_container_element_read_fail

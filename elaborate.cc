@@ -8774,6 +8774,11 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+	    delete lv;
+	    return 0;
+      }
+
 	// IEEE 1800-2017 6.19.4: using an enum in a numerical expression
 	// converts it to its base integral type. A compound assignment is
 	// equivalent to reading the l-value, applying the binary operator and
