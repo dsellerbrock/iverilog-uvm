@@ -3492,6 +3492,24 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetExpr*> &pdefs,
 				     vector<perm_string> &port_names) const
 {
+      bool automatic_lifetime = false;
+      if (const PTask*task = dynamic_cast<const PTask*>(this))
+	    automatic_lifetime = task->is_auto();
+      else if (const PFunction*func = dynamic_cast<const PFunction*>(this))
+	    automatic_lifetime = func->is_auto();
+
+      if (!automatic_lifetime && !method_of() && ports_) {
+	    for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+		  NetNet*port = scope->find_signal(ports_->at(idx).port->basename());
+		  if (port && port->port_type() == NetNet::PREF) {
+			cerr << port->get_fileline() << ": error: Argument passing by reference "
+			     << "is illegal for a subroutine with static lifetime "
+			     << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+			des->errors += 1;
+		  }
+	    }
+      }
+
       if (ports_ == 0) {
 	    ports.clear();
 	    pdefs.clear();
@@ -3571,10 +3589,28 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * expression such as (UVM_LOG | UVM_RM_RECORD) then had a
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
+				      bool old_procedural_context =
+					    pform_procedural_expr_context;
+				      bool old_default_context = pform_default_argument_context;
+				      bool old_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = true;
+				      pform_default_argument_context = true;
+				      pform_default_argument_requires_procedural_context = false;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
+				      if (tmp_def
+					  && pform_default_argument_requires_procedural_context)
+					    tmp_def->mark_requires_procedural_context();
+				      bool default_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = old_procedural_context;
+				      pform_default_argument_context = old_default_context;
+				      pform_default_argument_requires_procedural_context =
+					    old_requires_procedural_context
+					    || default_requires_procedural_context;
 				} else {
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,
@@ -3587,6 +3623,10 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
+		  } else if (tmp->port_type() == NetNet::PREF) {
+			/* A ref default is an lvalue, not a value to copy into the
+			 * formal. Keep its parse form on the subroutine declaration;
+			 * the call site binds it in this declaration scope. */
 		  } else {
 			cerr << get_fileline() << ": sorry: Default arguments "
 			        "for subroutine output or inout ports are not "

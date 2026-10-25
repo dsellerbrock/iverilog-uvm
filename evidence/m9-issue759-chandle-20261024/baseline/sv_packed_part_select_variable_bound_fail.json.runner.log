@@ -1,0 +1,6 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/tmp.NkFG02pIWm/sv_packed_part_select_variable_bound_fail.json.list
+----------------------------------------------------------------------------
+sv_packed_part_select_variable_bound_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.

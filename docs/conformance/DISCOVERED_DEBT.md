@@ -4680,3 +4680,31 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** unverified; no runtime or compiler failure is claimed.
 - **Triage status:** follow-up candidate; confirm with a nested-array const-ref
   probe before changing the separate ref-actual path.
+
+### DD-139 — other chandle use contexts remain outside #759
+
+- **Discovered while working:** #759 / M9 culprit PR #1064 (2026-10-24).
+- **Observation:** The #759 fix covers blocking and nonblocking procedural
+  assignment from an unselected chandle identifier to a non-chandle variable.
+  Selected or indexed RHS identifiers are deliberately not type-probed and are
+  outside the verified subset.
+  On main `47177e047`, both editions accepted `int i; chandle ch;
+  initial i <= ch;`. Both editions also compiled and ran probes for chandle
+  use in a variable initializer, int function argument/return, event control,
+  continuous assignment, procedural `assign`/`deassign`, and `force`/`release`.
+  The function probes checked compile/run status, not returned values.
+- **File/function:** assignment type checks in `elaborate.cc`; neighboring
+  contexts use separate declaration, call, return, event, continuous-driver,
+  procedural-driver, and force paths.
+- **Possible clause:** IEEE 1800-2017/2023 §6.14 and §6.22.5. Continuous
+  assignments and event controls are separately covered by open issue #763;
+  the compound form `i += ch` is also covered by #763.
+- **Evidence:** `evidence/m9-issue759-chandle-20261024/baseline-edge-probes/`
+  and the original blocking-assignment baseline in
+  `evidence/m9-issue759-chandle-20261024/baseline/`.
+- **Reproducer status:** confirmed on main in both editions; #759's blocking
+  and nonblocking forms are fixed together. Chandle-to-chandle/null NBA
+  assignments compile and run in the same matrix.
+- **Triage status:** adjacent forms are recorded only; do not expand #759.
+  Track initializer, function argument/return, procedural assign, and force
+  separately if they remain actionable after #763.

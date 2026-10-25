@@ -45,6 +45,7 @@
 # include  <tuple>
 # include  "pform.h"
 # include  "PClass.h"
+# include  "PTask.h"
 # include  "PEvent.h"
 # include  "PGenerate.h"
 # include  "PModport.h"
@@ -8349,6 +8350,36 @@ NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const
       return 0;
 }
 
+bool PAssign_::reject_chandle_assignment_(Design*des, NetScope*scope,
+					  ivl_type_t target_type) const
+{
+      if (!gn_system_verilog() || is_init_ || continuous_lval_
+	  || !target_type || target_type == &netvector_t::chandle_type)
+	    return false;
+
+      const PEIdent*source = dynamic_cast<const PEIdent*>(rval());
+      if (!source || source->leading_type_args()
+	  || source->path().name.empty())
+	    return false;
+      for (const auto&component : source->path().name) {
+	    if (!component.index.empty())
+		  return false;
+      }
+
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+	    return true;
+      if (source->test_type_of_ident(des, rval_scope)
+	  != &netvector_t::chandle_type)
+	    return false;
+
+      cerr << get_fileline() << ": error: chandles shall not be assigned "
+	   << "to variables of any other type (IEEE 1800-2017/2023 "
+	   << "6.14, 6.22.5)." << endl;
+      des->errors += 1;
+      return true;
+}
+
 /*
  * A constant assignment is normally reduced by elab_and_eval to one of the
  * scalar constant nodes below. Class-handle null is also a constant value,
@@ -8743,6 +8774,11 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+	    delete lv;
+	    return 0;
+      }
 
 	// IEEE 1800-2017 6.19.4: using an enum in a numerical expression
 	// converts it to its base integral type. A compound assignment is
@@ -10810,6 +10846,12 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       NetProc*indexed_slice_prelude = nullptr;
       const ivl_type_s*lv_net_type = lv->net_type();
 
+      if (reject_chandle_assignment_(des, scope, lv_net_type)) {
+	    delete lv;
+	    delete delay;
+	    return 0;
+      }
+
       const PEStreaming*stream_rval =
 	    dynamic_cast<const PEStreaming*>(rval());
       const bool dynamic_stream_target = stream_rval
@@ -12062,27 +12104,32 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+            delete lv;
+            return 0;
+      }
+
       // IEEE 1800-2017/2023 6.21 forbids nonblocking writes to elements
       // of dynamically sized arrays. The automatic-allocation check above
       // does not catch a module-scope dynamic array, so inspect the
       // elaborated storage and selected word here.
-	const netdarray_t*target_darray = lv->sig()
-	      ? lv->sig()->darray_type() : nullptr;
-	if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
-	      const netclass_t*target_class =
-		    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
-	      if (target_class)
-		    target_darray = dynamic_cast<const netdarray_t*>(
-			  target_class->get_prop_type(
-				(size_t)lv->get_property_idx()));
-	}
+        const netdarray_t*target_darray = lv->sig()
+              ? lv->sig()->darray_type() : nullptr;
+        if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
+              const netclass_t*target_class =
+                    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+              if (target_class)
+                    target_darray = dynamic_cast<const netdarray_t*>(
+                          target_class->get_prop_type(
+                                (size_t)lv->get_property_idx()));
+        }
       if (lv->word() && target_darray && !lv->sig()->queue_type()) {
-	    cerr << get_fileline() << ": error: elements of dynamically sized "
-		 "arrays may not be assigned values using non-blocking "
-		 "assignments (IEEE 1800 6.21)." << endl;
-	    des->errors += 1;
-	    delete lv;
-	    return 0;
+            cerr << get_fileline() << ": error: elements of dynamically sized "
+                 "arrays may not be assigned values using non-blocking "
+                 "assignments (IEEE 1800 6.21)." << endl;
+            des->errors += 1;
+            delete lv;
+            return 0;
       }
 
 	/* A fixed unpacked-array property slice needs a persistent receiver and
@@ -17963,7 +18010,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  else if (method_name == perm_string::literal("await"))
 			sys_task_name = "$ivl_process$await";
 		  else if (method_name == perm_string::literal("suspend"))
-			sys_task_name = "$ivl_process$suspend";
+			sys_task_name = generation_flag >= GN_VER2023
+			    ? "$ivl_process$suspend$2023" : "$ivl_process$suspend";
 		  else
 			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
@@ -19156,11 +19204,34 @@ static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
  * the port.
  */
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
+					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
 					unsigned argno,
 					NetNet**via) const
 {
       *via = 0;
+
+      /* An omitted ref actual is the declaration's default lvalue. Resolve
+	 it at the subroutine declaration, while explicit actuals remain in
+	 the caller's scope. */
+      NetScope*actual_scope = scope;
+      if (actual == 0) {
+	    const PTaskFunc*subroutine = default_scope->task_pform();
+	    if (!subroutine) subroutine = default_scope->func_pform();
+	    const vector<pform_tf_port_t>*ports = subroutine
+		  ? subroutine->peek_ports() : 0;
+	    if (ports) {
+		  for (const pform_tf_port_t&declared_port : *ports) {
+			if (!declared_port.port
+			    || declared_port.port->basename() != port->name())
+			      continue;
+			actual = declared_port.defe;
+			if (actual)
+			      actual_scope = default_scope;
+			break;
+		  }
+	    }
+      }
 
       if (actual == 0) {
 	    cerr << get_fileline() << ": error: "
@@ -19192,7 +19263,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (NetAssign_*lv = actual->elaborate_lval(
-				des, scope, false, false, false,
+				des, actual_scope, false, false, false,
 				port->get_const())) {
 	    if (port->get_ref_static()
 		&& !ref_static_actual_is_static_lifetime(lv)) {
@@ -19873,7 +19944,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 frame allocation and the call. */
 	    if (ref_formal_is_bound(port)) {
 		  NetNet*via = 0;
-		  NetProc*bind = elaborate_ref_bind_(des, scope, port,
+		  NetProc*bind = elaborate_ref_bind_(
+				des, scope, const_cast<NetScope*>(def->scope()), port,
 						     args[parms_idx], idx,
 						     &via);
 		  if (bind)
@@ -20718,6 +20790,7 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
+      PExprProceduralContextGuard procedural_context(false);
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
       if (rexp == 0)
 	    return 0;
@@ -22483,6 +22556,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
       ivl_assert(*this, scope);
+
+	// Event expressions are not procedural statement expressions, even when
+	// the event control itself appears inside an initial/always statement.
+      PExprProceduralContextGuard procedural_context(false);
 
       if (scope->in_func()) {
 	    cerr << get_fileline() << ": error: functions cannot have "
@@ -26534,7 +26611,10 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 			statement_->dump(cerr, 2);
 		  }
 	    }
-	    st = statement_->elaborate(des, scope);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, scope);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": error: Unable to elaborate "
 			  "statement in function " << scope->basename() << "." << endl;
@@ -26855,7 +26935,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
       } else {
-	    st = statement_->elaborate(des, task);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, task);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": Unable to elaborate "
 			"statement in task " << scope_path(task)
@@ -27123,7 +27206,11 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
       scope->in_final(type() == IVL_PR_FINAL);
-      NetProc*cur = statement_->elaborate(des, scope);
+      NetProc*cur;
+      {
+	    PExprProceduralContextGuard procedural_context(true);
+	    cur = statement_->elaborate(des, scope);
+      }
       scope->in_final(false);
       if (cur == 0) {
 	    return false;
@@ -44896,6 +44983,32 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_indexes.reserve(cross.cp_labels.size());
 			  bool resolved = true;
 			  for (perm_string cp_label : cross.cp_labels) {
+				/* IEEE 1800-2017/2023 19.6: a cross cannot
+				 * reach through a covergroup handle to use one of
+				 * that other group's coverpoints. Hierarchical
+				 * member expressions remain supported for ordinary
+				 * packed-struct cross items. */
+				for (const auto&cp : cgdef->coverpoints) {
+				      if (cp.label != cp_label) continue;
+				      const PEIdent*id =
+					    dynamic_cast<const PEIdent*>(cp.expr);
+				      if (!id || id->path().name.size() < 2) break;
+				      perm_string root_name = id->path().name.front().name;
+				      NetNet*root = nullptr;
+				      for (NetScope*scope = class_scope_; scope && !root;
+					   scope = scope->parent())
+					    root = scope->find_signal(root_name);
+				      const netclass_t*root_type = root
+					    ? dynamic_cast<const netclass_t*>(root->net_type())
+					    : nullptr;
+				      if (root_type && root_type->is_covergroup()) {
+					    cerr << cp.expr->get_fileline()
+						 << ": error: cross item refers to a coverpoint in a different "
+						    "covergroup." << endl;
+					    des->errors += 1;
+				      }
+				      break;
+				}
 				int found = -1;
 				for (size_t i = 0;
 				     i < cgdef->coverpoints.size(); i++) {

@@ -19,6 +19,9 @@
  */
 
 # include "config.h"
+bool pform_procedural_expr_context = false;
+bool pform_default_argument_context = false;
+bool pform_default_argument_requires_procedural_context = false;
 # include  <algorithm>
 # include  <utility>
 # include  <typeinfo>
@@ -409,6 +412,28 @@ static NetNet* std_randomize_fixed_array_arg_(const PExpr*arg,
       return base == IVL_VT_BOOL || base == IVL_VT_LOGIC ? net : nullptr;
 }
 
+/* IEEE 1800-2017/2023 18.12 defines the argument list as variable
+ * identifiers. Do this syntactic check before elaborating values so a
+ * computed expression cannot be accepted as a destination by either the
+ * simple or solver-backed scope-randomize path. */
+static bool std_randomize_args_are_variables_(
+		const vector<named_pexpr_t>&parms, Design*des)
+{
+      for (const named_pexpr_t&parm : parms) {
+	    if (parm.parm && dynamic_cast<const PEIdent*>(parm.parm))
+		  continue;
+	    if (parm.parm && dynamic_cast<const PENull*>(parm.parm))
+		  continue;
+	    const LineInfo*loc = parm.parm;
+	    cerr << (loc ? loc->get_fileline() : "<unknown>")
+		 << ": error: arguments to scope randomize() must be variables "
+		 << "(IEEE 1800-2017/2023 18.12)." << endl;
+	    if (des) des->errors += 1;
+	    return false;
+      }
+      return true;
+}
+
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
@@ -454,6 +479,7 @@ NetESFunc* make_std_randomize_simple_expr(
       const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
       const LineInfo*loc)
 {
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       vector<NetExpr*> args;
       for (const named_pexpr_t&parm : parms) {
@@ -531,6 +557,7 @@ NetESFunc* make_std_randomize_with_expr(
       static const vector<perm_string> no_identifiers;
       const vector<perm_string>&effective_identifiers =
 	    has_with_identifier_list ? no_identifiers : with_identifiers;
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       if (has_with_identifier_list) {
 	    cerr << loc->get_fileline() << ": error: A parenthesized lookup "
@@ -17963,6 +17990,32 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 13.4: output, inout, and non-const ref
+	 * function arguments are only legal in a procedural statement. A
+	 * const ref formal is explicitly permitted in other expressions. */
+	  bool bad_direction = false;
+	  for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+		const NetNet*formal = def->port(idx);
+		if (formal->port_type() == NetNet::POUTPUT
+		    || formal->port_type() == NetNet::PINOUT
+		    || (formal->port_type() == NetNet::PREF
+			&& !formal->get_const())) {
+		      bad_direction = true;
+		      break;
+		}
+	  }
+	  if (bad_direction && pform_default_argument_context) {
+		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && !pform_procedural_expr_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments may only be called"
+			  " in a procedural statement (IEEE 1800-2017/2023 13.4)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+      }
+
       bool need_const = NEED_CONST & flags;
 
 	// Function expressions need the body materialized before target
@@ -18439,6 +18492,17 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			     << ": " << *parms[idx] << endl;
 
 	    } else if (def->port_defe(pidx)) {
+		  if (def->port_defe(pidx)->requires_procedural_context()
+		      && !pform_procedural_expr_context) {
+			cerr << get_fileline() << ": error: Default argument for function `"
+			     << def->scope()->basename()
+			     << "' contains a function with output, inout, or ref arguments; "
+				"the call must be within a procedural statement "
+				"(IEEE 1800-2017/2023 13.4/13.5.3)." << endl;
+			des->errors += 1;
+			parm_errors += 1;
+			continue;
+		  }
 		  if (! gn_system_verilog()) {
 			cerr << get_fileline() << ": internal error: "
 			     << "Found (and using) default function argument "

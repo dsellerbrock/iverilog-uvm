@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_clocking_input_sample.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_assert_clocking_input_sample"],
+  "gold": "sv_assert_clocking_input_sample"
+}

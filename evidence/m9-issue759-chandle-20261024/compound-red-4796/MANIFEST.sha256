@@ -1,0 +1,8 @@
+f3691a088f2712c3263e64ed3bfa9129fcb3af0889c912e8dd278f234d70c93a  summary.tsv  # 2026-10-24 23:04:43 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  compound_chandle_to_int-2017.compile.log  # 2026-10-24 23:04:43 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  compound_chandle_to_int-2017.run.log  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  compound_chandle_to_int-2023.compile.log  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  compound_chandle_to_int-2023.run.log  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+f2b679d2374d52439c1b292756b76b67eac3c5076621d6998fbc5886bdf25bca  run.meta  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  exit.code  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions
+be210046bc4d7ce4476fc5ddefe65bfe1ae491cccb04c269a7d709024b485558  time.txt  # 2026-10-24 23:04:47 pre-fix compound-assignment regression; expected CE, compiler accepted both editions

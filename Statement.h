@@ -163,6 +163,7 @@ class PAssign_  : public Statement {
 
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
+      bool reject_chandle_assignment_(Design*, NetScope*, ivl_type_t) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,
 			       ivl_variable_type_t lv_type,
 			       unsigned lv_width,
@@ -395,6 +396,7 @@ class PCallTask  : public Statement {
 	// Sets *via to a temporary when the actual could not be named
 	// directly, in which case the caller copies through it.
       NetProc*elaborate_ref_bind_(Design*des, NetScope*scope,
+				  NetScope*default_scope,
 				  NetNet*port, PExpr*actual,
 				  unsigned argno, NetNet**via) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,

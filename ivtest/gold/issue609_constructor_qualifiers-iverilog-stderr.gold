@@ -1,0 +1,4 @@
+ivltests/issue609_constructor_qualifiers.sv:2: error: A constructor shall not be declared as static or virtual (IEEE 1800-2017/2023 8.7).
+ivltests/issue609_constructor_qualifiers.sv:7: error: A constructor shall not be declared as static or virtual (IEEE 1800-2017/2023 8.7).
+ivltests/issue609_constructor_qualifiers.sv:12: error: A constructor shall not be declared as static or virtual (IEEE 1800-2017/2023 8.7).
+ivltests/issue609_constructor_qualifiers.sv:19: error: A constructor shall not be declared as static or virtual (IEEE 1800-2017/2023 8.7).

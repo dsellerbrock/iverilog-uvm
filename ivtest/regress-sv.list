@@ -3113,6 +3113,8 @@ sv_fork_function_children_2023 normal,-g2023,-s,main ivltests gold=sv_fork_funct
 
 sv_fork_null_child normal,-g2017,-s,main ivltests gold=sv_fork_null_child.gold
 sv_fork_null_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_null_child.gold
+sv_wait_fork_excludes_descendants_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
+sv_wait_fork_excludes_descendants_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
 sv_fork_empty_child normal,-g2017,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_empty_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
@@ -5933,3 +5935,9 @@ sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltes
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_function_copyout_context_fail_2017 CE,-g2017,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2017.gold
+sv_function_copyout_context_fail_2023 CE,-g2023,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2023.gold
+sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2017.gold
+sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
+sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
+sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
