@@ -12139,6 +12139,18 @@ static Statement* sva_cover_action_(const struct vlltype&loc,
       return sva_block_(loc, v);
 }
 
+/* Cover actions must not hold the checker process while they run. */
+static Statement* sva_cover_spawn_(const struct vlltype&loc,
+				   Statement*pass_stmt)
+{
+      PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+      FILE_NAME(spawn, loc);
+      std::vector<Statement*>child;
+      child.push_back(sva_cover_action_(loc, pass_stmt));
+      spawn->set_statement(child);
+      return spawn;
+}
+
 /* Defined with the multiclock assertion helpers below. NFA endpoint fan-out
    also uses it to dispatch one action/callback for every verdict in a
    same-tick batch. */
@@ -18211,6 +18223,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    if (!implication)
 		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+	  } else if (cover && pass_stmt) {
+		/* Cover pass actions are dispatched with the accepted match, in
+		   Reactive, without delaying the automaton's checker process. */
+		if (match_action) {
+		      std::vector<Statement*>ordered;
+		      ordered.push_back(match_action);
+		      ordered.push_back(pass_stmt);
+		      match_action = sva_block_(loc, ordered);
+		      pass_stmt = nullptr;
+		} else {
+		      match_action = pass_stmt;
+		      pass_stmt = nullptr;
+		}
       }
 
 	/* disable iff: own, else the module default (cloned). */
@@ -18997,12 +19022,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   time cannot delay the checker or suppress another endpoint. Each
 	   child enters Reactive before executing the source-ordered calls. */
       if (cover && match_action) {
-	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
-	    FILE_NAME(spawn, loc);
-	    std::vector<Statement*>child;
-	    child.push_back(sva_cover_action_(loc, match_action));
-	    spawn->set_statement(child);
-	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match), spawn));
+	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match),
+				       sva_cover_spawn_(loc, match_action)));
 	    match_action = nullptr;
       }
 
@@ -26274,14 +26295,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
       if (prop && prop->tree) {
-	    if (kind == 2 && pass_stmt) {
-		  cerr << loc << ": warning: the pass statement of this "
-		       << "`cover property' is not executed (recorded "
-		       << "corner); it is dropped. The match counter "
-		       << "still counts." << endl;
-		  delete pass_stmt;
-		  pass_stmt = nullptr;
-	    }
 	      /* The endpoint-method (.triggered/.matched) lowering must
 	         also cover combinator-tree leaf chains -- the tree
 	         dispatch used to bypass it, leaving the references
@@ -26788,20 +26801,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   assertion to the automaton engine first. It returns true
 	   only when it fully lowered the assertion; false means fall
 	   through to the legacy linear engine below. */
-	/* Neither engine executes a `cover property' pass statement
-	   (the legacy engine keeps only the match counter; the NFA
-	   engine matches it for parity). Dropping one SILENTLY would
-	   hide that — warn loudly. Shared here so both engines behave
-	   identically. */
-      if (kind == 2 && pass_stmt && prop->op_type != 3) {
-	    cerr << loc << ": warning: the pass statement of this "
-		 << "`cover property' is not executed (recorded corner); "
-		 << "it is dropped. The match counter still counts."
-		 << endl;
-	    delete pass_stmt;
-	    pass_stmt = nullptr;
-      }
-
 	/* M9-NFA LV-1/LV-2: lower sequence local variables now, before
 	   EITHER engine. Fixed-delay reads become $past (both engines);
 	   variable-delay reads are left on the steps for the automaton
@@ -27773,6 +27772,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  if (pass_stmt) {
+			PCondit*pm = new PCondit(
+			      sva_clone_expr_(match),
+			      sva_cover_spawn_(loc, pass_stmt), nullptr);
+			FILE_NAME(pm, loc);
+			body.push_back(pm);
+			pass_stmt = nullptr;
+		  }
 	    } else if (negated) {
 		  PCondit*nm = new PCondit(match,
 			increment_failure(), nullptr);
