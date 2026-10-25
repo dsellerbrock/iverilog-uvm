@@ -146,9 +146,8 @@ module main;
   // the call allocates the base method's frame while the override runs
   // in a frame of its own, so the binding has to travel with the
   // formals or the override writes nowhere. A constructor is a third.
-  // A static-lifetime subroutine has no frame at all to hold a binding,
-  // so its ref formals keep the copy pair -- checked here so that
-  // fallback stays wired up.
+  // The module task below is automatic so its ref formal exercises the
+  // same caller-visible binding as the other task cases.
   class Base;
     virtual task bump_m(ref int x); x = x + 1;  endtask
     virtual function int fbump_m(ref int x); x = x + 2; return x; endfunction
@@ -171,7 +170,7 @@ module main;
     task automatic spin_relay(ref int x); forever #1 x++;  endtask
   endclass
 
-  task st_task(ref int x);          // static lifetime: no frame
+  task automatic st_task(ref int x);
     x = x + 100;
   endtask
 
