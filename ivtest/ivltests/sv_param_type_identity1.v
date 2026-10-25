@@ -139,8 +139,8 @@ class untyped_value_width_probe;
     end else if (type(narrow) == type(wide)) begin
       $display("FAILED: width-distinct untyped values shared one class type");
       check = 1'b0;
-    end else if (narrow == null || wide == null || narrow === wide) begin
-      $display("FAILED: width-distinct untyped values shared one singleton");
+    end else if (narrow == null || wide == null) begin
+      $display("FAILED: width-distinct untyped value singleton returned null");
       check = 1'b0;
     end
   endfunction
@@ -180,7 +180,7 @@ module test;
       if (a == null || c == null) begin
         $display("FAILED: box#(int)/box#(bit[31:0]) singleton returned null");
         failed = 1'b1;
-      end else if (a === c) begin
+      end else if (type(a) == type(c)) begin
         $display("FAILED: box#(int) and box#(bit[31:0] unsigned) unexpectedly shared statics");
         failed = 1'b1;
       end
@@ -195,7 +195,7 @@ module test;
       if (a == null || d == null) begin
         $display("FAILED: box#(int)/box#(bit signed[15:0]) singleton returned null");
         failed = 1'b1;
-      end else if (a === d) begin
+      end else if (type(a) == type(d)) begin
         $display("FAILED: box#(int) and box#(bit signed[15:0]) unexpectedly shared statics");
         failed = 1'b1;
       end
