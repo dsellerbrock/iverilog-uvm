@@ -751,6 +751,24 @@ static bool infer_constraint_integral_type_(IRParser&par,
                   return false;
             out.width = (unsigned)(hi - lo + 1); out.sign = false; return true;
       }
+      if (op == "idxpart") {
+            constraint_integral_type_t base, index;
+            uint64_t width = 0, direction = 0, msb = 0, lsb = 0;
+            uint64_t element_width = 0;
+            if (!infer_constraint_integral_type_(par, base)
+                || !infer_constraint_integral_type_(par, index)
+                || !constraint_ir_uint_token_(par.read_token(), width)
+                || !constraint_ir_uint_token_(par.read_token(), direction)
+                || !constraint_ir_uint_token_(par.read_token(), msb)
+                || !constraint_ir_uint_token_(par.read_token(), lsb)
+                || !constraint_ir_uint_token_(par.read_token(), element_width)
+                || !width || !element_width || width > UINT_MAX
+                || element_width > UINT_MAX / width || direction > 1
+                || !par.expect(')')) return false;
+            (void)msb; (void)lsb;
+            out.width = (unsigned)(width * element_width);
+            out.sign = false; return true;
+      }
       if (op == "concat") {
             out.width = 0; out.sign = false;
             while (par.peek() && par.peek() != ')') {
@@ -4672,6 +4690,102 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  return mk_free_bv(b, 1);
 	    }
 	    return Z3_mk_extract(b.ctx, (unsigned)hi, (unsigned)lo, base);
+      }
+
+      if (op == "idxpart") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    Z3_ast base = build_z3_atom(par, b);
+	    Z3_ast index = build_z3_atom(par, b);
+	    uint64_t count = 0, direction = 0, msb_bits = 0, lsb_bits = 0;
+	    uint64_t element_width = 0;
+	    bool ok = eval_const_ir(par, count) && eval_const_ir(par, direction)
+		  && eval_const_ir(par, msb_bits) && eval_const_ir(par, lsb_bits)
+		  && eval_const_ir(par, element_width);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
+	    par.skip_ws(); par.expect(')');
+	    unsigned bw = bv_width(b.ctx, base);
+	    if (!ok || !count || !element_width || direction > 1
+		|| count > bw / element_width) {
+		  b.state_errors.push_back("invalid packed indexed constraint part-select");
+		  return mk_free_bv(b, 1);
+	    }
+	    int64_t msb = (int64_t)msb_bits, lsb = (int64_t)lsb_bits;
+	    int64_t lower = std::min(msb, lsb), upper = std::max(msb, lsb);
+	    bool descending_range = msb >= lsb;
+	    int64_t delta = (int64_t)count - 1;
+	    int64_t first_valid = lower, last_valid = upper;
+	    if (direction) {
+		  if (upper - delta < lower) last_valid = lower - 1;
+		  else last_valid = upper - delta;
+	    } else {
+		  if (lower + delta > upper) first_valid = upper + 1;
+		  else first_valid = lower + delta;
+	    }
+	    Z3_ast valid = b.mk_true();
+	    unsigned iw = bv_width(b.ctx, index);
+	    unsigned cmpw = std::max(iw, 65U);
+	    Z3_ast cmp_index = b.is_signed(index)
+		  ? Z3_mk_sign_ext(b.ctx, cmpw - iw, index)
+		  : Z3_mk_zero_ext(b.ctx, cmpw - iw, index);
+	    auto integer_constant = [&](int64_t value, unsigned width) {
+		  Z3_sort sort = Z3_mk_bv_sort(b.ctx, width);
+		  if (value < 0 && width > 64) {
+			Z3_ast low = Z3_mk_unsigned_int64(
+			      b.ctx, (uint64_t)value, Z3_mk_bv_sort(b.ctx, 64));
+			return Z3_mk_sign_ext(b.ctx, width - 64, low);
+		  }
+		  return Z3_mk_unsigned_int64(b.ctx, (uint64_t)value, sort);
+	    };
+	    auto signed_constant = [&](int64_t value) {
+		  return integer_constant(value, cmpw);
+	    };
+	    if (first_valid > last_valid) valid = Z3_mk_false(b.ctx);
+	    else if (b.is_signed(index)) {
+		  Z3_ast bounds[2] = {
+			Z3_mk_bvsge(b.ctx, cmp_index, signed_constant(first_valid)),
+			Z3_mk_bvsle(b.ctx, cmp_index, signed_constant(last_valid))
+		  };
+		  valid = Z3_mk_and(b.ctx, 2, bounds);
+	    } else if (last_valid < 0) valid = Z3_mk_false(b.ctx);
+	    else {
+		  uint64_t lo = first_valid < 0 ? 0 : (uint64_t)first_valid;
+		  Z3_ast bounds[2] = {
+			Z3_mk_bvuge(b.ctx, cmp_index, signed_constant((int64_t)lo)),
+			Z3_mk_bvule(b.ctx, cmp_index, signed_constant(last_valid))
+		  };
+		  valid = Z3_mk_and(b.ctx, 2, bounds);
+	    }
+	    if (b.collect_preferences && !b.collect_refs_only)
+		  b.state_checks.push_back({Z3_mk_not(b.ctx, valid),
+			"out-of-range packed indexed part-select in constraint"});
+	    unsigned offset_width = std::max(iw, 65U);
+	    Z3_ast idx_wide = b.is_signed(index)
+		  ? Z3_mk_sign_ext(b.ctx, offset_width - iw, index)
+		  : Z3_mk_zero_ext(b.ctx, offset_width - iw, index);
+	    Z3_ast lsb_value = integer_constant(lsb, offset_width);
+	    Z3_ast offset = descending_range
+		  ? Z3_mk_bvsub(b.ctx, idx_wide, lsb_value)
+		  : Z3_mk_bvsub(b.ctx, lsb_value, idx_wide);
+	    bool subtract_delta = (direction != 0) != descending_range;
+	    if (subtract_delta && delta)
+		  offset = Z3_mk_bvsub(b.ctx, offset,
+			integer_constant(delta, offset_width));
+	    if (element_width != 1)
+		  offset = Z3_mk_bvmul(b.ctx, offset,
+			integer_constant((int64_t)element_width, offset_width));
+    Z3_ast shift_amount = offset_width > bw
+	  ? Z3_mk_extract(b.ctx, bw - 1, 0, offset) : offset;
+    Z3_ast shifted = Z3_mk_bvlshr(b.ctx, base, shift_amount);
+	    unsigned selected_width = (unsigned)(count * element_width);
+	    Z3_ast selected = Z3_mk_extract(
+		  b.ctx, selected_width - 1, 0, shifted);
+	    Z3_ast zero = Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, selected_width));
+	    return Z3_mk_ite(b.ctx, valid, selected, zero);
       }
 
       if (op == "concat") {

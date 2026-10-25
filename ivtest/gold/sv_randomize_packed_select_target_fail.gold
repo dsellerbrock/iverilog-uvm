@@ -1,0 +1,2 @@
+./ivltests/sv_randomize_packed_select_target_fail.v:10: error: every argument of randomize() must name a property of the object (expressions are not allowed; IEEE 1800-2017 18.11).
+1 error(s) during elaboration.
