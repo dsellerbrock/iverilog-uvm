@@ -533,6 +533,8 @@ extern bool of_RELEASE_NET_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_F(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_EL(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_PR(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_W(vthread_t thr, vvp_code_t code);
 extern bool of_REF_CAPTURE(vthread_t thr, vvp_code_t code);

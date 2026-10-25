@@ -19566,6 +19566,24 @@ static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
  * the caller then emits its copy pair against it rather than against
  * the port.
  */
+static bool ref_property_is_dynamic_container_(const NetAssign_*property_lval)
+{
+      if (!property_lval || property_lval->get_property_idx() < 0)
+	    return false;
+      const NetAssign_*receiver = property_lval->nest();
+      ivl_type_t receiver_type = property_lval->sig()
+	    ? property_lval->sig()->net_type()
+	    : receiver ? receiver->net_type() : 0;
+      const netclass_t*owner_type =
+	    dynamic_cast<const netclass_t*>(receiver_type);
+      if (!owner_type) return false;
+      ivl_type_t property_type = owner_type->get_prop_type(
+	    (size_t)property_lval->get_property_idx());
+      if (!property_type) return false;
+      return property_type->base_type() == IVL_VT_DARRAY
+	    || property_type->base_type() == IVL_VT_QUEUE;
+}
+
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
@@ -19756,6 +19774,73 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  bind->set_line(*this);
 		  delete lv;
 		  return bind;
+	    }
+
+	      /* An element of a dynamic array or queue stored in a class
+		 property is still an element ref actual (IEEE 1800-2017/2023
+		 13.5.2). Capture the receiver and property at the call site so
+		 the runtime can bind the element cell directly. Copying this
+		 lvalue through a temporary loses outdated-element identity when
+		 the property container is deleted or replaced in the task. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->nest()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& !lv->is_array_slice() && lv->nest()->get_property_idx() >= 0
+		&& ref_property_is_dynamic_container_(lv->nest())
+		&& lv->nest()->word() != 0
+		&& lv->nest()->get_base() == 0
+		&& !lv->nest()->is_array_slice()) {
+		  const NetAssign_*property_lval = lv->nest();
+		  NetExpr*obj_e = property_lval->sig()
+			? static_cast<NetExpr*>(new NetESignal(property_lval->sig()))
+			: netassign_object_value_expr_(property_lval->nest(), this);
+		  if (obj_e) {
+			obj_e->set_line(*this);
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetEConst*pid_e = new NetEConst(verinum(
+			      (uint64_t)property_lval->get_property_idx(), 32));
+			pid_e->set_line(*this);
+			vector<NetExpr*> argv(5);
+			argv[0] = formal_e;
+			argv[1] = obj_e;
+			argv[2] = pid_e;
+			argv[3] = property_lval->word()->dup_expr();
+			argv[4] = lv->word()->dup_expr();
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_prop_nested_elem",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
+	    }
+	    if (sig == 0 && inside_ok && lv->more == 0
+		&& lv->get_property_idx() >= 0 && lv->word() != 0
+		&& ref_property_is_dynamic_container_(lv)
+		&& lv->get_base() == 0 && !lv->is_array_slice()) {
+		  NetExpr*obj_e = 0;
+		  if (lv->sig()) {
+			obj_e = new NetESignal(lv->sig());
+			obj_e->set_line(*this);
+		  } else if (lv->nest()) {
+			obj_e = netassign_object_value_expr_(lv->nest(), this);
+		  }
+		  if (obj_e) {
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetEConst*pid_e = new NetEConst(verinum(
+			      (uint64_t)lv->get_property_idx(), 32));
+			pid_e->set_line(*this);
+			vector<NetExpr*> argv(4);
+			argv[0] = formal_e;
+			argv[1] = obj_e;
+			argv[2] = pid_e;
+			argv[3] = lv->word()->dup_expr();
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_prop_elem",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
 	    }
 
 	      /* A word of a static unpacked array: arr[i]. Automatic
