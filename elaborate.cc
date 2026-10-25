@@ -83,7 +83,8 @@ static Module* find_module_type_(perm_string type, const NetScope*scope)
 		  continue;
 	    std::map<perm_string,Module*>::const_iterator nested
 		  = owner->nested_modules.find(type);
-	    if (nested != owner->nested_modules.end())
+	    if (nested != owner->nested_modules.end()
+		&& !nested->second->is_checker)
 		  return nested->second;
       }
 
