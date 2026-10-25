@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue958_vpi_put.v",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue958_2023"],
+  "vpi-sources": ["vpi/issue958.c"]
+}
