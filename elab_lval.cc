@@ -854,6 +854,33 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
+	  // references to checker variables on assignment left-hand sides.
+	  if (gn_system_verilog() && path_.name.size() >= 2) {
+	        std::list<hname_t> prefix;
+	        bool checker_prefix = false;
+	        for (auto component = path_.name.begin();
+	             std::next(component) != path_.name.end(); ++component) {
+	              if (!component->index.empty()) break;
+	              prefix.push_back(hname_t(component->name));
+	              NetScope*target = des->find_scope(scope, prefix);
+	              const Module*owner = target ? target->module_definition() : nullptr;
+	              auto member = std::next(component);
+	              if (owner && owner->is_checker && member != path_.name.end()
+	                  && target->find_signal(member->name)) {
+		            checker_prefix = true;
+		            break;
+	              }
+	        }
+	        if (checker_prefix) {
+	              cerr << get_fileline() << ": error: Hierarchical reference `"
+	                   << path_ << "' to a checker variable is illegal "
+	                      "(IEEE 1800-2017/2023 17.7.1)." << endl;
+	              des->errors += 1;
+	              return nullptr;
+	        }
+	  }
+
 	  // IEEE 1800-2017/2023 25.5.4: an explicitly named modport output
 	  // aliases its expression. Rewrite identifier expressions to the
 	  // receiver's interface member path so normal l-value select handling

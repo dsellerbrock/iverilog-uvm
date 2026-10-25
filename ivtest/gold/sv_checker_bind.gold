@@ -1,0 +1,2 @@
+./ivltests/sv_checker_bind.v:24: error: Hierarchical reference `main.d0.u_chk.fails' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+1 error(s) during elaboration.

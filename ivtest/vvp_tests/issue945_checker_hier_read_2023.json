@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue945_checker_hier_read.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue945_checker_hier_read" ],
+    "gold"           : "issue945_checker_hier_read_2023"
+}
