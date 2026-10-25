@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1156_unpacked_struct_default_2state.v",
+  "iverilog-args": ["-g2017", "-s", "issue1156_unpacked_struct_default_2state"],
+  "gold": "issue1156_unpacked_struct_default_2state"
+}
