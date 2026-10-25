@@ -4,6 +4,8 @@
 
 always4A			vvp_tests/always4A.json
 sv_assert_first_match_match_item_2017	vvp_tests/sv_assert_first_match_match_item_2017.json
+sv_assert_clocking_input_sample_2017 vvp_tests/sv_assert_clocking_input_sample_2017.json
+sv_assert_clocking_input_sample_2023 vvp_tests/sv_assert_clocking_input_sample_2023.json
 sv_assert_first_match_match_item_2023	vvp_tests/sv_assert_first_match_match_item_2023.json
 always4B			vvp_tests/always4B.json
 analog1				vvp_tests/analog1.json
