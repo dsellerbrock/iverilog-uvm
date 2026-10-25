@@ -1347,7 +1347,8 @@ sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control
 sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
 sv_randsequence_nonconstant_actual_fail CE,-g2012 ivltests gold=sv_randsequence_nonconstant_actual_fail.gold
 sv_randsequence_join_nested_fail CE,-g2012 ivltests gold=sv_randsequence_join_nested_fail.gold
-sv_randsequence_value_return_fail CE,-g2012 ivltests gold=sv_randsequence_value_return_fail.gold
+sv_randsequence_value_return_2017 normal,-g2017 ivltests gold=sv_randsequence_value_return.gold
+sv_randsequence_value_return_2023 normal,-g2023 ivltests gold=sv_randsequence_value_return.gold
 sv_param_spec_audit normal,-g2012 ivltests
 sv_nested_container_audit normal,-g2012 ivltests
 sv_class_property_partial_write normal,-g2012 ivltests

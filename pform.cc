@@ -7790,6 +7790,7 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 				       Statement*stmt,
 				       const std::map<perm_string,PExpr*>*subst,
+				       PExpr*return_target,
 				       unsigned loop_depth)
 {
       if (!stmt || !pform_rs_budget_(ctx)) return nullptr;
@@ -7805,7 +7806,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    std::vector<Statement*> children;
 	    for (Statement*child : block->statements()) {
 		  Statement*copy = pform_rs_clone_stmt_(ctx, child, subst,
-						 loop_depth);
+							 return_target, loop_depth);
 		  if (copy) children.push_back(copy);
 	    }
 	    return pform_rs_block_(*stmt, children,
@@ -7833,9 +7834,10 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
       if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
 	    PExpr*expr = sva_clone_subst_(cond->cond_expr(), subst);
 	    Statement*yes = pform_rs_clone_stmt_(ctx, cond->if_clause(), subst,
-						 loop_depth);
+							 return_target, loop_depth);
 	    Statement*no = cond->else_clause()
-		? pform_rs_clone_stmt_(ctx, cond->else_clause(), subst, loop_depth)
+		? pform_rs_clone_stmt_(ctx, cond->else_clause(), subst,
+					       return_target, loop_depth)
 		: nullptr;
 	    if (!expr) { delete yes; delete no; goto unsupported; }
 	    sva_mark_strict_(expr);
@@ -7848,7 +7850,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
       if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
 	    PExpr*count = sva_clone_subst_(repeat->count_expr(), subst);
 	    Statement*body = pform_rs_clone_stmt_(ctx, repeat->body(), subst,
-						   loop_depth + 1);
+						   return_target, loop_depth + 1);
 	    if (!count || !body) { delete count; delete body; goto unsupported; }
 	    sva_mark_strict_(count);
 	    PRepeat*copy = new PRepeat(count, body);
@@ -7918,14 +7920,30 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    return copy;
       }
       if (PReturn*ret = dynamic_cast<PReturn*>(stmt)) {
-	    if (ret->expr()) {
-		  cerr << ret->get_fileline() << ": sorry: value-returning "
-		       << "randsequence productions are not supported yet." << endl;
+	    if (ret->expr() && !return_target) {
+		  cerr << ret->get_fileline() << ": error: return with an expression "
+		       << "is not allowed in a void randsequence production." << endl;
 		  error_count += 1; ctx.bad = true; return nullptr;
+	    }
+	    if (!ret->expr() && return_target) {
+		  cerr << ret->get_fileline() << ": error: value-returning "
+		       << "randsequence production requires an expression in return."
+		       << endl;
+		  error_count += 1; ctx.bad = true; return nullptr;
+	    }
+	    std::vector<Statement*> statements;
+	    if (ret->expr()) {
+		  PExpr*lhs = sva_clone_subst_(return_target, nullptr);
+		  PExpr*rhs = sva_clone_subst_(ret->expr(), subst);
+		  if (!lhs || !rhs) { delete lhs; delete rhs; goto unsupported; }
+		  PAssign*assign = new PAssign(lhs, rhs);
+		  assign->set_line(*stmt);
+		  statements.push_back(assign);
 	    }
 	    PBreak*copy = new PBreak(IVL_FLOW_RANDSEQ_RETURN);
 	    copy->set_line(*stmt);
-	    return copy;
+	    statements.push_back(copy);
+	    return pform_rs_block_(*stmt, statements);
       }
       if (dynamic_cast<PNoop*>(stmt)) {
 	    PNoop*copy = new PNoop;
@@ -7943,11 +7961,14 @@ unsupported:
 static Statement* pform_rs_expand_production_(
       pform_rs_expand_ctx_t&ctx, perm_string name,
       const std::list<named_pexpr_t>*actuals,
-      const std::map<perm_string,PExpr*>*outer);
+      const std::map<perm_string,PExpr*>*outer,
+      PExpr*return_target);
 
 static Statement* pform_rs_expand_item_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
-      const std::map<perm_string,PExpr*>*subst);
+      const std::map<perm_string,PExpr*>*subst,
+      const std::map<const rs_item_t*,PExpr*>*return_values,
+      PExpr*production_return_target);
 
 struct pform_rs_join_lane_t {
       const rs_production_t*production = nullptr;
@@ -8108,7 +8129,7 @@ static Statement* pform_rs_expand_join_(
 		  const pform_rs_join_lane_t&lane = lanes[lane_index];
 		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
 		  Statement*copy = pform_rs_clone_stmt_(ctx, part.code,
-						   &lane.subst, 0);
+						   &lane.subst, nullptr, 0);
 		  if (copy) statements.push_back(copy);
 	    }
 	    PCase::Item*branch = new PCase::Item;
@@ -8136,22 +8157,34 @@ static Statement* pform_rs_expand_join_(
 
 static Statement* pform_rs_expand_item_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
-      const std::map<perm_string,PExpr*>*subst)
+      const std::map<perm_string,PExpr*>*subst,
+      const std::map<const rs_item_t*,PExpr*>*return_values,
+      PExpr*production_return_target)
 {
       switch (item.kind) {
-      case rs_item_t::CALL:
-	    return pform_rs_expand_production_(ctx, item.name, item.actuals, subst);
+      case rs_item_t::CALL: {
+	    std::map<const rs_item_t*,PExpr*>::const_iterator target =
+		  return_values ? return_values->find(&item)
+				: std::map<const rs_item_t*,PExpr*>::const_iterator();
+	    PExpr*copy = return_values && target != return_values->end()
+		  ? sva_clone_subst_(target->second, nullptr) : nullptr;
+	    return pform_rs_expand_production_(ctx, item.name, item.actuals,
+						 subst, copy);
+	  }
       case rs_item_t::CODE: {
-	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst, 0);
+	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst,
+						 production_return_target, 0);
 	    pform_rs_mark_conditions_strict_(copy);
 	    return copy;
       }
       case rs_item_t::IF_ELSE: {
 	    PExpr*condition = sva_clone_subst_(item.expr, subst);
 	    Statement*yes = item.first
-		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.first, subst, return_values,
+					production_return_target) : nullptr;
 	    Statement*no = item.second
-		? pform_rs_expand_item_(ctx, *item.second, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.second, subst, return_values,
+					production_return_target) : nullptr;
 	    if (!condition) {
 		  cerr << item.get_fileline() << ": sorry: cannot clone this "
 		       << "randsequence if condition." << endl;
@@ -8167,7 +8200,8 @@ static Statement* pform_rs_expand_item_(
       case rs_item_t::REPEAT: {
 	    PExpr*count = sva_clone_subst_(item.expr, subst);
 	    Statement*body = item.first
-		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.first, subst, return_values,
+					production_return_target) : nullptr;
 	    if (!count || !body) {
 		  cerr << item.get_fileline() << ": sorry: cannot lower this "
 		       << "randsequence repeat production." << endl;
@@ -8196,7 +8230,8 @@ static Statement* pform_rs_expand_item_(
 			      else target->expr.push_back(copy);
 			}
 		  target->stat = source.item
-			? pform_rs_expand_item_(ctx, *source.item, subst) : nullptr;
+		  ? pform_rs_expand_item_(ctx, *source.item, subst,
+					   return_values, production_return_target) : nullptr;
 		  items->push_back(target);
 	    }
 	    PCase*result = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ,
@@ -8211,45 +8246,146 @@ static Statement* pform_rs_expand_item_(
 }
 
 static Statement* pform_rs_expand_rule_(
-      pform_rs_expand_ctx_t&ctx, const rs_rule_t&rule,
+	  pform_rs_expand_ctx_t&ctx, const rs_production_t&production,
+	  const rs_rule_t&rule,
       const std::map<perm_string,PExpr*>*subst,
+	  PExpr*return_target,
       const struct vlltype&where)
 {
+      static unsigned scope_id = 0;
+
+      std::map<perm_string,unsigned> counts;
+      std::vector<const rs_item_t*> calls;
+      std::function<void(const rs_item_t&)> collect =
+	    [&](const rs_item_t&item) {
+		  if (item.kind == rs_item_t::CALL) {
+			counts[item.name] += 1;
+			calls.push_back(&item);
+		  }
+		  if (item.first) collect(*item.first);
+		  if (item.second) collect(*item.second);
+		  if (item.cases) for (const rs_case_item_t&c : *item.cases)
+			if (c.item) collect(*c.item);
+		  if (item.join_items) for (const rs_item_t&c : *item.join_items)
+			collect(c);
+	    };
+      if (rule.items) for (const rs_item_t&item : *rule.items) collect(item);
+
+      char scope_name[64];
+      snprintf(scope_name, sizeof scope_name, "$ivl_rs_rule_%u", scope_id++);
+      bool needs_scope = production.return_type != nullptr;
+      for (const rs_item_t*call : calls) {
+	    std::map<perm_string,rs_production_t*>::iterator found =
+		  ctx.pmap.find(call->name);
+	    if (found != ctx.pmap.end() && found->second->return_type)
+		  needs_scope = true;
+      }
+      PBlock*scope = nullptr;
+      if (needs_scope) {
+	    scope = pform_push_block_scope(where, scope_name, PBlock::BL_SEQ);
+	    scope->default_lifetime = LexicalScope::AUTOMATIC;
+      }
+      std::map<perm_string,PExpr*> base_values;
+      std::map<const rs_item_t*,PExpr*> return_values;
+      std::map<perm_string,unsigned> next_index;
+      bool local_return_target = false;
+
+      if (production.return_type && !return_target) {
+	    char name[64];
+	    snprintf(name, sizeof name, "$ivl_rs_return_%u", scope_id);
+	    perm_string internal_name = lex_strings.make(name);
+	    decl_assignment_t*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(internal_name, where.lexical_pos);
+	    std::list<decl_assignment_t*>*decls = new std::list<decl_assignment_t*>;
+	    decls->push_back(decl);
+	    pform_make_var(where, decls,
+			 new type_reference_t(production.return_type), nullptr, false);
+	    return_target = new PEIdent(internal_name, where.lexical_pos);
+	    local_return_target = true;
+      }
+      for (const rs_item_t*call : calls) {
+	    std::map<perm_string,rs_production_t*>::iterator found =
+		  ctx.pmap.find(call->name);
+	    if (found == ctx.pmap.end() || !found->second->return_type) continue;
+	    rs_production_t&callee = *found->second;
+	    if (!base_values.count(call->name)) {
+		  decl_assignment_t*decl = new decl_assignment_t;
+		  decl->name = pform_ident_t(call->name, where.lexical_pos);
+		  unsigned count = counts[call->name];
+		  if (count > 1)
+			decl->index.push_back(std::make_pair(
+			    static_cast<PExpr*>(new PENumber(new verinum((uint64_t)1, 32))),
+			    static_cast<PExpr*>(new PENumber(new verinum((uint64_t)count, 32)))));
+		  std::list<decl_assignment_t*>*decls = new std::list<decl_assignment_t*>;
+		  decls->push_back(decl);
+		  pform_make_var(where, decls,
+				 new type_reference_t(callee.return_type), nullptr, false);
+		  base_values[call->name] = new PEIdent(call->name, where.lexical_pos);
+	    }
+	    PExpr*target = sva_clone_subst_(base_values[call->name], nullptr);
+	    if (counts[call->name] > 1) {
+		  name_component_t component(call->name);
+		  index_component_t index;
+		  index.sel = index_component_t::SEL_BIT;
+		  index.msb = new PENumber(new verinum((uint64_t)++next_index[call->name], 32));
+		  component.index.push_back(index);
+		  pform_name_t path;
+		  path.push_back(component);
+		  delete target;
+		  target = new PEIdent(path, where.lexical_pos);
+	    }
+	    /* The expression is keyed by the called production. Sequential calls
+	       to the same production use the corresponding unpacked-array element. */
+	    return_values[call] = target;
+      }
+
       std::vector<Statement*> statements;
       if (rule.items) for (const rs_item_t&item : *rule.items) {
-	    Statement*expanded = pform_rs_expand_item_(ctx, item, subst);
+	    Statement*expanded = pform_rs_expand_item_(ctx, item, subst,
+						       &return_values, return_target);
 	    if (expanded) statements.push_back(expanded);
       }
-      return pform_rs_block_(where, statements);
+      for (std::map<const rs_item_t*,PExpr*>::iterator it = return_values.begin()
+	   ; it != return_values.end() ; ++it) delete it->second;
+      for (std::map<perm_string,PExpr*>::iterator it = base_values.begin()
+	   ; it != base_values.end() ; ++it) delete it->second;
+
+      /* An unobserved return value from the starting production is still
+	 evaluated by assigning it into the production-local result variable. */
+      if (scope) {
+	    pform_pop_scope();
+	    scope->set_statement(statements);
+      } else scope = pform_rs_block_(where, statements);
+      if (local_return_target) delete return_target;
+      return scope;
 }
 
 static Statement* pform_rs_expand_production_(
       pform_rs_expand_ctx_t&ctx, perm_string name,
       const std::list<named_pexpr_t>*actuals,
-      const std::map<perm_string,PExpr*>*outer)
+      const std::map<perm_string,PExpr*>*outer,
+      PExpr*return_target)
 {
       std::map<perm_string,rs_production_t*>::iterator found =
 	    ctx.pmap.find(name);
       if (found == ctx.pmap.end()) {
+	    delete return_target;
 	    cerr << ctx.loc << ": error: randsequence production `" << name
 		 << "' is not defined." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
       rs_production_t&prod = *found->second;
       if (ctx.active.count(name)) {
+	    delete return_target;
 	    cerr << ctx.loc << ": sorry: recursive randsequence production `"
 		 << name << "' is not supported." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
-      if (prod.return_type) {
-	    cerr << ctx.loc << ": sorry: value-returning randsequence production `"
-		 << name << "' is not supported yet." << endl;
-	    error_count += 1; ctx.bad = true; return nullptr;
-      }
-
       std::map<perm_string,PExpr*> subst;
-      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst))
+	  if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst)) {
+	    delete return_target;
 	    return nullptr;
+	  }
       ctx.active.insert(name);
 
       Statement*body = nullptr;
@@ -8257,7 +8393,8 @@ static Statement* pform_rs_expand_production_(
 	    std::vector<Statement*> empty;
 	    body = pform_rs_block_(ctx.loc, empty);
 	  } else if (prod.rules->size() == 1 && !(*prod.rules)[0].weight) {
-	    body = pform_rs_expand_rule_(ctx, (*prod.rules)[0], &subst, ctx.loc);
+	    body = pform_rs_expand_rule_(ctx, prod, (*prod.rules)[0], &subst,
+					 return_target, ctx.loc);
 	  } else {
 	    std::vector<PCase::Item*>*alternatives =
 		  new std::vector<PCase::Item*>;
@@ -8271,8 +8408,8 @@ static Statement* pform_rs_expand_production_(
 			     << "production weight." << endl;
 			error_count += 1; ctx.bad = true;
 		  } else alternative->expr.push_back(weight);
-		  alternative->stat = pform_rs_expand_rule_(ctx, rule, &subst,
-							ctx.loc);
+		  alternative->stat = pform_rs_expand_rule_(ctx, prod, rule, &subst,
+							return_target, ctx.loc);
 		  alternatives->push_back(alternative);
 	    }
 	    PRandCase*choice = new PRandCase(alternatives);
@@ -8281,6 +8418,7 @@ static Statement* pform_rs_expand_production_(
       }
       ctx.active.erase(name);
       pform_rs_delete_subst_(subst);
+      delete return_target;
 
       std::vector<Statement*> one;
       if (body) one.push_back(body);
@@ -8367,7 +8505,7 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       ctx.bad = duplicate;
       if (!ctx.bad) {
 	    Statement*body = pform_rs_expand_production_(ctx, start_name,
-						    nullptr, nullptr);
+						    nullptr, nullptr, nullptr);
 	    if (body) root_statements.push_back(body);
       }
       pform_rs_destroy_(prods);
