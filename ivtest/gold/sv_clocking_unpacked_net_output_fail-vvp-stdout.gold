@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_unpacked_net_output_fail.v:25: $finish called at 6000 (1ps)
