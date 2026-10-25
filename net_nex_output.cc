@@ -52,12 +52,25 @@ void NetAlloc::nex_output(NexusSet&)
 bool nex_output_precise_partsel = false;
 bool nex_output_precise_array_word = false;
 bool nex_output_static_array_prefix = false;
+NexusSet* nex_output_exact_sink = nullptr;
 
 void NetAssign_::nex_output(NexusSet&out)
 {
       NetNet*interface_member = resolve_interface_member_signal();
       NetNet*use_sig = interface_member ? interface_member : sig_;
       bool nested_root_fallback = false;
+      bool object_property = false;
+
+      for (const NetAssign_*node = this; node; node = node->nest()) {
+	    const NetAssign_*owner = node->nest();
+	    NetNet*owner_sig = owner ? owner->sig() : node->sig();
+	    const netclass_t*owner_class = owner_sig
+		  ? dynamic_cast<const netclass_t*>(owner ? owner->net_type()
+							      : owner_sig->net_type()) : nullptr;
+	    if (node->get_property_idx() >= 0 && owner_class
+		&& !owner_class->is_interface())
+		  object_property = true;
+      }
 
 	/* A class property may be encoded either on the root assignment node or
 	 * as one or more nested nodes. In both cases, output discovery only needs
@@ -72,7 +85,10 @@ void NetAssign_::nex_output(NexusSet&out)
 		  ? dynamic_cast<const netclass_t*>(root_sig->net_type()) : 0;
 	    if (root_class && !root_class->is_interface()) {
 		  use_sig = root_sig;
-		  nested_root_fallback = true;
+		  nested_root_fallback = !(root == this && !root->nest()
+			  && root->get_property_idx() < 0 && !root->word()
+			  && !root->get_base() && !root->is_array_slice()
+			  && root->stream_range() == IVL_STREAM_RANGE_NONE);
 	    }
       }
       if (!use_sig && nest_) {
@@ -132,13 +148,19 @@ void NetAssign_::nex_output(NexusSet&out)
 	    for (unsigned long idx = 0; idx < word_count; idx += 1) {
 		  Nexus*word_nex = use_sig->pin(first_word + idx).nexus();
 		  out.add(word_nex, 0, word_nex->vector_width());
+		  if (nex_output_exact_sink && !object_property)
+			nex_output_exact_sink->add(word_nex, 0,
+						   word_nex->vector_width());
 	    }
 	    return;
       }
 
-      auto add_word_output = [&](unsigned use_word) {
+      auto add_word_output = [&](unsigned use_word, bool exact_word) {
       unsigned use_base = 0;
       unsigned use_wid = lwidth();
+      // shortcut: dynamic packed writers without an exact carrier are
+      // unchecked; add range metadata when elaboration preserves the base.
+      bool exact_range = !base_;
       Nexus*nex = use_sig->pin(use_word).nexus();
       if (base_) {
 
@@ -219,8 +241,12 @@ void NetAssign_::nex_output(NexusSet&out)
 		  use_base = 0;
 		  use_wid = nex->vector_width();
 	    }
+	    exact_range = narrow;
       }
       out.add(nex, use_base, use_wid);
+	      if (exact_word && exact_range && nex_output_exact_sink
+		  && !object_property)
+		    nex_output_exact_sink->add(nex, use_base, use_wid);
       };
 
       if (word_) {
@@ -232,17 +258,17 @@ void NetAssign_::nex_output(NexusSet&out)
 		  unsigned long tmp = word_const->value().as_ulong();
 		  if (tmp >= use_sig->pin_count())
 			return;
-		  add_word_output(static_cast<unsigned>(tmp));
+		  add_word_output(static_cast<unsigned>(tmp), true);
 	    } else {
 		  if (nex_output_static_array_prefix) {
-			unsigned first = has_array_word_prefix()
-			      ? array_word_first() : 0;
-			unsigned count = has_array_word_prefix()
+			bool exact_prefix = has_array_word_prefix();
+			unsigned first = exact_prefix ? array_word_first() : 0;
+			unsigned count = exact_prefix
 			      ? array_word_count() : use_sig->pin_count();
 			if (first >= use_sig->pin_count()) return;
 			count = std::min(count, use_sig->pin_count()-first);
 			for (unsigned idx = 0; idx < count; idx += 1)
-			      add_word_output(first+idx);
+			      add_word_output(first+idx, exact_prefix);
 			return;
 		  }
 		    // For always_comb sensitivity subtraction, claiming the
@@ -260,7 +286,7 @@ void NetAssign_::nex_output(NexusSet&out)
 		  return;
 	    }
       }
-	    if (!word_) add_word_output(0);
+	    if (!word_) add_word_output(0, true);
 }
 
 /*

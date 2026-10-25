@@ -46578,7 +46578,12 @@ bool Design::check_proc_delay() const
 	    if (pr->type() == IVL_PR_ALWAYS_COMB
 		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
 	  NexusSet written;
+	  NexusSet exact_written;
+	  NexusSet* saved_exact_sink = nex_output_exact_sink;
+	  if (pr->type() == IVL_PR_ALWAYS_COMB)
+		nex_output_exact_sink = &exact_written;
 	  const_cast<NetProc*>(pr->statement())->nex_output(written);
+	  nex_output_exact_sink = saved_exact_sink;
 	  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
 			Nexus*nex = written[idx].lnk.nexus();
 			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
@@ -46592,8 +46597,8 @@ bool Design::check_proc_delay() const
 		    // shortcut: compare always_comb processes only, expand to other
 		    // process kinds and function writes when that analysis is added.
 		    bool reported = false;
-		    for (unsigned idx = 0; idx < written.size(); idx += 1) {
-			  const NexusSet::elem_t&output = written[idx];
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
 			  const Nexus*nex = output.lnk.nexus();
 			  const std::vector<write_range_t>&previous = output_by_nexus[nex];
 			  for (const write_range_t&prior : previous) {
@@ -46612,8 +46617,8 @@ bool Design::check_proc_delay() const
 				break;
 			  }
 		    }
-		    for (unsigned idx = 0; idx < written.size(); idx += 1) {
-			  const NexusSet::elem_t&output = written[idx];
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
 			  output_by_nexus[output.lnk.nexus()].push_back(
 				{pr, output.base, output.wid});
 		    }
