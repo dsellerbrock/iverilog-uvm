@@ -389,6 +389,11 @@ NetEConst* NetEBComp::must_be_leeq_(const NetExpr*le, const verinum&rv, bool eq_
 	// The following optimization is not valid if le can contain 'x'
 	// or 'z' values.
       if (le->expr_type() == IVL_VT_LOGIC) return 0;
+	// Its maximum-value argument is an integral bit-vector argument. A
+	// string's expr_width is not its lexical value, so this shortcut can
+	// incorrectly fold string relational comparisons (including inside
+	// range bounds) to true.
+      if (le->expr_type() == IVL_VT_STRING) return 0;
 
       ivl_assert(*le, le->expr_width() > 0);
       verinum lv (verinum::V1, le->expr_width());

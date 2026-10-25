@@ -7375,6 +7375,17 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 	    return num && num->value().is_single()
 		 ? int(base->expr_width()) : -1;
       };
+      /* A string range compares its endpoints with the subject using the
+	 IEEE string relational operators. In particular, a string literal used
+	 as a bound must be elaborated as a string, rather than as its usual
+	 packed integral representation. */
+      auto elaborate_inside_item = [&](PExpr*item) -> NetExpr* {
+	    if (base->expr_type() == IVL_VT_STRING)
+		  return elab_and_eval(des, scope, item, -1, need_const,
+				       false, IVL_VT_STRING);
+	    return elab_and_eval(des, scope, item,
+			 inside_item_width(item), need_const);
+      };
 
       for (size_t i = 0 ; i < ranges_.size() ; i += 1) {
 	    const inside_range_t&r = ranges_[i];
@@ -7383,10 +7394,8 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 	    if (r.is_range) {
 		  NetExpr*lo = 0;
 		  NetExpr*hi = 0;
-		  if (r.lo) lo = elab_and_eval(des, scope, r.lo,
-					 inside_item_width(r.lo), need_const);
-		  if (r.hi) hi = elab_and_eval(des, scope, r.hi,
-					 inside_item_width(r.hi), need_const);
+		  if (r.lo) lo = elaborate_inside_item(r.lo);
+		  if (r.hi) hi = elaborate_inside_item(r.hi);
 
 		  NetExpr*ge = 0;
 		  NetExpr*le = 0;
