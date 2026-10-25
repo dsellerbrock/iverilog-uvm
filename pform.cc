@@ -12276,6 +12276,50 @@ static void tc_edge_vals_(PTimingCheck::EdgeType e, double&a, double&b)
       }
 }
 
+/* Validate and accumulate a finite ##[lo:hi] window before the sequence
+   lowering can use its bounds to size vectors. */
+void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
+                           PExpr*lo_expr, PExpr*hi_expr)
+{
+      long lo = 0, hi = 0;
+      if ((pform_sva_overridable_bound(lo_expr)
+           || pform_sva_overridable_bound(hi_expr))
+          && step.delay_lo == 0 && step.delay_hi == 0) {
+            step.delay_lo = -5;
+            step.delay_hi = -5;
+            step.delay_lo_expr = lo_expr;
+            step.delay_hi_expr = hi_expr;
+            return;
+      }
+      if (pform_sva_const_long(lo_expr, lo)
+          && pform_sva_const_long(hi_expr, hi)) {
+            if (lo < 0 || hi < 0 || hi < lo) {
+                  cerr << loc << ": error: invalid SVA cycle-delay range ["
+                       << lo << ":" << hi
+                       << "]; bounds must be nonnegative and the upper bound "
+                       << "must be greater than or equal to the lower bound "
+                       << "(IEEE 1800-2017/2023 16.7)." << endl;
+                  error_count += 1;
+                  /* Keep later generic shape checks quiet. The recorded
+                     compile error prevents this recovery value from being
+                     accepted as a valid assertion. */
+                  step.delay_lo = 0;
+                  step.delay_hi = 0;
+            } else if (step.delay_lo >= 0) {
+                  step.delay_lo += lo;
+                  step.delay_hi += hi;
+            } else if (step.delay_lo != -3) {
+                  step.delay_lo = -2;
+                  step.delay_hi = -2;
+            }
+      } else if (step.delay_lo != -3) {
+            step.delay_lo = -2;
+            step.delay_hi = -2;
+      }
+      delete lo_expr;
+      delete hi_expr;
+}
+
 /* Build "@(edge sig) if (cond) <body>" as an always process. For an
    edge-descriptor event list (edge [01, 10] sig) the process triggers
    on ANY change of the signal, remembers the previous 3-value-encoded
