@@ -1,0 +1,21 @@
+evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+evidence/m9-issue759-class-20261025/reducers/negative-property.sv:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+Elaboration failed
+        0.01 real         0.00 user         0.00 sys
+             4898816  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1770  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  34  involuntary context switches
+            18964561  instructions retired
+             7118085  cycles elapsed
+             1245544  peak memory footprint

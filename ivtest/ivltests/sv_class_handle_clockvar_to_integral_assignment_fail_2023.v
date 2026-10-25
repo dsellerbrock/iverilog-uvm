@@ -1,0 +1,1 @@
+`include "sv_class_handle_clockvar_to_integral_assignment_fail.v"

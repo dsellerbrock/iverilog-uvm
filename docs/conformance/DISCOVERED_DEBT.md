@@ -4715,3 +4715,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017/2023 §14.16.2; whether the selected-slice restriction should be more granular needs a separate interpretation and regression.
 - **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
 - **Triage status:** Known boundary; not part of #909.
+
+### DD-141 — class-to-integral rejection follows a compile-progress substitution warning
+
+- **Discovered while working:** M9 #759.
+- **Observation:** The width-based class-to-logic fallback in `netmisc.cc` emits its existing “substituting 0” compile-progress warning before the new §6.22.5 check rejects the assignment. The warning's substituted value is discarded, but its text is confusing beside the error.
+- **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the rejection is in `elab_expr.cc::elaborate_rval_expr`.
+- **Triage:** Keep the general fallback unchanged in #759 because it also supports legal compile-progress contexts. Do not pin the warning in a golden. Revisit only with a focused legal/illegal fallback audit.
+- **Evidence:** [paired reducer diagnostics](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).

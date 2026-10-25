@@ -4305,6 +4305,20 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    return 0;
       }
 
+	/* Class handles are type-incompatible with integral types (IEEE 1800
+	 * 6.22.5). The width-based elaborator can otherwise erase that source
+	 * type while applying its class-to-logic compile-progress fallback. */
+      if (gn_system_verilog() && type_is_vectorable(lv_type)
+	  && (expr->expr_type() == IVL_VT_CLASS
+	      || dynamic_cast<const netclass_t*>(rval->net_type()))) {
+	    cerr << expr->get_fileline() << ": error: A class handle cannot be "
+		 << "assigned to an integral target (IEEE 1800-2017/2023 6.22.5)."
+		 << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+      }
+
 	/* M10-1c: a WHOLE unpacked array is not assignment-compatible with a
 	   single class handle (IEEE 1800-2017 7.4/8.3):
 
