@@ -650,6 +650,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/el",of_REF_BIND_EL,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%ref/bind/el/el/o",of_REF_BIND_EL_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%ref/bind/el/o",of_REF_BIND_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/pr",of_REF_BIND_PR,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
       { "%ref/bind/w",of_REF_BIND_W,  2,{OA_ARR_PTR, OA_FUNC_PTR2,OA_NONE} },

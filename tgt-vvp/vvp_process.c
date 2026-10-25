@@ -7640,6 +7640,50 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* $ivl_ref_bind_prop_elem(<formal>, <receiver>, <pid>, <index>) --
+       * bind to an element of a dynamic container stored in a class
+       * property, preserving the element identity across deletion. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_prop_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
+	    ivl_expr_t idx = ivl_stmt_parm(net, 3);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    if (fsig && obj && pid && idx
+		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(idx);
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
+			  (unsigned long)get_number_immediate(pid));
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%ref/bind/el/o v%p_0;\n", fsig);
+	    }
+	    return 0;
+      }
+
+      /* $ivl_ref_bind_prop_nested_elem(<formal>, <receiver>, <pid>,
+       * <outer-index>, <inner-index>) -- bind through one container element
+       * to an element in the nested dynamic container. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_prop_nested_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
+	    ivl_expr_t outer = ivl_stmt_parm(net, 3);
+	    ivl_expr_t inner = ivl_stmt_parm(net, 4);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    if (fsig && obj && pid && outer && inner
+		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(outer);
+		  draw_eval_vec4(inner);
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
+			  (unsigned long)get_number_immediate(pid));
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%ref/bind/el/el/o v%p_0;\n", fsig);
+	    }
+	    return 0;
+      }
+
       /* $ivl_ref_bind_word(<formal>, <array>, <index>) -- bind a ref
        * formal to one word of a static unpacked array. The index is
        * the canonical word offset. */

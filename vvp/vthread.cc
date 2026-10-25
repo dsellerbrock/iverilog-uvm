@@ -30277,6 +30277,57 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %ref/bind/el/o <formal> -- bind to an element of the container object
+ * already on the object stack. */
+bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t use_index = -1;
+      vector4_to_value(idxv, use_index, true, false);
+      vvp_object_t container;
+      thr->pop_object(container);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, container, use_index);
+      return true;
+}
+
+/* %ref/bind/el/el/o <formal> -- bind through one object-valued container
+ * element to an element of the nested container. */
+bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t inner_vec = thr->pop_vec4();
+      vvp_vector4_t outer_vec = thr->pop_vec4();
+      int64_t inner_index = -1, outer_index = -1;
+      vector4_to_value(inner_vec, inner_index, true, false);
+      vector4_to_value(outer_vec, outer_index, true, false);
+      vvp_object_t outer_container;
+      thr->pop_object(outer_container);
+      vvp_object_t inner_container;
+      if (outer_index >= 0) {
+	    if (vvp_darray*array = outer_container.peek<vvp_darray>()) {
+		  if ((uint64_t)outer_index < array->get_size())
+			array->get_word((unsigned)outer_index, inner_container);
+	    }
+      }
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, inner_container, inner_index);
+      return true;
+}
+
 /*
  * %ref/bind/w <array>, <formal>
  *
