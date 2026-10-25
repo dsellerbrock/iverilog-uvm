@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_subroutine_output_inout_default.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_subroutine_output_inout_default"
+}

@@ -20138,6 +20138,19 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			if (des->errors == errors_before)
 			      des->errors += 1;
 		  }
+	    } else if (def->port_defe(idx)) {
+		  /* An omitted output or inout uses its default expression as the
+		   * actual l-value. The default was elaborated in the declaration
+		   * scope, so this also preserves the required binding scope. */
+		  const NetESignal*default_sig =
+			 dynamic_cast<const NetESignal*>(def->port_defe(idx));
+		  if (default_sig)
+			lv = new NetAssign_(const_cast<NetNet*>(default_sig->sig()));
+		  else {
+			cerr << get_fileline() << ": error: output/inout default "
+			     << "argument is not a supported l-value." << endl;
+			des->errors += 1;
+		  }
 	    } else if (port->port_type() == NetNet::POUTPUT) {
 		    // Output ports were skipped earlier, so report the error
 		    // now. An omitted output with no default is illegal (IEEE
