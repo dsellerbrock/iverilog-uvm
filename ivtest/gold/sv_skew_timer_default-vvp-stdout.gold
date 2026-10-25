@@ -1,0 +1,7 @@
+ivltests/sv_skew_timer_default.v:13: Timing violation: $timeskew check in main at time 13
+ivltests/sv_skew_timer_default.v:14: Timing violation: $timeskew check in main at time 23
+ivltests/sv_skew_timer_default.v:16: Timing violation: $fullskew check in main at time 43
+notifiers 11010
+conditioned notifier 0
+PASSED
+ivltests/sv_skew_timer_default.v:35: $finish called at 77 (1ns)

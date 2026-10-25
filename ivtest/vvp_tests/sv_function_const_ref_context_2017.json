@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_function_const_ref_context.v",
+  "iverilog-args": ["-g2017", "-s", "sv_function_const_ref_context"],
+  "gold": "sv_function_const_ref_context"
+}

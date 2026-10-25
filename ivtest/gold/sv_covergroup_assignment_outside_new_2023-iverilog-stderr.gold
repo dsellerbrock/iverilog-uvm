@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_assignment_outside_new_2023.v:12: error: embedded covergroup variable `cg' may only be assigned in the parent class new method (IEEE 1800 19.4).
+1 error(s) during elaboration.

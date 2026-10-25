@@ -1,0 +1,8 @@
+./ivltests/sv_function_copyout_context_fail_2023.v:20: error: Function `output_arg' with output, inout, or ref arguments may only be called in a procedural statement (IEEE 1800-2017/2023 13.4).
+./ivltests/sv_function_copyout_context_fail_2023.v:20: error: Unable to elaborate r-value: output_arg(q)
+./ivltests/sv_function_copyout_context_fail_2023.v:30: error: Default argument for function `default_ref' contains a function with output, inout, or ref arguments; the call must be within a procedural statement (IEEE 1800-2017/2023 13.4/13.5.3).
+./ivltests/sv_function_copyout_context_fail_2023.v:30: error: Unable to elaborate r-value: default_ref()
+./ivltests/sv_function_copyout_context_fail_2023.v:22: error: Function `inout_arg' with output, inout, or ref arguments may only be called in a procedural statement (IEEE 1800-2017/2023 13.4).
+./ivltests/sv_function_copyout_context_fail_2023.v:22: warning: Failed to evaluate event expression 'inout_arg(q)' (compile-progress: event skipped).
+./ivltests/sv_function_copyout_context_fail_2023.v:24: error: Function `ref_arg' with output, inout, or ref arguments may only be called in a procedural statement (IEEE 1800-2017/2023 13.4).
+Elaboration failed

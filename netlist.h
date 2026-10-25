@@ -2637,6 +2637,15 @@ class NetExpr  : public LineInfo {
 	    { if (source.deferred_type_parameter_stub_)
 		  deferred_type_parameter_stub_ = true; }
 
+	// A subroutine default is elaborated in its declaration scope, but IEEE
+	// 1800-2017/2023 13.5.3 evaluates it at the call site. Preserve whether it
+	// contains a copy-out/ref call so the caller's statement context can be
+	// checked when that default is actually used.
+      bool requires_procedural_context() const
+	    { return requires_procedural_context_; }
+      void mark_requires_procedural_context()
+	    { requires_procedural_context_ = true; }
+
 	// This method evaluates the expression and returns an
 	// equivalent expression that is reduced as far as compile
 	// time knows how. Essentially, this is designed to fold
@@ -2685,6 +2694,7 @@ class NetExpr  : public LineInfo {
       unsigned width_;
       bool signed_flag_;
       bool deferred_type_parameter_stub_;
+      bool requires_procedural_context_ = false;
 
     private: // not implemented
       NetExpr(const NetExpr&);
@@ -3560,6 +3570,12 @@ class NetAssign_ {
       ivl_select_type_t select_type() const;
 
       void set_word(NetExpr*);
+      void set_array_word_prefix(unsigned first, unsigned count)
+      { array_word_prefix_ = true; array_word_first_ = first;
+        array_word_count_ = count; }
+      bool has_array_word_prefix() const { return array_word_prefix_; }
+      unsigned array_word_first() const { return array_word_first_; }
+      unsigned array_word_count() const { return array_word_count_; }
 	// Mark this l-value as an unpacked-array *slice*: a partial index
 	// into a multi-dimensional unpacked array (e.g. `m[i]` where m is
 	// int[2][3]) that selects a whole sub-array rather than a scalar
@@ -3682,6 +3698,9 @@ class NetAssign_ {
       const NetScope*unsafe_task_body_owner_ = nullptr;
 	// Memory word index
       NetExpr*word_;
+      bool array_word_prefix_ = false;
+      unsigned array_word_first_ = 0;
+      unsigned array_word_count_ = 0;
 	// member/property if signal is a class.
       perm_string member_;
       int member_idx_ = -1;
@@ -6407,6 +6426,10 @@ class Design {
 
       void run_defparams();
       void evaluate_parameters();
+      void record_defparam_resolution(NetScope* source_scope,
+				      const std::list<hname_t>& path,
+				      NetScope* target_scope, PExpr* value);
+      void check_defparam_resolutions();
 	// Look for defparams that never matched, and print warnings.
       void residual_defparams();
 
@@ -6521,6 +6544,16 @@ class Design {
       bool mark_constraint_dist_diagnostic(const PExpr*expr);
 
     private:
+      /* Keep successful early defparam lookups so they can be checked
+	 against the completed hierarchy after generate elaboration. */
+      struct defparam_resolution_t {
+	    NetScope* source_scope;
+	    std::list<hname_t> path;
+	    NetScope* target_scope;
+	    PExpr* value;
+      };
+      std::list<defparam_resolution_t> defparam_resolutions_;
+
       NetScope* find_scope_(NetScope*, const hname_t&name,
                             NetScope::TYPE type = NetScope::MODULE) const;
 

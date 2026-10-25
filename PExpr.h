@@ -269,6 +269,24 @@ class PExpr : public LineInfo {
       PExpr& operator= (const PExpr&);
 };
 
+// True while elaborating expressions that are part of a procedural
+// statement. IEEE 1800-2017/2023 13.4 restricts function calls with output,
+// inout, or non-const ref arguments to this context.
+extern bool pform_procedural_expr_context;
+extern bool pform_default_argument_context;
+extern bool pform_default_argument_requires_procedural_context;
+
+class PExprProceduralContextGuard {
+    public:
+      explicit PExprProceduralContextGuard(bool enable)
+      : old_(pform_procedural_expr_context)
+      { pform_procedural_expr_context = enable; }
+      ~PExprProceduralContextGuard()
+      { pform_procedural_expr_context = old_; }
+    private:
+      bool old_;
+};
+
 /* Boolean match predicate. Statement contexts install pattern variables in
  * their implicit true-arm/item scopes; use of a binding from the true operand
  * of a conditional expression remains outside this first slice. This node is
@@ -551,6 +569,8 @@ class PEIdent : public PExpr {
 	// duplicate the diagnostic.
       void set_quiet_bind() { quiet_bind_ = true; }
       bool quiet_bind() const { return quiet_bind_; }
+      void set_modport_expression_access() { modport_expression_access_ = true; }
+      bool modport_expression_access() const { return modport_expression_access_; }
 
       // Add another name to the string of hierarchy that is the
       // current identifier.
@@ -689,6 +709,7 @@ class PEIdent : public PExpr {
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
       bool clocking_drive_lval_ = false;
+      bool modport_expression_access_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
 
@@ -907,6 +928,10 @@ class PEIdent : public PExpr {
       bool eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,
 			     long&midx, long&lidx) const;
 };
+
+void push_modport_expression_context(const pform_name_t&root);
+void pop_modport_expression_context();
+const pform_name_t* modport_expression_context();
 
 class PEMemberAccess : public PExpr {
 

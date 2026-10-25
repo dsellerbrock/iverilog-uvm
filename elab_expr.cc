@@ -19,6 +19,9 @@
  */
 
 # include "config.h"
+bool pform_procedural_expr_context = false;
+bool pform_default_argument_context = false;
+bool pform_default_argument_requires_procedural_context = false;
 # include  <algorithm>
 # include  <utility>
 # include  <typeinfo>
@@ -409,6 +412,28 @@ static NetNet* std_randomize_fixed_array_arg_(const PExpr*arg,
       return base == IVL_VT_BOOL || base == IVL_VT_LOGIC ? net : nullptr;
 }
 
+/* IEEE 1800-2017/2023 18.12 defines the argument list as variable
+ * identifiers. Do this syntactic check before elaborating values so a
+ * computed expression cannot be accepted as a destination by either the
+ * simple or solver-backed scope-randomize path. */
+static bool std_randomize_args_are_variables_(
+		const vector<named_pexpr_t>&parms, Design*des)
+{
+      for (const named_pexpr_t&parm : parms) {
+	    if (parm.parm && dynamic_cast<const PEIdent*>(parm.parm))
+		  continue;
+	    if (parm.parm && dynamic_cast<const PENull*>(parm.parm))
+		  continue;
+	    const LineInfo*loc = parm.parm;
+	    cerr << (loc ? loc->get_fileline() : "<unknown>")
+		 << ": error: arguments to scope randomize() must be variables "
+		 << "(IEEE 1800-2017/2023 18.12)." << endl;
+	    if (des) des->errors += 1;
+	    return false;
+      }
+      return true;
+}
+
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
@@ -454,6 +479,7 @@ NetESFunc* make_std_randomize_simple_expr(
       const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
       const LineInfo*loc)
 {
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       vector<NetExpr*> args;
       for (const named_pexpr_t&parm : parms) {
@@ -531,6 +557,7 @@ NetESFunc* make_std_randomize_with_expr(
       static const vector<perm_string> no_identifiers;
       const vector<perm_string>&effective_identifiers =
 	    has_with_identifier_list ? no_identifiers : with_identifiers;
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       if (has_with_identifier_list) {
 	    cerr << loc->get_fileline() << ": error: A parenthesized lookup "
@@ -5739,6 +5766,24 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
 
+	// IEEE 1800-2017/2023 11.4.14 only permits a streaming
+	// concatenation as an expression operand after a bit-stream cast.
+	// Plain assignment sources are handled by their assignment path and
+	// remain legal; a cast node also hides its streaming base here.
+      if (op_ != '=') {
+	    const PExpr*stream = dynamic_cast<const PEStreaming*>(left_);
+	    if (!stream)
+		  stream = dynamic_cast<const PEStreaming*>(right_);
+	    if (stream) {
+		  cerr << stream->get_fileline() << ": error: streaming "
+			"concatenation used as an expression operand must first "
+			"be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
 	/* Phase 63b: SystemVerilog `string + string` should be string
 	   concatenation, not numeric add (which would treat strings
 	   as packed vec4 and crash on size mismatch).  Need test_width
@@ -5960,7 +6005,8 @@ NetExpr* PEBinary::elaborate_expr_base_div_(Design*des,
 	/* The % operator does not support real arguments in
 	   baseline Verilog. But we allow it in our extended
 	   form of Verilog. */
-      if (op_ == '%' && ! gn_icarus_misc_flag) {
+      if (op_ == '%' && (generation_flag >= GN_VER2017
+			 || ! gn_icarus_misc_flag)) {
 	    if (lp->expr_type() == IVL_VT_REAL ||
 		rp->expr_type() == IVL_VT_REAL) {
 		  cerr << get_fileline() << ": error: Modulus operator "
@@ -7120,6 +7166,33 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 8.4 allows class-handle equality only when one
+	   operand's class type is assignment compatible with the other. The
+	   width check above can distinguish handles from scalar operands, but
+	   cannot distinguish unrelated class types. Check the elaborated types
+	   here, after specialized class types have been resolved. */
+      if ((op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N')
+	  && lp->expr_type() == IVL_VT_CLASS
+	  && rp->expr_type() == IVL_VT_CLASS) {
+	    const netclass_t*left_class =
+		  dynamic_cast<const netclass_t*>(lp->net_type());
+	    const netclass_t*right_class =
+		  dynamic_cast<const netclass_t*>(rp->net_type());
+	    if (left_class && right_class
+		&& !left_class->is_interface() && !right_class->is_interface()
+		&& !left_class->type_compatible(right_class)
+		&& !right_class->type_compatible(left_class)) {
+		  cerr << get_fileline() << ": error: class handle operands of '"
+		       << human_readable_op(op_)
+		       << "' are not assignment compatible (IEEE 1800-2017/2023 8.4)."
+		       << endl;
+		  des->errors += 1;
+		  delete lp;
+		  delete rp;
+		  return 0;
+	    }
+      }
+
       const netclass_t*left_vif = comparison_virtual_interface_type_(lp);
       const netclass_t*right_vif = comparison_virtual_interface_type_(rp);
       if (left_vif || right_vif) {
@@ -7321,6 +7394,17 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 	    return num && num->value().is_single()
 		 ? int(base->expr_width()) : -1;
       };
+      /* A string range compares its endpoints with the subject using the
+	 IEEE string relational operators. In particular, a string literal used
+	 as a bound must be elaborated as a string, rather than as its usual
+	 packed integral representation. */
+      auto elaborate_inside_item = [&](PExpr*item) -> NetExpr* {
+	    if (base->expr_type() == IVL_VT_STRING)
+		  return elab_and_eval(des, scope, item, -1, need_const,
+				       false, IVL_VT_STRING);
+	    return elab_and_eval(des, scope, item,
+			 inside_item_width(item), need_const);
+      };
 
       for (size_t i = 0 ; i < ranges_.size() ; i += 1) {
 	    const inside_range_t&r = ranges_[i];
@@ -7329,10 +7413,8 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 	    if (r.is_range) {
 		  NetExpr*lo = 0;
 		  NetExpr*hi = 0;
-		  if (r.lo) lo = elab_and_eval(des, scope, r.lo,
-					 inside_item_width(r.lo), need_const);
-		  if (r.hi) hi = elab_and_eval(des, scope, r.hi,
-					 inside_item_width(r.hi), need_const);
+		  if (r.lo) lo = elaborate_inside_item(r.lo);
+		  if (r.hi) hi = elaborate_inside_item(r.hi);
 
 		  NetExpr*ge = 0;
 		  NetExpr*le = 0;
@@ -8116,6 +8198,28 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return nullptr;
       }
+
+	// Static packing historically elaborated the inner expression as a
+	// whole, which let real-valued stream expressions fall through the
+	// ordinary real-to-vector conversion. Check each stream_expression
+	// before lowering so non-bit-stream operands receive the required error.
+      std::vector<PExpr*> stream_ops;
+      collect_operands_(stream_ops);
+      bool invalid_operand = false;
+      for (size_t idx = 0; idx < stream_ops.size(); idx += 1) {
+	    PExpr*op = stream_ops[idx];
+	    width_mode_t op_mode = SIZED;
+	    op->test_width(des, scope, op_mode);
+	    if (op->expr_type() == IVL_VT_REAL) {
+		  cerr << op->get_fileline() << ": error: expression of type real "
+			"is not a bit-stream type and cannot be a streaming "
+			"concatenation operand (IEEE 1800-2017 11.4.14.1)."
+		       << endl;
+		  des->errors += 1;
+		  invalid_operand = true;
+	    }
+      }
+      if (invalid_operand) return nullptr;
 
       width_mode_t m = SIZED;
       unsigned w;
@@ -11830,6 +11934,20 @@ static std::string typename_format_vector_(const netvector_t*vec)
       return base;
 }
 
+static std::string typename_format_vector_(const netvector_t*vec,
+                                          const netranges_t&outer_dims)
+{
+      if (outer_dims.empty())
+	    return typename_format_vector_(vec);
+
+      std::string base = typename_format_vector_(vec);
+      std::string dims = typename_format_packed_dims_(outer_dims);
+      std::string::size_type own_dims = base.find(" [");
+      base.insert(own_dims == std::string::npos ? base.size() : own_dims,
+		  dims);
+      return base;
+}
+
 /*
  * Format a single enum member value the way IEEE 1800-2017 20.6.1's own
  * example shows it: "<width>'s?d<value>", e.g. "32'sd0". A negative
@@ -11979,11 +12097,17 @@ static std::string typename_format_type_(ivl_type_t type)
 	    return elem;
       }
 
-	// A packed array of a non-vector element (e.g. a packed array of
-	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
-	// netvector_t and handled below, not netparray_t.
-      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
-	    return typename_format_type_(pa->element_type());
+	// A packed array of a typedef-named scalar is represented as a
+	// netparray_t, while an ordinary `bit [msb:lsb]` is a netvector_t.
+	// Preserve those dimensions in the type name (IEEE 1800-2017 20.6.1).
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type)) {
+	    if (const netvector_t*vec =
+		  dynamic_cast<const netvector_t*>(pa->element_type()))
+		  return typename_format_vector_(vec, pa->static_dimensions());
+
+	    return typename_format_type_(pa->element_type())
+		  + typename_format_packed_dims_(pa->static_dimensions());
+      }
 
       if (dynamic_cast<const netstring_t*>(type))
 	    return "string";
@@ -12697,6 +12821,14 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
       }
 
       unsigned nparms = parms_.size();
+
+      /* IEEE 1800-2017/2023 18.13.1 permits at most one seed argument. */
+      if (name == "$urandom" && nparms > 1) {
+	    cerr << get_fileline() << ": error: The $urandom function takes zero or one argument; found "
+		 << nparms << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       if (name == "$system" && nparms > 1) {
 	    cerr << get_fileline() << ": error: The $system function takes zero or one argument; found "
@@ -13583,6 +13715,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	  && base_index.size() == net->unpacked_dimensions())
 	    struct_type = dynamic_cast<const netstruct_t*>(net->array_type()->element_type());
       ivl_assert(*li, struct_type);
+      const netstruct_t*root_struct_type = struct_type;
 
 	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m`)
 	// reaches the packed member handling below with a struct that
@@ -14224,6 +14357,27 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
       if (var_off)
 	    base = make_packed_offset_sum(li, base, var_off);
+	// A mixed-state packed struct is represented by one 4-state vector,
+	// even when the selected member is 2-state. The select's type alone
+	// does not convert X/Z bits on a read, so keep the selected value
+	// 4-state until an explicit 2-state cast performs the required
+	// conversion (IEEE 1800-2017/2023 7.2.1).
+	if (root_struct_type->base_type() == IVL_VT_LOGIC
+	    && member_type->base_type() == IVL_VT_BOOL) {
+	      ivl_type_t result_type = member_type;
+	      if (use_width != (unsigned long)member_type->packed_width())
+		    result_type = new netvector_t(IVL_VT_BOOL,
+						  (long)use_width - 1, 0);
+	      ivl_type_t select_type = new netvector_t(IVL_VT_LOGIC,
+						       (long)use_width - 1, 0);
+	      NetESelect*sel = new NetESelect(sig, base, use_width, select_type);
+	      sel->set_line(*li);
+	      NetECast*cast = new NetECast('2', sel, use_width, false,
+					    result_type);
+	      cast->set_line(*li);
+	      return cast;
+	}
+
       NetESelect*sel = new NetESelect(sig, base, use_width, member_type);
 
       if (debug_elaborate) {
@@ -15631,6 +15785,60 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
       const name_component_t comp = sr.path_tail.front();
 
+      // IEEE 1800-2017/2023 25.5.4: an explicitly named modport port
+      // denotes its declared expression, rather than an interface property
+      // with the port identifier's name. For identifier expressions, splice
+      // the declared interface member path into the receiver path and let
+      // the ordinary select/property elaborator handle its type and indices.
+      if (class_type && class_type->is_interface()
+	  && sr.path_tail.size() == 1 && sr.net && !modport_expression_access()) {
+	    verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+	    perm_string mp_name = mp_attr == verinum() ? perm_string()
+		  : lex_strings.make(mp_attr.as_string().c_str());
+	    const PModport*view = interface_modport_view(class_type, mp_name);
+	    auto port = view ? view->simple_ports.find(comp.name)
+		  : std::map<perm_string,PModport::simple_port_t>::const_iterator();
+	    if (view && port != view->simple_ports.end() && port->second.second) {
+		  if (!validate_interface_modport_access(
+			  des, this, class_type, mp_name, comp.name,
+			  clocking_access(), false))
+			return nullptr;
+		  const PEIdent*source = dynamic_cast<const PEIdent*>(port->second.second);
+		  if (source && !source->path().package && !source->path().name.empty()) {
+			pform_name_t mapped_path;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			      mapped_path.push_back(*head);
+			mapped_path.insert(mapped_path.end(), source->path().name.begin(),
+				   source->path().name.end());
+			for (auto tail = std::next(sr.path_tail.begin());
+			     tail != sr.path_tail.end(); ++tail)
+			      mapped_path.push_back(*tail);
+			if (!comp.index.empty())
+			      std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.insert(
+				    std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.end(),
+				    comp.index.begin(), comp.index.end());
+			PEIdent mapped_ident(mapped_path, lexical_pos_);
+			mapped_ident.set_line(*this);
+			mapped_ident.set_modport_expression_access();
+			return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
+		  }
+		  pform_name_t receiver;
+		  const size_t prefix = path_.name.size() - sr.path_tail.size();
+		  for (auto head = path_.name.begin(); head != path_.name.end()
+		       && std::distance(path_.name.begin(), head) < (long)prefix;
+		       ++head)
+			receiver.push_back(*head);
+		  push_modport_expression_context(receiver);
+	  NetExpr*expression = port->second.second->elaborate_expr(
+			des, scope, expr_wid, flags);
+		  pop_modport_expression_context();
+		  return expression;
+	    }
+      }
+
       pform_name_t rewritten_path;
       perm_string mapped_access = clocking_access();
       bool output_read = false;
@@ -16362,7 +16570,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       // Modport member visibility (IEEE 1800-2017 25.5).
-      if (class_type->is_interface()) {
+      if (class_type->is_interface() && !modport_expression_access()) {
 	    verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
 	    if (mp_attr != verinum()) {
 		  perm_string mp_name = lex_strings.make(
@@ -17936,6 +18144,32 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 13.4: output, inout, and non-const ref
+	 * function arguments are only legal in a procedural statement. A
+	 * const ref formal is explicitly permitted in other expressions. */
+	  bool bad_direction = false;
+	  for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+		const NetNet*formal = def->port(idx);
+		if (formal->port_type() == NetNet::POUTPUT
+		    || formal->port_type() == NetNet::PINOUT
+		    || (formal->port_type() == NetNet::PREF
+			&& !formal->get_const())) {
+		      bad_direction = true;
+		      break;
+		}
+	  }
+	  if (bad_direction && pform_default_argument_context) {
+		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && !pform_procedural_expr_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments may only be called"
+			  " in a procedural statement (IEEE 1800-2017/2023 13.4)."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+      }
+
       bool need_const = NEED_CONST & flags;
 
 	// Function expressions need the body materialized before target
@@ -18412,6 +18646,17 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			     << ": " << *parms[idx] << endl;
 
 	    } else if (def->port_defe(pidx)) {
+		  if (def->port_defe(pidx)->requires_procedural_context()
+		      && !pform_procedural_expr_context) {
+			cerr << get_fileline() << ": error: Default argument for function `"
+			     << def->scope()->basename()
+			     << "' contains a function with output, inout, or ref arguments; "
+				"the call must be within a procedural statement "
+				"(IEEE 1800-2017/2023 13.4/13.5.3)." << endl;
+			des->errors += 1;
+			parm_errors += 1;
+			continue;
+		  }
 		  if (! gn_system_verilog()) {
 			cerr << get_fileline() << ": internal error: "
 			     << "Found (and using) default function argument "
@@ -21036,6 +21281,43 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return cast;
       }
 
+      /* An unpacked struct has no scalar VVP representation. For the fixed-size
+       * case with packed members, form its bit stream in declaration order before
+       * applying the packed destination conversion (IEEE 1800-2017/2023 6.24.3). */
+      if (target_type_ && target_type_->packed()) {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(sub->net_type());
+	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
+		  || dynamic_cast<const NetEProperty*>(sub);
+	    if (record && !record->packed() && !record->union_flag()
+		&& stable_source && !record->members().empty()) {
+		  bool streamable = true;
+		  bool has_four_state = false;
+		  for (const netstruct_t::member_t&member : record->members()) {
+			if (!member.net_type->packed() || member.net_type->packed_width() <= 0)
+			      streamable = false;
+			if (member.net_type->base_type() == IVL_VT_LOGIC)
+			      has_four_state = true;
+		  }
+		  if (streamable) {
+			NetEConcat*stream = new NetEConcat(record->members().size(), 1,
+				has_four_state ? IVL_VT_LOGIC : IVL_VT_BOOL);
+			for (size_t member_idx = 0;
+			     member_idx < record->members().size(); member_idx += 1) {
+			      NetEProperty*field = new NetEProperty(sub->dup_expr(), member_idx);
+			      field->set_line(*this);
+			      stream->set(member_idx, field);
+			}
+			stream->set_line(*this);
+			delete sub;
+			NetExpr*bits = target_type_->base_type() == IVL_VT_BOOL
+			      ? cast_to_int2(stream, expr_width_)
+			      : cast_to_int4(stream, expr_width_);
+			return pad_to_width(bits, expr_wid, signed_flag_, *this,
+				    target_type_);
+		  }
+	    }
+      }
+
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
 	    switch (sub->expr_type()) {
@@ -21873,8 +22155,25 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      want_type = ntype;
 			      item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			}
-			NetExpr*tmp = parms_[idx]->elaborate_expr(
-			      des, scope, want_type, item_flags);
+			NetExpr*tmp;
+			/* An integral concatenation used as one scalar array item is
+			 * self-determined (IEEE 1800-2017/2023 10.10.3). Elaborate it
+			 * through the ordinary value path so its packed width is formed
+			 * before conversion to the destination element type. Passing the
+			 * element type directly would mistake these braces for an
+			 * unpacked-array concatenation and reject the legal vector item. */
+			const PEConcat*vector_concat =
+			      dynamic_cast<const PEConcat*>(parms_[idx]);
+			if (vector_concat
+			    && vector_concat->expr_type() == IVL_VT_LOGIC
+			    && (elem_type->base_type() == IVL_VT_BOOL
+				|| elem_type->base_type() == IVL_VT_LOGIC)) {
+			      tmp = elaborate_rval_expr(des, scope, elem_type,
+					       parms_[idx], false, false, item_flags);
+			} else {
+			      tmp = parms_[idx]->elaborate_expr(
+				    des, scope, want_type, item_flags);
+			}
 			/* Array parameters materialize as a fixed-typed pattern,
 			 * rather than as an IVL_EX_ARRAY signal. The pattern stores
 			 * words in numeric-index order; splice duplicates in the
@@ -22952,6 +23251,23 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  unsigned width = mapped_ident.test_width(des, scope, mode);
+		  expr_type_ = mapped_ident.expr_type();
+		  expr_width_ = mapped_ident.expr_width();
+		  min_width_ = mapped_ident.min_width();
+		  signed_flag_ = mapped_ident.has_sign();
+		  return width;
+	    }
+	  }
 	// M13: a bare reference to a let in scope expands by
 	// substitution before any symbol search.
       if (PExpr*sub = let_substitution_(des, scope)) {
@@ -22974,6 +23290,37 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  if (!modport_expression_access() && sr.net
+	      && sr.path_tail.size() == 1 && sr.type) {
+	    const netclass_t*interface_type =
+		  dynamic_cast<const netclass_t*>(sr.type);
+	    if (interface_type && interface_type->is_interface()) {
+		  verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+		  perm_string mp_name = mp_attr == verinum() ? perm_string()
+			: lex_strings.make(mp_attr.as_string().c_str());
+		  const PModport*view = interface_modport_view(interface_type, mp_name);
+		  const name_component_t&port_name = sr.path_tail.front();
+		  auto port = view ? view->simple_ports.find(port_name.name)
+			: std::map<perm_string,PModport::simple_port_t>::const_iterator();
+		  if (view && port != view->simple_ports.end() && port->second.second) {
+			pform_name_t receiver;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			  receiver.push_back(*head);
+			push_modport_expression_context(receiver);
+			unsigned width = port->second.second->test_width(des, scope, mode);
+			pop_modport_expression_context();
+			expr_type_ = port->second.second->expr_type();
+			expr_width_ = port->second.second->expr_width();
+			min_width_ = port->second.second->min_width();
+			signed_flag_ = port->second.second->has_sign();
+			return width;
+		  }
+	    }
+	  }
 
       if (sr.scope_index_error) {
 	    expr_type_ = IVL_VT_LOGIC;
@@ -23510,6 +23857,18 @@ static bool reject_left_last_in_fixed_unpacked_prefix_(
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_expr(des, scope, ntype, flags);
+	    }
+	  }
       bool need_const = NEED_CONST & flags;
 
 	// M5-3: a non-constant index into an interface-instance array used as
@@ -24148,6 +24507,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
                               net->net_type(), use_comp.index,
                               selected_type);
                   }
+                  if (net->unpacked_dimensions() > 0
+                      && !use_comp.index.empty())
+                        return elaborate_expr_net(
+                              des, scope, net, sr.scope, expr_width_, flags);
                   NetESignal*tmp = new NetESignal(net);
                   tmp->set_line(*this);
                   return tmp;
@@ -24492,6 +24855,14 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());
 	    canon_index = normalize_variable_unpacked(net, unpacked_indices_const);
+	    if (!canon_index && net->unpacked_count() > 0
+		&& !net->darray_type() && !net->queue_type()) {
+		  /* A constant out-of-range read still needs an index expression.
+		   * Use the first canonical address beyond the fixed array so the
+		   * normal runtime array load returns that element type's default
+		   * value (IEEE 1800-2017 7.4.6 / 2023 7.4.5, Table 7-1). */
+		  canon_index = new NetEConst(verinum((uint64_t)net->unpacked_count(), 32));
+	    }
       }
 
       ivl_assert(*this, canon_index);
@@ -24515,6 +24886,18 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
+	    }
+	  }
 	// M13: expand let uses by substitution.
       if (PExpr*sub = let_substitution_(des, scope)) {
 	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
@@ -30882,6 +31265,17 @@ bool NetETernary::test_operand_compat(ivl_variable_type_t l,
 NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 				  ivl_type_t type, unsigned flags) const
 {
+      const PExpr*stream = dynamic_cast<const PEStreaming*>(expr_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(tru_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(fal_);
+      if (stream) {
+	    cerr << stream->get_fileline() << ": error: streaming "
+		  "concatenation used as an expression operand must first "
+		  "be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       if (type == 0)
 	    return elaborate_expr(des, scope, 1u, flags);
 
@@ -31124,6 +31518,18 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, expr_);
       ivl_assert(*this, tru_);
       ivl_assert(*this, fal_);
+
+      const PExpr*stream = dynamic_cast<const PEStreaming*>(expr_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(tru_);
+      if (!stream) stream = dynamic_cast<const PEStreaming*>(fal_);
+      if (stream) {
+	    cerr << stream->get_fileline() << ": error: streaming "
+		  "concatenation used as an expression operand must first "
+		  "be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
 	// Elaborate and evaluate the condition expression. Note that
 	// it is always self-determined.
@@ -31482,6 +31888,14 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
+
+      if (dynamic_cast<const PEStreaming*>(expr_)) {
+	    cerr << expr_->get_fileline() << ": error: streaming concatenation "
+		  "used as an expression operand must first be cast to a "
+		  "bit-stream type (IEEE 1800-2017 11.4.14)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       ivl_variable_type_t t;
       NetAssign_*inc_lval = 0;
 

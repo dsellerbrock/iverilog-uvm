@@ -1,0 +1,2 @@
+ivltests/issue929_duplicate_named_parameter.v:6: error: Parameter `P' is assigned more than once in this instance.
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_type_real_interval_cross_fail_2023.v:7: error: coverage option 'type_option.real_interval' is not allowed at the cross syntactic level.
+1 error(s) during elaboration.

@@ -1356,9 +1356,12 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			midx, lidx, selected_word_base + idx);
 		  ivl_assert(*this, !overlap);
 	    }
-	    if (sig->coerced_to_uwire() && sig->scope()
-		&& sig->scope()->is_interface() && sig->scope()->parent())
-	      ivl_note_interface_continuous_member(sig, this);
+	    if (sig->coerced_to_uwire()) {
+		  ivl_note_clocking_output_continuous_write(sig, this);
+		  if (sig->scope() && sig->scope()->is_interface()
+		      && sig->scope()->parent())
+			ivl_note_interface_continuous_member(sig, this);
+	    }
       }
 
       /* A net declaration delay is a boundary after the declared net's

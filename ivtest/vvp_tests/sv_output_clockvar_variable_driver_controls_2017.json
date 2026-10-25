@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "sv_output_clockvar_variable_driver_controls.v",
+  "iverilog-args": ["-g2017", "-s", "sv_output_clockvar_variable_driver_controls"],
+  "vvp-args": [],
+  "gold": "sv_output_clockvar_variable_driver_controls"
+}

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_interface_class_nested_interface.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "sv_interface_class_nested_interface_2017"
+}

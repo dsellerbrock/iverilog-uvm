@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_typedef_fwd_wrong_kind.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_typedef_fwd_wrong_kind_2017"
+}

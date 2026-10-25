@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "sv_task_ref_default.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "sv_task_ref_default",
+  "vlog95": {"type": "NI"}
+}

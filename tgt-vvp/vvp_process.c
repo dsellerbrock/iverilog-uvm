@@ -2039,7 +2039,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 		    "\"multiple case items match for unique or unique0 case "
 		    "statement\" {0 0 0 0};\n",
 		    ivl_file_table_index(ivl_stmt_file(net)),
@@ -2085,7 +2085,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	      fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			  "\"value is unhandled for priority or unique case statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
@@ -2215,8 +2215,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
-              else
-		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		  else
+		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			    "\"value is unhandled for priority or unique case statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
@@ -7101,6 +7101,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
 	  || strcmp(stmt_name, "$ivl_process$await") == 0
 	  || strcmp(stmt_name, "$ivl_process$suspend") == 0
+	  || strcmp(stmt_name, "$ivl_process$suspend$2023") == 0
 	  || strcmp(stmt_name, "$ivl_process$resume") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
 	    const char*op;
@@ -7112,6 +7113,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  op = "%process/await";
 	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
 		  op = "%process/suspend";
+	    else if (strcmp(stmt_name, "$ivl_process$suspend$2023") == 0)
+		  op = "%process/suspend/2023";
 	    else
 		  op = "%process/resume";
 	    fprintf(vvp_out, "    %s;\n", op);

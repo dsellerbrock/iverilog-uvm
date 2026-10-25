@@ -551,7 +551,8 @@ extern void compile_vpi_call(char*label, char*name,
 			     unsigned vec4_stack,
 			     unsigned real_stack,
 			     unsigned string_stack,
-			     unsigned object_stack);
+			     unsigned object_stack,
+			     bool defer_observed = false);
 
 /* Compile a function call. The vbit and vwid encode the return
    type. If the vwid >0, the return type is a vector. If the vwid is

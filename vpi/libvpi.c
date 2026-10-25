@@ -371,6 +371,11 @@ void vpip_print_stacktrace(const char*call_file, long call_line)
       assert(vpip_routines);
       vpip_routines->print_stacktrace(call_file, call_line);
 }
+void vpip_print_finish_stats(void)
+{
+      assert(vpip_routines);
+      vpip_routines->print_finish_stats();
+}
 void vpip_cancel_deferred_asserts(const char*selector, PLI_INT32 levels)
 {
       assert(vpip_routines);

@@ -12,6 +12,10 @@
 #
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
+sv_modport_expression_2017 normal,-g2017 ivltests gold=sv_modport_expression-vvp-stdout.gold
+sv_modport_expression_2023 normal,-g2023 ivltests gold=sv_modport_expression-vvp-stdout.gold
+sv_modport_expression_concat_2017 normal,-g2017 ivltests gold=sv_modport_expression_concat.gold
+sv_modport_expression_concat_2023 normal,-g2023 ivltests gold=sv_modport_expression_concat.gold
 #    This program is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -26,6 +30,12 @@ sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=s
 # testname		testtype		directory
 #
 # The <testname> is the verilog file name minus an extension.
+sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_arg_fail_2017.gold
+sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
+sv_checker_always_ff_blocking_fail_2017 CE,-g2017,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2017.gold
+sv_checker_always_ff_blocking_fail_2023 CE,-g2023,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2023.gold
+sv_checker_always_ff_assignments normal,-g2017,-s,sv_checker_always_ff_assignments ivltests gold=sv_checker_always_ff_assignments.gold
+sv_checker_always_ff_assignments_2023 normal,-g2023,-s,sv_checker_always_ff_assignments ivltests gold=sv_checker_always_ff_assignments.gold
 #
 # The <testtype> can be one of the following:
 #
@@ -76,6 +86,14 @@ sv_default_clocking_procedural_override normal,-g2017 ivltests gold=sv_default_c
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
 always_comb_fail4	CE,-g2005-sv		ivltests
+sv_always_comb_overlapping_writers_dynamic CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_dynamic_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_disjoint_writers normal,-g2017,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
+sv_always_comb_disjoint_writers_2023 normal,-g2023,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
 always_comb_no_sens	normal,-g2005-sv	ivltests
 always_comb_rfunc	normal,-g2005-sv	ivltests
 always_comb_trig	normal,-g2005-sv	ivltests
@@ -1396,6 +1414,8 @@ sv_stream_with_range_type_fail CE,-g2012 ivltests gold=sv_stream_with_range_type
 sv_stream_with_extreme_const_fail CE,-g2012 ivltests gold=sv_stream_with_extreme_const_fail.gold
 sv_stream_with_syntax_fail CE,-g2012 ivltests gold=sv_stream_with_syntax_fail.gold
 sv_checker_basic normal,-g2012 ivltests
+sv_checker_net_illegal_2017 CE,-g2017 ivltests gold=sv_checker_net_illegal_2017.gold
+sv_checker_net_illegal_2023 CE,-g2023 ivltests gold=sv_checker_net_illegal_2023.gold
 sv_checker_nested_instance normal,-g2012 ivltests
 sv_checker_bind normal,-g2012 ivltests
 sv_generic_interface_port normal,-g2012 ivltests
@@ -1483,13 +1503,19 @@ sv_clocking_output_nonlvalue_fail_2017 CE,-g2017,-ssv_clocking_output_nonlvalue_
 sv_clocking_output_nonlvalue_fail_2023 CE,-g2023,-ssv_clocking_output_nonlvalue_fail_2023 ivltests
 
 # Clocking-output/continuous-driver identity; 2023 pairs are in regress-vvp.list
+sv_interface_class_nested_ordinary_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_ordinary_2023 normal,-g2023,-s,top ivltests gold=sv_interface_class_nested_ordinary_2023-legacy.gold
+sv_interface_class_nested_interface_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_interface_2023 CE,-g2023,-s,top ivltests
 sv_clocking_output_continuous_alias_overlap CE,-g2017,-ssv_clocking_output_continuous_alias_overlap ivltests gold=sv_clocking_output_continuous_alias_overlap.gold
 sv_clocking_output_continuous_declaration_only normal,-g2017,-ssv_clocking_output_continuous_declaration_only ivltests gold=sv_clocking_output_continuous_declaration_only.gold
+sv_output_clockvar_variable_driver_controls normal,-g2017,-ssv_output_clockvar_variable_driver_controls ivltests gold=sv_output_clockvar_variable_driver_controls.gold
 sv_clocking_output_continuous_disjoint normal,-g2017,-ssv_clocking_output_continuous_disjoint ivltests gold=sv_clocking_output_continuous_disjoint.gold
 sv_clocking_output_continuous_pending_overlap CE,-g2017,-ssv_clocking_output_continuous_pending_overlap ivltests gold=sv_clocking_output_continuous_pending_overlap.gold
 sv_clocking_output_continuous_same_scope_overlap CE,-g2017,-ssv_clocking_output_continuous_same_scope_overlap ivltests gold=sv_clocking_output_continuous_same_scope_overlap.gold
 sv_clocking_output_continuous_static_overlap CE,-g2017,-ssv_clocking_output_continuous_static_overlap ivltests gold=sv_clocking_output_continuous_static_overlap.gold
 sv_clocking_output_continuous_virtual_overlap CE,-g2017,-ssv_clocking_output_continuous_virtual_overlap ivltests gold=sv_clocking_output_continuous_virtual_overlap.gold
+sv_output_clockvar_variable_drivers_fail CE,-g2017,-ssv_output_clockvar_variable_drivers_fail ivltests gold=sv_output_clockvar_variable_drivers_fail.gold
 sv_assert_parameterized_unpacked_array_sample normal,-g2012 ivltests
 sv_assert_multiclock_cover_disable normal,-g2012 ivltests
 sv_assert_multiclock_action_blocks normal,-g2012 ivltests
@@ -1548,6 +1574,8 @@ sv_covergroup_class_const_bin_ranges normal,-g2017 ivltests gold=sv_covergroup_c
 sv_covergroup_class_const_bin_ranges_2023 normal,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges.gold
 sv_covergroup_class_const_bin_ranges_fail CE,-g2017 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
 sv_covergroup_class_const_bin_ranges_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
+sv_covergroup_assignment_outside_new_2017 CE,-g2017 ivltests gold=sv_covergroup_assignment_outside_new_2017.gold
+sv_covergroup_assignment_outside_new_2023 CE,-g2023 ivltests gold=sv_covergroup_assignment_outside_new_2023.gold
 sv_class_instance_const_flow normal,-g2017 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_flow_2023 normal,-g2023 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_static_fail CE,-g2017 ivltests gold=sv_class_instance_const_static_fail.gold
@@ -1850,6 +1878,8 @@ sv_type_this_2017 CE,-g2017 ivltests gold=sv_type_this_2017.gold
 sv_type_this_outside_class CE,-g2023 ivltests gold=sv_type_this_outside_class.gold
 sv_tolerance_range_2023 normal,-g2023 ivltests gold=sv_tolerance_range_2023.gold
 sv_tolerance_range_2017 CE,-g2017 ivltests gold=sv_tolerance_range_2017.gold
+sv_inside_string_real_ranges_2017 normal,-g2017 ivltests gold=sv_inside_string_real_ranges_2017.gold
+sv_inside_string_real_ranges_2023 normal,-g2023 ivltests gold=sv_inside_string_real_ranges_2023.gold
 sv_specparam_constant_expr_fail CE,-g2012 ivltests gold=sv_specparam_constant_expr_fail.gold
 sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
 sv_assert_paren_property normal,-g2012 ivltests
@@ -2288,6 +2318,7 @@ sv_ustruct_member_defaults_edge normal,-g2012 ivltests gold=sv_ustruct_member_de
 sv_struct_member_defaults_invalid_kind_fail CE,-g2012 ivltests gold=sv_struct_member_defaults_invalid_kind_fail.gold
 sv_param_class_bare_static_property_lvalue_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_property_lvalue_fail.gold
 sv_enum_class_typedef_forward_kind_fail CE,-g2012 ivltests gold=sv_enum_class_typedef_forward_kind_fail.gold
+sv_typedef_fwd_wrong_kind CE,-g2017 ivltests
 sv_class_typedef_parameterized_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_parameterized_shadow_fail.gold
 sv_class_typedef_scoped_static_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_scoped_static_shadow_fail.gold
 sv_param_class_scoped_static_lvalue_invalid_fail CE,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_invalid_fail.gold
@@ -2424,6 +2455,8 @@ sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.
 # IEEE 1800-2017 parallel statement labels and conditional event controls
 sv_statement_label_parallel normal,-g2012 ivltests gold=sv_statement_label_parallel.gold
 sv_statement_label_parallel_fail CE,-g2012 ivltests gold=sv_statement_label_parallel_fail.gold
+sv_statement_labels_2017 normal,-g2017,-s,main ivltests gold=sv_statement_labels.gold
+sv_statement_labels_2023 normal,-g2023,-s,main ivltests gold=sv_statement_labels.gold
 sv_event_conditional normal,-g2012 ivltests gold=sv_event_conditional.gold
 sv_event_conditional_fail CE,-g2012 ivltests gold=sv_event_conditional_fail.gold
 
@@ -2601,6 +2634,7 @@ sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests g
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
+sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold
 sv_interface_port_array_direction_methods normal,-g2012,-ssv_interface_port_array_direction_methods ivltests gold=sv_interface_port_array_direction_methods.gold
 sv_interface_port_array_shape_fail CE,-g2012,-ssv_interface_port_array_shape_fail ivltests gold=sv_interface_port_array_shape_fail.gold
 sv_interface_port_array_forwarded_shape_fail CE,-g2012,-ssv_interface_port_array_forwarded_shape_fail ivltests gold=sv_interface_port_array_forwarded_shape_fail.gold
@@ -3113,6 +3147,8 @@ sv_fork_function_children_2023 normal,-g2023,-s,main ivltests gold=sv_fork_funct
 
 sv_fork_null_child normal,-g2017,-s,main ivltests gold=sv_fork_null_child.gold
 sv_fork_null_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_null_child.gold
+sv_wait_fork_excludes_descendants_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
+sv_wait_fork_excludes_descendants_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
 sv_fork_empty_child normal,-g2017,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_empty_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
@@ -3664,6 +3700,14 @@ sv_constraint_function_typed_randc_neighbor normal,-g2017,-s,test ivltests gold=
 sv_constraint_function_typed_randc_neighbor_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_typed_randc_neighbor.gold
 sv_constraint_function_dynamic_size_priority normal,-g2017,-s,test ivltests gold=sv_constraint_function_dynamic_size_priority.gold
 sv_constraint_function_dynamic_size_priority_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_dynamic_size_priority.gold
+sv_constraint_function_result_priority_progress normal,-g2017,-s,test ivltests gold=sv_constraint_function_result_priority_progress.gold
+sv_constraint_function_result_priority_progress_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_result_priority_progress.gold
+sv_constraint_function_priority_rng_replay normal,-g2017,-s,test ivltests gold=sv_constraint_function_priority_rng_replay.gold
+sv_constraint_function_priority_rng_replay_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_priority_rng_replay.gold
+sv_constraint_function_priority_intrinsic_rollback normal,-g2017,-s,test ivltests gold=sv_constraint_function_priority_intrinsic_rollback.gold
+sv_constraint_function_priority_intrinsic_rollback_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_priority_intrinsic_rollback.gold
+sv_constraint_function_priority_distribution normal,-g2017,-s,test ivltests gold=sv_constraint_function_priority_distribution.gold
+sv_constraint_function_priority_distribution_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_priority_distribution.gold
 sv_constraint_function_dynamic_queue_element normal,-g2017,-s,test ivltests gold=sv_constraint_function_dynamic_queue_element.gold
 sv_constraint_function_dynamic_queue_element_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_dynamic_queue_element.gold
 sv_constraint_function_dynamic_unordered_peers normal,-g2017,-s,test ivltests gold=sv_constraint_function_dynamic_unordered_peers.gold
@@ -4661,6 +4705,8 @@ sv_constraint_object_method_impure_override_fail CE,-g2017,-s,test ivltests gold
 sv_constraint_object_method_impure_override_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_object_method_impure_override_fail.gold
 sv_enum_bare_name_concat normal,-g2017,-s,test ivltests gold=sv_enum_bare_name_concat.gold
 sv_enum_bare_name_concat_2023 normal,-g2023,-s,test ivltests gold=sv_enum_bare_name_concat.gold
+sv_enum_unbased_fill_context_2017 normal,-g2017,-s,main ivltests
+sv_enum_unbased_fill_context_2023 normal,-g2023,-s,main ivltests
 sv_enum_bare_num_string_fail CE,-g2017,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 
@@ -5902,6 +5948,7 @@ sv_let_scope_2017 normal,-g2017,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_let_scope_2023 normal,-g2023,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_forward_class_scoped_typedef normal,-g2017,-s,sv_forward_class_scoped_typedef ivltests gold=sv_forward_class_scoped_typedef.gold
 sv_forward_class_scoped_typedef_2023 normal,-g2023,-s,sv_forward_class_scoped_typedef_2023 ivltests gold=sv_forward_class_scoped_typedef.gold
+sv_class_handle_equality_unrelated_fail CE,-g2017,-s,test ivltests
 format_undefined_spec_2017 EF,-g2017,-s,format_undefined_spec_2017 ivltests gold=format_undefined_spec_2017.gold
 format_undefined_spec_2023 EF,-g2023,-s,format_undefined_spec_2023 ivltests gold=format_undefined_spec_2023.gold
 # IEEE 1800-2017/2023 20.2 and 24.7: program-only $exit and ignored module calls.
@@ -5934,5 +5981,24 @@ sv_assert_increment_side_effect_2023 CE,-g2023,-gassertions,-s,sv_assert_increme
 # IEEE 1800-2017/2023 §12.5.3: uniqueness is counted per case_item.
 sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
+sv_case_violation_observed_2017 normal,-g2017,-s,sv_case_violation_observed ivltests gold=sv_case_violation_observed.gold
+sv_case_violation_observed_2023 normal,-g2023,-s,sv_case_violation_observed ivltests gold=sv_case_violation_observed.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_function_copyout_context_fail_2017 CE,-g2017,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2017.gold
+sv_function_copyout_context_fail_2023 CE,-g2023,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2023.gold
+sv_checker_nested_design_units_2017 CE,-g2017,-s,sv_checker_nested_design_units ivltests gold=sv_checker_nested_design_units_2017.gold
+sv_checker_nested_design_units_2023 CE,-g2023,-s,sv_checker_nested_design_units ivltests gold=sv_checker_nested_design_units_2023.gold
+sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2017.gold
+sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
+sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
+sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
+sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
+sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold
+issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_vector_array_concat.gold
+sv_invalid_container_element_default_2017 normal,-g2017 ivltests gold=sv_invalid_container_element_default.gold
+sv_invalid_container_element_default_2023 normal,-g2023 ivltests gold=sv_invalid_container_element_default.gold
+issue947_unit_forward_reference_fail CE,-g2017 ivltests
+sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
+pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
+pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold

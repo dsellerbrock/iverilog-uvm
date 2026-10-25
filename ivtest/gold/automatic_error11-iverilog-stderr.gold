@@ -1,0 +1,2 @@
+ivltests/automatic_error11.v:9: error: $monitor may not trace an automatic variable.
+1 error(s) during elaboration.

@@ -45,6 +45,7 @@
 # include  <tuple>
 # include  "pform.h"
 # include  "PClass.h"
+# include  "PTask.h"
 # include  "PEvent.h"
 # include  "PGenerate.h"
 # include  "PModport.h"
@@ -73,6 +74,24 @@
 extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
+
+static Module* find_module_type_(perm_string type, const NetScope*scope)
+{
+      for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const Module*owner = cur->module_definition();
+	    if (!owner)
+		  continue;
+	    std::map<perm_string,Module*>::const_iterator nested
+		  = owner->nested_modules.find(type);
+	    if (nested != owner->nested_modules.end()
+		&& !nested->second->is_checker)
+		  return nested->second;
+      }
+
+      std::map<perm_string,Module*>::const_iterator module
+	    = pform_modules.find(type);
+      return module == pform_modules.end()? 0 : module->second;
+}
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
@@ -2471,6 +2490,14 @@ static vector<pending_unsafe_interface_driver_t>
 /* A clocking-output declaration creates an apply process even if nothing
  * drives the clockvar. Record only source drives that were elaborated. */
 static set<const NetNet*>static_clocking_output_writers_;
+static map<const NetNet*,perm_string>clocking_output_variables_;
+struct pending_clocking_output_continuous_write_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+static vector<pending_clocking_output_continuous_write_t>
+      pending_clocking_output_continuous_writes_;
+static set<const NetNet*>reported_clocking_output_continuous_writes_;
 
 struct pending_interface_ref_actual_t {
       NetNet*handle;
@@ -2506,6 +2533,42 @@ void ivl_note_interface_continuous_member(NetNet*signal,
 					const LineInfo*location)
 {
       pending_direct_interface_members_.push_back({signal, location});
+}
+
+void ivl_register_clocking_output_variable(NetNet*signal,
+					   perm_string clocking_block)
+{
+      clocking_output_variables_[signal] = clocking_block;
+}
+
+void ivl_note_clocking_output_continuous_write(NetNet*signal,
+					       const LineInfo*location)
+{
+      pending_clocking_output_continuous_writes_.push_back(
+	    {signal, location});
+}
+
+bool ivl_reject_clocking_output_procedural_continuous(
+					Design*des, const NetAssign_*lval,
+					const LineInfo*location, const char*kind)
+{
+      for (const NetAssign_*cur = lval ; cur ; cur = cur->more) {
+	    const NetNet*signal = cur->sig();
+	    if (!signal)
+		  continue;
+	    auto clockvar = clocking_output_variables_.find(signal);
+	    if (clockvar == clocking_output_variables_.end())
+		  continue;
+	    cerr << location->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be written by a procedural continuous assignment ("
+		 << kind << ") (IEEE 1800-2017/2023 14.16.2, 10.6)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      return false;
 }
 
 class unsafe_task_body_guard_t {
@@ -3048,6 +3111,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		     << "' cannot have continuous and procedural drivers on the"
 		     << " same bits." << endl;
 		des->errors += 1;
+		if (clocking_output_variables_.count(member))
+		      reported_clocking_output_continuous_writes_.insert(member);
 		continue;
 	      }
 	    }
@@ -3083,6 +3148,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	       << "' cannot have continuous and procedural drivers on the"
 	       << " same bits." << endl;
 	  des->errors += 1;
+	  if (clocking_output_variables_.count(pending.signal))
+		reported_clocking_output_continuous_writes_.insert(pending.signal);
 	}
       }
       pending_direct_interface_members_.clear();
@@ -3097,9 +3164,30 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		       << "' cannot have continuous and procedural drivers on the "
 			  "same value." << endl;
 		  des->errors += 1;
+		  if (clocking_output_variables_.count(pending.signal))
+			reported_clocking_output_continuous_writes_.insert(
+			      pending.signal);
 	    }
       }
       pending_variable_continuous_drivers_.clear();
+
+      for (const pending_clocking_output_continuous_write_t&pending :
+	   pending_clocking_output_continuous_writes_) {
+	    auto clockvar = clocking_output_variables_.find(pending.signal);
+	    if (clockvar == clocking_output_variables_.end()
+		|| !reported_clocking_output_continuous_writes_.insert(
+		      pending.signal).second)
+		  continue;
+	    cerr << pending.location->get_fileline() << ": error: Variable '"
+		 << pending.signal->name()
+		 << "' is associated with an output clockvar of clocking block '"
+		 << clockvar->second
+		 << "' and cannot be driven by a continuous assignment (including a "
+		    "primitive output or module output port connection) "
+		    "(IEEE 1800-2017/2023 14.16.2)." << endl;
+	    des->errors += 1;
+      }
+      pending_clocking_output_continuous_writes_.clear();
 
 }
 
@@ -3136,8 +3224,11 @@ static bool mark_unsafe_virtual_overrides_(
 
 static void finalize_unsafe_interface_drivers_(Design*des)
 {
-      if (pending_unsafe_interface_drivers_.empty())
+
+      if (pending_unsafe_interface_drivers_.empty()) {
+	    reported_clocking_output_continuous_writes_.clear();
 	return;
+      }
 
       /* A null caller is an executable process, including one-shot task
 	 declaration initializers. A call in a dead task becomes live only when
@@ -3177,6 +3268,8 @@ static void finalize_unsafe_interface_drivers_(Design*des)
 	}
 
       for (const auto&pending : pending_unsafe_interface_drivers_) {
+	if (reported_clocking_output_continuous_writes_.count(pending.signal))
+	  continue;
 	if (!unknown_reachable
 	    && pending.signal->only_unreachable_interface_task_drivers(
 		 reachable, unsafe_tasks_with_processes_))
@@ -3191,6 +3284,7 @@ static void finalize_unsafe_interface_drivers_(Design*des)
       }
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
+      reported_clocking_output_continuous_writes_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -6840,7 +6934,91 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  member_port_bridge = true;
 	    }
 
-	    if (member_port_bridge) {
+	    /* IEEE 1800-2017/2023 23.3.3.5: a scalar port on an instance array
+	       can be connected to an unpacked array whose leading dimension has
+	       one element per instance. Map each left-to-right actual element to
+	       the corresponding instance instead of elaborating the aggregate in
+	       the scalar formal's type context. */
+	    bool instance_array_actual = false;
+	    if (instance.size() > 1 && mport.size() == 1
+	        && prts.size() == instance.size() && !prts.empty()
+	        && prts[0] && prts[0]->unpacked_dimensions() == 0) {
+	      const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx]);
+	      if (aid && aid->path().name.size() == 1
+	          && aid->path().name.front().index.empty()) {
+	            NetNet*actual = aid->elaborate_unpacked_net(des, scope);
+	            if (actual && actual->unpacked_dimensions() == 1
+	                && actual->unpacked_dims()[0].width() == instance.size()) {
+	                  bool matching = true;
+	                  for (NetNet*formal : prts)
+	                        if (!formal || formal->unpacked_dimensions() != 0
+	                            || formal->vector_width() != actual->vector_width())
+	                              matching = false;
+	                  if (matching) {
+	                        bool output_ok = true;
+	                        if (ptype == NetNet::POUTPUT
+	                            && actual->type() == NetNet::REG) {
+	                              if (actual->peek_lref() > 0) {
+	                                    cerr << pins[idx]->get_fileline()
+	                                         << ": error: Cannot connect port `"
+	                                         << port_name << "' to variable `"
+	                                         << actual->name()
+	                                         << "'. This conflicts with a procedural "
+	                                            "assignment." << endl;
+	                                    des->errors += 1;
+	                                    output_ok = false;
+	                              } else {
+	                                    actual->type(NetNet::UNRESOLVED_WIRE);
+	                              }
+	                        }
+	                        if (!output_ok)
+	                              continue;
+	                        for (unsigned inst = 0; inst < instance.size();
+	                             inst += 1) {
+	                              unsigned word = interface_array_ltr_word_(
+	                                    actual->unpacked_dims(), inst);
+	                              NetNet*formal = prts[inst];
+	                              if (ptype == NetNet::PINPUT
+	                                  || ptype == NetNet::POUTPUT) {
+	                                    NetBUFZ*buffer = new NetBUFZ(
+	                                          scope, scope->local_symbol(),
+	                                          formal->vector_width(), false);
+	                                    buffer->set_line(*this);
+	                                    des->add_node(buffer);
+	                                    if (ptype == NetNet::PINPUT) {
+	                                          connect(formal->pin(0),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  actual->pin(word));
+	                                    } else {
+	                                          connect(actual->pin(word),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  formal->pin(0));
+	                                    }
+	                              } else if (ptype == NetNet::PINOUT) {
+	                                    NetTran*tran = new NetTran(
+	                                          scope, scope->local_symbol(),
+	                                          actual->vector_width(),
+	                                          formal->vector_width(), 0);
+	                                    tran->set_line(*this);
+	                                    des->add_node(tran);
+	                                    connect(tran->pin(0),
+	                                            actual->pin(word));
+	                                    connect(tran->pin(1),
+	                                            formal->pin(0));
+	                              } else {
+	                                    connect(formal->pin(0), actual->pin(word));
+	                              }
+	                        }
+	                        instance_array_actual = true;
+	                  }
+	            }
+	      }
+	    }
+	    if (instance_array_actual) {
+	      continue;
+	    } else if (member_port_bridge) {
 		  /* The common width adjustment and per-instance connection code
 		     below connects the bridge to the formal port. */
 	    } else if (ptype == NetNet::PREF) {
@@ -8040,9 +8218,9 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end())
-	    return elaborate_sig_mod_(des, scope, (*mod).second);
+	    Module*mod = find_module_type_(type_, scope);
+      if (mod)
+	    return elaborate_sig_mod_(des, scope, mod);
 
 	// elaborate_sig_udp_ currently always returns true so skip all this
 	// for now.
@@ -8069,9 +8247,10 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_mod_(des, (*mod).second, scope);
+
+      Module*mod = find_module_type_(type_, scope);
+      if (mod) {
+	    elaborate_mod_(des, mod, scope);
 	    return;
       }
 
@@ -8219,9 +8398,10 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_scope_mod_(des, mod->second, sc);
+
+      Module*mod = find_module_type_(type_, sc);
+      if (mod) {
+	    elaborate_scope_mod_(des, mod, sc);
 	    return;
       }
 
@@ -8237,9 +8417,9 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       if (load_module(type_, parser_errors)) {
 
 	      // Try again to find the module type
-	    mod = pform_modules.find(type_);
-	    if (mod != pform_modules.end()) {
-		  elaborate_scope_mod_(des, mod->second, sc);
+	    mod = find_module_type_(type_, sc);
+	    if (mod) {
+		  elaborate_scope_mod_(des, mod, sc);
 		  return;
 	    }
 
@@ -8347,6 +8527,36 @@ NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const
             "typedef `" << rval_typedef_->name << "'." << endl;
       des->errors += 1;
       return 0;
+}
+
+bool PAssign_::reject_chandle_assignment_(Design*des, NetScope*scope,
+					  ivl_type_t target_type) const
+{
+      if (!gn_system_verilog() || is_init_ || continuous_lval_
+	  || !target_type || target_type == &netvector_t::chandle_type)
+	    return false;
+
+      const PEIdent*source = dynamic_cast<const PEIdent*>(rval());
+      if (!source || source->leading_type_args()
+	  || source->path().name.empty())
+	    return false;
+      for (const auto&component : source->path().name) {
+	    if (!component.index.empty())
+		  return false;
+      }
+
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+	    return true;
+      if (source->test_type_of_ident(des, rval_scope)
+	  != &netvector_t::chandle_type)
+	    return false;
+
+      cerr << get_fileline() << ": error: chandles shall not be assigned "
+	   << "to variables of any other type (IEEE 1800-2017/2023 "
+	   << "6.14, 6.22.5)." << endl;
+      des->errors += 1;
+      return true;
 }
 
 /*
@@ -8744,6 +8954,11 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+	    delete lv;
+	    return 0;
+      }
+
 	// IEEE 1800-2017 6.19.4: using an enum in a numerical expression
 	// converts it to its base integral type. A compound assignment is
 	// equivalent to reading the l-value, applying the binary operator and
@@ -8821,6 +9036,20 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       NetExpr*rv = elaborate_rval_(des, scope, 0, operand_type,
 				   operand_width, force_unsigned);
       if (rv == 0) return 0;
+
+	// IEEE 1800-2017/2023 Table 11-1 restricts modulus assignment to
+	// integral operands, just like the binary modulus operator.
+      if (op_ == '%' && (generation_flag >= GN_VER2017
+			 || !gn_icarus_misc_flag)
+	  && (lv->expr_type() == IVL_VT_REAL
+	      || rv->expr_type() == IVL_VT_REAL)) {
+	    cerr << get_fileline() << ": error: Modulus assignment operator "
+		    "may not have REAL operands." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    delete rv;
+	    return 0;
+      }
 
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
@@ -9760,6 +9989,98 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out)
 {
+	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+	  if (ident && !ident->path().name.empty()) {
+	      const list<index_component_t>&indices =
+		    ident->path().name.back().index;
+	      if (indices.size() == 1
+		  && (indices.front().sel == index_component_t::SEL_IDX_UP
+		      || indices.front().sel == index_component_t::SEL_IDX_DO)) {
+		    symbol_search_results sr;
+		    if (symbol_search(&loc, des, scope, ident->path(),
+				      ident->lexical_pos(), &sr)
+			&& sr.net && sr.path_tail.empty()
+			&& sr.net->unpacked_dimensions() == 1) {
+			  const index_component_t&select = indices.front();
+			  NetExpr*base = elab_and_eval(des, scope, select.msb, -1, false);
+			  NetExpr*width = elab_and_eval(des, scope, select.lsb, -1, false);
+			  long width_value = 0;
+			  bool width_ok = width && eval_as_long(width_value, width)
+				&& width_value > 0;
+			  if (!base || !width_ok
+			      || (base->expr_type() != IVL_VT_BOOL
+				  && base->expr_type() != IVL_VT_LOGIC)) {
+				cerr << loc.get_fileline() << ": error: indexed unpacked-array"
+				     << " slice width must be a positive constant and its base"
+				     << " must be integral." << endl;
+				des->errors += 1;
+				delete base;
+				delete width;
+				return -1;
+			  }
+			  delete width;
+
+			  const netrange_t&declared = sr.net->unpacked_dims().front();
+			  NetExpr*low = pad_to_width(base, 128, loc);
+			  if (select.sel == index_component_t::SEL_IDX_DO
+			      && width_value > 1) {
+				NetEConst*offset = new NetEConst(verinum(
+				      static_cast<uint64_t>(width_value - 1), 128));
+				offset->set_line(loc);
+				NetEBAdd*down = new NetEBAdd('-', low, offset, 128, true);
+				down->set_line(loc);
+				low = down;
+			  }
+			  long declared_low = min(declared.get_msb(),
+						  declared.get_lsb());
+			  if (declared_low != 0) {
+				NetEConst*origin = make_const_val_s(declared_low);
+				origin->set_line(loc);
+				NetEBAdd*canonical = new NetEBAdd('-', low, origin,
+								  128, true);
+				canonical->set_line(loc);
+				low = canonical;
+			  }
+			  eval_expr(low);
+			  low->set_line(loc);
+			  if (const NetEConst*constant =
+				    dynamic_cast<const NetEConst*>(low)) {
+				if (constant->value().is_defined()) {
+				      long value = 0;
+				      if (!eval_as_long(value, low) || value < 0
+					  || static_cast<unsigned long>(value)
+					       >= sr.net->pin_count()
+					  || static_cast<unsigned long>(width_value)
+					       > sr.net->pin_count()
+						 - static_cast<unsigned long>(value)) {
+					cerr << loc.get_fileline() << ": error: indexed"
+					     << " unpacked-array slice is outside declared"
+					     << " bounds." << endl;
+					des->errors += 1;
+					delete low;
+					return -1;
+			      }
+			      out.canonical_base = value;
+			      delete low;
+			} else {
+			      out.canonical_base_expr = low;
+			}
+			  } else {
+				out.canonical_base_expr = low;
+			  }
+			  out.sig = sr.net;
+			  out.count = static_cast<unsigned long>(width_value);
+			  bool ascending = declared.get_msb() < declared.get_lsb();
+			  out.remaining_dims.push_back(ascending
+				? netrange_t(0, width_value - 1)
+				: netrange_t(width_value - 1, 0));
+			  out.element_type = sr.net->net_type();
+			  out.range_slice = true;
+			  return 1;
+		    }
+	      }
+	  }
+
       fixed_uarray_slice_t range_slice;
       int range_rc = decode_fixed_uarray_slice(
 	    des, scope, loc, pe, false, range_slice);
@@ -9775,7 +10096,7 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 	    return 1;
       }
 
-      const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+      ident = dynamic_cast<const PEIdent*>(pe);
       if (!ident)
 	    return 0;
 
@@ -10562,8 +10883,38 @@ static NetProc* make_direct_darray_indexed_slice_store_(
       return block;
 }
 
+static ivl_process_type_t current_procedural_process_type = IVL_PR_INITIAL;
+
+class procedural_process_type_guard_t {
+    public:
+      explicit procedural_process_type_guard_t(ivl_process_type_t type)
+      : previous_(current_procedural_process_type)
+      { current_procedural_process_type = type; }
+
+      ~procedural_process_type_guard_t()
+      { current_procedural_process_type = previous_; }
+
+    private:
+      ivl_process_type_t previous_;
+};
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
+	bool in_checker = false;
+	for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	      const Module*module = owner->module_definition();
+	      if (module) {
+		    in_checker = module->is_checker;
+		    break;
+	      }
+	}
+	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
+	cerr << get_fileline() << ": error: blocking assignment is not allowed "
+	        "in a checker always_ff procedure." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+
       NetProc*result = elaborate_unwrapped_(des, scope);
       if (!result)
 	    return nullptr;
@@ -10809,6 +11160,12 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       NetExpr*rv;
       NetProc*indexed_slice_prelude = nullptr;
       const ivl_type_s*lv_net_type = lv->net_type();
+
+      if (reject_chandle_assignment_(des, scope, lv_net_type)) {
+	    delete lv;
+	    delete delay;
+	    return 0;
+      }
 
       const PEStreaming*stream_rval =
 	    dynamic_cast<const PEStreaming*>(rval());
@@ -12062,27 +12419,32 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      if (reject_chandle_assignment_(des, scope, lv->net_type())) {
+            delete lv;
+            return 0;
+      }
+
       // IEEE 1800-2017/2023 6.21 forbids nonblocking writes to elements
       // of dynamically sized arrays. The automatic-allocation check above
       // does not catch a module-scope dynamic array, so inspect the
       // elaborated storage and selected word here.
-	const netdarray_t*target_darray = lv->sig()
-	      ? lv->sig()->darray_type() : nullptr;
-	if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
-	      const netclass_t*target_class =
-		    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
-	      if (target_class)
-		    target_darray = dynamic_cast<const netdarray_t*>(
-			  target_class->get_prop_type(
-				(size_t)lv->get_property_idx()));
-	}
+        const netdarray_t*target_darray = lv->sig()
+              ? lv->sig()->darray_type() : nullptr;
+        if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
+              const netclass_t*target_class =
+                    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+              if (target_class)
+                    target_darray = dynamic_cast<const netdarray_t*>(
+                          target_class->get_prop_type(
+                                (size_t)lv->get_property_idx()));
+        }
       if (lv->word() && target_darray && !lv->sig()->queue_type()) {
-	    cerr << get_fileline() << ": error: elements of dynamically sized "
-		 "arrays may not be assigned values using non-blocking "
-		 "assignments (IEEE 1800 6.21)." << endl;
-	    des->errors += 1;
-	    delete lv;
-	    return 0;
+            cerr << get_fileline() << ": error: elements of dynamically sized "
+                 "arrays may not be assigned values using non-blocking "
+                 "assignments (IEEE 1800 6.21)." << endl;
+            des->errors += 1;
+            delete lv;
+            return 0;
       }
 
 	/* A fixed unpacked-array property slice needs a persistent receiver and
@@ -14078,6 +14440,17 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       for (unsigned idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    auto &parm = parms_[idx];
 
+	    /* IEEE 1800-2017/2023 13.3.2: automatic task variables are
+	       deallocated when the task returns and may not be traced by
+	       $monitor or $dumpvars. Reject these references during
+	       elaboration instead of relying on the VPI runtime check. */
+	    if ((name == "$monitor" || name == "$dumpvars")
+		&& parm.parm && parm.parm->has_aa_term(des, scope)) {
+		  cerr << parm.get_fileline() << ": error: " << name
+		       << " may not trace an automatic variable." << endl;
+		  des->errors += 1;
+	    }
+
 	    // System functions don't have named parameters
 	    if (!parm.name.nil()) {
 		  cerr << parm.get_fileline() << ": error: "
@@ -14121,6 +14494,43 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 			des->errors += 1;
 		  }
 	    }
+      }
+
+      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
+       * is a variable_lvalue. Ordinary system-task argument elaboration
+       * preserves signal l-values, but does not distinguish variables
+       * from nets. Check the resulting l-value tree before passing it to
+       * the VPI task. */
+      const bool pla_task =
+	   name == "$async$and$array" || name == "$async$nand$array"
+	|| name == "$async$or$array" || name == "$async$nor$array"
+	|| name == "$async$and$plane" || name == "$async$nand$plane"
+	|| name == "$async$or$plane" || name == "$async$nor$plane"
+	|| name == "$sync$and$array" || name == "$sync$nand$array"
+	|| name == "$sync$or$array" || name == "$sync$nor$array"
+	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
+	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      if (pla_task && parm_count == 3 && eparms[2]) {
+	  std::function<bool(const NetExpr*)> variable_lvalue =
+		[&variable_lvalue](const NetExpr*expr) -> bool {
+		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+			NetNet::Type type = sig->sig()->type();
+			return type == NetNet::REG || type == NetNet::IMPLICIT_REG;
+		  }
+		  if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+			return variable_lvalue(select->sub_expr());
+		  if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+			for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
+			      if (!variable_lvalue(concat->parm(idx))) return false;
+			return concat->nparms() != 0;
+		  }
+		  return false;
+		};
+	  if (!variable_lvalue(eparms[2])) {
+		  cerr << parms_[2].get_fileline() << ": error: argument 3 of "
+		       << name << " must be a variable lvalue." << endl;
+		  des->errors += 1;
+	  }
       }
 
       if (name == "$cast" && parm_count == 2) {
@@ -17963,7 +18373,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  else if (method_name == perm_string::literal("await"))
 			sys_task_name = "$ivl_process$await";
 		  else if (method_name == perm_string::literal("suspend"))
-			sys_task_name = "$ivl_process$suspend";
+			sys_task_name = generation_flag >= GN_VER2023
+			    ? "$ivl_process$suspend$2023" : "$ivl_process$suspend";
 		  else
 			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
@@ -19156,11 +19567,34 @@ static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
  * the port.
  */
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
+					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
 					unsigned argno,
 					NetNet**via) const
 {
       *via = 0;
+
+      /* An omitted ref actual is the declaration's default lvalue. Resolve
+	 it at the subroutine declaration, while explicit actuals remain in
+	 the caller's scope. */
+      NetScope*actual_scope = scope;
+      if (actual == 0) {
+	    const PTaskFunc*subroutine = default_scope->task_pform();
+	    if (!subroutine) subroutine = default_scope->func_pform();
+	    const vector<pform_tf_port_t>*ports = subroutine
+		  ? subroutine->peek_ports() : 0;
+	    if (ports) {
+		  for (const pform_tf_port_t&declared_port : *ports) {
+			if (!declared_port.port
+			    || declared_port.port->basename() != port->name())
+			      continue;
+			actual = declared_port.defe;
+			if (actual)
+			      actual_scope = default_scope;
+			break;
+		  }
+	    }
+      }
 
       if (actual == 0) {
 	    cerr << get_fileline() << ": error: "
@@ -19192,7 +19626,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (NetAssign_*lv = actual->elaborate_lval(
-				des, scope, false, false, false,
+				des, actual_scope, false, false, false,
 				port->get_const())) {
 	    if (port->get_ref_static()
 		&& !ref_static_actual_is_static_lifetime(lv)) {
@@ -19873,7 +20307,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 frame allocation and the call. */
 	    if (ref_formal_is_bound(port)) {
 		  NetNet*via = 0;
-		  NetProc*bind = elaborate_ref_bind_(des, scope, port,
+		  NetProc*bind = elaborate_ref_bind_(
+				des, scope, const_cast<NetScope*>(def->scope()), port,
 						     args[parms_idx], idx,
 						     &via);
 		  if (bind)
@@ -20715,9 +21150,16 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "assign")) {
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
+      PExprProceduralContextGuard procedural_context(false);
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
       if (rexp == 0)
 	    return 0;
@@ -20820,7 +21262,18 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
-      bool zero_count = count_const && count_const->value().as_long() == 0;
+      long count_value = count_const ? count_const->value().as_long() : 1;
+      if (expression_value_ && generation_flag < GN_VER2023
+          && count_const && count_value <= 0) {
+	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
+		 << "must evaluate to a positive integer (IEEE 1800-2017 14.11)."
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    delete wait_stmt;
+	    return 0;
+      }
+      bool zero_count = count_const && count_value == 0;
       delete count_expr;
       if (zero_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
@@ -22483,6 +22936,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
       ivl_assert(*this, scope);
+
+	// Event expressions are not procedural statement expressions, even when
+	// the event control itself appears inside an initial/always statement.
+      PExprProceduralContextGuard procedural_context(false);
 
       if (scope->in_func()) {
 	    cerr << get_fileline() << ": error: functions cannot have "
@@ -25028,6 +25485,12 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (lval == 0)
 	    return 0;
 
+      if (ivl_reject_clocking_output_procedural_continuous(
+		des, lval, this, "force")) {
+	    delete lval;
+	    return 0;
+      }
+
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
 
@@ -26534,7 +26997,10 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 			statement_->dump(cerr, 2);
 		  }
 	    }
-	    st = statement_->elaborate(des, scope);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, scope);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": error: Unable to elaborate "
 			  "statement in function " << scope->basename() << "." << endl;
@@ -26855,7 +27321,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
       } else {
-	    st = statement_->elaborate(des, task);
+	    {
+		  PExprProceduralContextGuard procedural_context(true);
+		  st = statement_->elaborate(des, task);
+	    }
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": Unable to elaborate "
 			"statement in task " << scope_path(task)
@@ -27123,7 +27592,12 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
       scope->in_final(type() == IVL_PR_FINAL);
-      NetProc*cur = statement_->elaborate(des, scope);
+      NetProc*cur;
+      {
+	    procedural_process_type_guard_t process_type(type());
+	    PExprProceduralContextGuard procedural_context(true);
+	    cur = statement_->elaborate(des, scope);
+      }
       scope->in_final(false);
       if (cur == 0) {
 	    return false;
@@ -41648,6 +42122,45 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
 						 const char*where) {
+			  // IEEE 1800-2023 Tables 19-2 and 19-4 restrict
+			  // coverage options to particular syntactic levels.
+			  auto allowed_level = [&](const char*name) {
+				static const struct {
+				      const char* name;
+				      bool covergroup, coverpoint, cross;
+				} levels[] = {
+				      {"name", true, false, false},
+				      {"weight", true, true, true},
+				      {"goal", true, true, true},
+				      {"comment", true, true, true},
+				      {"at_least", true, true, true},
+				      {"auto_bin_max", true, true, false},
+				      {"cross_num_print_missing", true, false, true},
+				      {"cross_retain_auto_bins", true, false, true},
+				      {"detect_overlap", true, true, false},
+				      {"per_instance", true, false, false},
+				      {"get_inst_coverage", true, false, false},
+				      {"type_option.weight", true, true, true},
+				      {"type_option.goal", true, true, true},
+				      {"type_option.comment", true, true, true},
+				      {"type_option.strobe", true, false, false},
+				      {"type_option.merge_instances", true, false, false},
+				      {"type_option.distribute_first", true, false, false},
+				      {"type_option.real_interval", true, true, false},
+				      // Reject this invalid member instead of ignoring it as unknown.
+				      {"type_option.auto_bin_max", false, false, false},
+				      {nullptr, false, false, false}
+				};
+				for (const auto&level : levels) {
+				      if (strcmp(name, level.name) != 0) continue;
+				      if (strcmp(where, "covergroup") == 0)
+					    return level.covergroup;
+				      if (strcmp(where, "coverpoint") == 0)
+					    return level.coverpoint;
+				      return level.cross;
+				}
+				return true;
+			  };
 			  static const char*known[] = {
 				"at_least", "auto_bin_max", "weight", "goal",
 				"per_instance", "get_inst_coverage", "comment", "name",
@@ -41655,7 +42168,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
 		"type_option.comment", "type_option.strobe",
-		"type_option.merge_instances", "type_option.real_interval", 0 };
+		"type_option.merge_instances", "type_option.real_interval",
+		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
 					if (kv.first == "type_option.cross_retain_auto_bins") {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
@@ -41672,6 +42186,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					      des->errors += 1;
 					      continue;
 					}
+				if (!allowed_level(kv.first.str())) {
+				      if (kv.second) cerr << kv.second->get_fileline() << ": ";
+				      cerr << "error: coverage option '" << kv.first
+					   << "' is not allowed at the " << where
+					   << " syntactic level." << endl;
+				      des->errors += 1;
+				      continue;
+				}
 				bool okopt = false;
 			for (const char**k = known; *k; k++)
 			      if (kv.first == *k) { okopt = true; break; }
@@ -42752,27 +43274,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (!id || id->path().name.empty()) return nullptr;
 			  auto comp = id->path().name.begin();
 			  ivl_type_t type = nullptr;
-			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
-				if (cgdef->sample_formals[fi] == comp->name) {
-				      if (fi < sample_formal_placeholders.size())
-					    type = sample_formal_placeholders[fi]->net_type();
-				      break;
+			  bool this_qualified = comp->name == perm_string::literal(THIS_TOKEN)
+				&& !comp->local_scope && comp->index.empty();
+			  if (this_qualified) {
+				type = this;
+				++comp;
+			  } else {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				      if (cgdef->sample_formals[fi] == comp->name) {
+					    if (fi < sample_formal_placeholders.size())
+						  type = sample_formal_placeholders[fi]->net_type();
+					    break;
+				      }
+				}
+				if (!type) {
+				      for (perm_string formal : cgdef->ctor_formals) {
+					    if (formal != comp->name) continue;
+					    int pidx = cg_class->property_idx_from_name(formal);
+					    if (pidx >= 0)
+						  type = cg_class->get_prop_type((size_t)pidx);
+					    break;
+				      }
+				}
+				if (!type) {
+				      int pidx = property_idx_from_name(comp->name);
+				      if (pidx >= 0) type = get_prop_type((size_t)pidx);
 				}
 			  }
-			  if (!type) {
-				for (perm_string formal : cgdef->ctor_formals) {
-				      if (formal != comp->name) continue;
-				      int pidx = cg_class->property_idx_from_name(formal);
-				      if (pidx >= 0)
-					    type = cg_class->get_prop_type((size_t)pidx);
-				      break;
-				}
-			  }
-			  if (!type) {
-				int pidx = property_idx_from_name(comp->name);
-				if (pidx >= 0) type = get_prop_type((size_t)pidx);
-			  }
-			  for (++comp; type && comp != id->path().name.end(); ++comp) {
+			  if (!this_qualified) ++comp;
+			  for (; type && comp != id->path().name.end(); ++comp) {
 				if (const netclass_t*ct =
 				      dynamic_cast<const netclass_t*>(type)) {
 				      int pidx = ct->property_idx_from_name(comp->name);
@@ -42976,19 +43506,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  int parent_prop = -1;
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
-				perm_string cp_var_name = peek_head_name(pe->path());
+				const pform_scoped_name_t&path = pe->path();
+				bool this_property = !path.package
+				      && !pe->has_scoped_type_prefix()
+				      && path.size() == 2
+				      && path.name.front().name == perm_string::literal(THIS_TOKEN)
+				      && !path.name.front().local_scope
+				      && path.name.front().index.empty()
+				      && path.name.back().index.empty();
+				perm_string cp_var_name = this_property
+				      ? path.name.back().name : peek_head_name(path);
 				  // M11-4: a sample() formal shadows a
 				  // parent-class property of the same
 				  // name (19.8.1) — the source binds to
 				  // the call argument, not the property.
 				bool is_formal = false;
 				for (auto&fn : cgdef->sample_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
 				for (auto&fn : cgdef->ctor_formals)
-				      if (fn == cp_var_name) {
+				      if (!this_property && fn == cp_var_name) {
 					    is_formal = true;
 					    break;
 				      }
@@ -42996,10 +43535,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // A nested expression such as cfg.en_parity must be
 				  // elaborated as the complete expression; sampling the
 				  // `cfg` object handle itself is not equivalent.
-			const pform_scoped_name_t&path = pe->path();
-			bool direct = !path.package && !pe->has_scoped_type_prefix()
+			bool direct = this_property || (!path.package && !pe->has_scoped_type_prefix()
 			      && path.size() == 1 && !path.name.front().local_scope
-			      && path.name.front().index.empty();
+			      && path.name.front().index.empty());
 			if (!is_formal && direct && cp_decl_class)
 			      parent_prop = cp_decl_class->property_idx_from_name(
 				    cp_var_name);
@@ -44993,6 +45531,32 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_indexes.reserve(cross.cp_labels.size());
 			  bool resolved = true;
 			  for (perm_string cp_label : cross.cp_labels) {
+				/* IEEE 1800-2017/2023 19.6: a cross cannot
+				 * reach through a covergroup handle to use one of
+				 * that other group's coverpoints. Hierarchical
+				 * member expressions remain supported for ordinary
+				 * packed-struct cross items. */
+				for (const auto&cp : cgdef->coverpoints) {
+				      if (cp.label != cp_label) continue;
+				      const PEIdent*id =
+					    dynamic_cast<const PEIdent*>(cp.expr);
+				      if (!id || id->path().name.size() < 2) break;
+				      perm_string root_name = id->path().name.front().name;
+				      NetNet*root = nullptr;
+				      for (NetScope*scope = class_scope_; scope && !root;
+					   scope = scope->parent())
+					    root = scope->find_signal(root_name);
+				      const netclass_t*root_type = root
+					    ? dynamic_cast<const netclass_t*>(root->net_type())
+					    : nullptr;
+				      if (root_type && root_type->is_covergroup()) {
+					    cerr << cp.expr->get_fileline()
+						 << ": error: cross item refers to a coverpoint in a different "
+						    "covergroup." << endl;
+					    des->errors += 1;
+				      }
+				      break;
+				}
 				int found = -1;
 				for (size_t i = 0;
 				     i < cgdef->coverpoints.size(); i++) {
@@ -46523,6 +47087,16 @@ static ostream& operator<< (ostream&o, ivl_process_type_t t)
 bool Design::check_proc_delay() const
 {
       bool result = false;
+      struct write_range_t {
+	    const NetProcTop* process;
+	    unsigned base;
+	    unsigned width;
+      };
+      std::map<const Nexus*, std::vector<write_range_t> > output_by_nexus;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      bool saved_static_array_prefix = nex_output_static_array_prefix;
+      nex_output_precise_partsel = true;
+      nex_output_static_array_prefix = true;
 
       for (const NetProcTop*pr = procs_ ;  pr ;  pr = pr->next_) {
 	      /* If this is an always process and we have no or zero delay then
@@ -46551,9 +47125,14 @@ bool Design::check_proc_delay() const
 	      // (see NetNet::comb_written).
 	    if (pr->type() == IVL_PR_ALWAYS_COMB
 		|| pr->type() == IVL_PR_ALWAYS_LATCH) {
-		  NexusSet written;
-		  const_cast<NetProc*>(pr->statement())->nex_output(written);
-		  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
+	  NexusSet written;
+	  NexusSet exact_written;
+	  NexusSet* saved_exact_sink = nex_output_exact_sink;
+	  if (pr->type() == IVL_PR_ALWAYS_COMB)
+		nex_output_exact_sink = &exact_written;
+	  const_cast<NetProc*>(pr->statement())->nex_output(written);
+	  nex_output_exact_sink = saved_exact_sink;
+	  for (unsigned idx = 0 ; idx < written.size() ; idx += 1) {
 			Nexus*nex = written[idx].lnk.nexus();
 			for (Link*cur = nex ? nex->first_nlink() : nullptr ;
 			     cur ; cur = cur->next_nlink()) {
@@ -46561,7 +47140,37 @@ bool Design::check_proc_delay() const
 			      if (sig && sig->type() == NetNet::REG)
 				    sig->comb_written(true);
 			}
-		  }
+	  }
+	  if (pr->type() == IVL_PR_ALWAYS_COMB) {
+		    // shortcut: compare always_comb processes only, expand to other
+		    // process kinds and function writes when that analysis is added.
+		    bool reported = false;
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  const Nexus*nex = output.lnk.nexus();
+			  const std::vector<write_range_t>&previous = output_by_nexus[nex];
+			  for (const write_range_t&prior : previous) {
+				uint64_t prior_end = uint64_t(prior.base) + prior.width;
+				uint64_t output_end = uint64_t(output.base) + output.wid;
+				if (prior_end <= output.base || output_end <= prior.base)
+				      continue;
+				if (!reported) {
+				      cerr << pr->get_fileline()
+					   << ": error: always_comb process writes a variable "
+					      "also written by another always_comb process at "
+					   << prior.process->get_fileline() << "." << endl;
+				      reported = true;
+				}
+				result = true;
+				break;
+			  }
+		    }
+		    for (unsigned idx = 0; idx < exact_written.size(); idx += 1) {
+			  const NexusSet::elem_t&output = exact_written[idx];
+			  output_by_nexus[output.lnk.nexus()].push_back(
+				{pr, output.base, output.wid});
+		    }
+	  }
 	    }
 
 	      // The always_comb/ff/latch processes have special delay rules
@@ -46625,6 +47234,9 @@ bool Design::check_proc_delay() const
 		  }
 	    }
       }
+
+      nex_output_precise_partsel = saved_precise_partsel;
+      nex_output_static_array_prefix = saved_static_array_prefix;
 
       return result;
 }
@@ -47209,6 +47821,22 @@ bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope)
       return reached;
 }
 
+static void elaborate_forward_typedef_kinds(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      for (const auto&entry : scope->local_typedefs()) {
+	    typedef_t*td = entry.second;
+	    if (td && td->get_basic_type() != typedef_t::ANY
+		&& td->get_data_type())
+		  td->elaborate_type(des, scope);
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_forward_typedef_kinds(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -47231,6 +47859,9 @@ Design* elaborate(list<perm_string>roots)
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
+      clocking_output_variables_.clear();
+      pending_clocking_output_continuous_writes_.clear();
+      reported_clocking_output_continuous_writes_.clear();
       pending_interface_ref_actuals_.clear();
       unresolved_interface_ref_properties_.clear();
       unsafe_task_calls_.clear();
@@ -47552,6 +48183,14 @@ Design* elaborate(list<perm_string>roots)
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, pkg);
 	for (NetScope*root : des->find_root_scopes())
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, root);
+
+	/* A typed forward declaration imposes a kind constraint even when the
+	 * typedef is never referenced. Resolve such declarations after all scope
+	 * bodies have been elaborated so their completed definitions are visible. */
+	for (NetScope*pkg : des->find_package_scopes())
+	    elaborate_forward_typedef_kinds(des, pkg);
+	for (NetScope*root : des->find_root_scopes())
+	    elaborate_forward_typedef_kinds(des, root);
 
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des, reached_typedef);

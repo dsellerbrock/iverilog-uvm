@@ -948,6 +948,9 @@ struct vthread_s {
          point is the subsequent resume, not the earlier suspension and
          not a procedural-delay resume. */
       unsigned deferred_assert_flush_on_run :1;
+      /* A matured unique/priority case report executes its captured VPI
+         call on a fresh thread. Do not enqueue that call a second time. */
+      unsigned is_observed_report_action :1;
       unsigned owns_automatic_context :1;
       unsigned owned_context_is_chain :1;
 	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
@@ -971,6 +974,8 @@ struct vthread_s {
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
       set<struct vthread_s*>detached_children;
+	/* Immediate detached subprocesses, excluding promoted descendants. */
+      set<struct vthread_s*>wait_fork_children;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* DPI export (35.5): non-null on an exported SV *task* thread that is
@@ -1525,7 +1530,8 @@ static vvp_code_t deferred_action_next_code_(vvp_code_t code)
 static bool capture_deferred_args_(vthread_t thr,
                                    vvp_code_t action_pc,
                                    deferred_assert_args_s&out,
-                                   const char*mode)
+                                   const char*mode,
+                                   bool allow_warning = false)
 {
       if (!thr || !action_pc) {
             fprintf(stderr,
@@ -1557,14 +1563,18 @@ static bool capture_deferred_args_(vthread_t thr,
 
       const char*task_name = call->defn ? call->defn->info.tfname : 0;
       vvp_code_t action_end = deferred_action_next_code_(action_pc);
+      bool is_display = task_name && strcmp(task_name, "$display") == 0;
+      bool is_error = task_name && strcmp(task_name, "$error") == 0;
+      bool is_warning = task_name && strcmp(task_name, "$warning") == 0;
       if (!task_name
-          || (strcmp(task_name, "$display") != 0
-              && strcmp(task_name, "$error") != 0)
-          || !action_end || action_end->opcode != of_END) {
+          || (!is_display && !is_error && !(allow_warning && is_warning))
+          || ((is_display || is_error)
+              && (!action_end || action_end->opcode != of_END))) {
             fprintf(stderr,
                     "vvp: malformed %s-deferred VPI action thunk; expected "
-                    "exactly one $display/$error call followed by %%end; "
-                    "source stacks were not consumed.\n", mode);
+                    "a $display/$error action ending in %%end%s; "
+                    "source stacks were not consumed.\n", mode,
+                    allow_warning ? " or a $warning call" : "");
             return false;
       }
 
@@ -1913,6 +1923,7 @@ void vvp_process::mature_deferred_asserts()
 	    report.action_scope->threads.erase(action);
 	    action->is_reactive_process = 1;
 	    action->in_region_drain = 1;
+            action->is_observed_report_action = 1;
 	    for (size_t idx = 0 ; idx < report.action_args.vec4.size(); idx += 1)
 		  action->push_vec4(report.action_args.vec4[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.real.size(); idx += 1)
@@ -1921,7 +1932,15 @@ void vvp_process::mature_deferred_asserts()
 		  action->push_str(report.action_args.str[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.obj.size(); idx += 1)
 		  action->push_object(report.action_args.obj[idx]);
-	    schedule_vthread(action, 0, false);
+	    if (report.source_id == 0) {
+		  /* Case violation warnings are tool reports, not assertion action
+		     blocks. Emit them in the Observed callback itself after the
+		     process's pending report has matured. */
+		  vthread_mark_scheduled(action);
+		  vthread_run(action);
+	    } else {
+		  schedule_vthread(action, 0, false);
+	    }
       }
 }
 
@@ -5105,7 +5124,7 @@ class randomize_graph_session_t {
                         objects.push_back(entry.hold);
       }
 
-      void rollback()
+      void rollback(bool restore_rng = true)
       {
             while (!pending_randc_.empty()) {
                   pending_randc_.back()->randc_transaction_rollback();
@@ -5114,7 +5133,8 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
-		  (void)it->cobj->rng_set_state(it->rng_state);
+		  if (restore_rng)
+			(void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -5123,6 +5143,20 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_static_value_s>::reverse_iterator it =
 		       static_values_.rbegin(); it != static_values_.rend(); ++it)
 		  it->defn->static_randomize_transaction_rollback(it->pid);
+      }
+
+      std::vector<std::string> rng_states() const
+      {
+            std::vector<std::string> states;
+            for (const randomize_graph_entry_s&entry : entries_)
+                  states.push_back(entry.cobj->rng_get_state());
+            return states;
+      }
+
+      void set_rng_states(const std::vector<std::string>&states)
+      {
+            for (size_t idx = 0; idx < entries_.size() && idx < states.size(); ++idx)
+                  (void)entries_[idx].cobj->rng_set_state(states[idx]);
       }
 
     private:
@@ -6173,12 +6207,13 @@ static bool randomize_free_hook_(vthread_t thr, __vpiScope*&scope);
 static bool randomize_invoke_state_call_(vthread_t thr,
                                         randomize_call_context_s&call);
 
-static bool randomize_staged_finish_(vthread_t thr, bool success)
+static bool randomize_staged_finish_(vthread_t thr, bool success,
+                                     bool keep_rng_advance = false)
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
       if (success) success = state->session.commit();
-      if (!success) state->session.rollback();
+      if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
       call.staged.reset();
@@ -6248,24 +6283,49 @@ static bool randomize_staged_resume_(vthread_t thr)
                   if (call.state_call_pending || !running) return running;
                   if (!call.state_calls_ok) return randomize_staged_finish_(thr, false);
             }
-            auto objects = state->session.solve_objects;
-            for (size_t idx = 0; idx < objects.size(); ++idx) {
-                  auto&object = objects[idx];
-                  object.staged_selection = true;
-                  object.staged_active = stage.active.at(idx);
-                  object.include_class_constraints = false;
-                  object.inherited_ir.clear();
-                  object.extra_ir.clear();
-                  object.planned_class_ir.clear();
-                  object.class_slot_vals = call.state_values[object.object];
+            /* Build the object vector for the current priority set. With
+             * independent_only, omit items whose outcome depends on an
+             * earlier set (item.ordered, set by vvp_z3_plan_function_stages);
+             * that subset is used only to classify a failure. */
+            auto build_stage_objects = [&](bool independent_only) {
+                  auto staged_objects = state->session.solve_objects;
+                  for (size_t idx = 0; idx < staged_objects.size(); ++idx) {
+                        auto&object = staged_objects[idx];
+                        object.staged_selection = true;
+                        object.staged_active = stage.active.at(idx);
+                        object.include_class_constraints = false;
+                        object.inherited_ir.clear();
+                        object.extra_ir.clear();
+                        object.planned_class_ir.clear();
+                        object.class_slot_vals = call.state_values[object.object];
+                  }
+                  for (const auto&item : stage.items) {
+                        if (independent_only && item.ordered) continue;
+                        auto&object = staged_objects.at(item.object);
+                        if (item.class_ir) object.planned_class_ir.push_back(item.ir);
+                        else object.extra_ir.push_back(item.ir);
+                  }
+                  return staged_objects;
+            };
+            auto objects = build_stage_objects(false);
+            if (!vvp_z3_randomize_graph(objects)) {
+                  /* A later priority set failed. If its items that do not
+                   * depend on an earlier set are already infeasible, no earlier
+                   * outcome could help: restore everything including the RNG.
+                   * Otherwise the miss came from the earlier draw: values and
+                   * randc history roll back, but the draw stays consumed.
+                   * shortcut: ordered-only intrinsic conflicts keep the draw;
+                   * upgrade if an earlier-outcome independence proof is added. */
+                  bool keep_advance = false;
+                  if (state->stage > 0) {
+                        std::vector<std::string> after_failed =
+                              state->session.rng_states();
+                        keep_advance = vvp_z3_randomize_graph(
+                              build_stage_objects(true));
+                        state->session.set_rng_states(after_failed);
+                  }
+                  return randomize_staged_finish_(thr, false, keep_advance);
             }
-            for (const auto&item : stage.items) {
-                  auto&object = objects.at(item.object);
-                  if (item.class_ir) object.planned_class_ir.push_back(item.ir);
-                  else object.extra_ir.push_back(item.ir);
-            }
-            if (!vvp_z3_randomize_graph(objects))
-                  return randomize_staged_finish_(thr, false);
             state->stage += 1;
             state->next_call = 0;
       }
@@ -10989,6 +11049,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->deferred_assert_flush_on_run = 0;
+      thr->is_observed_report_action = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context_is_chain = 0;
       thr->rand_sel_armed = false;
@@ -11145,11 +11206,8 @@ static void vthread_reap(vthread_t thr)
 	    thr->children.erase(cur);
       }
       while (! thr->detached_children.empty()) {
-	      /* When a thread ends with detached children still alive,
-	       * SystemVerilog `wait fork` semantics require those grandchildren
-	       * to remain reachable from the still-living grandparent so that
-	       * an outer `wait fork` can wait for them.  Reparent them to
-	       * thr->parent and keep them in detached_children. */
+	      /* Keep detached descendants reachable for process control, but
+	       * do not make them children of the grandparent for wait fork. */
 	    set<vthread_t>::iterator cur = thr->detached_children.begin();
 	    vthread_t child = *cur;
 	    assert(child);
@@ -11159,10 +11217,13 @@ static void vthread_reap(vthread_t thr)
 		  child->parent = thr->parent;
 		  child->is_reactive_process |= thr->is_reactive_process;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(cur);
       }
       if (thr->parent) {
@@ -11176,6 +11237,7 @@ static void vthread_reap(vthread_t thr)
 				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
 		  }
 		  assert(res == 1);
+		  thr->parent->wait_fork_children.erase(thr);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
 		  if (res != 1) {
@@ -18513,7 +18575,8 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
 	       * the parent's detached_children, so do not erase manually. */
 	    if (parent && parent->i_am_waiting
-		&& parent->detached_children.size() == 1) {
+		&& parent->wait_fork_children.size() == 1
+		&& parent->wait_fork_children.count(thr)) {
 		    /* This is the last detached child; the wait fork
 		     * predicate will become true once we reap. */
 		  parent->i_am_waiting = 0;
@@ -19193,10 +19256,8 @@ bool of_END(vthread_t thr, vvp_code_t)
             }
       }
 
-	/* Move any detached children to the parent.  This preserves
-	 * SystemVerilog `wait fork` semantics: an outer `wait fork` must
-	 * wait for grandchildren whose intermediate parent has already
-	 * ended.  If we have no parent, fully orphan them as before. */
+	/* Move detached children to the parent for process control.  They
+	 * remain descendants, so they are not added to its wait-fork set. */
       while (! thr->detached_children.empty()) {
 	    vthread_t child = *(thr->detached_children.begin());
 	    assert(child);
@@ -19205,10 +19266,13 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    if (thr->parent) {
 		  child->parent = thr->parent;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(thr->detached_children.begin());
       }
 
@@ -19237,7 +19301,8 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* If the parent is waiting for the detached children to
 	       * finish then the last detached child needs to tell the
 	       * parent to wake up when it is finished. */
-	    if (tmp->i_am_waiting && tmp->detached_children.empty()) {
+	    if (tmp->i_am_waiting && tmp->wait_fork_children.size() == 1
+		&& tmp->wait_fork_children.count(thr)) {
 		  tmp->i_am_waiting = 0;
 		  tmp->deferred_assert_flush_on_run = 1;
 		  schedule_vthread(tmp, 0, true);
@@ -19245,6 +19310,7 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* Fully detach this thread so it will be reaped below. */
 	    thr->i_am_detached = 0;
 	    thr->parent = 0;
+	    tmp->wait_fork_children.erase(thr);
       }
 
 	/* If I have no parent, then no one can %join me and there is
@@ -21822,6 +21888,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		  assert(res == 1);
 		  child->i_am_detached = 1;
 		  thr->detached_children.insert(child);
+		  thr->wait_fork_children.insert(child);
 	    }
       }
 
@@ -27548,7 +27615,7 @@ static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
  *   blocked (waiting on an event/join) leaves the block in place and lets
  *   the eventual wake re-arm the reschedule.
  */
-bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+static bool process_suspend_(vthread_t thr, bool reject_function_self_suspend)
 {
       vvp_object_t obj;
       thr->pop_object(obj);
@@ -27571,6 +27638,15 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
 
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
+
+	// IEEE 1800-2023 9.7 prohibits a function from suspending its own
+	// process. Keep the 2017 opcode's permitted behavior unchanged.
+      if (reject_function_self_suspend && self_suspend && thr->i_am_in_function) {
+	    cerr << "runtime error: function called process::suspend() on the current process." << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
 
 	// Every thread the process is made of, not just the one the handle
 	// names: while a named block or a task frame is executing, IT is the
@@ -27612,6 +27688,16 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       }
 
       return true;
+}
+
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, false);
+}
+
+bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, true);
 }
 
 /*
@@ -34002,6 +34088,25 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       const char*next_op = "<nullpc>";
       bool trace = false;
 
+      /* Unique/priority case diagnostics are evaluated in Active, but
+         IEEE 1800-2017 12.5.3.1 applies 12.4.2.1's Observed deferral and
+         process-resume flush mechanics to their reports. */
+      if (cp->bit_idx[0] && thr && !thr->is_observed_report_action) {
+	    vthread_t owner = logical_process_thread_(thr);
+	    vvp_process*process = owner
+		  ? owner->process_obj_.peek<vvp_process>() : 0;
+	    __vpiScope*scope = thr->parent_scope;
+	    deferred_assert_args_s args;
+	    if (!process || !scope
+		|| !capture_deferred_args_(thr, cp, args, "observed", true)) {
+		  fprintf(stderr,
+			  "vvp: unable to queue unique/priority case violation report.\n");
+		  return true;
+	    }
+	    process->enqueue_deferred_assert(0, cp, scope, args);
+	    return true;
+      }
+
       if (vpi_call_trace_enabled_()) {
             if (cp->handle) {
                   const char*name = vpi_get_str(vpiName, cp->handle);
@@ -34033,6 +34138,12 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       }
 
       vpip_execute_vpi_call(thr, cp->handle);
+
+      /* A matured unique/priority case warning borrows the source VPI-call
+         instruction, but its fresh action thread must stop after that call
+         rather than continuing through the original process body. */
+      if (thr && thr->is_observed_report_action)
+	    return of_END(thr, nullptr);
 
       /* $exit is a program control task, not an alias for $finish.  The
        * program initial procedure that calls it completes here; the
@@ -34222,12 +34333,7 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
-      if (!net) {
-	      /* Out-of-range index: nothing to wait on. Treat like an
-		 immediately-false wait so the thread does not hang
-		 forever on a malformed index. */
-	    return true;
-      }
+      if (!net) net = event_array_null_net();
 
       if (thr->i_am_in_function)
 	    thr->i_am_in_function = 0;
@@ -34270,9 +34376,9 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children when waiting. */
       assert(thr->children.empty());
 
-	/* If there are no detached children then there is nothing to
+	/* If there are no immediate detached children then there is nothing to
 	 * wait for. */
-      if (thr->detached_children.empty()) return true;
+	if (thr->wait_fork_children.empty()) return true;
 
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */

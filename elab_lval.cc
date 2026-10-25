@@ -820,6 +820,20 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    bool is_init,
 				    bool read_only_ref) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+						      is_force, is_init,
+						      read_only_ref);
+	    }
+	  }
 
       for (const name_component_t&component : path_.name) {
 	    for (const index_component_t&index : component.index) {
@@ -839,6 +853,66 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  // IEEE 1800-2017/2023 25.5.4: an explicitly named modport output
+	  // aliases its expression. Rewrite identifier expressions to the
+	  // receiver's interface member path so normal l-value select handling
+	  // preserves the selected bits and their storage identity.
+	  if (sr.net && sr.path_tail.size() == 1 && sr.type
+	      && !modport_expression_access()) {
+	    const netclass_t*interface_type =
+		  dynamic_cast<const netclass_t*>(sr.type);
+	    if (interface_type && interface_type->is_interface()) {
+		  verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+		  perm_string mp_name = mp_attr == verinum() ? perm_string()
+			: lex_strings.make(mp_attr.as_string().c_str());
+		  const PModport*view = interface_modport_view(interface_type, mp_name);
+		  const name_component_t&port_name = sr.path_tail.front();
+		  auto port = view ? view->simple_ports.find(port_name.name)
+			: std::map<perm_string,PModport::simple_port_t>::const_iterator();
+		  if (view && port != view->simple_ports.end() && port->second.second) {
+			if (!validate_interface_modport_access(
+				des, this, interface_type, mp_name, port_name.name,
+				clocking_access(), true))
+			  return nullptr;
+			const PEIdent*source = dynamic_cast<const PEIdent*>(port->second.second);
+			if (source && !source->path().package && !source->path().name.empty()) {
+			  pform_name_t mapped_path;
+			  const size_t prefix = path_.name.size() - sr.path_tail.size();
+			  for (auto head = path_.name.begin(); head != path_.name.end()
+			       && std::distance(path_.name.begin(), head) < (long)prefix;
+			       ++head)
+				mapped_path.push_back(*head);
+			  mapped_path.insert(mapped_path.end(), source->path().name.begin(),
+				     source->path().name.end());
+			  for (auto tail = std::next(sr.path_tail.begin());
+			       tail != sr.path_tail.end(); ++tail)
+				mapped_path.push_back(*tail);
+			  if (!port_name.index.empty())
+				std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.insert(
+				      std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.end(),
+				      port_name.index.begin(), port_name.index.end());
+			  PEIdent mapped_ident(mapped_path, lexical_pos_);
+			  mapped_ident.set_line(*this);
+			  mapped_ident.set_modport_expression_access();
+			  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+						      is_force, is_init,
+						      read_only_ref);
+			}
+			pform_name_t receiver;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			  receiver.push_back(*head);
+			push_modport_expression_context(receiver);
+			NetAssign_*expression_lval = port->second.second->elaborate_lval(
+			      des, scope, is_cassign, is_force, is_init, read_only_ref);
+			pop_modport_expression_context();
+			return expression_lval;
+	      }
+	    }
+	  }
 
 	  scoped_lvalue_retarget_result_t scoped_result;
 	  if (has_scoped_type_prefix())
@@ -1935,6 +2009,9 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       list<NetExpr*>unpacked_indices;
       list<long>unpacked_indices_const;
       string unpacked_indices_text;
+      bool have_array_word_prefix = false;
+      unsigned array_word_prefix_first = 0;
+      unsigned array_word_prefix_count = 0;
       indices_flags flags;
 	if (fixed_container_leaf) {
 	      const netsarray_t*fixed_type =
@@ -1961,6 +2038,77 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	    indices_to_expressions(des, scope, this,
 		   name_tail.index, reg->unpacked_dimensions(), false,
 		   flags, unpacked_indices, unpacked_indices_const);
+
+	      if (!flags.invalid && !flags.undefined) {
+		    const netsarray_t*fixed_array_type =
+			  dynamic_cast<const netsarray_t*>(reg->array_type());
+		    if (fixed_array_type) {
+			  const netranges_t&dims = fixed_array_type->static_dimensions();
+			  list<long>prefix_indices;
+			  size_t prefix_dims = 0;
+			  bool empty_prefix = false;
+			  bool prefix_supported = true;
+			  list<NetExpr*>::const_iterator index = unpacked_indices.begin();
+			  for (size_t dim = 0; dim < dims.size(); ++dim) {
+				if (index == unpacked_indices.end()) {
+				      prefix_supported = false;
+				      break;
+				}
+				const NetEConst*constant =
+				      dynamic_cast<const NetEConst*>(*index++);
+				if (!constant) break;
+				if (!constant->value().is_defined()) {
+				      empty_prefix = true;
+				      break;
+				}
+				if (!dims[dim].defined()
+				    || constant->value().len() > sizeof(long)*8) {
+				      prefix_supported = false;
+				      break;
+				}
+				long value = constant->value().as_long();
+				if (value < min(dims[dim].get_msb(), dims[dim].get_lsb())
+				    || value > max(dims[dim].get_msb(), dims[dim].get_lsb())) {
+				      empty_prefix = true;
+				      break;
+				}
+				prefix_indices.push_back(value);
+				prefix_dims += 1;
+			  }
+
+			  if (prefix_dims < dims.size()) {
+				if (empty_prefix) {
+				      have_array_word_prefix = true;
+				} else if (prefix_supported) {
+				      unsigned long first_word = 0;
+				      bool base_ok = true;
+				      if (prefix_dims) {
+					    NetExpr*base = normalize_variable_unpacked(
+						  fixed_array_type, prefix_indices);
+					    if (base) eval_expr(base);
+					    long value = 0;
+					    base_ok = base && eval_as_long(value, base)
+						  && value >= 0;
+					    if (base_ok)
+						  first_word = static_cast<unsigned long>(value);
+					    delete base;
+				      }
+				      netranges_t remaining_dims(
+					    dims.begin()+prefix_dims, dims.end());
+				      unsigned long word_count =
+					    netrange_width(remaining_dims);
+				      if (base_ok && first_word <= reg->pin_count()
+					  && word_count <= reg->pin_count()-first_word) {
+					    have_array_word_prefix = true;
+					    array_word_prefix_first =
+						  static_cast<unsigned>(first_word);
+					    array_word_prefix_count =
+						  static_cast<unsigned>(word_count);
+				      }
+			}
+		  }
+	    }
+	      }
 
             // Checked canonicalization consumes the expressions. Preserve
             // their spelling for later scalar-select diagnostics.
@@ -2044,6 +2192,9 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
       NetAssign_*lv = new NetAssign_(reg);
       lv->set_word(canon_index);
+      if (have_array_word_prefix)
+	    lv->set_array_word_prefix(array_word_prefix_first,
+				      array_word_prefix_count);
 
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Set array word=" << *canon_index << endl;
@@ -3611,6 +3762,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  }
 	    }
 	    if (owner_class && owner_class->is_interface()
+		&& !modport_expression_access()
 		&& !validate_interface_modport_access(
 		      des, this, owner_class, active_modport,
 		      member_cur.name, clocking_access(), true)) {

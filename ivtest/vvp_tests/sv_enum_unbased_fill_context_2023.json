@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_enum_unbased_fill_context_2023.v",
+  "iverilog-args": [ "-g2023", "-s", "main" ],
+  "gold": "sv_enum_unbased_fill_context_2023"
+}

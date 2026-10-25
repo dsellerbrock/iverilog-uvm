@@ -16685,7 +16685,7 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                   function_plan_item_t entry;
                   entry.item = {object, class_ir, item_ir,
                                 class_ir ? capture_slots_(item_ir)
-                                         : vector<size_t>()};
+                                         : vector<size_t>(), false};
                   Z3Builder builder(ctx, type, objects[object].object, &graph);
                   set<Z3Builder::VarRef> refs;
                   builder.collect_refs = &refs;
@@ -17238,8 +17238,15 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
             for (const auto&entry : call_stages)
                   plan.stages[entry.second].before_calls.push_back(
                         {entry.first.first, entry.first.second});
-            for (size_t wi = 0; wi < work.size(); ++wi)
-                  plan.stages[work[wi].stage].items.push_back(work[wi].item);
+            for (size_t wi = 0; wi < work.size(); ++wi) {
+                  vvp_z3_plan_item_s planned = work[wi].item;
+                  planned.ordered = !item_args[wi].empty()
+                        || work[wi].minimum_stage > 0;
+                  for (const Ref&ref : work[wi].refs)
+                        if (active_ref(ref) && levels[ref] < work[wi].stage)
+                              planned.ordered = true;
+                  plan.stages[work[wi].stage].items.push_back(planned);
+            }
       }
       Z3_del_context(ctx);
       return true;

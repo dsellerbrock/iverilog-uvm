@@ -4754,3 +4754,37 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** confirmed runtime conformance gap outside #836's
   classification fix. The feature regression keeps the mixed expression
   compile-only and tests each runtime-supported subject in its own class.
+### DD-139 — other chandle use contexts remain outside #759
+
+- **Discovered while working:** #759 / M9 culprit PR #1064 (2026-10-24).
+- **Observation:** The #759 fix covers blocking and nonblocking procedural
+  assignment from an unselected chandle identifier to a non-chandle variable.
+  Selected or indexed RHS identifiers are deliberately not type-probed and are
+  outside the verified subset.
+  On main `47177e047`, both editions accepted `int i; chandle ch;
+  initial i <= ch;`. Both editions also compiled and ran probes for chandle
+  use in a variable initializer, int function argument/return, event control,
+  continuous assignment, procedural `assign`/`deassign`, and `force`/`release`.
+  The function probes checked compile/run status, not returned values.
+- **File/function:** assignment type checks in `elaborate.cc`; neighboring
+  contexts use separate declaration, call, return, event, continuous-driver,
+  procedural-driver, and force paths.
+- **Possible clause:** IEEE 1800-2017/2023 §6.14 and §6.22.5. Continuous
+  assignments and event controls are separately covered by open issue #763;
+  the compound form `i += ch` is also covered by #763.
+- **Evidence:** `evidence/m9-issue759-chandle-20261024/baseline-edge-probes/`
+  and the original blocking-assignment baseline in
+  `evidence/m9-issue759-chandle-20261024/baseline/`.
+- **Reproducer status:** confirmed on main in both editions; #759's blocking
+  and nonblocking forms are fixed together. Chandle-to-chandle/null NBA
+  assignments compile and run in the same matrix.
+- **Triage status:** adjacent forms are recorded only; do not expand #759.
+  Track initializer, function argument/return, procedural assign, and force
+  separately if they remain actionable after #763.
+### DD-140 — output clockvar variable-driver detection has static-net limits
+
+- **Discovered while working:** M9 issue #909.
+- **Observation:** The strict continuous/procedural-continuous driver check is keyed by elaborated `NetNet` identity. Clockvars skipped by the sample-buffer path for non-vector or unsupported array forms are not registered, and virtual-interface class-property writes do not traverse the same static net path. When a supported output clockvar names a selected slice, the current restriction applies to the whole underlying variable. A hierarchical continuous write from a parent module to an interface member associated with an output clockvar, with no user clocking drive, is rejected once by the existing hidden-writer overlap check, whose generic “continuous and procedural drivers” wording does not cite §14.16.2; the separate force case receives the clause-specific diagnostic. Preserve this diagnostic distinction until the hidden writer can be distinguished safely from real procedural writers without changing virtual-interface overlap behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §14.16.2; whether the selected-slice restriction should be more granular needs a separate interpretation and regression.
+- **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
+- **Triage status:** Known boundary; not part of #909.

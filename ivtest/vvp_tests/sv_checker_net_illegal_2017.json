@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_checker_net_illegal_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_checker_net_illegal_2017" ],
+    "gold"          : "sv_checker_net_illegal_2017"
+}

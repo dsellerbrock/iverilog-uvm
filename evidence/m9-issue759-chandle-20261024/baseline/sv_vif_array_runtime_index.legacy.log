@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_vif_array_runtime_index.v:41: $finish called at 3 (1s)

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_process_suspend_self_function.sv",
+  "iverilog-args": ["-g2017"]
+}

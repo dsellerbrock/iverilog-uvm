@@ -680,6 +680,14 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	    {
 		  int left = vpi_get(vpiLeftRange, item);
 		  int right = vpi_get(vpiRightRange, item);
+		    /* VPI gives only the outer range of a multidimensional packed
+		     * variable. VCD dumps it as one vector, so collapse the range
+		     * to the total width. */
+		  if (size > 0 && left != vpiUndefined && right != vpiUndefined
+		      && abs(left - right) + 1 != (int)size) {
+			left = size - 1;
+			right = 0;
+		  }
 		  if ((size > 1 || left != 0)
 		      && !(left == vpiUndefined && right == vpiUndefined)) {
 		  fprintf(dump_file, " [%i:%i]",
