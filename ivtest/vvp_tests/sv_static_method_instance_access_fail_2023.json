@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_static_method_instance_access_fail_2023.v",
+    "iverilog-args" : [ "-g2023" ]
+}

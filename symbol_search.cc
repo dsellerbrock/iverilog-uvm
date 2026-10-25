@@ -58,6 +58,36 @@ struct symbol_search_cache_key_t {
 static std::map<symbol_search_cache_key_t,symbol_search_results>
       symbol_search_cache_;
 
+static const PTaskFunc* method_definition_(NetScope*scope)
+{
+      if (!scope)
+	    return 0;
+      if (scope->type() == NetScope::FUNC)
+	    return scope->func_pform();
+      if (scope->type() == NetScope::TASK)
+	    return scope->task_pform();
+      return 0;
+}
+
+static bool report_static_instance_access_(const LineInfo*li, Design*des,
+					   NetScope*scope,
+					   perm_string member)
+{
+      NetScope*method = find_method_containing_scope(*li, scope);
+      const PTaskFunc*definition = method_definition_(method);
+      if (!definition || !definition->method_of()
+	  || !definition->method_qualifiers().test_static())
+	    return false;
+
+	  const char*member_name =
+		member == perm_string::literal(THIS_TOKEN) ? "this" : member.str();
+      cerr << li->get_fileline() << ": error: Static method cannot access `"
+	   << member_name << "' without an object (IEEE 1800-2017/2023 8.10)."
+	   << endl;
+      des->errors += 1;
+      return true;
+}
+
 // See the declaration in netmisc.h: NetScope::set_signal_alias() /
 // restore_signal_alias() call this so a transient name rebinding
 // (IEEE 1800-2017 7.12.4 array-manipulation-method iterator names)
@@ -311,6 +341,16 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 	    //        ... top.not_ok; // Matches.
 	    //    endmodule
 	    if (!passed_module_boundary) {
+		    // 8.10: neither the explicit `this` handle nor an implicit
+		    // instance receiver exists in a static class method. Check
+		    // before ordinary signal lookup, which can otherwise find a
+		    // synthesized placeholder and silently accept the reference.
+		  if (!prefix_scope
+		      && path_tail.name == perm_string::literal(THIS_TOKEN)
+		      && report_static_instance_access_(li, des, start_scope,
+					       path_tail.name))
+			return false;
+
 		  // Special case `super` keyword. Return the `this` object, but
 		  // with the type of the base class.
 		  if (path_tail.name == "#") {
@@ -519,6 +559,10 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 				    ? const_cast<netclass_t*>(clsnet)->ensure_property_decl(des, path_tail.name)
 				    : -1;
 			      if (pidx >= 0 && this_net) {
+				    if (!clsnet->find_static_property(path_tail.name)
+					&& report_static_instance_access_(li, des, scope,
+								 path_tail.name))
+					  return false;
 				    res->net = this_net;
 				    res->scope = scope;
 				    res->path_head = path;
@@ -538,10 +582,14 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      ? const_cast<netclass_t*>(clsnet)->ensure_property_decl(des, path_tail.name)
 			      : -1;
 			if (pidx >= 0) {
+			  NetScope *scope_method = find_method_containing_scope(*li, start_scope);
+			  if (scope_method && !clsnet->find_static_property(path_tail.name)
+			      && report_static_instance_access_(li, des, scope_method,
+							       path_tail.name))
+				return false;
 			      // This is a class property being accessed in a
 				      // class method. Return `this` for the net and the
 				      // property name for the path tail.
-			      NetScope *scope_method = find_method_containing_scope(*li, start_scope);
 			      if (scope_method) {
 			      res->net = find_implicit_this_handle(des, scope_method);
 			      // SV compile-progress: if property found in class

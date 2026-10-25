@@ -1,0 +1,8 @@
+./ivltests/sv_static_method_instance_access_fail_2017.v:9: error: Static method cannot access `this' without an object (IEEE 1800-2017/2023 8.10).
+./ivltests/sv_static_method_instance_access_fail_2017.v:9: error: Unable to bind variable `this' in `$unit.static_method_instance_access.get_self'
+./ivltests/sv_static_method_instance_access_fail_2017.v:5: error: Static method cannot access `value' without an object (IEEE 1800-2017/2023 8.10).
+./ivltests/sv_static_method_instance_access_fail_2017.v:5: error: Static method cannot access `value' without an object (IEEE 1800-2017/2023 8.10).
+./ivltests/sv_static_method_instance_access_fail_2017.v:5: warning: Unable to bind wire/reg/memory `value' in `$unit.static_method_instance_access.get_value' (compile-progress: unresolved reference).
+./ivltests/sv_static_method_instance_access_fail_2017.v:15: warning: User function 'get_value' is being called as a task.
+./ivltests/sv_static_method_instance_access_fail_2017.v:16: warning: User function 'get_self' is being called as a task.
+4 error(s) during elaboration.
