@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "sv_format_s_leading_zeros.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_format_s_leading_zeros",
+    "vlog95": {"type": "NI"}
+}

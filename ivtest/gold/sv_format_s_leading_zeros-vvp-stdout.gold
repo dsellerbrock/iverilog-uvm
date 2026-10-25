@@ -1,0 +1,4 @@
+implicit=[ab]
+explicit=[      ab]
+string=[ ab]
+ivltests/sv_format_s_leading_zeros.v:8: $finish called at 0 (1s)
