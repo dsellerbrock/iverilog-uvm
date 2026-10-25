@@ -1,0 +1,3 @@
+ivltests/sv_auto_task_trace_fail_2023.v:4: error: automatically allocated variables may not be traced with $monitor.
+ivltests/sv_auto_task_trace_fail_2023.v:5: error: automatically allocated variables may not be traced with $dumpvars.
+2 error(s) during elaboration.

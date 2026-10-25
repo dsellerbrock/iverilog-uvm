@@ -14035,6 +14035,12 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    || name == "$assertkill";
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
+      const bool trace_task =
+	    name == "$monitor" || name == "$monitorb"
+	    || name == "$monitorh" || name == "$monitoro"
+	    || name == "$fmonitor" || name == "$fmonitorb"
+	    || name == "$fmonitorh" || name == "$fmonitoro"
+	    || name == "$dumpvars";
 
       if (name == "$system" && parm_count > 1) {
 	    cerr << get_fileline() << ": error: The $system task takes zero or one argument; found "
@@ -14105,6 +14111,16 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    if (diagnose_interconnect_value_reference_(des, scope, parm.parm)) {
 		  eparms[idx] = 0;
 		  continue;
+	    }
+
+	    /* IEEE 1800-2017/2023 13.3.2: tracing tasks retain references to
+	       their arguments after the current task invocation. Automatic
+	       variables are deallocated when that invocation ends. */
+	    if (trace_task && parm.parm
+		&& parm.parm->has_aa_term(des, scope)) {
+		  cerr << parm.get_fileline() << ": error: automatically allocated "
+		       << "variables may not be traced with " << name << "." << endl;
+		  des->errors += 1;
 	    }
 
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
