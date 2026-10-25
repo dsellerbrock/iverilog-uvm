@@ -3796,10 +3796,21 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
       store(covgrp_options_.get_inst_coverage_prop, covgrp_options_.get_inst_coverage);
       store(covgrp_options_.per_instance_prop, covgrp_options_.per_instance);
 
+      auto property_named = [&](const string&name) -> int {
+	    for (size_t idx = 0; idx < property_count(); idx += 1)
+		  if (property_name(idx) == name) return (int)idx;
+	    return -1;
+      };
+	// goal is an int-valued instance option whose IEEE default is 100.
+	// comment's default is the naturally empty string property value.
+      store(property_named("__covgrp_group_option_goal"), 100);
+
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
 	    store(item.at_least_prop, item.at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+	    store(property_named("__covgrp_item_" + std::to_string(idx)
+		  + "_option_goal"), 100);
       }
 }
 

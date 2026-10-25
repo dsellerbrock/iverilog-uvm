@@ -1,8 +1,6 @@
-sorry: covergroup option 'at_least' is not a constant; using default 1.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:37: sorry: procedural read of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:38: sorry: procedural read of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:39: sorry: procedural read of coverpoint/cross option `cp.option.bogus' is not supported; only option.at_least and option.weight are implemented.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:40: sorry: procedural write of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:41: sorry: procedural write of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
-ivltests/sv_covergroup_procedural_item_options_unsupported.v:42: sorry: procedural write of coverpoint/cross option `cp.option.bogus' is not supported; only option.at_least and option.weight are implemented.
-6 error(s) during elaboration.
+ivltests/sv_covergroup_procedural_item_options_unsupported.v:18: sorry: procedural read of coverpoint/cross option `cp.option.bogus' is not supported; implemented members are option.at_least, option.weight, option.goal, and option.comment.
+ivltests/sv_covergroup_procedural_item_options_unsupported.v:19: sorry: procedural write of coverpoint/cross option `cp.option.bogus' is not supported; implemented members are option.at_least, option.weight, option.goal, and option.comment.
+ivltests/sv_covergroup_procedural_item_options_unsupported.v:20: error: option.per_instance can only be set in a covergroup definition.
+ivltests/sv_covergroup_procedural_item_options_unsupported.v:21: sorry: procedural write of coverpoint/cross option `cp.option.auto_bin_max' is not supported; implemented members are option.at_least, option.weight, option.goal, and option.comment.
+ivltests/sv_covergroup_procedural_item_options_unsupported.v:22: sorry: procedural write of coverpoint/cross option `cp.option.detect_overlap' is not supported; implemented members are option.at_least, option.weight, option.goal, and option.comment.
+5 error(s) during elaboration.

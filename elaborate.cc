@@ -42538,6 +42538,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
+            group_options.goal_prop = add_unique_cov_property(
+		  "__covgrp_group_option_goal", &netvector_t::atom2s32);
+            group_options.comment_prop = add_unique_cov_property(
+		  "__covgrp_group_option_comment", &netstring_t::type_string);
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
@@ -43018,6 +43022,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						nullptr, -1,
 						cp_option_props.first,
 						cp_option_props.second);
+		      cg_class->set_covgrp_item_extra_option_props(cp_idx,
+			    add_unique_cov_property("__covgrp_item_" + std::to_string(cp_idx)
+				  + "_option_goal", &netvector_t::atom2s32),
+			    add_unique_cov_property("__covgrp_item_" + std::to_string(cp_idx)
+				  + "_option_comment", &netstring_t::type_string));
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -44995,6 +45004,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross.iff_expr, x_guard_src,
 						x_option_props.first,
 						x_option_props.second);
+			  cg_class->set_covgrp_item_extra_option_props(item_idx,
+				add_unique_cov_property("__covgrp_item_" + std::to_string(item_idx)
+				  + "_option_goal", &netvector_t::atom2s32),
+				add_unique_cov_property("__covgrp_item_" + std::to_string(item_idx)
+				  + "_option_comment", &netstring_t::type_string));
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;

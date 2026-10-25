@@ -3661,8 +3661,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      cerr << get_fileline() << ": sorry: procedural write of "
 				   << "coverpoint/cross option `" << member_cur.name
 				   << ".option." << value_comp.name
-				   << "' is not supported; only option.at_least and "
-				   << "option.weight are implemented." << endl;
+				   << "' is not supported; implemented members are "
+				   << "option.at_least, option.weight, option.goal, and "
+				   << "option.comment." << endl;
 			      des->errors += 1;
 			      return 0;
 			}

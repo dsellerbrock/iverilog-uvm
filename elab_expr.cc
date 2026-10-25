@@ -15568,11 +15568,11 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(select, expr_wid, false, *this);
 }
 
-/* IEEE 1800-2023 19.5/19.7.1: coverage-item labels and `option' are
+/* IEEE 1800-2017/2023 19.7/19.10: coverage-item labels and `option' are
  * pseudo hierarchy rather than class objects. Replace the three source
  * components
  *
- *     <coverpoint-or-cross>.option.{at_least,weight}
+ *     <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
  *
  * with the synthesized scalar property that carries the mutable value on
  * this covergroup object. Advance the iterator to the final consumed
@@ -15634,8 +15634,9 @@ static void report_unsupported_covergroup_item_option_(
 {
       cerr << loc->get_fileline() << ": sorry: procedural " << access
 	   << " of coverpoint/cross option `" << item << ".option."
-	   << member << "' is not supported; only option.at_least and "
-	   << "option.weight are implemented." << endl;
+	   << member << "' is not supported; implemented members are "
+	   << "option.at_least, option.weight, option.goal, and "
+	   << "option.comment." << endl;
       des->errors += 1;
 }
 
