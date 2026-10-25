@@ -1,0 +1,4 @@
+sv_checker_always_ff_blocking_fail_2017 CE,-g2017,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2017.gold
+sv_checker_always_ff_blocking_fail_2023 CE,-g2023,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2023.gold
+sv_checker_always_ff_assignments normal,-g2017,-s,sv_checker_always_ff_assignments ivltests gold=sv_checker_always_ff_assignments.gold
+sv_checker_always_ff_assignments_2023 normal,-g2023,-s,sv_checker_always_ff_assignments ivltests gold=sv_checker_always_ff_assignments.gold

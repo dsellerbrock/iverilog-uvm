@@ -10791,8 +10791,38 @@ static NetProc* make_direct_darray_indexed_slice_store_(
       return block;
 }
 
+static ivl_process_type_t current_procedural_process_type = IVL_PR_INITIAL;
+
+class procedural_process_type_guard_t {
+    public:
+      explicit procedural_process_type_guard_t(ivl_process_type_t type)
+      : previous_(current_procedural_process_type)
+      { current_procedural_process_type = type; }
+
+      ~procedural_process_type_guard_t()
+      { current_procedural_process_type = previous_; }
+
+    private:
+      ivl_process_type_t previous_;
+};
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
+	bool in_checker = false;
+	for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	      const Module*module = owner->module_definition();
+	      if (module) {
+		    in_checker = module->is_checker;
+		    break;
+	      }
+	}
+	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
+	cerr << get_fileline() << ": error: blocking assignment is not allowed "
+	        "in a checker always_ff procedure." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+
       NetProc*result = elaborate_unwrapped_(des, scope);
       if (!result)
 	    return nullptr;
@@ -27435,6 +27465,7 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       scope->in_final(type() == IVL_PR_FINAL);
       NetProc*cur;
       {
+	    procedural_process_type_guard_t process_type(type());
 	    PExprProceduralContextGuard procedural_context(true);
 	    cur = statement_->elaborate(des, scope);
       }
