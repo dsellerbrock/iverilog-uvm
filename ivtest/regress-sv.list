@@ -2620,6 +2620,7 @@ sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests g
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
+sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold
 sv_interface_port_array_direction_methods normal,-g2012,-ssv_interface_port_array_direction_methods ivltests gold=sv_interface_port_array_direction_methods.gold
 sv_interface_port_array_shape_fail CE,-g2012,-ssv_interface_port_array_shape_fail ivltests gold=sv_interface_port_array_shape_fail.gold
 sv_interface_port_array_forwarded_shape_fail CE,-g2012,-ssv_interface_port_array_forwarded_shape_fail ivltests gold=sv_interface_port_array_forwarded_shape_fail.gold
