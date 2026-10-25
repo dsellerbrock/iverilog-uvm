@@ -343,6 +343,23 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   list<data_type_t*>*interface_types,
 				   bool base_default)
 {
+      // IEEE 1800-2017/2023 9.7 defines process as a built-in class that
+      // cannot be extended. Bare class names in an extends clause are
+      // represented as type_parameter_t until class lookup is complete.
+      if (base_type) {
+	    const type_parameter_t*base_name =
+		  dynamic_cast<const type_parameter_t*>(base_type);
+	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(base_type);
+	    if ((base_name && base_name->name == lex_strings.make("process"))
+		|| (base_ref && base_ref->typedef_ref()
+		    && base_ref->typedef_ref()->name == lex_strings.make("process"))) {
+		  cerr << loc.get_fileline()
+		       << ": error: The built-in process class cannot be extended."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
+
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
       pform_enclosing_classes_.push_back(pform_cur_class);
