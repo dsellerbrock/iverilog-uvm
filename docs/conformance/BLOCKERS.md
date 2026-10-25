@@ -4570,7 +4570,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Boundary:** The historical PR #410 run remains failed for its merged head. Do not describe this follow-up as CI-green until the required jobs pass for the follow-up PR head; no full ivtest corpus or OpenTitan qualification was run here.
 ### L129 — Class-handle values are accepted by integral targets
 
-- **Standard:** IEEE 1800-2017/2023 §6.22.5 makes class handles type-incompatible with all other types. For an output clockvar, §14.16.2 also requires the synchronous-drive expression to be assignment-compatible with its associated signal.
+- **Standard:** IEEE 1800-2017/2023 §6.22.5 makes class handles type-incompatible with all other types. The output-clockvar regression uses the synchronous-drive form defined in §14.16.1; the class/integral type incompatibility itself is governed by §6.22.5.
 - **Observed on the #759 base:** Plain, compound, and output-clockvar class-handle-to-integral assignments compiled in both editions. The width fallback warned that it substituted zero, after which the assignment was still accepted.
 - **Fix in progress:** `elaborate_rval_expr` rejects class-typed sources when the target type is integral. Using `lv_type` also covers compressed assignments that have no `lv_net_type`; class-to-class assignment paths are unchanged.
 - **Permanent regressions:** Paired 2017/2023 direct, compound, and output-clockvar CE tests are registered in both ivtest manifests.
