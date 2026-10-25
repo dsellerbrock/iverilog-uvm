@@ -761,6 +761,8 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         vpiHandle arg = info->items[*idx];
         PLI_INT32 type = vpi_get(vpiType, arg);
         char *owned_string = 0;
+        int inferred_width = 0;
+        size_t decoded_length = 0;
         if (type == vpiRegArray || type == vpiNetArray || type == vpiMemory) {
           vpiHandle left = vpi_handle(vpiLeftRange, arg);
           vpiHandle right = vpi_handle(vpiRightRange, arg);
@@ -815,8 +817,63 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
             value.format = vpiSuppressVal;
           }
         } else {
-          value.format = vpiStringVal;
-          vpi_get_value(arg, &value);
+          int is_string = type == vpiStringVar ||
+                          ((type == vpiConstant || type == vpiParameter) &&
+                           vpi_get(vpiConstType, arg) == vpiStringConst) ||
+                          (type == vpiSysFuncCall &&
+                           vpi_get(vpiFuncType, arg) == vpiStringFunc);
+          int is_vector = type == vpiReg || type == vpiNet ||
+                          type == vpiIntegerVar || type == vpiMemoryWord ||
+                          type == vpiConstant ||
+                          type == vpiParameter;
+          if (is_string || !is_vector) {
+            value.format = vpiStringVal;
+            vpi_get_value(arg, &value);
+          } else {
+            PLI_INT32 bit_width = vpi_get(vpiSize, arg);
+            value.format = vpiBinStrVal;
+            vpi_get_value(arg, &value);
+            if (value.value.str && bit_width > 0) {
+              size_t byte_width = (bit_width + 7) / 8;
+              size_t left_pad = byte_width * 8 - bit_width;
+              char *decoded = malloc(byte_width + 1);
+              int known = 1;
+              for (size_t byte = 0; byte < byte_width; ++byte) {
+                unsigned char character = 0;
+                for (size_t bit = 0; bit < 8; ++bit) {
+                  size_t position = byte * 8 + bit;
+                  if (position < left_pad) continue;
+                  char digit = value.value.str[position - left_pad];
+                  if (digit == '1') character |= 1u << (7 - bit);
+                  else if (digit != '0') known = 0;
+                }
+                decoded[byte] = character;
+              }
+              decoded[byte_width] = '\0';
+              if (known) {
+                size_t first = 0;
+                while (first < byte_width && decoded[first] == '\0') ++first;
+                if (first) memmove(decoded, decoded + first,
+                                   byte_width - first);
+                decoded_length = byte_width - first;
+                for (size_t byte = 0; byte < decoded_length; ++byte) {
+                  if (decoded[byte] == '\0') decoded[byte] = ' ';
+                }
+                decoded[decoded_length] = '\0';
+                value.format = vpiStringVal;
+                value.value.str = decoded;
+                owned_string = decoded;
+                inferred_width = 1;
+              } else {
+                free(decoded);
+                value.format = vpiStringVal;
+                vpi_get_value(arg, &value);
+              }
+            } else {
+              value.format = vpiStringVal;
+              vpi_get_value(arg, &value);
+            }
+          }
         }
         if (value.format == vpiSuppressVal) {
           vpi_printf("WARNING: %s:%d: incompatible value for %s%s.\n",
@@ -826,15 +883,32 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
             /* If all we have is a leading zero then we want a zero width. */
             if (ld_zero == 1) width = 0;
             /* Otherwise if a width was not given, use the value width. */
+            else if (inferred_width) width = strlen(value.value.str);
             else width = (vpi_get(vpiSize, info->items[*idx])+7) / 8;
           }
-          /* If the default buffer is too small make it big enough. */
-          size = strlen(value.value.str) + 1;
-          if ((signed)size < (width+1)) size = width+1;
-          if (size > ini_size) result = realloc(result, size*sizeof(char));
-          if (ljust == 0) sprintf(result, "%*s", width, value.value.str);
-          else sprintf(result, "%-*s", width, value.value.str);
-          size = strlen(result) + 1;
+          if (inferred_width) {
+            size_t text_length = decoded_length;
+            size_t output_length = text_length > (size_t)width
+                                   ? text_length : (size_t)width;
+            size = output_length + 1;
+            if (size > ini_size) result = realloc(result, size*sizeof(char));
+            size_t padding = output_length - text_length;
+            if (ljust == 0) {
+              memset(result, ' ', padding);
+              memcpy(result + padding, value.value.str, text_length);
+            } else {
+              memcpy(result, value.value.str, text_length);
+              memset(result + text_length, ' ', padding);
+            }
+            result[output_length] = '\0';
+          } else {
+            size = strlen(value.value.str) + 1;
+            if ((signed)size < (width+1)) size = width+1;
+            if (size > ini_size) result = realloc(result, size*sizeof(char));
+            if (ljust == 0) sprintf(result, "%*s", width, value.value.str);
+            else sprintf(result, "%-*s", width, value.value.str);
+            size = strlen(result) + 1;
+          }
         }
         free(owned_string);
       }
