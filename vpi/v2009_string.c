@@ -419,10 +419,9 @@ static PLI_INT32 atobin_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 /*
  * Convert a val to a text string that represents the value. The base
  * is the integer base to use for the conversion. The base will be one
- * of the values 2, 8, 10, or 16. If the input value is negative, then
- * extract the sign out (and put a '-' in the beginning of the string and
- * write the digits for the abs(val). For example, if the input value
- * is -11 and base is 8, then the text output will be "-13".
+ * of the values 2, 8, 10, or 16. For base 10, a negative input is
+ * printed with a sign; other bases print the value as an unsigned
+ * bit pattern.
  */
 static void value_to_text_base(char*text, long val, long base)
 {
@@ -437,7 +436,7 @@ static void value_to_text_base(char*text, long val, long base)
 	    return;
       }
 
-      if (val < 0) {
+      if (base == 10 && val < 0) {
 	    *text++ = '-';
 	    val = 0-val;
       }
@@ -488,7 +487,10 @@ static PLI_INT32 xtoa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       value.format = vpiIntVal;
       vpi_get_value(arg, &value);
 
-      value_to_text_base(text_buf, value.value.integer, use_base);
+      if (use_base == 10)
+            value_to_text_base(text_buf, value.value.integer, use_base);
+      else
+            value_to_text_base(text_buf, (unsigned int)value.value.integer, use_base);
 
       value.format = vpiStringVal;
       value.value.str = text_buf;

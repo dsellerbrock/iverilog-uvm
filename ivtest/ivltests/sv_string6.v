@@ -39,13 +39,13 @@ module testbench;
       test_string_value(str, "-11");
 
       str.hextoa(val);
-      test_string_value(str, "-b");
+      test_string_value(str, "fffffff5");
 
       str.octtoa(val);
-      test_string_value(str, "-13");
+      test_string_value(str, "37777777765");
 
       str.bintoa(val);
-      test_string_value(str, "-1011");
+      test_string_value(str, "11111111111111111111111111110101");
 
       str.realtoa(valr);
       test_string_value(str, "-11.1");

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_string_radix_toa.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_string_radix_toa"
+}
