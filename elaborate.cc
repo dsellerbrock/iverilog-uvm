@@ -2455,6 +2455,8 @@ struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
       size_t property_idx;
+      unsigned base;
+      unsigned width;
       const LineInfo*location;
 };
 
@@ -3095,12 +3097,24 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  continue;
 	    }
 
-	    unsigned msb = member->vector_width() - 1;
+	    unsigned driven_base = pending.width ? pending.base : 0;
+	    unsigned driven_width = pending.width
+		  ? pending.width : member->vector_width();
+	    if (driven_width == 0
+		|| driven_base > member->vector_width()
+		|| driven_width > member->vector_width() - driven_base) {
+		  cerr << pending.location->get_fileline() << ": error: Invalid "
+		       << "selected range for continuous interface variable member `"
+		       << member->name() << "`." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    unsigned msb = driven_base + driven_width - 1;
 	    const netclass_t*interface_type = dynamic_cast<const netclass_t*>(
 		  pending.port->net_type());
 	    bool property_writer = interface_member_has_property_writer_(
 		  member, interface_type);
-	    if (member->test_part_procedurally_driven(msb, 0, 0)
+	    if (member->test_part_procedurally_driven(msb, driven_base, 0)
 		|| property_writer) {
 	      if (gn_commercial_unsafe_flag && !property_writer
 		  && member->scope() && member->scope()->is_interface())
@@ -3116,14 +3130,15 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		continue;
 	      }
 	    }
-	    if (member->test_part_driven(msb, 0, 0)) {
+	    if (member->test_part_driven(msb, driven_base, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable "
 		       << "interface member `" << member->name()
 		       << "' cannot have multiple drivers." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
-	    bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+	    bool overlap = member->test_and_set_part_driver(
+		  msb, driven_base, 0);
 	    ivl_assert(*pending.location, !overlap);
       }
       pending_interface_variable_continuous_drivers_.clear();
@@ -3643,6 +3658,92 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* A concatenation of statically bound interface-variable selects cannot
+	   be represented by the structural l-net path: symbol_search leaves the
+	   interface handle as its root, while the member selections live in the
+	   tail. Preserve the single continuous-assignment update across all
+	   operands by lowering an all-interface-variable concatenation through the
+	   same behavioral path as a single interface-variable member. */
+      if (dynamic_cast<const PEConcat*>(pin(0))) {
+	    unsigned errors_before_lval = des->errors;
+	    unique_ptr<NetAssign_> probe(pin(0)->elaborate_lval(
+		  des, scope, false, true));
+	    if (!probe && des->errors != errors_before_lval) {
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+	    bool all_interface_variables = probe.get() != 0;
+	    bool has_interface_member = false;
+	    vector<pending_interface_variable_continuous_driver_t> pending;
+	    set<tuple<NetNet*, unsigned, size_t, unsigned, unsigned> > seen_ranges;
+	    for (NetAssign_*item = probe.get(); item; item = item->more) {
+		  if (!item->is_interface_member()) {
+			all_interface_variables = false;
+			break;
+		  }
+		  has_interface_member = true;
+		  interface_member_declaration_t declaration =
+			interface_member_declaration_(item);
+		  NetNet*port = 0;
+		  unsigned port_word = 0;
+		  size_t property_idx = 0;
+		  if (!declaration.found || declaration.is_net
+		      || !interface_member_static_binding_(item, port,
+							    port_word,
+							    property_idx)) {
+			all_interface_variables = false;
+			break;
+		  }
+		  unsigned base = 0;
+		  unsigned width = declaration.type->packed_width();
+		  if (const NetExpr*selected_base = item->get_base()) {
+			long constant = 0;
+			NetExpr*folded = selected_base->dup_expr();
+			eval_expr(folded, -1);
+			bool constant_base = eval_as_long(constant, folded);
+			delete folded;
+			if (!constant_base || constant < 0) {
+			      all_interface_variables = false;
+			      break;
+			}
+			base = static_cast<unsigned>(constant);
+			width = item->lwidth();
+		  }
+		  if (seen_ranges.insert(make_tuple(port, port_word, property_idx,
+						    base, width)).second) {
+			pending_interface_variable_continuous_driver_t writer = {
+			      port, port_word, property_idx, base, width, this
+			};
+			pending.push_back(writer);
+		  }
+	    }
+	    if (has_interface_member) {
+		  bool unsupported_delay = delay_count() > 0
+			&& !(is_defined_zero_delay_(rise_time)
+			     && is_defined_zero_delay_(fall_time)
+			     && is_defined_zero_delay_(decay_time));
+		  if (!all_interface_variables || unsupported_delay
+		      || !var_allowed_in_sv) {
+			cerr << get_fileline() << ": sorry: A continuous assignment to "
+			     << "a concatenation of interface members currently requires "
+			     << "statically bound variables, default strength, and zero delay."
+			     << endl;
+			des->errors += 1;
+			delete_unique_delays_(rise_time, fall_time, decay_time);
+			return;
+		  }
+		  bool ok = elaborate_vif_member_assign_(
+			des, scope, this, const_cast<PExpr*>(pin(0)),
+			const_cast<PExpr*>(pin(1)), nullptr, true);
+		  if (ok)
+			pending_interface_variable_continuous_drivers_.insert(
+			      pending_interface_variable_continuous_drivers_.end(),
+			      pending.begin(), pending.end());
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+      }
+
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
 	   The member resolves through the class-typed handle at run time, and even
@@ -3790,7 +3891,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      const_cast<PExpr*>(pin(1)), nullptr, true);
 			if (ok) {
 			      pending_interface_variable_continuous_driver_t pending = {
-				    port, port_word, property_idx, this
+				      port, port_word, property_idx, 0, 0, this
 			      };
 			      pending_interface_variable_continuous_drivers_.push_back(
 				    pending);

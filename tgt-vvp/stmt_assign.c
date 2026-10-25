@@ -2389,7 +2389,7 @@ static void emit_packed_property_negative_offset_(int word,
  * only index zero, while the ordinary vector path cannot store through an
  * object receiver. Split the packed r-value exactly as an ordinary
  * concatenation, dispatching each slice to either a property or vector store.
- * This also handles constant packed-field offsets within a property. */
+ * This also handles packed-field offsets within a property. */
 static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 {
       unsigned lvals = ivl_stmt_lvals(net);
@@ -2422,10 +2422,7 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 
 	    if (prop_idx >= 0) {
 		  ivl_type_t owner_type = ivl_signal_net_type(sig);
-		  ivl_expr_t part_off = ivl_lval_part_off(lval);
-		  if (ivl_lval_idx(lval) || (part_off
-		      && ivl_expr_type(part_off) != IVL_EX_NUMBER
-		      && ivl_expr_type(part_off) != IVL_EX_ULONG)) {
+		  if (ivl_lval_idx(lval)) {
 			fprintf(stderr, "%s:%u: sorry: indexed or dynamically "
 				"selected member in a packed property concatenation "
 				"is not yet supported.\n",
@@ -2482,17 +2479,22 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    ivl_type_t prop_type = ivl_type_prop_type(owner_type, prop_idx);
 	    ivl_expr_t part_off = ivl_lval_part_off(lval);
 	    uint64_t negative_part_off_bits = 0;
-	    int dynamic_part_off = part_off
+	    int negative_part_off = part_off
 		  && packed_property_negative_offset_bits64_(
 			part_off, &negative_part_off_bits);
+	    int immediate_part_off = part_off
+		  && packed_property_offset_is_immediate_(part_off);
+	    int constant_out_of_range = part_off
+		  && (ivl_expr_type(part_off) == IVL_EX_NUMBER
+		      || ivl_expr_type(part_off) == IVL_EX_ULONG)
+		  && !immediate_part_off && !negative_part_off;
 	      /* An X/Z or nonnegative constant too large for any packed property
 	       * is wholly out of bounds. The assignment slice is a no-op, but the
 	       * complete r-value and receiver have already been evaluated and
 	       * ordinary sibling slices must still be stored. A defined negative
 	       * base instead takes the dynamic opcode so a partially overlapping
 	       * indexed part-select still updates its in-range bits. */
-	    if (part_off && !dynamic_part_off
-		  && !packed_property_offset_is_immediate_(part_off)) {
+	    if (constant_out_of_range) {
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; Discard receiver for "
 			  "unknown/out-of-range property offset\n");
 		  fprintf(vvp_out, "    %%pop/vec4 1; Discard no-op "
@@ -2501,11 +2503,19 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    }
 	    int off_reg = 0;
 	    int off_flag = 0;
-	    if (dynamic_part_off) {
+	    int dynamic_part_off = part_off
+		  && !immediate_part_off && !negative_part_off;
+	    if (negative_part_off || dynamic_part_off) {
 		  off_reg = allocate_word();
 		  off_flag = allocate_flag();
-		  emit_packed_property_negative_offset_(
-			off_reg, negative_part_off_bits);
+		  if (negative_part_off) {
+			emit_packed_property_negative_offset_(
+			      off_reg, negative_part_off_bits);
+		  } else {
+			draw_eval_expr_into_integer(part_off, off_reg);
+			fprintf(vvp_out, "    %%flag_mov %d, 4; capture offset validity\n",
+				off_flag);
+		  }
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 	    }
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
@@ -2516,10 +2526,11 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    if (dynamic_part_off) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
 		  fprintf(vvp_out,
-			  "    %%store/prop/v/bits/x %d, %d, %u; Store "
-			  "concatenation slice at signed property offset\n",
+			  "    %%store/prop/v/bits/%s %d, %d, %u; Store "
+			  "concatenation slice at property offset\n",
+			  ivl_expr_signed(part_off) ? "x" : "ux",
 			  prop_idx, off_reg, width);
-	    } else if (part_off) {
+	    } else if (immediate_part_off) {
 		  unsigned bitoff = (unsigned)ivl_expr_uvalue(part_off);
 		  fprintf(vvp_out,
 			  "    %%store/prop/v/bits %d, %u, %u; Store "
@@ -2539,7 +2550,7 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
-	    if (dynamic_part_off) {
+	    if (negative_part_off || dynamic_part_off) {
 		  clr_word(off_reg);
 		  clr_flag(off_flag);
 	    }

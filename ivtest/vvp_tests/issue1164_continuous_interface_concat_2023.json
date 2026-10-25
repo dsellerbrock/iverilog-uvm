@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1164_continuous_interface_concat.v",
+  "iverilog-args": ["-g2023", "-s", "issue1164_continuous_interface_concat"],
+  "gold": "issue1164_continuous_interface_concat"
+}
