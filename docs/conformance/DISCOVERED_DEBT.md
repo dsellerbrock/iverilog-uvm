@@ -4708,3 +4708,77 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** adjacent forms are recorded only; do not expand #759.
   Track initializer, function argument/return, procedural assign, and force
   separately if they remain actionable after #763.
+
+### DD-136 — rand argument to a constraint function is evaluated pre-solve
+
+- **Discovered while working:** M9-836 (#836).
+- **Historical observation on main before #836:** A dist subject `id(r)` was
+  accepted, but the call argument read the pre-randomize value of `r`; setting
+  `r` outside the dist set made `randomize()` fail instead of solving `r` into
+  the set.
+- **File/function:** constraint function-call argument lowering in
+  `elaborate.cc`.
+- **Standard interpretation:** IEEE 1800-2017 §18.5.12 / 1800-2023 §18.5.11
+  say, “Functions shall be called before constraints are solved, and their
+  return values shall be treated as state variables,” and “Random variables
+  used as function arguments shall establish an implicit variable ordering or
+  priority.” The function argument orders solving but is not a solver operand
+  of the function result. Sections 18.5.4/18.5.3 require a `dist` expression
+  to contain a rand variable, so the call-only subject `id(r)` is invalid and
+  is rejected by #836. No explicit system-function exemption was found in
+  those bullets; `$countones`, `$onehot`, and `$onehot0` remain symbolic where
+  this compiler lowers them directly to solver operators.
+- **Evidence:** `evidence/m9-issue836-probe-20261024/p836b.sv` and
+  `p836b_results.txt`: in both editions `D=200/200 A=0/0`, with direct
+  subject `r` constrained and `id(r)` failing after `r=5` prefill.
+- **Reproducer status:** confirmed.
+- **Triage status:** resolved by #836 as an invalid call-only `dist` subject;
+  no separate runtime issue remains for this reproducer.
+
+### DD-137 — constrained scope randomization rejects fixed unpacked arrays
+
+- **Discovered while working:** M9-836 (#836).
+- **Observation:** `std::randomize(arr)` with `int arr[2]` and a `with` block
+  constraining `foreach (arr[i]) arr[i] dist {5 := 1};` is explicitly rejected
+  in both editions with: `std::randomize() with constraints on a fixed
+  unpacked array is not yet supported; the call cannot be compiled.`
+  IEEE 1800-2017/2023 §18.12 defines scope randomization over current-scope
+  variables; §18.12.1 says the arguments to the `with` form become random
+  variables. `arr` is a variable identifier, so this is an existing explicit
+  support gap, predating #836 and outside its scope.
+- **Related boundary probe:** `std::randomize(arr[0])` with a `dist` constraint
+  is rejected with `std::randomize() with constraints currently requires each
+  argument to be a simple integral variable.` This probe is recorded as an
+  observed limitation, not as a separate conformance claim.
+- **Reproducer/evidence:** line 4 of
+  `evidence/m9-issue836-probe-20261024/a3-836-std-array.sv` and the paired
+  `a3-836-std-array-{2017,2023}.log`; selected-element boundary probe is in
+  `a3-836-std-array-element.sv` with matching logs.
+- **Related #836 checks:** DD-127 records the separate `id(r)` pre-solve
+  behavior. A runtime probe of an unqualified member in a `rand` unpacked
+  struct returned `randomize()==0` and left the value at 3 in both editions;
+  no additional runtime gap was observed. See
+  `a3-836-unqualified-member.sv` and the paired edition logs in the same
+  evidence directory.
+- **Triage status:** confirmed explicit unsupported behavior; outside M9-836.
+
+### DD-138 — rand class handle with function-result dist subject is unsupported at runtime
+
+- **Discovered while working:** M9-836 (#836).
+- **Observation:** a `rand` class handle in the randomized object plus a
+  constraint on `(x + f()) dist {7 := 1}` compiles in both editions, then
+  emits `ERROR: global constraint sampling failed: joint dist requires a
+  direct canonical scalar or element subject.` The minimal reducer is
+  `evidence/m9-issue836-probe-20261024/runtime-limit-verified-20261024/child_mix_only.sv`;
+  paired compile, stdout and stderr logs are recorded beside it.
+- **Standard interpretation:** IEEE 1800-2017 §18.5.12 / 1800-2023 §18.5.11
+  require function return values to be treated as state variables. The
+  expression still contains random variable `x`, so it meets the `dist`
+  subject requirement in §18.5.4 / §18.5.3; the runtime rejection is a
+  simulator limitation, not an invalid source expression.
+- **Controls:** the same mixed subject randomizes to `x=6` in both editions
+  without the `rand` child handle (`mixed_dist_sampler.sv`). The direct array
+  form with the handle passes (`child_array_only-{2017,2023}.stdout.log`).
+- **Triage status:** confirmed runtime conformance gap outside #836's
+  classification fix. The feature regression keeps the mixed expression
+  compile-only and tests each runtime-supported subject in its own class.
