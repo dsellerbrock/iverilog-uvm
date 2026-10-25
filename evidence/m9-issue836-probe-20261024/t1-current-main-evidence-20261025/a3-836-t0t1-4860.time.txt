@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "bash /home/dsell/slurm-runs/iverilog-uvm-issue836-dist-rand-20261024/A3/m9-836-main-refresh-t1-20261025-134241/job.cmd"
+	User time (seconds): 1344.54
+	System time (seconds): 79.53
+	Percent of CPU this job got: 120%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 19:38.23
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1721912
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 52
+	Minor (reclaiming a frame) page faults: 55911828
+	Voluntary context switches: 51171
+	Involuntary context switches: 8348
+	Swaps: 0
+	File system inputs: 15704
+	File system outputs: 1808240
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1
