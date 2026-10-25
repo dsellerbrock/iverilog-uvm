@@ -21135,6 +21135,43 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return cast;
       }
 
+      /* An unpacked struct has no scalar VVP representation. For the fixed-size
+       * case with packed members, form its bit stream in declaration order before
+       * applying the packed destination conversion (IEEE 1800-2017/2023 6.24.3). */
+      if (target_type_ && target_type_->packed()) {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(sub->net_type());
+	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
+		  || dynamic_cast<const NetEProperty*>(sub);
+	    if (record && !record->packed() && !record->union_flag()
+		&& stable_source && !record->members().empty()) {
+		  bool streamable = true;
+		  bool has_four_state = false;
+		  for (const netstruct_t::member_t&member : record->members()) {
+			if (!member.net_type->packed() || member.net_type->packed_width() <= 0)
+			      streamable = false;
+			if (member.net_type->base_type() == IVL_VT_LOGIC)
+			      has_four_state = true;
+		  }
+		  if (streamable) {
+			NetEConcat*stream = new NetEConcat(record->members().size(), 1,
+				has_four_state ? IVL_VT_LOGIC : IVL_VT_BOOL);
+			for (size_t member_idx = 0;
+			     member_idx < record->members().size(); member_idx += 1) {
+			      NetEProperty*field = new NetEProperty(sub->dup_expr(), member_idx);
+			      field->set_line(*this);
+			      stream->set(member_idx, field);
+			}
+			stream->set_line(*this);
+			delete sub;
+			NetExpr*bits = target_type_->base_type() == IVL_VT_BOOL
+			      ? cast_to_int2(stream, expr_width_)
+			      : cast_to_int4(stream, expr_width_);
+			return pad_to_width(bits, expr_wid, signed_flag_, *this,
+				    target_type_);
+		  }
+	    }
+      }
+
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
 	    switch (sub->expr_type()) {
