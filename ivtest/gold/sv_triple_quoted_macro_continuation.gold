@@ -1,1 +1,4 @@
-PASSED
+line1
+line2 - FOO
+line3 - backslash\
+line4
