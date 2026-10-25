@@ -4307,8 +4307,11 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 
 	/* Class handles are type-incompatible with integral types (IEEE 1800
 	 * 6.22.5). The width-based elaborator can otherwise erase that source
-	 * type while applying its class-to-logic compile-progress fallback. */
+	 * type while applying its class-to-logic compile-progress fallback. A
+	 * bare `null' literal is not a class handle; keep its existing target-
+	 * specific handling for class handles and chandles. */
       if (gn_system_verilog() && type_is_vectorable(lv_type)
+	  && !dynamic_cast<const PENull*>(expr)
 	  && (expr->expr_type() == IVL_VT_CLASS
 	      || dynamic_cast<const netclass_t*>(rval->net_type()))) {
 	    cerr << expr->get_fileline() << ": error: A class handle cannot be "
