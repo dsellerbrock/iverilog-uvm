@@ -1235,6 +1235,8 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       constraint_mode_ = that->constraint_mode_;
       active_constraints_ = that->active_constraints_;
       randc_history_ = that->randc_history_;
+      rng_state_ = that->rng_state_;
+      rng_seeded_ = that->rng_seeded_;
 	// Constructor-derived coverage topology belongs to the copied property
 	// values, not to the destination's previous contents. Rebuild both caches
 	// lazily so a covergroup object copy cannot retain stale dynamic ranges or
