@@ -466,6 +466,7 @@ extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 extern bool pform_sva_const_long(PExpr*expr, long&value);
 extern bool pform_sva_overridable_bound(PExpr*expr);
 extern void pform_sva_single_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*delay);
+extern void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*lo, PExpr*hi);
 /* A bare genvar is a constant expression only after its generate loop is
    unrolled and each generated scope receives the implicit localparam value.
    Preserve that name through the parse-time SVA lowering instead of treating
