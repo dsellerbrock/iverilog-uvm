@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "sv_begin_keywords_unknown.v",
+    "iverilog-args": ["-g2017", "-ssv_begin_keywords_unknown"]
+}
