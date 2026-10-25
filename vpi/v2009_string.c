@@ -105,6 +105,41 @@ static PLI_INT32 two_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* Queue/dynamic-array string receivers are passed as the container and
+ * captured element index, followed by the ordinary method argument. */
+static PLI_INT32 toa_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle arg;
+      if (!argv) {
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+	    return 0;
+      }
+      arg = vpi_scan(argv);
+      if (!arg) {
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+	    return 0;
+      }
+      arg = vpi_scan(argv);
+      if (!arg) {
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+	    return 0;
+      }
+      arg = vpi_scan(argv);
+      if (arg) arg = vpi_scan(argv);
+      if (arg) {
+	    vpi_printf("ERROR: %s:%d: %s expects two arguments or a queue/darray receiver and index.\n",
+	               vpi_get_str(vpiFile, callh), (int)vpi_get(vpiLineNo, callh), name);
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+      }
+      return 0;
+}
+
 static PLI_INT32 three_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -483,6 +518,22 @@ static PLI_INT32 xtoa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       assert(obj);
       arg = vpi_scan(argv);
       assert(arg);
+
+	/* Queue and dynamic-array receivers are represented by their container
+	 * plus the already-evaluated index. Ordinary string variables retain the
+	 * original two-argument ABI. */
+      if (vpi_get(vpiType, obj) == vpiArrayVar) {
+	    s_vpi_value index_value;
+	    index_value.format = vpiIntVal;
+	    vpi_get_value(arg, &index_value);
+	    obj = vpi_handle_by_index(obj, index_value.value.integer);
+	    if (!obj) {
+		  vpi_free_object(argv);
+		  return 0;
+	    }
+	    arg = vpi_scan(argv);
+	    assert(arg);
+      }
       vpi_free_object(argv);
 
       value.format = vpiIntVal;
@@ -758,7 +809,7 @@ void v2009_string_register(void)
       tf_data.type      = vpiSysTask;
       tf_data.tfname    = "$ivl_string_method$itoa";
       tf_data.calltf    = xtoa_calltf;
-      tf_data.compiletf = two_arg_compiletf;
+      tf_data.compiletf = toa_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "10";
       res = vpi_register_systf(&tf_data);

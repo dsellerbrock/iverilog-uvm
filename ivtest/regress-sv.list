@@ -6013,6 +6013,8 @@ sv_ref_nested_container_alias_2023 normal,-g2023,-s,sv_ref_nested_container_alia
 sv_ref_nested_container_alias_type_fail_2017 CE,-g2017,-s,sv_ref_nested_container_alias_type_fail ivltests gold=sv_ref_nested_container_alias_type_fail.gold
 sv_ref_nested_container_alias_type_fail_2023 CE,-g2023,-s,sv_ref_nested_container_alias_type_fail ivltests gold=sv_ref_nested_container_alias_type_fail.gold
 issue947_unit_forward_reference_fail CE,-g2017 ivltests
+sv_queue_string_itoa_2017 normal,-g2017,-s,sv_queue_string_itoa ivltests gold=sv_queue_string_itoa.gold
+sv_queue_string_itoa_2023 normal,-g2023,-s,sv_queue_string_itoa ivltests gold=sv_queue_string_itoa.gold
 sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
 pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold

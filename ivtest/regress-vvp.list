@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+sv_queue_string_itoa_2017 vvp_tests/sv_queue_string_itoa_2017.json
+sv_queue_string_itoa_2023 vvp_tests/sv_queue_string_itoa_2023.json
 issue952_chained_package_export_2017 vvp_tests/issue952_chained_package_export_2017.json
 issue952_chained_package_export_2023 vvp_tests/issue952_chained_package_export_2023.json
 issue1160_sscanf_binary_underscore_2017 vvp_tests/issue1160_sscanf_binary_underscore_2017.json
