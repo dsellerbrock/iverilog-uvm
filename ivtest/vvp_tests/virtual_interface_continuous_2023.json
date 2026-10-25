@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "virtual_interface_continuous_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "virtual_interface_continuous_fail" ],
+    "gold"          : "virtual_interface_continuous_2023"
+}
