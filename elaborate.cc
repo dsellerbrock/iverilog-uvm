@@ -33148,9 +33148,8 @@ static string packed_typed_select_ir_(
       };
       if ((ic.sel == index_component_t::SEL_IDX_UP
 	   || ic.sel == index_component_t::SEL_IDX_DO)
-	  && vec && packed_type->base_type() == IVL_VT_BOOL
-	  && dims.size() == 1
-	  && min(outer.get_msb(), outer.get_lsb()) == 0
+	  && vec && (packed_type->base_type() == IVL_VT_BOOL
+		     || packed_type->base_type() == IVL_VT_LOGIC)
 	  && ic.msb && ic.lsb && constraint_ir_design_ctx_ && scope) {
 	    // Fold bounds with ordinary elaboration. Constraint IR drops X/Z
 	    // bits and cannot fold every constant expression.
@@ -33172,33 +33171,47 @@ static string packed_typed_select_ir_(
 				    bits, bits.len(), bits.has_sign()), out);
 	    };
 	    constraint_const_ir_t base_index, width;
-	    if (!constant_value(ic.msb, base_index)
-		|| !constant_value(ic.lsb, width))
+	    if (!constant_value(ic.lsb, width))
 		  return "";
-	    uint64_t digit = 0;
-	    if (!constraint_fixed_index_offset_(
-		  base_index, 0, outer.width(), digit)) return "";
-	    uint64_t first = outer.get_msb() >= outer.get_lsb()
-		  ? digit : outer.width() - 1 - digit;
 	    uint64_t count = constraint_resize_const_bits_(
 		  width, 64, width.is_signed);
 	    if (count == 0 || count > outer.width()
 		|| (width.is_signed && (int64_t)count < 0)) return "";
-	    uint64_t delta = count - 1;
-	    bool toward_high = (ic.sel == index_component_t::SEL_IDX_UP)
-		  == (outer.get_msb() >= outer.get_lsb());
-	    uint64_t last = 0;
-	    if (toward_high) {
-		  if (delta > outer.width() - 1 - first) return "";
-		  last = first + delta;
-	    } else {
-		  if (delta > first) return "";
-		  last = first - delta;
+	    uint64_t digit = 0;
+	    string index = pexpr_to_constraint_ir(
+		  ic.msb, cls, value_slots, scope, loop_env);
+	    if (constraint_parse_const_ir_(index, base_index)
+		&& constraint_fixed_index_offset_(
+		  base_index, min(outer.get_msb(), outer.get_lsb()),
+		  outer.width(), digit)) {
+		  uint64_t first = outer.get_msb() >= outer.get_lsb()
+			? digit : outer.width() - 1 - digit;
+		  uint64_t delta = count - 1;
+		  bool toward_high = (ic.sel == index_component_t::SEL_IDX_UP)
+			== (outer.get_msb() >= outer.get_lsb());
+		  uint64_t last = 0;
+		  if (toward_high) {
+			if (delta > outer.width() - 1 - first) return "";
+			last = first + delta;
+		  } else {
+			if (delta > first) return "";
+			last = first - delta;
+		  }
+		  uint64_t high = max(first, last), low = min(first, last);
+		  return "(part " + base + " c:"
+			+ to_string((high + 1) * elem_width - 1)
+			+ " c:" + to_string(low * elem_width) + ")";
 	    }
-	    uint64_t high = max(first, last), low = min(first, last);
-	    return "(part " + base + " c:"
-		  + to_string((high + 1) * elem_width - 1)
-		  + " c:" + to_string(low * elem_width) + ")";
+	    if (index.empty() || outer.get_msb() > INT_MAX
+		|| outer.get_msb() < INT_MIN || outer.get_lsb() > INT_MAX
+		|| outer.get_lsb() < INT_MIN || elem_width == 0
+		|| elem_width > INT_MAX) return "";
+	    return "(idxpart " + base + " " + index + " c:"
+		  + to_string(count) + " c:"
+		  + to_string(ic.sel == index_component_t::SEL_IDX_UP ? 1 : 0)
+		  + " c:" + to_string(outer.get_msb()) + " c:"
+		  + to_string(outer.get_lsb()) + " c:"
+		  + to_string(elem_width) + ")";
       }
       if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 	    uint64_t off = 0;

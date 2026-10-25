@@ -1,0 +1,2 @@
+ERROR: constraint state read: out-of-range packed indexed part-select in constraint.
+PASSED

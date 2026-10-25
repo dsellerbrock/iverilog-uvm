@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_randomize_packed_select_target_fail.v",
+  "iverilog-args": [ "-g2017", "-s", "test" ],
+  "gold": "sv_randomize_packed_select_target_fail"
+}
