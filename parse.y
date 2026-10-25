@@ -19386,7 +19386,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
   | K_CYCLE_DELAY '(' expression ')' statement_or_null
-      { PCycleDelay*tmp = new PCycleDelay($3, $5);
+      { PCycleDelay*tmp = new PCycleDelay($3, $5, true);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
