@@ -21,6 +21,8 @@
 #include <string.h>
 #include <assert.h>
 
+extern void vpip_print_finish_stats(void);
+
 static PLI_INT32 sys_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       vpiHandle callh, argv;
@@ -88,10 +90,12 @@ static PLI_INT32 sys_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       }
 
       if (strcmp((const char*)name, "$stop") == 0) {
+	    if (diag_msg == 2) vpip_print_finish_stats();
 	    vpi_control(vpiStop, diag_msg);
 	    return 0;
       }
 
+      if (diag_msg == 2) vpip_print_finish_stats();
       vpip_set_return_value(0);
 
       vpi_control(vpiFinish, diag_msg);
