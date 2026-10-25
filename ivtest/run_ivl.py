@@ -27,6 +27,10 @@ def assemble_vvp_cmd(options: dict, cfg: dict) -> list:
                             "--show-reachable=yes"]
     res += ["vvp"+cfg['suffix']]
     res += options['vvp_args']
+    if options.get('vpi_modules'):
+        res += ["-M", "work"]
+        for module in options['vpi_modules']:
+            res += ["-m", module]
     res.append(os.path.join("work", "a.out"))
     res += options['vvp_args_extended']
     return res
@@ -128,6 +132,26 @@ def run_cmd(cmd: list) -> subprocess.CompletedProcess:
     '''Run the given command'''
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     return res
+
+def build_vpi_modules(options: dict, it_key: str) -> list:
+    '''Build optional VPI modules into the test work directory.'''
+    if not options['vpi_sources']:
+        return []
+
+    if len(options['vpi_modules']) != 1:
+        return [1, "Failed - VPI source requires exactly one named module."]
+
+    cmd = ["iverilog-vpi", "--name=" + options['vpi_modules'][0]]
+    cmd.extend(os.path.join("..", source) for source in options['vpi_sources'])
+    try:
+        res = subprocess.run(cmd, cwd="work", stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, check=False)
+    except OSError as error:
+        return [1, "Failed - VPI module build: " + str(error)]
+    log_results(it_key, "iverilog-vpi", res)
+    if res.returncode != 0:
+        return [1, "Failed - VPI module build."]
+    return []
 
 
 # pylint: disable-next=invalid-name
@@ -295,6 +319,10 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     it_key = options['key']
     build_runtime(it_key)
+
+    vpi_rtn = build_vpi_modules(options, it_key)
+    if vpi_rtn:
+        return vpi_rtn
 
     # Run the vlog95 translation if needed.
     if cfg['vlog95']:

@@ -107,6 +107,8 @@ def process_test(item: list, cfg: list) -> str:
         'diff'              : None,
         'vvp_args'          : it_dict.get('vvp-args', [ ]),
         'vvp_args_extended' : it_dict.get('vvp-args-extended', [ ]),
+        'vpi_modules'       : it_dict.get('vpi-modules', [ ]),
+        'vpi_sources'       : it_dict.get('vpi-sources', [ ]),
         'output_contains'   : it_dict.get('output-contains', [ ])
     }
 

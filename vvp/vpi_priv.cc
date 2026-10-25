@@ -1352,8 +1352,7 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 		  break;
 	    }
 	    put->flags = flags;
-            if (flags == vpiInertialDelay || flags == vpiTransportDelay ||
-                flags == vpiPureTransportDelay) {
+            if (flags == vpiInertialDelay || flags == vpiTransportDelay) {
                   for (std::vector<vpip_put_value_event*>::iterator cur =
                        vpip_pending_put_values.begin();
                        cur != vpip_pending_put_values.end(); ++cur) {
