@@ -1125,6 +1125,10 @@ class pform_constructor_order_classifier_t {
             std::vector<pform_constructor_order_dependency_t>&dependencies)
             const = 0;
 
+      virtual bool classify_forbidden_embedded_covergroup_assignment(
+            const pform_constructor_order_assignment_t&assignment,
+            size_t&property_idx) const = 0;
+
       // Return a concrete repeat count only when the expression folds in the
       // current constructor specialization without expression elaboration.
       // BLOCK_STACK preserves lexical shadowing at the repeat site. A runtime
@@ -1142,7 +1146,8 @@ enum pform_constructor_order_violation_kind_t {
       PFORM_CTOR_ORDER_NOT_INITIALIZED,
       PFORM_CTOR_ORDER_SHARED_LOOP,
       PFORM_CTOR_ORDER_SHARED_JOIN_NONE,
-      PFORM_CTOR_ORDER_REASSIGNMENT
+      PFORM_CTOR_ORDER_REASSIGNMENT,
+      PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW
 };
 
 struct pform_constructor_order_violation_t {
