@@ -1,0 +1,2 @@
+MOD bad=0
+./ivltests/sv_constraint_external_module_scope.v:21: $finish called at 0 (1s)
