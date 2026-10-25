@@ -3991,6 +3991,10 @@ sv_array_string_character_incdec_bounds normal,-g2017 ivltests gold=sv_array_str
 sv_array_string_character_incdec_bounds_2023 normal,-g2023 ivltests gold=sv_array_string_character_incdec_bounds.gold
 sv_array_string_character_incdec_fail CE,-g2017 ivltests gold=sv_array_string_character_incdec_fail.gold
 sv_array_string_character_incdec_fail_2023 CE,-g2023 ivltests gold=sv_array_string_character_incdec_fail.gold
+sv_udnt_port_matching_fail CE,-g2017,-s,sv_udnt_port_matching_fail ivltests gold=sv_udnt_port_matching_fail.gold
+sv_udnt_port_matching_fail_2023 CE,-g2023,-s,sv_udnt_port_matching_fail ivltests gold=sv_udnt_port_matching_fail.gold
+sv_udnt_port_alias normal,-g2017,-s,sv_udnt_port_alias ivltests gold=sv_udnt_port_alias.gold
+sv_udnt_port_alias_2023 normal,-g2023,-s,sv_udnt_port_alias ivltests gold=sv_udnt_port_alias.gold
 sv_array_string_character_incdec_return_fail CE,-g2017 ivltests gold=sv_array_string_character_incdec_return_fail.gold
 sv_array_string_character_incdec_return_fail_2023 CE,-g2023 ivltests gold=sv_array_string_character_incdec_return_fail.gold
 

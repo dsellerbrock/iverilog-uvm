@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_udnt_port_alias.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_udnt_port_alias"
+    ],
+    "gold": "sv_udnt_port_alias"
+}
