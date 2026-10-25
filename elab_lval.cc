@@ -3703,6 +3703,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    owner_class->get_prop_declaring_class((size_t)pidx);
 	      if (!read_only_ref && property_class
 		  && property_class->is_covergroup()
+		  && member_path.empty()
 		  && property_class->covgrp_owner_prop() >= 0) {
 		    NetScope*method_scope = find_method_containing_scope(*this, scope);
 		    const netclass_t*method_class =
