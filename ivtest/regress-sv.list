@@ -5987,3 +5987,5 @@ issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_ve
 sv_invalid_container_element_default_2017 normal,-g2017 ivltests gold=sv_invalid_container_element_default.gold
 sv_invalid_container_element_default_2023 normal,-g2023 ivltests gold=sv_invalid_container_element_default.gold
 issue947_unit_forward_reference_fail CE,-g2017 ivltests
+sv_queue_string_itoa_2017 normal,-g2017,-s,sv_queue_string_itoa ivltests gold=sv_queue_string_itoa.gold
+sv_queue_string_itoa_2023 normal,-g2023,-s,sv_queue_string_itoa ivltests gold=sv_queue_string_itoa.gold
