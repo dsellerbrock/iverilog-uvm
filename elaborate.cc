@@ -14496,6 +14496,43 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
       }
 
+      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
+       * is a variable_lvalue. Ordinary system-task argument elaboration
+       * preserves signal l-values, but does not distinguish variables
+       * from nets. Check the resulting l-value tree before passing it to
+       * the VPI task. */
+      const bool pla_task =
+	   name == "$async$and$array" || name == "$async$nand$array"
+	|| name == "$async$or$array" || name == "$async$nor$array"
+	|| name == "$async$and$plane" || name == "$async$nand$plane"
+	|| name == "$async$or$plane" || name == "$async$nor$plane"
+	|| name == "$sync$and$array" || name == "$sync$nand$array"
+	|| name == "$sync$or$array" || name == "$sync$nor$array"
+	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
+	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      if (pla_task && parm_count == 3 && eparms[2]) {
+	  std::function<bool(const NetExpr*)> variable_lvalue =
+		[&variable_lvalue](const NetExpr*expr) -> bool {
+		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+			NetNet::Type type = sig->sig()->type();
+			return type == NetNet::REG || type == NetNet::IMPLICIT_REG;
+		  }
+		  if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+			return variable_lvalue(select->sub_expr());
+		  if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+			for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
+			      if (!variable_lvalue(concat->parm(idx))) return false;
+			return concat->nparms() != 0;
+		  }
+		  return false;
+		};
+	  if (!variable_lvalue(eparms[2])) {
+		  cerr << parms_[2].get_fileline() << ": error: argument 3 of "
+		       << name << " must be a variable lvalue." << endl;
+		  des->errors += 1;
+	  }
+      }
+
       if (name == "$cast" && parm_count == 2) {
 	if (const netenum_t*enum_type =
 	      dynamic_cast<const netenum_t*>(

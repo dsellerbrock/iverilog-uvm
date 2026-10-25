@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "pla_output_net_fail.sv",
+  "iverilog-args": ["-g2017", "-s", "pla_output_net_fail"],
+  "gold": "pla_output_net_fail"
+}
