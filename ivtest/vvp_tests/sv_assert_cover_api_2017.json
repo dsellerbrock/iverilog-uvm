@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_cover_api.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["sv_assert_cover_api"],
+  "vpi-sources": ["vpi/sv_assert_cover_api.c"],
+  "output-contains": ["PASS: assertion cover API attempts=5 successes=3 immediate=2"]
+}

@@ -697,6 +697,14 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
                                   vpiHandle scope);
+/* Immediate-cover source identities and evaluation results (IEEE 1800-2017
+   16.3 / 40.5.3; 2023 16.3 / 40.5.2). */
+extern void vpip_register_immediate_cover(PLI_INT32 source_id,
+                                          const char*name, const char*file,
+                                          PLI_INT32 line, vpiHandle scope);
+extern void vpip_report_immediate_cover(PLI_INT32 source_id,
+                                         PLI_INT32 success,
+                                         vpiHandle scope);
 /* Internal fixed-checker attempt identity. clock records every sampled
    edge, including edges on which assertion control suppresses starts. */
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);

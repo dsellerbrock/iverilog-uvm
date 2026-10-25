@@ -12118,6 +12118,71 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       return t;
 }
 
+/* Assign a real assertion-API identity to each simple immediate cover and
+   account for every execution independently of its optional action. */
+static unsigned immediate_cover_id_ = 0;
+Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
+				     Statement*pass_stmt)
+{
+      pform_generated_verification_scope_t verification_scope;
+      unsigned id = ++immediate_cover_id_;
+      if (id == 0) id = ++immediate_cover_id_;
+      char nbuf[64];
+      snprintf(nbuf, sizeof nbuf, "cover_L%d_%u", loc.first_line, id);
+
+      std::list<named_pexpr_t> reg_args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)id, 32));
+      reg_args.push_back(a0);
+      named_pexpr_t a1;
+      a1.parm = new PEString(strdup(nbuf));
+      reg_args.push_back(a1);
+      named_pexpr_t a2;
+      a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
+      reg_args.push_back(a2);
+      named_pexpr_t a3;
+      a3.parm = new PENumber(
+	    new verinum((uint64_t)loc.first_line, 32));
+      reg_args.push_back(a3);
+      PCallTask*reg = new PCallTask(
+	    lex_strings.make("$ivl_register_immediate_cover"), reg_args);
+      FILE_NAME(reg, loc);
+      LexicalScope*saved_scope = lexical_scope;
+      while (dynamic_cast<PBlock*>(lexical_scope)
+	     && lexical_scope->parent_scope())
+	    lexical_scope = lexical_scope->parent_scope();
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, reg, nullptr);
+      lexical_scope = saved_scope;
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(ip, initloc);
+
+      auto report = [loc,id](bool success) -> Statement* {
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t x;
+	    x.parm = new PENumber(new verinum((uint64_t)id, 32));
+	    args.push_back(x);
+	    named_pexpr_t y;
+	    y.parm = new PENumber(new verinum((uint64_t)success, 32));
+	    args.push_back(y);
+	    PCallTask*t = new PCallTask(
+		  lex_strings.make("$ivl_report_immediate_cover"), args);
+	    FILE_NAME(t, loc);
+	    return t;
+      };
+
+      std::vector<Statement*> pass;
+      pass.push_back(report(true));
+      if (pass_stmt) pass.push_back(pass_stmt);
+      std::vector<Statement*> fail;
+      fail.push_back(report(false));
+      PCondit*result = new PCondit(expr, sva_block_(loc, pass),
+				   sva_block_(loc, fail));
+      result->immediate_assertion();
+      FILE_NAME(result, loc);
+      return result;
+}
+
 /* Assertion callback reasons (IEEE 1800-2017 40.x; must match the
    cbAssertion* values in sv_vpi_user.h). */
 static const int SVA_CB_START   = 606;   /* cbAssertionStart */
@@ -12129,9 +12194,8 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
 
-/* M12B-cb: build `if ($ivl_assert_cb_active()) $ivl_assert_report(inst,
-   reason);` — a synthesized checker reports a success or failure event,
-   gated so nothing runs when no callback is registered. */
+/* Attempt/success reports update coverage even when there are no callback
+   subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 				   int reason, PExpr*age = nullptr)
 {
@@ -12150,6 +12214,8 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
       FILE_NAME(rep, loc);
+      if (reason == SVA_CB_START || reason == SVA_CB_SUCCESS)
+	    return rep;
 
       std::list<named_pexpr_t> no_parms;
       PECallFunction*active = new PECallFunction(
@@ -12211,8 +12277,8 @@ static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
       return sva_block_(loc, v);
 }
 
-/* A cover property executes its statement once for every sequence/property
-   match, but it is not an assertion-success callback. */
+/* A cover property executes its pass statement in the Reactive region;
+   coverage reporting is attached at the match counter update. */
 static Statement* sva_cover_action_(const struct vlltype&loc,
 				    Statement*pass_stmt)
 {
@@ -19073,8 +19139,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    loc, inst, r_kill, clear_attempt_state()));
       if (cover && match_action)
 	    body.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
-      body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
-			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
       auto spawn_obligation_stmt = [&](long source) -> Statement* {
 	    char msg[192];
@@ -19290,6 +19354,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					      sva_bit_(loc, 1));
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+		  acc_v.push_back(sva_report_stmt_(loc, inst,
+						    SVA_CB_SUCCESS));
 		  if (match_action)
 		    acc_v.push_back(increment_verdict(r_match));
 	    } else if (implication && !forbidden) {
@@ -19613,8 +19679,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = pre;
       full.push_back(sva_observed_wait_(loc));
+	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
-	    if (disable) {
+	  if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
@@ -28154,6 +28222,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						    sva_id_(loc, w_regs[q]));
 			FILE_NAME(add, loc);
 			sat.push_back(sva_assign_(loc, r_cnt, add));
+			PCondit*report = new PCondit(sva_id_(loc, w_regs[q]),
+						     sva_report_stmt_(loc, inst,
+								     SVA_CB_SUCCESS),
+						     nullptr);
+			FILE_NAME(report, loc);
+			sat.push_back(report);
 		  }
 		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
@@ -28221,6 +28295,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), elig);
 		  FILE_NAME(add, loc);
 		  sat.push_back(sva_assign_(loc, r_cnt, add));
+		  PCondit*report = new PCondit(sva_clone_expr_(elig),
+					       sva_report_stmt_(loc, inst,
+							       SVA_CB_SUCCESS),
+					       nullptr);
+		  FILE_NAME(report, loc);
+		  sat.push_back(report);
 	    } else if (pass_stmt) {
 		  PCondit*pm = new PCondit(elig, pass_stmt, nullptr);
 		  FILE_NAME(pm, loc);
@@ -28282,6 +28362,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  PCondit*report = new PCondit(sva_clone_expr_(match),
+					       sva_report_stmt_(loc, inst,
+							       SVA_CB_SUCCESS),
+					       nullptr);
+		  FILE_NAME(report, loc);
+		  body.push_back(report);
 		  if (pass_stmt) {
 			PCondit*pm = new PCondit(
 			      sva_clone_expr_(match),
@@ -28370,16 +28456,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (track_vacuity)
 	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, user_pass);
 
-	/* M12B-rest: cbAssertionStart -- an attempt starts at every
-	   sampled clock tick the checker evaluates (IEEE 1800-2017
-	   40.5.2; concurrent assertions launch an attempt each clock).
-	   Placed inside the disable guard: a disabled tick aborts
-	   attempts rather than starting one. Gated on
-	   $ivl_assert_cb_active like every report, so it costs nothing
-	   when no callback is registered. */
-      body.insert(body.begin(), sva_if_(loc,
-	    sva_enabled_expr_(loc, inst),
-	    sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       body.insert(body.begin(), sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
 
@@ -28389,6 +28465,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       full.push_back(sva_observed_wait_(loc));
       if (track_failure_age)
 	    full.push_back(sva_clock_stmt_(loc, inst));
+	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
