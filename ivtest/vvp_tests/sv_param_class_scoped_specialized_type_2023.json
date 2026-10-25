@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_param_class_scoped_specialized_type.v",
+    "iverilog-args": ["-g2023", "-s", "sv_param_class_scoped_specialized_type"],
+    "gold": "sv_param_class_scoped_specialized_type"
+}
