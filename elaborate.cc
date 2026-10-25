@@ -6841,7 +6841,91 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  member_port_bridge = true;
 	    }
 
-	    if (member_port_bridge) {
+	    /* IEEE 1800-2017/2023 23.3.3.5: a scalar port on an instance array
+	       can be connected to an unpacked array whose leading dimension has
+	       one element per instance. Map each left-to-right actual element to
+	       the corresponding instance instead of elaborating the aggregate in
+	       the scalar formal's type context. */
+	    bool instance_array_actual = false;
+	    if (instance.size() > 1 && mport.size() == 1
+	        && prts.size() == instance.size() && !prts.empty()
+	        && prts[0] && prts[0]->unpacked_dimensions() == 0) {
+	      const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx]);
+	      if (aid && aid->path().name.size() == 1
+	          && aid->path().name.front().index.empty()) {
+	            NetNet*actual = aid->elaborate_unpacked_net(des, scope);
+	            if (actual && actual->unpacked_dimensions() == 1
+	                && actual->unpacked_dims()[0].width() == instance.size()) {
+	                  bool matching = true;
+	                  for (NetNet*formal : prts)
+	                        if (!formal || formal->unpacked_dimensions() != 0
+	                            || formal->vector_width() != actual->vector_width())
+	                              matching = false;
+	                  if (matching) {
+	                        bool output_ok = true;
+	                        if (ptype == NetNet::POUTPUT
+	                            && actual->type() == NetNet::REG) {
+	                              if (actual->peek_lref() > 0) {
+	                                    cerr << pins[idx]->get_fileline()
+	                                         << ": error: Cannot connect port `"
+	                                         << port_name << "' to variable `"
+	                                         << actual->name()
+	                                         << "'. This conflicts with a procedural "
+	                                            "assignment." << endl;
+	                                    des->errors += 1;
+	                                    output_ok = false;
+	                              } else {
+	                                    actual->type(NetNet::UNRESOLVED_WIRE);
+	                              }
+	                        }
+	                        if (!output_ok)
+	                              continue;
+	                        for (unsigned inst = 0; inst < instance.size();
+	                             inst += 1) {
+	                              unsigned word = interface_array_ltr_word_(
+	                                    actual->unpacked_dims(), inst);
+	                              NetNet*formal = prts[inst];
+	                              if (ptype == NetNet::PINPUT
+	                                  || ptype == NetNet::POUTPUT) {
+	                                    NetBUFZ*buffer = new NetBUFZ(
+	                                          scope, scope->local_symbol(),
+	                                          formal->vector_width(), false);
+	                                    buffer->set_line(*this);
+	                                    des->add_node(buffer);
+	                                    if (ptype == NetNet::PINPUT) {
+	                                          connect(formal->pin(0),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  actual->pin(word));
+	                                    } else {
+	                                          connect(actual->pin(word),
+	                                                  buffer->pin(0));
+	                                          connect(buffer->pin(1),
+	                                                  formal->pin(0));
+	                                    }
+	                              } else if (ptype == NetNet::PINOUT) {
+	                                    NetTran*tran = new NetTran(
+	                                          scope, scope->local_symbol(),
+	                                          actual->vector_width(),
+	                                          formal->vector_width(), 0);
+	                                    tran->set_line(*this);
+	                                    des->add_node(tran);
+	                                    connect(tran->pin(0),
+	                                            actual->pin(word));
+	                                    connect(tran->pin(1),
+	                                            formal->pin(0));
+	                              } else {
+	                                    connect(formal->pin(0), actual->pin(word));
+	                              }
+	                        }
+	                        instance_array_actual = true;
+	                  }
+	            }
+	      }
+	    }
+	    if (instance_array_actual) {
+	      continue;
+	    } else if (member_port_bridge) {
 		  /* The common width adjustment and per-instance connection code
 		     below connects the bridge to the formal port. */
 	    } else if (ptype == NetNet::PREF) {
