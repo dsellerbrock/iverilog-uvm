@@ -5476,6 +5476,7 @@ sv_ref_formal_class_handle_actual normal,-g2017,-s,main ivltests gold=sv_ref_for
 sv_ref_formal_class_handle_actual_2023 normal,-g2023,-s,main ivltests gold=sv_ref_formal_class_handle_actual.gold
 sv_constraint_unique_dynamic_array normal,-g2017,-s,main ivltests gold=sv_constraint_unique_dynamic_array.gold
 sv_constraint_unique_dynamic_array_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_unique_dynamic_array.gold
+sv_constraint_unique_slice normal,-g2017,-s,main ivltests gold=sv_constraint_unique_slice.gold
 sv_ref_formal_property_chain normal,-g2017,-s,main ivltests gold=sv_ref_formal_property_chain.gold
 sv_ref_formal_property_chain_2023 normal,-g2023,-s,main ivltests gold=sv_ref_formal_property_chain.gold
 sv_constraint_dynamic_array_sum_with normal,-g2017,-s,main ivltests gold=sv_constraint_dynamic_array_sum_with.gold
