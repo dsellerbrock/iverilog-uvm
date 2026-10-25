@@ -5704,6 +5704,7 @@ sv_runtime_root_seed normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_ru
 sv_runtime_root_seed_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed.gold
 sv_runtime_root_seed_hierarchy normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold
 sv_runtime_root_seed_hierarchy_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold
+sv_shuffle_thread_stability normal,-g2017,-s,test ivltests gold=sv_shuffle_thread_stability.gold
 
 # L112 finite multi-window first_match source prefixes
 sv_assert_multiclock_first_match_two_window normal,-g2017,-gassertions,-s,sv_assert_multiclock_first_match_two_window ivltests gold=sv_assert_multiclock_first_match_two_window.gold
