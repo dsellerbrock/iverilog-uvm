@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_no_default_no_override.sv:2: error: Missing value for parameter `N`.
+1 error(s) during elaboration.

@@ -1,0 +1,7 @@
+edition	test	compile_rc	link_rc	run_rc	pass
+2017	m10_dpi_openarray_test	0	0	0	YES
+2017	m10_dpi_open_array_bounds_test	0	0	0	YES
+2017	m10_dpi_open_array_layout_range_test	0	0	0	YES
+2023	m10_dpi_openarray_test	0	0	0	YES
+2023	m10_dpi_open_array_bounds_test	0	0	0	YES
+2023	m10_dpi_open_array_layout_range_test	0	0	0	YES

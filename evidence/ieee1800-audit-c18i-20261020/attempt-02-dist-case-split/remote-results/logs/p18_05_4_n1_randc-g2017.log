@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-02/input/p18_05_4_n1_randc.sv:4: error: 'randc' variables cannot be used in 'dist' constraints.
+1 error(s) during elaboration.

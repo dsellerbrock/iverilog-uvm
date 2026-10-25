@@ -1,0 +1,19 @@
+T3 [enum{A=32'sd0,B=32'sd1,C=32'sd99}X]
+        0.01 real         0.00 user         0.00 sys
+             6307840  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 684  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  17  involuntary context switches
+            78676839  instructions retired
+            21904544  cycles elapsed
+             3735936  peak memory footprint

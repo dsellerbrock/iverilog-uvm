@@ -1,0 +1,2 @@
+input/I2_interconnect_continuous_assignment.sv:2: error: interconnect net 'n' has no concrete net type after port propagation.
+1 error(s) during elaboration.

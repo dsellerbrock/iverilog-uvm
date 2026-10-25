@@ -1,0 +1,1 @@
+/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog -B /home/dsell/toolchains/iverilog-a3-main-82023726-679/lib/ivl -g2017 -s test /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_option_structs.sv -o /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/results/option-structs-2017.vvp

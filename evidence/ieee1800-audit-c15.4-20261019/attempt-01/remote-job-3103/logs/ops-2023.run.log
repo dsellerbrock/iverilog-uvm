@@ -1,0 +1,2 @@
+PASS mailbox clause 15.4 core
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_ops.sv:144: $finish called at 11 (1s)

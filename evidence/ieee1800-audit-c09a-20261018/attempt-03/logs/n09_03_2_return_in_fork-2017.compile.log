@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_return_in_fork.sv:2: error: Return statement is not allowed within fork-join block.
+1 error(s) during elaboration.

@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-34/input/p16_12_04_05_property_and_or.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-34/input/p16_12_04_05_property_and_or.sv:15: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-34/input/p16_12_04_05_property_and_or.sv:18: error: Unable to bind wire/reg/memory `p_and' in `test'
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-34/input/p16_12_04_05_property_and_or.sv:19: error: Unable to bind wire/reg/memory `p_or' in `test'
+2 error(s) during elaboration.
+compile_exit=2

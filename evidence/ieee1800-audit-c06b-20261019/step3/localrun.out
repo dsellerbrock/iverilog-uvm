@@ -1,0 +1,70 @@
+== r06_19k_bare_forms g2017 compile_rc=0
+run_rc=0
+K1 plain: first=0 next=2 last=3 name=green
+K2 struct bare: first=0 next=3 name=blue
+K3 struct explicit: first=0 next=3 name=blue
+K5 values: ONES=0001 ZERO=0000 Z0=000z X1=000x
+== r06_19l_eqlit g2017 compile_rc=0
+run_rc=0
+eqlit => 1
+== r06_19l_len g2017 compile_rc=1
+tests/1800_audit/c06/r06_19l_len.sv:2: error: Object t.c has no method "name.len(...)".
+1 error(s) during elaboration.
+== r06_19l_lenbare g2017 compile_rc=0
+tests/1800_audit/c06/r06_19l_lenbare.sv:2: warning: Method name nesting on enum not fully supported (compile-progress fallback).
+run_rc=0
+lenbare => 1
+== r06_19l_nextname g2017 compile_rc=0
+tests/1800_audit/c06/r06_19l_nextname.sv:2: warning: Method name nesting on enum not fully supported (compile-progress fallback).
+run_rc=0
+nextname =>    
+== r06_19l_nextname2 g2017 compile_rc=0
+run_rc=0
+nextname2 => blue
+== r06_19l_upper g2017 compile_rc=1
+tests/1800_audit/c06/r06_19l_upper.sv:2: error: Object t.c has no method "name.toupper(...)".
+1 error(s) during elaboration.
+== r06_19k_bare_forms g2023 compile_rc=0
+run_rc=0
+K1 plain: first=0 next=2 last=3 name=green
+K2 struct bare: first=0 next=3 name=blue
+K3 struct explicit: first=0 next=3 name=blue
+K5 values: ONES=0001 ZERO=0000 Z0=000z X1=000x
+== r06_19l_eqlit g2023 compile_rc=0
+run_rc=0
+eqlit => 1
+== r06_19l_len g2023 compile_rc=1
+tests/1800_audit/c06/r06_19l_len.sv:2: error: Object t.c has no method "name.len(...)".
+1 error(s) during elaboration.
+== r06_19l_lenbare g2023 compile_rc=0
+tests/1800_audit/c06/r06_19l_lenbare.sv:2: warning: Method name nesting on enum not fully supported (compile-progress fallback).
+run_rc=0
+lenbare => 1
+== r06_19l_nextname g2023 compile_rc=0
+tests/1800_audit/c06/r06_19l_nextname.sv:2: warning: Method name nesting on enum not fully supported (compile-progress fallback).
+run_rc=0
+nextname =>    
+== r06_19l_nextname2 g2023 compile_rc=0
+run_rc=0
+nextname2 => blue
+== r06_19l_upper g2023 compile_rc=1
+tests/1800_audit/c06/r06_19l_upper.sv:2: error: Object t.c has no method "name.toupper(...)".
+1 error(s) during elaboration.
+        3.74 real         1.14 user         0.65 sys
+            16924672  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              101476  page reclaims
+                1281  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  13  signals received
+                 144  voluntary context switches
+                3306  involuntary context switches
+           187358520  instructions retired
+           115789806  cycles elapsed
+             2507232  peak memory footprint

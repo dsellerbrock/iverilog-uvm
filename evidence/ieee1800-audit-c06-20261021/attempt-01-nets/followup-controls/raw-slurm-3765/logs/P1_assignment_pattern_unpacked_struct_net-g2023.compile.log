@@ -1,0 +1,4 @@
+input/P1_assignment_pattern_unpacked_struct_net.sv:2: error: Net `w` can not be of type `<no_type>`.
+input/P1_assignment_pattern_unpacked_struct_net.sv:3: sorry: an assignment pattern for a non-array unpacked value cannot be driven onto a net.
+input/P1_assignment_pattern_unpacked_struct_net.sv:3: internal error: Failed to synthesize expression: '{1'd1, 4'd3}
+3 error(s) during elaboration.

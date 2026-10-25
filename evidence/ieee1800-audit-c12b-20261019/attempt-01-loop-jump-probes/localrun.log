@@ -1,0 +1,20 @@
+g2017 compile rc=0
+g2017 run rc=124
+Timed out after 180.0s: /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp evidence/ieee1800-audit-c12b-20261019/attempt-01-loop-jump-probes/p12d.2017.vvp
+n12_07_for_scope_escape.sv g2017 accepted rc=0
+n12_07_foreach_index_write.sv g2017 accepted rc=0
+n12_07_foreach_same_name.sv g2017 accepted rc=0
+n12_07_foreach_too_many.sv g2017 accepted rc=0
+n12_07_foreach_too_many_indices.sv g2017 accepted rc=0
+n12_07_mixed_decl.sv g2017 rejected rc=1
+n12_08_break_cross_fork.sv g2017 accepted rc=0
+n12_08_break_outside.sv g2017 rejected rc=1
+n12_08_break_outside_loop.sv g2017 rejected rc=1
+n12_08_continue_fork.sv g2017 accepted rc=0
+n12_08_continue_outside_loop.sv g2017 rejected rc=1
+n12_08_return_missing_expression.sv g2017 rejected rc=2
+n12_08_return_outside.sv g2017 rejected rc=1
+n12_08_return_outside_subroutine.sv g2017 rejected rc=1
+n12_08_return_value_task.sv g2017 rejected rc=1
+g2023 compile rc=0
+localrun: timed out after 300s

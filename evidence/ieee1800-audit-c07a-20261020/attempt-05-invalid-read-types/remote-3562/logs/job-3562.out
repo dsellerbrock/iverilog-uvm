@@ -1,0 +1,19 @@
+edition	compile_rc	run_rc	stdout_match
+2017	0	0	YES
+2023	0	0	YES
+--- g2017.compile.log
+--- g2023.compile.log
+--- g2017.stdout.log
+OOB_LOGIC 1
+EMPTY_LOGIC 1
+OOB_INT 0
+OOB_BIT 0
+PASS
+--- g2023.stdout.log
+OOB_LOGIC 1
+EMPTY_LOGIC 1
+OOB_INT 0
+OOB_BIT 0
+PASS
+--- g2017.stderr.log
+--- g2023.stderr.log

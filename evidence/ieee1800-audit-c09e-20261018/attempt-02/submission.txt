@@ -1,0 +1,7 @@
+Host: DAN-DESKTOP
+Run directory: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-02
+Command: cd /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-02 && sbatch --parsable a3-m7-c09e-bisect.sbatch
+Slurm job ID: 2550
+Resources: 1 CPU, 2 GiB RAM, 10 minutes; same pinned compiler as c09e attempt 01
+Per-test limits: compile 60 seconds; run 30 seconds; TERM then KILL after 5 seconds
+Purpose: correct the RHS sensitivity counter expectation and isolate dynamic-array-size and class-property event probes from the combined c09e test.

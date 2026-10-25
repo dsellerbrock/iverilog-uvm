@@ -1,0 +1,10 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+f50ab40d6483f47aa71cb0dc2b2b266e48479f964e53dfcf2c509347f3162474  m6_reactive_region_test.sv
+edition=2017 compile_exit=0
+edition=2017 run_exit=0
+PASS
+m6_reactive_region_test.sv:80: $finish called at 15 (1s)
+edition=2023 compile_exit=0
+edition=2023 run_exit=0
+PASS
+m6_reactive_region_test.sv:80: $finish called at 15 (1s)

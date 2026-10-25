@@ -1,0 +1,5 @@
+--- /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-02/results/expected.txt	2026-10-20 11:09:38.554439562 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-02/results/logs/run-g2023.log	2026-10-20 11:09:38.570753409 -0600
+@@ -1 +1 @@
+-FP 1 2 64
++FP 1 2 1

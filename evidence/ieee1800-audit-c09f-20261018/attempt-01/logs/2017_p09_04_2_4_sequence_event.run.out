@@ -1,0 +1,4 @@
+FAIL 9.4.2.4.at_sequence_instance
+FAIL 9.4.2.4.at_paren_sequence_instance
+DONE fails=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:15: $finish called at 30 (1s)

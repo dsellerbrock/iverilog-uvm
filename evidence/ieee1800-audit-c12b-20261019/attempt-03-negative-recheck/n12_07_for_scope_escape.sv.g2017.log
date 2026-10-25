@@ -1,0 +1,19 @@
+tests/1800_audit/c12/neg/n12_07_for_scope_escape.sv:4: warning: Unable to bind wire/reg/memory `i' in `n12_07_for_scope_escape' (compile-progress: unresolved reference).
+        0.03 real         0.01 user         0.01 sys
+             5685248  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1838  page reclaims
+                  15  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  71  involuntary context switches
+            19183691  instructions retired
+             8447053  cycles elapsed
+             1245544  peak memory footprint

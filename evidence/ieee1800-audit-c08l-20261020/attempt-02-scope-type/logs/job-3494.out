@@ -1,0 +1,52 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p08_26_sub	0	0	0.02	12076	0.02	12096
+2017	p08_23_scope_type	10	NA	0.02	12060	NA	NA
+2023	p08_26_sub	0	0	0.02	12104	0.01	12028
+2023	p08_23_scope_type	10	NA	0.01	12052	NA	NA
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12096
+2023	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12084
+--- n08_26_sub_m6_nested_interface_class-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/n08_26_sub_m6_nested_interface_class.sv:2: error: Nested class `Inner' is not allowed in an interface class.
+1 error(s) during elaboration.
+--- n08_26_sub_m6_nested_interface_class-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/n08_26_sub_m6_nested_interface_class.sv:2: error: Nested class `Inner' is not allowed in an interface class.
+1 error(s) during elaboration.
+--- p08_23_scope_type-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: error: I give up on this function definition.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: error: I give up on this function definition.
+--- p08_23_scope_type-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:15: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:16: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:17: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:19: error: I give up on this function definition.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/p08_23_scope_type.sv:23: error: I give up on this function definition.
+--- p08_26_sub-g2017.compile.log
+--- p08_26_sub-g2023.compile.log
+--- p08_26_sub-g2017.run.log
+K1 1 0
+Ext
+K3A 1 2
+K3 1
+K4 1 1 0
+K5 1 1
+--- p08_26_sub-g2023.run.log
+K1 1 0
+Ext
+K3A 1 2
+K3 1
+K4 1 1 0
+K5 1 1

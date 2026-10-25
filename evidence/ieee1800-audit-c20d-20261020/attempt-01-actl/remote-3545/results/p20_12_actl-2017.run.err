@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: Error: System task/function $assertcontrol() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: Error: System task/function $assertcontrol() is not defined by any module.

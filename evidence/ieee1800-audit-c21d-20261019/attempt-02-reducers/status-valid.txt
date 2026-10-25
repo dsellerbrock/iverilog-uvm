@@ -1,0 +1,2 @@
+Associative-array read/write reducer sources compiled with exit 0 in 2017 and 2023; their isolated VVP executions each exited 1 with the documented runtime error.
+The overlapping-plusargs reducer compiled and ran with exit 0 in both editions; all three command-line order cases returned rc=1 and value=t1.

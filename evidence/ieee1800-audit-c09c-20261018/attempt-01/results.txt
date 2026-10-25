@@ -1,0 +1,15 @@
+Host: DAN-DESKTOP (Ubuntu; Slurm job 2539)
+Toolchain: main 9b5fad2, Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288, vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a
+Requested resources: 1 CPU, 2 GiB, 10 minutes. scontrol: COMPLETED, ExitCode 0:0, RunTime 1 second. sstat did not retain completed-step RSS.
+Command: sbatch --parsable a3-m7-c09c.sbatch
+Per compile and run timeout: 30 seconds; TERM then KILL after 5 seconds.
+Raw output: logs/results.raw.txt. Individual stdout/stderr files for every compile/run are alongside it. Script: a3-m7-c09c.sbatch.
+
+Summary by edition (all six files compiled; every vvp invocation returned 0):
+- p09_07_process.sv: the combined resumed_waiter_still_waiting assertion is weak and is superseded by the isolated c09d resume-semantics probe; do not count it as a gap. Immediate kill status was KILLED and immediate suspend status was SUSPENDED in both editions. kill_finished_parent_descendant_ran=1 in both editions.
+- n09_07_process_extend.sv: compile accepted and simulation printed REACHED_AFTER_EXTENDS_PROCESS in both editions.
+- p09_07_new_process.sv: compile/run accepted; printed REACHED_AFTER_NEW p=nonnull in both editions.
+- p09_07_await_self.sv: compile/run returned 0 with no output in both editions; no error diagnostic and no REACHED_AFTER_AWAIT_SELF.
+- p09_07_suspend_self_in_function.sv: compile/run returned 0 with no output in both editions; no error diagnostic and no REACHED_AFTER_FUNCTION_SUSPEND.
+
+The audit lead classified the combined resumed_waiter_still_waiting assertion as weak. The isolated `p09_07_resume_semantics.sv` probe and result in c09d establish the resume-event gap instead.

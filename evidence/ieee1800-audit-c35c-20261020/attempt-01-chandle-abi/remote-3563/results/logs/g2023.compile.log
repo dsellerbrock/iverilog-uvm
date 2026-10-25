@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-chandle-abi-20261020-01/input/m10j_dpi_chandle_abi_test.sv:15: warning: Static variable initialization requires explicit lifetime in this context.

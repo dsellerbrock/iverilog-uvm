@@ -1,0 +1,4 @@
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/p06_23a_type_op.sv:22: error: Cannot evaluate genvar case expression: <type>
+3 error(s) during elaboration.

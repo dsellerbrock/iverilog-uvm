@@ -1,0 +1,2 @@
+C6a FAIL 15
+input/C6_inferred_overrides_default.sv:8: $finish called at 60 (1ns)

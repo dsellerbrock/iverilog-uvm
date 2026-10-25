@@ -1,0 +1,20 @@
+tests/1800_audit/c20/neg/n20_07_dyn_dim_2.sv:1: error: A reference to a net or variable (`a') is not allowed in a constant expression.
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4800512  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1764  page reclaims
+                  14  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  30  involuntary context switches
+            18641813  instructions retired
+             7216237  cycles elapsed
+             1245544  peak memory footprint

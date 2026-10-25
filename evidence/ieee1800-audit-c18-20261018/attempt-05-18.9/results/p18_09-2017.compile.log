@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/p18_09_constraint_mode.sv:15: warning: Static variable initialization requires explicit lifetime in this context.

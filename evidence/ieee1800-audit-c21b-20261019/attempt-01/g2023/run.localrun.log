@@ -1,0 +1,41 @@
+compile_exit=0
+MM p21b.B
+MT p21b.t
+FAIL s1
+INFO p '{10:?, 20:?}
+INFO 0p '{10:?, 20:?}
+D a=1
+WARNING: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_02b_misc.sv:16: missing argument for $sformat<%0d>.
+INFO sformat_short [1 <%0d>]
+BOTH
+FD1
+MCD1
+S a=2
+M t=0 b=0
+M t=1 b=2
+M t=3 b=3
+M t=5 b=4
+M t=6 b=5
+RESULT pass=9 fail=1
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_02b_misc.sv:23: $finish called at 7 (1s)
+simulation_exit=0
+-rw-r--r--@ 1 danielellerbrock  staff  8 Oct 20 01:52 p21_tmp.txt
+-rw-r--r--@ 1 danielellerbrock  staff  5 Oct 20 01:52 p21_tmp2.txt
+        0.09 real         0.02 user         0.02 sys
+             7471104  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                4184  page reclaims
+                  28  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   9  voluntary context switches
+                 137  involuntary context switches
+            36667300  instructions retired
+            20098632  cycles elapsed
+             1573248  peak memory footprint

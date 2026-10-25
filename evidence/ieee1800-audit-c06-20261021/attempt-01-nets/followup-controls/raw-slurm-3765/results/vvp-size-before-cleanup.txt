@@ -1,0 +1,6 @@
+-rwxr-xr-x 1 dsell dsell 5.6K Oct 21 08:50 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U1b_user_nettype_resolution_variables-g2017.vvp
+-rwxr-xr-x 1 dsell dsell 5.6K Oct 21 08:50 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U1b_user_nettype_resolution_variables-g2023.vvp
+-rwxr-xr-x 1 dsell dsell 5.6K Oct 21 08:50 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U2b_user_nettype_alias_variables-g2017.vvp
+-rwxr-xr-x 1 dsell dsell 5.6K Oct 21 08:50 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U2b_user_nettype_alias_variables-g2023.vvp
+-rwxr-xr-x 1 dsell dsell  11G Oct 21 08:50 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U3b_user_nettype_force_release_variables-g2017.vvp
+-rwxr-xr-x 1 dsell dsell  13G Oct 21 08:51 /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-20261021-followup-01/results/U3b_user_nettype_force_release_variables-g2023.vvp

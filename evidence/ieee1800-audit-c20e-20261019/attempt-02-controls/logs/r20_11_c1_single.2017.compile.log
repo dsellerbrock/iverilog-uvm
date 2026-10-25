@@ -1,0 +1,22 @@
+WARNING: tests/1800_audit/c20/r20_11_c1_single.sv:1: elab warn
+         During elaboration  Scope: m
+INFO: tests/1800_audit/c20/r20_11_c1_single.sv:1: elab info
+      During elaboration  Scope: m
+        0.04 real         0.01 user         0.02 sys
+             4898816  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1557  page reclaims
+                 245  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                 141  involuntary context switches
+            19384518  instructions retired
+             8834201  cycles elapsed
+             1245544  peak memory footprint

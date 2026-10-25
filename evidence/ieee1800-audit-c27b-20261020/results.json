@@ -1,0 +1,526 @@
+[
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_a",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_a.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_b",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_b.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_b.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c27-20261020/r27_nd_b.2017.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "NB 1 2\n"
+  },
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_c",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_c.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nested_same_genvar",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv:1: error: generate \"loop\" variable 'i' is not a genvar in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv:1: error: generate \"loop\" variable 'i' is not a genvar in this scope.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "name_conflict_var",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv:1:      : It was declared here as a variable.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "name_conflict_loop",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv:1:      : It was declared here as a generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nonterminating",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonterminating.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonterminating.sv:1: error: The generate \"loop\" is not incrementing. The previous and next genvar values are (0).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "genvar_repeat",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_repeat.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_repeat.sv:1: error: Trying to create a duplicate generate scope named \"a[0]\".\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "xz_genvar",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_xz_genvar.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_xz_genvar.sv:1: error: Generate \"loop\" initialization expression cannot have undefined bits. given ('bx).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "init_self",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv:1: error: Unable to bind parameter `i' in `m'\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv:1: error: Cannot evaluate generate \"loop\" initialization expression: (i)+('sd1)\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "genvar_runtime",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_runtime.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_runtime.sv:1: warning: Unable to bind wire/reg/memory `i' in `m' (compile-progress: unresolved reference).\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nonconst_cond",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv:1: error: A reference to a net or variable (`n') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv:1: error: Cannot evaluate genvar conditional expression: n\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "port_in_gen",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_port_in_gen.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": ""
+  },
+  {
+    "kind": "negative",
+    "probe": "specparam_in_gen",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_specparam_in_gen.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_specparam_in_gen.sv:1: error: specparam declaration is not allowed in generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "cond_name_conflict",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv:1:      : It was declared here as a generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "generate_no_end",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_generate_no_end.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_generate_no_end.sv:1: syntax error\nI give up.\n"
+  },
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_a",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_a.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_a.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_b",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_b.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_b.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c27-20261020/r27_nd_b.2023.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "NB 1 2\n"
+  },
+  {
+    "kind": "positive-control",
+    "probe": "r27_nd_c",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/r27_nd_c.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/r27_nd_c.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nested_same_genvar",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv:1: error: generate \"loop\" variable 'i' is not a genvar in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nested_same_genvar.sv:1: error: generate \"loop\" variable 'i' is not a genvar in this scope.\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "name_conflict_var",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_var.sv:1:      : It was declared here as a variable.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "name_conflict_loop",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_name_conflict_loop.sv:1:      : It was declared here as a generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nonterminating",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonterminating.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonterminating.sv:1: error: The generate \"loop\" is not incrementing. The previous and next genvar values are (0).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "genvar_repeat",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_repeat.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_repeat.sv:1: error: Trying to create a duplicate generate scope named \"a[0]\".\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "xz_genvar",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_xz_genvar.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_xz_genvar.sv:1: error: Generate \"loop\" initialization expression cannot have undefined bits. given ('bx).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "init_self",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv:1: error: Unable to bind parameter `i' in `m'\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_init_self.sv:1: error: Cannot evaluate generate \"loop\" initialization expression: (i)+('sd1)\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "genvar_runtime",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_runtime.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_genvar_runtime.sv:1: warning: Unable to bind wire/reg/memory `i' in `m' (compile-progress: unresolved reference).\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "nonconst_cond",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv:1: error: A reference to a net or variable (`n') is not allowed in a constant expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_nonconst_cond.sv:1: error: Cannot evaluate genvar conditional expression: n\n2 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "port_in_gen",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_port_in_gen.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": ""
+  },
+  {
+    "kind": "negative",
+    "probe": "specparam_in_gen",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_specparam_in_gen.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_specparam_in_gen.sv:1: error: specparam declaration is not allowed in generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "cond_name_conflict",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_cond_name_conflict.sv:1:      : It was declared here as a generate block.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "generate_no_end",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "m",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_generate_no_end.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/neg/n27_generate_no_end.sv:1: syntax error\nI give up.\n"
+  }
+]

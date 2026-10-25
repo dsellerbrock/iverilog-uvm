@@ -1,0 +1,1 @@
+#522 [CLOSED] Repair legacy and JSON expectations for real coverpoint tests

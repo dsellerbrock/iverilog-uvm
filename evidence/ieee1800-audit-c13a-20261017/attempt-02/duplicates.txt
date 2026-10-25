@@ -1,0 +1,10 @@
+## ref static lifetime
+449	CLOSED	[IEEE 1800] §13.5 — Implement ref static task/function arguments	enhancement	2026-10-15T03:25:11Z
+## pass by reference static
+## ref argument static function
+449	CLOSED	[IEEE 1800] §13.5 — Implement ref static task/function arguments	enhancement	2026-10-15T03:25:11Z
+477	CLOSED	[IEEE 1800] §§13.5.2/6.22.2 — Reject non-equivalent ref actual types		2026-10-13T06:27:28Z
+## default output argument
+622	OPEN	[IEEE 1800] §19.8 — get_inst_coverage(ref int, ref int) does not assign covered/total bin counts	1800-audit	2026-10-17T21:28:53Z
+## output port default
+## inout default

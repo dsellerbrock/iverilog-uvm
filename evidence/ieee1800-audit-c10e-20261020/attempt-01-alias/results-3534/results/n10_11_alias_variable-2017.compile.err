@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_variable.sv:4: error: Variable 'v' cannot be driven by a primitive or continuous assignment with non-default strength.
+1 error(s) during elaboration.

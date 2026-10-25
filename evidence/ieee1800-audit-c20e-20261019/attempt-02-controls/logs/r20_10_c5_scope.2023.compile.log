@@ -1,0 +1,19 @@
+tests/1800_audit/c20/r20_10_c5_scope.sv:2: warning: Anachronistic use of named begin/end to surround generate schemes.
+        0.03 real         0.01 user         0.01 sys
+             4997120  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1802  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   7  voluntary context switches
+                  49  involuntary context switches
+            18779221  instructions retired
+             9341467  cycles elapsed
+             1261928  peak memory footprint

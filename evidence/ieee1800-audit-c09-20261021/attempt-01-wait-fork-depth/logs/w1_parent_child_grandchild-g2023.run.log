@@ -1,0 +1,2 @@
+W1 wait fork returned at 60
+input/w1_parent_child_grandchild.sv:14: $finish called at 60000 (1ps)

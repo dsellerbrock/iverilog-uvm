@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-02/source/p10_10_uconcat.sv:14: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+1 error(s) during elaboration.

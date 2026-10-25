@@ -1,0 +1,13 @@
+Host: DAN-DESKTOP (DAN-DESKTOP Slurm)
+Job: 3550, partition verilog, 1 CPU, 1 GiB, 10-minute limit
+Submission: cd /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20h-dist-20261020-01 && sbatch --parsable --wait run.sbatch
+Submission/wait SSH returned job ID 3550 and exit code 0; wall time including SSH was about 2 seconds. Slurm accounting is disabled, so exact job duration and peak RSS are unavailable.
+Toolchain source SHA: cc25756d187314742d347267c2a513b3e640a7fb
+iverilog SHA-256: 1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593
+vvp SHA-256: e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb
+Annex N oracle: gcc -std=gnu89 -O0 -fwrapv oracle/dist.c -lm; exit 0
+Probe: tests/1800_audit/c20/p20_15_dist.sv; both -g2017 and -g2023 compiled and ran with 30-second per-run timeouts.
+Oracle/probe SHA-256: ee0b28bf6aec41b1abb0a42eed735d110a167e23a1fadb35c974140fe6cfaf14 / 0b42a0ceff8abad4ff67a9ad26e81183f5566ccf88b3b92be622aa60ceb314fa
+Compile/runtime/output-diff statuses: 0 for both editions.
+Oracle output: oracle.out
+Raw results: remote-3550/

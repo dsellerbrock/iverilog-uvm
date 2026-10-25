@@ -1,0 +1,26 @@
+--- -g2017 compile_rc=0 run_rc=0 ---
+255
+ff
+10x1
+17
+ab
+x y
+
+FL 4 [abc
+]
+FE0 0 []
+FO 0
+FE1 1 1
+--- -g2023 compile_rc=0 run_rc=0 ---
+255
+ff
+10x1
+17
+ab
+x y
+
+FL 4 [abc
+]
+FE0 0 []
+FO 0
+FE1 1 1

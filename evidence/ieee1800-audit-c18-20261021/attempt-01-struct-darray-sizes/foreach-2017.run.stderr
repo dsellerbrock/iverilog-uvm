@@ -1,0 +1,1 @@
+ERROR: constraint state read: the constraint item at evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv:8 is not supported by the constraint solver; randomize() fails rather than ignore it.

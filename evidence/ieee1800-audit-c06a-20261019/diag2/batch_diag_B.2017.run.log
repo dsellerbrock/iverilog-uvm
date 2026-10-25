@@ -1,0 +1,4 @@
+B putc member='Obj'
+B idxwr member='O'
+B struct idxwr='X'
+B static idxwr='Stat'
