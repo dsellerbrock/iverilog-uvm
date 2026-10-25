@@ -72,6 +72,54 @@ static const netclass_t* virtual_interface_type_(ivl_type_t type)
       return class_type && class_type->is_interface() ? class_type : nullptr;
 }
 
+static NetScope* static_class_method_scope_(const LineInfo&li,
+						   NetScope*scope)
+{
+      NetScope*method = find_method_containing_scope(li, scope);
+      const PTaskFunc*definition = method ? method->func_pform() : nullptr;
+      if (!definition && method) definition = method->task_pform();
+      return definition && definition->method_of()
+	    && definition->method_qualifiers().test_static() ? method : nullptr;
+}
+
+static bool reject_static_method_instance_property_(const LineInfo&li,
+							 Design*des,
+							 NetScope*scope,
+							 const symbol_search_results&sr)
+{
+      const netclass_t*cls = dynamic_cast<const netclass_t*>(sr.type);
+      if (!cls || sr.path_tail.empty()) return false;
+      int property = const_cast<netclass_t*>(cls)->ensure_property_decl(
+	    des, sr.path_tail.front().name);
+      if (property < 0 || cls->get_prop_qual(property).test_static())
+	    return false;
+      NetScope*method = static_class_method_scope_(li, scope);
+      if (!method) return false;
+
+      cerr << li.get_fileline() << ": error: Static method `"
+	   << method->basename() << "' cannot access non-static class member `"
+	   << sr.path_tail.front().name << "' (IEEE 1800-2017/2023 8.10)."
+	   << endl;
+      des->errors += 1;
+      return true;
+}
+
+static bool reject_static_method_this_(const LineInfo&li, Design*des,
+					      NetScope*scope,
+					      const pform_scoped_name_t&path)
+{
+      if (path.package || path.name.empty()
+	  || path.name.front().name != perm_string::literal(THIS_TOKEN))
+	    return false;
+      NetScope*method = static_class_method_scope_(li, scope);
+      if (!method) return false;
+      cerr << li.get_fileline() << ": error: Static method `"
+	   << method->basename() << "' cannot access `this' "
+	   << "(IEEE 1800-2017/2023 8.10)." << endl;
+      des->errors += 1;
+      return true;
+}
+
 static void report_virtual_interface_assignment_mismatch_(
 		Design*des, const LineInfo&loc, const netclass_t*target,
 		const netclass_t*source)
@@ -16816,6 +16864,10 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
+      if (gn_system_verilog()
+	  && reject_static_method_this_(*this, des, scope, path_))
+	    return nullptr;
+
 	// Method call on an arbitrary receiver expression, e.g.
 	// f().method(). Elaborate the receiver and dispatch the method
 	// against the receiver's exact result type.
@@ -17373,6 +17425,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       symbol_search_results search_results;
       bool search_flag = symbol_search(this, des, scope, path_, UINT_MAX, &search_results);
 
+      if (gn_system_verilog()
+	  && reject_static_method_instance_property_(*this, des, scope,
+						      search_results))
+	    return nullptr;
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "search_flag: " << (search_flag? "true" : "false") << endl;
@@ -17799,6 +17856,21 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    return 0;
       }
       NetScope*dscope = search_results.scope;
+
+      if (gn_system_verilog() && path_.name.size() == 1) {
+	    const PTaskFunc*target = dscope->func_pform();
+	    NetScope*caller = static_class_method_scope_(*this, scope);
+	    if (caller && target && target->method_of()
+		&& !target->method_qualifiers().test_static()) {
+		  cerr << get_fileline() << ": error: Static method `"
+		       << caller->basename() << "' cannot call non-static method `"
+		       << dscope->basename()
+		       << "' without an object receiver (IEEE 1800-2017/2023 8.10)."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
 
       // In SystemVerilog, a method calling another method in the current
       // class needs to be elaborated as a method with an implicit "this"
@@ -23539,6 +23611,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 {
       bool need_const = NEED_CONST & flags;
 
+      if (gn_system_verilog()
+	  && reject_static_method_this_(*this, des, scope, path_))
+	    return nullptr;
+
 	// M5-3: a non-constant index into an interface-instance array used as
 	// a virtual-interface value becomes a runtime dispatch table.
       if (path_.package == 0) {
@@ -23567,6 +23643,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (gn_system_verilog()
+	  && reject_static_method_instance_property_(*this, des, scope, sr))
+	    return nullptr;
 
       if (sr.scope_index_error)
 	    return 0;
@@ -24611,6 +24691,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// named "c". symbol_search() handles this for us.
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (gn_system_verilog()
+	  && (reject_static_method_this_(*this, des, scope, path_)
+	      || reject_static_method_instance_property_(*this, des, scope, sr)))
+	    return nullptr;
 
       if (sr.scope_index_error)
 	    return 0;

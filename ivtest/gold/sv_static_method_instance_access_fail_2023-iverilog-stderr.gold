@@ -1,0 +1,4 @@
+ivltests/sv_static_method_instance_access_fail.v:11: error: Static method `call_instance_method' cannot call non-static method `get_instance_value' without an object receiver (IEEE 1800-2017/2023 8.10).
+ivltests/sv_static_method_instance_access_fail.v:14: error: Static method `get_self' cannot access `this' (IEEE 1800-2017/2023 8.10).
+ivltests/sv_static_method_instance_access_fail.v:5: error: Static method `get_value' cannot access non-static class member `value' (IEEE 1800-2017/2023 8.10).
+3 error(s) during elaboration.
