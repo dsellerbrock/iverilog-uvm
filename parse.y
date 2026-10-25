@@ -1122,6 +1122,32 @@ static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 				       path.package, id->take_leading_type_args(), true);
 }
 
+/* IEEE 1800-2017 6.18 permits an incomplete class prefix in a class-scoped
+   type only when the reference is itself a typedef declaration. The member
+   typedef is not in the class symbol table until the class definition is
+   parsed, so retain its name and resolve it after the class becomes complete. */
+static data_type_t* make_forward_class_scoped_typeref(
+      const YYLTYPE&class_loc, const YYLTYPE&member_loc,
+      const char*class_name, const char*member_name,
+      PPackage*package_scope = nullptr)
+{
+      typedef_t*qualifier_type = package_scope
+            ? pform_test_type_identifier(package_scope, class_name)
+            : pform_test_type_identifier(class_loc, class_name);
+      if (!qualifier_type ||
+          (qualifier_type->get_basic_type() != typedef_t::CLASS &&
+           qualifier_type->get_basic_type() != typedef_t::ANY)
+          || qualifier_type->get_data_type())
+            return nullptr;
+
+      typeref_t*qualifier = new typeref_t(qualifier_type, package_scope);
+      FILE_NAME(qualifier, class_loc);
+      class_scoped_typeref_t*result = new class_scoped_typeref_t(
+            nullptr, package_scope, qualifier, lex_strings.make(member_name));
+      FILE_NAME(result, member_loc);
+      return result;
+}
+
 static char* dup_cstr(const char*txt)
 {
       return strcpy(new char[strlen(txt)+1], txt);
@@ -10622,7 +10648,31 @@ nettype_declaration
   ;
 
 type_declaration
-  : K_typedef data_type typedef_identifier_name dimensions_opt ';'
+  : K_typedef TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { pform_set_type_referenced(@2, $2.text);
+        data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.text, $4);
+        if (!type)
+              type = make_class_scoped_typeref(@2, @4, $2.text, $4);
+        if (type)
+              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+        delete[]$2.text;
+        delete[]$4;
+        delete[]$5;
+      }
+  | K_typedef TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { pform_set_type_referenced(@2, $2.text);
+        data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.text, $4.text);
+        if (!type)
+              type = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
+        if (type)
+              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+        delete[]$2.text;
+        delete[]$4.text;
+        delete[]$5;
+      }
+  | K_typedef data_type typedef_identifier_name dimensions_opt ';'
       { perm_string name = lex_strings.make($3);
 	if ($1) {
 	      pform_requires_sv(@1, "User-defined nettype declaration");
