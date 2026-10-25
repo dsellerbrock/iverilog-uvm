@@ -75,6 +75,23 @@ extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
 
+static Module* find_module_type_(perm_string type, const NetScope*scope)
+{
+      for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const Module*owner = cur->module_definition();
+	    if (!owner)
+		  continue;
+	    std::map<perm_string,Module*>::const_iterator nested
+		  = owner->nested_modules.find(type);
+	    if (nested != owner->nested_modules.end())
+		  return nested->second;
+      }
+
+      std::map<perm_string,Module*>::const_iterator module
+	    = pform_modules.find(type);
+      return module == pform_modules.end()? 0 : module->second;
+}
+
 /* In-line random variable control (IEEE 1800-2017 18.11). Defined in
  * elab_expr.cc next to the other randomize() lowering; shared here so
  * the statement form `void'(obj.randomize(b))' narrows the random set
@@ -8041,9 +8058,9 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end())
-	    return elaborate_sig_mod_(des, scope, (*mod).second);
+	    Module*mod = find_module_type_(type_, scope);
+      if (mod)
+	    return elaborate_sig_mod_(des, scope, mod);
 
 	// elaborate_sig_udp_ currently always returns true so skip all this
 	// for now.
@@ -8070,9 +8087,10 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_mod_(des, (*mod).second, scope);
+
+      Module*mod = find_module_type_(type_, scope);
+      if (mod) {
+	    elaborate_mod_(des, mod, scope);
 	    return;
       }
 
@@ -8220,9 +8238,10 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       }
 
 	// Look for the module type
-      map<perm_string,Module*>::const_iterator mod = pform_modules.find(type_);
-      if (mod != pform_modules.end()) {
-	    elaborate_scope_mod_(des, mod->second, sc);
+
+      Module*mod = find_module_type_(type_, sc);
+      if (mod) {
+	    elaborate_scope_mod_(des, mod, sc);
 	    return;
       }
 
@@ -8238,9 +8257,9 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       if (load_module(type_, parser_errors)) {
 
 	      // Try again to find the module type
-	    mod = pform_modules.find(type_);
-	    if (mod != pform_modules.end()) {
-		  elaborate_scope_mod_(des, mod->second, sc);
+	    mod = find_module_type_(type_, sc);
+	    if (mod) {
+		  elaborate_scope_mod_(des, mod, sc);
 		  return;
 	    }
 
