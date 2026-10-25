@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_semaphore_negative_initial_count.v:35: $finish called at 3 (1s)
