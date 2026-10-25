@@ -307,6 +307,13 @@ extern void ivl_unsafe_defer_interface_driver(
       NetNet*signal, const LineInfo*location);
 extern void ivl_note_interface_continuous_member(
       NetNet*signal, const LineInfo*location);
+extern void ivl_register_clocking_output_variable(
+      NetNet*signal, perm_string clocking_block);
+extern void ivl_note_clocking_output_continuous_write(
+      NetNet*signal, const LineInfo*location);
+extern bool ivl_reject_clocking_output_procedural_continuous(
+      Design*des, const NetAssign_*lval, const LineInfo*location,
+      const char*kind);
 
 static inline bool gn_system_verilog(void)
 {
