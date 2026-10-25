@@ -1,0 +1,2 @@
+tests/1800_audit/c10/neg/n10_03_var_proc_and_assign.sv:1: error: Cannot perform procedural assignment to variable 'v' because it is also continuously assigned.
+Elaboration failed

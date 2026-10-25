@@ -1,0 +1,3 @@
+input/d6_const_ref_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d6_const_ref_variable_default.sv:4: error: Missing/empty argument 1 ('x') in call to function cr: the formal has no default value (IEEE 1800-2017 13.5.3).
+2 error(s) during elaboration.

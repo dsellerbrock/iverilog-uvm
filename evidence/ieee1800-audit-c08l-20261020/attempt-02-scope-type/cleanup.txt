@@ -1,0 +1,1 @@
+After copying source snapshots, toolchain hashes, compiler version, timestamps, tables, command logs, and Slurm stdout, job 3494 was no longer queued or running. Removed only /home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type (65,183 bytes). Shared toolchain inputs were left untouched.

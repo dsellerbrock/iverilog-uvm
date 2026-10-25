@@ -1,0 +1,9 @@
+Purpose: Probe the separate local-variable initializer copies required for the two semantic leading clocks in the IEEE example.
+Standard: IEEE 1800-2017 §16.13.7 (printed p. 455) and IEEE 1800-2023 §16.13.7 (printed p. 475).
+Local source checkout: branch m7-1800-audit-c08, HEAD 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e.
+Current origin/main: fb584a251dd4cc91e56a75be662ccd5ee05c64e9.
+The probe source is new and is preserved at tests/1800_audit/c16/p16_13_7_local_init_multiclock.sv.
+Compiler: pinned shared toolchain /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb. Relevant assertion/elaboration source files did not change from that compiler commit to origin/main.
+Slurm job: 3596; partition verilog; 1 CPU; 1 GiB; 10 minute limit. Prior Clause 35 probe jobs completed within seconds with the same toolchain and resources.
+Runner: run.sbatch; compile and simulation each have a 30 second timeout.
+Input and runner SHA-256 values are in input-sha256.txt.

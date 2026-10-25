@@ -1,0 +1,2 @@
+aa219c94521e9845aedc9ce9fb3b9d3c410543f2d2788ae6a8d8e58ca8a6797f  tests/1800_audit/c12/r12_07_diag_x_repeat.sv
+aa219c94521e9845aedc9ce9fb3b9d3c410543f2d2788ae6a8d8e58ca8a6797f  tests/1800_audit/c12/r12_07_x_repeat.sv

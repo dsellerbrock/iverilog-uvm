@@ -1,0 +1,6 @@
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:12: error: Invalid module item.

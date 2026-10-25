@@ -1,0 +1,4 @@
+source_bytes=1216192383
+install_bytes=192199564
+input_bytes=230704062
+freed_bytes=1639096009

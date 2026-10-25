@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08p-20261020-01/input/tests/1800_audit/c08/p08_20_spec_e3.sv:6: error: Method `h' overrides an inherited final method (IEEE 1800-2023 8.20).
+1 error(s) during elaboration.

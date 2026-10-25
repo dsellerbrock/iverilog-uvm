@@ -843,6 +843,8 @@ class NetNet  : public NetObj, public PortType {
       bool get_const() const { return is_const_; }
       void set_ref_static(bool value) { is_ref_static_ = value; }
       bool get_ref_static() const { return is_ref_static_; }
+      void set_virtual_interface(bool value) { is_virtual_interface_ = value; }
+      bool is_virtual_interface() const { return is_virtual_interface_; }
 
       bool get_scalar() const;
 
@@ -1104,6 +1106,7 @@ class NetNet  : public NetObj, public PortType {
         // Whether the net is variable declared with the const keyword.
       bool is_const_ = false;
       bool is_ref_static_ = false;
+      bool is_virtual_interface_ = false;
 
 	/* Packed slice dimensions are retained for index conversion. Slice
 	 * widths are inexpensive products of these dimensions and are derived
@@ -1373,6 +1376,10 @@ class NetScope : public Definitions, public Attrib {
       NetNet* set_signal_alias(perm_string name, NetNet*net);
       void restore_signal_alias(perm_string name, NetNet*prev);
 
+      // Alias statements in one scope may not connect the same nets more
+      // than once. Keep the pairs seen while elaborating this scope.
+      bool record_alias_pair(const NetNet*left, const NetNet*right);
+
       // I2 (Phase 62m): post-elab fix-up pass.  Iterates signals_map_
       // and replaces the net_type of NetNets that were emitted with a
       // logic-vector fallback (because their typeref'd class had not
@@ -1389,6 +1396,11 @@ class NetScope : public Definitions, public Attrib {
 	 * and finalized all structural nodes. Returns the number of Link records
 	 * discarded. */
       size_t release_signal_connectivity();
+
+    private:
+      std::vector<std::pair<const NetNet*, const NetNet*>> alias_pairs_;
+
+    public:
 
       netclass_t* find_class(const Design*des, perm_string name);
 
@@ -1434,9 +1446,9 @@ class NetScope : public Definitions, public Attrib {
       { return modport_names_; }
 	// M13: let declarations (IEEE 1800-2017 11.13) visible in this
 	// scope, copied from the pform Module at scope elaboration.
-	// find_let walks up lexically but stops at the module boundary.
+	// find_let walks up lexically through the compilation-unit boundary.
       void add_let(perm_string nm, PLet*let) { lets_[nm] = let; }
-      PLet* find_let(perm_string nm) const;
+      PLet* find_let(const Design*des, perm_string nm) const;
       inline TYPE type() const { return type_; }
       void print_type(std::ostream&) const;
 
@@ -3931,7 +3943,7 @@ class NetCase  : public NetProc {
               bool quality_if = false);
       ~NetCase() override;
 
-      void set_case(unsigned idx, NetExpr*ex, NetProc*st);
+      void set_case(unsigned idx, NetExpr*ex, NetProc*st, unsigned group);
 
       void prune();
 
@@ -3943,6 +3955,7 @@ class NetCase  : public NetProc {
 
       inline const NetExpr*expr(unsigned idx) const { return items_[idx].guard;}
       inline const NetProc*stat(unsigned idx) const { return items_[idx].statement; }
+      inline unsigned group(unsigned idx) const { return items_[idx].group; }
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
@@ -3974,9 +3987,10 @@ class NetCase  : public NetProc {
       bool quality_if_;
 
       struct Item {
-	    inline Item() : guard(0), statement(0) { }
+	    inline Item() : guard(0), statement(0), group(0) { }
 	    NetExpr*guard;
 	    NetProc*statement;
+	    unsigned group;
       };
 
       NetExpr* expr_;
@@ -5951,6 +5965,10 @@ class NetESFunc  : public NetExpr {
                   /* Available in all version of Verilog/SystemVerilog. */
                 ITOR   = 0x00020001,  /* $itor takes one argument. */
                 RTOI   = 0x00020002,  /* $rtoi takes one argument. */
+                BITSTOR = 0x00020029,  /* $bitstoreal takes one argument. */
+                REALTOB = 0x0002002a,  /* $realtobits takes one argument. */
+                SHORTTOB= 0x0002002b,  /* $shortrealtobits takes one argument. */
+                BITSTOS = 0x0002002c,  /* $bitstoshortreal takes one argument. */
                   /* Available in Verilog 2005 and later. */
                 ACOS   = 0x00020003,  /* $acos takes one argument. */
                 ACOSH  = 0x00020004,  /* $acosh takes one argument. */
@@ -6019,6 +6037,7 @@ class NetESFunc  : public NetExpr {
 
       static NetEConst* evaluate_rtoi_(const NetExpr*arg);
       static NetECReal* evaluate_itor_(const NetExpr*arg);
+      static NetExpr* evaluate_real_conversion_(ID id, const NetExpr*arg);
 
       NetEConst* evaluate_clog2_(const NetExpr*arg) const;
 
@@ -6454,13 +6473,27 @@ class Design {
 	// detected. It prevents code being emitted.
       unsigned errors;
 
-      void fork_enter() { in_fork++; };
-      void fork_exit() { in_fork--; };
-      bool is_in_fork() { return in_fork != 0; }
-      unsigned fork_depth() const { return in_fork; }
-      void restore_fork_depth(unsigned depth) { in_fork = depth; }
+      void loop_enter() { loop_depth++; }
+      void loop_exit() { loop_depth--; }
+      void fork_enter() { fork_loop_depths.push_back(loop_depth); }
+      void fork_exit() { fork_loop_depths.pop_back(); }
+      bool is_in_fork() const { return !fork_loop_depths.empty(); }
+      unsigned fork_depth() const { return fork_loop_depths.size(); }
+      bool jump_controls_outer_loop() const
+      {
+	    return is_in_fork() && loop_depth <= fork_loop_depths.back();
+      }
+      const std::vector<unsigned>& fork_loop_context() const
+      {
+	    return fork_loop_depths;
+      }
+      void restore_fork_loop_context(const std::vector<unsigned>&context)
+      {
+	    fork_loop_depths = context;
+      }
 
-      unsigned int in_fork = 0;
+      unsigned loop_depth = 0;
+      std::vector<unsigned> fork_loop_depths;
 
 	/* Unpacked-struct member defaults are validated when their declaring
 	 * pform type is elaborated, even when no variable uses the type or a

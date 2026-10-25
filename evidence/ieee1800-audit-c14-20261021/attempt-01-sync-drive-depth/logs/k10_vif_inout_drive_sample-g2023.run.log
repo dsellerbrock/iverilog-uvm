@@ -1,0 +1,3 @@
+EARLY 7000 cb=00 signal=00
+LATE 16000 signal=77
+input/k10_vif_inout_drive_sample.sv:30: $finish called at 17000 (1ps)

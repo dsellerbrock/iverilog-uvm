@@ -1917,9 +1917,11 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       int any_flag = allocate_flag();
       int multi_flag = allocate_flag();
+      int item_flag = allocate_flag();
       int first_match_word = allocate_word();
       unsigned*body_label = count ? calloc(count, sizeof(unsigned)) : 0;
       int quality_if = ivl_stmt_case_is_quality_if(net);
+      unsigned current_item = (unsigned)-1;
 
       show_stmt_file_line(net, "Case statement.");
 
@@ -1938,12 +1940,21 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	   the per-item match result into any_flag/multi_flag. */
       for (idx = 0 ;  idx < count ;  idx += 1) {
 	    ivl_expr_t cex = ivl_stmt_case_expr(net, idx);
+	    unsigned item = ivl_stmt_case_group(net, idx);
 	    unsigned lab_after, lab_already_matched;
 	    int result_flag = 4;
 
 	    if (cex == 0) {
 		  default_case = idx;
 		  continue;
+	    }
+
+	      /* The target API exposes each comma-separated label as an entry.
+	         The case group metadata lets this warning count only the first
+	         matching label from each source case_item. */
+	    if (item != current_item) {
+		  fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", item_flag);
+		  current_item = item;
 	    }
 
 	    body_label[idx] = local_count++;
@@ -1994,11 +2005,16 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
 		    thread_count, lab_after, result_flag);
 
-	      /* This item matched. If any_flag is already set, a
-		 previous item also matched, so this is (at least) a
-		 second match: fold that into multi_flag before
-		 marking any_flag. */
+	      /* Count at most one matching expression per case_item. */
+	    lab_already_matched = local_count++;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+		    thread_count, lab_already_matched, item_flag);
 	    fprintf(vvp_out, "    %%flag_or %d, %d;\n", multi_flag, any_flag);
+	    fprintf(vvp_out, "    %%flag_set/imm %d, 1;\n", item_flag);
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+		    lab_already_matched);
+
+	      /* Preserve the first matching label for first-match dispatch. */
 	    lab_already_matched = local_count++;
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
 		    thread_count, lab_already_matched, any_flag);
@@ -2052,6 +2068,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	   nested unique case can safely reuse them. */
       clr_flag(any_flag);
       clr_flag(multi_flag);
+      clr_flag(item_flag);
       clr_word(first_match_word);
 
 	/* Nothing matched: fall through to the default (if any) or

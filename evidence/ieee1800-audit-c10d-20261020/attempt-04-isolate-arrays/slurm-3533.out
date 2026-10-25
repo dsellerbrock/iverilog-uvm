@@ -1,0 +1,94 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh7bb95fc0" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+4d9bc4ebcbd2a72237ca5782f2d3ec097e4299a1ef84112a241d58b67379ff9d  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_concat_no_context.sv
+71aa17cfc459c89de87a8e8909273c0025e919b1ba86a9d3ed36b80ecd945719  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_fixed_size_mismatch.sv
+ffef98071e0f7f2598cde32085bfaca9aa76349c0b3c80fe6a185bd820573d33  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_nested_unpacked_concat.sv
+43d17b26e270807e027e1826c403a013f474c98f3b1c47aa74a6d1340146be43  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_pattern_array_item_type.sv
+e6d49e804d6182ec48abb7d0140985d2c4c273bd1b7f8ca2e7553eaf1e848ce0  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_fixed_array_item_control.sv
+825bdd8790c34f8ef5e93ba1209f562eb38e508e0bee38ee1c5483bda5ea3b8a  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_nested_string_concat_item.sv
+741bd4a946cbd3ee4a23ddbc4514d31fd948add169fde114748602b3ee6c9eab  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_queue_fixed_mix.sv
+82b55a30f11250849a9de75ea30d60baae0a34ffae2b9653616a796dc8737267  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_queue_item_control.sv
+25b9060bed906fced3e30f51252ee564281071791457d7207a2324adce0746d9  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_uconcat.sv
+8d4d3825b9227ba96537b5853163f34f5defa03311d56b416bbb63b169b16119  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_vector_concat_array_item.sv
+e4f408b9566f9d6073bc34eef95a2fd3ea107d1498bac9725a4ae36fb5963ec1  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_vector_concat_control.sv
+p10_10_uconcat-2017 compile_rc=0
+p10_10_uconcat-2017 run_rc=0
+U1 1 2 3
+U2 5 9 8
+U4 0
+U6 2 c
+U7 06 0f
+p10_10_queue_fixed_mix-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_queue_fixed_mix.sv:8: error: this expression (kind 18) cannot be evaluated in a vector context.
+error: Code generation had 1 error(s).
+p10_10_queue_item_control-2017 compile_rc=0
+p10_10_queue_item_control-2017 run_rc=0
+Q 2 7 8
+p10_10_fixed_array_item_control-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_fixed_array_item_control.sv:5: error: this expression (kind 18) cannot be evaluated in a vector context.
+error: Code generation had 1 error(s).
+p10_10_vector_concat_control-2017 compile_rc=0
+p10_10_vector_concat_control-2017 run_rc=0
+V 258
+p10_10_vector_concat_array_item-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_vector_concat_array_item.sv:4: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+1 error(s) during elaboration.
+p10_10_nested_string_concat_item-2017 compile_rc=0
+p10_10_nested_string_concat_item-2017 run_rc=0
+SQ 4 S1 element 0 element 3 is S2
+n10_10_fixed_size_mismatch-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_fixed_size_mismatch.sv:3: error: unpacked array concatenation expects 3 element(s), found 2.
+Elaboration failed
+n10_10_concat_no_context-2017 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+2 error(s) during elaboration.
+n10_10_nested_unpacked_concat-2017 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_nested_unpacked_concat.sv:3: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_nested_unpacked_concat.sv:3: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+2 error(s) during elaboration.
+n10_10_pattern_array_item_type-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_pattern_array_item_type.sv:6: error: Array B needs an array index here.
+1 error(s) during elaboration.
+p10_10_uconcat-2023 compile_rc=0
+p10_10_uconcat-2023 run_rc=0
+U1 1 2 3
+U2 5 9 8
+U4 0
+U6 2 c
+U7 06 0f
+p10_10_queue_fixed_mix-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_queue_fixed_mix.sv:8: error: this expression (kind 18) cannot be evaluated in a vector context.
+error: Code generation had 1 error(s).
+p10_10_queue_item_control-2023 compile_rc=0
+p10_10_queue_item_control-2023 run_rc=0
+Q 2 7 8
+p10_10_fixed_array_item_control-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_fixed_array_item_control.sv:5: error: this expression (kind 18) cannot be evaluated in a vector context.
+error: Code generation had 1 error(s).
+p10_10_vector_concat_control-2023 compile_rc=0
+p10_10_vector_concat_control-2023 run_rc=0
+V 258
+p10_10_vector_concat_array_item-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/p10_10_vector_concat_array_item.sv:4: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+1 error(s) during elaboration.
+p10_10_nested_string_concat_item-2023 compile_rc=0
+p10_10_nested_string_concat_item-2023 run_rc=0
+SQ 4 S1 element 0 element 3 is S2
+n10_10_fixed_size_mismatch-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_fixed_size_mismatch.sv:3: error: unpacked array concatenation expects 3 element(s), found 2.
+Elaboration failed
+n10_10_concat_no_context-2023 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_concat_no_context.sv:5: error: Concatenation operand "'sd9" has indefinite width.
+2 error(s) during elaboration.
+n10_10_nested_unpacked_concat-2023 compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_nested_unpacked_concat.sv:3: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_nested_unpacked_concat.sv:3: error: A concatenation cannot be elaborated in an assignment context of type `netvector_t:bool signed[31:0]'.
+2 error(s) during elaboration.
+n10_10_pattern_array_item_type-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-04/source/n10_10_pattern_array_item_type.sv:6: error: Array B needs an array index here.
+1 error(s) during elaboration.

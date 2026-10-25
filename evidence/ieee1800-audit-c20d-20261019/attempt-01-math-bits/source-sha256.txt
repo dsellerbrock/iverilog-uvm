@@ -1,0 +1,1 @@
+cd61b116c171d629de1c6e3e95d4f8f84d40b94879e8142d6a8e3a17f8aa5d1b  tests/1800_audit/c20/p20_08a_math_bits.sv

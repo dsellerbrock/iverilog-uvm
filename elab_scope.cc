@@ -4437,6 +4437,40 @@ static void validate_class_type_parameter_restrictions_(
       }
 }
 
+static void validate_module_type_parameter_restrictions_(
+	Design*des, const Module*module, NetScope*module_scope)
+{
+      for (std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+		   module->parameters.begin()
+	   ; param != module->parameters.end(); ++param) {
+	    if (!param->second || !param->second->type_flag)
+		  continue;
+
+	    PScope::typedef_map_t::const_iterator declared =
+		  module->typedefs.find(param->first);
+	    if (declared == module->typedefs.end() || !declared->second)
+		  continue;
+	    const type_parameter_t*type_parameter = dynamic_cast<const type_parameter_t*>(
+		  declared->second->get_data_type());
+	    if (!type_parameter
+		|| type_parameter->restriction == type_parameter_restriction_t::NONE)
+		  continue;
+
+	    ivl_type_t actual_type = 0;
+	    module_scope->get_parameter(des, param->first, actual_type);
+	    if (!actual_type || type_parameter_matches_restriction_(
+		  actual_type, type_parameter->restriction))
+		  continue;
+
+	    cerr << param->second->get_fileline()
+		 << ": error: Type argument for module type parameter `"
+		 << param->first << "' does not satisfy the `type "
+		 << type_parameter_restriction_name_(type_parameter->restriction)
+		 << "' restriction." << endl;
+	    des->errors += 1;
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -5385,6 +5419,10 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
       scope->add_typedefs(&typedefs);
       scope->add_nettypes(des, &nettypes);
 
+      for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+		 ; lt != lets.end() ; ++ lt)
+	    scope->add_let(lt->first, lt->second);
+
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
@@ -5407,6 +5445,26 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
+	// IEEE 1800-2017/2023 25.5 requires simple modport ports to name
+	// signals declared by this interface, not names found in an enclosing
+	// lexical scope or implicit nets.
+      if (is_interface) {
+	    for (std::map<perm_string,PModport*>::const_iterator mp = modports.begin()
+		       ; mp != modports.end() ; ++ mp) {
+		  if (!mp->second) continue;
+		  for (std::map<perm_string,PModport::simple_port_t>::const_iterator
+			     sp = mp->second->simple_ports.begin()
+			     ; sp != mp->second->simple_ports.end() ; ++ sp) {
+			if (sp->second.second == nullptr && wires.count(sp->first) == 0) {
+			      cerr << get_fileline() << ": error: Modport port '"
+				   << sp->first << "' is not declared in interface '"
+				   << mod_name() << "'." << endl;
+			      des->errors += 1;
+			}
+		  }
+	    }
+      }
+
 	// M12: record modport names on interface scopes for VPI —
 	// M12-6 adds each modport's port list with VPI direction
 	// codes (ref ports map to vpiNoDirection).
@@ -5433,6 +5491,11 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    }
       }
 
+	// Compilation-unit lets are visible in each design element in that
+	// compilation unit; local lets take precedence over them.
+	for (std::map<perm_string,PLet*>::const_iterator lt = unit_lets.begin()
+	     ; lt != unit_lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
 	// M13: make let declarations visible to expression elaboration.
       for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
 		 ; lt != lets.end() ; ++ lt)
@@ -5466,6 +5529,10 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	// containing scope and meant for me.
 
       replace_scope_parameters(des, scope, *this, replacements);
+
+	// Type parameter overrides are now installed. Check restricted types
+	// before elaborating declarations that use those parameters.
+      validate_module_type_parameter_restrictions_(des, this, scope);
 
       elaborate_scope_enumerations(des, scope, enum_sets);
 
@@ -5871,16 +5938,20 @@ bool PGenerate::generate_scope_condit_(Design*des, NetScope*container, bool else
 
 bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 {
-      NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
-      NetEConst*case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
-      if (case_value_co == 0) {
+      bool type_case = type_operator_reference(loop_test) != 0;
+      NetEConst*case_value_co = 0;
+      if (!type_case) {
+	    NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
+	    case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
+      }
+      if (!type_case && case_value_co == 0) {
 	    cerr << get_fileline() << ": error: Cannot evaluate genvar case"
 		 << " expression: " << *loop_test << endl;
 	    des->errors += 1;
 	    return false;
       }
 
-      if (debug_scopes)
+      if (debug_scopes && !type_case)
 	    cerr << get_fileline() << ": debug: Generate case "
 		 << "switch value=" << case_value_co->value() << endl;
 
@@ -5901,6 +5972,27 @@ bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 
 	    bool match_flag = false;
 	    for (unsigned idx = 0 ; idx < item->item_test.size() && !match_flag ; idx +=1 ) {
+	      if (type_case) {
+		    if (!type_operator_reference(item->item_test[idx])) {
+			  cerr << item->item_test[idx]->get_fileline()
+			       << ": error: A type() generate case expression "
+			       << "requires type() case item expressions (IEEE "
+			       << "1800-2017 6.23)." << endl;
+			  des->errors += 1;
+			  delete case_value_co;
+			  return false;
+		    }
+
+		    if (!elaborate_type_operator_match(des, container, loop_test,
+						       item->item_test[idx],
+						       *item->item_test[idx],
+						       match_flag)) {
+			  delete case_value_co;
+			  return false;
+		    }
+		    continue;
+	      }
+
 		  NetExpr*item_value_ex = elab_and_eval(des, container,
                                                         item->item_test[idx],
                                                         -1, true);

@@ -1,0 +1,23 @@
+	Command being timed: "bash /home/dsell/slurm-runs/iverilog-uvm-issue769-followup-20261024/A3/m9-769-rebased-t0-t1-20261024-140420/job.cmd"
+	User time (seconds): 407.16
+	System time (seconds): 32.03
+	Percent of CPU this job got: 236%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:05.41
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1680040
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 938
+	Minor (reclaiming a frame) page faults: 22215549
+	Voluntary context switches: 43757
+	Involuntary context switches: 7371
+	Swaps: 0
+	File system inputs: 422328
+	File system outputs: 1746928
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

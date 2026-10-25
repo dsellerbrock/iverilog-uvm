@@ -1,0 +1,26 @@
+assign/deassign -g2017 compile rc=0
+/tmp/m9-769-class-probe-20261024/run-assign.sh: line 7:  2192 Abort trap: 6           "$VVP" "$TMPDIR/assign-$edition.vvp" > "$TMPDIR/assign-$edition.runtime.stdout" 2> "$TMPDIR/assign-$edition.runtime.stderr"
+assign/deassign -g2017 runtime rc=134
+Assertion failed: (sig), function of_CASSIGN_VEC4_OFF, file vthread.cc, line 15757.
+assign/deassign -g2023 compile rc=0
+/tmp/m9-769-class-probe-20261024/run-assign.sh: line 7:  2201 Abort trap: 6           "$VVP" "$TMPDIR/assign-$edition.vvp" > "$TMPDIR/assign-$edition.runtime.stdout" 2> "$TMPDIR/assign-$edition.runtime.stderr"
+assign/deassign -g2023 runtime rc=134
+Assertion failed: (sig), function of_CASSIGN_VEC4_OFF, file vthread.cc, line 15757.
+        0.27 real         0.08 user         0.04 sys
+            11616256  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                8992  page reclaims
+                  75  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  16  voluntary context switches
+                 481  involuntary context switches
+            30420400  instructions retired
+            18253215  cycles elapsed
+             1606016  peak memory footprint

@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_22_class_to_int.sv:1: error: A class handle cannot be assigned to a non-class target (IEEE 1800-2017 8.4).
+Elaboration failed

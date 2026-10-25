@@ -1,0 +1,5 @@
+485	OPEN	[IEEE 1800] §§7.6/7.8 — Validate variable-size associative pattern values transactionally		2026-10-08T15:24:54Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z

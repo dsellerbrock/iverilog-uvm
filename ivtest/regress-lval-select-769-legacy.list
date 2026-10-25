@@ -1,0 +1,18 @@
+# IEEE 1800-2017/2023 §10.6 selected variable targets and legal controls.
+sv_assign_var_select_fail CE,-g2017,-s,sv_assign_var_select_fail ivltests gold=sv_assign_var_select_fail_2017.gold
+sv_assign_var_select_fail_2023 CE,-g2023,-s,sv_assign_var_select_fail ivltests gold=sv_assign_var_select_fail_2023.gold
+sv_force_var_select_fail CE,-g2017,-s,sv_force_var_select_fail ivltests gold=sv_force_var_select_fail_2017.gold
+sv_force_var_select_fail_2023 CE,-g2023,-s,sv_force_var_select_fail ivltests gold=sv_force_var_select_fail_2023.gold
+sv_force_var_select_nested_legal CO,-g2017,-tnull,-s,sv_force_var_select_nested_legal ivltests
+sv_force_var_select_nested_legal_2023 CO,-g2023,-tnull,-s,sv_force_var_select_nested_legal ivltests
+sv_force_var_select_nested_fail CE,-g2017,-s,sv_force_var_select_nested_fail ivltests gold=sv_force_var_select_nested_fail_2017.gold
+sv_force_var_select_nested_fail_2023 CE,-g2023,-s,sv_force_var_select_nested_fail ivltests gold=sv_force_var_select_nested_fail_2023.gold
+sv_force_dyn_nested_element_unsupported CE,-g2017,-s,sv_force_dyn_nested_element_unsupported ivltests gold=sv_force_dyn_nested_element_unsupported_2017.gold
+sv_force_dyn_nested_element_unsupported_2023 CE,-g2023,-s,sv_force_dyn_nested_element_unsupported ivltests gold=sv_force_dyn_nested_element_unsupported_2023.gold
+sv_force_assign_legal_targets normal,-g2017,-s,sv_force_assign_legal_targets ivltests gold=sv_force_assign_legal_targets.gold
+sv_force_assign_legal_targets_2023 normal,-g2023,-s,sv_force_assign_legal_targets ivltests gold=sv_force_assign_legal_targets.gold
+proc_cont_var_select_1364_ext normal,-s,proc_cont_var_select_1364_ext ivltests gold=proc_cont_var_select_1364_ext.gold
+sv_force_array_word normal,-g2012 ivltests gold=sv_force_array_word.gold
+sv_packed_subfield_release normal,-g2017,-s,test ivltests gold=sv_packed_subfield_release.gold
+sv_force_packed_bank_rhs_live normal,-g2017,-s,top ivltests gold=sv_force_packed_bank_rhs_live.gold
+sv_force_partial_live_overlap CE,-g2012 ivltests gold=sv_force_partial_live_overlap.gold

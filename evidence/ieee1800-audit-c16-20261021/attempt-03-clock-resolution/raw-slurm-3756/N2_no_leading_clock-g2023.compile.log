@@ -1,0 +1,1 @@
+input/N2_no_leading_clock.sv:9: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).

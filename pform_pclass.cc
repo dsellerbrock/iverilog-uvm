@@ -343,6 +343,23 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   list<data_type_t*>*interface_types,
 				   bool base_default)
 {
+      // IEEE 1800-2017/2023 9.7 defines process as a built-in class that
+      // cannot be extended. Bare class names in an extends clause are
+      // represented as type_parameter_t until class lookup is complete.
+      if (base_type) {
+	    const type_parameter_t*base_name =
+		  dynamic_cast<const type_parameter_t*>(base_type);
+	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(base_type);
+	    if ((base_name && base_name->name == lex_strings.make("process"))
+		|| (base_ref && base_ref->typedef_ref()
+		    && base_ref->typedef_ref()->name == lex_strings.make("process"))) {
+		  cerr << loc.get_fileline()
+		       << ": error: The built-in process class cannot be extended."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
+
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
       pform_enclosing_classes_.push_back(pform_cur_class);
@@ -622,6 +639,19 @@ void pform_bind_extern_func(PFunction*func)
       map<perm_string,PFunction*>::iterator it = pform_cur_class->funcs.find(name);
       if (it != pform_cur_class->funcs.end()) {
 	    PFunction*proto = it->second;
+	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
+	    const std::vector<pform_tf_port_t>*def_ports = func->peek_ports();
+	    size_t proto_count = proto_ports && !proto_ports->empty()
+		  ? proto_ports->size() - 1 : 0; // Exclude function return value.
+	    size_t def_count = def_ports && !def_ports->empty()
+		  ? def_ports->size() - 1 : 0;
+	    if (proto_count != def_count) {
+		  cerr << func->get_fileline() << ": error: Out-of-block definition of function `"
+		       << name << "' has " << def_count
+		       << " arguments, but its extern prototype has " << proto_count
+		       << " (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+	    }
 	    if (!func->method_of() && proto->method_of())
 		  func->set_method_type_only(proto->method_of());
 	    if (!func->is_virtual_method() && proto->is_virtual_method())
@@ -650,6 +680,17 @@ void pform_bind_extern_task(PTask*task)
       map<perm_string,PTask*>::iterator it = pform_cur_class->tasks.find(name);
       if (it != pform_cur_class->tasks.end()) {
 	    PTask*proto = it->second;
+	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
+	    const std::vector<pform_tf_port_t>*def_ports = task->peek_ports();
+	    size_t proto_count = proto_ports ? proto_ports->size() : 0;
+	    size_t def_count = def_ports ? def_ports->size() : 0;
+	    if (proto_count != def_count) {
+		  cerr << task->get_fileline() << ": error: Out-of-block definition of task `"
+		       << name << "' has " << def_count
+		       << " arguments, but its extern prototype has " << proto_count
+		       << " (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+	    }
 	    if (!task->method_of() && proto->method_of())
 		  task->set_method_type_only(proto->method_of());
 	    if (!task->is_virtual_method() && proto->is_virtual_method())

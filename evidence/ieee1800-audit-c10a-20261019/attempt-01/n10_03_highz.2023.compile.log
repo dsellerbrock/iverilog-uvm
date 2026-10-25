@@ -1,0 +1,2 @@
+tests/1800_audit/c10/neg/n10_03_highz.sv:1: syntax error
+tests/1800_audit/c10/neg/n10_03_highz.sv:1: error: Syntax error in left side of continuous assignment.

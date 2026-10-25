@@ -1030,6 +1030,7 @@ struct ivl_statement_s {
 		  ivl_expr_t cond;
 		  ivl_expr_t*case_ex;
 		  struct ivl_statement_s*case_st;
+		  unsigned*case_group;
 		  unsigned ncase;
 		  unsigned char quality;
 		  bool quality_if;

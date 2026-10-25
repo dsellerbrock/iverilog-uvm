@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/neg/n08_19_const_global_reassign.sv:4: error: Global constant class property `max_size' may be initialized only in its declaration (IEEE 1800 8.19).
+1 error(s) during elaboration.

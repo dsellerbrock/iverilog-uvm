@@ -1,0 +1,39 @@
+Open+closed issue dedupe captured 2026-10-20T15:37:54.543692+00:00.
+Repository: dsellerbrock/iverilog-uvm.
+Complete issue inventory: dedupe-all-issues.json (347 issues: 220 OPEN, 127 CLOSED).
+Exact GitHub issue searches:
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'implication constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'if else constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search '18.5.6'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search '18.5.7'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'dangling else constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'constraint solution uniform'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'real predicate constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'real implication'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'constraint probability bias'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 100 --search 'uniform random constraint'
+(no search results)
+
+Directly inspected possible overlaps:
+#417 CLOSED — Preserve uniformity for constrained dynamic-array tuples. Its stated gap is uniformity across legal dynamic-array sizes/value tuples. I1 in this probe uses two scalar 2-bit variables; report any I1 skew to the lead for dedupe before any filing.
+#463 OPEN — Expand rand real beyond scalar finite intervals; its description is remaining real randomization forms such as arrays/aggregates and distribution. State-real predicate case P1 isolates predicate expression support; P2 exercises rand-real predicate support within scalar interval bounds.
+#840 OPEN — rand real constrained by a discrete inside value set; its probe is specifically inside membership and the finite-real-interval no-feasible diagnostic. This probe avoids inside constraints, so it is not an exact duplicate. If P2 returns that diagnostic, ask the lead to decide overlap with #463/#840 before filing.

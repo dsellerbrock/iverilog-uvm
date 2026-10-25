@@ -2837,10 +2837,10 @@ static void elaborate_function_outside_caller_fork_(Design*des,
 						    const PFunction*pfunc,
 						    NetScope*scope)
 {
-      unsigned saved_fork_depth = des->fork_depth();
-      des->restore_fork_depth(0);
+      std::vector<unsigned> saved_fork_context = des->fork_loop_context();
+      des->restore_fork_loop_context(std::vector<unsigned>());
       pfunc->elaborate(des, scope);
-      des->restore_fork_depth(saved_fork_depth);
+      des->restore_fork_loop_context(saved_fork_context);
 }
 
 static NetScope* find_lazy_function_scope_(Design*des, NetScope*scope,
@@ -5554,21 +5554,6 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       ivl_variable_type_t r_type = right_->expr_type();
 
       if (l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS) {
-	      // Compile-progress fallback: sub-expression resolved as
-	      // class type (common for unresolved method returns).
-	      // Treat as integer and continue. A literal `null` operand
-	      // is never a stubbed method return, so it gets the hard
-	      // error in every mode — silently continuing let width-0
-	      // null expressions deep into elaboration (br_gh440 abort).
-	    if (gn_system_verilog()
-		&& !dynamic_cast<const PENull*>(left_)
-		&& !dynamic_cast<const PENull*>(right_)) {
-		  expr_type_ = IVL_VT_LOGIC;
-		  expr_width_ = 32;
-		  min_width_ = 32;
-		  signed_flag_ = true;
-		  return fix_width_(mode);
-	    }
 	    cerr << get_fileline() << ": error: "
 	         << "Class/null is not allowed with the '"
 	         << human_readable_op(op_) << "' operator." << endl;
@@ -5806,6 +5791,17 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*lp =  left_->elaborate_expr(des, scope, l_width, flags);
       NetExpr*rp = right_->elaborate_expr(des, scope, r_width, flags);
       if ((lp == 0) || (rp == 0)) {
+	    delete lp;
+	    delete rp;
+	    return 0;
+      }
+
+      if ((lp->expr_type() == IVL_VT_CLASS || rp->expr_type() == IVL_VT_CLASS)
+	  && !dynamic_cast<NetENull*>(lp) && !dynamic_cast<NetENull*>(rp)) {
+	    cerr << get_fileline() << ": error: "
+	         << "Class handle is not allowed with the '"
+	         << human_readable_op(op_) << "' operator." << endl;
+	    des->errors += 1;
 	    delete lp;
 	    delete rp;
 	    return 0;
@@ -6059,7 +6055,9 @@ const type_reference_t* type_operator_reference(const PExpr*expr)
  * checks total width/element-type -- not the member-by-member matching
  * 6.22.1 actually requires -- so accepting those risks a *wrong*
  * "matching" verdict rather than merely an incomplete one. Those kinds
- * are sorried instead (see the sv_type_operator1.v test).
+ * are sorried instead (see the sv_type_operator1.v test). Packed vector
+ * dimensions are checked separately below because packed_types_equivalent
+ * intentionally compares only flattened representation.
  */
 static bool type_operator_kind_supported_(ivl_type_t t)
 {
@@ -6094,6 +6092,23 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
 		 << "6.22.1 is not modeled for these operand shapes)." << endl;
 	    des->errors += 1;
 	    return false;
+      }
+
+      const netvector_t* lv = dynamic_cast<const netvector_t*>(lt);
+      const netvector_t* rv = dynamic_cast<const netvector_t*>(rt);
+      if (lv && rv) {
+	    const netranges_t& left_dims = lv->packed_dims();
+	    const netranges_t& right_dims = rv->packed_dims();
+	    if (left_dims.size() != right_dims.size()) {
+		  match = false;
+		  return true;
+	    }
+	    for (size_t idx = 0; idx < left_dims.size(); idx += 1) {
+		  if (left_dims[idx] != right_dims[idx]) {
+			match = false;
+			return true;
+		  }
+	    }
       }
 
       match = (lt == rt) || lt->type_equivalent(rt);
@@ -8230,7 +8245,16 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
+      stream_uarray_op_info_t s_info;
+      int s_have = stream_uarray_operand_(des, scope, inner_, s_info);
+      if (s_have < 0)
+            return nullptr;
+      unsigned w;
+      if (s_have > 0)
+            w = (unsigned)s_info.elem_type->packed_width()
+                  * s_info.elem_count;
+      else
+            w = inner_->test_width(des, scope, m);
       if (w == 0) {
             cerr << get_fileline() << ": error: streaming concatenation "
                   "requires a known-width source expression." << endl;
@@ -8248,7 +8272,9 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
       unsigned slice = resolve_slice_(des, scope);
       if (slice == 0) return nullptr;
 
-      NetExpr*body = inner_->elaborate_expr(des, scope, w, NO_FLAGS);
+      NetExpr*body = s_have > 0
+            ? stream_uarray_concat_(this, s_info)
+            : inner_->elaborate_expr(des, scope, w, NO_FLAGS);
       if (!body) return nullptr;
 
       if (w > lv_width) {
@@ -11054,6 +11080,15 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    return cp;
       }
 
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
+	    PExpr*sub = let_clone_expr_(cast->cast_base(), subst);
+	    if (sub == 0) return 0;
+	    PECastType*cp = new PECastType(cast->cast_target(), sub,
+					   cast->truncate_real_to_integral());
+	    cp->set_line(*e);
+	    return cp;
+      }
+
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(e)) {
 	    PExpr*sub = let_clone_expr_(un->get_expr(), subst);
 	    if (sub == 0) return 0;
@@ -11107,6 +11142,33 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  if (rep == 0) return 0;
 	    }
 	    PEConcat*cp = new PEConcat(parms, rep);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(e)) {
+	    PExpr*size = let_clone_expr_(cast->cast_size(), subst);
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (size == 0 || base == 0) { delete size; delete base; return 0; }
+	    PECastSize*cp = new PECastSize(size, base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (base == 0) return 0;
+	    PECastType*cp = new PECastType(cast->cast_target(), base,
+					   cast->truncate_real_to_integral());
+	    if (cast->tolerance_range()) cp->set_tolerance_range();
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(e)) {
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    if (base == 0) return 0;
+	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -11167,11 +11229,13 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
       std::vector<PLet::let_port_t*> plist;
       if (ports) plist.assign(ports->begin(), ports->end());
 
+	// Variable dimensions following the formal identifier are distinct
+	// from the data type and are not represented by PECastType yet.
+	// Keep rejecting that shape rather than silently dropping its type.
       for (unsigned idx = 0 ; idx < plist.size() ; idx += 1) {
-	    if (plist[idx]->type_ != 0
-		|| (plist[idx]->range_ && !plist[idx]->range_->empty())) {
-		  cerr << use.get_fileline() << ": sorry: typed/ranged "
-		       << "let ports are not supported yet (let `"
+	    if (plist[idx]->range_ && !plist[idx]->range_->empty()) {
+		  cerr << use.get_fileline() << ": sorry: unpacked array "
+		       << "dimensions on let ports are not supported yet (let `"
 		       << let->pscope_name() << "', port `"
 		       << plist[idx]->name_ << "')." << endl;
 		  des->errors += 1;
@@ -11205,7 +11269,10 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 			return 0;
 		  }
 		  if (args[idx]->parm)
-			binding[plist[idx]->name_] = args[idx]->parm;
+			binding[plist[idx]->name_] = plist[idx]->type_
+			      ? static_cast<PExpr*>(new PECastType(
+				    plist[idx]->type_, args[idx]->parm))
+			      : args[idx]->parm;
 	    } else {
 		  seen_named = true;
 		  bool matched = false;
@@ -11213,7 +11280,10 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 			if (plist[pdx]->name_ == args[idx]->name) {
 			      matched = true;
 			      if (args[idx]->parm)
-				    binding[args[idx]->name] = args[idx]->parm;
+				    binding[args[idx]->name] = plist[pdx]->type_
+					  ? static_cast<PExpr*>(new PECastType(
+						plist[pdx]->type_, args[idx]->parm))
+					  : args[idx]->parm;
 			      break;
 			}
 		  }
@@ -11249,6 +11319,9 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 		  return 0;
 	    }
 	    binding[plist[idx]->name_] = defv;
+	    if (plist[idx]->type_)
+		  binding[plist[idx]->name_] = new PECastType(
+			plist[idx]->type_, binding[plist[idx]->name_]);
       }
 
       PExpr*body = let_clone_expr_(let->let_expr(), binding);
@@ -11269,12 +11342,14 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
 
       if (receiver_ || leading_type_args_) return 0;
       if (!with_constraints_.empty()) return 0;
-      if (path_.package) return 0;
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
       if (comp.name[0] == '$') return 0;
-      PLet*let = scope? scope->find_let(comp.name) : 0;
+      NetScope*lookup = scope;
+      if (path_.package)
+	    lookup = des->find_package(path_.package->pscope_name());
+      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
@@ -11286,11 +11361,13 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 {
       if (let_subst_tried_) return let_subst_;
 
-      if (path_.package) return 0;
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
-      PLet*let = scope? scope->find_let(comp.name) : 0;
+      NetScope*lookup = scope;
+      if (path_.package)
+	    lookup = des->find_package(path_.package->pscope_name());
+      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
@@ -11302,6 +11379,14 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 unsigned PECallFunction::test_width(Design*des, NetScope*scope,
                                     width_mode_t&mode)
 {
+      if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"
+	  && parms_.size() == 1 && parms_[0].parm) {
+	    expr_width_ = parms_[0].parm->test_width(des, scope, mode);
+	    expr_type_ = parms_[0].parm->expr_type();
+	    min_width_ = parms_[0].parm->min_width();
+	    signed_flag_ = parms_[0].parm->has_sign();
+	    return expr_width_;
+      }
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::test_width: "
 		 << "path_: " << path_ << endl;
@@ -11995,6 +12080,23 @@ static bool clocking_static_interface_member_(const NetEProperty*prop)
       return interface_type && interface_type->is_interface();
 }
 
+/* Concurrent assertion operands may not refer to per-instance class
+   properties (IEEE 1800-2017/2023 16.6). Interface members are not class
+   properties, and static class properties are permitted. */
+static bool assertion_nonstatic_class_property_(const NetEProperty*prop)
+{
+      if (!prop) return false;
+
+      ivl_type_t base_type = prop->get_sig()
+	    ? prop->get_sig()->net_type()
+	    : prop->get_base() ? prop->get_base()->net_type() : nullptr;
+      const netclass_t*class_type =
+	    dynamic_cast<const netclass_t*>(base_type);
+      return class_type && !class_type->is_interface()
+	    && prop->property_idx() < class_type->get_properties()
+	    && !class_type->get_prop_qual(prop->property_idx()).test_static();
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -12211,6 +12313,31 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    NetExpr*sub = arg->elaborate_expr(des, scope, arg->expr_width(),
 					      flags);
 	    if (sub == 0) return 0;
+
+	      /* §16.6 prohibits these operand kinds outright. They cannot be
+		made conforming by the live-read fallback below. */
+	    ivl_type_t operand_type = sub->net_type();
+	    if (!operand_type) {
+		  const NetESignal*signal = dynamic_cast<const NetESignal*>(sub);
+		  if (signal) operand_type = signal->sig()->net_type();
+	    }
+	    if (operand_type && ivl_type_is_chandle(operand_type)) {
+		  cerr << get_fileline() << ": error: Concurrent assertion "
+	       << "expressions shall not reference chandle variables "
+	       << "(IEEE 1800-2017/2023 16.6)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return 0;
+	    }
+	    if (assertion_nonstatic_class_property_(
+		  dynamic_cast<const NetEProperty*>(sub))) {
+		  cerr << get_fileline() << ": error: Concurrent assertion "
+	       << "expressions shall not reference non-static class properties "
+	       << "(IEEE 1800-2017/2023 16.6)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return 0;
+	    }
 
 	      /* %load/preponed reads a whole SIGNAL and pushes its full
 		 width. A bit- or part-select of one is still a sampled
@@ -12601,6 +12728,29 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	// $high/$low VPI path — a property receiver there used to
 	// constant-fold to 'x' (get_array_info has no NetEProperty
 	// case). Strings keep the VPI path ($high(str) = len-1).
+      if ((nparms == 1 || nparms == 2) && parms_[0].parm
+	  && dynamic_cast<PEIdent*>(parms_[0].parm)
+	  && (strcmp(name, "$size") == 0 || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0 || strcmp(name, "$low") == 0
+	      || strcmp(name, "$high") == 0 || strcmp(name, "$increment") == 0)) {
+	    perm_string pname = lex_strings.make(name);
+	    NetExpr*arg = elab_sys_task_arg(des, scope, pname, 0,
+					    parms_[0].parm, false);
+	    const netqueue_t*assoc = arg
+		  ? dynamic_cast<const netqueue_t*>(arg->net_type()) : nullptr;
+	    if (assoc && assoc->assoc_compat()) {
+		  ivl_type_t index_type = assoc->assoc_index_type();
+		  if (!index_type || !index_type->packed()) {
+			cerr << get_fileline() << ": error: " << name
+			     << " cannot be used on an associative array with a non-integral index type."
+			     << endl;
+			des->errors += 1;
+			delete arg;
+			return 0;
+		  }
+	    }
+	    delete arg;
+      }
       if ((nparms == 1 || nparms == 2) && parms_[0].parm
 	  && dynamic_cast<PEIdent*>(parms_[0].parm)
 	  && (strcmp(name, "$unpacked_dimensions") != 0 || nparms == 1)
@@ -15905,26 +16055,17 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			}
 			
 		  } else if (const netenum_t*tail_enum = dynamic_cast<const netenum_t*>(cur_type)) {
-		// Built-in enum method accessed through a class property chain
-		if (tail_comp.name == "name") {
-		      NetESFunc*sys_expr = new NetESFunc("$ivl_enum_method$name",
-							&netstring_t::type_string, 2);
-		      sys_expr->set_line(*this);
-		      NetENetenum*def = new NetENetenum(tail_enum);
-		      def->set_line(*this);
-		      sys_expr->parm(0, def);
-		      sys_expr->parm(1, base_expr);
-		      base_expr = sys_expr;
-		      cur_type = &netstring_t::type_string;
-		      continue;
-		}
-		// compile-progress for other enum methods (next, prev, etc.)
-		cerr << get_fileline() << ": warning: "
-		     << "Enum method `" << tail_comp.name
-		     << "' on class-property enum not yet supported"
-		     << " (compile-progress: expression dropped)." << endl;
-		delete base_expr;
-		return nullptr;
+		// Bare enum methods on class properties use the same elaboration path
+		// as enum methods on ordinary variables and temporary expressions.
+		// This preserves the enum receiver for name/next/prev and handles
+		// first/last/num as type-derived constants.
+		base_expr = check_for_enum_methods(this, des, scope, tail_enum,
+						   pform_scoped_name_t(sr.path_head),
+						   tail_comp.name, base_expr, {});
+		if (!base_expr)
+		      return nullptr;
+		cur_type = base_expr->net_type();
+		continue;
 	  } else if (const netuarray_t*fixed =
 		       dynamic_cast<const netuarray_t*>(cur_type)) {
 		/* Paren-less reductions and unique/unique_index on a whole
@@ -16597,6 +16738,9 @@ static bool constant_function_declaration_is_legal_(
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
+      if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"
+	  && parms_.size() == 1 && parms_[0].parm)
+	    return parms_[0].parm->elaborate_expr(des, scope, expr_wid, flags);
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "path_: " << path_ << endl;
@@ -20469,6 +20613,27 @@ static bool bitstream_cast_type_(ivl_type_t type, bool destination)
       return bitstream_cast_type_(type, destination, active);
 }
 
+/* Return the fixed bit-stream width for an unpacked struct whose members
+ * are packed. A zero result means that this helper does not apply. */
+static unsigned fixed_struct_stream_width_(ivl_type_t type)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (!record || record->packed() || record->union_flag())
+	    return 0;
+
+      unsigned width = 0;
+      for (const netstruct_t::member_t&member : record->members()) {
+	    if (!member.net_type->packed())
+		  return 0;
+	    long member_width = member.net_type->packed_width();
+	    if (member_width <= 0 ||
+		  static_cast<unsigned long>(member_width) > UINT_MAX - width)
+		  return 0;
+	    width += static_cast<unsigned>(member_width);
+      }
+      return width;
+}
+
 static bool positional_container_integral_elements_(ivl_type_t type)
 {
       const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
@@ -20477,6 +20642,18 @@ static bool positional_container_integral_elements_(ivl_type_t type)
 	    return false;
       ivl_type_t element = container->element_type();
       return element && element->packed() && element->packed_width() > 0
+	    && type_is_vectorable(element->base_type());
+}
+
+static bool positional_container_byte_elements_(ivl_type_t type)
+{
+      const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
+      if (!container || (queue && queue->assoc_compat()))
+	    return false;
+      ivl_type_t element = container->element_type();
+      return element && element->packed() && element->packed_width() > 0
+	    && (element->packed_width() % 8) == 0
 	    && type_is_vectorable(element->base_type());
 }
 
@@ -20742,6 +20919,25 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (sub == 0)
 	    return 0;
 
+	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
+	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
+	 * not have a packed_width(), so check their member widths before the
+	 * scalar conversion path can silently truncate or extend. */
+      unsigned source_struct_width = fixed_struct_stream_width_(sub->net_type());
+      unsigned target_struct_width = fixed_struct_stream_width_(target_type_);
+      if ((source_struct_width && target_type_ && target_type_->packed()
+	   && target_type_->packed_width() > 0
+	   && source_struct_width != static_cast<unsigned>(target_type_->packed_width()))
+	  || (target_struct_width && sub->net_type() && sub->net_type()->packed()
+	      && sub->net_type()->packed_width() > 0
+	      && target_struct_width != static_cast<unsigned>(sub->net_type()->packed_width()))) {
+	    cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
+		 << endl;
+	    des->errors += 1;
+	    delete sub;
+	    return nullptr;
+      }
+
 	/* IEEE 1800-2023 11.4.13 requires truncation when a real tolerance is
 	 * converted to an integral range type. The ordinary type-cast path rounds
 	 * real values, so select floor/ceil by sign first; the existing cast below
@@ -20825,6 +21021,20 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (container_cast_status == POSITIONAL_CAST_MATERIALIZED
 	  || container_cast_status == POSITIONAL_CAST_ERROR)
 	    return container_cast;
+
+      /* A string is a dynamic array of bytes for bit-stream casts
+	 (IEEE 1800-2017/2023 6.24.3). Flatten integral queue/darray
+	 elements whose widths are whole bytes, then use the existing
+	 packed-vector-to-string conversion. */
+      if (dynamic_cast<const netstring_t*>(target_type_)
+	  && positional_container_byte_elements_(sub->net_type())
+	  && bitstream_cast_type_(sub->net_type(), false)) {
+	    NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					   target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
 
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
@@ -30128,6 +30338,17 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+	// IEEE 1800-2017/2023 9.7: process objects are created only by
+	// the simulator when a process starts. A class `new` expression
+	// must not allocate one or return a fabricated process handle.
+	if (ctype->get_name() == perm_string::literal("process")) {
+	      cerr << get_fileline()
+		   << ": error: Users cannot create objects of type `process`."
+		   << endl;
+	      des->errors++;
+	      return 0;
+	}
+
 	      // IEEE 1800-2017 8.21: an abstract (virtual) class can never
 	      // be instantiated. This used to degrade to a SILENT null in
 	      // SV mode, which let `c = new` on a virtual class through
@@ -30734,21 +30955,6 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	      // An x/z condition has to blend both arms.
       }
 
-	// Past the short circuit, both arms have to be evaluated and
-	// blended at run time. There is no run-time mux for a WHOLE
-	// unpacked array, so say so instead of building something the
-	// code generator cannot emit. A constant condition -- the usual
-	// case, and the one OpenTitan's `!CiphOpFwdOnly ? a : b' relies
-	// on -- never reaches here.
-      if (dynamic_cast<const netuarray_t*>(type)) {
-	    cerr << get_fileline() << ": sorry: a conditional with whole "
-		 << "unpacked array operands is only supported when the "
-		 << "condition is a constant." << endl;
-	    des->errors += 1;
-	    delete con;
-	    return 0;
-      }
-
       const bool vif_context = virtual_interface_type_(type);
       NetExpr*tru = vif_context
 	    ? elab_and_eval(des, scope, tru_, type,
@@ -30768,6 +30974,126 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    delete con; delete tru; delete fal;
 	    return 0;
+      }
+
+	/* A procedural expression cannot carry a whole unpacked array through
+	 * the packed IVL_EX_TERNARY interface. For the common signal operands,
+	 * lower the aggregate conditional to an array pattern whose elements are
+	 * ordinary scalar conditionals. This preserves the existing four-state
+	 * mux semantics and lets the normal array assignment path perform the
+	 * value copy. */
+      if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(type)) {
+	    /* Runtime whole-array conditionals are implemented for the editions
+	     * this change qualifies. Keep the older-edition rejection in place. */
+	    if (generation_flag < GN_VER2017) {
+	      cerr << get_fileline() << ": sorry: a conditional with whole "
+		   << "unpacked array operands is only supported when the "
+		   << "condition is a constant." << endl;
+	      des->errors += 1;
+	      delete con;
+	      delete tru;
+	      delete fal;
+	      return nullptr;
+	    }
+	    const NetESignal*true_array = dynamic_cast<const NetESignal*>(tru);
+	    const NetESignal*false_array = dynamic_cast<const NetESignal*>(fal);
+	    const netranges_t&dims = array_type->static_dimensions();
+	    if (true_array && false_array
+		&& !true_array->word_index() && !false_array->word_index()
+		&& dims.size() == true_array->sig()->unpacked_dims().size()
+		&& dims.size() == false_array->sig()->unpacked_dims().size()
+		&& true_array->sig()->net_type()->type_equivalent(
+		     false_array->sig()->net_type())
+		&& false_array->sig()->net_type()->type_equivalent(
+		     true_array->sig()->net_type())
+		&& true_array->sig()->net_type()->type_equivalent(
+		     array_type->element_type())
+		&& array_type->element_type()->type_equivalent(
+		     true_array->sig()->net_type())) {
+	  bool same_shape = true;
+	  for (size_t idx = 0; idx < dims.size(); idx += 1) {
+		const netrange_t&target_dim = dims[idx];
+		const netrange_t&true_dim = true_array->sig()->unpacked_dims()[idx];
+		const netrange_t&false_dim = false_array->sig()->unpacked_dims()[idx];
+		if (target_dim.get_msb() != true_dim.get_msb()
+		    || target_dim.get_lsb() != true_dim.get_lsb()
+		    || target_dim.get_msb() != false_dim.get_msb()
+		    || target_dim.get_lsb() != false_dim.get_lsb()) {
+		      same_shape = false;
+		      break;
+		}
+	  }
+	  if (same_shape) {
+		list<long>indices;
+		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
+		      vector<NetExpr*>items;
+		      const netrange_t&range = dims[dimension];
+		      const long step = range.get_msb() <= range.get_lsb() ? 1 : -1;
+		      for (long index = range.get_msb(); ; index += step) {
+			    indices.push_back(index);
+			    NetExpr*item = nullptr;
+			    if (dimension + 1 == dims.size()) {
+				  NetExpr*true_index = normalize_variable_unpacked(
+					true_array->sig(), indices);
+				  NetExpr*false_index = normalize_variable_unpacked(
+					false_array->sig(), indices);
+				  if (true_index && false_index) {
+					NetExpr*true_value = new NetESignal(
+					      const_cast<NetNet*>(true_array->sig()),
+					      true_index);
+					NetExpr*false_value = new NetESignal(
+					      const_cast<NetNet*>(false_array->sig()),
+					      false_index);
+					NetETernary*ternary = new NetETernary(
+					      con->dup_expr(), true_value, false_value,
+					      true_value->expr_width(),
+					      true_value->has_sign()
+						&& false_value->has_sign());
+					ternary->set_line(*this);
+					item = ternary;
+				  } else {
+					delete true_index;
+					delete false_index;
+				  }
+			    } else {
+				  item = build_array(dimension + 1);
+			    }
+			    indices.pop_back();
+			    if (!item) {
+				  for (NetExpr*existing : items) delete existing;
+				  return static_cast<NetExpr*>(nullptr);
+			    }
+			    items.push_back(item);
+			    if (index == range.get_lsb()) break;
+		      }
+		      ivl_type_t pattern_type = array_type;
+		      if (dimension != 0) {
+			    netranges_t subdims(dims.begin() + dimension, dims.end());
+			    pattern_type = new netuarray_t(
+				  subdims, array_type->element_type());
+		      }
+		      NetEArrayPattern*pattern = new NetEArrayPattern(
+			    pattern_type, items);
+		      pattern->set_line(*this);
+		      return pattern;
+		};
+		NetExpr*result = build_array(0);
+		if (result) {
+		      delete con;
+		      delete tru;
+		      delete fal;
+		      return result;
+		}
+	  }
+	}
+	cerr << get_fileline() << ": sorry: a whole unpacked-array "
+	     << "conditional requires direct, equivalent array operands." << endl;
+	    des->errors += 1;
+	    delete con;
+	    delete tru;
+	    delete fal;
+	    return nullptr;
       }
 
 	// packed_width() is only meaningful for a packed type; it is
@@ -31160,6 +31486,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
       NetAssign_*inc_lval = 0;
 
       if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+	    if (concurrent_assertion_expr_) {
+		  cerr << get_fileline() << ": error: Increment/decrement operators are not allowed in concurrent assertion expressions." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    inc_lval = expr_->elaborate_lval(des, scope, false, false);
 	    if (!inc_lval) return 0;
       }

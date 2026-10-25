@@ -594,39 +594,50 @@ class subroutine_fork_context_guard_t {
 
     public:
       explicit subroutine_fork_context_guard_t(Design*des)
-      : des_(des), saved_depth_(des->fork_depth())
+      : des_(des), saved_context_(des->fork_loop_context())
       {
-	    des_->restore_fork_depth(0);
+	    des_->restore_fork_loop_context(std::vector<unsigned>());
       }
 
       ~subroutine_fork_context_guard_t()
       {
-	    des_->restore_fork_depth(saved_depth_);
+	    des_->restore_fork_loop_context(saved_context_);
       }
 
     private:
       Design*des_;
-      unsigned saved_depth_;
+      std::vector<unsigned> saved_context_;
+};
+
+class loop_context_guard_t {
+    public:
+      explicit loop_context_guard_t(Design*des) : des_(des)
+      {
+	    des_->loop_enter();
+      }
+      ~loop_context_guard_t() { des_->loop_exit(); }
+    private:
+      Design*des_;
 };
 
 static void elaborate_function_outside_caller_fork_(Design*des,
 						    const PFunction*pfunc,
 						    NetScope*scope)
 {
-      unsigned saved_fork_depth = des->fork_depth();
-      des->restore_fork_depth(0);
+      std::vector<unsigned> saved_fork_context = des->fork_loop_context();
+      des->restore_fork_loop_context(std::vector<unsigned>());
       pfunc->elaborate(des, scope);
-      des->restore_fork_depth(saved_fork_depth);
+      des->restore_fork_loop_context(saved_fork_context);
 }
 
 static void elaborate_task_outside_caller_fork_(Design*des,
 						const PTask*ptask,
 						NetScope*scope)
 {
-      unsigned saved_fork_depth = des->fork_depth();
-      des->restore_fork_depth(0);
+      std::vector<unsigned> saved_fork_context = des->fork_loop_context();
+      des->restore_fork_loop_context(std::vector<unsigned>());
       ptask->elaborate(des, scope);
-      des->restore_fork_depth(saved_fork_depth);
+      des->restore_fork_loop_context(saved_fork_context);
 }
 
 static inline bool should_eagerly_elaborate_class_method_(perm_string name)
@@ -2259,6 +2270,28 @@ static bool reads_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
+                                             NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netclass_t*base_type = sr.net
+		  ? dynamic_cast<const netclass_t*>(sr.net->net_type()) : nullptr;
+	    if (sr.net && sr.net->is_virtual_interface()
+		&& base_type && base_type->is_interface()
+		&& !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
@@ -3458,6 +3491,18 @@ void PGAlias::elaborate(Design*des, NetScope*scope) const
 		  des->errors += 1;
 		  return;
 	    }
+	    if (nets[idx] == nets[0]) {
+		  cerr << get_fileline() << ": error: Net alias cannot connect a net to itself."
+		       << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    if (!scope->record_alias_pair(nets[0], nets[idx])) {
+		  cerr << get_fileline() << ": error: Net alias connects the same nets more than once."
+		       << endl;
+		  des->errors += 1;
+		  return;
+	    }
 	    NetTran*join = new NetTran(scope, scope->local_symbol(),
 				       IVL_SW_TRAN, nets[0]->vector_width());
 	    join->set_line(*this);
@@ -3489,6 +3534,20 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
             des, scope, this, rise_time, fall_time, decay_time,
             var_allowed_in_sv))
             return;
+
+	/* IEEE 1800-2017/2023 25.9 permits components reached through a
+	   virtual interface only in procedural statements. */
+      if (reads_virtual_interface_member_(this, des, scope,
+					  const_cast<PExpr*>(pin(0)))
+	  || reads_virtual_interface_member_(this, des, scope,
+					      const_cast<PExpr*>(pin(1)))) {
+	    cerr << get_fileline() << ": error: A component of a virtual interface "
+		 << "may not be used in a continuous assignment "
+		    "(IEEE 1800-2017/2023 25.9)." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
 
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
@@ -5878,7 +5937,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    path_.push_back(name_component_t(rmod->ports[j]->name));
 				    symbol_search_results sr;
 				    symbol_search(this, des, scope, path_, UINT_MAX, &sr);
-				    if (sr.net != 0) {
+				    // Interface instances are scopes rather than nets, but
+				    // they are valid implicit .name actuals for interface
+				    // ports (IEEE 1800-2017/2023 23.3.2.4).
+				    if (sr.net != 0 || (sr.scope
+						&& sr.scope->type() == NetScope::MODULE
+						&& sr.scope->is_interface())) {
 					  pins[j] = new PEIdent(rmod->ports[j]->name, UINT_MAX, true);
 					  pins_implicit[j] = true;
 					  pins[j]->set_lineno(get_lineno());
@@ -6249,6 +6313,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // signal connected to the port.
 		  if (!tmp) continue;
 		  ivl_assert(*this, tmp);
+		  if (tmp->port_type() == NetNet::PREF) {
+			cerr << get_fileline() << ": error: Reference port `"
+			     << port_name << "' of module `" << rmod->mod_name()
+			     << "' cannot be left unconnected (IEEE 1800-2017/2023 "
+				"23.3.3.2)." << endl;
+			des->errors += 1;
+		  }
 
 		  if (tmp->port_type() == NetNet::PINPUT) {
 			  // If we have an unconnected input convert it
@@ -6772,6 +6843,44 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    if (member_port_bridge) {
 		  /* The common width adjustment and per-instance connection code
 		     below connects the bridge to the formal port. */
+	    } else if (ptype == NetNet::PREF) {
+		  // A ref module port is a variable alias.  Do not elaborate it as
+		  // an input expression or output l-value: either would copy the
+		  // value and lose the required shared variable identity.
+		  NetAssign_*actual_lval = pins[idx]->elaborate_lval(
+			des, scope, false, false, false, false);
+		  if (!actual_lval)
+			continue;
+		  sig = actual_lval->sig();
+		  ivl_type_t actual_type =
+			netassign_type_for_equivalence(actual_lval);
+		  bool equivalent_type = mport.size() == 1 && !prts.empty()
+			&& actual_lval->word() == 0
+			&& actual_lval->get_base() == 0
+			&& actual_lval->get_property_idx() < 0 && sig && actual_type;
+		  if (equivalent_type) {
+			for (NetNet*formal : prts) {
+			      if (!formal || !formal->net_type()
+				  || !actual_type->type_equivalent(formal->net_type())
+				  || !formal->net_type()->type_equivalent(actual_type)
+				  || !netrange_equivalent(sig->unpacked_dims(),
+							  formal->unpacked_dims())) {
+				    equivalent_type = false;
+				    break;
+			      }
+			}
+		  }
+		  if (!sig || sig->type() != NetNet::REG || !equivalent_type) {
+			cerr << pins[idx]->get_fileline() << ": error: Actual for ref "
+			     << "port `" << port_name << "' of module `"
+			     << rmod->mod_name()
+			     << "' must be an equivalent variable data type "
+				"(IEEE 1800-2017/2023 23.3.3.2)." << endl;
+			des->errors += 1;
+			delete actual_lval;
+			continue;
+		  }
+		  delete actual_lval;
 	    } else if (prts.empty() || (ptype == NetNet::PINPUT)) {
 
 		    // Special case: If the input port is an unpacked
@@ -7106,7 +7215,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 #ifndef NDEBUG
 	    if ((! prts.empty())
-		&& (ptype != NetNet::PINPUT)) {
+		&& (ptype != NetNet::PINPUT)
+		&& (ptype != NetNet::PREF)) {
 		  ivl_assert(*this, sig->type() != NetNet::REG);
 	    }
 #endif
@@ -7122,6 +7232,32 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		       << " or " << (prts_vector_width/instance.size())
 		       << "." << endl;
 		  des->errors += 1;
+		  continue;
+	    }
+
+	      // Bind a module ref formal through the same run-time reference
+	      // mechanism used by subroutine ref arguments. A nexus connection
+	      // would make two variable declarations drive one another and would
+	      // not preserve variable identity.
+	    if (ptype == NetNet::PREF) {
+		  for (unsigned inst = 0; inst < prts.size(); inst += 1) {
+			NetESignal*formal = new NetESignal(prts[inst]);
+			formal->set_line(*this);
+			NetESignal*actual = new NetESignal(sig);
+			actual->set_line(*pins[idx]);
+			vector<NetExpr*>argv(2);
+			argv[0] = formal;
+			argv[1] = actual;
+			NetSTask*bind = new NetSTask("$ivl_ref_bind",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			NetProcTop*top = new NetProcTop(prts[inst]->scope(),
+						 IVL_PR_INITIAL, bind);
+			top->set_line(*this);
+			top->attribute(perm_string::literal("_ivl_schedule_init"),
+				       verinum(1));
+			des->add_process(top);
+		  }
 		  continue;
 	    }
 
@@ -7151,7 +7287,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			as_signed = prts[0]->get_signed() && sig->get_signed();
 			break;
 		    case NetNet::PREF:
-			ivl_assert(*this, 0);
+			as_signed = prts[0]->get_signed();
 			break;
 		    default:
 			ivl_assert(*this, 0);
@@ -7200,6 +7336,31 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	      // Connect the sig expression that is the context of the
 	      // module instance to the ports of the elaborated module.
+	      // A user-defined nettype connection is valid only when each
+	      // internal port has the same canonical nettype as the external net.
+	      // Check here so scalar and arrayed module instances are covered.
+	    bool nettype_mismatch = false;
+	    const NetNetType*actual_udnt = sig->user_nettype();
+	    if (actual_udnt) {
+		  for (vector<NetNet*>::const_iterator cur = prts.begin();
+		       cur != prts.end(); ++cur) {
+			const NetNetType*formal_udnt = (*cur)->user_nettype();
+			if (formal_udnt && formal_udnt != actual_udnt) {
+			      cerr << pins[idx]->get_fileline()
+				   << ": error: Port '" << port_name
+				   << "' connects user-defined nettype `"
+				   << (*cur)->declared_user_nettype()->pform_type()->name()
+				   << "' to nonmatching user-defined nettype `"
+				   << sig->declared_user_nettype()->pform_type()->name()
+				   << "'." << endl;
+			      des->errors += 1;
+			      nettype_mismatch = true;
+			      break;
+			}
+		  }
+	    }
+	    if (nettype_mismatch)
+		  continue;
 
 	      // The prts_pin_count variable is the total width of the
 	      // port and is the maximum number of connections to
@@ -7242,7 +7403,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			                    (gn_interconnect_flag ? idx : -1));
 		  } else {
 			NetNet*formal = prts[0];
-			if (connect_dominated_wire_port(des, *this, formal, sig))
+			if (ptype != NetNet::PREF
+			    && connect_dominated_wire_port(des, *this, formal, sig))
 			      continue;
 			if (ptype == NetNet::PINPUT && formal->net_delay_driver())
 			      formal = delay_driver_net(formal);
@@ -7395,16 +7557,14 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
       unsigned inst_count = calculate_array_size_(des, scope, high, low);
       if (inst_count == 0) return;
 
-      if (inst_count != 1) {
-	    cerr << get_fileline() << ": sorry: UDPs with a range ("
-	         << my_name << " [" << high << ":" << low << "]) are "
-	         << "not supported." << endl;
-	    des->errors += 1;
-	    return;
-      }
-
       ivl_assert(*this, udp);
-      NetUDP*net = new NetUDP(scope, my_name, udp->ports.size(), udp);
+      perm_string first_name = my_name;
+      if (inst_count > 1) {
+	    ostringstream tmp;
+	    tmp << my_name << "<" << low << ">";
+	    first_name = lex_strings.make(tmp.str());
+      }
+      NetUDP*net = new NetUDP(scope, first_name, udp->ports.size(), udp);
       net->set_line(*this);
       net->rise_time(rise_expr);
       net->fall_time(fall_expr);
@@ -7417,9 +7577,6 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
 	    net->attribute(attrib_list[adx].key, attrib_list[adx].val);
-
-      delete[]attrib_list;
-
 
 	// This is the array of pin expressions, shuffled to match the
 	// order of the declaration. If the source instantiation uses
@@ -7492,17 +7649,34 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
       }
 
 
-	/* Handle the output port of the primitive special. It is an
-	   output port (the only output port) so must be passed an
-	   l-value net. */
+	/* Make one UDP node for every element of the instance array. */
+      vector<NetUDP*>instances(inst_count);
+      instances[0] = net;
+      for (unsigned idx = 1; idx < inst_count; idx += 1) {
+	    ostringstream tmp;
+	    long index = (low < high)? low+idx : low-idx;
+	    tmp << my_name << "<" << index << ">";
+	    perm_string inst_name = lex_strings.make(tmp.str());
+	    instances[idx] = new NetUDP(scope, inst_name, udp->ports.size(), udp);
+	    instances[idx]->set_line(*this);
+	    instances[idx]->rise_time(rise_expr);
+	    instances[idx]->fall_time(fall_expr);
+	    instances[idx]->decay_time(decay_expr);
+	    for (unsigned adx = 0; adx < attrib_list_n; adx += 1)
+		  instances[idx]->attribute(attrib_list[adx].key,
+					    attrib_list[adx].val);
+      }
+
+	/* Handle the output terminal as an l-value. */
+      NetNet*output_sig = 0;
       if (pins[0] == 0) {
 	    cerr << get_fileline() << ": warning: output port unconnected."
 		 << endl;
 
       } else {
 	      // A UDP can drive a variable.
-	    NetNet*sig = pins[0]->elaborate_lnet(des, scope, true);
-	    if (sig == 0) {
+	    output_sig = pins[0]->elaborate_lnet(des, scope, true);
+	    if (output_sig == 0) {
 		  cerr << get_fileline() << ": error: "
 		       << "Output port expression is not valid." << endl;
 		  cerr << get_fileline() << ":      : Output "
@@ -7510,22 +7684,12 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 		       << " is " << udp->ports[0] << "." << endl;
 		  des->errors += 1;
 		  return;
-	    } else {
-		  connect(sig->pin(0), net->pin(0));
-	    }
-	    if (sig->vector_width() != 1) {
-		  cerr << get_fileline() << ": error: "
-		       << "Output port expression " << *pins[0]
-		       << " is too wide (" << sig->vector_width()
-		       << ") expected 1." << endl;
-		  des->errors += 1;
 	    }
       }
 
-	/* Run through the pins, making netlists for the pin
-	   expressions and connecting them to the pin in question. All
-	   of this is independent of the nature of the UDP. */
-      for (unsigned idx = 1 ;  idx < net->pin_count() ;  idx += 1) {
+	/* Elaborate each input once. */
+      vector<NetNet*>input_sigs(udp->ports.size()-1, 0);
+	  for (unsigned idx = 1 ;  idx < udp->ports.size() ;  idx += 1) {
 	    if (pins[idx] == 0)
 		  continue;
 
@@ -7541,18 +7705,74 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 
 	    delete expr_tmp;
 
-	    connect(sig->pin(0), net->pin(idx));
-	    if (sig->vector_width() != 1) {
-		  cerr << get_fileline() << ": error: "
-		       << "Input port expression " << *pins[idx]
-		       << " is too wide (" << sig->vector_width()
-		       << ") expected 1." << endl;
-		  des->errors += 1;
-	    }
+	    input_sigs[idx-1] = sig;
       }
 
-	// All done. Add the object to the design.
-      des->add_node(net);
+	  if (output_sig && output_sig->vector_width() != 1
+	      && output_sig->vector_width() != inst_count) {
+	    cerr << get_fileline() << ": error: output width "
+	         << output_sig->vector_width() << " does not match UDP array size "
+	         << inst_count << "." << endl;
+	    des->errors += 1;
+	  }
+	  for (unsigned idx = 0; idx < input_sigs.size(); idx += 1) {
+	    if (input_sigs[idx] == 0) continue;
+	    unsigned width = input_sigs[idx]->vector_width();
+	    if (width != 1 && width != inst_count) {
+		  cerr << get_fileline() << ": error: input width " << width
+		       << " does not match UDP array size " << inst_count << "."
+		       << endl;
+		  des->errors += 1;
+	    }
+	  }
+
+	  NetConcat*output_concat = 0;
+	  if (output_sig && output_sig->vector_width() == inst_count
+	      && inst_count > 1) {
+	    output_concat = new NetConcat(scope, scope->local_symbol(),
+					  inst_count, inst_count);
+	    output_concat->set_line(*this);
+	    des->add_node(output_concat);
+	    connect(output_concat->pin(0), output_sig->pin(0));
+	  }
+	  for (unsigned inst = 0; inst < inst_count; inst += 1) {
+	    if (output_sig) {
+		  if (output_concat) {
+			const netvector_t*bit_type = new netvector_t(IVL_VT_LOGIC);
+			NetNet*bit = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, bit_type);
+			bit->set_line(*this);
+			bit->local_flag(true);
+			connect(output_concat->pin(inst+1), bit->pin(0));
+			connect(bit->pin(0), instances[inst]->pin(0));
+		  } else {
+			connect(output_sig->pin(0), instances[inst]->pin(0));
+		  }
+	    }
+	    for (unsigned idx = 0; idx < input_sigs.size(); idx += 1) {
+		  NetNet*sig = input_sigs[idx];
+		  if (sig == 0) continue;
+		  if (sig->vector_width() == 1) {
+			connect(sig->pin(0), instances[inst]->pin(idx+1));
+		  } else {
+			NetPartSelect*part = new NetPartSelect(sig, inst, 1,
+						       NetPartSelect::VP);
+			part->set_line(*this);
+			des->add_node(part);
+			connect(part->pin(1), sig->pin(0));
+			const netvector_t*bit_type = new netvector_t(sig->data_type());
+			NetNet*bit = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, bit_type);
+			bit->set_line(*this);
+			bit->local_flag(true);
+			connect(part->pin(0), bit->pin(0));
+			connect(bit->pin(0), instances[inst]->pin(idx+1));
+		  }
+	    }
+	  }
+	  for (unsigned idx = 0; idx < instances.size(); idx += 1)
+		des->add_node(instances[idx]);
+      delete[]attrib_list;
 }
 
 
@@ -11842,6 +12062,29 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+      // IEEE 1800-2017/2023 6.21 forbids nonblocking writes to elements
+      // of dynamically sized arrays. The automatic-allocation check above
+      // does not catch a module-scope dynamic array, so inspect the
+      // elaborated storage and selected word here.
+	const netdarray_t*target_darray = lv->sig()
+	      ? lv->sig()->darray_type() : nullptr;
+	if (!target_darray && lv->sig() && lv->get_property_idx() >= 0) {
+	      const netclass_t*target_class =
+		    dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+	      if (target_class)
+		    target_darray = dynamic_cast<const netdarray_t*>(
+			  target_class->get_prop_type(
+				(size_t)lv->get_property_idx()));
+	}
+      if (lv->word() && target_darray && !lv->sig()->queue_type()) {
+	    cerr << get_fileline() << ": error: elements of dynamically sized "
+		 "arrays may not be assigned values using non-blocking "
+		 "assignments (IEEE 1800 6.21)." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
+
 	/* A fixed unpacked-array property slice needs a persistent receiver and
 	 * one snapshot word per element in the NBA queue. The signal-array
 	 * lowering below has neither: allowing a one-element base-zero slice to
@@ -12524,6 +12767,14 @@ NetProc* PBreak::elaborate(Design*des, NetScope*) const
 	    return nullptr;
       }
 
+      if (des->jump_controls_outer_loop()) {
+	    cerr << get_fileline() << ": error: "
+		 << "'break' cannot control a loop outside a fork-join block."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
 
       NetBreak*res = new NetBreak(kind_);
       res->set_line(*this);
@@ -12949,7 +13200,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  PCase::Item*cur = (*items_)[idx];
 		  if (cur->expr.empty()) {
 			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
-			res->set_case(inum++, 0, st);
+		    res->set_case(inum++, 0, st, idx);
 			continue;
 		  }
 
@@ -12977,7 +13228,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 						? verinum::V1 : verinum::V0));
 			item->set_line(*cur_expr);
 			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
-			res->set_case(inum++, item, st);
+		    res->set_case(inum++, item, st, idx);
 		  }
 	    }
 	    return res;
@@ -13119,7 +13370,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  if (cur->stat)
 			st = cur->stat->elaborate(des, scope);
 
-		  res->set_case(inum, 0, st);
+		  res->set_case(inum, 0, st, idx);
 		  inum += 1;
 
 	    } else for (list<PExpr*>::iterator idx_expr = cur->expr.begin()
@@ -13141,7 +13392,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  if (cur->stat)
 			st = cur->stat->elaborate(des, scope);
 
-		  res->set_case(inum, gu, st);
+		  res->set_case(inum, gu, st, idx);
 		  inum += 1;
 	    }
       }
@@ -13542,6 +13793,14 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
       if (!gn_system_verilog()) {
 	    cerr << get_fileline() << ": error: "
 		<< "'continue' jump statement requires SystemVerilog." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      if (des->jump_controls_outer_loop()) {
+	    cerr << get_fileline() << ": error: "
+		 << "'continue' cannot control a loop outside a fork-join block."
+		 << endl;
 	    des->errors += 1;
 	    return nullptr;
       }
@@ -17384,6 +17643,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			                                method_name, "$size");
 			    } else if (method_name == "reverse") {
 				  if (gn_system_verilog()) {
+					if (!with_constraints().empty()) {
+					      cerr << get_fileline() << ": error: 'reverse() with (...)' is not allowed."
+						   << endl;
+					      des->errors += 1;
+					      delete obj_expr;
+					      return 0;
+					}
 					/* Phase 63b/Q-methods (gap close): wire to %qreverse. */
 					NetNet*recv_net = make_ordering_method_recv_net_(
 					      this, scope, obj_expr, obj_type);
@@ -17525,6 +17791,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				  return 0;
 			    } else if (method_name=="shuffle") {
 				  if (gn_system_verilog()) {
+					if (!with_constraints().empty()) {
+					      cerr << get_fileline() << ": error: 'shuffle() with (...)' is not allowed."
+						   << endl;
+					      des->errors += 1;
+					      delete obj_expr;
+					      return 0;
+					}
 					/* Phase 63b/Q-methods (gap close): wire to %qshuffle. */
 					NetNet*recv_net = make_ordering_method_recv_net_(
 					      this, scope, obj_expr, obj_type);
@@ -20492,7 +20765,7 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
  * generator knows to evaluate the expression at run time.
  */
 /* IEEE 1800-2017 14.11: `## count [statement]` waits `count` events of
-   the default clocking block (14.12) visible in the nearest enclosing
+   the default clocking block (14.12) declared in the current
    module/interface/program scope. Lower it to
 
        repeat (count) @(<default clocking name>) ; <statement>
@@ -20510,18 +20783,20 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    if (walker->type() != NetScope::MODULE)
 		  continue;
 	    perm_string mn = walker->module_name();
-	    if (mn.nil()) continue;
+	    /* A module instance is a scope boundary for default clocking.
+	       Its parent may be a module that declares one, but IEEE 1800-2017
+	       14.12 explicitly excludes instantiated modules from that scope. */
+	    if (mn.nil()) break;
 	    auto pmod_it = pform_modules.find(mn);
-	    if (pmod_it == pform_modules.end()) continue;
-	    if (!pmod_it->second->default_clocking.nil()) {
+	    if (pmod_it != pform_modules.end()
+		&& !pmod_it->second->default_clocking.nil())
 		  cb_name = pmod_it->second->default_clocking;
-		  break;
-	    }
+	    break;
       }
 
       if (cb_name.nil()) {
 	    cerr << get_fileline() << ": error: ## cycle delay requires a "
-		 << "default clocking block in scope (IEEE 1800-2017 14.11)."
+		 << "default clocking block in scope (IEEE 1800 14.11)."
 		 << endl;
 	    des->errors += 1;
 	    return 0;
@@ -20721,6 +20996,7 @@ NetProc* PDisable::elaborate(Design*des, NetScope*scope) const
  */
 NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*ce = nullptr;
       if (gn_system_verilog()) {
 	    PExpr::width_mode_t mode = PExpr::SIZED;
@@ -24622,6 +24898,7 @@ NetProc* PEventStatement::elaborate_wait_order_(Design*des,
  */
 NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetProc*stat;
       if (statement_)
 	    stat = statement_->elaborate(des, scope);
@@ -25111,6 +25388,7 @@ static NetProc* prepend_foreach_path_selector_evaluation_(Design*des,
  */
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       if (foreach_target_is_non_simple_(array_path_)) {
 	      /* A hierarchical target may name an ordinary SIGNAL in
 		 another scope -- an array member of an interface
@@ -26063,6 +26341,7 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
  */
 NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*initial_expr = nullptr;
       NetNet*sig = nullptr;
       NetProc*initial_statement = nullptr;
@@ -26361,6 +26640,7 @@ NetProc* PRelease::elaborate(Design*des, NetScope*scope) const
 
 NetProc* PRepeat::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       ivl_assert(*this, scope);
 
       NetExpr*expr = nullptr;
@@ -26815,6 +27095,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
  */
 NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 {
+      loop_context_guard_t loop_context(des);
       NetExpr*ce = nullptr;
       if (gn_system_verilog()) {
 	    PExpr::width_mode_t mode = PExpr::SIZED;
@@ -38891,6 +39172,43 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().empty())
 		  return "";
 
+	    /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: constraint
+	     * foreach loop variables are scoped by this construct, but may not
+	     * reuse the array identifier, and there cannot be more variables than
+	     * dimensions in the array being iterated. Diagnose these before any
+	     * supported-shape dispatch can turn an invalid loop into solver IR. */
+	    perm_string foreach_array_name = cfe->array_name();
+	    if (!cfe->source_path().empty())
+		  foreach_array_name = cfe->source_path().back();
+	    else if (cfe->has_hierarchical_target()
+		     && !cfe->member_name().nil())
+		  foreach_array_name = cfe->member_name();
+	    for (perm_string loop_name : cfe->loop_vars()) {
+		  if (!loop_name.nil() && loop_name == foreach_array_name) {
+			cerr << cfe->get_fileline() << ": error: Constraint foreach loop variable `"
+			     << loop_name << "' has the same identifier as array `"
+			     << foreach_array_name << "'." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
+	    constraint_source_type_t foreach_source =
+		  constraint_foreach_source_type_(cfe, cls, value_slots, scope);
+	    size_t foreach_dimensions = foreach_source.unpacked_dimensions;
+	    const netvector_t*packed_foreach = dynamic_cast<const netvector_t*>(
+		  foreach_source.type);
+	    if (!foreach_dimensions && packed_foreach && !packed_foreach->get_isint())
+		  foreach_dimensions += packed_foreach->packed_dims().size();
+	    if (foreach_source.type
+		&& cfe->loop_vars().size() > foreach_dimensions) {
+		  cerr << cfe->get_fileline() << ": error: Constraint foreach has "
+		       << cfe->loop_vars().size() << " loop variables for an array with "
+		       << foreach_dimensions << " dimensions." << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
             // Selected-prefix names designate existing values, not new
             // iterators. Validate them even when the body never uses them.
             if (cfe->has_hierarchical_target() && cfe->member_name().nil()) {
@@ -39572,6 +39890,81 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// indexed element, constant) is emitted through the ordinary
       // expression path. The result is a conjunction of pairwise (ne).
       if (const PEUnique*uq = dynamic_cast<const PEUnique*>(expr)) {
+	    /* Syntax 18-4's footnote restricts each operand to a variable
+	     * reference. Check that before lowering: the ordinary expression
+	     * emitter accepts operators and constants, which would turn them into
+	     * solver terms even though they are not uniqueness-group members. */
+	    ivl_type_t member_type = nullptr;
+	    for (const PExpr*item : uq->items()) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+		  if (!id) {
+			cerr << uq->get_fileline() << ": error: unique constraint items must "
+			     << "denote scalar or array variables (IEEE 1800-2017 18.5.5 / "
+			     << "1800-2023 18.5.4)."
+			     << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+		  ivl_type_t type = nullptr;
+		  if (id->path().size() == 1) {
+			perm_string name = id->path().back().name;
+			if (cls) {
+			      int idx = cls->property_idx_from_name(name);
+			      if (idx >= 0)
+				    type = cls->get_prop_type((size_t)idx);
+			} else if (scope_randomize_type_ctx_) {
+			      auto found = scope_randomize_type_ctx_->find(name);
+			      if (found != scope_randomize_type_ctx_->end())
+				    type = found->second;
+			}
+		  } else if (cls && !id->path().package) {
+			/* Nested class/struct variable paths are also variable
+			 * references. Resolve their terminal type with the same path
+			 * walker used by constraint lowering. */
+			vector<perm_string> names;
+			bool simple_path = true;
+			for (const name_component_t&component : id->path().name) {
+			      if (!component.index.empty() || component.local_scope) {
+				    simple_path = false;
+				    break;
+			      }
+			      names.push_back(component.name);
+			}
+			if (simple_path && !names.empty()
+			    && names.front() == perm_string::literal("this"))
+			      names.erase(names.begin());
+			if (simple_path && names.size() > 1)
+			      constraint_class_state_path_ir_(
+				    names, cls, false, 0, &type);
+		  }
+		  /* The class-constraint path also permits nested state references.
+		   * Their leaf type is determined by the path walker; direct class
+		   * properties and std::randomize operands are handled here. */
+		  if (!type) {
+			cerr << uq->get_fileline() << ": error: unique constraint items must "
+			     << "denote scalar or array variables (IEEE 1800-2017 18.5.5 / "
+			     << "1800-2023 18.5.4)."
+			     << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+		  const netuarray_t*array = dynamic_cast<const netuarray_t*>(type);
+		  const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
+		  if (array) type = array->element_type();
+		  else if (darray) type = darray->element_type();
+		  if (!member_type) member_type = type;
+		  else if (!member_type->type_equivalent(type)
+			   || !type->type_equivalent(member_type)) {
+			cerr << uq->get_fileline() << ": error: all members of a unique "
+			     << "constraint group shall have equivalent types "
+			     << "(IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4)." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
 	    constraint_randc_capture_t capture(uq, "unique");
 	    capture.seen = constraint_source_references_randc_(
 		  uq, cls, value_slots, scope, loop_env);
@@ -39606,8 +39999,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + " L) (delem " + hdr + " M)))))";
 			}
 		  }
-		  if (cls && id && id->path().size() == 1
-		      && id->path().back().index.empty()) {
+		  if (cls && id && id->path().size() == 1) {
 			perm_string pname = id->path().back().name;
 			  // `x inside {tbl}' where tbl is a state array
 			  // (18.3): its elements are the set members, at
@@ -39618,8 +40010,72 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			     The element count is solved first, so emit the pairwise
 			     template the runtime expands once the size is known. It
 			     was silently dropped, leaving duplicates. */
-			if (pidx >= 0) {
+			if (pidx >= 0
+			    && (id->path().back().index.empty()
+				|| (id->path().back().index.size() == 1
+				    && id->path().back().index.front().sel
+					 == index_component_t::SEL_PART))) {
 			      ivl_type_t ptype = cls->get_prop_type((size_t)pidx);
+			      /* A slice of a one-dimensional unpacked array is a
+			       * sequence of array elements in the unique group, not a
+			       * packed part-select expression. Expand its constant bounds
+			       * to the same element atoms used for a whole array. */
+			      if (id->path().back().index.size() == 1) {
+				    const index_component_t&select =
+					  id->path().back().index.front();
+				    const netuarray_t*slice_array =
+					  dynamic_cast<const netuarray_t*>(ptype);
+				    if (slice_array && select.sel == index_component_t::SEL_PART
+					&& select.msb && select.lsb
+					&& cls->get_prop_qual((size_t)pidx).test_rand()) {
+					  const netranges_t&dims =
+						  slice_array->static_dimensions();
+					  ivl_type_t etype = slice_array->element_type();
+					  unsigned ewid = etype
+						  ? etype->packed_width() : 32;
+					  if (dims.size() != 1 || !dims[0].defined()
+					      || ewid == 0 || ewid > 64) return "";
+					  auto bound_value = [&](const PExpr*bound,
+							constraint_const_ir_t&value) -> bool {
+						unique_ptr<NetExpr> folded(elab_and_eval(
+						      constraint_ir_design_ctx_,
+						      const_cast<NetScope*>(scope),
+						      const_cast<PExpr*>(bound), -1, false, false));
+						const NetEConst*constant =
+						      dynamic_cast<const NetEConst*>(folded.get());
+						if (!constant || !constant->value().is_defined())
+						      return false;
+						const verinum&bits = constant->value();
+						return bits.len() != 0 && bits.len() <= 64
+						      && constraint_parse_const_ir_(
+							constraint_const_bits_ir_(bits, bits.len(),
+									  bits.has_sign()), value);
+					  };
+					  constraint_const_ir_t first, last;
+					  if (!bound_value(select.msb, first)
+					      || !bound_value(select.lsb, last)) return "";
+					  int64_t begin = (int64_t)constraint_resize_const_bits_(
+						first, 64, first.is_signed);
+					  int64_t end = (int64_t)constraint_resize_const_bits_(
+						last, 64, last.is_signed);
+					  int64_t step = begin <= end ? 1 : -1;
+					  uint64_t count = (uint64_t)(begin <= end
+						? end - begin : begin - end) + 1;
+					  if (count > dims[0].width()) return "";
+					  for (uint64_t n = 0; n < count; ++n) {
+						constraint_const_ir_t index = first;
+						index.value = (uint64_t)(begin + step * (int64_t)n);
+						uint64_t offset = 0;
+						if (!constraint_fixed_index_offset_(index,
+						      min(dims[0].get_msb(), dims[0].get_lsb()),
+						      dims[0].width(), offset)) return "";
+						atoms.push_back("e:" + to_string(pidx) + ":"
+						      + to_string(ewid) + ":" + to_string(offset)
+						      + ((etype && etype->get_signed()) ? ":s" : ""));
+					  }
+					  expanded = true;
+				    }
+			      }
 			      const netdarray_t*dyn = dynamic_cast<const netdarray_t*>(ptype);
 			      const netqueue_t*dq = dynamic_cast<const netqueue_t*>(ptype);
 			      if (dyn && !(dq && dq->assoc_compat())) {
@@ -39654,7 +40110,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netuarray_t*ua =
 				    dynamic_cast<const netuarray_t*>(
 					  cls->get_prop_type((size_t)pidx));
-			      if (ua) {
+			      if (ua && !expanded) {
 				    const netranges_t&dims =
 					  ua->static_dimensions();
 				    if (dims.size() != 1)

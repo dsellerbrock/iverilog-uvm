@@ -996,6 +996,7 @@ static int finish_design_output(ivl_design_t des, int rc)
       const char*path = ivl_design_flag(des, "-o");
 
       emit_deferred_array_decls();
+      emit_signal_vartypes();
 
         /* Emit no-op TD stubs for referenced labels that were not
            materialized as function/task definitions. */

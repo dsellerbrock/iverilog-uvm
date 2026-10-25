@@ -1,0 +1,2 @@
+ivltests/sv_bitstream_cast_struct_size_fail.v:5: error: bit-stream cast between fixed-size types of different sizes.
+Elaboration failed

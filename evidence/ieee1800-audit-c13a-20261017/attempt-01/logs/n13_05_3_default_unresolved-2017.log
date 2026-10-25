@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_default_unresolved.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+1 error(s) during elaboration.

@@ -1,0 +1,1 @@
+module m; logic [10:0] up[3:0], p1, p2, p3, p4; initial begin up[3]=1; up[2]=2; up[1]=3; up[0]=4; {>>{p1,p2,p3,p4}} = up; $display("C %0d %0d %0d %0d", p1, p2, p3, p4); end endmodule

@@ -1,0 +1,1 @@
+tests/1800_audit/c06/p06_18d_forward_class_scope.sv:2: error: C doesn't name a visible class.

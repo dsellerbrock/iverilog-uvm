@@ -1,0 +1,8 @@
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+484	OPEN	[IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements		2026-10-08T15:26:07Z
+429	OPEN	[IEEE 1800] §7 — Resolve indexed class-array member operations	enhancement	2026-10-08T15:26:11Z
+488	CLOSED	[IEEE 1800] §11.5.1 — Preserve indexed part-select orientation on ascending class properties		2026-10-15T03:25:26Z
+495	CLOSED	[IEEE 1800] §11.5.1 — Clip partially out-of-range dynamic selects on packed class properties		2026-10-15T04:29:51Z
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z

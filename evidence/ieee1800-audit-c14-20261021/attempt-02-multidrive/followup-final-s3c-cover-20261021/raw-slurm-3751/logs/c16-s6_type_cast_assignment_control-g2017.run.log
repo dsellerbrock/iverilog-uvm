@@ -1,0 +1,2 @@
+S6 type-control int=2
+inputs/c16/s6_type_cast_assignment_control.sv:5: $finish called at 50 (1ns)

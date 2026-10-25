@@ -23,6 +23,7 @@
 # include  <string.h>
 # include  <inttypes.h>
 # include  <assert.h>
+# include  <ctype.h>
 # include  "ivl_alloc.h"
 
 struct deferred_array_decl_s {
@@ -625,6 +626,132 @@ static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
       fprintf(vvp_out, "\";\n");
 }
 
+/*
+ * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
+ * struct/union type of a signal, for waveform dumpers. The type string is
+ *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
+ *             | V<msb>:<lsb> | B<msb>:<lsb>       (4-state / 2-state vector)
+ *    member ::= <name>=<type>
+ * Struct members are listed most significant first.
+ */
+struct vartype_note_s {
+      ivl_signal_t sig;
+      char suffix[16];
+};
+static struct vartype_note_s*vartype_notes = 0;
+static unsigned nvartype_notes = 0;
+
+static int type_has_vartype_(ivl_type_t type)
+{
+      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+}
+
+void note_signal_vartype(ivl_signal_t sig, const char*suffix)
+{
+      if (!type_has_vartype_(ivl_signal_net_type(sig))) return;
+      vartype_notes = realloc(vartype_notes,
+                              (nvartype_notes+1) * sizeof(*vartype_notes));
+      vartype_notes[nvartype_notes].sig = sig;
+      snprintf(vartype_notes[nvartype_notes].suffix,
+               sizeof vartype_notes[nvartype_notes].suffix, "%s", suffix);
+      nvartype_notes += 1;
+}
+
+struct vartype_buf_s {
+      char*text;
+      size_t len, cap;
+};
+
+static void vartype_put_(struct vartype_buf_s*buf, const char*text)
+{
+      size_t add = strlen(text);
+      if (buf->len + add + 1 > buf->cap) {
+	    buf->cap = 2 * (buf->len + add + 1);
+	    buf->text = realloc(buf->text, buf->cap);
+      }
+      memcpy(buf->text + buf->len, text, add + 1);
+      buf->len += add;
+}
+
+/* Append the type string for TYPE and return its width. Return 0 for a
+ * type it cannot describe: a tagged union (its tag has no member), a member
+ * name that needs escaping, or an enumeration that was not drawn. */
+static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
+{
+      char tmp[64];
+      ivl_enumtype_t enumtype = ivl_type_enum(type);
+      int nmembers = ivl_type_properties(type);
+
+      if (enumtype) {
+	    if (!enumeration_is_drawn(enumtype)) return 0;
+	    snprintf(tmp, sizeof tmp, "E%u:enum%p", ivl_enum_width(enumtype),
+	             enumtype);
+	    vartype_put_(buf, tmp);
+	    return ivl_enum_width(enumtype);
+      }
+
+      if (nmembers > 0) {
+	    int idx;
+	    unsigned width = 0;
+	    if (ivl_type_is_tagged_union(type)) return 0;
+	    vartype_put_(buf, ivl_type_is_union(type) ? "U{" : "S{");
+	    for (idx = 0 ; idx < nmembers ; idx += 1) {
+		  const char*name = ivl_type_prop_name(type, idx);
+		  const char*cp;
+		  unsigned member_width;
+		  for (cp = name ; *cp ; cp += 1)
+			if (!(isalnum((unsigned char)*cp) || *cp == '_' || *cp == '$'))
+			      return 0;
+		  if (idx) vartype_put_(buf, ",");
+		  vartype_put_(buf, name);
+		  vartype_put_(buf, "=");
+		  member_width = vartype_spec_(buf, ivl_type_prop_type(type, idx));
+		  if (!member_width) return 0;
+		  if (!ivl_type_is_union(type)) width += member_width;
+		  else if (member_width > width) width = member_width;
+	    }
+	    vartype_put_(buf, "}");
+	    return width;
+      }
+
+	/* Any other packed type is a vector; several packed dimensions
+	   collapse to one (IEEE 1800-2023 21.7.5). */
+      switch (ivl_type_packed_dimensions(type)) {
+	  case 0:
+	    snprintf(tmp, sizeof tmp, "0:0");
+	    break;
+	  case 1:
+	    snprintf(tmp, sizeof tmp, "%d:%d", ivl_type_packed_msb(type, 0),
+	             ivl_type_packed_lsb(type, 0));
+	    break;
+	  default:
+	    snprintf(tmp, sizeof tmp, "%u:0", ivl_type_packed_width(type) - 1);
+	    break;
+      }
+      vartype_put_(buf, ivl_type_base(type) == IVL_VT_BOOL ? "B" : "V");
+      vartype_put_(buf, tmp);
+      return ivl_type_packed_width(type);
+}
+
+void emit_signal_vartypes(void)
+{
+      unsigned idx;
+      struct vartype_buf_s buf = { 0, 0, 0 };
+
+      for (idx = 0 ; idx < nvartype_notes ; idx += 1) {
+	    ivl_signal_t sig = vartype_notes[idx].sig;
+	    buf.len = 0;
+	    vartype_put_(&buf, "");
+	    if (vartype_spec_(&buf, ivl_signal_net_type(sig)) == ivl_signal_width(sig))
+		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
+		          vartype_notes[idx].suffix, buf.text);
+      }
+      free(buf.text);
+      free(vartype_notes);
+      vartype_notes = 0;
+      nvartype_notes = 0;
+}
+
 static void emit_signal_source_location_(ivl_signal_t sig, const char*suffix)
 {
       const char*file = ivl_signal_file(sig);
@@ -1027,6 +1154,11 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	      || ivl_signal_data_type(sig) == IVL_VT_CLASS
 	      || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE))
 	    emit_signal_source_location_(sig, "_0");
+
+      if (ivl_signal_dimensions(sig) == 0
+	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC))
+	    note_signal_vartype(sig, "_0");
 }
 
 
@@ -1216,8 +1348,10 @@ static void draw_net_in_scope(ivl_signal_t sig)
 
       if (ivl_signal_dimensions(sig) == 0 && !ivl_signal_local(sig)
 	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
-	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC))
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC)) {
 	    emit_signal_source_location_(sig, "_0");
+	    note_signal_vartype(sig, "_0");
+      }
 }
 
 void emit_deferred_array_decls(void)

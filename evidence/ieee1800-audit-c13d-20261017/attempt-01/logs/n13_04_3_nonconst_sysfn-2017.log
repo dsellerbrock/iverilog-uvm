@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:2: error: $random is not a built-in function, so cannot be used in a constant function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nonconst_sysfn.sv:3: error: `cf' is not a constant function.
+2 error(s) during elaboration.

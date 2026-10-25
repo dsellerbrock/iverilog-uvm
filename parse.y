@@ -25,6 +25,7 @@
 # include  <climits>
 # include  <cstdarg>
 # include  "parse_misc.h"
+# include  "parse_api.h"
 # include  "compiler.h"
 # include  "pform.h"
 # include  "PClass.h"
@@ -48,6 +49,8 @@ extern void lex_end_table();
 static data_type_t* param_data_type = 0;
 static bool param_is_local = false;
 static bool param_is_type = false;
+static type_parameter_restriction_t param_type_restriction =
+	type_parameter_restriction_t::NONE;
 static bool in_gen_region = false;
 static std::list<pform_range_t>* specparam_active_range = 0;
 
@@ -1108,7 +1111,7 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
-      if (!id || !id->has_scoped_type_prefix() || id->leading_type_args())
+      if (!id || !id->has_scoped_type_prefix())
 	    return 0;
       const pform_scoped_name_t&path = id->path();
       if (path.name.size() != 2 || !path.name.front().index.empty()
@@ -1116,7 +1119,33 @@ static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 	    return 0;
       return make_class_scoped_typeref(loc, loc, path.name.front().name.str(),
 				       path.name.back().name.str(),
-				       path.package, nullptr, true);
+				       path.package, id->take_leading_type_args(), true);
+}
+
+/* IEEE 1800-2017 6.18 permits an incomplete class prefix in a class-scoped
+   type only when the reference is itself a typedef declaration. The member
+   typedef is not in the class symbol table until the class definition is
+   parsed, so retain its name and resolve it after the class becomes complete. */
+static data_type_t* make_forward_class_scoped_typeref(
+      const YYLTYPE&class_loc, const YYLTYPE&member_loc,
+      const char*class_name, const char*member_name,
+      PPackage*package_scope = nullptr)
+{
+      typedef_t*qualifier_type = package_scope
+            ? pform_test_type_identifier(package_scope, class_name)
+            : pform_test_type_identifier(class_loc, class_name);
+      if (!qualifier_type ||
+          (qualifier_type->get_basic_type() != typedef_t::CLASS &&
+           qualifier_type->get_basic_type() != typedef_t::ANY)
+          || qualifier_type->get_data_type())
+            return nullptr;
+
+      typeref_t*qualifier = new typeref_t(qualifier_type, package_scope);
+      FILE_NAME(qualifier, class_loc);
+      class_scoped_typeref_t*result = new class_scoped_typeref_t(
+            nullptr, package_scope, qualifier, lex_strings.make(member_name));
+      FILE_NAME(result, member_loc);
+      return result;
 }
 
 static char* dup_cstr(const char*txt)
@@ -2055,6 +2084,28 @@ static Module::port_t *module_declare_port_continuation(
             port_declaration_context.port_net_type,
             port_declaration_context.data_type, unpacked_dims,
             default_value, attributes);
+}
+
+static Module::port_t *module_declare_explicit_port(
+                                    const YYLTYPE&loc, char*port_id,
+                                    PExpr*expression,
+                                    NetNet::PortType port_type)
+{
+      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
+      if (!ident) {
+            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers.");
+            delete expression;
+            delete[] port_id;
+            return nullptr;
+      }
+
+      perm_string internal_name = peek_tail_name(ident->path().name);
+      pform_module_defer_port_direction(internal_name, port_type);
+      delete expression;
+      Module::port_t*port = pform_module_port_reference(loc, internal_name);
+      port->name = lex_strings.make(port_id);
+      delete[] port_id;
+      return port;
 }
 
 %}
@@ -7446,9 +7497,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property(@2, $2, $4);
+      { check_end_label(@8, "property", $2, $8);
+	pform_sva_declare_property(@2, $2, $4);
 	delete[] $2;
-	delete[] $8;
       }
   /* Focused unambiguous slice of assertion_variable_declaration for the
      ubiquitous built-in `int' local. Using the concrete keyword here avoids
@@ -7465,11 +7516,11 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_property IDENTIFIER ';' sva_int_local_declarations event_control
       property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
       { sva_property_t*p = $7;
+	check_end_label(@11, "property", $2, $11);
 	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
 	else { delete $5; delete $6; }
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
-	delete[] $11;
       }
   | K_property IDENTIFIER ';' sva_int_local_declarations
       property_spec_disable_iff_opt property_expr ';' K_endproperty
@@ -7481,10 +7532,10 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_property IDENTIFIER ';' sva_int_local_declarations
       property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
       { sva_property_t*p = $6;
+	check_end_label(@10, "property", $2, $10);
 	if (p) p->disable_iff_expr = $5; else delete $5;
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
-	delete[] $10;
       }
   /* An ordinary unclocked named sequence keeps the flat splice table. */
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
@@ -7560,9 +7611,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property_p(@2, $2, $4, $7);
+      { check_end_label(@11, "property", $2, $11);
+	pform_sva_declare_property_p(@2, $2, $4, $7);
 	delete[] $2;
-	delete[] $11;
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations property_spec ';' K_endproperty
@@ -7571,9 +7622,9 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       }
   | K_property IDENTIFIER '(' sva_formal_list ')' ';'
       sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
-      { pform_sva_declare_property_p(@2, $2, $4, $8);
+      { check_end_label(@12, "property", $2, $12);
+	pform_sva_declare_property_p(@2, $2, $4, $8);
 	delete[] $2;
-	delete[] $12;
       }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
@@ -7999,6 +8050,10 @@ package_export_item_list
 
 package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
+  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
+      { perm_string tmp2 = lex_strings.make($2);
+        pform_make_let(@1, tmp2, $3, $5);
+      }
   | parameter_declaration
   | type_declaration
   | package_function_declaration
@@ -9220,6 +9275,27 @@ sva_seq_atom
   | K_first_match '(' sva_seq_expr ')'
       { for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
 	$$ = $3; }
+  /* IEEE 1800-2017/2023 16.9.8: match items following the operand
+     belong to its ending match, and are considered inside first_match.
+     Keep them on the final step so the existing ordered match-item
+     lowering executes them only when that endpoint is selected. */
+  | K_first_match '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
+      { if (!$3->empty()) {
+	    sva_seq_step_t&st = $3->back();
+	    st.lv_name = lex_strings.make($5);
+	    st.lv_rhs = pform_sva_coerce_local_assignment(@5, $5, $7);
+	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	  } else delete $7;
+	delete[] $5;
+	$$ = $3; }
+  | K_first_match '(' sva_seq_expr ',' sva_match_call_list ')'
+      { if (!$3->empty()) {
+	    sva_seq_step_t&st = $3->back();
+	    st.match_calls.insert(st.match_calls.end(), $5->begin(), $5->end());
+	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	  } else { for (size_t i=0; i<$5->size(); i+=1) delete (*$5)[i]; }
+	delete $5;
+	$$ = $3; }
   | sva_seq_atom K_LBSTAR expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
   | sva_seq_atom K_LBSTAR expression ':' expression ']'
@@ -9282,21 +9358,7 @@ sva_seq_expr
         delete $4;
         $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$8)[0];
-	if ((pform_sva_overridable_bound($4)
-	     || pform_sva_overridable_bound($6))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
-	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $4; delete $6; }
+	{ pform_sva_range_delay(@3, (*$8)[0], $4, $6);
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
@@ -9349,21 +9411,7 @@ sva_seq_expr
         delete $4;
         $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$8)[0];
-	if ((pform_sva_overridable_bound($4)
-	     || pform_sva_overridable_bound($6))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
-	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $4; delete $6; }
+	  { pform_sva_range_delay(@3, (*$8)[0], $4, $6);
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
@@ -9422,38 +9470,10 @@ sva_seq_lead_delay
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if ((pform_sva_overridable_bound($3)
-	     || pform_sva_overridable_bound($5))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
-	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if ((pform_sva_overridable_bound($3)
-	     || pform_sva_overridable_bound($5))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
-	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
   | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
       { long lo = 0;
@@ -10594,7 +10614,31 @@ nettype_declaration
   ;
 
 type_declaration
-  : K_typedef data_type typedef_identifier_name dimensions_opt ';'
+  : K_typedef TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { pform_set_type_referenced(@2, $2.text);
+        data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.text, $4);
+        if (!type)
+              type = make_class_scoped_typeref(@2, @4, $2.text, $4);
+        if (type)
+              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+        delete[]$2.text;
+        delete[]$4;
+        delete[]$5;
+      }
+  | K_typedef TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { pform_set_type_referenced(@2, $2.text);
+        data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.text, $4.text);
+        if (!type)
+              type = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
+        if (type)
+              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+        delete[]$2.text;
+        delete[]$4.text;
+        delete[]$5;
+      }
+  | K_typedef data_type typedef_identifier_name dimensions_opt ';'
       { perm_string name = lex_strings.make($3);
 	if ($1) {
 	      pform_requires_sv(@1, "User-defined nettype declaration");
@@ -10607,6 +10651,43 @@ type_declaration
 	      pform_set_typedef(@3, name, $2, $4);
 	}
 	delete[]$3;
+      }
+  /* IEEE 1800-2017/2023 6.18: an interface type selected through an
+     interface port is not a hierarchical type reference. Resolve the
+     member in the declared interface scope and install a local alias. */
+  | K_typedef IDENTIFIER '.' IDENTIFIER typedef_identifier_name dimensions_opt ';'
+      { perm_string port_name = lex_strings.make($2);
+	perm_string member_name = lex_strings.make($4);
+	PWire*port = pform_get_wire_in_scope(port_name);
+	const data_type_t*port_type = port ? port->data_type() : nullptr;
+	const interface_type_t*interface_type =
+	      dynamic_cast<const interface_type_t*>(port_type);
+	if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(port_type)) {
+	      typedef_t*type = type_ref->typedef_ref();
+	      if (type) interface_type = dynamic_cast<const interface_type_t*>(
+	            type->get_data_type());
+	}
+	auto interface = interface_type
+	      ? pform_modules.find(interface_type->name) : pform_modules.end();
+	if (interface == pform_modules.end() || !interface->second->is_interface) {
+	      yyerror(@2, "error: `%s` is not an interface port.", $2);
+	      delete $6;
+	} else {
+	      auto type = interface->second->typedefs.find(member_name);
+	      if (type == interface->second->typedefs.end()) {
+	            yyerror(@4, "error: `%s` is not a type in interface `%s`.",
+	                    $4, interface_type->name.str());
+	            delete $6;
+	      } else {
+	            typeref_t*alias = new typeref_t(type->second, interface->second);
+	            FILE_NAME(alias, @4);
+	            perm_string name = lex_strings.make($5);
+	            pform_set_typedef(@5, name, alias, $6);
+	      }
+	}
+	delete[] $2;
+	delete[] $4;
+	delete[] $5;
       }
   | K_typedef data_type identifier_name K_with nettype_resolution_name ';'
       { perm_string name = lex_strings.make($3);
@@ -14388,7 +14469,18 @@ expr_primary
   | expr_primary '\'' '(' expression ')'
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Size cast")) {
-	      PExpr*tmp = pform_self_package_type_cast(@1, $1, base);
+	      PExpr*tmp = 0;
+	      /* IEEE 1800-2017 6.23 permits a type() reference anywhere a
+	       * type name can be used, including as a cast target. */
+	      if (PETypename*type_expr = dynamic_cast<PETypename*>($1)) {
+		    if (dynamic_cast<type_reference_t*>(type_expr->get_type())) {
+			  tmp = new PECastType(type_expr->get_type(), base);
+			  FILE_NAME(tmp, @1);
+			  delete $1;
+		    }
+	      }
+	      if (!tmp)
+		    tmp = pform_self_package_type_cast(@1, $1, base);
 	      data_type_t*cast_type = tmp ? 0 : class_scoped_type_of_ident(@1, $1);
 	      if (cast_type) {
 		    // `C::enum_t'(x)' names a class-scoped type (IEEE 6.24.1).
@@ -14427,6 +14519,17 @@ expr_primary
 	} else {
 	      $$ = base;
 	}
+      }
+
+  | K_const '\'' '(' expression ')'
+      { std::list<named_pexpr_t> args;
+	named_pexpr_t arg;
+	arg.parm = $4;
+	args.push_back(arg);
+	PECallFunction*tmp = new PECallFunction(
+	      lex_strings.make("$ivl_const_cast"), args);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
       }
 
   /* Aggregate literals are primaries. */
@@ -14921,6 +15024,28 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
+  | hierarchy_identifier '[' '$' '+' expression ']'
+      { pform_requires_sv(@3, "Last element expression ($)");
+        pform_name_t * tmp = $1;
+	pform_name_t * size_path = new pform_name_t(*tmp);
+	size_path->push_back(name_component_t(lex_strings.make("size")));
+	std::vector<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
+	FILE_NAME(size_call, @3);
+	delete size_path;
+	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	PEBinary*offset_idx = new PEBinary('+', last_idx, $5);
+	FILE_NAME(offset_idx, @4);
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = offset_idx;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
@@ -15143,6 +15268,22 @@ list_of_port_declarations
 	port = module_declare_port_continuation(@4, $4, $5, $6, $3);
 	ports->push_back(port);
 	$$ = ports;
+      }
+  | list_of_port_declarations ',' port_direction_opt '.' IDENTIFIER '(' expression_opt ')'
+      { std::vector<Module::port_t*> *ports = $1;
+        NetNet::PortType direction = $3 == NetNet::PIMPLICIT
+              ? port_declaration_context.port_type : $3;
+        Module::port_t* port = module_declare_explicit_port(
+              @5, $5, $7, direction);
+        if (port) ports->push_back(port);
+        // An explicitly named port contributes only its direction to the
+        // following port. Its expression does not establish inherited
+        // port-kind or data-type defaults.
+        port_declaration_context.port_type = direction;
+        port_declaration_context.port_net_type = NetNet::IMPLICIT;
+        port_declaration_context.data_type = nullptr;
+        port_declaration_context.user_nettype = nullptr;
+        port_declaration_context.interconnect = false;
       }
   | list_of_port_declarations ','
       { yyerror(@2, "error: Superfluous comma in port declaration list."); }
@@ -15641,7 +15782,14 @@ module_parameter_port_list_maybe
   ;
 
 type_param
-  : K_type { param_is_type = true; }
+  : K_type
+      { param_is_type = true;
+	param_type_restriction = type_parameter_restriction_t::NONE;
+      }
+  | K_type class_type_parameter_restriction
+      { param_is_type = true;
+	param_type_restriction = $2;
+      }
   ;
 
 module_parameter
@@ -16195,6 +16343,10 @@ module_item
       { pform_error_in_generate(@1, "timeunit declaration"); }
 
   | class_declaration
+
+  /* IEEE 1800-2017 18.5.1: an external constraint block follows its
+     class declaration in the same module, interface, or program scope. */
+  | package_constraint_declaration
 
   /* M11-2: MODULE/interface-scope covergroup declaration (IEEE
      1800-2017 19.3): declares a type; instances are created with
@@ -16763,7 +16915,8 @@ parameter_assign_list
 parameter_assign
   : IDENTIFIER dimensions_opt parameter_initializer_opt parameter_value_ranges_opt
       { pform_set_parameter(@1, lex_strings.make($1), param_is_local,
-			    param_is_type, param_data_type, $2, $3, $4);
+			    param_is_type, param_data_type, $2, $3, $4,
+			    param_type_restriction);
 	delete[]$1;
       }
   ;

@@ -375,6 +375,8 @@ static list<set<perm_string> > conditional_block_names;
      always within an interface. */
 static PModport*pform_cur_modport = 0;
 static bool pform_parsing_modport_tf_prototype = false;
+static map<Module*, vector<pair<perm_string, NetNet::PortType> > >
+      pform_deferred_explicit_port_directions;
 static bool pform_pending_modport_tf_prototype = false;
 static perm_string pform_pending_modport_tf_name;
 static bool pform_pending_modport_tf_is_function = false;
@@ -2546,6 +2548,8 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 
       perm_string lex_name = lex_strings.make(name);
       Module*cur_module = new Module(lexical_scope, lex_name);
+      if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
+	    cur_module->unit_lets = unit->lets;
       cur_module->program_block = program_block;
       cur_module->is_interface = is_interface;
       cur_module->is_checker = is_checker;
@@ -2598,6 +2602,14 @@ Module::port_t* pform_module_port_reference(const struct vlltype&loc,
       return ptmp;
 }
 
+void pform_module_defer_port_direction(perm_string name,
+                                       NetNet::PortType direction)
+{
+      assert(!pform_cur_module.empty());
+      pform_deferred_explicit_port_directions[pform_cur_module.front()]
+            .push_back(make_pair(name, direction));
+}
+
 void pform_module_set_ports(vector<Module::port_t*>*ports)
 {
       assert(! pform_cur_module.empty());
@@ -2627,6 +2639,26 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
       perm_string mod_name = cur_module->mod_name();
+      map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
+            deferred = pform_deferred_explicit_port_directions.find(cur_module);
+      if (deferred != pform_deferred_explicit_port_directions.end()) {
+            for (const pair<perm_string, NetNet::PortType>&port
+                       : deferred->second) {
+                  PWire*wire = pform_get_wire_in_scope(port.first);
+                  if (!wire) {
+                        ostringstream msg;
+                        msg << "error: Explicit port expression signal `"
+                            << port.first << "' is not declared.";
+                        VLerror(msg.str().c_str());
+                  } else if (!wire->set_port_type(port.second)) {
+                        ostringstream msg;
+                        msg << "error: Explicit port expression signal `"
+                            << port.first << "' has conflicting port directions.";
+                        VLerror(msg.str().c_str());
+                  }
+            }
+            pform_deferred_explicit_port_directions.erase(deferred);
+      }
       if (!cur_module->default_clocking.nil()
 	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
 	      == cur_module->clocking_blocks.end())) {
@@ -6546,6 +6578,23 @@ void pform_make_let(const struct vlltype&loc,
       LexicalScope*scope =  pform_peek_scope();
       Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
 
+      if (mod == 0) {
+	    PPackage*package = dynamic_cast<PPackage*>(scope);
+	    if (package) {
+		  if (package->lets.count(name)) {
+			cerr << loc.get_fileline() << ": error: duplicate let declaration `"
+			     << name << "' in package `" << package->pscope_name() << "'." << endl;
+			error_count += 1;
+			delete expr;
+			return;
+		  }
+		  PLet*res = new PLet(name, scope, ports, expr);
+		  FILE_NAME(res, loc);
+		  package->lets[name] = res;
+		  return;
+	    }
+      }
+
 	// let declarations are supported directly in module/interface
 	// scope (the overwhelmingly common placement). Lets nested in
 	// generate blocks or other scopes are a recorded corner.
@@ -8360,6 +8409,7 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
 
       PAssignNB*tmp = new PAssignNB(lval, cycles, ectl, rval);
       tmp->mark_clocking_drive();
+      lid->mark_clocking_drive_lval();
       FILE_NAME(tmp, loc);
       return tmp;
 }
@@ -10431,8 +10481,51 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				 const std::map<perm_string,unsigned>*unsampled_locals)
 {
       if (!e) return nullptr;
+	/* IEEE 1800-2017/2023 16.5.1: const'(expr) uses the
+	   current value of expr in an assertion, rather than its Preponed
+	   value. The parser keeps this internal call as the cast marker. */
+	if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	      if (!cf->receiver_expr()
+		  && !strcmp(peek_tail_name(cf->path().name).str(),
+			     "$ivl_const_cast")
+		  && cf->get_parms().size() == 1
+		  && cf->get_parms()[0].parm)
+		    return sva_clone_expr_(cf->get_parms()[0].parm);
+	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	      /* IEEE 1800-2017/2023 16.5.1: a clocking-block input used
+		as a concurrent-assertion operand must itself have #1step
+		sampling. Numeric input skews (including #0) cannot be
+		reinterpreted as the assertion's Preponed sample. */
+	    if (!id->path().package && id->path().name.size() >= 2
+		&& !pform_cur_module.empty()) {
+		  const pform_name_t&path = id->path().name;
+		  Module*mod = pform_cur_module.front();
+		  std::map<perm_string,Module::PClocking*>::const_iterator cb_it =
+			mod->clocking_blocks.find(path.front().name);
+		  if (cb_it != mod->clocking_blocks.end()) {
+			const Module::PClocking*cb = cb_it->second;
+			pform_name_t::const_iterator signal = path.begin();
+			++signal;
+			bool clocking_input =
+			      std::find(cb->signals.begin(), cb->signals.end(),
+					signal->name) != cb->signals.end()
+			      && (cb->signal_direction(signal->name) == NetNet::PINPUT
+				  || cb->signal_direction(signal->name) == NetNet::PINOUT);
+			PExpr*skew_delay = nullptr;
+			if (clocking_input
+			    && cb->input_skew(signal->name, skew_delay)
+				 == Module::PClocking::SKEW_DELAY) {
+			  cerr << id->get_fileline() << ": error: clocking-block input `"
+			       << cb->name << "." << signal->name
+			       << "' used in a concurrent assertion must be sampled with "
+			       << "#1step (IEEE 1800-2017/2023 16.5.1)." << endl;
+			  error_count += 1;
+			  return nullptr;
+			}
+		  }
+	    }
 	      /* A sequence local is per assertion attempt, not a design signal.
 		 The NFA caller replaces this fresh bare identifier with the
 		 corresponding slot register after the rest of the expression has
@@ -10568,6 +10661,11 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
       }
       if (PEString*str = dynamic_cast<PEString*>(e)) {
 	    PEString*cp = new PEString(strdup(str->value().c_str()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (dynamic_cast<PENull*>(e)) {
+	    PENull*cp = new PENull();
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -12078,6 +12176,18 @@ static Statement* sva_cover_action_(const struct vlltype&loc,
       return sva_block_(loc, v);
 }
 
+/* Cover actions must not hold the checker process while they run. */
+static Statement* sva_cover_spawn_(const struct vlltype&loc,
+				   Statement*pass_stmt)
+{
+      PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+      FILE_NAME(spawn, loc);
+      std::vector<Statement*>child;
+      child.push_back(sva_cover_action_(loc, pass_stmt));
+      spawn->set_statement(child);
+      return spawn;
+}
+
 /* Defined with the multiclock assertion helpers below. NFA endpoint fan-out
    also uses it to dispatch one action/callback for every verdict in a
    same-tick batch. */
@@ -12196,6 +12306,50 @@ static void tc_edge_vals_(PTimingCheck::EdgeType e, double&a, double&b)
 	  case PTimingCheck::EDGE_X0: a = 2.0; b = 0.0; break;
 	  case PTimingCheck::EDGE_X1: a = 2.0; b = 1.0; break;
       }
+}
+
+/* Validate and accumulate a finite ##[lo:hi] window before the sequence
+   lowering can use its bounds to size vectors. */
+void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
+                           PExpr*lo_expr, PExpr*hi_expr)
+{
+      long lo = 0, hi = 0;
+      if ((pform_sva_overridable_bound(lo_expr)
+           || pform_sva_overridable_bound(hi_expr))
+          && step.delay_lo == 0 && step.delay_hi == 0) {
+            step.delay_lo = -5;
+            step.delay_hi = -5;
+            step.delay_lo_expr = lo_expr;
+            step.delay_hi_expr = hi_expr;
+            return;
+      }
+      if (pform_sva_const_long(lo_expr, lo)
+          && pform_sva_const_long(hi_expr, hi)) {
+            if (lo < 0 || hi < 0 || hi < lo) {
+                  cerr << loc << ": error: invalid SVA cycle-delay range ["
+                       << lo << ":" << hi
+                       << "]; bounds must be nonnegative and the upper bound "
+                       << "must be greater than or equal to the lower bound "
+                       << "(IEEE 1800-2017/2023 16.7)." << endl;
+                  error_count += 1;
+                  /* Keep later generic shape checks quiet. The recorded
+                     compile error prevents this recovery value from being
+                     accepted as a valid assertion. */
+                  step.delay_lo = 0;
+                  step.delay_hi = 0;
+            } else if (step.delay_lo >= 0) {
+                  step.delay_lo += lo;
+                  step.delay_hi += hi;
+            } else if (step.delay_lo != -3) {
+                  step.delay_lo = -2;
+                  step.delay_hi = -2;
+            }
+      } else if (step.delay_lo != -3) {
+            step.delay_lo = -2;
+            step.delay_hi = -2;
+      }
+      delete lo_expr;
+      delete hi_expr;
 }
 
 /* Build "@(edge sig) if (cond) <body>" as an always process. For an
@@ -13554,6 +13708,7 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    un->mark_concurrent_assertion_expr();
 	    sva_mark_strict_(un->get_expr());
 	    return;
       }
@@ -16005,7 +16160,7 @@ static int sva_validate_match_items_(const struct vlltype&loc,
       for (size_t i = 0 ; i < prop->seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*prop->seq)[i];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0 || st.rep_kind != 0 || st.fm)
+		|| st.rep_tail != 0 || st.rep_kind != 0)
 		  return sva_match_item_sorry_(loc,
 			"currently require a fixed-length sequence with no repetition");
       }
@@ -18088,6 +18243,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    if (!implication)
 		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+	  } else if (cover && pass_stmt) {
+		/* Cover pass actions are dispatched with the accepted match, in
+		   Reactive, without delaying the automaton's checker process. */
+		if (match_action) {
+		      std::vector<Statement*>ordered;
+		      ordered.push_back(match_action);
+		      ordered.push_back(pass_stmt);
+		      match_action = sva_block_(loc, ordered);
+		      pass_stmt = nullptr;
+		} else {
+		      match_action = pass_stmt;
+		      pass_stmt = nullptr;
+		}
       }
 
 	/* disable iff: own, else the module default (cloned). */
@@ -18874,12 +19042,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   time cannot delay the checker or suppress another endpoint. Each
 	   child enters Reactive before executing the source-ordered calls. */
       if (cover && match_action) {
-	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
-	    FILE_NAME(spawn, loc);
-	    std::vector<Statement*>child;
-	    child.push_back(sva_cover_action_(loc, match_action));
-	    spawn->set_statement(child);
-	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match), spawn));
+	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match),
+				       sva_cover_spawn_(loc, match_action)));
 	    match_action = nullptr;
       }
 
@@ -18993,16 +19157,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
 
-	/* End-of-simulation handling for looping obligations. Loop states
-	   are self-loop wait states by construction; a slot still in one at
-	   end of simulation is an attempt whose sequence never completed.
-	   For a WEAK sequence property (the default) that is not a failure
-	   — emit an informational note. For a STRONG sequence property
-	   (`strong(seq)', 16.12.2) it IS a failure. A pending `not' attempt
-	   means the negated property held (silent); a pending cover attempt
-	   simply never matched (silent). */
+	/* End-of-simulation handling for pending sequence attempts. For a
+	   strong sequence, every active non-accepting state represents an
+	   incomplete attempt: simulation cannot supply another clock tick to
+	   reach the accept state, so the attempt fails (16.12.15). Weak
+	   sequences impose no such obligation; retain the existing diagnostic
+	   only for their unbounded loop states. A pending `not' attempt means
+	   the negated property held (silent); a pending cover attempt simply
+	   never matched (silent). */
       bool strong_seq = (prop->strength == 1);
-      if (cyclic && !negated && !cover && !endpoint_fanout) {
+	if (!negated && !cover && !endpoint_fanout
+	    && (strong_seq || cyclic)) {
 	    std::vector<bool> loop_state (N, false);
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
 		  if (nfa.edges[i].from == nfa.edges[i].to)
@@ -19010,7 +19175,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    PExpr*pend = nullptr;
 	    for (long k = 0 ; k < K ; k += 1)
 		  for (unsigned j = 0 ; j < N ; j += 1) {
-			if (!loop_state[j]) continue;
+			if (j == nfa.accept
+			    || (!strong_seq && !loop_state[j])) continue;
 			PExpr*t = sva_id_(loc, s[k][j]);
 			pend = pend ? sva_logic_(loc, 'o', pend, t) : t;
 		  }
@@ -23809,6 +23975,10 @@ struct sva_pending_proc_t {
       perm_string label;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
+/* Assertions without an explicit clock are held until their enclosing
+   procedural event control can supply rule (c), or module end can apply the
+   default clock. Suppress re-parking during that final default-clock bind. */
+static bool sva_proc_clock_retry_active_ = false;
 
 /* Both end-of-module retry paths have seen every declaration. An unresolved
    identifier must now fall through to the ordinary binding diagnostic, not
@@ -23978,8 +24148,11 @@ void pform_sva_flush_pending_procedural(void)
 		  lexical_scope = p.scope;
 		  pform_cur_generate = p.generate;
 		  sva_named_prop_retry_active_ = true;
+		  bool saved_proc_retry = sva_proc_clock_retry_active_;
+		  sva_proc_clock_retry_active_ = true;
 		  pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
 				       p.kind, p.label);
+		  sva_proc_clock_retry_active_ = saved_proc_retry;
 		  sva_named_prop_retry_active_ = saved_retry;
 		  pform_cur_generate = saved_generate;
 		  lexical_scope = saved;
@@ -26057,29 +26230,28 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pass_stmt = nullptr;
       }
 
-	/* M9-10: no explicit clock and no default clocking -- park it and
-	   let an enclosing procedural event control supply the clock
-	   (16.14.6). See pform_sva_infer_procedural_clock. */
-      if (prop && !prop->clk_evt && !sva_prop_is_named_ref_(prop)) {
+	/* M9-10: defer a clock-less assertion until its enclosing procedural
+	   event control can supply rule (c), or module end can bind the default
+	   clock under rule (a). See pform_sva_infer_procedural_clock. */
+	if (prop && !prop->clk_evt && !sva_proc_clock_retry_active_
+	    && !sva_prop_is_named_ref_(prop)) {
 	    Module*mod = pform_cur_module.empty() ? nullptr
 			 : pform_cur_module.front();
-	    if (!mod || mod->default_clocking.nil()) {
-		  sva_pending_proc_t pend;
-		  pend.loc = loc;
-		  pend.owner = mod;
-		  pend.scope = lexical_scope;
-		  pend.generate = pform_cur_generate;
-		  while (dynamic_cast<PBlock*>(pend.scope)
-			 && pend.scope->parent_scope())
-			pend.scope = pend.scope->parent_scope();
-		  pend.prop = prop;
-		  pend.fail_stmt = fail_stmt;
-		  pend.pass_stmt = pass_stmt;
-		  pend.kind = kind;
-		  pend.label = sva_active_assertion_label_;
-		  sva_pending_proc_.push_back(pend);
-		  return;
-	    }
+	    sva_pending_proc_t pend;
+	    pend.loc = loc;
+	    pend.owner = mod;
+	    pend.scope = lexical_scope;
+	    pend.generate = pform_cur_generate;
+	    while (dynamic_cast<PBlock*>(pend.scope)
+		   && pend.scope->parent_scope())
+		  pend.scope = pend.scope->parent_scope();
+	    pend.prop = prop;
+	    pend.fail_stmt = fail_stmt;
+	    pend.pass_stmt = pass_stmt;
+	    pend.kind = kind;
+	    pend.label = sva_active_assertion_label_;
+	    sva_pending_proc_.push_back(pend);
+	    return;
       }
 
       /* Synthesize into the nearest non-block scope; see
@@ -26149,14 +26321,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
       if (prop && prop->tree) {
-	    if (kind == 2 && pass_stmt) {
-		  cerr << loc << ": warning: the pass statement of this "
-		       << "`cover property' is not executed (recorded "
-		       << "corner); it is dropped. The match counter "
-		       << "still counts." << endl;
-		  delete pass_stmt;
-		  pass_stmt = nullptr;
-	    }
 	      /* The endpoint-method (.triggered/.matched) lowering must
 	         also cover combinator-tree leaf chains -- the tree
 	         dispatch used to bypass it, leaving the references
@@ -26663,20 +26827,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   assertion to the automaton engine first. It returns true
 	   only when it fully lowered the assertion; false means fall
 	   through to the legacy linear engine below. */
-	/* Neither engine executes a `cover property' pass statement
-	   (the legacy engine keeps only the match counter; the NFA
-	   engine matches it for parity). Dropping one SILENTLY would
-	   hide that — warn loudly. Shared here so both engines behave
-	   identically. */
-      if (kind == 2 && pass_stmt && prop->op_type != 3) {
-	    cerr << loc << ": warning: the pass statement of this "
-		 << "`cover property' is not executed (recorded corner); "
-		 << "it is dropped. The match counter still counts."
-		 << endl;
-	    delete pass_stmt;
-	    pass_stmt = nullptr;
-      }
-
 	/* M9-NFA LV-1/LV-2: lower sequence local variables now, before
 	   EITHER engine. Fixed-delay reads become $past (both engines);
 	   variable-delay reads are left on the steps for the automaton
@@ -26735,9 +26885,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (seq_bad || ante_bad) {
 		  sva_stree_t*fm_tree = nullptr;
 		  if (pform_sva_nfa_enabled() && !ante_bad
-		      && prop->op_type == 0 && !prop->antecedent)
+		      && (prop->op_type == 0 || prop->op_type == 1
+			  || prop->op_type == 2)
+		      && prop->seq
+		      && (prop->op_type == 0 ? !prop->antecedent
+			  : prop->antecedent != nullptr))
 			fm_tree = sva_expand_first_match_(loc, *prop->seq);
 		  if (fm_tree) {
+			if (prop->antecedent) {
+			      prop->ante_tree = sva_chain_take_tree_(prop->antecedent);
+			      prop->antecedent = nullptr;
+			}
 			delete prop->seq;
 			prop->seq = nullptr;
 			prop->tree = fm_tree;
@@ -27640,6 +27798,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  if (pass_stmt) {
+			PCondit*pm = new PCondit(
+			      sva_clone_expr_(match),
+			      sva_cover_spawn_(loc, pass_stmt), nullptr);
+			FILE_NAME(pm, loc);
+			body.push_back(pm);
+			pass_stmt = nullptr;
+		  }
 	    } else if (negated) {
 		  PCondit*nm = new PCondit(match,
 			increment_failure(), nullptr);

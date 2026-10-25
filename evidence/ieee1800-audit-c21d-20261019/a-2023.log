@@ -1,0 +1,20 @@
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04a_readmem.sv:13: $readmemh's second argument must be a memory.
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/p21_04a_readmem.sv:18: $writememh's second argument must be a memory.
+        0.04 real         0.01 user         0.00 sys
+             6569984  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1319  page reclaims
+                   9  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  15  involuntary context switches
+           136001903  instructions retired
+            39698844  cycles elapsed
+             3883392  peak memory footprint

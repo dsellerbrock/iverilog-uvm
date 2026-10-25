@@ -1,0 +1,13 @@
+Purpose: lead-selected §16.18 clocking-variable assertion sampling and §16.5.1 clocking-input skew probes; paired -g2017/-g2023.
+Local host: Mac; staged to DAN-DESKTOP Slurm.
+Branch: m7-1800-audit-c09
+Repository HEAD at staging: 9e95f8eced5be8aee3caa3a2a046cdb1db49de1f
+Relevant matrix and evidence are uncommitted; only the input sources and run.sbatch are staged remotely.
+Pinned compiler: Icarus 13.0 devel cc25756d1 at /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb
+Resources: 1 CPU, 1 GiB, 20 min; each compile and simulation capped at 30 s.
+838ce0cfd5d3e76e1eccd5c73efee09ff00a7bd40ef27c9c9df39ef5b9551d45  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/input/E1_input_skew_3.sv
+39c6d5ac63a013ecab3fb89a7fd241531a856d8f60dd699fd63be714a0fdfcda  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/input/E2_input_skew_0.sv
+30d88ed34c3cda7097848298d0a36217283a13fda6d91298c898430ae7637c11  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/input/K1_standard_a1.sv
+c4cf64eb49cb3b2878a6ecfaf09a97c09aa20936bcf56bb4f1da7190ff6a5adb  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/input/K2_standard_a3.sv
+83a4896e950654fa7c62588c26a4d19db040c24a64ab53f32b1302abba6688ea  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/input/K3_standard_a2_a4.sv
+bf8a75568fdf0fb9123f029294f0781ad7a5029c9ab31e40dda753f75e73e920  evidence/ieee1800-audit-c16-20261021/attempt-05-clocking-assertions/run.sbatch

@@ -1,0 +1,39 @@
+=== p08_12_shallow_s1_base -g2017 (60-second test timeout) ===
+PASS S1 base copy source=3 copy=4
+exit=0
+=== p08_12_shallow_s1_base -g2023 (60-second test timeout) ===
+PASS S1 base copy source=3 copy=4
+exit=0
+=== p08_12_shallow_s2_derived -g2017 (60-second test timeout) ===
+PASS S2 derived source=3/8 copy=4/9
+exit=0
+=== p08_12_shallow_s2_derived -g2023 (60-second test timeout) ===
+PASS S2 derived source=3/8 copy=4/9
+exit=0
+=== p08_12_shallow_s3_base_handle -g2017 (60-second test timeout) ===
+/var/spool/slurmd/job03716/slurm_script: line 17: 271918 Aborted                    /usr/bin/timeout --signal=TERM --kill-after=2s 60s /bin/bash -c '"$1/iverilog" "$2" -s top -o "$3" "$4" && "$1/vvp" "$3"' _ "$TC" "-g$edition" "$out" "$src" > "$result" 2>&1
+vvp: vvp_cobject.cc:1190: virtual void vvp_cobject::shallow_copy(const vvp_object*): Assertion `defn_ == that->defn_' failed.
+exit=134
+=== p08_12_shallow_s3_base_handle -g2023 (60-second test timeout) ===
+/var/spool/slurmd/job03716/slurm_script: line 17: 271930 Aborted                    /usr/bin/timeout --signal=TERM --kill-after=2s 60s /bin/bash -c '"$1/iverilog" "$2" -s top -o "$3" "$4" && "$1/vvp" "$3"' _ "$TC" "-g$edition" "$out" "$src" > "$result" 2>&1
+vvp: vvp_cobject.cc:1190: virtual void vvp_cobject::shallow_copy(const vvp_object*): Assertion `defn_ == that->defn_' failed.
+exit=134
+=== p08_12_shallow_s4_members -g2017 (60-second test timeout) ===
+PASS S4 queue=1/9 nested=11 shared=12
+exit=0
+=== p08_12_shallow_s4_members -g2023 (60-second test timeout) ===
+PASS S4 queue=1/9 nested=11 shared=12
+exit=0
+=== p08_12_shallow_s5_access -g2017 (60-second test timeout) ===
+PASS S5 local=4 protected=6
+exit=0
+=== p08_12_shallow_s5_access -g2023 (60-second test timeout) ===
+PASS S5 local=4 protected=6
+exit=0
+=== p08_12_shallow_s6_parameterized -g2017 (60-second test timeout) ===
+PASS S6 width=4 source=1010 copy=0101
+exit=0
+=== p08_12_shallow_s6_parameterized -g2023 (60-second test timeout) ===
+PASS S6 width=4 source=1010 copy=0101
+exit=0
+overall=1

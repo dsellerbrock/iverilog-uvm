@@ -1,0 +1,19 @@
+tests/1800_audit/c20/r20_02_finish_def.sv:1: $finish called at 0 (1s)
+        0.02 real         0.00 user         0.00 sys
+             5111808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 616  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  48  involuntary context switches
+            78121700  instructions retired
+            24270223  cycles elapsed
+             2703744  peak memory footprint

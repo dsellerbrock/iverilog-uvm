@@ -4523,6 +4523,11 @@ bool ref_formal_is_bound(const NetNet*port)
       const NetScope*owner = port->scope();
       if (owner == 0)
 	    return false;
+      // A module ref port is bound once during instance initialization,
+      // rather than at a subroutine call site.  Its connection elaboration
+      // rejects missing or unsupported actuals before target emission.
+      if (owner->type() == NetScope::MODULE)
+	    return true;
       if (owner->type() != NetScope::TASK && owner->type() != NetScope::FUNC)
 	    return false;
 
@@ -5149,6 +5154,15 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
       ++sig_comp;
       NetNet::PortType dir = cb->signal_direction(sig_comp->name);
 	perm_string clockvar_name = sig_comp->name;
+
+      if (as_lvalue && !ident->is_clocking_drive_lval()
+	  && (dir == NetNet::POUTPUT || dir == NetNet::PINOUT)) {
+	    cerr << ident->get_fileline() << ": error: clocking-block output `"
+		 << cb->name << "." << sig_comp->name
+		 << "' may only be written using synchronous drive syntax "
+		 "(IEEE 1800-2017 14.16)." << endl;
+	    if (input_write) *input_write = true;
+      }
 
       if (as_lvalue && dir == NetNet::PINPUT) {
 	    cerr << ident->get_fileline() << ": error: clocking-block "

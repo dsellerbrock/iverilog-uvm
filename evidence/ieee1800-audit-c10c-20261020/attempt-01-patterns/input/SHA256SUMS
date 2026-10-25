@@ -1,0 +1,7 @@
+2104ac8570ed7fac37fb4cd0d7c68919dd699d778d86600fbb960137db1da310  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/n10_09_duplicate_array_index.sv
+8f42a18dac82895f0c07851397e2f87b2ba33dba22b72533cb077677d067b70f  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/n10_09_duplicate_member_key.sv
+610351a16222c639f454c5109b87b8005891c29f446eb9c13b3e766fb8764b77  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/n10_09_too_few_elements.sv
+d224ea8dc1ea2ed388adf6e6ccf1e25c044eb9ba5e041aaafc95300357a2d01a  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/n10_09_uncovered_member.sv
+a446e1c40efda0d4909c16f91615e9a3e5455f58f86c64c57bf5a466efd83af2  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/p10_09_patterns.sv
+b287aa0d0c50dd0ab6a68c0d6ae43ac44ff8d48651d6f28c538b80f866ca4f30  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/input/probes.tar.gz
+24402bd238f22dc8fe010d951224791af88755475529d08ead3fba766120f3b5  evidence/ieee1800-audit-c10c-20261020/attempt-01-patterns/run.sbatch

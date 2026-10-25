@@ -1,0 +1,11 @@
+edition	probe	expected	compile_rc	run_rc	first_diagnostic
+2017	p18_05_solve_real	2017-rand-real-rejected	1	NA	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/p18_05_solve_real.sv:1: error: property 'a' of class C is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+2017	n18_05_solve_randc	compile-error	1	NA	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/n18_05_solve_randc.sv:1: error: 'randc' variables cannot be used in 'solve before' constraints.
+2017	n18_05_solve_nonrand	compile-error	0	0	RESULT randomize returned 1
+2017	n18_05_solve_circular	compile-error	0	0	Warning: cyclic solve...before ordering; directive ignored (further similar warnings suppressed)
+2017	n18_05_static_mismatch	compile-error	1	NA	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/n18_05_static_mismatch.sv:1: error: Out-of-body definition of constraint `e' does not match the prototype's static qualifier.
+2023	p18_05_solve_real	2023-rand-real-run	0	0	RESULT pass=1 fail=0
+2023	n18_05_solve_randc	compile-error	1	NA	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/n18_05_solve_randc.sv:1: error: 'randc' variables cannot be used in 'solve before' constraints.
+2023	n18_05_solve_nonrand	compile-error	0	0	RESULT randomize returned 1
+2023	n18_05_solve_circular	compile-error	0	0	Warning: cyclic solve...before ordering; directive ignored (further similar warnings suppressed)
+2023	n18_05_static_mismatch	compile-error	1	NA	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/n18_05_static_mismatch.sv:1: error: Out-of-body definition of constraint `e' does not match the prototype's static qualifier.

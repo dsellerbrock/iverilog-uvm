@@ -1,0 +1,4 @@
+N3b FAIL 60
+N3b FAIL 70
+input/N3b_named_property_evaluation.sv:7: $finish called at 80 (1ns)
+N3b FAIL 80

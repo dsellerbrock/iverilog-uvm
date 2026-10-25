@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n2_two_defaults.sv:4: error: the default item in a dist constraint requires IEEE1800-2023; compile with -g2023 (or -glatest).
+1 error(s) during elaboration.

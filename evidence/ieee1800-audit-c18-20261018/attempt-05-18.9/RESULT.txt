@@ -1,0 +1,9 @@
+# Clause 18.9 audit probe — attempt 05
+
+- Host: DAN-DESKTOP; Slurm job 2851 requested 1 CPU / 2 GiB; scheduler exit 1:0.
+- Positive `constraint_mode` probe compiled and ran under both `-g2017` and `-g2023`, printing `PASS constraint_mode clause 18.9`.
+- All four expected-negative compiles returned 1:
+  - `n18_09_nonexistent_constraint`, 2017 and 2023: `Enable of unknown task ``it.nonexistent_c.constraint_mode''.`
+  - `n18_09_constraint_mode_override`, 2017 and 2023: `Class method `constraint_mode' is a built-in randomization method and cannot be overridden.`
+- The gate still returned failure because its diagnostic check appended `.compile.log` twice (`run_timed` writes `$label.log`, while `$label` already ends with `.compile`). The negative compiles and diagnostics are all recorded in `results/`; this is a harness-path error, not a simulator failure.
+- Raw compiler/VVP output, tool hashes, probe hashes, scheduler output, and corrected control-flow script are retained alongside this record.

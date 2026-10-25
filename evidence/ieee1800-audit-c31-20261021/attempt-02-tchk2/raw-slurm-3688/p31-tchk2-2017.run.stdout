@@ -1,0 +1,8 @@
+p31_tchk2.sv:14: Timing violation: $recovery check in p31_tchk2 at time 11
+p31_tchk2.sv:15: Timing violation: $removal check in p31_tchk2 at time 21
+p31_tchk2.sv:16: Timing violation: $period check in p31_tchk2 at time 36
+p31_tchk2.sv:17: Timing violation: $skew check in p31_tchk2 at time 43
+p31_tchk2.sv:18: Timing violation: $setuphold(setup) check in p31_tchk2 at time 50
+p31_tchk2.sv:18: Timing violation: $setuphold(hold) check in p31_tchk2 at time 51
+p31_tchk2.sv:19: Timing violation: $nochange check in p31_tchk2 at time 61
+N 7 1

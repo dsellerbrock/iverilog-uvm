@@ -108,6 +108,11 @@ extern int scope_needs_call_frame(ivl_scope_t scope);
 extern void reset_evcd_metadata_budget(void);
 extern void note_array_signal_use(ivl_signal_t sig);
 extern void emit_deferred_array_decls(void);
+/* Record the enum or packed struct/union type of a scalar signal word and
+ * emit them all, as .vartype records, once every enumeration is drawn. */
+extern void note_signal_vartype(ivl_signal_t sig, const char*suffix);
+extern void emit_signal_vartypes(void);
+extern int enumeration_is_drawn(ivl_enumtype_t enumtype);
 
 extern void draw_lpm_mux(ivl_lpm_t net);
 extern void draw_lpm_substitute(ivl_lpm_t net);
@@ -374,6 +379,19 @@ static inline int expr_is_object_assoc_key_(ivl_expr_t expr)
       if (!expr)
             return 0;
 
+      /* Unpacked structs use the NO_TYPE object carrier in the target ABI,
+       * but unlike a class handle they are object-backed values. Preserve
+       * them on the object stack when they are associative-array keys. */
+      if (ivl_expr_value(expr) == IVL_VT_NO_TYPE) {
+            ivl_type_t type = ivl_expr_net_type(expr);
+            if (!type && ivl_expr_type(expr) == IVL_EX_SIGNAL
+                && ivl_expr_signal(expr))
+                  type = ivl_signal_net_type(ivl_expr_signal(expr));
+            if (type && ivl_type_base(type) == IVL_VT_NO_TYPE
+                && ivl_type_properties(type) > 0)
+                  return 1;
+      }
+
       switch (ivl_expr_value(expr)) {
           case IVL_VT_CLASS:
           case IVL_VT_DARRAY:
@@ -564,6 +582,15 @@ static inline int queue_pattern_operand_is_collection_(ivl_expr_t expr,
 
       if (!expr)
             return 0;
+      /* A fixed unpacked array item contributes its elements to an
+       * unpacked-array concatenation just like a queue or dynamic array.
+       * The frontend has already checked the source element type against
+       * the destination element type. */
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY
+          && ivl_expr_signal(expr)
+          && ivl_signal_dimensions(ivl_expr_signal(expr)) > 0
+          && !type_is_object_like_(element_type))
+            return 1;
       if (type_is_object_like_(element_type))
             return queue_pattern_operand_is_object_collection_(expr, element_type);
       if ((ivl_expr_type(expr) == IVL_EX_SIGNAL

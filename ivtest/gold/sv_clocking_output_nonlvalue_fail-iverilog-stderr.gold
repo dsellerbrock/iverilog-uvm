@@ -1,0 +1,2 @@
+ivltests/sv_clocking_output_nonlvalue_fail.v:6: error: clocking output `out' expression is not a legal module output-port connection (IEEE 1800-2017/2023 14.5): (a)+(b).
+1 error(s) during elaboration.

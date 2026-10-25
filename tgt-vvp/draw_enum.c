@@ -63,6 +63,17 @@ static void draw_enum4_value(ivl_enumtype_t enumtype, unsigned idx)
 
 }
 
+static ivl_enumtype_t*drawn_enums = 0;
+static unsigned ndrawn_enums = 0;
+
+int enumeration_is_drawn(ivl_enumtype_t enumtype)
+{
+      unsigned idx;
+      for (idx = 0 ; idx < ndrawn_enums ; idx += 1)
+	    if (drawn_enums[idx] == enumtype) return 1;
+      return 0;
+}
+
 void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 {
       unsigned idx;
@@ -74,6 +85,8 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 
       fprintf(vvp_out, "enum%p .enum%s%s (%u)\n", enumtype, dtype, stype,
                        ivl_enum_width(enumtype));
+      drawn_enums = realloc(drawn_enums, (ndrawn_enums+1) * sizeof(ivl_enumtype_t));
+      drawn_enums[ndrawn_enums++] = enumtype;
 
       for (idx = 0 ; idx < name_count ; idx += 1) {
 	    const char*name = ivl_enum_name(enumtype, idx);

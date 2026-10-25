@@ -1,0 +1,20 @@
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: tests/1800_audit/c20/q/q_a_s2_ERR.sv:2: $size has too many arguments.
+        0.01 real         0.00 user         0.00 sys
+             5144576  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 618  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   8  involuntary context switches
+            78236735  instructions retired
+            26677748  cycles elapsed
+             2687360  peak memory footprint

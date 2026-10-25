@@ -555,6 +555,34 @@ static bool get_const_argument(NetExpr*exp, long&res)
 }
 #endif
 
+/* IEEE 1800-2017 6.7.1 permits a built-in net to have an unpacked
+ * structure (or fixed-size unpacked array) type when all of its leaves are
+ * 4-state integral values.  Unpacked aggregates have no scalar data_type(),
+ * so recognize the complete recursive type instead of rejecting them as
+ * IVL_VT_NO_TYPE. */
+static bool valid_builtin_net_data_type_(ivl_type_t type)
+{
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    if (array->static_dimensions().empty())
+		  return false;
+	    return valid_builtin_net_data_type_(array->element_type());
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->packed())
+		  return record->base_type() == IVL_VT_LOGIC;
+	    if (record->union_flag())
+		  return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!valid_builtin_net_data_type_(member.net_type))
+			return false;
+	    return true;
+      }
+
+      return type && type->packed()
+	    && type->base_type() == IVL_VT_LOGIC;
+}
+
 void Statement::elaborate_sig(Design*, NetScope*) const
 {
 }
@@ -576,7 +604,12 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (sig->user_nettype())
 	    return;
 
-      if ((sig->type() == NetNet::WIRE) && (sig->data_type() != IVL_VT_LOGIC)) {
+      const bool valid_unpacked_net = sig->type() == NetNet::WIRE
+	    && valid_builtin_net_data_type_(type);
+
+      if ((sig->type() == NetNet::WIRE)
+	  && (sig->data_type() != IVL_VT_LOGIC)
+	  && !valid_unpacked_net) {
 	    if (gn_cadence_types_flag) {
 		  sig->type(NetNet::UNRESOLVED_WIRE);
 	    } else {
@@ -596,6 +629,18 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 		  break;
 	    }
       }
+
+      if (valid_unpacked_net)
+	    return;
+
+      /* Variable ports may carry unpacked structures and unions of any
+       * supported member types.  Their data type is not constrained by the
+       * built-in net restrictions above. */
+      if (scope->type() == NetScope::MODULE
+	  && sig->port_type() != NetNet::NOT_A_PORT
+	  && wire->symbol_type() == PNamedItem::VAR
+	  && dynamic_cast<const netstruct_t*>(type))
+	    return;
 
       // Icarus allows real nets as an extension
       if (type->base_type() == IVL_VT_REAL)
@@ -630,12 +675,6 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 static void sig_check_port_type(Design*des, const NetScope*scope,
 			        const PWire *wire, const NetNet *sig)
 {
-      if (sig->port_type() == NetNet::PREF
-          && scope->type() == NetScope::MODULE) {
-	    cerr << wire->get_fileline() << ": warning: "
-		 << "Reference ports on modules are not fully supported." << endl;
-      }
-
       // Some extra checks for module ports
       if (scope->type() != NetScope::MODULE)
 	    return;
@@ -899,6 +938,24 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
    Inputs that cannot be sampled (non-vector types, arrays) keep the existing
    alias behavior; the read-rewrite helpers key off the presence of the sample
    variable, so the two stay consistent. */
+static bool clocking_output_expr_is_lvalue_(const PExpr*expr)
+{
+      if (dynamic_cast<const PEIdent*>(expr))
+	    return true;
+
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(expr);
+      if (!concat || concat->has_repeat() || concat->is_empty_concat())
+	    return false;
+
+      const std::vector<PExpr*>&parts = concat->stream_parms();
+      for (std::vector<PExpr*>::const_iterator part = parts.begin()
+	   ; part != parts.end() ; ++part) {
+	    if (!clocking_output_expr_is_lvalue_(*part))
+		  return false;
+      }
+      return true;
+}
+
 static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
@@ -915,6 +972,25 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+		  if (is_out) {
+			std::map<perm_string,PExpr*>::const_iterator da =
+			      cb->decl_assigns.find(*sig_it);
+			if (da != cb->decl_assigns.end()
+			    && !clocking_output_expr_is_lvalue_(da->second)) {
+			      /* IEEE 1800-2017/2023 14.5 requires an output
+				 clocking declaration assignment to be legal as a
+				 module output-port connection. Inspect only the
+				 expression form here: elaborating it as a structural
+				 lnet would incorrectly register the clocking drive as
+				 a continuous driver. */
+			      cerr << cb->get_fileline() << ": error: clocking output `"
+			       << *sig_it << "' expression is not a legal module "
+			       << "output-port connection (IEEE 1800-2017/2023 14.5): "
+			       << *da->second << "." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+		  }
 
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw) {
@@ -1406,6 +1482,48 @@ static bool interface_method_has_body_(const NetScope*method)
 	    return def && def->proc();
       }
       return false;
+}
+
+static void validate_pure_virtual_methods_(Design*des, netclass_t*type,
+					   const PClass*pclass)
+{
+      if (!type || !pclass || type->is_virtual())
+	    return;
+
+      vector<const netclass_t*>chain;
+      for (const netclass_t*base = type; base; base = base->get_super())
+	    chain.push_back(base);
+
+      map<perm_string,const NetScope*>unimplemented;
+      for (auto cls = chain.rbegin(); cls != chain.rend(); ++cls) {
+	    const NetScope*scope = (*cls)->class_scope();
+	    if (!scope)
+		  continue;
+	    for (const auto&child : scope->children()) {
+		  const NetScope*method = child.second;
+		  if (!method || (method->type() != NetScope::FUNC
+				  && method->type() != NetScope::TASK))
+			continue;
+		  const PTaskFunc*decl = method->type() == NetScope::FUNC
+			? static_cast<const PTaskFunc*>(method->func_pform())
+			: static_cast<const PTaskFunc*>(method->task_pform());
+		  if (decl && decl->is_pure_method())
+			unimplemented[child.first.peek_name()] = method;
+		  else if (unimplemented.count(child.first.peek_name())
+			   && interface_method_has_body_(method))
+			unimplemented.erase(child.first.peek_name());
+	    }
+      }
+
+      for (const auto&pure : unimplemented) {
+	    cerr << pclass->get_fileline() << ": error: Non-virtual class `"
+		 << type->get_name() << "' does not implement inherited pure virtual "
+		    "method `" << pure.first << "' (IEEE 1800-2017/2023 8.21)." << endl;
+	    cerr << pure.second->get_fileline()
+		 << ":      : Pure virtual method `" << pure.first
+		 << "' is declared here." << endl;
+	    des->errors += 1;
+      }
 }
 
 static void collect_interface_class_graph_(const netclass_t*type,
@@ -2711,6 +2829,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    cur->second->elaborate_sig(des, scope);
       }
 
+      validate_pure_virtual_methods_(des, this, pclass);
+
       class_scope_->elaborate_nettypes(des);
 
       validate_interface_class_relations_(des, this, pclass);
@@ -3775,6 +3895,11 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    wtype = NetNet::WIRE;
       if (wtype == NetNet::IMPLICIT_REG)
 	    wtype = NetNet::REG;
+      // A module ref port names the caller's variable directly.  Its
+      // formal therefore has to be represented as a variable even when
+      // the declaration's ordinary net default is wire.
+      if (port_type_ == NetNet::PREF && scope->type() == NetScope::MODULE)
+	    wtype = NetNet::REG;
 
       NetNetType*user_type = user_nettype()
             ? scope->elaborate_nettype(des, user_nettype()) : 0;
@@ -3803,8 +3928,10 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
 
       if (is_elaborating_) {
-	    if (sig_predeclared)
+	    if (sig_predeclared) {
+		  sig->set_virtual_interface(resolved_virtual_interface);
 		  return sig;
+	    }
 		    cerr << get_fileline() << ": error: Circular dependency "
 			    "detected in declaration of '" << name_ << "'."
 			 << " scope=" << scope_path(scope) << endl;
@@ -4086,6 +4213,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (user_type) {
             sig->set_user_nettype(user_type);
       }
+      sig->set_virtual_interface(resolved_virtual_interface);
 
       if (is_interconnect()) {
             sig->mark_interconnect(!sig->packed_dims().empty()

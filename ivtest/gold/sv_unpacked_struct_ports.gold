@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_unpacked_struct_ports.v:45: $finish called at 2 (1s)

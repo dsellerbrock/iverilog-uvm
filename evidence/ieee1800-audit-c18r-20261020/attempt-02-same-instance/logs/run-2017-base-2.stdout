@@ -1,0 +1,4 @@
+first=2887658792
+second=2538823573
+PASS initialization RNG stability
+/home/dsell/slurm-runs/iverilog-uvm/a3/1800-c18r-20261020-02/input/p18_14_initialization_rng.sv:17: $finish called at 1 (1s)

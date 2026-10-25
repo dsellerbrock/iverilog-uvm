@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_module_restricted_type_param.v",
+  "iverilog-args": ["-g2023", "-s", "sv_module_restricted_type_param_bad"],
+  "gold": "sv_module_restricted_type_param_bad_2023"
+}

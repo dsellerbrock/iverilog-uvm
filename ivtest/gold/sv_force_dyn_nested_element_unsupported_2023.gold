@@ -1,0 +1,7 @@
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:4: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:5: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:6: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:7: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:8: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+./ivltests/sv_force_dyn_nested_element_unsupported_2023.v:9: sorry: assignment to a dynamic-array element bit-select requires a simple vector element.
+6 error(s) during elaboration.

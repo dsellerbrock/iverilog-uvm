@@ -30894,8 +30894,16 @@ bool of_SCOPY(vthread_t thr, vvp_code_t)
 
       vvp_object_t&dest = thr->peek_object();
         // If it is null there is nothing to copy
-      if (!tmp.test_nil())
+      if (!tmp.test_nil()) {
+	    const vvp_cobject*src = tmp.peek<vvp_cobject>();
+	    vvp_cobject*dst = dest.peek<vvp_cobject>();
+	    if (src && dst && src->get_defn() != dst->get_defn()) {
+		  // A base handle may refer to a derived object. IEEE 1800-2017/2023
+		  // 8.12 requires its shallow copy to retain the dynamic type.
+		  dest = new vvp_cobject(src->get_defn());
+	    }
 	    dest.shallow_copy(tmp);
+      }
 
       return true;
 }
@@ -34026,6 +34034,28 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 
       vpip_execute_vpi_call(thr, cp->handle);
 
+      /* $exit is a program control task, not an alias for $finish.  The
+       * program initial procedure that calls it completes here; the
+       * program-completion counter finishes simulation only after the
+       * remaining program initial procedures have completed.  Calls from
+       * module processes (and other non-program processes) are ignored. */
+      const char*called_task = cp->handle
+          ? vpi_get_str(vpiName, cp->handle) : nullptr;
+      if (called_task && strcmp(called_task, "$exit") == 0
+          && thr && thr->is_program_init) {
+            vpiHandle scope = vpi_handle(vpiScope, cp->handle);
+            bool in_program = false;
+            while (scope) {
+                  if (vpi_get(vpiType, scope) == vpiProgram) {
+                        in_program = true;
+                        break;
+                  }
+                  scope = vpi_handle(vpiScope, scope);
+            }
+            if (in_program)
+                  return of_END(thr, nullptr);
+      }
+
       if (trace) {
             fprintf(stderr,
                     "trace vpi-call: scope=%s tf=%s call_scope=%s stopped=%d finished=%d next_op=%s pc=%p\n",
@@ -35625,7 +35655,11 @@ bool of_MBX_NUM(vthread_t thr, vvp_code_t)
  */
 bool of_SEM_NEW(vthread_t thr, vvp_code_t cp)
 {
-      size_t cnt = cp->number;
+      /* keyCount is a signed 32-bit int; preserve its negative deficit. */
+      uint32_t raw_count = cp->number & 0xffffffff;
+      int64_t cnt = (raw_count & 0x80000000)
+                  ? (int64_t)raw_count - 0x100000000LL
+                  : (int64_t)raw_count;
       vvp_object_t sem(new vvp_semaphore(cnt));
       thr->push_object(sem);
       return true;

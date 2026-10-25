@@ -1,0 +1,3 @@
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+p16_13_4_ifelse_clock_flow.sv:22: sorry: named property `mult_p8' uses a form that supports only one instantiation; this additional assertion is dropped.

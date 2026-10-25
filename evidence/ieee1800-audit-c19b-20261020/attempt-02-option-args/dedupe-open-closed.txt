@@ -1,0 +1,15 @@
+Repository: dsellerbrock/iverilog-uvm
+Post-probe commands required by the lead will be recorded here after job completion:
+- gh issue view 689 --repo dsellerbrock/iverilog-uvm --json body -q .body | grep -n -i -E 'constant|argument|at_least|auto_bin_max|definition'
+- gh issue list --repo dsellerbrock/iverilog-uvm --state all --search '"not a constant" covergroup'
+
+Post-probe commands/output:
+1. gh issue view 689 --repo dsellerbrock/iverilog-uvm --json body -q .body | grep -n -i -E 'constant|argument|at_least|auto_bin_max|definition'
+   3: Post-construction procedural reads and writes of coverage instance options goal and comment are rejected as unsupported. The current compiler supports procedural weight and at_least access in the tested covergroup, coverpoint, and cross cases, but not these other instance-specific members.
+   11: On Icarus 13.0 devel source commit 82023726 (Slurm job 3008), the positive option.weight/option.at_least probes compile and run in both editions. A procedural probe assigning cp.option.goal/comment and reading both fails to compile in both editions.
+   16: Preserve the standard's definition-only restrictions on options such as per_instance, auto_bin_max, and detect_overlap.
+   The grep hit is about procedural access and definition-only placement; the issue does not describe constructor-argument values being discarded during definition-time option evaluation. Lead to decide whether to link/comment or file.
+2. gh issue list --repo dsellerbrock/iverilog-uvm --state all --search '"not a constant" covergroup' --limit 100 --json number,title,state,url
+   Output: []
+
+Open/closed issue searches and bodies reviewed in attempt-01 remain relevant: #696 is non-power-of-two auto_bin_max on wide coverpoints; #687 is assigning an instance option to type_option; #689 is procedural goal/comment support; #627 is type-scope get_coverage lookup; #622 is get_inst_coverage ref outputs; #513 is merged transition-family cardinality. No issue body asserts this constructor-argument fallback behavior.

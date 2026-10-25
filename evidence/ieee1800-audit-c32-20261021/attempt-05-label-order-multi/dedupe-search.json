@@ -1,0 +1,72 @@
+{
+  "total": 404,
+  "open": 277,
+  "closed": 127,
+  "searches": [
+    {
+      "term": "INCREMENT",
+      "matches": [
+        {
+          "number": 856,
+          "state": "OPEN",
+          "title": "[IEEE 1800] §20.7 — array query on a non-integral-index associative array ($size(int aa[string])) is accepted silently"
+        },
+        {
+          "number": 824,
+          "state": "OPEN",
+          "title": "[IEEE 1800] §25.7.4 — extern forkjoin task declarations in an interface are a syntax error"
+        },
+        {
+          "number": 793,
+          "state": "OPEN",
+          "title": "[IEEE 1800] §20.7 — array query functions on an associative array return wrong values"
+        },
+        {
+          "number": 718,
+          "state": "OPEN",
+          "title": "[IEEE 1800] §16.10 — Support increment and decrement expressions in sequence_match_items"
+        },
+        {
+          "number": 633,
+          "state": "OPEN",
+          "title": "[IEEE 1800] §13.5.3 — Support default values for output and inout subroutine arguments"
+        },
+        {
+          "number": 502,
+          "state": "CLOSED",
+          "title": "[IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions"
+        },
+        {
+          "number": 498,
+          "state": "CLOSED",
+          "title": "[IEEE 1800] §11.4.2 — Preserve selected width and carrier bits for packed-select increments"
+        },
+        {
+          "number": 45,
+          "state": "CLOSED",
+          "title": "Phase 73: DPI open-array (svdpi.h IEEE 1800-2017 §H.10)"
+        }
+      ]
+    },
+    {
+      "term": "multiple SDF",
+      "matches": []
+    },
+    {
+      "term": "sdf_annotate scope",
+      "matches": []
+    },
+    {
+      "term": "SDF LABEL",
+      "matches": []
+    },
+    {
+      "term": "specparam annotation",
+      "matches": []
+    },
+    {
+      "term": "clauses 32.4.3/32.5/32.6",
+      "matches": []
+    }
+  ]
+}

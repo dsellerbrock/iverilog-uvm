@@ -1,0 +1,12 @@
+Audit: IEEE 1800 Clause 6.6 follow-up; corrected C1 only
+Host: DAN-DESKTOP (Slurm)
+Job: 3767
+Remote run directory: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c06-nets-followup-2-corrected-c1-20261021-01
+Partition/request: verilog, 1 CPU, 1 GiB, 5 minutes
+Toolchain: /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb (Icarus 13.0 devel, cc25756d1)
+Edition/limits: -g2017 and -g2023; -B; 30 s per compile/run; `ulimit -f 262144` per compile/run
+Source checkout HEAD at staging: 25be4f678cc9d097f6e3a45d7b664f385c2bffdc
+
+SHA-256:
+d481de9e752cd9cf0369675d8f05f20b030bd8244739ebd372b407cd838f4cd1  input/C1_struct_variable_drives_net.sv
+9d8afdd2b2b01cc0d0b961da76cd396957509fff3e709e636f095515bc67d118  run.sbatch

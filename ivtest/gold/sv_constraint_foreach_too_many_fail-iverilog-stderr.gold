@@ -1,0 +1,2 @@
+ivltests/sv_constraint_foreach_too_many_fail.v:3: error: Constraint foreach has 2 loop variables for an array with 1 dimensions.
+1 error(s) during elaboration.

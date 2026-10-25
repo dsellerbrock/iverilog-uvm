@@ -1,0 +1,5 @@
+# Clause 5 issue dedupe
+
+Searches used `gh issue list --repo dsellerbrock/iverilog-uvm --state all`, so both open and closed issues were included. Searches covered: `"escaped identifier"`, `"string escape"`, `"unsized constant"`, `"lexical"`, `"clause 5"`, `"nested comment"`, `"based literal"`, `"block comment"`, `"attribute syntax"`, `"§5.9"`, `"5.7.1"`, `"\\x41"`, `"escaped identifier" "SystemVerilog"`, `"string literal" escape`, `"octal escape"`, `"block comment" Verilog`, `"identifier whitespace"`, and `"attribute instance" SystemVerilog`.
+
+The only plausible lexical search hit was closed issue [#468](https://github.com/dsellerbrock/iverilog-uvm/issues/468), which concerns escaped identifiers specifically in conditional-compilation directives under §22.5. Its scope is preprocessor handling, not the lexer forms exercised here; the audit does not treat it as a duplicate. Other search results were empty or unrelated (for example §16.15 lexical declaration order and §6.19 enum literal sizing). No new issue is proposed from the passing probe.

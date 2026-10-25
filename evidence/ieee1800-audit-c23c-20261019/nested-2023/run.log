@@ -1,0 +1,21 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_04a_nested_extern.sv:1: syntax error
+I give up.
+        0.04 real         0.01 user         0.01 sys
+             7061504  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2461  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                  59  involuntary context switches
+            57090091  instructions retired
+            18841041  cycles elapsed
+             2376160  peak memory footprint
+exit_code=2

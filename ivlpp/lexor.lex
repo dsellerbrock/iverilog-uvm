@@ -40,6 +40,7 @@ static void  def_start(void);
 static void  def_add_arg(void);
 static void  def_finish(void);
 static void  def_undefine(void);
+static void  def_undefineall(void);
 static void  do_define(void);
 static int   def_is_done(void);
 static void  def_continue(void);
@@ -355,6 +356,10 @@ struct include_stack_t
 
     /* A single line comment can be associated with this include. */
     char* comment;
+
+    /* Angle-bracket includes use the implementation include paths, but not
+     * the directory of the including source file. */
+    int angle_include;
 };
 
 static void ifdef_output_whitespace(const char* text, size_t length)
@@ -522,6 +527,7 @@ static int macro_expansion_limit_reported = 0;
 %x CSTRING
 %x TRIPLESTRING
 %x ERROR_LINE
+%x PROTECTED
 
 %x IFDEF_NAME
 %x IFNDEF_NAME
@@ -557,6 +563,13 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
   * the main compiler.
   */
 ^[ \t]*"`pragma".* { handle_pragma_directive(); ECHO; }
+
+ /* Protected envelopes require decryption support. Do not pass their
+  * ciphertext to the SystemVerilog parser as source text.
+  */
+<PROTECTED>^[ \t]*"`pragma"[ \t]+protect[ \t]+end_protected.* { BEGIN(INITIAL); }
+<PROTECTED>[^\r\n]+ { }
+<PROTECTED>(\n|"\r\n"|"\n\r"|\r) { istack->lineno += 1; fputc('\n', yyout); }
 
  /* Detect single line comments, passing them directly to the output.
   */
@@ -645,6 +658,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 
 <PPINCLUDE>\"[^\"]*\"   { include_filename(0); }  /* A normal (") string */
 <PPINCLUDE>`\"[^\"]*`\" { include_filename(1); }  /* A macro (`") string */
+<PPINCLUDE>\<[^<>]+\> { include_filename(0); } /* Angle-bracket include */
 
 <PPINCLUDE>[ \t\b\f] { ; }
 
@@ -768,6 +782,8 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 }
 
 `undef{W}[a-zA-Z_][a-zA-Z0-9_$]*{W}?.* { def_undefine(); }
+
+`undefineall/({WNL}|$) { def_undefineall(); }
 
   /* Detect conditional compilation directives, and parse them. If I
    * find the name defined, switch to the IFDEF_TRUE state and stay
@@ -1415,6 +1431,19 @@ static void handle_pragma_directive(void)
     }
     ++cp;
     while (isalnum((int)*cp) || *cp == '_' || *cp == '$') ++cp;
+
+      /* Icarus does not support protected-envelope decryption. Reject a
+       * begin_protected envelope before its opaque data is parsed as HDL.
+       */
+    if ((size_t)(cp - yytext) >= 7 &&
+	strncmp(cp - 7, "protect", 7) == 0 &&
+	strstr(cp, "begin_protected") != 0) {
+	emit_pathline(istack);
+	fprintf(stderr, "error: protected envelope decryption is unsupported.\n");
+	error_count += 1;
+	BEGIN(PROTECTED);
+	return;
+    }
 
       /* Verify that space, a comment or EOL is next. */
     cpr = cp;
@@ -2269,6 +2298,12 @@ static void def_undefine(void)
     free(cur);
 }
 
+static void def_undefineall(void)
+{
+    free_macro(def_table);
+    def_table = 0;
+}
+
 /*
  * When a macro is instantiated in the source, macro_needs_args() is
  * used to look up the name and return whether it is a macro that
@@ -2675,12 +2710,13 @@ static void include_filename(int macro_str)
     standby->path[strlen(standby->path)-1-macro_str] = 0;
     standby->lineno = 0;
     standby->comment = NULL;
+    standby->angle_include = yytext[0] == '<';
 }
 
 static void do_include(void)
 {
     /* standby is defined by include_filename() */
-    if (standby->path[0] == '/') {
+    if (standby->path[0] == '/' && !standby->angle_include) {
 	if ((standby->file = fopen(standby->path, "r"))) {
 	    standby->file_close = fclose;
 	    goto code_that_switches_buffers;
@@ -2705,7 +2741,7 @@ static void do_include(void)
 	if (cp != 0) {
 	    *cp = '\0';
 	    include_dir[0] = strdup(path);
-	    if (relative_include) start = 0;
+	    if (relative_include && !standby->angle_include) start = 0;
 	}
 
 	for (idx = start ;  idx < include_cnt ;  idx += 1) {

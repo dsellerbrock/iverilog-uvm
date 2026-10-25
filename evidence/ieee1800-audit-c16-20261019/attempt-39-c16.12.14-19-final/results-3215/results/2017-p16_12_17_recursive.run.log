@@ -1,0 +1,2 @@
+PASSED: §16.12.17 positive-time recursive property
+/home/dsell/slurm-runs/iverilog-uvm/a3/c16-12-14-19-20261019-04/tests/1800_audit/c16/p16_12_17_recursive.sv:24: $finish called at 25 (1s)

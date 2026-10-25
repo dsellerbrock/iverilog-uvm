@@ -1,0 +1,3 @@
+top.bus.im v=9 t=5
+top.bus.im v=9 t=15
+input/B8_interface_target.sv:13: $finish called at 16 (1ns)

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_force_assign_legal_targets.v",
+  "iverilog-args": ["-g2017", "-s", "sv_force_assign_legal_targets"],
+  "gold": "sv_force_assign_legal_targets"
+}

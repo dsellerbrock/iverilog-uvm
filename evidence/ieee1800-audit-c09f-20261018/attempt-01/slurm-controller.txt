@@ -1,0 +1,4 @@
+JobId=2552
+JobState=COMPLETED ExitCode=0:0 RunTime=00:00:01 TimeLimit=00:30:00
+Resources: 1 CPU, 2 GiB; NodeList=DAN-DESKTOP
+Slurm accounting storage is disabled, so MaxRSS was unavailable.
