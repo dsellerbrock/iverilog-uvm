@@ -2054,6 +2054,13 @@ static void do_define(void)
     }
     *put = 0;
 
+    /* Inside a triple-quoted macro string, a backslash immediately before
+     * the physical newline is the macro continuation marker. Preserve the
+     * newline (def_continue adds it), but omit this final backslash. */
+    if (define_triple_string_flag && put > yytext && put[-1] == '\\') {
+        put[-1] = 0;
+    }
+
     /* Trim trailing white space. */
     cp = yytext + strlen(yytext);
     while (cp > yytext) {

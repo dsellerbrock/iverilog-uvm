@@ -84,7 +84,7 @@ char* yytext_string_filter(const char*str, size_t str_len,
 		  VLerror(yylloc, "error: Found nil (\\000) in string literal, replacing with space (\\015) character.");
 		  buf[didx] = ' ';
 	    } else if (str[sidx] == '\\') { /* Skip \\\n */
-		  if ((sidx+1 < str_len) && (str[sidx+1] == '\n')) {
+		  if (!preserve_newlines && (sidx+1 < str_len) && (str[sidx+1] == '\n')) {
 			sidx += 1;
 			didx -= 1;
 		  } else {

@@ -1,0 +1,1 @@
+./ivltests/sv_triple_quoted_macro_continuation.v:7: error: Triple-quoted string literals require IEEE 1800-2023 (-g2023).
