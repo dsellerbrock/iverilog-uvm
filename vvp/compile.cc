@@ -482,6 +482,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%load/obja",  of_LOAD_OBJA, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%load/preponed", of_LOAD_PREPONED, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/preponed/av", of_LOAD_PREPONED_AV, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
+      { "%load/preponed/obj", of_LOAD_PREPONED_OBJ, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/preponed/real", of_LOAD_PREPONED_REAL, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/qo/obj", of_LOAD_QO_OBJ,   0, {OA_NONE,     OA_NONE, OA_NONE} },
       { "%load/qo/r",   of_LOAD_QO_R,     0, {OA_NONE,     OA_NONE, OA_NONE} },

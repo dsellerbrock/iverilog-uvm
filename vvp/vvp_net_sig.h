@@ -384,6 +384,9 @@ class vvp_fun_signal_object : public vvp_fun_signal_base {
              ? default_container_layout_->queue_max_size : 0; }
 
       virtual vvp_object_t get_object() const =0;
+      void enable_sample_hist() { hist_enabled_ = true; }
+      void snapshot_object_preponed(const vvp_object_t&value);
+      vvp_object_t get_object_preponed() const;
       virtual vvp_object_t peek_object() const =0;
       virtual vvp_net_t* get_root_net() const =0;
       virtual vvp_object_t get_root_object() const =0;
@@ -398,6 +401,10 @@ class vvp_fun_signal_object : public vvp_fun_signal_base {
       class_type* declared_type_;
       init_obj_kind_t default_object_kind_ = INIT_OBJ_NONE;
       vvp_container_layout_t default_container_layout_;
+      bool hist_enabled_ = false;
+      mutable bool hist_valid_ = false;
+      mutable vvp_time64_t hist_time_ = 0;
+      mutable vvp_object_t hist_prev_;
 };
 
 /*

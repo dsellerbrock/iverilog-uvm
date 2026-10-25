@@ -369,6 +369,7 @@ extern bool of_HIST_ON_AV(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_PREPONED_AV(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_PREPONED_REAL(vthread_t thr, vvp_code_t code);
+extern bool of_LOAD_PREPONED_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_STRA(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_VEC4(vthread_t thr, vvp_code_t code);

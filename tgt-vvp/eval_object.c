@@ -2451,6 +2451,22 @@ static int eval_object_sfunc(ivl_expr_t expr)
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
 
+      if (strcmp(name, "$ivl_clocking_sample") == 0 && parm_count == 1) {
+	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
+	    ivl_type_t arg_type = arg && ivl_expr_signal(arg)
+		  ? ivl_signal_net_type(ivl_expr_signal(arg)) : 0;
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arg)
+		&& ivl_signal_dimensions(ivl_expr_signal(arg)) == 0
+		&& arg_type
+		&& (ivl_type_base(arg_type) == IVL_VT_QUEUE
+		    || ivl_type_base(arg_type) == IVL_VT_DARRAY)) {
+		  fprintf(vvp_out, "    %%load/preponed/obj v%p_0;\n",
+			  ivl_expr_signal(arg));
+		  return 0;
+	    }
+      }
+
       if (strcmp(name, "$ivl_array_method$map") == 0)
 	    return draw_array_map_expr_(expr);
 

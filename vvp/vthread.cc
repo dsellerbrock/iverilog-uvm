@@ -18484,6 +18484,7 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 		       << "Warning: skipping out of range delete(" << idx
 		       << ") on queue of size " << size << "." << endl;
 	    } else {
+		  obj->snapshot_object_preponed(obj->peek_object());
 		  queue->erase(idx);
                   notify_mutated_object_signal_(thr, net, "queue-delete-elem");
 	    }
@@ -18534,6 +18535,12 @@ bool of_DELETE_O_ELEM(vthread_t thr, vvp_code_t)
 		         << "Warning: skipping out of range delete(" << idx
 		         << ") on queue of size " << size << "." << endl;
 	      } else {
+		    if (root_net) {
+			  vvp_fun_signal_object*root_signal =
+				vvp_fun_as_signal_object(root_net->fun);
+			  if (root_signal)
+				root_signal->snapshot_object_preponed(root_obj);
+		    }
 		    queue->erase(idx);
                   notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                               "queue-delete-o-elem");
@@ -23260,6 +23267,11 @@ static bool aa_delete_str(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -23277,6 +23289,11 @@ static bool aa_delete_obj(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -23293,6 +23310,11 @@ static bool aa_delete_vec(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -24145,6 +24167,11 @@ bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t)
       vvp_object_t recv = thr->peek_object();
       vvp_assoc_base*assoc = peek_assoc_receiver_<vvp_assoc_base>(thr);
       if (assoc && assoc->size() > 0) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->clear();
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -25602,6 +25629,24 @@ bool of_HIST_ON(vthread_t, vvp_code_t cp)
 	    ssig->enable_sample_hist();
       else if (vvp_wire_real*rsig = dynamic_cast<vvp_wire_real*>(net->fil))
 	    rsig->enable_sample_hist();
+      if (net->fun && net->fun->as_signal_object()) {
+	    vvp_fun_signal_object*sig = net->fun->as_signal_object();
+	    if (sig->default_object_kind() != vvp_fun_signal_object::INIT_OBJ_NONE
+		|| static_cast<bool>(sig->default_container_layout()))
+		  sig->enable_sample_hist();
+      }
+      return true;
+}
+
+/* %load/preponed/obj <var-label> */
+bool of_LOAD_PREPONED_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      if (net->fun && net->fun->as_signal_object()) {
+	    thr->push_object(net->fun->as_signal_object()->get_object_preponed());
+	    return true;
+      }
+      thr->push_object(vvp_object_t());
       return true;
 }
 
