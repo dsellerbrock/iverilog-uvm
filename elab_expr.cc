@@ -24284,6 +24284,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
                               net->net_type(), use_comp.index,
                               selected_type);
                   }
+                  if (net->unpacked_dimensions() > 0
+                      && !use_comp.index.empty())
+                        return elaborate_expr_net(
+                              des, scope, net, sr.scope, expr_width_, flags);
                   NetESignal*tmp = new NetESignal(net);
                   tmp->set_line(*this);
                   return tmp;
