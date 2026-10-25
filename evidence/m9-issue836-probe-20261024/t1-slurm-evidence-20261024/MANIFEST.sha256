@@ -1,0 +1,7 @@
+a28a599cc62fad72af84f810ac0f84a765c9ee727e9b13890d64e191e8ec5526  summary.txt  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+90e818322f104f6e9277de75229f08adb2c34b8cae45248c3cc70be225cd4fb3  legacy.log  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+110184c01dfc4d0e02021ec4fec741a3ccec96156b2edfa6c344a116ad62f19b  json.log  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  json-failed.list  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+24e08ab2ddcd9cf6b09baaddd6b56d462a70973e5d7db7cdf945054cd60418b9  uvm.log  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+3ade781fea3c9777dacefb633f3e8a7b4e284600659647448e44843eecc43c1d  time.txt  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  exit.code  # 2026-10-24 21:59:45 Slurm job 4775 T1 passed: legacy 144/144, JSON 151/151, UVM 367/367; 27:09, peak RSS 1.60 GiB
