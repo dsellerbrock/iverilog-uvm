@@ -1114,6 +1114,20 @@ bool pform_sva_nfa_build_implication(
       nfa.accept = boff + B.accept;
       if (nonoverlap) {
 	    nfa.eps(A.accept, boff + B.start);
+	    /* For sequence concatenation with a positive delay, an empty match
+	       of the suffix ends one tick before its start (16.9.2.1). Preserve
+	       that alternative on each prefix endpoint.  The epsilon-only
+	       acceptance in B is deliberately absent from its tick NFA after
+	       folding, so composing only through B's start would silently drop
+	       it. */
+	    if (B.accepts_empty)
+		  for (size_t ai = 0; ai < terminal.size(); ai += 1) {
+			sva_nfa_edge_t e;
+			e.from = terminal[ai].from;
+			e.to = boff + B.accept;
+			e.guards = terminal[ai].guards;
+			nfa.edges.push_back(e);
+		  }
       } else {
 	      /* |->: the consequent's first tick is the antecedent's
 		 terminal tick. Pair every terminal antecedent edge with every
