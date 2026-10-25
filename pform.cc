@@ -2532,6 +2532,11 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       if (gn_system_verilog() && ! pform_cur_module.empty()) {
+	    if (pform_cur_module.front()->is_checker && !is_checker) {
+		  cerr << loc << ": error: module, interface, or program "
+			  "declarations are not allowed in checkers." << endl;
+		  error_count += 1;
+	    }
 	    if (pform_cur_module.front()->program_block) {
 		  cerr << loc << ": error: module, program, or interface "
 				 "declarations are not allowed in program "
