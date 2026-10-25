@@ -3571,10 +3571,28 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * expression such as (UVM_LOG | UVM_RM_RECORD) then had a
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
+				      bool old_procedural_context =
+					    pform_procedural_expr_context;
+				      bool old_default_context = pform_default_argument_context;
+				      bool old_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = true;
+				      pform_default_argument_context = true;
+				      pform_default_argument_requires_procedural_context = false;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
+				      if (tmp_def
+					  && pform_default_argument_requires_procedural_context)
+					    tmp_def->mark_requires_procedural_context();
+				      bool default_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = old_procedural_context;
+				      pform_default_argument_context = old_default_context;
+				      pform_default_argument_requires_procedural_context =
+					    old_requires_procedural_context
+					    || default_requires_procedural_context;
 				} else {
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,

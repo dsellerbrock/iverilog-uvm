@@ -5932,3 +5932,7 @@ sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltes
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_function_copyout_context_fail_2017 CE,-g2017,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2017.gold
+sv_function_copyout_context_fail_2023 CE,-g2023,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2023.gold
+sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2017.gold
+sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
