@@ -1,0 +1,15 @@
+D0
+D1 same process
+D2 other process, Inactive
+WARNING: ./ivltests/sv_case_report_deferral.v:7: value is unhandled for priority or unique case statement
+         Time: 0  Scope: sv_case_report_deferral
+WARNING: ./ivltests/sv_case_report_deferral.v:10: value is unhandled for priority or unique case statement
+         Time: 0  Scope: sv_case_report_deferral
+WARNING: ./ivltests/sv_case_report_deferral.v:13: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: sv_case_report_deferral
+F0
+F1 resumed same step
+G0
+WARNING: ./ivltests/sv_case_report_deferral.v:44: value is unhandled for priority or unique case statement
+         Time: 3  Scope: sv_case_report_deferral
+G1

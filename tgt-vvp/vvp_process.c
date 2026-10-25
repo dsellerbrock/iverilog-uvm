@@ -1904,6 +1904,10 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
  * early-exit branch chain below) since they must not pay for any of
  * this extra bookkeeping.
  */
+static void emit_deferred_case_warning_(ivl_statement_t net,
+                                        ivl_scope_t sscope,
+                                        const char*message);
+
 static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
                                   ivl_case_quality_t qual)
 {
@@ -2039,11 +2043,8 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-		    "\"multiple case items match for unique or unique0 case "
-		    "statement\" {0 0 0 0};\n",
-		    ivl_file_table_index(ivl_stmt_file(net)),
-		    ivl_stmt_lineno(net));
+	    emit_deferred_case_warning_(net, sscope,
+		    "multiple case items match for unique or unique0 case statement");
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
 
 	/* The dispatch below only reads first_match_word, so drop the
@@ -2085,11 +2086,8 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-			  "\"value is unhandled for priority or unique case statement\""
-			  " {0 0 0 0};\n",
-			  ivl_file_table_index(ivl_stmt_file(net)),
-			  ivl_stmt_lineno(net));
+		  emit_deferred_case_warning_(net, sscope,
+			  "value is unhandled for priority or unique case statement");
       }
 
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
@@ -2111,6 +2109,32 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       free(body_label);
 
       return rc;
+}
+
+/* Queue case-quality diagnostics through the process's Observed-region
+ * violation-report queue.  Keep the ordinary $warning call in an out-of-line
+ * thunk so the runtime can preserve its existing formatting and reporting
+ * controls when the queued report matures. */
+static void emit_deferred_case_warning_(ivl_statement_t net,
+                                        ivl_scope_t sscope,
+                                        const char*message)
+{
+      static long source_id = LONG_MAX;
+      unsigned action_lab = local_count++;
+      unsigned after_lab = local_count++;
+      long warning_id = source_id--;
+
+      fprintf(vvp_out, "    %%defer/enqueue T_%u.%u, S_%p;\n",
+              thread_count, action_lab, sscope);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, after_lab);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, action_lab);
+      fprintf(vvp_out, "    %%defer/enqueue/key %ld;\n", warning_id);
+      fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", \"%s\" "
+              "{0 0 0 0};\n",
+              ivl_file_table_index(ivl_stmt_file(net)),
+              ivl_stmt_lineno(net), message);
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, after_lab);
 }
 
 static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
@@ -2216,11 +2240,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
               else
-		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-			    "\"value is unhandled for priority or unique case statement\""
-			    " {0 0 0 0};\n",
-			    ivl_file_table_index(ivl_stmt_file(net)),
-			    ivl_stmt_lineno(net));
+		    emit_deferred_case_warning_(net, sscope,
+			    "value is unhandled for priority or unique case statement");
           }
       }
 

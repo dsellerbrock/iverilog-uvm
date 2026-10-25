@@ -1561,11 +1561,12 @@ static bool capture_deferred_args_(vthread_t thr,
       vvp_code_t action_end = deferred_action_next_code_(action_pc);
       if (!task_name
           || (strcmp(task_name, "$display") != 0
-              && strcmp(task_name, "$error") != 0)
+              && strcmp(task_name, "$error") != 0
+              && strcmp(task_name, "$warning") != 0)
           || !action_end || action_end->opcode != of_END) {
             fprintf(stderr,
                     "vvp: malformed %s-deferred VPI action thunk; expected "
-                    "exactly one $display/$error call followed by %%end; "
+                    "exactly one $display/$error/$warning call followed by %%end; "
                     "source stacks were not consumed.\n", mode);
             return false;
       }

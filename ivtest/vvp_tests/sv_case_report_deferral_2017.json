@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_case_report_deferral_2017.v",
+  "iverilog-args": ["-g2017", "-s", "sv_case_report_deferral"],
+  "gold": "sv_case_report_deferral"
+}
