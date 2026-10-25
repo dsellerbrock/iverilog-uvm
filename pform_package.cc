@@ -121,11 +121,16 @@ PPackage *pform_package_importable(PPackage *pkg, perm_string name)
 	if (import_pkg == pkg->explicit_imports.end())
 		return nullptr;
 
+	auto import_pkgs = pkg->explicit_imports_from.find(name);
+	if (import_pkgs == pkg->explicit_imports_from.end())
+		return nullptr;
+
 	for (const auto &exp : pkg->exports) {
 		  // *::* will match all imports, P::* will match all imports
 		  // from a package and P::ID will match a specific identifier
 		  // from a package.
-		if ((!exp.pkg || exp.pkg == import_pkg->second) &&
+		if ((!exp.pkg || import_pkgs->second.find(exp.pkg) !=
+		     import_pkgs->second.end()) &&
 		    (exp.name.nil() || exp.name == name))
 			return import_pkg->second;
 	}
