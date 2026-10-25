@@ -1483,6 +1483,10 @@ sv_clocking_output_nonlvalue_fail_2017 CE,-g2017,-ssv_clocking_output_nonlvalue_
 sv_clocking_output_nonlvalue_fail_2023 CE,-g2023,-ssv_clocking_output_nonlvalue_fail_2023 ivltests
 
 # Clocking-output/continuous-driver identity; 2023 pairs are in regress-vvp.list
+sv_interface_class_nested_ordinary_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_ordinary_2023 normal,-g2023,-s,top ivltests gold=sv_interface_class_nested_ordinary_2023-legacy.gold
+sv_interface_class_nested_interface_2017 CE,-g2017,-s,top ivltests
+sv_interface_class_nested_interface_2023 CE,-g2023,-s,top ivltests
 sv_clocking_output_continuous_alias_overlap CE,-g2017,-ssv_clocking_output_continuous_alias_overlap ivltests gold=sv_clocking_output_continuous_alias_overlap.gold
 sv_clocking_output_continuous_declaration_only normal,-g2017,-ssv_clocking_output_continuous_declaration_only ivltests gold=sv_clocking_output_continuous_declaration_only.gold
 sv_clocking_output_continuous_disjoint normal,-g2017,-ssv_clocking_output_continuous_disjoint ivltests gold=sv_clocking_output_continuous_disjoint.gold
