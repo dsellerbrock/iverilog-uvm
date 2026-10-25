@@ -15693,6 +15693,60 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
       const name_component_t comp = sr.path_tail.front();
 
+      // IEEE 1800-2017/2023 25.5.4: an explicitly named modport port
+      // denotes its declared expression, rather than an interface property
+      // with the port identifier's name. For identifier expressions, splice
+      // the declared interface member path into the receiver path and let
+      // the ordinary select/property elaborator handle its type and indices.
+      if (class_type && class_type->is_interface()
+	  && sr.path_tail.size() == 1 && sr.net && !modport_expression_access()) {
+	    verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+	    perm_string mp_name = mp_attr == verinum() ? perm_string()
+		  : lex_strings.make(mp_attr.as_string().c_str());
+	    const PModport*view = interface_modport_view(class_type, mp_name);
+	    auto port = view ? view->simple_ports.find(comp.name)
+		  : std::map<perm_string,PModport::simple_port_t>::const_iterator();
+	    if (view && port != view->simple_ports.end() && port->second.second) {
+		  if (!validate_interface_modport_access(
+			  des, this, class_type, mp_name, comp.name,
+			  clocking_access(), false))
+			return nullptr;
+		  const PEIdent*source = dynamic_cast<const PEIdent*>(port->second.second);
+		  if (source && !source->path().package && !source->path().name.empty()) {
+			pform_name_t mapped_path;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			      mapped_path.push_back(*head);
+			mapped_path.insert(mapped_path.end(), source->path().name.begin(),
+				   source->path().name.end());
+			for (auto tail = std::next(sr.path_tail.begin());
+			     tail != sr.path_tail.end(); ++tail)
+			      mapped_path.push_back(*tail);
+			if (!comp.index.empty())
+			      std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.insert(
+				    std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.end(),
+				    comp.index.begin(), comp.index.end());
+			PEIdent mapped_ident(mapped_path, lexical_pos_);
+			mapped_ident.set_line(*this);
+			mapped_ident.set_modport_expression_access();
+			return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
+		  }
+		  pform_name_t receiver;
+		  const size_t prefix = path_.name.size() - sr.path_tail.size();
+		  for (auto head = path_.name.begin(); head != path_.name.end()
+		       && std::distance(path_.name.begin(), head) < (long)prefix;
+		       ++head)
+			receiver.push_back(*head);
+		  push_modport_expression_context(receiver);
+	  NetExpr*expression = port->second.second->elaborate_expr(
+			des, scope, expr_wid, flags);
+		  pop_modport_expression_context();
+		  return expression;
+	    }
+      }
+
       pform_name_t rewritten_path;
       perm_string mapped_access = clocking_access();
       bool output_read = false;
@@ -16424,7 +16478,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       // Modport member visibility (IEEE 1800-2017 25.5).
-      if (class_type->is_interface()) {
+      if (class_type->is_interface() && !modport_expression_access()) {
 	    verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
 	    if (mp_attr != verinum()) {
 		  perm_string mp_name = lex_strings.make(
@@ -23088,6 +23142,23 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  unsigned width = mapped_ident.test_width(des, scope, mode);
+		  expr_type_ = mapped_ident.expr_type();
+		  expr_width_ = mapped_ident.expr_width();
+		  min_width_ = mapped_ident.min_width();
+		  signed_flag_ = mapped_ident.has_sign();
+		  return width;
+	    }
+	  }
 	// M13: a bare reference to a let in scope expands by
 	// substitution before any symbol search.
       if (PExpr*sub = let_substitution_(des, scope)) {
@@ -23110,6 +23181,37 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  if (!modport_expression_access() && sr.net
+	      && sr.path_tail.size() == 1 && sr.type) {
+	    const netclass_t*interface_type =
+		  dynamic_cast<const netclass_t*>(sr.type);
+	    if (interface_type && interface_type->is_interface()) {
+		  verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+		  perm_string mp_name = mp_attr == verinum() ? perm_string()
+			: lex_strings.make(mp_attr.as_string().c_str());
+		  const PModport*view = interface_modport_view(interface_type, mp_name);
+		  const name_component_t&port_name = sr.path_tail.front();
+		  auto port = view ? view->simple_ports.find(port_name.name)
+			: std::map<perm_string,PModport::simple_port_t>::const_iterator();
+		  if (view && port != view->simple_ports.end() && port->second.second) {
+			pform_name_t receiver;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			  receiver.push_back(*head);
+			push_modport_expression_context(receiver);
+			unsigned width = port->second.second->test_width(des, scope, mode);
+			pop_modport_expression_context();
+			expr_type_ = port->second.second->expr_type();
+			expr_width_ = port->second.second->expr_width();
+			min_width_ = port->second.second->min_width();
+			signed_flag_ = port->second.second->has_sign();
+			return width;
+		  }
+	    }
+	  }
 
       if (sr.scope_index_error) {
 	    expr_type_ = IVL_VT_LOGIC;
@@ -23646,6 +23748,18 @@ static bool reject_left_last_in_fixed_unpacked_prefix_(
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_expr(des, scope, ntype, flags);
+	    }
+	  }
       bool need_const = NEED_CONST & flags;
 
 	// M5-3: a non-constant index into an interface-instance array used as
@@ -24651,6 +24765,18 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
+	    }
+	  }
 	// M13: expand let uses by substitution.
       if (PExpr*sub = let_substitution_(des, scope)) {
 	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {

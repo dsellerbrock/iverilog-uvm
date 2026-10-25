@@ -820,6 +820,20 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    bool is_init,
 				    bool read_only_ref) const
 {
+	  if (const pform_name_t*root = modport_expression_context()) {
+	    if (!modport_expression_access() && !path_.package
+		&& !path_.name.empty()) {
+		  pform_name_t mapped_path = *root;
+		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
+				     path_.name.end());
+		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_modport_expression_access();
+		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+						      is_force, is_init,
+						      read_only_ref);
+	    }
+	  }
 
       for (const name_component_t&component : path_.name) {
 	    for (const index_component_t&index : component.index) {
@@ -839,6 +853,66 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  // IEEE 1800-2017/2023 25.5.4: an explicitly named modport output
+	  // aliases its expression. Rewrite identifier expressions to the
+	  // receiver's interface member path so normal l-value select handling
+	  // preserves the selected bits and their storage identity.
+	  if (sr.net && sr.path_tail.size() == 1 && sr.type
+	      && !modport_expression_access()) {
+	    const netclass_t*interface_type =
+		  dynamic_cast<const netclass_t*>(sr.type);
+	    if (interface_type && interface_type->is_interface()) {
+		  verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+		  perm_string mp_name = mp_attr == verinum() ? perm_string()
+			: lex_strings.make(mp_attr.as_string().c_str());
+		  const PModport*view = interface_modport_view(interface_type, mp_name);
+		  const name_component_t&port_name = sr.path_tail.front();
+		  auto port = view ? view->simple_ports.find(port_name.name)
+			: std::map<perm_string,PModport::simple_port_t>::const_iterator();
+		  if (view && port != view->simple_ports.end() && port->second.second) {
+			if (!validate_interface_modport_access(
+				des, this, interface_type, mp_name, port_name.name,
+				clocking_access(), true))
+			  return nullptr;
+			const PEIdent*source = dynamic_cast<const PEIdent*>(port->second.second);
+			if (source && !source->path().package && !source->path().name.empty()) {
+			  pform_name_t mapped_path;
+			  const size_t prefix = path_.name.size() - sr.path_tail.size();
+			  for (auto head = path_.name.begin(); head != path_.name.end()
+			       && std::distance(path_.name.begin(), head) < (long)prefix;
+			       ++head)
+				mapped_path.push_back(*head);
+			  mapped_path.insert(mapped_path.end(), source->path().name.begin(),
+				     source->path().name.end());
+			  for (auto tail = std::next(sr.path_tail.begin());
+			       tail != sr.path_tail.end(); ++tail)
+				mapped_path.push_back(*tail);
+			  if (!port_name.index.empty())
+				std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.insert(
+				      std::prev(mapped_path.end(), sr.path_tail.size()).operator->()->index.end(),
+				      port_name.index.begin(), port_name.index.end());
+			  PEIdent mapped_ident(mapped_path, lexical_pos_);
+			  mapped_ident.set_line(*this);
+			  mapped_ident.set_modport_expression_access();
+			  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+						      is_force, is_init,
+						      read_only_ref);
+			}
+			pform_name_t receiver;
+			const size_t prefix = path_.name.size() - sr.path_tail.size();
+			for (auto head = path_.name.begin(); head != path_.name.end()
+			     && std::distance(path_.name.begin(), head) < (long)prefix;
+			     ++head)
+			  receiver.push_back(*head);
+			push_modport_expression_context(receiver);
+			NetAssign_*expression_lval = port->second.second->elaborate_lval(
+			      des, scope, is_cassign, is_force, is_init, read_only_ref);
+			pop_modport_expression_context();
+			return expression_lval;
+	      }
+	    }
+	  }
 
 	  scoped_lvalue_retarget_result_t scoped_result;
 	  if (has_scoped_type_prefix())
@@ -3611,6 +3685,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  }
 	    }
 	    if (owner_class && owner_class->is_interface()
+		&& !modport_expression_access()
 		&& !validate_interface_modport_access(
 		      des, this, owner_class, active_modport,
 		      member_cur.name, clocking_access(), true)) {
