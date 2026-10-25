@@ -30128,6 +30128,17 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+	// IEEE 1800-2017/2023 9.7: process objects are created only by
+	// the simulator when a process starts. A class `new` expression
+	// must not allocate one or return a fabricated process handle.
+	if (ctype->get_name() == perm_string::literal("process")) {
+	      cerr << get_fileline()
+		   << ": error: Users cannot create objects of type `process`."
+		   << endl;
+	      des->errors++;
+	      return 0;
+	}
+
 	      // IEEE 1800-2017 8.21: an abstract (virtual) class can never
 	      // be instantiated. This used to degrade to a SILENT null in
 	      // SV mode, which let `c = new` on a virtual class through
