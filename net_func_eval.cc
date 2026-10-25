@@ -1264,9 +1264,9 @@ bool NetRepeat::evaluate_function(const LineInfo&loc,
 static string const_string_format_int_(int32_t value, unsigned radix)
 {
       static const char digits[] = "0123456789abcdef";
-      bool negative = value < 0;
+      bool negative = radix == 10 && value < 0;
       uint64_t magnitude = negative ? uint64_t(-int64_t(value))
-	    : uint64_t(value);
+	    : uint64_t(static_cast<uint32_t>(value));
       string text;
       do {
 	    text.push_back(digits[magnitude % radix]);

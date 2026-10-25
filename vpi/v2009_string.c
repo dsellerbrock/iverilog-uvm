@@ -419,33 +419,33 @@ static PLI_INT32 atobin_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 /*
  * Convert a val to a text string that represents the value. The base
  * is the integer base to use for the conversion. The base will be one
- * of the values 2, 8, 10, or 16. If the input value is negative, then
- * extract the sign out (and put a '-' in the beginning of the string and
- * write the digits for the abs(val). For example, if the input value
- * is -11 and base is 8, then the text output will be "-13".
+ * of the values 2, 8, 10, or 16. Decimal conversion treats the input as
+ * signed; non-decimal conversion formats its 32-bit representation.
  */
 static void value_to_text_base(char*text, long val, long base)
 {
       static const char digit_map[16] = { '0','1','2','3','4','5','6','7',
                                           '8','9','a','b','c','d','e','f' };
       char* ptr;
+      uint32_t magnitude;
 
       assert(base <= 16);
-      if (val == 0) {
+      if (base == 10 && val < 0) {
+	    *text++ = '-';
+	    magnitude = (uint32_t)(-val);
+	} else
+	    magnitude = (uint32_t)val;
+
+	if (magnitude == 0) {
 	    text[0] = '0';
 	    text[1] = 0;
 	    return;
       }
 
-      if (val < 0) {
-	    *text++ = '-';
-	    val = 0-val;
-      }
-
       ptr = text;
-      while (val != 0) {
-	    long digit = val % base;
-	    val /= base;
+	while (magnitude != 0) {
+	    long digit = magnitude % (uint32_t)base;
+	    magnitude /= (uint32_t)base;
 	    *(ptr++) = digit_map[digit];
 	    *ptr = 0;
       }
