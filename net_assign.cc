@@ -106,6 +106,8 @@ NetAssign_* NetAssign_::dup_lval() const
 	    else
 		  copy->set_word(word_->dup_expr());
       }
+      if (array_word_prefix_)
+            copy->set_array_word_prefix(array_word_first_, array_word_count_);
 
       if (base_) {
 	    if (part_data_type_)

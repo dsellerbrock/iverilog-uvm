@@ -17,19 +17,14 @@ module main;
   aggregate_t       aggregate;
 
   // Generated register interfaces use separate combinational processes for
-  // disjoint fields of one packed aggregate. A procedural loop index is a
-  // constant in each synthesized iteration, so every selected field below is
-  // unconditionally driven and must not be mistaken for a partial latch.
-  always_comb begin : put_data
-    for (int i = 0; i < 4; i++) begin
-      aggregate.fields[i].d = data[i];
-    end
+  // disjoint fields of one packed aggregate. Keep each index constant so the
+  // longest static prefixes identify the independently written fields.
+  for (genvar i = 0; i < 4; i++) begin : put_data
+    always_comb aggregate.fields[i].d = data[i];
   end
 
-  always_comb begin : put_enable
-    for (int i = 0; i < 4; i++) begin
-      aggregate.fields[i].de = enable[i];
-    end
+  for (genvar i = 0; i < 4; i++) begin : put_enable
+    always_comb aggregate.fields[i].de = enable[i];
   end
 
   always_comb aggregate.status = status;
