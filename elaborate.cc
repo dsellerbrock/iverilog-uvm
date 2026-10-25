@@ -44896,6 +44896,32 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_indexes.reserve(cross.cp_labels.size());
 			  bool resolved = true;
 			  for (perm_string cp_label : cross.cp_labels) {
+				/* IEEE 1800-2017/2023 19.6: a cross cannot
+				 * reach through a covergroup handle to use one of
+				 * that other group's coverpoints. Hierarchical
+				 * member expressions remain supported for ordinary
+				 * packed-struct cross items. */
+				for (const auto&cp : cgdef->coverpoints) {
+				      if (cp.label != cp_label) continue;
+				      const PEIdent*id =
+					    dynamic_cast<const PEIdent*>(cp.expr);
+				      if (!id || id->path().name.size() < 2) break;
+				      perm_string root_name = id->path().name.front().name;
+				      NetNet*root = nullptr;
+				      for (NetScope*scope = class_scope_; scope && !root;
+					   scope = scope->parent())
+					    root = scope->find_signal(root_name);
+				      const netclass_t*root_type = root
+					    ? dynamic_cast<const netclass_t*>(root->net_type())
+					    : nullptr;
+				      if (root_type && root_type->is_covergroup()) {
+					    cerr << cp.expr->get_fileline()
+						 << ": error: cross item refers to a coverpoint in a different "
+						    "covergroup." << endl;
+					    des->errors += 1;
+				      }
+				      break;
+				}
 				int found = -1;
 				for (size_t i = 0;
 				     i < cgdef->coverpoints.size(); i++) {

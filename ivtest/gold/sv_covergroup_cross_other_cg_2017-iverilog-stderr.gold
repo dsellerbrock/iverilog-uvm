@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_cross_other_cg.v:9: error: cross item refers to a coverpoint in a different covergroup.
+1 error(s) during elaboration.
