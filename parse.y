@@ -2661,6 +2661,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <decl_assignments> list_of_variable_decl_assignments
 
 %type <data_type>  class_scoped_type_identifier
+%type <data_type>  parameterized_class_scoped_type_identifier
 %type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_void
 %type <data_type>  data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
@@ -15311,6 +15312,24 @@ class_scoped_type_identifier
       }
   ;
 
+/* A specialized class-scoped typedef is also a complete type in a module
+   variable declaration. Keep this grammar at that declaration frontier so
+   the specialized form does not add ambiguity to unrelated type contexts. */
+parameterized_class_scoped_type_identifier
+  : TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4, nullptr, $2);
+	delete[] $1.text;
+	delete[] $4;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, nullptr, $2);
+	delete[] $1.text;
+	delete[] $4.text;
+      }
+  ;
+
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
@@ -16207,6 +16226,35 @@ module_item
               pform_make_var(@2, $4, type, attributes_in_context, 0);
         } else {
               // The class/member resolver has already diagnosed the error.
+              auto discard_ranges = [](const std::list<pform_range_t>&ranges) {
+                    for (const auto&range : ranges) {
+                          delete range.first;
+                          if (range.second != range.first) delete range.second;
+                    }
+              };
+              for (auto*decl : *$4) {
+                    discard_ranges(decl->index);
+                    delete decl;
+              }
+              delete $4;
+              if ($3) discard_ranges(*$3);
+              delete $3;
+              pform_discard_call_attributes($1);
+        }
+        var_lifetime = LexicalScope::INHERITED;
+        pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
+  | attribute_list_opt parameterized_class_scoped_type_identifier dimensions_opt
+    list_of_variable_decl_assignments ';'
+      { data_type_t*type = $2;
+        if (type) {
+              if ($3) {
+                    type = new parray_type_t(type, $3);
+                    FILE_NAME(type, @2);
+              }
+              attributes_in_context = $1;
+              pform_make_var(@2, $4, type, attributes_in_context, 0);
+        } else {
               auto discard_ranges = [](const std::list<pform_range_t>&ranges) {
                     for (const auto&range : ranges) {
                           delete range.first;
