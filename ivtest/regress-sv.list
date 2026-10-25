@@ -1469,6 +1469,8 @@ sv_clocking_selected_input_alias normal,-g2017,-ssv_clocking_selected_input_alia
 sv_clocking_vif_input_sys_task_arg normal,-g2012,-ssv_clocking_vif_input_sys_task_arg ivltests gold=sv_clocking_vif_input_sys_task_arg.gold
 sv_clocking_vif_vpi_write_fail RE,-g2012,-ssv_clocking_vif_vpi_write_fail,+CBIN=1,+CBOUT=1,+MPIN=1 ivltests gold=sv_clocking_vif_vpi_write_fail.gold
 sv_clocking_nonconstant_output_skew_fail CE,-g2012,-ssv_clocking_nonconstant_output_skew_fail ivltests gold=sv_clocking_nonconstant_output_skew_fail.gold
+sv_clocking_output_nonlvalue_fail_2017 CE,-g2017,-ssv_clocking_output_nonlvalue_fail_2017 ivltests
+sv_clocking_output_nonlvalue_fail_2023 CE,-g2023,-ssv_clocking_output_nonlvalue_fail_2023 ivltests
 
 # Clocking-output/continuous-driver identity; 2023 pairs are in regress-vvp.list
 sv_clocking_output_continuous_alias_overlap CE,-g2017,-ssv_clocking_output_continuous_alias_overlap ivltests gold=sv_clocking_output_continuous_alias_overlap.gold

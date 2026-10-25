@@ -899,6 +899,24 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
    Inputs that cannot be sampled (non-vector types, arrays) keep the existing
    alias behavior; the read-rewrite helpers key off the presence of the sample
    variable, so the two stay consistent. */
+static bool clocking_output_expr_is_lvalue_(const PExpr*expr)
+{
+      if (dynamic_cast<const PEIdent*>(expr))
+	    return true;
+
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(expr);
+      if (!concat || concat->has_repeat() || concat->is_empty_concat())
+	    return false;
+
+      const std::vector<PExpr*>&parts = concat->stream_parms();
+      for (std::vector<PExpr*>::const_iterator part = parts.begin()
+	   ; part != parts.end() ; ++part) {
+	    if (!clocking_output_expr_is_lvalue_(*part))
+		  return false;
+      }
+      return true;
+}
+
 static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
@@ -915,6 +933,25 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+		  if (is_out) {
+			std::map<perm_string,PExpr*>::const_iterator da =
+			      cb->decl_assigns.find(*sig_it);
+			if (da != cb->decl_assigns.end()
+			    && !clocking_output_expr_is_lvalue_(da->second)) {
+			      /* IEEE 1800-2017/2023 14.5 requires an output
+				 clocking declaration assignment to be legal as a
+				 module output-port connection. Inspect only the
+				 expression form here: elaborating it as a structural
+				 lnet would incorrectly register the clocking drive as
+				 a continuous driver. */
+			      cerr << cb->get_fileline() << ": error: clocking output `"
+			       << *sig_it << "' expression is not a legal module "
+			       << "output-port connection (IEEE 1800-2017/2023 14.5): "
+			       << *da->second << "." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+		  }
 
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw) {
