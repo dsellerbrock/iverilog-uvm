@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1160_sscanf_binary_underscore.v",
+  "iverilog-args": ["-g2017", "-s", "issue1160_sscanf_binary_underscore"],
+  "gold": "issue1160_sscanf_binary_underscore"
+}

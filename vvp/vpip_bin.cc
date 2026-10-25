@@ -41,8 +41,8 @@ void vpip_bin_str_to_vec4(vvp_vector4_t&vec4, const char*buf)
 	    ebuf -= 1;
 	      /* Skip any "_" characters in the string. */
 	    while (*ebuf == '_') {
+		  if (ebuf == buf) break;
 		  ebuf -= 1;
-		  assert(ebuf > buf);
 	    }
 
 	      /*  If we find a "-" it must be at the head of the string. */
