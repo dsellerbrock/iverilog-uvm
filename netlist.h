@@ -1173,7 +1173,8 @@ struct LocalVar {
 class NetBaseDef {
     public:
       NetBaseDef(NetScope*n, const std::vector<NetNet*>&po,
-		 const std::vector<NetExpr*>&pd);
+		 const std::vector<NetExpr*>&pd,
+		 const std::vector<NetAssign_*>&pdl = std::vector<NetAssign_*>());
       virtual ~NetBaseDef();
 
       const NetScope*scope() const;
@@ -1182,12 +1183,14 @@ class NetBaseDef {
       unsigned port_count() const;
       NetNet*port(unsigned idx) const;
       NetExpr*port_defe(unsigned idx) const;
+      const NetAssign_*port_default_lval(unsigned idx) const;
 
 	/* A function signature may need to be published before its default
 	 * expressions are elaborated: a default is allowed to call the same
 	 * function recursively. Replace the provisional null defaults once that
 	 * declaration-context elaboration completes. */
-      void replace_port_defaults(const std::vector<NetExpr*>&pd);
+	      void replace_port_defaults(const std::vector<NetExpr*>&pd,
+					 const std::vector<NetAssign_*>&pdl);
 
 	/* Default argument expressions are only consulted during elaboration.
 	 * Release their owned trees before target materialization. */
@@ -1208,6 +1211,7 @@ class NetBaseDef {
       NetScope*scope_;
       std::vector<NetNet*>ports_;
       std::vector<NetExpr*>pdefaults_;
+      std::vector<NetAssign_*>pdefault_lvals_;
 
     protected:
       NetProc*proc_;
@@ -4896,7 +4900,8 @@ class NetFuncDef : public NetBaseDef {
 
     public:
       NetFuncDef(NetScope*, NetNet*result, const std::vector<NetNet*>&po,
-		 const std::vector<NetExpr*>&pd);
+		 const std::vector<NetExpr*>&pd,
+		 const std::vector<NetAssign_*>&pdl = std::vector<NetAssign_*>());
       ~NetFuncDef() override;
 
 	// Return true if the function returns "void". We still treat
@@ -5086,7 +5091,8 @@ class NetTaskDef : public NetBaseDef {
 
     public:
       NetTaskDef(NetScope*n, const std::vector<NetNet*>&po,
-		 const std::vector<NetExpr*>&pd);
+		 const std::vector<NetExpr*>&pd,
+		 const std::vector<NetAssign_*>&pdl = std::vector<NetAssign_*>());
       ~NetTaskDef() override;
 
       void dump(std::ostream&, unsigned) const;

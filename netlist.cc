@@ -2802,9 +2802,14 @@ verinum::V NetConst::value(unsigned idx) const
       return value_[idx];
 }
 
-NetBaseDef::NetBaseDef(NetScope*s, const vector<NetNet*>&po, const std::vector<NetExpr*>&pd)
-: scope_(s), ports_(po), pdefaults_(pd)
+NetBaseDef::NetBaseDef(NetScope*s, const vector<NetNet*>&po,
+		       const std::vector<NetExpr*>&pd,
+		       const std::vector<NetAssign_*>&pdl)
+: scope_(s), ports_(po), pdefaults_(pd), pdefault_lvals_(pdl)
 {
+      if (pdefault_lvals_.empty())
+	    pdefault_lvals_.resize(ports_.size(), nullptr);
+      assert(pdefault_lvals_.size() == ports_.size());
       proc_ = 0;
 }
 
@@ -2840,12 +2845,23 @@ NetExpr* NetBaseDef::port_defe(unsigned idx) const
       return pdefaults_[idx];
 }
 
-void NetBaseDef::replace_port_defaults(const vector<NetExpr*>&pd)
+const NetAssign_* NetBaseDef::port_default_lval(unsigned idx) const
+{
+      assert(idx < pdefault_lvals_.size());
+      return pdefault_lvals_[idx];
+}
+
+void NetBaseDef::replace_port_defaults(const vector<NetExpr*>&pd,
+				      const vector<NetAssign_*>&pdl)
 {
       assert(pd.size() == ports_.size());
+      assert(pdl.size() == ports_.size());
       for (NetExpr*expr : pdefaults_)
 	    delete expr;
+      for (NetAssign_*lval : pdefault_lvals_)
+	    delete lval;
       pdefaults_ = pd;
+      pdefault_lvals_ = pdl;
 }
 
 void NetBaseDef::release_port_defaults()
@@ -2856,6 +2872,9 @@ void NetBaseDef::release_port_defaults()
 	    *cur = 0;
       }
       vector<NetExpr*>().swap(pdefaults_);
+      for (NetAssign_*lval : pdefault_lvals_)
+	    delete lval;
+      vector<NetAssign_*>().swap(pdefault_lvals_);
 }
 
 void NetBaseDef::set_proc(NetProc*st)
@@ -2877,8 +2896,9 @@ const NetProc* NetBaseDef::proc() const
 }
 
 NetFuncDef::NetFuncDef(NetScope*s, NetNet*result, const vector<NetNet*>&po,
-		       const vector<NetExpr*>&pd)
-: NetBaseDef(s, po, pd), result_sig_(result)
+		       const vector<NetExpr*>&pd,
+		       const vector<NetAssign_*>&pdl)
+: NetBaseDef(s, po, pd, pdl), result_sig_(result)
 {
 }
 
@@ -3540,8 +3560,10 @@ unsigned NetUReduce::width() const
       return width_;
 }
 
-NetTaskDef::NetTaskDef(NetScope*n, const vector<NetNet*>&po, const vector<NetExpr*>&pd)
-: NetBaseDef(n, po, pd)
+NetTaskDef::NetTaskDef(NetScope*n, const vector<NetNet*>&po,
+		       const vector<NetExpr*>&pd,
+		       const vector<NetAssign_*>&pdl)
+: NetBaseDef(n, po, pd, pdl)
 {
 }
 

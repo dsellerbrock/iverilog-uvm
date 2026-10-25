@@ -27,6 +27,7 @@
 # include  <list>
 class Design;
 class NetExpr;
+class NetAssign_;
 class NetNet;
 class NetScope;
 class PChainConstructor;
@@ -130,6 +131,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       void elaborate_sig_ports_(Design*des, NetScope*scope,
 				std::vector<NetNet*>&ports,
 				std::vector<NetExpr*> &pdefs,
+				std::vector<NetAssign_*> &pdefault_lvals,
 				std::vector<perm_string> &port_names) const;
 
       void dump_ports_(std::ostream&out, unsigned ind) const;

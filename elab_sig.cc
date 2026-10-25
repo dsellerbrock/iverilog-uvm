@@ -3342,6 +3342,7 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       vector<NetNet*>ports;
       vector<NetExpr*>pdef;
+      vector<NetAssign_*>pdefault_lvals;
       vector<perm_string> port_names;
 
         /* Publish an interface function's structural signature before
@@ -3370,13 +3371,16 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    if (complete) {
 		  vector<NetExpr*>provisional_defaults(
 			provisional_ports.size(), nullptr);
+		  vector<NetAssign_*>provisional_default_lvals(
+			provisional_ports.size(), nullptr);
 		  scope->set_func_def(new NetFuncDef(
-			scope, ret_sig, provisional_ports, provisional_defaults));
+			scope, ret_sig, provisional_ports, provisional_defaults,
+			provisional_default_lvals));
 		  provisional_interface_def = true;
 	    }
       }
 
-      elaborate_sig_ports_(des, scope, ports, pdef, port_names);
+      elaborate_sig_ports_(des, scope, ports, pdef, pdefault_lvals, port_names);
 
 	  // IEEE 1800-2017/2023 9.3.2 applies to function ref formals too.
 	  for (NetNet*port : ports)
@@ -3393,13 +3397,14 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    if (!have_this_port) {
 		  ports.insert(ports.begin(), ret_sig);
 		  pdef.insert(pdef.begin(), 0);
+		  pdefault_lvals.insert(pdefault_lvals.begin(), 0);
 		  port_names.insert(port_names.begin(), perm_string::literal(THIS_TOKEN));
 	    }
       }
 
       NetFuncDef*def = scope->func_def();
       if (!def) {
-	    def = new NetFuncDef(scope, ret_sig, ports, pdef);
+	    def = new NetFuncDef(scope, ret_sig, ports, pdef, pdefault_lvals);
 
 	    if (debug_elaborate)
 		  cerr << get_fileline() << ": PFunction::elaborate_sig: "
@@ -3412,7 +3417,7 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    ivl_assert(*this, def->port_count() == ports.size());
 	    for (unsigned idx = 0 ; idx < ports.size() ; idx += 1)
 		  ivl_assert(*this, def->port(idx) == ports[idx]);
-	    def->replace_port_defaults(pdef);
+	    def->replace_port_defaults(pdef, pdefault_lvals);
       }
 
       if (trace_func_sig) {
@@ -3458,9 +3463,10 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
 
       vector<NetNet*>ports;
       vector<NetExpr*>pdefs;
+      vector<NetAssign_*>pdefault_lvals;
       vector<perm_string> port_names;
-      elaborate_sig_ports_(des, scope, ports, pdefs, port_names);
-      NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
+      elaborate_sig_ports_(des, scope, ports, pdefs, pdefault_lvals, port_names);
+      NetTaskDef*def = new NetTaskDef(scope, ports, pdefs, pdefault_lvals);
       scope->set_task_def(def);
       scope->elaborate_nettypes(des);
 
@@ -3490,11 +3496,13 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
 void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetNet*> &ports,
 				     vector<NetExpr*> &pdefs,
+				     vector<NetAssign_*> &pdefault_lvals,
 				     vector<perm_string> &port_names) const
 {
       if (ports_ == 0) {
 	    ports.clear();
 	    pdefs.clear();
+	    pdefault_lvals.clear();
 	    port_names.clear();
 
 	      /* Make sure the function has at least one input
@@ -3514,6 +3522,7 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 
       ports.resize(ports_->size());
       pdefs.resize(ports_->size());
+      pdefault_lvals.resize(ports_->size(), 0);
       port_names.resize(ports_->size());
 
       for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
@@ -3537,7 +3546,6 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 		      // If the port has a default expression, elaborate
 		      // that expression here.
 		    if (ports_->at(idx).defe != 0) {
-			  if (tmp->port_type() == NetNet::PINPUT) {
 				ivl_type_t formal_type = tmp->unpacked_dimensions() > 0
 				      && tmp->array_type()
 				      ? static_cast<ivl_type_t>(tmp->array_type())
@@ -3587,12 +3595,18 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
-		  } else {
-			cerr << get_fileline() << ": sorry: Default arguments "
-			        "for subroutine output or inout ports are not "
-			        "yet supported." << endl;
-			des->errors += 1;
-		  }
+			if (tmp->port_type() == NetNet::POUTPUT
+			    || tmp->port_type() == NetNet::PINOUT) {
+			      unsigned errors_before = des->errors;
+			      pdefault_lvals[idx] = ports_->at(idx).defe->elaborate_lval(
+				    des, scope, false, false);
+			      if (!pdefault_lvals[idx] && des->errors == errors_before) {
+				    cerr << ports_->at(idx).defe->get_fileline()
+					 << ": error: Default for output or inout argument "
+					    "must be an l-value." << endl;
+				    des->errors += 1;
+			      }
+			}
 	    }
 
 	    if (tmp->port_type() == NetNet::NOT_A_PORT) {

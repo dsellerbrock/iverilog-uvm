@@ -20138,6 +20138,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			if (des->errors == errors_before)
 			      des->errors += 1;
 		  }
+	    } else if (def->port_defe(idx)) {
+		  const NetAssign_*default_lval = def->port_default_lval(idx);
+		  if (default_lval)
+			lv = default_lval->dup_lval();
+		  else {
+			cerr << get_fileline() << ": error: Default for omitted "
+			     << "output or inout argument is not a valid l-value." << endl;
+			des->errors += 1;
+		  }
 	    } else if (port->port_type() == NetNet::POUTPUT) {
 		    // Output ports were skipped earlier, so report the error
 		    // now. An omitted output with no default is illegal (IEEE
