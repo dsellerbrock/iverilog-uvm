@@ -92,9 +92,15 @@ command line.
 VCD/FST/LXT Arguments
 ^^^^^^^^^^^^^^^^^^^^^
 
-If not otherwise specified, the vvp engine will by default use VCD formats to
-support the $dumpvars system task. The flags described here can alter that
-behavior.
+If not otherwise specified, the vvp engine picks the format from the dump
+file name: ``$dumpfile("waves.fst")`` (any name ending in ``.fst``, or
+``-dumpfile=waves.fst``) writes FST, every other name writes VCD. The flags
+described here, and the IVERILOG_DUMPER environment variable, select one
+format for every dump file instead.
+
+FST keeps the SystemVerilog variable types (``bit``, ``byte``, ``shortint``,
+``int``, ``longint``) and dumps ``string`` variables and interface instances,
+which VCD cannot represent.
 
 * -none/-vcd-none/-vcd-off/-fst-none
 
