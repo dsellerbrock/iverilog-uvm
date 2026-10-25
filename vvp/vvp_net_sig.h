@@ -590,6 +590,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// The net this frame is bound to, or nil if %ref/bind never ran
 	// (an unbound formal is a compiler defect, not a user error).
       vvp_net_t*target() const;
+      void* static_slot() const { return static_slot_; }
 
 	// Move a binding between frames. A virtual method call allocates
 	// the OVERRIDE's frame and copies the base formals into it; a
@@ -624,6 +625,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+      void*static_slot_;
       unsigned size_;
       mutable std::string string_cache_;
 };
