@@ -7101,6 +7101,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
 	  || strcmp(stmt_name, "$ivl_process$await") == 0
 	  || strcmp(stmt_name, "$ivl_process$suspend") == 0
+	  || strcmp(stmt_name, "$ivl_process$suspend$2023") == 0
 	  || strcmp(stmt_name, "$ivl_process$resume") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
 	    const char*op;
@@ -7112,6 +7113,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  op = "%process/await";
 	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
 		  op = "%process/suspend";
+	    else if (strcmp(stmt_name, "$ivl_process$suspend$2023") == 0)
+		  op = "%process/suspend/2023";
 	    else
 		  op = "%process/resume";
 	    fprintf(vvp_out, "    %s;\n", op);

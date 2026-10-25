@@ -2410,5 +2410,6 @@ vpip_routines_s vpi_routines = {
     .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
     .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
     .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
+    .print_finish_stats         = vpip_print_finish_stats,
 };
 #endif

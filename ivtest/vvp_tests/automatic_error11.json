@@ -1,10 +1,5 @@
 {
-    "type" : "EF",
+    "type" : "CE",
     "source" : "automatic_error11.v",
-    "gold" : "automatic_error11",
-    "vlog95" : {
-        "__comment" : "Automatic tasks are not supported",
-        "type"      : "CE",
-        "gold"      : ""
-    }
+    "gold" : "automatic_error11"
 }

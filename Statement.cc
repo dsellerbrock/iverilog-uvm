@@ -429,6 +429,7 @@ class pform_constructor_order_audit_t {
 	    bool initializes_constant = false;
 	    size_t initialized_property = 0;
 	    bool constructs_covergroup = false;
+	    bool forbidden_covergroup_assignment = false;
 	    std::vector<pform_constructor_order_dependency_t> dependencies;
 	    std::vector<region_t> regions;
       };
@@ -468,8 +469,21 @@ class pform_constructor_order_audit_t {
 	    info.constructs_covergroup =
 		  classifier_.classify_embedded_covergroup_constructor(
 			info.assignment, info.dependencies);
+	    info.forbidden_covergroup_assignment =
+		  classifier_.classify_forbidden_embedded_covergroup_assignment(
+			info.assignment, info.initialized_property);
 	    info.regions = region_stack_;
 
+	    if (info.forbidden_covergroup_assignment) {
+			pform_constructor_order_violation_t violation;
+			violation.kind =
+			      PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW;
+			violation.property_idx = info.initialized_property;
+			violation.initializer_site = lval
+			      ? static_cast<const LineInfo*>(lval)
+			      : static_cast<const LineInfo*>(statement);
+			result_.violations.push_back(violation);
+	    }
 	    if (!info.initializes_constant && !info.constructs_covergroup)
 		  return;
 
@@ -1214,8 +1228,8 @@ PDelayStatement::~PDelayStatement()
 {
 }
 
-PCycleDelay::PCycleDelay(PExpr*count, Statement*st)
-: count_(count), statement_(st)
+PCycleDelay::PCycleDelay(PExpr*count, Statement*st, bool expression_value)
+: count_(count), statement_(st), expression_value_(expression_value)
 {
 }
 

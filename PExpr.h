@@ -269,6 +269,24 @@ class PExpr : public LineInfo {
       PExpr& operator= (const PExpr&);
 };
 
+// True while elaborating expressions that are part of a procedural
+// statement. IEEE 1800-2017/2023 13.4 restricts function calls with output,
+// inout, or non-const ref arguments to this context.
+extern bool pform_procedural_expr_context;
+extern bool pform_default_argument_context;
+extern bool pform_default_argument_requires_procedural_context;
+
+class PExprProceduralContextGuard {
+    public:
+      explicit PExprProceduralContextGuard(bool enable)
+      : old_(pform_procedural_expr_context)
+      { pform_procedural_expr_context = enable; }
+      ~PExprProceduralContextGuard()
+      { pform_procedural_expr_context = old_; }
+    private:
+      bool old_;
+};
+
 /* Boolean match predicate. Statement contexts install pattern variables in
  * their implicit true-arm/item scopes; use of a binding from the true operand
  * of a conditional expression remains outside this first slice. This node is

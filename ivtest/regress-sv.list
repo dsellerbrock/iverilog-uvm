@@ -26,6 +26,8 @@ sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=s
 # testname		testtype		directory
 #
 # The <testname> is the verilog file name minus an extension.
+sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_arg_fail_2017.gold
+sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
 #
 # The <testtype> can be one of the following:
 #
@@ -1550,6 +1552,8 @@ sv_covergroup_class_const_bin_ranges normal,-g2017 ivltests gold=sv_covergroup_c
 sv_covergroup_class_const_bin_ranges_2023 normal,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges.gold
 sv_covergroup_class_const_bin_ranges_fail CE,-g2017 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
 sv_covergroup_class_const_bin_ranges_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_class_const_bin_ranges_fail.gold
+sv_covergroup_assignment_outside_new_2017 CE,-g2017 ivltests gold=sv_covergroup_assignment_outside_new_2017.gold
+sv_covergroup_assignment_outside_new_2023 CE,-g2023 ivltests gold=sv_covergroup_assignment_outside_new_2023.gold
 sv_class_instance_const_flow normal,-g2017 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_flow_2023 normal,-g2023 ivltests gold=sv_class_instance_const_flow.gold
 sv_class_instance_const_static_fail CE,-g2017 ivltests gold=sv_class_instance_const_static_fail.gold
@@ -3115,6 +3119,8 @@ sv_fork_function_children_2023 normal,-g2023,-s,main ivltests gold=sv_fork_funct
 
 sv_fork_null_child normal,-g2017,-s,main ivltests gold=sv_fork_null_child.gold
 sv_fork_null_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_null_child.gold
+sv_wait_fork_excludes_descendants_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
+sv_wait_fork_excludes_descendants_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
 sv_fork_empty_child normal,-g2017,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_empty_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
@@ -4663,6 +4669,8 @@ sv_constraint_object_method_impure_override_fail CE,-g2017,-s,test ivltests gold
 sv_constraint_object_method_impure_override_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_object_method_impure_override_fail.gold
 sv_enum_bare_name_concat normal,-g2017,-s,test ivltests gold=sv_enum_bare_name_concat.gold
 sv_enum_bare_name_concat_2023 normal,-g2023,-s,test ivltests gold=sv_enum_bare_name_concat.gold
+sv_enum_unbased_fill_context_2017 normal,-g2017,-s,main ivltests
+sv_enum_unbased_fill_context_2023 normal,-g2023,-s,main ivltests
 sv_enum_bare_num_string_fail CE,-g2017,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 
@@ -5900,6 +5908,7 @@ sv_let_scope_2017 normal,-g2017,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_let_scope_2023 normal,-g2023,-s,sv_let_scope ivltests gold=sv_let_scope.gold
 sv_forward_class_scoped_typedef normal,-g2017,-s,sv_forward_class_scoped_typedef ivltests gold=sv_forward_class_scoped_typedef.gold
 sv_forward_class_scoped_typedef_2023 normal,-g2023,-s,sv_forward_class_scoped_typedef_2023 ivltests gold=sv_forward_class_scoped_typedef.gold
+sv_class_handle_equality_unrelated_fail CE,-g2017,-s,test ivltests
 format_undefined_spec_2017 EF,-g2017,-s,format_undefined_spec_2017 ivltests gold=format_undefined_spec_2017.gold
 format_undefined_spec_2023 EF,-g2023,-s,format_undefined_spec_2023 ivltests gold=format_undefined_spec_2023.gold
 # IEEE 1800-2017/2023 20.2 and 24.7: program-only $exit and ignored module calls.
@@ -5934,3 +5943,11 @@ sv_unique_case_item_match_2017 normal,-g2017,-s,sv_unique_case_item_match ivltes
 sv_unique_case_item_match_2023 normal,-g2023,-s,sv_unique_case_item_match ivltests gold=sv_unique_case_item_match.gold
 sv_include_angle_2017 normal,-g2017,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
 sv_include_angle_2023 normal,-g2023,-I./ivltests/include-angle,-s,sv_include_angle ivltests gold=sv_include_angle.gold
+sv_function_copyout_context_fail_2017 CE,-g2017,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2017.gold
+sv_function_copyout_context_fail_2023 CE,-g2023,-s,sv_function_copyout_context_fail ivltests gold=sv_function_copyout_context_fail_2023.gold
+sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2017.gold
+sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
+sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
+sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
+sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
+sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold

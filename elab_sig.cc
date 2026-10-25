@@ -2106,10 +2106,12 @@ class covergroup_constructor_order_classifier_t :
       public pform_constructor_order_classifier_t {
     public:
       covergroup_constructor_order_classifier_t(
-	    const netclass_t*parent, const PFunction*constructor,
-	    const map<size_t,const netclass_t*>&embedded_covergroups)
-      : parent_(parent), constructor_(constructor),
-	embedded_covergroups_(embedded_covergroups)
+	    const netclass_t*parent, const PTaskFunc*method,
+	    const map<size_t,const netclass_t*>&embedded_covergroups,
+	    bool outside_new = false)
+      : parent_(parent), constructor_(method),
+	embedded_covergroups_(embedded_covergroups),
+	outside_new_(outside_new)
       { }
 
       bool classify_instance_constant_initializer(
@@ -2139,6 +2141,8 @@ class covergroup_constructor_order_classifier_t :
 	    vector<pform_constructor_order_dependency_t>&dependencies)
 	    const override
       {
+	    if (outside_new_)
+		  return false;
 	    if (!assignment.plain_blocking
 		|| !dynamic_cast<const PENewClass*>(assignment.rval))
 		  return false;
@@ -2162,6 +2166,21 @@ class covergroup_constructor_order_classifier_t :
 		  dependencies.push_back(use_dep);
 	    }
 	    return !dependencies.empty();
+      }
+
+      bool classify_forbidden_embedded_covergroup_assignment(
+	    const pform_constructor_order_assignment_t&assignment,
+	    size_t&property_idx) const override
+      {
+	    if (!outside_new_)
+		  return false;
+	    int prop = property_from_lval_(assignment);
+	    if (prop < 0
+		|| embedded_covergroups_.find(static_cast<size_t>(prop))
+		   == embedded_covergroups_.end())
+		  return false;
+	    property_idx = static_cast<size_t>(prop);
+	    return true;
       }
 
       bool classify_repeat_count(const PExpr*count,
@@ -2221,8 +2240,9 @@ class covergroup_constructor_order_classifier_t :
 
     private:
       const netclass_t*parent_;
-      const PFunction*constructor_;
+      const PTaskFunc*constructor_;
       const map<size_t,const netclass_t*>&embedded_covergroups_;
+      bool outside_new_;
 
       static bool scope_declares_(const LexicalScope*scope, perm_string name)
       {
@@ -2350,6 +2370,11 @@ static void report_constructor_order_violations_(
 		       << "' can be assigned only once along every reachable path "
 			  "through its corresponding class constructor "
 			  "(IEEE 1800 8.19).";
+		  break;
+	    case PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW:
+		  cerr << "embedded covergroup variable `" << property
+		       << "' may only be assigned in the parent class new method "
+			  "(IEEE 1800 19.4).";
 		  break;
 	    }
 	    cerr << endl;
@@ -2817,6 +2842,14 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    if (cur->second != constructor_function) {
+		  covergroup_constructor_order_classifier_t method_classifier(
+			this, cur->second, embedded_covergroups, true);
+		  pform_constructor_order_result_t method_order =
+			audit_pform_constructor_order(
+			      cur->second->get_statement(), method_classifier);
+		  report_constructor_order_violations_(des, this, method_order);
+	    }
 	    cur->second->elaborate_sig(des, scope);
       }
 
@@ -2829,6 +2862,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    covergroup_constructor_order_classifier_t method_classifier(
+		  this, cur->second, embedded_covergroups, true);
+	    pform_constructor_order_result_t method_order =
+		  audit_pform_constructor_order(cur->second->get_statement(),
+					method_classifier);
+	    report_constructor_order_violations_(des, this, method_order);
 	    cur->second->elaborate_sig(des, scope);
       }
 
@@ -3495,6 +3534,24 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetExpr*> &pdefs,
 				     vector<perm_string> &port_names) const
 {
+      bool automatic_lifetime = false;
+      if (const PTask*task = dynamic_cast<const PTask*>(this))
+	    automatic_lifetime = task->is_auto();
+      else if (const PFunction*func = dynamic_cast<const PFunction*>(this))
+	    automatic_lifetime = func->is_auto();
+
+      if (!automatic_lifetime && !method_of() && ports_) {
+	    for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+		  NetNet*port = scope->find_signal(ports_->at(idx).port->basename());
+		  if (port && port->port_type() == NetNet::PREF) {
+			cerr << port->get_fileline() << ": error: Argument passing by reference "
+			     << "is illegal for a subroutine with static lifetime "
+			     << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+			des->errors += 1;
+		  }
+	    }
+      }
+
       if (ports_ == 0) {
 	    ports.clear();
 	    pdefs.clear();
@@ -3574,10 +3631,28 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * expression such as (UVM_LOG | UVM_RM_RECORD) then had a
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
+				      bool old_procedural_context =
+					    pform_procedural_expr_context;
+				      bool old_default_context = pform_default_argument_context;
+				      bool old_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = true;
+				      pform_default_argument_context = true;
+				      pform_default_argument_requires_procedural_context = false;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
+				      if (tmp_def
+					  && pform_default_argument_requires_procedural_context)
+					    tmp_def->mark_requires_procedural_context();
+				      bool default_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = old_procedural_context;
+				      pform_default_argument_context = old_default_context;
+				      pform_default_argument_requires_procedural_context =
+					    old_requires_procedural_context
+					    || default_requires_procedural_context;
 				} else {
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,
@@ -3590,6 +3665,10 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
+		  } else if (tmp->port_type() == NetNet::PREF) {
+			/* A ref default is an lvalue, not a value to copy into the
+			 * formal. Keep its parse form on the subroutine declaration;
+			 * the call site binds it in this declaration scope. */
 		  } else {
 			cerr << get_fileline() << ": sorry: Default arguments "
 			        "for subroutine output or inout ports are not "

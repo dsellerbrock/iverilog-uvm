@@ -2637,6 +2637,15 @@ class NetExpr  : public LineInfo {
 	    { if (source.deferred_type_parameter_stub_)
 		  deferred_type_parameter_stub_ = true; }
 
+	// A subroutine default is elaborated in its declaration scope, but IEEE
+	// 1800-2017/2023 13.5.3 evaluates it at the call site. Preserve whether it
+	// contains a copy-out/ref call so the caller's statement context can be
+	// checked when that default is actually used.
+      bool requires_procedural_context() const
+	    { return requires_procedural_context_; }
+      void mark_requires_procedural_context()
+	    { requires_procedural_context_ = true; }
+
 	// This method evaluates the expression and returns an
 	// equivalent expression that is reduced as far as compile
 	// time knows how. Essentially, this is designed to fold
@@ -2685,6 +2694,7 @@ class NetExpr  : public LineInfo {
       unsigned width_;
       bool signed_flag_;
       bool deferred_type_parameter_stub_;
+      bool requires_procedural_context_ = false;
 
     private: // not implemented
       NetExpr(const NetExpr&);

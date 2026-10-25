@@ -1,0 +1,7 @@
+ivltests/sv_packed_part_select_variable_bound_fail.v:10: error: A reference to a net or variable (`upper') is not allowed in a constant expression.
+ivltests/sv_packed_part_select_variable_bound_fail.v:10: error: Part select expressions must be constant integral values.
+ivltests/sv_packed_part_select_variable_bound_fail.v:10:      : The lsb expression violates that rule: upper
+ivltests/sv_packed_part_select_variable_bound_fail.v:10: error: A reference to a net or variable (`upper') is not allowed in a constant expression.
+ivltests/sv_packed_part_select_variable_bound_fail.v:10: error: Part select expressions must be constant integral values.
+ivltests/sv_packed_part_select_variable_bound_fail.v:10:      : The lsb expression violates that rule: upper
+4 error(s) during elaboration.

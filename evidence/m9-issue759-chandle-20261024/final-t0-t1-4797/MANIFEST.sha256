@@ -1,0 +1,8 @@
+0a1bd28d0f1137282cbd4480589118e2813dc630ff5079258b0a0dbf59f6636b  summary.tsv  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+4926a9ba819a3dfb6e915b0558caeb8e90c3be0d4d11ca71b3ccd061045f69a5  run.meta  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+08cde65ab1ed1550752d094da0dfb17ef70fe57602243e038ed6fe9f4d942404  reproducer.tsv  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+9def9f65af1c882225d38fa64258faf50b5beb9689eb7f6e3821e535a8dd9413  reproducer-2017.log  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+9def9f65af1c882225d38fa64258faf50b5beb9689eb7f6e3821e535a8dd9413  reproducer-2023.log  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+30df2709beb5adbddf2fe1794c941557ea8a2766eb01678061dee24824467bf7  smoke.log  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+48ec8b6beffd12f4bded851ee4430ad555133646493bd8b53a26fcbe6896527b  time.txt  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  exit.code  # 2026-10-24 23:10:58 Slurm 4797 on 470679186: T0 smoke and paired 2017/2023 reproducer pass; T1 10 legacy and 28 JSON cases pass.

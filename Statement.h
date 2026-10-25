@@ -163,6 +163,7 @@ class PAssign_  : public Statement {
 
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
+      bool reject_chandle_assignment_(Design*, NetScope*, ivl_type_t) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,
 			       ivl_variable_type_t lv_type,
 			       unsigned lv_width,
@@ -395,6 +396,7 @@ class PCallTask  : public Statement {
 	// Sets *via to a temporary when the actual could not be named
 	// directly, in which case the caller copies through it.
       NetProc*elaborate_ref_bind_(Design*des, NetScope*scope,
+				  NetScope*default_scope,
 				  NetNet*port, PExpr*actual,
 				  unsigned argno, NetNet**via) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
@@ -713,7 +715,7 @@ class PCycleDelay : public Statement {
     public:
       bool refs_name(perm_string name) const override;
       bool detached_fork_refs_name(perm_string name) const override;
-      PCycleDelay(PExpr*count, Statement*st);
+      PCycleDelay(PExpr*count, Statement*st, bool expression_value = false);
       ~PCycleDelay() override;
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
@@ -726,6 +728,7 @@ class PCycleDelay : public Statement {
       friend class pform_constructor_order_audit_t;
       PExpr*count_;
       Statement*statement_;
+      bool expression_value_;
 };
 
 
@@ -1122,6 +1125,10 @@ class pform_constructor_order_classifier_t {
             std::vector<pform_constructor_order_dependency_t>&dependencies)
             const = 0;
 
+      virtual bool classify_forbidden_embedded_covergroup_assignment(
+            const pform_constructor_order_assignment_t&assignment,
+            size_t&property_idx) const = 0;
+
       // Return a concrete repeat count only when the expression folds in the
       // current constructor specialization without expression elaboration.
       // BLOCK_STACK preserves lexical shadowing at the repeat site. A runtime
@@ -1139,7 +1146,8 @@ enum pform_constructor_order_violation_kind_t {
       PFORM_CTOR_ORDER_NOT_INITIALIZED,
       PFORM_CTOR_ORDER_SHARED_LOOP,
       PFORM_CTOR_ORDER_SHARED_JOIN_NONE,
-      PFORM_CTOR_ORDER_REASSIGNMENT
+      PFORM_CTOR_ORDER_REASSIGNMENT,
+      PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW
 };
 
 struct pform_constructor_order_violation_t {

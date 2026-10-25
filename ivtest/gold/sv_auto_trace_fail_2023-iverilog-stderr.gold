@@ -1,0 +1,3 @@
+ivltests/sv_auto_trace_fail_2023.v:9: error: $dumpvars may not trace an automatic variable.
+ivltests/sv_auto_trace_fail_2023.v:4: error: $monitor may not trace an automatic variable.
+2 error(s) during elaboration.
