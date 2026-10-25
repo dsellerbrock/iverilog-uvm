@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1210_cast_unrelated_null.v",
+  "iverilog-args": ["-g2023", "-s", "issue1210_cast_unrelated_null"],
+  "gold": "issue1210_cast_unrelated_null"
+}

@@ -34077,9 +34077,11 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
  * %test/class <class>
  *
  * Is the object on top of the object stack assignment-compatible with
- * <class> (IEEE 1800-2017 6.24.2 / 8.16)? That is: is its DYNAMIC type
+ * <class> (IEEE 1800-2017/2023 8.16)? That is: is its DYNAMIC type
  * that class or a class derived from it? Sets flag 4, leaving the object
- * in place. `null` is compatible with everything.
+ * in place. The bit operand permits a null handle only when the
+ * source type is assignment-compatible with the destination, or the
+ * source expression is the literal `null`.
  *
  * This is the check $cast owes its caller. The code generator used to
  * emit an unconditional store and an unconditional 1 for a $cast whose
@@ -34095,7 +34097,7 @@ bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 
       bool ok = false;
       if (obj.test_nil()) {
-	    ok = true;
+	    ok = cp->bit_idx[0] != 0;
       } else if (want) {
 	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
 	      /* The object's dynamic class may reach WANT through either its

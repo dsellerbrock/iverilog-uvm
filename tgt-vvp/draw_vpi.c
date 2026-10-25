@@ -645,6 +645,25 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
  * result_width == 0 means the statement form (no value pushed);
  * otherwise the 1/0 result is pushed onto the vec4 stack.
  */
+static int class_type_assignable_to_(ivl_type_t source_type,
+                                     ivl_type_t dest_type)
+{
+      if (source_type == dest_type)
+            return 1;
+      if (!source_type || ivl_type_base(source_type) != IVL_VT_CLASS)
+            return 0;
+
+      if (class_type_assignable_to_(ivl_type_super(source_type), dest_type))
+            return 1;
+
+      for (unsigned idx = 0; idx < ivl_type_interface_count(source_type); idx++) {
+            if (class_type_assignable_to_(ivl_type_interface(source_type, idx),
+                                          dest_type))
+                  return 1;
+      }
+      return 0;
+}
+
 static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
                                       unsigned result_width,
                                       unsigned file_idx, unsigned lineno)
@@ -664,6 +683,7 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       int select_is_queue = 0;
       unsigned lab_fail, lab_done;
       int depth_on_fail;
+      int null_type_compatible = 0;
 
       if (!(dest && src))
             return 0;
@@ -742,6 +762,19 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       if (!(dest_type && ivl_type_base(dest_type) == IVL_VT_CLASS))
             return 0;
 
+      /* IEEE 1800-2017/2023 8.16 permits a null value for an unrelated
+         class only when the source expression itself is the literal
+         `null`. A class variable whose value happens to be null is
+         permitted only when its declared type is assignment-compatible
+         with the destination. The runtime check still handles non-null
+         dynamic downcasts. */
+      if (ivl_expr_type(src) == IVL_EX_NULL) {
+            null_type_compatible = 1;
+      } else {
+            null_type_compatible = class_type_assignable_to_(
+                  ivl_expr_net_type(src), dest_type);
+      }
+
       if (ivl_expr_type(dest) == IVL_EX_PROPERTY)
             idx = ivl_expr_oper1(dest);
       pidx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
@@ -789,8 +822,8 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       }
 
       draw_eval_object(src);
-      fprintf(vvp_out, "    %%test/class C%p; $cast: 6.24.2 type check\n",
-              dest_type);
+      fprintf(vvp_out, "    %%test/class C%p, %d; $cast: 8.16 type check\n",
+              dest_type, null_type_compatible);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
               thread_count, lab_fail);
 
