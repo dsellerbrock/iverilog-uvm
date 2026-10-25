@@ -379,6 +379,19 @@ static inline int expr_is_object_assoc_key_(ivl_expr_t expr)
       if (!expr)
             return 0;
 
+      /* Unpacked structs use the NO_TYPE object carrier in the target ABI,
+       * but unlike a class handle they are object-backed values. Preserve
+       * them on the object stack when they are associative-array keys. */
+      if (ivl_expr_value(expr) == IVL_VT_NO_TYPE) {
+            ivl_type_t type = ivl_expr_net_type(expr);
+            if (!type && ivl_expr_type(expr) == IVL_EX_SIGNAL
+                && ivl_expr_signal(expr))
+                  type = ivl_signal_net_type(ivl_expr_signal(expr));
+            if (type && ivl_type_base(type) == IVL_VT_NO_TYPE
+                && ivl_type_properties(type) > 0)
+                  return 1;
+      }
+
       switch (ivl_expr_value(expr)) {
           case IVL_VT_CLASS:
           case IVL_VT_DARRAY:
