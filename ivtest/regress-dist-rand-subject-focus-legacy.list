@@ -1,0 +1,4 @@
+sv_constraint_dist_state_only_fail_2017 CE,-g2017,-s,main ivltests gold=sv_constraint_dist_state_only_fail.gold
+sv_constraint_dist_state_only_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_dist_state_only_fail.gold
+sv_constraint_dist_rand_subject_forms_2017 normal,-g2017,-s,main ivltests gold=sv_constraint_dist_rand_subject_forms.gold
+sv_constraint_dist_rand_subject_forms_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_dist_rand_subject_forms.gold

@@ -30374,6 +30374,91 @@ static bool constraint_ir_references_randc_(const string&ir,
       return false;
 }
 
+/* IEEE 1800-2017 18.5.4 / 1800-2023 18.5.3: a dist expression must contain at
+ * least one random variable. Classify its resolved IR tokens: solver-storage
+ * paths are random only when their declaration is rand/randc, and
+ * std::randomize with-clause variables are synthetic p: tokens. User-defined
+ * function calls become v:/fv: state slots; IEEE 1800-2017 18.5.12 / 1800-2023
+ * 18.5.11 say, "Functions shall be called before constraints are solved, and
+ * their return values shall be treated as state variables," while "Random
+ * variables used as function arguments shall establish an implicit variable
+ * ordering or priority." Intrinsic solver operations such as countones,
+ * onehot and onehot0 retain their operand tokens. Classify by IR, not names. */
+static bool constraint_ir_references_rand_(const string&ir,
+					   const netclass_t*cls)
+{
+      auto prop_random = [&](unsigned long idx) -> bool {
+	    if (!cls || scope_randomize_emit_ctx_
+		|| idx >= cls->get_properties())
+		  return true;
+	    property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+	    return qual.test_rand() || qual.test_randc();
+      };
+
+      const char*begin = ir.c_str();
+      for (const char*p = begin ; *p ; ++p) {
+	    bool token_start = p == begin
+		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+	    if (!token_start)
+		  continue;
+	    char*end = nullptr;
+
+	    if ((p[0] == 'p' || p[0] == 'e' || p[0] == 'q'
+		 || p[0] == 's' || p[0] == 'u') && p[1] == ':') {
+		  unsigned long idx = strtoul(p + 2, &end, 10);
+		  if (end != p + 2 && *end == ':' && prop_random(idx))
+			return true;
+		  continue;
+	    }
+
+	    if ((p[0] == 'm' || p[0] == 'a') && p[1] == ':') {
+		  unsigned long outer = strtoul(p + 2, &end, 10);
+		  if (end == p + 2 || *end != ':')
+			continue;
+		  if (!cls || scope_randomize_emit_ctx_
+		      || outer >= cls->get_properties())
+			return true;
+		  unsigned long member = strtoul(end + 1, &end, 10);
+		  property_qualifier_t outer_qual =
+			cls->get_prop_qual((size_t)outer);
+		  const netstruct_t*record = dynamic_cast<const netstruct_t*>(
+			cls->get_prop_type((size_t)outer));
+		  if (!record || member >= record->members().size())
+			return true;
+		  const property_qualifier_t&member_qual =
+			record->members()[(size_t)member].qualifier;
+	  /* IEEE 1800-2017/2023 18.4: a member of an unpacked structure is
+	   * random only when declared rand/randc, and its containing property
+	   * must itself be rand/randc. */
+		  if ((outer_qual.test_rand() || outer_qual.test_randc())
+		      && (member_qual.test_rand() || member_qual.test_randc()))
+			return true;
+		  continue;
+	    }
+
+	    if ((p[0] == 'x' || p[0] == 'r') && p[1] == ':') {
+		  if (!cls || scope_randomize_emit_ctx_
+		      || constraint_nested_element_is_random_(p + 2, cls))
+			return true;
+		  continue;
+	    }
+
+	    const char*array_element = nullptr;
+	    if (strncmp(p, "delem ", 6) == 0) array_element = p + 6;
+	    else if (strncmp(p, "skelem ", 7) == 0) array_element = p + 7;
+	    else if (strncmp(p, "qkeyelem ", 9) == 0) array_element = p + 9;
+	    else if (strncmp(p, "qmelem ", 7) == 0) array_element = p + 7;
+	    if (array_element) {
+		  unsigned long idx = strtoul(array_element, &end, 10);
+		  if (end != array_element && *end == ':' && prop_random(idx))
+			return true;
+		  continue;
+	    }
+
+      }
+      return false;
+}
+
 /* A constraint can be emitted repeatedly while a foreach is unrolled or a
  * generic class is specialized. Diagnose the source construct, not each
  * emitted copy or each randc operand within it. */
@@ -40211,6 +40296,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			cerr << ins->get_fileline() << ": error: dist subject expression "
 			     << "requires unsupported IEEE 11.8.2 top-down context "
 			     << "propagation; use a typed intermediate expression." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
+	    if (is_dist
+		&& !constraint_ir_references_rand_(s, cls)) {
+		  if (constraint_ir_design_ctx_
+		      && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+			cerr << ins->get_fileline() << ": error: the expression "
+			     << "of a dist constraint must contain at least one "
+			     << "random variable (a function result is a state value)."
+			     << endl;
 			constraint_ir_design_ctx_->errors += 1;
 		  }
 		  return "";

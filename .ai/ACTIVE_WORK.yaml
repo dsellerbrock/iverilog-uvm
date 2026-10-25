@@ -782,6 +782,32 @@ suspended_m4: |
       next_action: "Stop the M4 round and report the three screened results, cumulative throughput anchor, and the fact that fb584 throughput was not freshly remeasured because no runtime candidate advanced."
 
 active:
+  features:
+    m9_issue836:
+      id: "M9-836"
+      owner: "A3 (IEEE 1800 features)"
+      github_issue: "#836"
+      culprit_pr: "#1114 (swarm/L2-836)"
+      branch: "agent/a3-m9-issue836-20261024"
+      baseline: "origin/main 47177e047c2031e87d8f8a14a4858d8b9ae79c71"
+      status: "in_progress"
+      phase: "T1_PASSED"
+      goal: "Reject dist subjects that contain no rand variable without rejecting legal random-variable subjects."
+      standards: "IEEE 1800-2017 §18.5.4 and IEEE 1800-2023 §18.5.3."
+      failing_reproducer: "The current-main compiler silently accepts class state-only `state dist {0,1}` and state-only `std::randomize` with-clauses in both editions; source/output are recorded under evidence/m9-issue836-probe-20261024/."
+      current_behavior: "Both current-main -g2017 and -g2023 compile the state-only reproducer successfully; direct rand subjects remain supported."
+      expected_semantics: "Each dist expression shall contain at least one rand variable. Class state, constants, and state-only std::randomize expressions diagnose at compile time; legal rand subjects remain accepted."
+      root_cause_hypothesis: "Confirmed: dist lowering validates payload and type shape but did not check whether the resolved subject IR contains a rand/randc storage token."
+      suspected_symbols: "constraint_ir_references_randc_(), pexpr_to_constraint_ir() PEInside lowering, constraint_ir_design_ctx_->mark_constraint_dist_diagnostic()."
+      allowed_scope: "elaborate.cc dist-subject validation; paired -g2017/-g2023 positive and negative regressions; required runner registrations/focus lists; DISCOVERED_DEBT.md entry for unrelated id(r) pre-solve evaluation; revision-scoped evidence."
+      forbidden_scope: "No function-call constraint semantics change, no unrelated dist solver changes, no existing golden changes, no test weakening, and no CI workflow edits."
+      dependencies: "Branch-local autotools build with Z3 and libffi; paired legacy and JSON regression runners."
+      completion_requirements: "Negative and positive paired regressions pass; preserve all six #1114 culprit tests and pre-patch results for every ivtest source containing dist; T0/T1/T2 and exact-head Fast Linux pass before batch merge."
+      acceptance: "New negative tests fail before and pass after in legacy and JSON; positive rand forms pass both editions; all six #1114 culprit regressions and a dist-source sweep preserve baseline results; T0/T1/T2 and required Fast Linux gates pass."
+      evidence: "evidence/m9-issue836-probe-20261024/"
+      discovery_policy: "Record unrelated behavior in DISCOVERED_DEBT.md only; do not widen this implementation."
+      next_action: "Secret-scan, commit/push, open #836, and mark ready-for-batch; then run T2 with ready A3 PRs #1191 and #1238."
+      stop_after_completion: true
   perf:
     id: "PERF-WP7-T1"
     owner: "A5 (VVP performance)"
