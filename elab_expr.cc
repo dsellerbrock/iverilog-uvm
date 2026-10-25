@@ -12609,6 +12609,35 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 
 	    } else {
+		  NetExpr*arg = elab_sys_task_arg(des, scope, name, 0, expr, false);
+		  ivl_type_t arg_type = arg ? arg->net_type() : nullptr;
+		  const netarray_t*array_type =
+			arg_type ? dynamic_cast<const netarray_t*>(arg_type) : nullptr;
+		  const netdarray_t*darray_type =
+			arg_type ? dynamic_cast<const netdarray_t*>(arg_type) : nullptr;
+		  const netqueue_t*queue_type =
+			arg_type ? dynamic_cast<const netqueue_t*>(arg_type) : nullptr;
+		  if ((darray_type || (queue_type && !queue_type->assoc_compat()))
+		      && array_type) {
+			ivl_type_t element_type = array_type->element_type();
+			if (element_type && element_type->packed()
+			    && element_type->packed_width() > 0) {
+			      NetESFunc*size = new NetESFunc(
+				    "$ivl_queue_method$size",
+				    &netvector_t::atom2s32, 1);
+			      size->set_line(*this);
+			      size->parm(0, arg);
+			      NetEConst*element_width = new NetEConst(verinum(
+				    static_cast<uint64_t>(element_type->packed_width()),
+				    integer_width));
+			      element_width->set_line(*this);
+			      NetEBMult*result = new NetEBMult('*', size, element_width,
+							integer_width, true);
+			      result->set_line(*this);
+			      return cast_to_width_(result, expr_wid);
+			}
+		  }
+		  delete arg;
 		  use_width = expr->expr_width();
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "

@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_bits_dynamic_queue.v:26: $finish called at 8 (1s)
