@@ -715,7 +715,7 @@ class PCycleDelay : public Statement {
     public:
       bool refs_name(perm_string name) const override;
       bool detached_fork_refs_name(perm_string name) const override;
-      PCycleDelay(PExpr*count, Statement*st);
+      PCycleDelay(PExpr*count, Statement*st, bool expression_value = false);
       ~PCycleDelay() override;
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
@@ -728,6 +728,7 @@ class PCycleDelay : public Statement {
       friend class pform_constructor_order_audit_t;
       PExpr*count_;
       Statement*statement_;
+      bool expression_value_;
 };
 
 

@@ -20893,7 +20893,18 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
-      bool zero_count = count_const && count_const->value().as_long() == 0;
+      long count_value = count_const ? count_const->value().as_long() : 1;
+      if (expression_value_ && generation_flag < GN_VER2023
+          && count_const && count_value <= 0) {
+	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
+		 << "must evaluate to a positive integer (IEEE 1800-2017 14.11)."
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    delete wait_stmt;
+	    return 0;
+      }
+      bool zero_count = count_const && count_value == 0;
       delete count_expr;
       if (zero_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();

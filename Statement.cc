@@ -1214,8 +1214,8 @@ PDelayStatement::~PDelayStatement()
 {
 }
 
-PCycleDelay::PCycleDelay(PExpr*count, Statement*st)
-: count_(count), statement_(st)
+PCycleDelay::PCycleDelay(PExpr*count, Statement*st, bool expression_value)
+: count_(count), statement_(st), expression_value_(expression_value)
 {
 }
 
