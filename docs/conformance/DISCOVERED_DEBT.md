@@ -4708,3 +4708,33 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** adjacent forms are recorded only; do not expand #759.
   Track initializer, function argument/return, procedural assign, and force
   separately if they remain actionable after #763.
+
+### DD-140 — associative `find_index` on struct values aborts code generation
+
+- **Discovered while working:** M9 #854, while qualifying custom iterator-index
+  lookup for struct array items.
+- **Observation:** On unpatched main `5c081171`, an associative array of structs
+  using `find_index(item) with (item.index == 7)` fails in both `-g2017` and
+  `-g2023` during VVP code generation with `unsupported associative find_index
+  runtime type`. This is independent of #854: the probe uses the default index
+  name, not the optional index-name argument. Expected: compile/run succeeds
+  and the result queue contains the key `"key"`. Actual: the compiler exits
+  during code generation before creating a runnable VVP file.
+- **File/function:** `tgt-vvp/eval_object.c`,
+  `draw_assoc_index_locator_expr_()`; `unique_runtime_type_supported_()`
+  rejects the struct iterator type around line 1652.
+- **Possible clause:** IEEE 1800-2023 §7.12.1 (associative locator methods) and
+  §7.12.4 (iterator index querying).
+- **Evidence:** `~/codex-supervisor/evidence/a3-m9-854-lead-probes-20261025/`
+  (manifested Slurm 4840 output, probe source, and script; the same diagnostic
+  also appeared in Slurm 4834).
+- **Reproducer status:** confirmed on main with `A3-m9-854-lead-probes.sv`,
+  module `m9_854_assoc_struct_default_index`. Both commands fail:
+  `iverilog -g2017 -s m9_854_assoc_struct_default_index -o /tmp/assoc.vvp
+  A3-m9-854-lead-probes.sv` and the same command with `-g2023`; source is in
+  the evidence directory above.
+- **Triage status:** separate backend issue; open+closed searches found no
+  direct match. Open #485 covers associative assignment-pattern values, while
+  closed #853 covers struct-valued index keys crashing at runtime; neither
+  covers struct elements in `find_index`. Leave outside #854 and report the
+  minimal reproducer for supervisor issue filing.
