@@ -160,6 +160,9 @@ class PAssign_  : public Statement {
       void replace_lval_rval(PExpr*new_lval, PExpr*new_rval) const
             { const_cast<PAssign_*>(this)->lval_ = new_lval;
               const_cast<PAssign_*>(this)->rval_ = new_rval; }
+      void replace_rval(PExpr*new_rval) const
+            { PAssign_*self = const_cast<PAssign_*>(this);
+              delete self->rval_; self->rval_ = new_rval; }
 
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
@@ -346,7 +349,10 @@ class PCallTask  : public Statement {
       const pform_name_t& path() const;
       PPackage* package() const { return package_; }
       PExpr* receiver_expr() const { return receiver_; }
+      void replace_receiver_expr(PExpr*expr)
+            { delete receiver_; receiver_ = expr; }
       const std::vector<named_pexpr_t>& parms() const { return parms_; }
+      std::vector<named_pexpr_t>& mutable_parms() { return parms_; }
 
       /* Phase 63b/Q-methods: with-clause predicate for sort/rsort/
          unique task-form calls (`q.sort with (item.key);`).  Empty
@@ -354,6 +360,8 @@ class PCallTask  : public Statement {
       void set_with_constraints(std::vector<PExpr*> c)
             { with_constraints_ = std::move(c); }
       const std::vector<PExpr*>& with_constraints() const
+            { return with_constraints_; }
+      std::vector<PExpr*>& mutable_with_constraints()
             { return with_constraints_; }
       void set_randomize_with_identifiers(std::vector<perm_string> names)
 	    { randomize_with_identifier_list_present_ = true;
@@ -451,6 +459,9 @@ class PCase  : public Statement {
       PCase(ivl_case_quality_t, NetCase::TYPE, PExpr*ex,
             std::vector<Item*>*, bool quality_if = false);
       ~PCase() override;
+      PExpr* case_expr() const { return expr_; }
+      void replace_case_expr(PExpr*expr) { delete expr_; expr_ = expr; }
+      std::vector<Item*>* mutable_items() const { return items_; }
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
@@ -612,6 +623,8 @@ class PCondit  : public Statement {
 	// Read by the assertion lowering, which has to reproduce a user
 	// action block at two sites.
       PExpr* cond_expr() const { return expr_; }
+      void replace_cond_expr(PExpr*expr)
+            { delete expr_; expr_ = expr; }
       Statement* if_clause() const { return if_; }
       Statement* else_clause() const { return else_; }
 
@@ -755,6 +768,9 @@ class PDoWhile  : public Statement {
       bool detached_fork_refs_name(perm_string name) const override;
       PDoWhile(PExpr*ex, Statement*st);
       ~PDoWhile() override;
+      PExpr* cond_expr() const { return cond_; }
+      void replace_cond_expr(PExpr*expr) { delete cond_; cond_ = expr; }
+      Statement* body() const { return statement_; }
 
       PDoWhile(const PDoWhile&) = delete;
       PDoWhile& operator=(const PDoWhile&) = delete;
@@ -865,6 +881,7 @@ class PForeach : public Statement {
                         Statement*stmt,
                         unsigned lexical_pos);
       ~PForeach() override;
+      Statement* body() const { return statement_; }
 
       PForeach(const PForeach&) = delete;
       PForeach& operator=(const PForeach&) = delete;
@@ -915,6 +932,7 @@ class PForever : public Statement {
       bool detached_fork_refs_name(perm_string name) const override;
       explicit PForever(Statement*s);
       ~PForever() override;
+      Statement* body() const { return statement_; }
 
       PForever(const PForever&) = delete;
       PForever& operator=(const PForever&) = delete;
@@ -938,6 +956,11 @@ class PForStatement  : public Statement {
       PForStatement(PExpr*n1, PExpr*e1, PExpr*cond,
 		    Statement*step, Statement*body);
       ~PForStatement() override;
+      PExpr* cond_expr() const { return cond_; }
+      void replace_cond_expr(PExpr*expr) { delete cond_; cond_ = expr; }
+      Statement* initialization() const { return initialization_; }
+      Statement* step_stmt() const { return step_; }
+      Statement* body() const { return statement_; }
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
@@ -986,6 +1009,7 @@ class PRepeat : public Statement {
       virtual void dump(std::ostream&out, unsigned ind) const override;
       bool contains_detached_fork() const override;
       PExpr* count_expr() const { return expr_; }
+      void replace_count_expr(PExpr*expr) { delete expr_; expr_ = expr; }
       Statement* body() const { return statement_; }
 
     private:
@@ -1067,6 +1091,9 @@ class PWhile  : public Statement {
       bool detached_fork_refs_name(perm_string name) const override;
       PWhile(PExpr*ex, Statement*st);
       ~PWhile() override;
+      PExpr* cond_expr() const { return cond_; }
+      void replace_cond_expr(PExpr*expr) { delete cond_; cond_ = expr; }
+      Statement* body() const { return statement_; }
 
       PWhile(const PWhile&) = delete;
       PWhile& operator=(const PWhile&) = delete;
