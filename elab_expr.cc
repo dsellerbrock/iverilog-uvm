@@ -68,6 +68,8 @@ using namespace std;
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
       pform_name_t&, perm_string*, bool*);
+extern bool concurrent_assertion_function_pure(
+      Design*, const NetEUFunc*, std::string&);
 
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
@@ -16979,6 +16981,21 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    return elaborate_sfunc_(des, scope, expr_wid, flags);
 
       NetExpr *result = elaborate_expr_(des, scope, flags);
+      if (result && concurrent_assertion_expr_) {
+	    if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(result)) {
+		  string reason;
+		  if (!concurrent_assertion_function_pure(des, call, reason)) {
+			cerr << get_fileline() << ": error: Function `"
+			     << call->func()->basename()
+			     << "' used in a concurrent assertion expression does not "
+			     << "meet the IEEE 1800-2017/2023 16.6 requirements: "
+			     << reason << "." << endl;
+			des->errors += 1;
+			delete result;
+			return nullptr;
+		  }
+	    }
+      }
       /* A function returning a fixed unpacked array is an aggregate value,
        * even when its element type is vectorable.  Padding the call to the
        * element width wraps the NetEUFunc in a scalar expression and drops
