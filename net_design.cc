@@ -739,6 +739,39 @@ void Design::run_defparams()
 	    (*scope)->run_defparams(this);
 }
 
+void Design::record_defparam_resolution(NetScope*source_scope,
+					const list<hname_t>&path,
+					NetScope*target_scope, PExpr*value)
+{
+      defparam_resolution_t resolution;
+      resolution.source_scope = source_scope;
+      resolution.path = path;
+      resolution.target_scope = target_scope;
+      resolution.value = value;
+      defparam_resolutions_.push_back(resolution);
+}
+
+void Design::check_defparam_resolutions()
+{
+      for (list<defparam_resolution_t>::const_iterator cur =
+		   defparam_resolutions_.begin();
+	   cur != defparam_resolutions_.end(); ++cur) {
+	    NetScope*final_scope = find_scope(cur->source_scope, cur->path);
+	    if (final_scope == cur->target_scope)
+		  continue;
+
+	    cerr << cur->value->get_fileline() << ": error: defparam hierarchical name resolves to a different scope after elaboration (early: "
+		 << scope_path(cur->target_scope) << ", final: ";
+	    if (final_scope)
+		  cerr << scope_path(final_scope);
+	    else
+		  cerr << "not found";
+	    cerr << ")." << endl;
+	    errors += 1;
+      }
+      defparam_resolutions_.clear();
+}
+
 void NetScope::run_defparams(Design*des)
 {
       for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
@@ -771,6 +804,7 @@ void NetScope::run_defparams(Design*des)
 		  continue;
 	    }
 
+	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, perm_name, val, this, true);
       }
 
@@ -806,6 +840,7 @@ void NetScope::run_defparams_later(Design*des)
 		  continue;
 	    }
 
+	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, name, val, this, true);
 
 	      // We'll need to re-evaluate parameters in this scope
@@ -2156,6 +2191,9 @@ void NetScope::evaluate_parameters(Design*des)
 
 void Design::residual_defparams()
 {
+	// All generate schemes and delayed instance scopes have now been
+	// elaborated, so a changed lookup is an IEEE 1800 23.10.4.2 error.
+	check_defparam_resolutions();
       for (list<NetScope*>::const_iterator scope = root_scopes_.begin();
 	   scope != root_scopes_.end(); ++ scope )
 	    (*scope)->residual_defparams(this);
