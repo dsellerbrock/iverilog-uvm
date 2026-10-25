@@ -409,6 +409,28 @@ static NetNet* std_randomize_fixed_array_arg_(const PExpr*arg,
       return base == IVL_VT_BOOL || base == IVL_VT_LOGIC ? net : nullptr;
 }
 
+/* IEEE 1800-2017/2023 18.12 defines the argument list as variable
+ * identifiers. Do this syntactic check before elaborating values so a
+ * computed expression cannot be accepted as a destination by either the
+ * simple or solver-backed scope-randomize path. */
+static bool std_randomize_args_are_variables_(
+		const vector<named_pexpr_t>&parms, Design*des)
+{
+      for (const named_pexpr_t&parm : parms) {
+	    if (parm.parm && dynamic_cast<const PEIdent*>(parm.parm))
+		  continue;
+	    if (parm.parm && dynamic_cast<const PENull*>(parm.parm))
+		  continue;
+	    const LineInfo*loc = parm.parm;
+	    cerr << (loc ? loc->get_fileline() : "<unknown>")
+		 << ": error: arguments to scope randomize() must be variables "
+		 << "(IEEE 1800-2017/2023 18.12)." << endl;
+	    if (des) des->errors += 1;
+	    return false;
+      }
+      return true;
+}
+
 bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 				    Design*des, NetScope*scope)
 {
@@ -454,6 +476,7 @@ NetESFunc* make_std_randomize_simple_expr(
       const vector<named_pexpr_t>&parms, Design*des, NetScope*scope,
       const LineInfo*loc)
 {
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       vector<NetExpr*> args;
       for (const named_pexpr_t&parm : parms) {
@@ -531,6 +554,7 @@ NetESFunc* make_std_randomize_with_expr(
       static const vector<perm_string> no_identifiers;
       const vector<perm_string>&effective_identifiers =
 	    has_with_identifier_list ? no_identifiers : with_identifiers;
+      if (!std_randomize_args_are_variables_(parms, des)) return nullptr;
       if (std_randomize_has_null_arg_(parms, des, loc)) return nullptr;
       if (has_with_identifier_list) {
 	    cerr << loc->get_fileline() << ": error: A parenthesized lookup "
