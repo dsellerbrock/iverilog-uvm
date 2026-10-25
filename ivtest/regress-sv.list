@@ -78,6 +78,14 @@ sv_default_clocking_procedural_override normal,-g2017 ivltests gold=sv_default_c
 always_comb_fail	CE,-g2005-sv		ivltests
 always_comb_fail3	CE,-g2005-sv		ivltests
 always_comb_fail4	CE,-g2005-sv		ivltests
+sv_always_comb_overlapping_writers_dynamic CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_dynamic_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_scalar_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static CE,-g2017,-I./ivltests ivltests
+sv_always_comb_overlapping_writers_static_2023 CE,-g2023,-I./ivltests ivltests
+sv_always_comb_disjoint_writers normal,-g2017,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
+sv_always_comb_disjoint_writers_2023 normal,-g2023,-s,sv_always_comb_disjoint_writers,-I./ivltests ivltests gold=sv_always_comb_disjoint_writers.gold
 always_comb_no_sens	normal,-g2005-sv	ivltests
 always_comb_rfunc	normal,-g2005-sv	ivltests
 always_comb_trig	normal,-g2005-sv	ivltests
