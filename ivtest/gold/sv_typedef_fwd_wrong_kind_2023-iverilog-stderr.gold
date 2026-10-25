@@ -1,0 +1,2 @@
+ivltests/sv_typedef_fwd_wrong_kind.v:3 error: Unexpected type `11netstruct_t` for `E`. It was forward declared as `enum` at ivltests/sv_typedef_fwd_wrong_kind.v:2.
+1 error(s) during elaboration.

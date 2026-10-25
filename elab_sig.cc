@@ -105,6 +105,10 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
 {
       if (!des || !td || !resolved_type)
 	    return;
+      if (td->get_basic_type() == typedef_t::ANY)
+	    return;
+      if (td->has_checked_basic_type())
+	    return;
 
       bool type_ok = true;
       switch (td->get_basic_type()) {
@@ -131,6 +135,9 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
       }
 
       if (type_ok)
+	    td->mark_basic_type_checked();
+
+      if (type_ok)
 	    return;
 
       const data_type_t*declared_type = td->get_data_type();
@@ -140,6 +147,7 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
 	   << "`. It was forward declared as `" << td->get_basic_type()
 	   << "` at " << td->get_fileline() << "." << endl;
       des->errors += 1;
+      td->mark_basic_type_checked();
 }
 
 /* Name recovery is only valid for the compiler's class-forward placeholders.

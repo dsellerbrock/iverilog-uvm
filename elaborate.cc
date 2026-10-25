@@ -47225,6 +47225,22 @@ bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope)
       return reached;
 }
 
+static void elaborate_forward_typedef_kinds(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      for (const auto&entry : scope->local_typedefs()) {
+	    typedef_t*td = entry.second;
+	    if (td && td->get_basic_type() != typedef_t::ANY
+		&& td->get_data_type())
+		  td->elaborate_type(des, scope);
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_forward_typedef_kinds(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -47568,6 +47584,14 @@ Design* elaborate(list<perm_string>roots)
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, pkg);
 	for (NetScope*root : des->find_root_scopes())
 	    reached_typedef |= elaborate_concrete_class_typedefs(des, root);
+
+	/* A typed forward declaration imposes a kind constraint even when the
+	 * typedef is never referenced. Resolve such declarations after all scope
+	 * bodies have been elaborated so their completed definitions are visible. */
+	for (NetScope*pkg : des->find_package_scopes())
+	    elaborate_forward_typedef_kinds(des, pkg);
+	for (NetScope*root : des->find_root_scopes())
+	    elaborate_forward_typedef_kinds(des, root);
 
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des, reached_typedef);
