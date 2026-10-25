@@ -27,6 +27,9 @@
 # include  "PTask.h"
 # include  "PWire.h"
 # include  "pform_types.h"
+# include  "Module.h"
+# include  "pform.h"
+# include  "parse_api.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -343,6 +346,23 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 
 		  if (NetNet*net = scope->find_signal(path_tail.name)) {
 			if (prefix_scope || (net->lexical_pos() <= lexical_pos)) {
+			      // Checker variables are local to a checker instance. IEEE
+			      // 1800-2017/2023 17.7.1 forbids accessing one by its
+			      // hierarchical name, for both reads and assignments.
+			      if (prefix_scope && scope->type() == NetScope::MODULE) {
+				    map<perm_string,Module*>::const_iterator module =
+					  pform_modules.find(scope->module_name());
+				    if (module != pform_modules.end()
+					&& module->second->is_checker) {
+					  static set<const LineInfo*> reported_checker_refs;
+					  if (reported_checker_refs.insert(li).second) {
+						cerr << li->get_fileline() << ": error: Hierarchical "
+						     "reference to checker variable `" << path_tail.name
+						     << "' is illegal." << endl;
+						des->errors += 1;
+					  }
+				    }
+			      }
 			      path.push_back(path_tail);
 			      res->scope = scope;
 			      res->net = net;
