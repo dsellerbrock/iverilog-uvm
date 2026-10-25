@@ -17963,7 +17963,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  else if (method_name == perm_string::literal("await"))
 			sys_task_name = "$ivl_process$await";
 		  else if (method_name == perm_string::literal("suspend"))
-			sys_task_name = "$ivl_process$suspend";
+			sys_task_name = generation_flag >= GN_VER2023
+			    ? "$ivl_process$suspend$2023" : "$ivl_process$suspend";
 		  else
 			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,

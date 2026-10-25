@@ -27548,7 +27548,7 @@ static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
  *   blocked (waiting on an event/join) leaves the block in place and lets
  *   the eventual wake re-arm the reschedule.
  */
-bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+static bool process_suspend_(vthread_t thr, bool reject_function_self_suspend)
 {
       vvp_object_t obj;
       thr->pop_object(obj);
@@ -27571,6 +27571,15 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
 
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
+
+	// IEEE 1800-2023 9.7 prohibits a function from suspending its own
+	// process. Keep the 2017 opcode's permitted behavior unchanged.
+      if (reject_function_self_suspend && self_suspend && thr->i_am_in_function) {
+	    cerr << "runtime error: function called process::suspend() on the current process." << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
 
 	// Every thread the process is made of, not just the one the handle
 	// names: while a named block or a task frame is executing, IT is the
@@ -27612,6 +27621,16 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       }
 
       return true;
+}
+
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, false);
+}
+
+bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, true);
 }
 
 /*

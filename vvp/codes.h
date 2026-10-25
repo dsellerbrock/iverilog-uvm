@@ -497,6 +497,7 @@ extern bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SELF(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t code);
+extern bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t code);
 /* Mailbox opcodes */
 extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);

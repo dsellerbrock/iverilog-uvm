@@ -25,6 +25,8 @@ br_gh383b			vvp_tests/br_gh383b.json
 br_gh383c			vvp_tests/br_gh383c.json
 br_gh383d			vvp_tests/br_gh383d.json
 br_gh440			vvp_tests/br_gh440.json
+sv_process_suspend_self_function_2017	vvp_tests/sv_process_suspend_self_function_2017.json
+sv_process_suspend_self_function_2023	vvp_tests/sv_process_suspend_self_function_2023.json
 issue822_port_in_generate_2017	vvp_tests/issue822_port_in_generate_2017.json
 issue822_port_in_generate_2023	vvp_tests/issue822_port_in_generate_2023.json
 sv_named_empty_input_default_2017	vvp_tests/sv_named_empty_input_default_2017.json
