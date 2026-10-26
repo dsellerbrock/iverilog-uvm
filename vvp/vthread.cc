@@ -34237,12 +34237,13 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %test/class <class>
+ * %test/class <class>, <source-class>
  *
  * Is the object on top of the object stack assignment-compatible with
  * <class> (IEEE 1800-2017 6.24.2 / 8.16)? That is: is its DYNAMIC type
  * that class or a class derived from it? Sets flag 4, leaving the object
- * in place. `null` is compatible with everything.
+ * in place. The source-class operand is its declared type, or the target
+ * type for the literal null (which has no declared type).
  *
  * This is the check $cast owes its caller. The code generator used to
  * emit an unconditional store and an unconditional 1 for a $cast whose
@@ -34254,11 +34255,13 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
 bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 {
       const class_type*want = dynamic_cast<const class_type*> (cp->handle);
+      const class_type*source = dynamic_cast<const class_type*>(
+	    reinterpret_cast<vpiHandle>(cp->cptr2));
       vvp_object_t&obj = thr->peek_object();
 
       bool ok = false;
       if (obj.test_nil()) {
-	    ok = true;
+	    ok = source && source->assignment_compatible_with(want);
       } else if (want) {
 	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
 	      /* The object's dynamic class may reach WANT through either its
