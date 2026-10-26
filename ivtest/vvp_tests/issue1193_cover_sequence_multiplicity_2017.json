@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1193_cover_sequence_multiplicity.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1193_cover_sequence_multiplicity"],
+  "gold": "issue1193_cover_sequence_multiplicity"
+}
