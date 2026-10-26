@@ -158,6 +158,7 @@ class netclass_t : public ivl_type_s {
 	// used to check scope for handling data protection keywords
 	// "local" and "protected".
       bool test_scope_is_method(const NetScope*scope) const;
+      bool test_scope_is_method_or_subclass(const NetScope*scope) const;
 
       void elaborate_sig(Design*des, PClass*pclass);
       void elaborate(Design*des, PClass*pclass);

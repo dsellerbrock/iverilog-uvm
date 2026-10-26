@@ -1,0 +1,3 @@
+ivltests/sv_protected_external_access_fail.v:10: error: Protected property value is not accessible in this context. (scope=sv_protected_external_access_fail)
+ivltests/sv_protected_external_access_fail.v:11: error: Protected method secret is not accessible in this context. (scope=sv_protected_external_access_fail)
+2 error(s) during elaboration.

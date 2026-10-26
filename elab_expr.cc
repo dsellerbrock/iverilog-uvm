@@ -15047,6 +15047,16 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    delete base_expr;
 	    return 0;
       }
+      if (qual.test_protected()
+	  && !class_type->test_scope_is_method_or_subclass(scope)) {
+	    cerr << li->get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return 0;
+      }
 
       if (qual.test_static()) {
 	    delete base_expr;
@@ -16592,6 +16602,14 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+      }
+      if (qual.test_protected()
+	  && !class_type->test_scope_is_method_or_subclass(scope)) {
+	    cerr << get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
@@ -20100,6 +20118,22 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    }
 
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
+	    if (method) {
+		  const PTaskFunc*method_def = method->func_pform();
+		  if (!method_def) method_def = method->task_pform();
+		  const NetScope*owner_scope = method->parent();
+		  const netclass_t*owner = owner_scope ? owner_scope->class_def() : nullptr;
+		  if (method_def && method_def->method_qualifiers().test_protected()
+		      && owner && !owner->test_scope_is_method_or_subclass(scope)) {
+			cerr << get_fileline() << ": error: Protected method "
+			     << method_name
+			     << " is not accessible in this context."
+			     << " (scope=" << scope_path(scope) << ")" << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
+	    }
 		    if (method == 0) {
 			  // Handle randomize() as a real built-in: emit %randomize opcode
 			  // rather than a constant-0 stub so the runtime can actually
