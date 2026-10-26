@@ -574,6 +574,77 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* Immediate cover identity/result hooks emitted by the front end. */
+static PLI_INT32 sva_immediate_cover_register_calltf(
+	ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 id = 0, line = 0;
+      char nbuf[1024] = "", fbuf[1024] = "";
+      (void)name;
+      if (argv) {
+	    vpiHandle a;
+	    s_vpi_value v;
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  id = v.value.integer;
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiStringVal;
+		  vpi_get_value(a, &v);
+		  if (v.value.str) {
+			strncpy(nbuf, v.value.str, sizeof nbuf - 1);
+			nbuf[sizeof nbuf - 1] = 0;
+		  }
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiStringVal;
+		  vpi_get_value(a, &v);
+		  if (v.value.str) {
+			strncpy(fbuf, v.value.str, sizeof fbuf - 1);
+			fbuf[sizeof fbuf - 1] = 0;
+		  }
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  line = v.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      vpip_register_immediate_cover(id, nbuf, fbuf, line,
+				    vpi_handle(vpiScope, callh));
+      return 0;
+}
+
+static PLI_INT32 sva_immediate_cover_report_calltf(
+	ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 id = 0, success = 0;
+      (void)name;
+      if (argv) {
+	    vpiHandle a;
+	    s_vpi_value v;
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  id = v.value.integer;
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  success = v.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      vpip_report_immediate_cover(id, success, vpi_handle(vpiScope, callh));
+      return 0;
+}
+
 /* M12B-cb: $ivl_assert_report(idx, reason) — a synthesized checker fires
    a success/failure event for the (scope, idx) assertion. */
 static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
@@ -698,6 +769,10 @@ void sys_sva_register(void)
 	/* Assertion VPI identity registration + callback reporting (used
 	   by synthesized checkers; see pform_make_assertion). */
       register_task_("$ivl_register_assertion", sva_reg_assert_calltf);
+      register_task_("$ivl_register_immediate_cover",
+		     sva_immediate_cover_register_calltf);
+      register_task_("$ivl_report_immediate_cover",
+		     sva_immediate_cover_report_calltf);
       register_task_("$ivl_assert_report", sva_report_calltf);
       register_task_("$ivl_assert_clock", sva_clock_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);

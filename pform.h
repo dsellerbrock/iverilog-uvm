@@ -366,6 +366,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_sequence_formal_t;
 struct sva_mc_seg_t;
 struct sva_prop_case_item_t;
 struct rs_production_t;
@@ -457,7 +458,7 @@ extern void pform_sva_declare_property_p(const struct vlltype&loc,
 					 sva_property_t*prop);
 extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,
-					 std::list<perm_string>*formals,
+					 std::list<sva_sequence_formal_t>*formals,
 					 std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
@@ -1097,6 +1098,8 @@ extern Statement* pform_make_deferred_cover(const struct vlltype&loc,
 				     PExpr*expr,
 				     Statement*pass_stmt,
 				     bool is_final);
+extern Statement* pform_make_immediate_cover(const struct vlltype&loc,
+				     PExpr*expr, Statement*pass_stmt);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);

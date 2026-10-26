@@ -1,0 +1,29 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): ../evidence/m9-issue759-class-20261025/focused/issue759-json.list
+----------------------------------------------------------------------------
+sv_class_handle_clockvar_to_integral_assignment_fail_2017: Passed - CE.
+sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+sv_class_handle_compound_to_integral_assignment_fail_2017: Passed - CE.
+sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+         sv_class_handle_to_integral_assignment_fail_2017: Passed - CE.
+         sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 6, Failed 0.
+        0.17 real         0.10 user         0.06 sys
+            21626880  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               17520  page reclaims
+                 140  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  35  voluntary context switches
+                 324  involuntary context switches
+            23722689  instructions retired
+             8815700  cycles elapsed
+             1507712  peak memory footprint

@@ -1,0 +1,1487 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                                           sv_modport_expression_2017: Passed.
+                                           sv_modport_expression_2023: Passed.
+                                    sv_modport_expression_concat_2017: Passed.
+                                    sv_modport_expression_concat_2023: Passed.
+                              sv_default_clocking_procedural_override: Passed.
+                                          synth_modern_process_reject: Passed - CE.
+                       synth_overlapping_conditional_packed_processes: Passed - CE.
+                                   synth_overlapping_packed_processes: Passed - CE.
+                                                 assign_op_real_array: Passed.
+                                             assign_op_real_array_oob: Passed.
+                                                            cast_real: Passed.
+                                                           enum_ports: Passed.
+                                      sv_class_prop_packed_member_var: Passed.
+                                    sv_class_prop_struct_member_index: Passed.
+                                          sv_class_static_prop_arrays: Passed.
+                                          sv_class_static_struct_pool: Passed.
+                                      sv_class_nested_ctor_provenance: Passed.
+                                 sv_class_nested_ctor_provenance_2023: Passed.
+                                                       implicit_cast1: Passed.
+                                                       implicit_cast2: Passed.
+                                                       implicit_cast3: Passed.
+                                                       implicit_cast4: Passed.
+                                                       implicit_cast5: Passed.
+                                                       implicit_cast6: Passed.
+                                                       implicit_cast7: Passed.
+                                                       implicit_cast8: Passed.
+                                                       implicit_cast9: Passed.
+                                                      implicit_cast10: Passed.
+                                                      implicit_cast11: Passed.
+                                                      implicit_cast12: Passed.
+                                                      implicit_cast13: Passed.
+                                                       implicit-port1: Passed.
+                                                       implicit-port2: Passed - CE.
+                                                       implicit-port3: Passed - CE.
+                                                       implicit-port4: Passed.
+                                                       implicit-port5: Passed.
+                                                       implicit-port6: Passed - CE.
+                                                       implicit-port7: Passed.
+                                           module_output_port_sv_var1: Passed.
+                                           module_output_port_sv_var2: Passed.
+                                           module_port_typedef_array1: Passed.
+                                           module_port_typedef_vector: Passed.
+                                                        part_sel_port: Passed.
+                                                            size_cast: Passed.
+                                                           size_cast2: Passed.
+                                                           size_cast3: Passed.
+                                                           size_cast4: Passed.
+                                                           size_cast5: Passed.
+                                                      size_cast_fail1: Passed - CE.
+                                                      size_cast_fail2: Passed - CE.
+                                                      size_cast_fail3: Passed - CE.
+                                               sv_assign_pattern_cast: Passed.
+                                             sv_array_assign_pattern2: Passed.
+                                                    sv_array_cassign1: Passed.
+                                                    sv_array_cassign2: Passed.
+                                                    sv_array_cassign3: Passed.
+                                                    sv_array_cassign4: Passed.
+                                                    sv_array_cassign5: Passed.
+                                               sv_array_cassign_fail1: Passed - CE.
+                                               sv_array_cassign_fail2: Passed - CE.
+                                               sv_array_cassign_fail3: Passed - CE.
+                                               sv_array_cassign_fail4: Passed - CE.
+                                               sv_array_cassign_fail5: Passed - CE.
+                                               sv_array_cassign_fail6: Passed - CE.
+                                               sv_array_cassign_fail7: Passed - CE.
+                                               sv_array_cassign_fail8: Passed - CE.
+                                               sv_array_cassign_fail9: Passed - CE.
+                                              sv_array_cassign_fail10: Passed - CE.
+                                              sv_array_cassign_fail11: Passed - CE.
+                                       sv_class_fixed_array_reduction: Passed.
+                                    sv_modport_undeclared_signal_2017: Passed - CE.
+                                    sv_modport_undeclared_signal_2023: Passed - CE.
+                                  sv_class_fixed_array_reduction_fail: Passed - CE.
+                               sv_bitstream_cast_unpacked_struct_fail: Passed - CE.
+                                      sv_bitstream_cast_packed_struct: Passed.
+                                          sv_array_unique_with_object: Passed.
+                                sv_array_unique_with_object_type_fail: Passed - CE.
+                                    sv_assoc_unique_object_index_fail: Passed - CE.
+                                                      sv_cast_integer: Passed.
+                                                     sv_cast_integer2: Passed.
+                                                      sv_cast2_4state: Passed.
+                                                 sv_cast_packed_array: Passed.
+                                                sv_cast_packed_struct: Passed.
+                                                       sv_cast_string: Passed.
+                                                      sv_cast_typedef: Passed.
+                                                            sv_class1: Passed.
+                                                            sv_class2: Passed.
+                                                            sv_class3: Passed.
+                                                            sv_class4: Passed.
+                                                            sv_class5: Passed.
+                                                            sv_class6: Passed.
+                                                            sv_class7: Passed.
+                                                            sv_class8: Passed.
+                                                            sv_class9: Passed.
+                                                           sv_class10: Passed.
+                                                           sv_class11: Passed.
+                                                           sv_class12: Passed.
+                                                           sv_class13: Passed.
+                                                           sv_class14: Passed.
+                                                           sv_class15: Passed.
+                                                           sv_class16: Passed.
+                                                           sv_class17: Passed.
+                                                           sv_class18: Passed.
+                                                           sv_class19: Passed.
+                                                           sv_class20: Passed.
+                                                           sv_class21: Passed.
+                                                           sv_class22: Passed.
+                                                           sv_class23: Passed.
+                                                           sv_class24: Passed.
+                                         sv_class_assoc_ternary_null1: Passed.
+                                   sv_class_implicit_virtual_dispatch: Passed.
+                                      sv_class_prop_assoc_obj_member1: Passed.
+                                           sv_class_call_result_prop1: Passed.
+                                            sv_class_queue_last_prop1: Passed.
+                                         sv_class_recursive_new_prop1: Passed.
+                                      sv_class_super_recursive_assoc1: Passed.
+                                         sv_class_prop_darray_assign1: Passed.
+                                            sv_class_prop_queue_size1: Passed.
+                                  sv_class_static_assoc_string_store1: Passed.
+                                                     sv_class_compat1: Passed.
+                                                     sv_class_compat2: Passed.
+                                                sv_class_compat_fail1: Passed - CE.
+                                                sv_class_compat_fail2: Passed - CE.
+                                                sv_class_compat_fail3: Passed - CE.
+                                                sv_class_constructor1: Passed.
+                                            sv_class_constructor_fail: Passed - CE.
+                                         sv_class_constructor_default: Passed.
+                                    sv_class_constructor_default_2017: Passed - CE.
+                          sv_class_constructor_default_duplicate_2023: Passed - CE.
+                    sv_class_constructor_default_extends_missing_2023: Passed - CE.
+                 sv_class_constructor_default_extends_super_call_2023: Passed - CE.
+                            sv_class_constructor_default_extends_2017: Passed - CE.
+                            sv_class_extends_args_super_new_fail_2017: Passed - CE.
+                            sv_class_extends_args_super_new_fail_2023: Passed - CE.
+                          sv_class_constructor_default_local_ref_2023: Passed - CE.
+                                                  sv_class_empty_item: Passed.
+                                              sv_class_extends_scoped: Passed.
+                                                  sv_class_localparam: Passed.
+                               sv_class_method_localparam_outer_param: Passed.
+                                                   sv_class_new_fail1: Passed - CE.
+                                                   sv_class_new_fail2: Passed - CE.
+                                                    sv_class_new_init: Passed.
+                                                  sv_class_new_typed1: Passed.
+                                                  sv_class_new_typed2: Passed.
+                                                  sv_class_new_typed3: Passed.
+                                             sv_class_new_typed_fail1: Passed - CE.
+                                             sv_class_new_typed_fail2: Passed - CE.
+                                             sv_class_new_typed_fail3: Passed - CE.
+                                             sv_class_new_typed_fail4: Passed - CE.
+                                     sv_class_new_typed_parameterized: Passed.
+                                       sv_param_class_randomize_hooks: Passed.
+                              sv_param_class_randomize_hook_task_fail: Passed - CE.
+                                          sv_implicit_randomize_hooks: Passed.
+                                 sv_implicit_randomize_hook_args_fail: Passed - CE.
+                         sv_class_new_typed_parameterized_compat_fail: Passed - CE.
+                                              sv_class_in_module_decl: Passed.
+                                            sv_class_method_call_void: Passed.
+                                             sv_class_method_default1: Passed.
+                                             sv_class_method_default2: Passed.
+                                           sv_class_method_lt_static1: Passed - CE.
+                                           sv_class_method_lt_static2: Passed - CE.
+                                              sv_class_method_signed1: Passed.
+                                              sv_class_method_signed2: Passed.
+                                             sv_class_method_var_init: Passed.
+                                         sv_class_method_auto_return1: Passed.
+                                                sv_class_prop_shadow1: Passed.
+                                                sv_class_prop_shadow2: Passed.
+                                            sv_class_property_signed1: Passed.
+                                            sv_class_property_signed2: Passed.
+                                            sv_class_property_signed3: Passed.
+                                            sv_class_property_signed4: Passed.
+                                                      sv_class_return: Passed.
+                                                sv_class_static_prop1: Passed.
+                                                sv_class_static_prop2: Passed.
+                                                sv_class_static_prop3: Passed.
+                                                sv_class_static_prop4: Passed.
+                                                      sv_class_super1: Passed.
+                                                      sv_class_super2: Passed.
+                                                      sv_class_super3: Passed.
+                                                      sv_class_super4: Passed.
+                                                      sv_class_super5: Passed.
+                                                      sv_class_super6: Passed.
+                                                       sv_class_task1: Passed.
+                                               sv_class_virt_new_fail: Passed - CE.
+                                                    sv_darray_assign1: Passed.
+                                                    sv_darray_assign2: Passed.
+                                               sv_darray_assign_fail1: Passed - CE.
+                                               sv_darray_assign_fail2: Passed - CE.
+                                               sv_darray_assign_fail3: Passed - CE.
+                                               sv_darray_assign_fail4: Passed - CE.
+                                               sv_darray_assign_fail5: Passed - CE.
+                                               sv_darray_assign_fail6: Passed - CE.
+                                                sv_darray_copy_empty1: Passed.
+                                                sv_darray_copy_empty2: Passed.
+                                                sv_darray_copy_empty3: Passed.
+                                                sv_darray_copy_empty4: Passed.
+                                                sv_darray_decl_assign: Passed.
+                                                           sv_export1: Passed.
+                                                           sv_export2: Passed.
+                                                           sv_export3: Passed.
+                                                           sv_export4: Passed.
+                                                           sv_export5: Passed.
+                                                           sv_export6: Passed.
+                                                      sv_export_fail1: Passed - CE.
+                                                      sv_export_fail2: Passed - CE.
+                                                      sv_export_fail3: Passed - CE.
+                                                      sv_export_fail4: Passed - CE.
+                                                      sv_export_fail5: Passed - CE.
+                                                      sv_export_fail6: Passed - CE.
+                                                 sv_import_hier_fail1: Passed - CE.
+                                                 sv_import_hier_fail2: Passed - CE.
+                                                 sv_import_hier_fail3: Passed - CE.
+                                                      sv_packed_port1: Passed.
+                                                      sv_packed_port2: Passed.
+                                                   sv_param_port_list: Passed.
+                                                     sv_port_default1: Passed.
+                                                     sv_port_default2: Passed.
+                                                     sv_port_default3: Passed.
+                                                     sv_port_default4: Passed.
+                                                     sv_port_default5: Passed.
+                                                     sv_port_default6: Passed.
+                                                     sv_port_default7: Passed.
+                                                     sv_port_default8: Passed.
+                                                     sv_port_default9: Passed.
+                                                    sv_port_default10: Passed.
+                                                    sv_port_default11: Passed.
+                                                    sv_port_default12: Passed.
+                                                    sv_port_default13: Passed - CE.
+                                                    sv_port_default14: Passed - CE.
+                                                  sv_ps_array_cassign: Passed.
+                                                     sv_ps_type_cast1: Passed.
+                                                     sv_ps_type_cast2: Passed.
+                                                        sv_sign_cast1: Passed.
+                                                        sv_sign_cast2: Passed.
+                                                        sv_sign_cast3: Passed.
+                                                     sv_unpacked_port: Passed.
+                                                    sv_unpacked_port2: Passed.
+                                                        sv_void_cast1: Passed.
+                                                        sv_void_cast2: Passed.
+                                                        sv_void_cast3: Passed.
+                                                        sv_void_cast4: Passed.
+                                                   sv_void_cast_fail1: Passed - CE.
+                                                   sv_void_cast_fail2: Passed - CE.
+                                                   sv_void_cast_fail3: Passed - CE.
+                                           sv_void_cast_struct_method: Passed.
+                                      sv_void_cast_struct_method_fail: Passed - CE.
+                                                  sv_wildcard_import1: Passed.
+                                                  sv_wildcard_import2: Passed.
+                                                  sv_wildcard_import3: Passed.
+                                                  sv_wildcard_import4: Passed - CE.
+                                                  sv_wildcard_import5: Passed - CE.
+                                                  sv_wildcard_import6: Passed.
+                                                  sv_wildcard_import7: Passed.
+                                      sv_class_member_wildcard_import: Passed.
+                                 sv_class_member_wildcard_import_2023: Passed.
+                            sv_class_member_wildcard_import_ambiguous: Passed - CE.
+                       sv_class_member_wildcard_import_ambiguous_2023: Passed - CE.
+                      sv_class_member_wildcard_imported_function_fail: Passed - CE.
+                 sv_class_member_wildcard_imported_function_fail_2023: Passed - CE.
+                                                     task_port_types1: Passed.
+                                                     task_port_types2: Passed.
+                                                        sv_const_cast: Passed.
+                                       sv_class_static_queue_pop_back: Passed.
+                                           sv_class_phase_wait_sched1: Passed.
+                               sv_unpacked_struct_member_func_assign1: Passed.
+                              sv_unpacked_struct_local_member_assign1: Passed.
+                                      sv_class_prop_assoc_struct_lit1: Passed.
+                                sv_class_static_assoc_string_literal1: Passed.
+                                        sv_class_nested_assoc_foreach: Passed.
+                                               sv_class_event_member1: Passed.
+                                          sv_class_event_per_instance: Passed.
+                                         sv_class_static_event_shared: Passed.
+                                            sv_class_prop_assoc_find1: Passed.
+                                 sv_class_assoc_ref_string_traversal1: Passed.
+                                 sv_virtual_formal_receiver_dispatch1: Passed.
+                                        sv_class_ctor_state_fidelity1: Passed.
+                                           sv_class_assoc_edges_copy1: Passed.
+                                          sv_class_queue_output_copy1: Passed.
+                                               sv_class_fork_capture1: Passed.
+                                               sv_class_cast_runtime1: Passed.
+                                                sv_class_cast_return1: Passed.
+                                        sv_class_static_param_create1: Passed.
+                                       sv_class_auto_recursive_raise1: Passed.
+                                       sv_class_auto_recursive_state1: Passed.
+                                       sv_class_assoc_recursive_find1: Passed.
+                                           sv_class_prop_wait_wakeup1: Passed.
+                                    sv_class_method_prop_wait_wakeup1: Passed.
+                                          sv_object_alias_rebind_wait: Passed.
+                                                sv_class_extern_task1: Passed.
+                                 sv_class_extern_implicit_return_2017: Passed.
+                                 sv_class_extern_implicit_return_2023: Passed.
+                                     sv_class_extern_ctor_const_init1: Passed.
+                                          sv_class_queue_wait_wakeup1: Passed.
+                                   sv_class_static_queue_wait_wakeup1: Passed.
+                                   sv_class_queue_insert_wait_wakeup1: Passed.
+                                              sv_class_packed_prop2d1: Passed.
+                                       sv_class_method_receiver_copy1: Passed.
+                                           sv_class_case_wait_wakeup1: Passed.
+                                       sv_class_forward_typeparam_cb1: Passed.
+                                       sv_class_inherited_enum_extern: Passed.
+                                  sv_class_assoc_prop_copy_isolation1: Passed.
+                                         sv_class_derived_ctor_state1: Passed.
+                                         sv_class_recursive_ctor_add1: Passed.
+                                     sv_class_recursive_find_wrapper1: Passed.
+                                         sv_class_getter_handle_wait1: Passed.
+                                        sv_class_static_assoc_method1: Passed.
+                                         sv_class_function_fork_task1: Passed.
+                                          sv_class_prop_array_pattern: Passed.
+                                      sv_class_prop_real_string_array: Passed.
+                                            sv_process_suspend_resume: Passed.
+                                        sv_process_resume_event_rearm: Passed.
+                                   sv_process_resume_event_rearm_2023: Passed.
+                                       sv_uarray_slice_pattern_assign: Passed.
+                                           sv_modport_visibility_fail: Passed - CE.
+                                      sv_modport_read_visibility_fail: Passed - CE.
+                                      synth_selected_input_port_async: Passed.
+                                       sv_concat_object_lvalue_shapes: Passed.
+                               sv_concat_object_lvalue_unknown_offset: Passed.
+                      sv_concat_object_lvalue_extreme_negative_offset: Passed.
+                                 sv_interface_member_cast_sensitivity: Passed.
+                                             sv_vif_event_initialized: Passed.
+                                             sv_vif_null_anyedge_fail: Passed - RE.
+                                             sv_vif_null_posedge_fail: Passed - RE.
+                                             sv_vif_null_negedge_fail: Passed - RE.
+                                               sv_vif_null_multi_fail: Passed - RE.
+                                              sv_vif_null_method_fail: Passed - RE.
+                                  sv_vif_null_method_no_instance_fail: Passed - RE.
+                                       sv_vif_task_from_function_fail: Passed - CE.
+                                       sv_vif_input_array_method_fail: Passed - CE.
+                                              sv_vif_fixed_input_task: Passed.
+                                                 sv_vif_dispatch_many: Passed.
+                                            sv_vif_named_default_args: Passed.
+                                            sv_vif_default_decl_scope: Passed.
+                                    sv_param_class_cached_vif_default: Passed.
+                                       sv_vif_nested_interface_method: Passed.
+                                            sv_auto_complex_vif_event: Passed.
+                                       sv_class_array_method_dispatch: Passed.
+                                           sv_typeparam_formal_member: Passed.
+                                       sv_scope_randomize_unqualified: Passed.
+                                               sv_std_randomize_scope: Passed.
+                                         sv_std_randomize_with_solver: Passed.
+                                        sv_process_status_transitions: Passed.
+                                   sv_cast_param_class_specialization: Passed.
+                                                sv_ustruct_value_copy: Passed.
+                                     sv_ustruct_value_copy_containers: Passed.
+                                                    sv_clocking_audit: Passed.
+                                               sv_clocking_skew_audit: Passed.
+                                                 sv_vif_member_access: Passed.
+                                           sv_vif_array_runtime_index: Passed.
+                                                    sv_unit_scope_vif: Passed.
+                                           sv_program_clocking_finish: Passed.
+                                      sv_class_property_partial_write: Passed.
+                                       sv_struct_member_partial_write: Passed.
+                                            sv_vif_struct_field_write: Passed.
+                                       sv_class_property_partial_read: Passed.
+                                          sv_array_word_part_compound: Passed.
+                                      sv_nba_vif_selected_bit_capture: Passed.
+                               sv_class_vif_property_assignment_width: Passed.
+                                                   sv_cast_enum_check: Passed.
+                                         sv_class_queue_slice_to_last: Passed.
+                                            sv_generic_interface_port: Passed.
+                                            sv_struct_value_copy_args: Passed.
+                                         sv_class_array_element_index: Passed.
+                                       sv_class_arrayprop_elem_select: Passed.
+                                    sv_clocking_itemless_static_event: Passed.
+                                       sv_clocking_itemless_vif_event: Passed.
+                                   sv_clocking_itemless_program_event: Passed.
+                                          sv_clocking_vif_no_t0_event: Passed.
+                              sv_vif_clocking_partial_member_preserve: Passed.
+                              sv_vif_clocking_partial_select_preserve: Passed.
+                                    sv_vif_clocking_output_skew_scope: Passed.
+                                 sv_clocking_static_output_skew_scope: Passed.
+                                   sv_clocking_selected_output_static: Passed.
+                                    sv_clocking_selected_output_alias: Passed.
+                             sv_clocking_selected_output_dynamic_fail: Passed.
+                          sv_clocking_selected_output_dynamic_capture: Passed.
+                     sv_clocking_selected_output_dynamic_capture_2023: Passed.
+                             sv_clocking_class_handle_shadow_selected: Passed.
+                                 sv_clocking_vif_skew_precision_order: Passed.
+                                     sv_clocking_output_opposite_edge: Passed.
+                                        sv_clocking_fixed_array_input: Passed.
+                                       sv_clocking_fixed_array_output: Passed.
+                                  sv_clocking_fixed_array_output_decl: Passed.
+                                       sv_clocking_vif_skew_type_only: Passed.
+                                sv_clocking_vif_selected_dynamic_fail: Passed.
+                             sv_vif_clocking_selected_dynamic_capture: Passed.
+                        sv_vif_clocking_selected_dynamic_capture_2023: Passed.
+                                 sv_vif_clocking_output_complex_alias: Passed.
+                          sv_vif_clocking_selected_decl_assign_target: Passed.
+                     sv_vif_clocking_selected_decl_assign_target_2023: Passed.
+                                       sv_clocking_vif_modport_output: Passed.
+                                  sv_clocking_vif_modport_input_event: Passed.
+                              sv_clocking_vif_modport_raw_member_fail: Passed - CE.
+                     sv_clocking_vif_modport_unexported_clocking_fail: Passed - CE.
+                                 sv_clocking_class_vif_modport_output: Passed.
+                             sv_vif_clocking_cycle_delayed_drive_2017: Passed.
+                             sv_vif_clocking_cycle_delayed_drive_2023: Passed.
+                            sv_clocking_class_vif_modport_input_event: Passed.
+                        sv_clocking_class_vif_modport_raw_member_fail: Passed - CE.
+               sv_clocking_class_vif_modport_unexported_clocking_fail: Passed - CE.
+                sv_clocking_class_vif_modport_clocking_collision_fail: Passed - CE.
+                     sv_clocking_class_vif_modport_property_isolation: Passed.
+                      sv_clocking_vif_modport_typedef_raw_member_fail: Passed - CE.
+              sv_clocking_class_typeparam_vif_modport_raw_member_fail: Passed - CE.
+                       sv_clocking_struct_vif_modport_raw_member_fail: Passed - CE.
+                        sv_clocking_vif_numeric_input_skew_zero_order: Passed.
+                       sv_clocking_vif_numeric_input_skew_delay_order: Passed.
+                                sv_clocking_concat_member_lvalue_fail: Passed - CE.
+                              sv_clocking_indexed_class_receiver_fail: Passed.
+                         sv_clocking_root_indexed_class_receiver_fail: Passed.
+                                  sv_clocking_unpacked_output_storage: Passed.
+                             sv_clocking_unpacked_output_storage_2023: Passed.
+                              sv_clocking_selected_decl_assign_target: Passed.
+                         sv_clocking_selected_decl_assign_target_2023: Passed.
+                                      sv_clocking_param_if_width_2017: Passed.
+                                      sv_clocking_param_if_width_2023: Passed.
+                         sv_clocking_unpacked_output_bad_pattern_fail: Passed - CE.
+                    sv_clocking_unpacked_output_bad_pattern_fail_2023: Passed - CE.
+                                 sv_clocking_unpacked_net_output_fail: Passed - CE.
+                            sv_clocking_unpacked_net_output_fail_2023: Passed - CE.
+                                     sv_clocking_selected_input_alias: Passed.
+                                   sv_clocking_vif_input_sys_task_arg: Passed.
+                                       sv_clocking_vif_vpi_write_fail: Passed - RE.
+                             sv_clocking_nonconstant_output_skew_fail: Passed - CE.
+                               sv_clocking_output_nonlvalue_fail_2017: Passed - CE.
+                               sv_clocking_output_nonlvalue_fail_2023: Passed - CE.
+                          sv_clocking_output_continuous_alias_overlap: Passed - CE.
+                       sv_clocking_output_continuous_declaration_only: Passed.
+                          sv_output_clockvar_variable_driver_controls: Passed.
+                               sv_clocking_output_continuous_disjoint: Passed.
+                        sv_clocking_output_continuous_pending_overlap: Passed - CE.
+                     sv_clocking_output_continuous_same_scope_overlap: Passed - CE.
+                         sv_clocking_output_continuous_static_overlap: Passed - CE.
+                        sv_clocking_output_continuous_virtual_overlap: Passed - CE.
+                             sv_output_clockvar_variable_drivers_fail: Passed - CE.
+                       sv_covergroup_ref_automatic_actual_unsupported: Passed - CE.
+                  sv_covergroup_ref_automatic_actual_unsupported_2023: Passed - CE.
+                                      sv_covergroup_formal_directions: Passed.
+                                 sv_covergroup_formal_directions_2023: Passed.
+                                 sv_covergroup_formal_directions_fail: Passed - CE.
+                            sv_covergroup_formal_directions_fail_2023: Passed - CE.
+                                         sv_class_instance_const_flow: Passed.
+                                    sv_class_instance_const_flow_2023: Passed.
+                                  sv_class_instance_const_static_fail: Passed - CE.
+                             sv_class_instance_const_static_fail_2023: Passed - CE.
+                            sv_class_instance_const_loop_runtime_fail: Passed - RE.
+                       sv_class_instance_const_loop_runtime_fail_2023: Passed - RE.
+                     sv_class_instance_const_conditional_runtime_fail: Passed - RE.
+                sv_class_instance_const_conditional_runtime_fail_2023: Passed - RE.
+                            sv_class_instance_const_fork_runtime_fail: Passed - RE.
+                       sv_class_instance_const_fork_runtime_fail_2023: Passed - RE.
+                        sv_class_instance_const_for_step_runtime_fail: Passed - RE.
+                   sv_class_instance_const_for_step_runtime_fail_2023: Passed - RE.
+                                  sv_class_repeat_count_probe_warning: Passed - CE.
+                             sv_class_repeat_count_probe_warning_2023: Passed - CE.
+                                           sv_class_repeat_count_flow: Passed.
+                                      sv_class_repeat_count_flow_2023: Passed.
+                                    sv_class_repeat_count_shadow_fail: Passed - CE.
+                               sv_class_repeat_count_shadow_fail_2023: Passed - CE.
+                                  sv_class_static_const_for_init_fail: Passed - CE.
+                             sv_class_static_const_for_init_fail_2023: Passed - CE.
+                               sv_covergroup_virtual_interface_sample: Passed.
+                          sv_covergroup_virtual_interface_sample_2023: Passed.
+                                   sv_covergroup_ctor_method_bin_null: Passed - RE.
+                              sv_covergroup_ctor_method_bin_null_2023: Passed - RE.
+                           sv_covergroup_extension_sample_formal_2023: Passed - CE.
+                                sv_covergroup_wide_reject_unsupported: Passed - CE.
+                           sv_covergroup_wide_reject_unsupported_2023: Passed - CE.
+                    sv_covergroup_procedural_item_options_unsupported: Passed - CE.
+                                    sv_assert_modport_preponed_sample: Passed.
+                                          sv_process_self_named_block: Passed.
+                                  sv_class_property_container_element: Passed.
+                                                  sv_vif_array_member: Passed.
+                                             sv_vif_modport_qualified: Passed.
+                                        sv_randomize_variable_control: Passed.
+                                   sv_object_randomize_statement_with: Passed.
+                                      sv_randomize_receiver_eval_once: Passed.
+                                   sv_randomize_with_identifier_scope: Passed.
+                            sv_randomize_with_identifier_unknown_fail: Passed - CE.
+                           sv_randomize_with_identifier_no_block_fail: Passed - CE.
+                         sv_scope_randomize_with_identifier_list_fail: Passed - CE.
+                                         sv_scope_randomize_null_fail: Passed - CE.
+                          sv_sampled_value_clocking_input_unsupported: Passed - CE.
+                             sv_assert_clocking_input_skew_delay_2017: Passed - CE.
+                             sv_assert_clocking_input_skew_delay_2023: Passed - CE.
+                              sv_assert_clocking_input_skew_zero_2017: Passed - CE.
+                              sv_assert_clocking_input_skew_zero_2023: Passed - CE.
+                                    sv_sampled_value_default_clocking: Passed.
+                              sv_sampled_value_event_past_unsupported: Passed - CE.
+                         sv_sampled_value_event_past_unsupported_2023: Passed - CE.
+                                            sv_cast_class_destination: Passed.
+                                        sv_cast_container_destination: Passed.
+                                       sv_cast_container_task_failure: Passed.
+                                                 sv_cast_task_failure: Passed.
+                                           sv_process_kill_subprocess: Passed.
+                                         sv_process_suspend_subthread: Passed.
+                                sv_ref_arg_inside_storage_adversarial: Passed.
+                                       sv_ref_arg_inside_storage_bind: Passed.
+                                       sv_ref_argument_is_a_reference: Passed.
+                                   sv_ref_argument_type_mismatch_fail: Passed - CE.
+                                        sv_ref_arg_object_fork_detach: Passed.
+                                           sv_process_status_identity: Passed.
+                                      sv_deferred_final_null_default0: Passed.
+                                     sv_deferred_final_void_cast_fail: Passed - CE.
+                                             sv_deferred_null_action0: Passed.
+                                          sv_deferred_supported_only0: Passed.
+                                    sv_deferred_void_cast_action_fail: Passed - CE.
+                                          sv_cast_size_string_literal: Passed.
+                                     sv_param_pattern_override_import: Passed.
+                                   sv_param_unpacked_array_slice_port: Passed.
+                                    sv_unpacked_array_slice_port_conn: Passed.
+                           sv_unpacked_array_slice_port_conn_dir_fail: Passed - CE.
+                                         sv_array_elem_member_cassign: Passed.
+                                        sv_struct_member_mixed_assign: Passed.
+                                                    sv_nb_uarray_copy: Passed.
+                                                sv_pkg_export_resolve: Passed.
+                                           sva_clocking_member_assert: Passed.
+                                         sv_uarray_partial_index_copy: Passed.
+                             sv_class_fixed_uarray_slice_lval_pattern: Passed.
+                                sv_class_fixed_uarray_slice_lval_fail: Passed - CE.
+                                     sv_force_continuous_driver_order: Passed.
+                                                  sv_force_array_word: Passed.
+                                        sv_force_partial_live_overlap: Passed - CE.
+                                           sv_packed_subfield_release: Passed.
+                                      sv_packed_subfield_release_2023: Passed.
+                                        sv_force_packed_bank_rhs_live: Passed.
+                                             sv_force_binary_rhs_live: Passed.
+                                                sv_force_urandom_once: Passed.
+                                        sv_force_auto_static_rhs_live: Passed.
+                                           sv_import_unknown_pkg_diag: Passed - CE.
+                                        sv_unit_import_interface_type: Passed.
+                                       sv_interface_port_array_member: Passed.
+                                              sv_clocking_read_output: Passed - CE.
+                                            sv_class_var_shadows_type: Passed.
+                               sv_randomize_with_unresolvable_dropped: Passed - CE.
+                                           sv_assoc_default_cast_fail: Passed - CE.
+                                           sv_assoc_default_null_fail: Passed - CE.
+                                    sv_assoc_default_formal_type_fail: Passed - CE.
+                                    sv_assoc_default_formal_null_fail: Passed - CE.
+                                sv_assoc_nonassoc_formal_default_fail: Passed - CE.
+                                  sv_assoc_scalar_formal_default_fail: Passed - CE.
+                                          sv_assoc_cast_to_queue_fail: Passed - CE.
+                                           sv_default_formal_contexts: Passed.
+                                         sv_enum_default_formal_width: Passed.
+                                     sv_enum_default_formal_cast_fail: Passed - CE.
+                                     sv_enum_compound_assignment_fail: Passed - CE.
+                           sv_class_static_get_specialization_reentry: Passed.
+                                sv_class_static_get_recursive_control: Passed.
+                                sv_class_static_get_bad_receiver_fail: Passed - CE.
+                               sv_typeparam_virtual_interface_default: Passed.
+                      sv_typeparam_virtual_interface_default_override: Passed.
+                      sv_typeparam_virtual_interface_explicit_modport: Passed.
+               sv_typeparam_virtual_interface_known_noninterface_fail: Passed - CE.
+                      sv_typeparam_virtual_interface_default_use_fail: Passed - CE.
+                             sv_vif_explicit_interface_class_property: Passed.
+                        sv_vif_explicit_interface_class_property_2023: Passed.
+                                           sv_vif_instance_comparison: Passed.
+                                      sv_vif_instance_comparison_2023: Passed.
+                              sv_vif_instance_runtime_index_extension: Passed.
+                         sv_vif_instance_runtime_index_extension_2023: Passed.
+                         sv_vif_explicit_interface_class_modport_fail: Passed - CE.
+                    sv_vif_explicit_interface_class_modport_fail_2023: Passed - CE.
+                    sv_vif_explicit_interface_class_noninterface_fail: Passed - CE.
+               sv_vif_explicit_interface_class_noninterface_fail_2023: Passed - CE.
+                         sv_vif_explicit_interface_class_missing_fail: Passed - CE.
+                    sv_vif_explicit_interface_class_missing_fail_2023: Passed - CE.
+                         sv_vif_explicit_interface_data_type_contexts: Passed.
+                    sv_vif_explicit_interface_data_type_contexts_2023: Passed.
+                                           sv_vif_forbidden_port_fail: Passed - CE.
+                                      sv_vif_forbidden_port_fail_2023: Passed - CE.
+                                 sv_vif_forbidden_interface_item_fail: Passed - CE.
+                            sv_vif_forbidden_interface_item_fail_2023: Passed - CE.
+                  sv_vif_forbidden_interface_item_type_parameter_fail: Passed - CE.
+             sv_vif_forbidden_interface_item_type_parameter_fail_2023: Passed - CE.
+                                   sv_vif_forbidden_union_member_fail: Passed - CE.
+                              sv_vif_forbidden_union_member_fail_2023: Passed - CE.
+                             sv_class_static_nested_property_lifetime: Passed.
+                         sv_class_static_nested_property_missing_fail: Passed - CE.
+                                   sv_assoc_default_struct_value_copy: Passed.
+                              sv_assoc_default_struct_value_copy_2023: Passed.
+                               sv_assoc_fixed_child_order_unsupported: Passed - CE.
+                          sv_assoc_fixed_child_order_unsupported_2023: Passed - CE.
+                           sv_class_typedef_parameterized_shadow_fail: Passed - CE.
+                           sv_class_typedef_scoped_static_shadow_fail: Passed - CE.
+                                sv_inherited_class_parameter_vif_task: Passed.
+                           sv_inherited_class_parameter_vif_task_2023: Passed.
+                            sv_class_scoped_static_queue_slice_lvalue: Passed.
+                             sv_class_local_struct_shadows_outer_type: Passed.
+                         sv_class_local_value_shadows_outer_type_fail: Passed - CE.
+                                           sv_class_static_const_init: Passed.
+                                      sv_class_const_constructor_init: Passed.
+                                   sv_class_static_const_missing_fail: Passed - CE.
+                                  sv_class_static_const_reassign_fail: Passed - CE.
+                           sv_class_static_const_scoped_reassign_fail: Passed - CE.
+                                             sv_unpacked_struct_ports: Passed.
+                              sv_randomize_struct_class_handle_member: Passed.
+                         sv_randomize_struct_class_handle_member_2023: Passed.
+                             sv_struct_member_random_unsupported_fail: Passed.
+                        sv_struct_member_random_unsupported_fail_2023: Passed.
+                             sv_param_value_forward_compound_identity: Passed.
+                                              sv_randc_txn_object_rng: Passed.
+                                     sv_rand_array_mode_object_struct: Passed.
+                                      sv_concat_initial_port_delivery: Passed.
+                               sv_class_parameter_missing_actual_fail: Passed - CE.
+                                   sv_class_multi_value_identity_2017: Passed.
+                                   sv_class_multi_value_identity_2023: Passed.
+                              sv_class_multi_value_identity_fail_2017: Passed - CE.
+                              sv_class_multi_value_identity_fail_2023: Passed - CE.
+                       sv_class_multi_value_dependent_width_fail_2017: Passed - CE.
+                       sv_class_multi_value_dependent_width_fail_2023: Passed - CE.
+                                                 sv_dumpports_runtime: Passed.
+                                               sv_dumpports_multifile: Passed.
+                                          sv_dumpports_limit_prestart: Passed.
+                                          sv_dumpports_finish_pending: Passed.
+                                           sv_dumpports_metadata_base: Passed.
+                                            sv_dumpports_no_use_inout: Passed.
+                                            sv_dumpports_svtests_21_7: Passed.
+                                               sv_dumpports_args_fail: Passed - RE.
+                                       sv_dumpports_control_args_fail: Passed - RE.
+                                         sv_dumpports_limit_args_fail: Passed - RE.
+                                    sv_dumpports_duplicate_scope_fail: Passed - RE.
+                                     sv_dumpports_duplicate_file_fail: Passed - RE.
+                                               sv_dumpports_late_fail: Passed - RE.
+                                              sv_net_decl_delay_ports: Passed.
+                                   sv_net_decl_delay_port_inline_fail: Passed - CE.
+                           sv_function_deferred_clocking_context_fail: Passed - RE.
+                                           sv_array_port_string_event: Passed.
+                                           sv_array_port_object_event: Passed.
+                                      sv_instance_array_unpacked_port: Passed.
+                            sv_interface_port_array_direction_methods: Passed.
+                                   sv_interface_port_array_shape_fail: Passed - CE.
+                         sv_interface_port_array_forwarded_shape_fail: Passed - CE.
+                                sv_interface_port_array_copyback_task: Passed.
+                              sv_class_fixed_array_container_property: Passed.
+                     sv_class_fixed_array_container_packed_select_oob: Passed.
+                                sv_class_fixed_array_scalar_index_oob: Passed.
+                                  sv_class_fixed_array_deep_container: Passed.
+                      sv_class_fixed_array_container_outer_assignment: Passed.
+                        sv_class_fixed_array_container_invalid_delete: Passed.
+                         sv_class_fixed_array_container_property_fail: Passed - CE.
+                       sv_class_static_fixed_array_container_property: Passed.
+              sv_class_static_fixed_array_container_element_read_fail: Passed - CE.
+                            sv_class_fixed_array_container_outer_read: Passed.
+                     sv_class_fixed_array_container_slice_lvalue_fail: Passed - CE.
+                    sv_class_struct_nested_fixed_array_container_fail: Passed - CE.
+                                      synth_interface_member_top_port: Passed - CO.
+                                    synth_compound_assignment_carrier: Passed.
+                             synth_compound_assignment_concat_carrier: Passed.
+                               synth_compound_assignment_concat_edges: Passed.
+                                       sv_process_await_resource_wait: Passed.
+                                         sv_process_kill_join_reducer: Passed.
+                                     sv_vif_mixed_lifetime_call_frame: Passed.
+                         sv_explicit_static_fixed_array_force_release: Passed.
+                               sv_static_task_auto_array_port_context: Passed.
+                               sv_class_property_always_comb_mutation: Passed.
+                                 sv_class_property_event_value_change: Passed.
+                             sv_class_property_event_filter_isolation: Passed.
+                           sv_class_property_array_event_value_change: Passed.
+                      sv_class_property_packed_bit_event_value_change: Passed.
+                                 sv_class_property_event_disable_fork: Passed.
+                             sv_class_property_invalid_selector_event: Passed.
+                                      sv_class_property_compound_wait: Passed.
+                        sv_class_property_compound_event_value_change: Passed.
+                                 sv_class_property_mixed_event_reject: Passed - CE.
+                           sv_class_property_mixed_event_value_change: Passed.
+                                         sv_event_list_vif_mixed_once: Passed.
+                                    sv_event_list_vif_mixed_once_2023: Passed.
+                                   sv_event_list_vif_preserved_leaves: Passed.
+                              sv_event_list_vif_preserved_leaves_2023: Passed.
+                            sv_class_property_mixed_wait_value_change: Passed.
+                               sv_class_property_wait_method_receiver: Passed.
+                                  sv_class_assoc_object_property_wait: Passed.
+                                 sv_class_assoc_object_property_event: Passed.
+                               sv_task_output_container_formal_compat: Passed.
+                          sv_task_output_container_formal_compat_2023: Passed.
+                                 sv_task_output_container_formal_fail: Passed - CE.
+                            sv_task_output_container_formal_fail_2023: Passed - CE.
+                          sv_nonvoid_function_container_formal_compat: Passed.
+                     sv_nonvoid_function_container_formal_compat_2023: Passed.
+                                sv_nonvoid_function_fixed_formal_fail: Passed - CE.
+                           sv_nonvoid_function_fixed_formal_fail_2023: Passed - CE.
+                            sv_nonvoid_function_container_formal_fail: Passed - CE.
+                       sv_nonvoid_function_container_formal_fail_2023: Passed - CE.
+                           sv_subroutine_nested_container_formal_fail: Passed - CE.
+                      sv_subroutine_nested_container_formal_fail_2023: Passed - CE.
+                      sv_subroutine_fixed_container_state_formal_fail: Passed - CE.
+                 sv_subroutine_fixed_container_state_formal_fail_2023: Passed - CE.
+                                           sv_container_explicit_cast: Passed.
+                                      sv_container_explicit_cast_2023: Passed.
+                               sv_positional_container_bitstream_cast: Passed.
+                          sv_positional_container_bitstream_cast_2023: Passed.
+                     sv_positional_container_bitstream_cast_size_fail: Passed - RE.
+                sv_positional_container_bitstream_cast_size_fail_2023: Passed - RE.
+                    sv_positional_container_bitstream_cast_bound_fail: Passed - RE.
+               sv_positional_container_bitstream_cast_bound_fail_2023: Passed - RE.
+                               sv_container_conditional_explicit_cast: Passed.
+                          sv_container_conditional_explicit_cast_2023: Passed.
+                          sv_container_conditional_explicit_cast_fail: Passed - CE.
+                     sv_container_conditional_explicit_cast_fail_2023: Passed - CE.
+                                sv_positional_assoc_element_cast_fail: Passed - CE.
+                           sv_positional_assoc_element_cast_fail_2023: Passed - CE.
+                        sv_nonvoid_function_assoc_element_formal_fail: Passed - CE.
+                   sv_nonvoid_function_assoc_element_formal_fail_2023: Passed - CE.
+                                      sv_container_explicit_cast_fail: Passed - CE.
+                                 sv_container_explicit_cast_fail_2023: Passed - CE.
+                              sv_container_explicit_cast_fail_reverse: Passed - CE.
+                         sv_container_explicit_cast_fail_reverse_2023: Passed - CE.
+                                    sv_variable_input_port_signedness: Passed.
+                               sv_variable_input_port_signedness_2023: Passed.
+                                             sv_vif_function_dispatch: Passed.
+                                        sv_vif_function_dispatch_2023: Passed.
+                              sv_vif_function_static_formal_semantics: Passed.
+                         sv_vif_function_static_formal_semantics_2023: Passed.
+                                            sv_vif_null_function_fail: Passed - RE.
+                                       sv_vif_null_function_fail_2023: Passed - RE.
+                                sv_vif_null_function_no_instance_fail: Passed - RE.
+                           sv_vif_null_function_no_instance_fail_2023: Passed - RE.
+                                    sv_vif_function_statement_discard: Passed.
+                               sv_vif_function_statement_discard_2023: Passed.
+                       sv_vif_function_parameterized_candidate_filter: Passed.
+                  sv_vif_function_parameterized_candidate_filter_2023: Passed.
+                                   sv_vif_function_recursive_dispatch: Passed.
+                              sv_vif_function_recursive_dispatch_2023: Passed.
+                           sv_vif_function_static_object_stack_growth: Passed.
+                      sv_vif_function_static_object_stack_growth_2023: Passed.
+                           sv_vif_function_named_then_positional_fail: Passed - CE.
+                      sv_vif_function_named_then_positional_fail_2023: Passed - CE.
+                    sv_vif_null_function_no_instance_missing_arg_fail: Passed - CE.
+               sv_vif_null_function_no_instance_missing_arg_fail_2023: Passed - CE.
+                                    sv_vif_function_copyback_arg_fail: Passed - CE.
+                               sv_vif_function_copyback_arg_fail_2023: Passed - CE.
+                                       sv_vif_function_fixed_arg_fail: Passed - CE.
+                                  sv_vif_function_fixed_arg_fail_2023: Passed - CE.
+                                    sv_vif_function_fixed_return_fail: Passed - CE.
+                               sv_vif_function_fixed_return_fail_2023: Passed - CE.
+                    sv_interface_port_array_function_sensitivity_2012: Passed.
+                         sv_interface_port_array_function_sensitivity: Passed.
+                    sv_interface_port_array_function_sensitivity_2023: Passed.
+                                      sv_interface_port_forward_chain: Passed.
+                                 sv_interface_port_forward_chain_2023: Passed.
+                                     sv_interface_port_forward_direct: Passed.
+                                sv_interface_port_forward_direct_2023: Passed.
+                                     sv_interface_port_forward_onehop: Passed.
+                                sv_interface_port_forward_onehop_2023: Passed.
+                                       sv_interface_port_forward_null: Passed - RE.
+                                  sv_interface_port_forward_null_2023: Passed - RE.
+                              sv_vif_parameter_specialization_members: Passed.
+                         sv_vif_parameter_specialization_members_2023: Passed.
+                          sv_vif_parameter_specialization_class_cache: Passed.
+                     sv_vif_parameter_specialization_class_cache_2023: Passed.
+                     sv_vif_parameter_specialization_cache_provenance: Passed.
+                sv_vif_parameter_specialization_cache_provenance_2023: Passed.
+                              sv_vif_parameter_specialization_methods: Passed.
+                         sv_vif_parameter_specialization_methods_2023: Passed.
+                                 sv_vif_parameter_specialization_pins: Passed.
+                            sv_vif_parameter_specialization_pins_2023: Passed.
+                                        sv_vif_modport_prototype_fail: Passed - CE.
+                                   sv_vif_modport_prototype_fail_2023: Passed - CE.
+                      sv_vif_parameter_specialization_assignment_fail: Passed - CE.
+                 sv_vif_parameter_specialization_assignment_fail_2023: Passed - CE.
+                      sv_vif_parameter_specialization_comparison_fail: Passed - CE.
+                 sv_vif_parameter_specialization_comparison_fail_2023: Passed - CE.
+                        sv_vif_parameter_specialization_defparam_fail: Passed - CE.
+                   sv_vif_parameter_specialization_defparam_fail_2023: Passed - CE.
+                            sv_vif_parameter_specialization_null_fail: Passed - RE.
+                       sv_vif_parameter_specialization_null_fail_2023: Passed - RE.
+                 sv_interface_port_selected_actual_unqualified_formal: Passed.
+            sv_interface_port_selected_actual_unqualified_formal_2023: Passed.
+                                     sv_vif_modport_identifier_import: Passed.
+                                sv_vif_modport_identifier_import_2023: Passed.
+                                sv_modport_tf_prototype_recovery_fail: Passed - CE.
+                           sv_modport_tf_prototype_recovery_fail_2023: Passed - CE.
+                                       sv_modport_export_missing_fail: Passed - CE.
+                                  sv_modport_export_missing_fail_2023: Passed - CE.
+                      sv_vif_parameter_specialization_allocator_reuse: Passed.
+                 sv_vif_parameter_specialization_allocator_reuse_2023: Passed.
+                   sv_vif_parameter_specialization_queue_bound_layout: Passed.
+              sv_vif_parameter_specialization_queue_bound_layout_2023: Passed.
+                         sv_modport_tf_prototype_syntax_recovery_fail: Passed - CE.
+                    sv_modport_tf_prototype_syntax_recovery_fail_2023: Passed - CE.
+                        sv_interface_port_selected_actual_access_fail: Passed - CE.
+                   sv_interface_port_selected_actual_access_fail_2023: Passed - CE.
+                                    sv_vif_modport_hidden_method_fail: Passed - CE.
+                               sv_vif_modport_hidden_method_fail_2023: Passed - CE.
+                        sv_vif_modport_prototype_earlier_default_fail: Passed - CE.
+                   sv_vif_modport_prototype_earlier_default_fail_2023: Passed - CE.
+                          sv_vif_modport_prototype_type_mismatch_fail: Passed - CE.
+                     sv_vif_modport_prototype_type_mismatch_fail_2023: Passed - CE.
+                sv_interface_port_selected_actual_export_missing_fail: Passed - CE.
+           sv_interface_port_selected_actual_export_missing_fail_2023: Passed - CE.
+                             sv_modport_function_implicit_return_fail: Passed - CE.
+                        sv_modport_function_implicit_return_fail_2023: Passed - CE.
+                                         sv_modport_tf_duplicate_fail: Passed - CE.
+                                    sv_modport_tf_duplicate_fail_2023: Passed - CE.
+                           sv_modport_tf_prototype_file_recovery_fail: Passed - CE.
+                      sv_modport_tf_prototype_file_recovery_fail_2023: Passed - CE.
+                                 sv_vif_local_nominal_function_result: Passed.
+                            sv_vif_local_nominal_function_result_2023: Passed.
+                            sv_vif_local_nominal_function_result_fail: Passed - CE.
+                       sv_vif_local_nominal_function_result_fail_2023: Passed - CE.
+                                          sv_vif_task_scalar_copyback: Passed.
+                                     sv_vif_task_scalar_copyback_2023: Passed.
+                                     sv_vif_task_scalar_copyback_fail: Passed - CE.
+                                sv_vif_task_scalar_copyback_fail_2023: Passed - CE.
+                                    sv_class_packed_struct_queue_size: Passed.
+                               sv_class_packed_struct_queue_size_2023: Passed.
+                             sv_class_packed_struct_missing_size_fail: Passed - CE.
+                        sv_class_packed_struct_missing_size_fail_2023: Passed - CE.
+                                      sv_constraint_cast_unbased_fill: Passed.
+                                 sv_constraint_cast_unbased_fill_2023: Passed.
+                            sv_scope_randomize_dynamic_packed_element: Passed.
+                       sv_scope_randomize_dynamic_packed_element_2023: Passed.
+                    sv_scope_randomize_dynamic_packed_element_invalid: Passed.
+               sv_scope_randomize_dynamic_packed_element_invalid_2023: Passed.
+                       sv_constraint_cast_unbased_fill_fourstate_fail: Passed - CE.
+                  sv_constraint_cast_unbased_fill_fourstate_fail_2023: Passed - CE.
+                            sv_constraint_cast_unbased_fill_wide_fail: Passed - CE.
+                       sv_constraint_cast_unbased_fill_wide_fail_2023: Passed - CE.
+                                            sv_param_string_cast_fail: Passed - CE.
+                        sv_class_type_param_scoped_call_template_seed: Passed.
+                   sv_class_type_param_scoped_call_template_seed_2023: Passed.
+                               sv_class_type_param_bound_missing_fail: Passed - CE.
+                                sv_class_type_param_default_spec_fail: Passed - CE.
+                             sv_module_class_value_param_default_null: Passed.
+                        sv_module_class_value_param_default_null_2023: Passed.
+                             sv_class_type_param_virtual_default_seed: Passed.
+                        sv_class_type_param_virtual_default_seed_2023: Passed.
+                                  sv_class_virtual_new_in_method_fail: Passed - CE.
+                               sv_class_parenless_method_via_property: Passed.
+                          sv_class_parenless_method_via_property_2023: Passed.
+                                sv_class_parenless_unqualified_method: Passed.
+                           sv_class_parenless_unqualified_method_2023: Passed.
+                                  sv_class_parenless_defaulted_method: Passed.
+                             sv_class_parenless_defaulted_method_2023: Passed.
+                              sv_class_parenless_required_method_fail: Passed - CE.
+                         sv_class_parenless_required_method_fail_2023: Passed - CE.
+                                   sv_ref_queue_formal_unrelated_fork: Passed.
+                              sv_ref_queue_formal_unrelated_fork_2023: Passed.
+                                sv_ref_formal_detached_fork_fail_2017: Passed - CE.
+                                sv_ref_formal_detached_fork_fail_2023: Passed - CE.
+                              sv_constraint_foreach_object_queue_prop: Passed.
+                         sv_constraint_foreach_object_queue_prop_2023: Passed.
+                                 sv_class_seed_derived_specialization: Passed.
+                            sv_class_seed_derived_specialization_2023: Passed.
+                                      sv_constraint_clog2_unsupported: Passed - CE.
+                                 sv_constraint_clog2_unsupported_2023: Passed - CE.
+                           sv_constraint_foreach_selected_unsupported: Passed - CE.
+                      sv_constraint_foreach_selected_unsupported_2023: Passed - CE.
+                                           sv_randomize_dynamic_hooks: Passed.
+                                      sv_randomize_dynamic_hooks_2023: Passed.
+                                            sv_randomize_hook_context: Passed.
+                                       sv_randomize_hook_context_2023: Passed.
+                                      sv_randomize_hook_escaped_names: Passed.
+                                 sv_randomize_hook_escaped_names_2023: Passed.
+                                            sv_randomize_member_hooks: Passed.
+                                       sv_randomize_member_hooks_2023: Passed.
+                                     sv_randomize_member_reachability: Passed.
+                                sv_randomize_member_reachability_2023: Passed.
+                                        sv_randomize_member_selection: Passed.
+                                   sv_randomize_member_selection_2023: Passed.
+                                  sv_randomize_member_container_modes: Passed.
+                             sv_randomize_member_container_modes_2023: Passed.
+                                     sv_randomize_member_nested_hooks: Passed.
+                                sv_randomize_member_nested_hooks_2023: Passed.
+                                           sv_randomize_global_domain: Passed.
+                                      sv_randomize_global_domain_2023: Passed.
+                                       sv_randomize_global_alias_soft: Passed.
+                                  sv_randomize_global_alias_soft_2023: Passed.
+                                       sv_randomize_global_soft_order: Passed.
+                                  sv_randomize_global_soft_order_2023: Passed.
+                                            sv_randomize_global_randc: Passed.
+                                       sv_randomize_global_randc_2023: Passed.
+                                    sv_randomize_global_owner_domains: Passed.
+                               sv_randomize_global_owner_domains_2023: Passed.
+                                  sv_randomize_global_source_priority: Passed.
+                             sv_randomize_global_source_priority_2023: Passed.
+                                 sv_randomize_global_handle_size_fail: Passed.
+                            sv_randomize_global_handle_size_fail_2023: Passed.
+                              sv_randomize_global_cycle_soft_priority: Passed.
+                         sv_randomize_global_cycle_soft_priority_2023: Passed.
+                                          sv_randomize_global_uniform: Passed.
+                                     sv_randomize_global_uniform_2023: Passed.
+                                          sv_randomize_sparse_coupled: Passed.
+                                     sv_randomize_sparse_coupled_2023: Passed.
+                                     sv_randomize_sparse_size_uniform: Passed.
+                                sv_randomize_sparse_size_uniform_2023: Passed.
+                                     sv_randomize_sparse_wide_coupled: Passed.
+                                sv_randomize_sparse_wide_coupled_2023: Passed.
+                                    sv_randomize_global_sampling_fail: Passed.
+                               sv_randomize_global_sampling_fail_2023: Passed.
+                                     sv_randomize_global_history_fail: Passed.
+                                sv_randomize_global_history_fail_2023: Passed.
+                                sv_randomize_global_container_history: Passed.
+                           sv_randomize_global_container_history_2023: Passed.
+                                       sv_randomize_global_queue_fail: Passed.
+                                  sv_randomize_global_queue_fail_2023: Passed.
+                                 sv_scope_randomize_local_queue_exact: Passed.
+                            sv_scope_randomize_local_queue_exact_2023: Passed.
+                           sv_scope_randomize_local_queue_unsupported: Passed.
+                      sv_scope_randomize_local_queue_unsupported_2023: Passed.
+                                       sv_randomize_global_components: Passed.
+                                  sv_randomize_global_components_2023: Passed.
+                                  sv_randomize_global_dist_components: Passed.
+                             sv_randomize_global_dist_components_2023: Passed.
+                                  sv_randomize_global_components_fail: Passed.
+                             sv_randomize_global_components_fail_2023: Passed.
+                                                   sv_fork_null_child: Passed.
+                                              sv_fork_null_child_2023: Passed.
+                                         sv_fork_deferred_null_action: Passed.
+                                    sv_fork_deferred_null_action_2023: Passed.
+                                            sv_fork_singleton_process: Passed.
+                                       sv_fork_singleton_process_2023: Passed.
+                                          sv_randomize_global_ordered: Passed.
+                                     sv_randomize_global_ordered_2023: Passed.
+                                     sv_randomize_global_ordered_fail: Passed.
+                                sv_randomize_global_ordered_fail_2023: Passed.
+                                    sv_randomize_global_ordered_limit: Passed.
+                               sv_randomize_global_ordered_limit_2023: Passed.
+                                       sv_assert_chandle_operand_fail: Passed - CE.
+                         sv_covergroup_item_type_weight_compound_fail: Passed - CE.
+                    sv_covergroup_item_type_weight_compound_fail_2023: Passed - CE.
+                   sv_covergroup_item_type_weight_group_compound_fail: Passed - CE.
+              sv_covergroup_item_type_weight_group_compound_fail_2023: Passed - CE.
+                   sv_covergroup_item_type_weight_point_compound_fail: Passed - CE.
+              sv_covergroup_item_type_weight_point_compound_fail_2023: Passed - CE.
+                           sv_class_local_constructor_visibility_2017: Passed - CE.
+                           sv_class_local_constructor_visibility_2023: Passed - CE.
+                                     sv_process_kill_task_descendants: Passed.
+                                sv_process_kill_task_descendants_2023: Passed.
+                                            sv_process_kill_task_self: Passed.
+                                       sv_process_kill_task_self_2023: Passed.
+                                        sv_process_kill_task_resource: Passed.
+                                   sv_process_kill_task_resource_2023: Passed.
+                                  sv_class_recursive_argument_context: Passed.
+                             sv_class_recursive_argument_context_2023: Passed.
+                          sv_function_copyout_bit_formal_logic_actual: Passed.
+                     sv_function_copyout_bit_formal_logic_actual_2023: Passed.
+                                     sv_macro_casted_argument_balance: Passed.
+                                          sv_property_compound_signed: Passed.
+                                     sv_property_compound_signed_2023: Passed.
+                                       sv_compound_four_state_operand: Passed.
+                                  sv_compound_four_state_operand_2023: Passed.
+                                          sv_compound_operation_width: Passed.
+                                     sv_compound_operation_width_2023: Passed.
+                                          sv_darray_property_compound: Passed.
+                                     sv_darray_property_compound_2023: Passed.
+                                                sv_process_state_type: Passed.
+                                           sv_process_state_type_2023: Passed.
+                                           sv_process_state_type_fail: Passed - CE.
+                                      sv_process_state_type_fail_2023: Passed - CE.
+                                        sv_process_state_missing_root: Passed - CE.
+                                   sv_process_state_missing_root_2023: Passed - CE.
+                                      sv_void_function_cast_statement: Passed.
+                                 sv_void_function_cast_statement_2023: Passed.
+                                   sv_void_function_cast_restrictions: Passed - CE.
+                              sv_void_function_cast_restrictions_2023: Passed - CE.
+                                        sv_class_independent_defaults: Passed.
+                                   sv_class_independent_defaults_2023: Passed.
+                                             sv_assoc_compound_typing: Passed.
+                                        sv_assoc_compound_typing_2023: Passed.
+                              sv_class_handle_string_specialized_fail: Passed - CE.
+                                       sv_class_handle_string_seed_ok: Passed.
+                                            sv_class_body_import_fail: Passed - CE.
+                                  sv_class_property_string_conversion: Passed.
+                                         sv_procedural_package_import: Passed.
+                               sv_procedural_package_import_late_fail: Passed - CE.
+                       sv_procedural_package_import_substatement_fail: Passed - CE.
+                                      sv_packed_mixed_driver_compound: Passed.
+                                     sv_wire_procedural_compound_fail: Passed - CE.
+                                     sv_packed_element_write_compound: Passed.
+                                          sv_packed_element_write_nba: Passed.
+                      sv_synth_empty_implicit_sensitivity_forced_fail: Passed - CE.
+                                            sv_self_package_enum_cast: Passed.
+                                       sv_self_package_enum_cast_2023: Passed.
+                          sv_self_package_enum_cast_unknown_type_fail: Passed - CE.
+                     sv_self_package_enum_cast_unknown_type_fail_2023: Passed - CE.
+                            sv_constraint_function_const_ref_argument: Passed.
+                       sv_constraint_function_const_ref_argument_2023: Passed.
+                     sv_constraint_function_static_const_ref_argument: Passed.
+                sv_constraint_function_static_const_ref_argument_2023: Passed.
+                                       sv_real_uarray_return_compound: Passed.
+                                  sv_real_uarray_return_compound_2023: Passed.
+                                        sv_class_packed_select_incdec: Passed.
+                             sv_class_packed_enum_property_index_2017: Passed.
+                             sv_class_packed_enum_property_index_2023: Passed.
+                              sv_class_unpacked_property_index_4state: Passed.
+                               sv_class_packed_property_2d_index_2017: Passed.
+                               sv_class_packed_property_2d_index_2023: Passed.
+                       sv_class_packed_property_2d_range_invalid_2017: Passed - CE.
+                       sv_class_packed_property_2d_range_invalid_2023: Passed - CE.
+                   sv_class_packed_property_dynamic_nested_slice_2017: Passed.
+                   sv_class_packed_property_dynamic_nested_slice_2023: Passed.
+                    sv_class_packed_property_dynamic_slice_cross_2017: Passed.
+                    sv_class_packed_property_dynamic_slice_cross_2023: Passed.
+                      sv_class_packed_property_narrow_cast_cross_2017: Passed.
+                      sv_class_packed_property_narrow_cast_cross_2023: Passed.
+                    sv_class_packed_property_dynamic_range_width_2017: Passed.
+                    sv_class_packed_property_dynamic_range_width_2023: Passed.
+                                     sv_class_property_oob_range_2017: Passed.
+                                     sv_class_property_oob_range_2023: Passed.
+                sv_class_packed_property_ascending_dynamic_slice_2017: Passed.
+                sv_class_packed_property_ascending_dynamic_slice_2023: Passed.
+                                   sv_class_packed_select_incdec_2023: Passed.
+                                   sv_class_packed_select_incdec_wrap: Passed.
+                              sv_class_packed_select_incdec_wrap_2023: Passed.
+                                 sv_class_packed_select_incdec_bounds: Passed.
+                            sv_class_packed_select_incdec_bounds_2023: Passed.
+                                 sv_class_packed_select_incdec_nested: Passed.
+                            sv_class_packed_select_incdec_nested_2023: Passed.
+                                                  sv_class_final_2023: Passed.
+                                    sv_class_final_subclass_fail_2023: Passed - CE.
+                      sv_class_final_parameterized_subclass_fail_2023: Passed - CE.
+                                           sv_class_final_reject_2017: Passed - CE.
+                                   sv_class_packed_select_incdec_fail: Passed - CE.
+                              sv_class_packed_select_incdec_fail_2023: Passed - CE.
+                                         sv_class_array_packed_incdec: Passed.
+                                    sv_class_array_packed_incdec_2023: Passed.
+                                  sv_class_array_packed_incdec_bounds: Passed.
+                             sv_class_array_packed_incdec_bounds_2023: Passed.
+                                sv_class_array_packed_incdec_multidim: Passed.
+                           sv_class_array_packed_incdec_multidim_2023: Passed.
+                                 sv_class_array_packed_incdec_context: Passed.
+                            sv_class_array_packed_incdec_context_2023: Passed.
+                                    sv_class_array_packed_incdec_fail: Passed - CE.
+                               sv_class_array_packed_incdec_fail_2023: Passed - CE.
+                       sv_const_string_character_write_compound_const: Passed - CO.
+                  sv_const_string_character_write_compound_const_2023: Passed - CO.
+                                         sv_string_character_compound: Passed.
+                                    sv_string_character_compound_2023: Passed.
+                                  sv_string_character_compound_bounds: Passed.
+                             sv_string_character_compound_bounds_2023: Passed.
+                                    sv_string_character_compound_fail: Passed - CE.
+                               sv_string_character_compound_fail_2023: Passed - CE.
+                                   sv_array_string_character_compound: Passed.
+                              sv_array_string_character_compound_2023: Passed.
+                               sv_array_string_character_compound_ops: Passed.
+                          sv_array_string_character_compound_ops_2023: Passed.
+                            sv_array_string_character_compound_bounds: Passed.
+                       sv_array_string_character_compound_bounds_2023: Passed.
+                              sv_array_string_character_compound_fail: Passed - CE.
+                         sv_array_string_character_compound_fail_2023: Passed - CE.
+                                           sv_udnt_port_matching_fail: Passed - CE.
+                                      sv_udnt_port_matching_fail_2023: Passed - CE.
+                                                   sv_udnt_port_alias: Passed.
+                                              sv_udnt_port_alias_2023: Passed.
+                                      sv_randomize_joint_ordered_dist: Passed.
+                                 sv_randomize_joint_ordered_dist_2023: Passed.
+                          sv_randomize_joint_ordered_dist_transaction: Passed.
+                     sv_randomize_joint_ordered_dist_transaction_2023: Passed.
+                               sv_randomize_joint_ordered_dist_ranges: Passed.
+                          sv_randomize_joint_ordered_dist_ranges_2023: Passed.
+                            sv_randomize_joint_unordered_dist_clipped: Passed.
+                       sv_randomize_joint_unordered_dist_clipped_2023: Passed.
+                                 sv_randomize_joint_ordered_dist_fail: Passed.
+                            sv_randomize_joint_ordered_dist_fail_2023: Passed.
+                                     sv_randomize_joint_element_order: Passed.
+                                sv_randomize_joint_element_order_2023: Passed.
+                               sv_randomize_joint_element_order_mixed: Passed.
+                          sv_randomize_joint_element_order_mixed_2023: Passed.
+                                sv_randomize_joint_element_order_dist: Passed.
+                           sv_randomize_joint_element_order_dist_2023: Passed.
+                                sv_randomize_joint_element_order_fail: Passed.
+                           sv_randomize_joint_element_order_fail_2023: Passed.
+                            sv_randomize_joint_element_order_oob_fail: Passed - CE.
+                       sv_randomize_joint_element_order_oob_fail_2023: Passed - CE.
+                             sv_randomize_joint_dynamic_element_order: Passed.
+                        sv_randomize_joint_dynamic_element_order_2023: Passed.
+                       sv_randomize_joint_dynamic_element_order_mixed: Passed.
+                  sv_randomize_joint_dynamic_element_order_mixed_2023: Passed.
+                        sv_randomize_joint_dynamic_element_order_dist: Passed.
+                   sv_randomize_joint_dynamic_element_order_dist_2023: Passed.
+                        sv_randomize_joint_dynamic_element_order_fail: Passed.
+                   sv_randomize_joint_dynamic_element_order_fail_2023: Passed.
+              sv_randomize_joint_dynamic_element_order_nonrandom_fail: Passed - CE.
+         sv_randomize_joint_dynamic_element_order_nonrandom_fail_2023: Passed - CE.
+                               sv_randomize_joint_queue_element_order: Passed.
+                          sv_randomize_joint_queue_element_order_2023: Passed.
+                         sv_randomize_joint_queue_element_order_mixed: Passed.
+                    sv_randomize_joint_queue_element_order_mixed_2023: Passed.
+                          sv_randomize_joint_queue_element_order_dist: Passed.
+                     sv_randomize_joint_queue_element_order_dist_2023: Passed.
+                          sv_randomize_joint_queue_element_order_fail: Passed.
+                     sv_randomize_joint_queue_element_order_fail_2023: Passed.
+                sv_randomize_joint_queue_element_order_nonrandom_fail: Passed - CE.
+           sv_randomize_joint_queue_element_order_nonrandom_fail_2023: Passed - CE.
+                               sv_randomize_joint_power_two_component: Passed.
+                          sv_randomize_joint_power_two_component_2023: Passed.
+     sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound: Passed - CE.
+sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound_2023: Passed - CE.
+        sv_assert_multiclock_bounded_antecedent_unsupported_unbounded: Passed - CE.
+   sv_assert_multiclock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.
+                   sv_assert_multiclock_boolean_repeat_unsupported_65: Passed - CE.
+              sv_assert_multiclock_boolean_repeat_unsupported_65_2023: Passed - CE.
+            sv_assert_multiclock_boolean_repeat_unsupported_unbounded: Passed - CE.
+       sv_assert_multiclock_boolean_repeat_unsupported_unbounded_2023: Passed - CE.
+                                sv_class_enum_container_packed_select: Passed.
+                           sv_class_enum_container_packed_select_2023: Passed.
+                         sv_class_enum_container_packed_select_bounds: Passed.
+                    sv_class_enum_container_packed_select_bounds_2023: Passed.
+                           sv_class_enum_container_packed_select_fail: Passed - CE.
+                      sv_class_enum_container_packed_select_fail_2023: Passed - CE.
+                           sv_class_enum_container_packed_select_once: Passed.
+                      sv_class_enum_container_packed_select_once_2023: Passed.
+                      sv_class_enum_container_packed_select_ascending: Passed.
+                 sv_class_enum_container_packed_select_ascending_2023: Passed.
+                         sv_class_member_shadows_unrelated_class_name: Passed.
+                      sv_assert_multiclock_disable_branch_unsupported: Passed - CE.
+                 sv_assert_multiclock_disable_branch_unsupported_2023: Passed - CE.
+                     sv_assert_multiclock_group_repeat_unsupported_65: Passed - CE.
+                sv_assert_multiclock_group_repeat_unsupported_65_2023: Passed - CE.
+                                             sv_const_function_formal: Passed.
+                                        sv_const_function_formal_2023: Passed.
+                                 sv_const_function_formal_output_fail: Passed - CE.
+                            sv_const_function_formal_output_fail_2023: Passed - CE.
+                                  sv_const_function_formal_inout_fail: Passed - CE.
+                             sv_const_function_formal_inout_fail_2023: Passed - CE.
+                                    sv_const_function_formal_ref_fail: Passed - CE.
+                               sv_const_function_formal_ref_fail_2023: Passed - CE.
+                              sv_const_function_formal_const_ref_fail: Passed - CE.
+                         sv_const_function_formal_const_ref_fail_2023: Passed - CE.
+                                sv_assert_nested_group_nullable_whole: Passed.
+                           sv_assert_nested_group_nullable_whole_2023: Passed.
+               sv_assert_plain_multiclock_ranged_prefix_nullable_fail: Passed - CE.
+          sv_assert_plain_multiclock_ranged_prefix_nullable_fail_2023: Passed - CE.
+                                           sv_cast_exact_width_solver: Passed.
+                                      sv_cast_exact_width_solver_2023: Passed.
+                                                sv_cast_typed_builtin: Passed.
+                                           sv_cast_typed_builtin_2023: Passed.
+                 sv_constraint_cast_supported_owner_queue_qfield_cast: Passed.
+            sv_constraint_cast_supported_owner_queue_qfield_cast_2023: Passed.
+                                     sv_constraint_integral_cast_core: Passed.
+                                sv_constraint_integral_cast_core_2023: Passed.
+                           sv_constraint_integral_cast_nested_context: Passed.
+                      sv_constraint_integral_cast_nested_context_2023: Passed.
+                            sv_constraint_integral_cast_shift_context: Passed.
+                       sv_constraint_integral_cast_shift_context_2023: Passed.
+                               sv_constraint_integral_cast_signed_ops: Passed.
+                          sv_constraint_integral_cast_signed_ops_2023: Passed.
+                               sv_constraint_integral_cast_state_fail: Passed.
+                          sv_constraint_integral_cast_state_fail_2023: Passed.
+                                       sv_constraint_cast_fixed_index: Passed.
+                                  sv_constraint_cast_fixed_index_2023: Passed.
+                                     sv_randomize_joint_multiple_dist: Passed.
+                                sv_randomize_joint_multiple_dist_2023: Passed.
+                                sv_randomize_joint_multiple_dist_fail: Passed.
+                           sv_randomize_joint_multiple_dist_fail_2023: Passed.
+                              sv_constraint_cast_inside_global_common: Passed.
+                         sv_constraint_cast_inside_global_common_2023: Passed.
+                                sv_constraint_cast_inside_queue_state: Passed.
+                           sv_constraint_cast_inside_queue_state_2023: Passed.
+                          sv_constraint_cast_inside_scope_queue_state: Passed.
+                     sv_constraint_cast_inside_scope_queue_state_2023: Passed.
+                                   synth_pending_nba_assignment_order: Passed.
+                              synth_pending_nba_assignment_order_2023: Passed.
+                             synth_pending_nba_assignment_order_async: Passed.
+                        synth_pending_nba_assignment_order_async_2023: Passed.
+                        synth_pending_nba_blocking-overwrite-boundary: Passed.
+                   synth_pending_nba_blocking-overwrite-boundary_2023: Passed.
+                 synth_pending_nba_blocking-overwrite-packed-boundary: Passed.
+            synth_pending_nba_blocking-overwrite-packed-boundary_2023: Passed.
+                                 sv_constraint_object_method_receiver: Passed.
+                            sv_constraint_object_method_receiver_2023: Passed.
+                               sv_constraint_object_method_state_fail: Passed.
+                          sv_constraint_object_method_state_fail_2023: Passed.
+                     sv_constraint_object_method_impure_override_fail: Passed - CE.
+                sv_constraint_object_method_impure_override_fail_2023: Passed - CE.
+                                     sv_randomize_joint_ordered_randc: Passed.
+                                sv_randomize_joint_ordered_randc_2023: Passed.
+                                sv_randomize_joint_ordered_randc_fail: Passed.
+                           sv_randomize_joint_ordered_randc_fail_2023: Passed.
+                       sv_randomize_joint_ordered_randc_multiple_dist: Passed.
+                  sv_randomize_joint_ordered_randc_multiple_dist_2023: Passed.
+              sv_randomize_joint_ordered_randc_multiple_dist_boundary: Passed.
+         sv_randomize_joint_ordered_randc_multiple_dist_boundary_2023: Passed.
+               sv_randomize_joint_unordered_randc_multiple_dist_large: Passed.
+          sv_randomize_joint_unordered_randc_multiple_dist_large_2023: Passed.
+          sv_randomize_joint_ordered_randc_multidist_range_cap_atomic: Passed.
+     sv_randomize_joint_ordered_randc_multidist_range_cap_atomic_2023: Passed.
+                                              sv_event_compound_edges: Passed.
+                                         sv_event_compound_edges_2023: Passed.
+                                                sv_event_guarded_null: Passed.
+                                           sv_event_guarded_null_2023: Passed.
+                                   sv_event_null_arm_same_slot_rebind: Passed - RE.
+                              sv_event_null_arm_same_slot_rebind_2023: Passed - RE.
+                                    sv_event_null_dereference_runtime: Passed - RE.
+                               sv_event_null_dereference_runtime_2023: Passed - RE.
+                                        sv_event_null_negedge_runtime: Passed - RE.
+                                   sv_event_null_negedge_runtime_2023: Passed - RE.
+                                  sv_event_null_x_conditional_runtime: Passed - RE.
+                             sv_event_null_x_conditional_runtime_2023: Passed - RE.
+                                sv_event_automatic_static_null_active: Passed - RE.
+                           sv_event_automatic_static_null_active_2023: Passed - RE.
+                                  sv_event_automatic_vif_part_context: Passed.
+                             sv_event_automatic_vif_part_context_2023: Passed.
+                                        sv_event_nba_vif_guard_settle: Passed.
+                                   sv_event_nba_vif_guard_settle_2023: Passed.
+                                    sv_event_nba_vif_active_null_fail: Passed - RE.
+                               sv_event_nba_vif_active_null_fail_2023: Passed - RE.
+                                           sv_vif_descendant_detached: Passed.
+                                           sv_vif_descendant_retained: Passed.
+                                             sv_vif_descendant_direct: Passed.
+                                         sv_vif_descendant_concurrent: Passed.
+                                             sv_vif_descendant_rebind: Passed.
+                                             sv_vif_descendant_nested: Passed.
+                                              sv_vif_descendant_reuse: Passed.
+                                          sv_vif_descendant_recursive: Passed.
+                                          sv_vif_descendant_null_fail: Passed - RE.
+                           sv_whole_function_event_null_negative_2017: Passed - RE.
+                           sv_whole_function_event_null_negative_2023: Passed - RE.
+                    sv_whole_function_event_null_nested_negative_2017: Passed - RE.
+                    sv_whole_function_event_null_nested_negative_2023: Passed - RE.
+                                  sv_class_property_event_rebind_2017: Passed.
+                                  sv_class_property_event_rebind_2023: Passed.
+                                    sv_class_event_list_comma_or_2017: Passed.
+                                    sv_class_event_list_comma_or_2023: Passed.
+                              sv_class_event_list_rebind_refresh_2017: Passed.
+                              sv_class_event_list_rebind_refresh_2023: Passed.
+                           sv_class_event_list_four_state_widths_2017: Passed.
+                           sv_class_event_list_four_state_widths_2023: Passed.
+                            sv_class_event_list_automatic_cancel_2017: Passed.
+                            sv_class_event_list_automatic_cancel_2023: Passed.
+                           sv_class_event_list_prequeued_regions_2017: Passed.
+                           sv_class_event_list_prequeued_regions_2023: Passed.
+                       sv_class_event_list_mixed_static_constant_2017: Passed.
+                       sv_class_event_list_mixed_static_constant_2023: Passed.
+                             sv_class_event_list_automatic_local_2017: Passed.
+                             sv_class_event_list_automatic_local_2023: Passed.
+                            sv_class_event_list_ordinary_control_2017: Passed.
+                            sv_class_event_list_ordinary_control_2023: Passed.
+                              sv_class_event_list_invalid_member_2017: Passed - CE.
+                              sv_class_event_list_invalid_member_2023: Passed - CE.
+                                        sv_class_event_triggered_2017: Passed.
+                                        sv_class_event_triggered_2023: Passed.
+                           sv_selected_vif_edge_automatic_cancel_2017: Passed.
+                           sv_selected_vif_edge_automatic_cancel_2023: Passed.
+              sv_selected_vif_edge_cached_successor_process_kill_2017: Passed.
+              sv_selected_vif_edge_cached_successor_process_kill_2023: Passed.
+                sv_selected_vif_edge_class_index_ordinary_vector_2017: Passed.
+                sv_selected_vif_edge_class_index_ordinary_vector_2023: Passed.
+              sv_selected_vif_edge_concurrent_same_signal_cancel_2017: Passed.
+              sv_selected_vif_edge_concurrent_same_signal_cancel_2023: Passed.
+            sv_selected_vif_edge_concurrent_same_signal_delivery_2017: Passed.
+            sv_selected_vif_edge_concurrent_same_signal_delivery_2023: Passed.
+                              sv_selected_vif_edge_dynamic_index_2017: Passed.
+                              sv_selected_vif_edge_dynamic_index_2023: Passed.
+                      sv_selected_vif_edge_edge_transition_table_2017: Passed.
+                      sv_selected_vif_edge_edge_transition_table_2023: Passed.
+                           sv_selected_vif_edge_four_state_edges_2017: Passed.
+                           sv_selected_vif_edge_four_state_edges_2023: Passed.
+                         sv_selected_vif_edge_invalid_real_index_2017: Passed - CE.
+                         sv_selected_vif_edge_invalid_real_index_2023: Passed - CE.
+                              sv_selected_vif_edge_nested_rebind_2017: Passed.
+                              sv_selected_vif_edge_nested_rebind_2023: Passed.
+                       sv_selected_vif_edge_null_rebind_negative_2017: Passed - RE.
+                       sv_selected_vif_edge_null_rebind_negative_2023: Passed - RE.
+                    sv_selected_vif_edge_null_vif_function_guard_2017: Passed.
+                    sv_selected_vif_edge_null_vif_function_guard_2023: Passed.
+                 sv_selected_vif_edge_null_vif_function_negative_2017: Passed - RE.
+                 sv_selected_vif_edge_null_vif_function_negative_2023: Passed - RE.
+                          sv_selected_vif_edge_null_vif_negative_2017: Passed - RE.
+                          sv_selected_vif_edge_null_vif_negative_2023: Passed - RE.
+                       sv_selected_vif_edge_ordinary_vif_control_2017: Passed.
+                       sv_selected_vif_edge_ordinary_vif_control_2023: Passed.
+                    sv_selected_vif_edge_out_of_range_index_edge_2017: Passed.
+                    sv_selected_vif_edge_out_of_range_index_edge_2023: Passed.
+                       sv_selected_vif_edge_selected_suppression_2017: Passed.
+                       sv_selected_vif_edge_selected_suppression_2023: Passed.
+                         sv_selected_vif_edge_unknown_index_edge_2017: Passed.
+                         sv_selected_vif_edge_unknown_index_edge_2023: Passed.
+                    sv_selected_vif_edge_vif_function_dependency_2017: Passed.
+                    sv_selected_vif_edge_vif_function_dependency_2023: Passed.
+                              sv_constraint_inline_function_null_2017: Passed.
+                              sv_constraint_inline_function_null_2023: Passed.
+                       sv_constraint_inline_function_caller_null_2017: Passed.
+                       sv_constraint_inline_function_caller_null_2023: Passed.
+                              sv_constraint_cross_object_solve_before: Passed.
+                         sv_constraint_cross_object_solve_before_2023: Passed.
+                                sv_class_prop_queue_pop_front_noparen: Passed.
+                           sv_class_prop_queue_pop_front_noparen_2023: Passed.
+                                   sv_class_prop_queue_pop_arity_fail: Passed - CE.
+                              sv_class_prop_queue_pop_arity_fail_2023: Passed - CE.
+                                 sv_assoc_find_index_unsupported_2017: Passed - CE.
+                                 sv_assoc_find_index_unsupported_2023: Passed - CE.
+                                sv_class_event_multi_object_list_2017: Passed.
+                                sv_class_event_multi_object_list_2023: Passed.
+                           sv_named_event_triggered_mixed_unsupported: Passed - CE.
+                      sv_named_event_triggered_mixed_unsupported_2023: Passed - CE.
+                   sv_interface_task_mixed_driver_live_process_unsafe: Passed - CE.
+              sv_interface_task_mixed_driver_live_process_unsafe_2023: Passed - CE.
+                           sv_vif_nested_ref_member_alias_no_ref_2017: Passed.
+                         sv_vif_nested_ref_member_alias_ref_call_2017: Passed.
+                     sv_vif_nested_ref_member_alias_ref_conflict_2017: Passed - CE.
+                           sv_vif_nested_ref_member_alias_no_ref_2023: Passed.
+                         sv_vif_nested_ref_member_alias_ref_call_2023: Passed.
+                     sv_vif_nested_ref_member_alias_ref_conflict_2023: Passed - CE.
+                         sv_interface_port_mixed_driver_called_unsafe: Passed - CE.
+                    sv_interface_port_mixed_driver_called_unsafe_2023: Passed - CE.
+                   sv_interface_port_mixed_driver_class_handle_unsafe: Passed - CE.
+              sv_interface_port_mixed_driver_class_handle_unsafe_2023: Passed - CE.
+                          sv_interface_port_mixed_driver_clean_strict: Passed.
+                     sv_interface_port_mixed_driver_clean_strict_2023: Passed.
+                    sv_interface_port_mixed_driver_direct_port_strict: Passed - CE.
+               sv_interface_port_mixed_driver_direct_port_strict_2023: Passed - CE.
+                    sv_interface_port_mixed_driver_direct_port_unsafe: Passed - CE.
+               sv_interface_port_mixed_driver_direct_port_unsafe_2023: Passed - CE.
+                        sv_interface_port_mixed_driver_dynamic_unsafe: Passed - CE.
+                   sv_interface_port_mixed_driver_dynamic_unsafe_2023: Passed - CE.
+                sv_interface_port_mixed_driver_modport_dynamic_unsafe: Passed - CE.
+           sv_interface_port_mixed_driver_modport_dynamic_unsafe_2023: Passed - CE.
+                       sv_interface_port_mixed_driver_ref_port_strict: Passed - CE.
+                  sv_interface_port_mixed_driver_ref_port_strict_2023: Passed - CE.
+                       sv_interface_port_mixed_driver_ref_port_unsafe: Passed - CE.
+                  sv_interface_port_mixed_driver_ref_port_unsafe_2023: Passed - CE.
+                        sv_interface_port_mixed_driver_sibling_unsafe: Passed - CE.
+                   sv_interface_port_mixed_driver_sibling_unsafe_2023: Passed - CE.
+                       sv_interface_port_mixed_driver_two_port_strict: Passed - CE.
+                  sv_interface_port_mixed_driver_two_port_strict_2023: Passed - CE.
+                       sv_interface_port_mixed_driver_two_port_unsafe: Passed - CE.
+                  sv_interface_port_mixed_driver_two_port_unsafe_2023: Passed - CE.
+                         sv_interface_port_mixed_driver_unused_strict: Passed - CE.
+                    sv_interface_port_mixed_driver_unused_strict_2023: Passed - CE.
+                         sv_interface_port_mixed_driver_unused_unsafe: Passed.
+                    sv_interface_port_mixed_driver_unused_unsafe_2023: Passed.
+                                    sv_vif_class_nested_value_handoff: Passed.
+                               sv_vif_class_nested_value_handoff_2023: Passed.
+                                  sv_vif_nested_clocking_event_rebind: Passed.
+                             sv_vif_nested_clocking_event_rebind_2023: Passed.
+                        sv_vif_nested_clocking_event_null_parent_fail: Passed - RE.
+                   sv_vif_nested_clocking_event_null_parent_fail_2023: Passed - RE.
+                       sv_vif_nested_clocking_event_hidden_child_fail: Passed - CE.
+                  sv_vif_nested_clocking_event_hidden_child_fail_2023: Passed - CE.
+                            sv_vif_nested_clocking_event_missing_fail: Passed - CE.
+                       sv_vif_nested_clocking_event_missing_fail_2023: Passed - CE.
+                               sv_vif_class_nested_value_missing_fail: Passed - CE.
+                          sv_vif_class_nested_value_missing_fail_2023: Passed - CE.
+                            sv_vif_class_nested_value_wrong_type_fail: Passed - CE.
+                       sv_vif_class_nested_value_wrong_type_fail_2023: Passed - CE.
+                         sv_vif_class_nested_value_wrong_modport_fail: Passed - CE.
+                    sv_vif_class_nested_value_wrong_modport_fail_2023: Passed - CE.
+                                  sv_vif_class_nested_value_null_fail: Passed - RE.
+                             sv_vif_class_nested_value_null_fail_2023: Passed - RE.
+                      sv_vif_class_nested_value_null_no_instance_fail: Passed - RE.
+                 sv_vif_class_nested_value_null_no_instance_fail_2023: Passed - RE.
+                sv_vif_class_nested_value_no_instance_wrong_type_fail: Passed - CE.
+           sv_vif_class_nested_value_no_instance_wrong_type_fail_2023: Passed - CE.
+                                   sv_randomize_owner_receiver_inline: Passed.
+                              sv_randomize_owner_receiver_inline_2023: Passed.
+                                  sv_randomize_owner_receiver_invalid: Passed - CE.
+                             sv_randomize_owner_receiver_invalid_2023: Passed - CE.
+                         sv_randomize_inline_this_missing_member_fail: Passed - CE.
+                    sv_randomize_inline_this_missing_member_fail_2023: Passed - CE.
+                  sv_covergroup_packed_bitwise_shape_wide_unsupported: Passed.
+             sv_covergroup_packed_bitwise_shape_wide_unsupported_2023: Passed.
+                  sv_covergroup_bitwise_real_operand_unsupported_2023: Passed.
+                              sv_vif_packed_struct_field_runtime_2017: Passed.
+                         sv_vif_packed_struct_field_missing_fail_2017: Passed - CE.
+                         sv_vif_packed_struct_field_partial_fail_2017: Passed - CE.
+                           sv_vif_packed_struct_field_range_fail_2017: Passed - CE.
+                    sv_vif_packed_struct_field_string_index_fail_2017: Passed - CE.
+                      sv_vif_packed_struct_field_real_index_fail_2017: Passed - CE.
+                     sv_vif_packed_struct_field_enum_method_fail_2017: Passed - CE.
+                              sv_vif_packed_struct_field_runtime_2023: Passed.
+                         sv_vif_packed_struct_field_missing_fail_2023: Passed - CE.
+                         sv_vif_packed_struct_field_partial_fail_2023: Passed - CE.
+                           sv_vif_packed_struct_field_range_fail_2023: Passed - CE.
+                    sv_vif_packed_struct_field_string_index_fail_2023: Passed - CE.
+                      sv_vif_packed_struct_field_real_index_fail_2023: Passed - CE.
+                     sv_vif_packed_struct_field_enum_method_fail_2023: Passed - CE.
+                          sv_constraint_indexed_part_unsupported_2017: Passed - CE.
+                          sv_constraint_indexed_part_unsupported_2023: Passed - CE.
+                                         sv_std_randomize_fixed_array: Passed.
+                                    sv_std_randomize_fixed_array_2023: Passed.
+                                     sv_std_randomize_unpacked_struct: Passed.
+                                sv_std_randomize_unpacked_struct_2023: Passed.
+                               sv_std_randomize_fixed_array_with_fail: Passed - CE.
+                          sv_std_randomize_fixed_array_with_fail_2023: Passed - CE.
+                                    sv_std_randomize_zero_arg_checker: Passed.
+                               sv_std_randomize_zero_arg_checker_2023: Passed.
+                                sv_randomize_joint_fixed_var_coupling: Passed.
+                           sv_randomize_joint_fixed_var_coupling_2023: Passed.
+                                    sv_randomize_struct_darray_member: Passed.
+                               sv_randomize_struct_darray_member_2023: Passed.
+                             sv_randomize_struct_nested_darray_member: Passed.
+                        sv_randomize_struct_nested_darray_member_2023: Passed.
+                         sv_randomize_struct_nested_darray_constraint: Passed.
+                    sv_randomize_struct_nested_darray_constraint_2023: Passed.
+                              sv_constraint_function_arg_object_state: Passed.
+                         sv_constraint_function_arg_object_state_2023: Passed.
+                                          sv_vif_event_variable_index: Passed.
+                                     sv_vif_event_variable_index_2023: Passed.
+                               sv_randomize_with_caller_array_foreach: Passed.
+                          sv_randomize_with_caller_array_foreach_2023: Passed.
+                               sv_std_randomize_darray_element_select: Passed.
+                          sv_std_randomize_darray_element_select_2023: Passed.
+                                       sv_std_randomize_dist_weighted: Passed.
+                                  sv_std_randomize_dist_weighted_2023: Passed.
+                                 sv_class_enum_struct_property_select: Passed.
+                            sv_class_enum_struct_property_select_2023: Passed.
+                                    sv_ref_formal_class_handle_actual: Passed.
+                               sv_ref_formal_class_handle_actual_2023: Passed.
+                                         sv_ref_formal_property_chain: Passed.
+                                    sv_ref_formal_property_chain_2023: Passed.
+                                                   sv_vif_named_event: Passed.
+                                              sv_vif_named_event_2023: Passed.
+                                  sv_vif_nested_interface_member_wait: Passed.
+                             sv_vif_nested_interface_member_wait_2023: Passed.
+                                   sv_class_member_wildcard_inherited: Passed.
+                              sv_class_member_wildcard_inherited_2023: Passed.
+                                 sv_class_member_wildcard_scoped_base: Passed.
+                            sv_class_member_wildcard_scoped_base_2023: Passed.
+                        sv_class_member_wildcard_inherited_local_fail: Passed - CE.
+                   sv_class_member_wildcard_inherited_local_fail_2023: Passed - CE.
+                      sv_class_member_wildcard_scoped_base_local_fail: Passed - CE.
+                 sv_class_member_wildcard_scoped_base_local_fail_2023: Passed - CE.
+                              sv_constraint_nested_fixed_element_null: Passed.
+                         sv_constraint_nested_fixed_element_null_2023: Passed.
+                               sv_vif_task_output_property_bit_select: Passed.
+                          sv_vif_task_output_property_bit_select_2023: Passed.
+                                sv_class_fixed_container_array_assign: Passed.
+                           sv_class_fixed_container_array_assign_2023: Passed.
+                                   sv_class_fixed_array_order_methods: Passed.
+                              sv_class_fixed_array_order_methods_2023: Passed.
+                                   sv_randomize_isolated_wide_uniform: Passed.
+                              sv_randomize_isolated_wide_uniform_2023: Passed.
+                                     sv_m5_issue434_detached_vif_2017: Passed.
+                                     sv_m5_issue434_detached_vif_2023: Passed.
+                                         sv_wait_order_null_else_2017: Passed - CE.
+                                         sv_wait_order_null_else_2023: Passed.
+                             sv_class_method_noarg_string_concat_2017: Passed.
+                             sv_class_method_noarg_string_concat_2023: Passed.
+                                  sv_implicit_port_type_mismatch_fail: Passed - CE.
+                             sv_implicit_port_type_mismatch_fail_2023: Passed - CE.
+                                        sv_ansi_explicit_port_inherit: Passed.
+                                   sv_ansi_explicit_port_inherit_2023: Passed.
+                                        sv_class_type_param_cast_2017: Passed.
+                                        sv_class_type_param_cast_2023: Passed.
+                                          sv_process_extend_fail_2017: Passed - CE.
+                                          sv_process_extend_fail_2023: Passed - CE.
+                                             sv_process_new_fail_2017: Passed - CE.
+                                             sv_process_new_fail_2023: Passed - CE.
+                                                sv_type_operator_cast: Passed.
+                              sv_class_handle_equality_unrelated_fail: Passed - CE.
+                          sv_class_handle_to_integral_assignment_fail: Passed - CE.
+                     sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+                 sv_class_handle_compound_to_integral_assignment_fail: Passed - CE.
+            sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+                 sv_class_handle_clockvar_to_integral_assignment_fail: Passed - CE.
+            sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+              sv_class_handle_initializer_to_integral_assignment_fail: Passed - CE.
+         sv_class_handle_initializer_to_integral_assignment_fail_2023: Passed - CE.
+                 sv_class_handle_property_to_integral_assignment_fail: Passed - CE.
+            sv_class_handle_property_to_integral_assignment_fail_2023: Passed - CE.
+                      sv_class_handle_specialization_to_integral_fail: Passed - CE.
+                 sv_class_handle_specialization_to_integral_fail_2023: Passed - CE.
+                                 sv_class_handle_generic_template_new: Passed.
+                            sv_class_handle_generic_template_new_2023: Passed.
+                                             sv_force_var_select_fail: Passed - CE.
+                                        sv_force_var_select_fail_2023: Passed - CE.
+                                     sv_force_var_select_nested_legal: Passed - CO.
+                                sv_force_var_select_nested_legal_2023: Passed - CO.
+                                      sv_force_var_select_nested_fail: Passed - CE.
+                                 sv_force_var_select_nested_fail_2023: Passed - CE.
+                              sv_force_dyn_nested_element_unsupported: Passed - CE.
+                         sv_force_dyn_nested_element_unsupported_2023: Passed - CE.
+                                        sv_force_assign_legal_targets: Passed.
+                                   sv_force_assign_legal_targets_2023: Passed.
+                               sv_protected_envelope_unsupported_2017: Passed - CE.
+                               sv_protected_envelope_unsupported_2023: Passed - CE.
+                      sv_constraint_function_result_priority_progress: Passed.
+                 sv_constraint_function_result_priority_progress_2023: Passed.
+                           sv_constraint_function_priority_rng_replay: Passed.
+                      sv_constraint_function_priority_rng_replay_2023: Passed.
+                   sv_constraint_function_priority_intrinsic_rollback: Passed.
+              sv_constraint_function_priority_intrinsic_rollback_2023: Passed.
+                         sv_constraint_function_priority_distribution: Passed.
+                    sv_constraint_function_priority_distribution_2023: Passed.
+                                          sv_event_array_invalid_wait: Passed.
+                                             pla_output_net_fail_2017: Passed - CE.
+                                             pla_output_net_fail_2023: Passed - CE.
+                                                         sv_type_this: Passed.
+                                                    sv_type_this_2017: Passed - CE.
+                                           sv_type_this_outside_class: Passed - CE.
+============================================================================
+Test results:
+  Total=1482, Passed=1482, Failed=0, Not Implemented=0, Expected Fail=0

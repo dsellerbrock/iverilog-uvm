@@ -2154,6 +2154,7 @@ static Module::port_t *module_declare_explicit_port(
 	   strdup. They can be put into lists with the texts type. */
       char*text;
       std::list<perm_string>*perm_strings;
+      std::list<sva_sequence_formal_t>*sva_formals;
 
       std::list<pform_ident_t>*identifiers;
 
@@ -2512,6 +2513,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <perm_strings> loop_variables foreach_selector_prefixes
 %type <perm_strings> randomize_with_identifier_tail
 %type <perm_strings> sva_formal_list
+%type <sva_formals> sva_sequence_formal_list
+%destructor { delete $$; } <sva_formals>
 %type <perm_strings> sva_local_ident_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
 
@@ -7673,21 +7676,21 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	pform_sva_declare_property_p(@2, $2, $4, $8);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@11, "sequence", $2, $11);
 	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $8);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
       sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@12, "sequence", $2, $12);
 	pform_sva_declare_sequence_p(@2, $2, $4, $8);
@@ -8590,7 +8593,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { pform_sva_clear_assertion_label();
 	Statement*item = $2;
 	if (!item) {
-	      item = new PBlock(PBlock::BL_SEQ);
+	      PBlock*empty = new PBlock(PBlock::BL_SEQ);
+	      empty->concurrent_assertion_only();
+	      item = empty;
 	      FILE_NAME(item, @1);
 	}
 	if ($1) {
@@ -8598,6 +8603,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
+	      if (const PBlock*assertion = dynamic_cast<const PBlock*>(item))
+		    if (assertion->is_concurrent_assertion_only())
+			  scope->concurrent_assertion_only();
 	      item = scope;
 	}
 	delete[] $1;
@@ -8669,6 +8677,65 @@ sva_formal_list
   | IDENTIFIER
       { std::list<perm_string>*l = new std::list<perm_string>;
 	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
+  ;
+
+/* Named sequence formals include IEEE 1800-2017 16.8.2 local input
+   arguments. Preserve the existing untyped substitution formals. */
+sva_sequence_formal_list
+  : sva_sequence_formal_list ',' IDENTIFIER
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($3);
+	if (!$1->empty() && $1->back().local_input) {
+	      formal.local_input = true;
+	      formal.type = $1->back().type;
+	}
+	$1->push_back(formal);
+	delete[]$3;
+	$$ = $1; }
+  | IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($1);
+	l->push_back(formal);
+	delete[]$1;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_local K_input data_type IDENTIFIER
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($6);
+	formal.local_input = true;
+	formal.type = $5;
+	$1->push_back(formal);
+	delete[]$6;
+	$$ = $1; }
+  | K_local K_input data_type IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.local_input = true;
+	formal.type = $3;
+	l->push_back(formal);
+	delete[]$4;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_local data_type IDENTIFIER
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($5);
+	formal.local_input = true;
+	formal.type = $4;
+	$1->push_back(formal);
+	delete[]$5;
+	$$ = $1; }
+  | K_local data_type IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($3);
+	formal.local_input = true;
+	formal.type = $2;
+	l->push_back(formal);
+	delete[]$3;
+	$$ = l; }
   ;
 
   /* Comma-separated identifiers sharing one assertion-local declaration
@@ -9688,19 +9755,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | K_cover '(' expression ')' statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      /* A simple immediate cover is an executable conditional: its
-	         action runs when the expression succeeds. Coverage-database
-	         accounting is separate and is not modelled yet. Keeping a real
-	         statement here is also essential for the legal direct form
-
-	             initial cover (expr);
-
-	         because an initial process may not contain a null statement
-	         pointer. */
-	      PCondit*tmp = new PCondit($3, $5, 0);
-	      tmp->immediate_assertion();
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
+	      $$ = pform_make_immediate_cover(@1, $3, $5);
 	} else {
 	      delete $3;
 	      delete $5;
@@ -11718,6 +11773,22 @@ event_control /* A.K.A. clocking_event */
 	FILE_NAME(tmps, @1);
 	$$ = tmps;
 	delete $2;
+      }
+  | '@' SYSTEM_IDENTIFIER
+      { /* IEEE 1800-2017 16.5.2 uses `@$global_clock` as a clocking
+	   event in a concurrent assertion. Keep the bare system-identifier
+	   form specific to that event; ordinary system functions still need
+	   to be part of a parenthesized event expression. */
+	if (strcmp($2, "$global_clock") != 0) {
+	  yyerror(@2, "error: only $global_clock may be used as an unparenthesized system clocking event.");
+	}
+	PECallFunction*tmpi = new PECallFunction(lex_strings.make($2));
+	FILE_NAME(tmpi, @2);
+	PEEvent*tmpe = new PEEvent(PEEvent::ANYEDGE, tmpi);
+	PEventStatement*tmps = new PEventStatement(tmpe);
+	FILE_NAME(tmps, @1);
+	$$ = tmps;
+	delete[] $2;
       }
   | '@' '(' event_expression_list ')'
       { PEventStatement*tmp = new PEventStatement(*$3);

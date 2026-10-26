@@ -68,6 +68,8 @@ using namespace std;
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
       pform_name_t&, perm_string*, bool*);
+extern bool concurrent_assertion_function_pure(
+      Design*, const NetEUFunc*, std::string&);
 
 static const netclass_t* virtual_interface_type_(ivl_type_t type)
 {
@@ -4303,6 +4305,30 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    des->errors += 1;
 	    delete rval;
 	    return 0;
+      }
+
+	/* Class handles are type-incompatible with integral types (IEEE 1800
+	 * 6.22.5). The type is on the PExpr from test_width before netmisc's
+	 * compile-progress fallback replaces the r-value. Use it only for an
+	 * identifier source and outside generic template scopes. */
+	      if (gn_system_verilog() && type_is_vectorable(lv_type)) {
+		    const PEIdent*src_id = dynamic_cast<const PEIdent*>(expr);
+		    const bool src_class = src_id
+			  && expr->expr_type() == IVL_VT_CLASS;
+		    bool in_template = false;
+		    if (const NetScope*cscope = scope ? scope->get_class_scope() : nullptr) {
+			  const netclass_t*cd = cscope->class_def();
+			  in_template = scoped_class_is_unspecialized_parameterized_(cd)
+				|| (cd && cd->seed_derived());
+		    }
+		    if (src_class && !in_template) {
+			  cerr << expr->get_fileline() << ": error: A class handle cannot be "
+			       << "assigned to an integral target (IEEE 1800-2017/2023 6.22.5)."
+			       << endl;
+			  des->errors += 1;
+			  delete rval;
+			  return 0;
+		    }
       }
 
 	/* M10-1c: a WHOLE unpacked array is not assignment-compatible with a
@@ -16979,6 +17005,21 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    return elaborate_sfunc_(des, scope, expr_wid, flags);
 
       NetExpr *result = elaborate_expr_(des, scope, flags);
+      if (result && concurrent_assertion_expr_) {
+	    if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(result)) {
+		  string reason;
+		  if (!concurrent_assertion_function_pure(des, call, reason)) {
+			cerr << get_fileline() << ": error: Function `"
+			     << call->func()->basename()
+			     << "' used in a concurrent assertion expression does not "
+			     << "meet the IEEE 1800-2017/2023 16.6 requirements: "
+			     << reason << "." << endl;
+			des->errors += 1;
+			delete result;
+			return nullptr;
+		  }
+	    }
+      }
       /* A function returning a fixed unpacked array is an aggregate value,
        * even when its element type is vectorable.  Padding the call to the
        * element width wraps the NetEUFunc in a scalar expression and drops
@@ -17770,8 +17811,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    bool unqualified_scope_randomize = path_.name.size() == 1
 		&& !scope->get_class_scope();
 	    if (peek_tail_name(path_) == perm_string::literal("randomize")
-		&& (explicit_std_randomize || unqualified_scope_randomize)
-		&& (!parms_.empty() || !with_constraints().empty())) {
+		&& (explicit_std_randomize || unqualified_scope_randomize)) {
 		  if (!with_constraints().empty()
 		      || has_randomize_with_identifier_list()
 		      || std_randomize_args_need_solver(parms_, des, scope)) {

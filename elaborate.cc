@@ -3692,6 +3692,34 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* A concatenation l-value can contain interface properties alongside
+	   ordinary packed selects. It cannot be represented by one structural
+	   lnet because each interface member is resolved through its handle.
+	   Use the same continuous-store process as a direct interface-member
+	   l-value so every concatenation operand receives its assigned bits. */
+      if (dynamic_cast<const PEConcat*>(pin(0))
+	  && reads_interface_member_(this, des, scope,
+				     const_cast<PExpr*>(pin(0)))) {
+	    bool unsupported_delay = delay_count() > 0
+		  && !(is_defined_zero_delay_(rise_time)
+		       && is_defined_zero_delay_(fall_time)
+		       && is_defined_zero_delay_(decay_time));
+	    if (unsupported_delay || !var_allowed_in_sv) {
+		  cerr << get_fileline() << ": sorry: Nonzero/dynamic delay and "
+			  "non-default drive strength on a continuous assignment "
+			  "with an interface-member concatenation l-value are not "
+			  "currently supported." << endl;
+		  des->errors += 1;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    elaborate_vif_member_assign_(des, scope, this,
+		  const_cast<PExpr*>(pin(0)), const_cast<PExpr*>(pin(1)),
+		  nullptr, true);
+	    return;
+      }
+
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
 	   The member resolves through the class-typed handle at run time, and even
@@ -27751,6 +27779,10 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
+	  if (const PBlock*block = dynamic_cast<const PBlock*>(statement_))
+	    if (block->is_concurrent_assertion_only())
+		  return true;
+
       scope->in_final(type() == IVL_PR_FINAL);
       NetProc*cur;
       {
@@ -34320,8 +34352,10 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 class constraint_function_purity_t : public target_t {
     public:
       explicit constraint_function_purity_t(Design*des,
-		bool require_const_properties = false)
-		: des_(des), require_const_properties_(require_const_properties) { }
+		bool require_const_properties = false,
+		bool scan_static_body_before_return_proof = false)
+		: des_(des), require_const_properties_(require_const_properties),
+		scan_static_body_before_return_proof_(scan_static_body_before_return_proof) { }
 
       bool check(const NetScope*scope)
       {
@@ -34344,7 +34378,7 @@ class constraint_function_purity_t : public target_t {
 		  status_[scope] = 3;
 		  return fail_("is not an elaborated function");
 	    }
-	    if (!scope->is_auto()
+	    if (!scan_static_body_before_return_proof_ && !scope->is_auto()
 		&& !constraint_static_return_definite_(
 		      def->proc(), def->return_sig())) {
 		  status_[scope] = 3;
@@ -34359,6 +34393,10 @@ class constraint_function_purity_t : public target_t {
 	    bool save_ok = ok_;
 	    ok_ = true;
 	    walk_(def->proc());
+	    if (ok_ && scan_static_body_before_return_proof_ && !scope->is_auto()
+		&& !constraint_static_return_definite_(
+		      def->proc(), def->return_sig()))
+		  fail_("is nonautomatic and does not unconditionally assign its return value");
 	    bool pure = ok_;
 	    ok_ = save_ok && pure;
 	    function_ = save;
@@ -34555,6 +34593,7 @@ class constraint_function_purity_t : public target_t {
       }
       Design*des_;
 	bool require_const_properties_ = false;
+	bool scan_static_body_before_return_proof_ = false;
       const NetScope*function_ = nullptr;
       const NetNet*return_ = nullptr;
       bool automatic_ = true;
@@ -34925,6 +34964,35 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
       return false;
 }
 
+}
+
+/* IEEE 1800-2017/2023 16.6: a user function in a concurrent assertion
+ * expression must be side-effect free and either automatic or proven not
+ * to preserve state. Reuse the constraint function-body proof, which checks
+ * both the call arguments and the complete nested function call graph. */
+bool concurrent_assertion_function_pure(Design*des, const NetEUFunc*call,
+		std::string&reason)
+{
+      if (!call || !call->func() || !call->func()->func_def()) {
+	    reason = "function body is unresolved";
+	    return false;
+      }
+      const NetFuncDef*def = call->func()->func_def();
+      for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+	    const NetNet*port = def->port(idx);
+	    if (!port || port->port_type() == NetNet::POUTPUT
+		|| port->port_type() == NetNet::PINOUT
+		|| (port->port_type() == NetNet::PREF && !port->get_const())) {
+		  reason = "function has an output, inout, or ref argument";
+		  return false;
+	    }
+      }
+      constraint_function_purity_t purity(des, false, true);
+      if (!purity.expression(call)) {
+	    reason = purity.reason();
+	    return false;
+      }
+      return true;
 }
 
 static string constraint_state_expression_slot_(
@@ -45590,18 +45658,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (w < 32 && ((uint64_t)1 << w) < nb)
 				      nb = (uint64_t)1 << w;
 				if (nb == 0) nb = 1;
+				unsigned __int128 space = ((unsigned __int128)1) << w;
+				unsigned __int128 per_bin = space / nb;
 				for (uint64_t k = 0; k < nb; k++) {
-				      uint64_t lo, hi;
-				      if (w >= 64) {
-					    unsigned __int128 space =
-						  ((unsigned __int128)1) << 64;
-					    lo = (uint64_t)((space * k) / nb);
-					    hi = (uint64_t)((space * (k+1)) / nb - 1);
-				      } else {
-					    uint64_t space = (uint64_t)1 << w;
-					    lo = space * k / nb;
-					    hi = space * (k+1) / nb - 1;
-				      }
+				      uint64_t lo = (uint64_t)(per_bin * k);
+				      uint64_t hi = k + 1 == nb
+					    ? (uint64_t)(space - 1)
+					    : (uint64_t)(per_bin * (k + 1) - 1);
 				      std::vector<std::pair<uint64_t,uint64_t>> rr1;
 				      rr1.push_back(std::make_pair(lo, hi));
 				      subtract_carved(rr1);

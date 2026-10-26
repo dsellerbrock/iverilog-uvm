@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "issue1169_std_randomize_no_args_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue1169_std_randomize_no_args_2017" ],
+    "gold" : "issue1169_std_randomize_no_args"
+}

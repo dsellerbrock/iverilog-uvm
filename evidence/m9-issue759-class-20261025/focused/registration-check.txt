@@ -1,0 +1,8 @@
+ivtest/regress-sv.list: 6 selected names; each appears exactly once in main manifest.
+ivtest/regress-vvp.list: 6 selected names; each appears exactly once in main manifest.
+sv_class_handle_to_integral_assignment_fail_2017: JSON CE descriptor valid, no stderr gold pinned.
+sv_class_handle_to_integral_assignment_fail_2023: JSON CE descriptor valid, no stderr gold pinned.
+sv_class_handle_compound_to_integral_assignment_fail_2017: JSON CE descriptor valid, no stderr gold pinned.
+sv_class_handle_compound_to_integral_assignment_fail_2023: JSON CE descriptor valid, no stderr gold pinned.
+sv_class_handle_clockvar_to_integral_assignment_fail_2017: JSON CE descriptor valid, no stderr gold pinned.
+sv_class_handle_clockvar_to_integral_assignment_fail_2023: JSON CE descriptor valid, no stderr gold pinned.

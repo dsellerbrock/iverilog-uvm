@@ -7755,7 +7755,10 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    values[idx] = actual.parm
 		? sva_clone_subst_(actual.parm, outer) : nullptr;
-	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+	    const bool input_formal =
+		(*prod.formals)[idx].direction == NetNet::PINPUT;
+	    if (!values[idx]
+		|| (input_formal && !pform_rs_constant_actual_(values[idx]))) {
 		  cerr << ctx.loc << ": sorry: randsequence input actuals must be "
 		       << "side-effect-free constant expressions; production `"
 		       << prod.name << "' has a nonconstant actual." << endl;
@@ -7765,15 +7768,23 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 
       for (size_t idx = 0 ; !ctx.bad && idx < count ; ++idx) {
 	    const rs_formal_t&formal = (*prod.formals)[idx];
-	    if (formal.direction != NetNet::PINPUT) {
-		  cerr << formal.get_fileline() << ": sorry: randsequence output, "
-		       << "inout, and ref production formals are not supported yet."
+	    if (formal.direction != NetNet::PINPUT
+		&& formal.direction != NetNet::POUTPUT) {
+		  cerr << formal.get_fileline() << ": sorry: randsequence inout and "
+		       << "ref production formals are not supported yet."
 		       << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    if (formal.direction != NetNet::PINPUT && !values[idx]) {
+		  cerr << ctx.loc << ": error: randsequence production `"
+		       << prod.name << "' requires an actual for output formal `"
+		       << formal.name << "'." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
 	    if (!values[idx] && formal.default_expr)
 		  values[idx] = sva_clone_subst_(formal.default_expr, &bound);
-	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+	    if (!values[idx] || (formal.direction == NetNet::PINPUT
+				  && !pform_rs_constant_actual_(values[idx]))) {
 		  cerr << ctx.loc << ": error: randsequence production `"
 		       << prod.name << "' has no constant actual for formal `"
 		       << formal.name << "'." << endl;
@@ -8068,15 +8079,6 @@ static Statement* pform_rs_expand_join_(
 		  error_count += 1; ctx.bad = true; break;
 	    }
 	    const rs_rule_t&rule = (*prod->rules)[0];
-	    bool code_only = rule.items;
-	    if (rule.items) for (const rs_item_t&part : *rule.items)
-		  if (part.kind != rs_item_t::CODE) code_only = false;
-	    if (!code_only) {
-		  cerr << ctx.loc << ": sorry: randsequence rand join currently "
-		       << "interleaves code-block items; nested production/control "
-		       << "items are not supported in joined lanes yet." << endl;
-		  error_count += 1; ctx.bad = true; break;
-	    }
 	    pform_rs_join_lane_t lane;
 	    lane.production = prod;
 	    lane.rule = &rule;
@@ -8107,9 +8109,9 @@ static Statement* pform_rs_expand_join_(
 	    for (size_t lane_index : schedule.lanes) {
 		  const pform_rs_join_lane_t&lane = lanes[lane_index];
 		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
-		  Statement*copy = pform_rs_clone_stmt_(ctx, part.code,
-						   &lane.subst, 0);
-		  if (copy) statements.push_back(copy);
+		  Statement*expanded = pform_rs_expand_item_(ctx, part,
+							     &lane.subst);
+		  if (expanded) statements.push_back(expanded);
 	    }
 	    PCase::Item*branch = new PCase::Item;
 	    uint64_t weight = (uint64_t)llround(schedule.probability
@@ -8500,10 +8502,10 @@ static unsigned sva_gensym_counter = 0;
 
 /* M9D: parameterized named property/sequence declarations. The formal
    argument names are substituted with the actual argument expressions at
-   each instantiation (signal/boolean formals only — a formal used as a
-   delay bound is already a non-constant `##` and diagnosed at lowering). */
+   each instantiation. Local input formals are initialized through the
+   sequence local-variable assignment path. */
 struct sva_param_seq_t {
-      std::vector<perm_string> formals;
+      std::vector<sva_sequence_formal_t> formals;
       std::vector<sva_seq_step_t>* body = nullptr;
 };
 struct sva_param_prop_t {
@@ -9388,7 +9390,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 }
 
 void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
-				  std::list<perm_string>*formals,
+				  std::list<sva_sequence_formal_t>*formals,
 				  std::vector<sva_seq_step_t>*steps)
 {
       pform_sva_end_local_declarations();
@@ -9403,7 +9405,10 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 	    return;
       }
       sva_param_seq_t rec;
-      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      if (formals) {
+	    for (sva_sequence_formal_t f : *formals)
+	      rec.formals.push_back(f);
+      }
       sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
       sva_param_sequences[sva_decl_key_(use_name)] = rec;
@@ -11143,8 +11148,55 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     const std::vector<named_pexpr_t>&parms)
 {
       std::map<perm_string,PExpr*> subst;
-      if (!sva_build_subst_(loc, "sequence", nm, decl.formals, parms, subst))
+      std::vector<PExpr*> owned_subst;
+      if (parms.size() != decl.formals.size()) {
+	    cerr << loc << ": error: sequence `" << nm << "' expects "
+		 << decl.formals.size() << " argument(s), got " << parms.size()
+		 << "." << endl;
+	    error_count += 1;
 	    return nullptr;
+      }
+
+      std::vector<sva_seq_step_t> initializers;
+      for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
+	    const sva_sequence_formal_t&formal = decl.formals[k];
+	    if (!parms[k].parm) {
+		  cerr << loc << ": error: sequence `" << nm
+		       << "' argument " << (k+1) << " is empty." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    if (!formal.local_input) {
+		  subst[formal.name] = parms[k].parm;
+		  continue;
+	    }
+
+	    char name_buf[64];
+	    snprintf(name_buf, sizeof name_buf, "_ivl_sva_local_arg_%u",
+		     sva_gensym_counter++);
+	    perm_string local_name = lex_strings.make(name_buf);
+	    subst[formal.name] = sva_id_(loc, local_name);
+	    owned_subst.push_back(subst[formal.name]);
+
+	    PExpr*actual = sva_clone_subst_(parms[k].parm, nullptr);
+	    if (!actual) {
+		  cerr << loc << ": sorry: sequence `" << nm
+		       << "' local input argument cannot be copied." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    PECastType*typed = new PECastType(formal.type, actual);
+	    FILE_NAME(typed, loc);
+	    sva_seq_step_t init;
+	    init.expr = sva_bit_(loc, 1);
+	    init.lv_name = local_name;
+	    init.lv_rhs = typed;
+	    initializers.push_back(init);
+      }
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
@@ -11180,10 +11232,15 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  delete st.rep_hi_expr;
 		  sva_destroy_match_calls_(st.match_calls);
 		  pform_sva_destroy_sequence(out);
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
 	    out->push_back(st);
       }
+      out->insert(out->begin(), initializers.begin(), initializers.end());
+      initializers.clear();
+      for (PExpr*expr : owned_subst) delete expr;
       return out;
 }
 
@@ -11699,6 +11756,14 @@ static PExpr* sva_not_(const struct vlltype&loc, PExpr*e)
       return u;
 }
 
+/* Convert an assertion expression to its one-bit procedural-if truth value
+   before storing it in a sample register. A direct assignment would truncate
+   multi-bit expressions, losing nonzero bits above bit zero. */
+static PExpr* sva_booleanize_(const struct vlltype&loc, PExpr*e)
+{
+      return sva_not_(loc, sva_not_(loc, e));
+}
+
 static PExpr* sva_logic_(const struct vlltype&loc, char op,
 			 PExpr*l, PExpr*r)
 {
@@ -12118,6 +12183,71 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       return t;
 }
 
+/* Assign a real assertion-API identity to each simple immediate cover and
+   account for every execution independently of its optional action. */
+static unsigned immediate_cover_id_ = 0;
+Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
+				     Statement*pass_stmt)
+{
+      pform_generated_verification_scope_t verification_scope;
+      unsigned id = ++immediate_cover_id_;
+      if (id == 0) id = ++immediate_cover_id_;
+      char nbuf[64];
+      snprintf(nbuf, sizeof nbuf, "cover_L%d_%u", loc.first_line, id);
+
+      std::list<named_pexpr_t> reg_args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)id, 32));
+      reg_args.push_back(a0);
+      named_pexpr_t a1;
+      a1.parm = new PEString(strdup(nbuf));
+      reg_args.push_back(a1);
+      named_pexpr_t a2;
+      a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
+      reg_args.push_back(a2);
+      named_pexpr_t a3;
+      a3.parm = new PENumber(
+	    new verinum((uint64_t)loc.first_line, 32));
+      reg_args.push_back(a3);
+      PCallTask*reg = new PCallTask(
+	    lex_strings.make("$ivl_register_immediate_cover"), reg_args);
+      FILE_NAME(reg, loc);
+      LexicalScope*saved_scope = lexical_scope;
+      while (dynamic_cast<PBlock*>(lexical_scope)
+	     && lexical_scope->parent_scope())
+	    lexical_scope = lexical_scope->parent_scope();
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, reg, nullptr);
+      lexical_scope = saved_scope;
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(ip, initloc);
+
+      auto report = [loc,id](bool success) -> Statement* {
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t x;
+	    x.parm = new PENumber(new verinum((uint64_t)id, 32));
+	    args.push_back(x);
+	    named_pexpr_t y;
+	    y.parm = new PENumber(new verinum((uint64_t)success, 32));
+	    args.push_back(y);
+	    PCallTask*t = new PCallTask(
+		  lex_strings.make("$ivl_report_immediate_cover"), args);
+	    FILE_NAME(t, loc);
+	    return t;
+      };
+
+      std::vector<Statement*> pass;
+      pass.push_back(report(true));
+      if (pass_stmt) pass.push_back(pass_stmt);
+      std::vector<Statement*> fail;
+      fail.push_back(report(false));
+      PCondit*result = new PCondit(expr, sva_block_(loc, pass),
+				   sva_block_(loc, fail));
+      result->immediate_assertion();
+      FILE_NAME(result, loc);
+      return result;
+}
+
 /* Assertion callback reasons (IEEE 1800-2017 40.x; must match the
    cbAssertion* values in sv_vpi_user.h). */
 static const int SVA_CB_START   = 606;   /* cbAssertionStart */
@@ -12129,9 +12259,8 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
 
-/* M12B-cb: build `if ($ivl_assert_cb_active()) $ivl_assert_report(inst,
-   reason);` — a synthesized checker reports a success or failure event,
-   gated so nothing runs when no callback is registered. */
+/* Attempt/success reports update coverage even when there are no callback
+   subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 				   int reason, PExpr*age = nullptr)
 {
@@ -12150,6 +12279,8 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
       FILE_NAME(rep, loc);
+      if (reason == SVA_CB_START || reason == SVA_CB_SUCCESS)
+	    return rep;
 
       std::list<named_pexpr_t> no_parms;
       PECallFunction*active = new PECallFunction(
@@ -12211,8 +12342,8 @@ static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
       return sva_block_(loc, v);
 }
 
-/* A cover property executes its statement once for every sequence/property
-   match, but it is not an assertion-success callback. */
+/* A cover property executes its pass statement in the Reactive region;
+   coverage reporting is attached at the match counter update. */
 static Statement* sva_cover_action_(const struct vlltype&loc,
 				    Statement*pass_stmt)
 {
@@ -13984,6 +14115,7 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    cf->mark_concurrent_assertion_expr();
 	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
 		  sva_mark_strict_(parms[i].parm);
@@ -17399,6 +17531,82 @@ sva_property_t* pform_sva_apply_property_context(
 	    delete disable_iff;
 	    return nullptr;
       }
+
+	/* IEEE 1800-2017 9.4.2.4 and 1800-2023 16.5.2 permit a named
+	   sequence instance as an event control. In property_spec it is the
+	   assertion clock: trigger a private event on each successful endpoint
+	   instead of treating the sequence name as a signal. */
+      if (clk && clk->event_expressions().size() == 1) {
+	    const PEEvent*event = clk->event_expressions().front();
+	    const PEIdent*id = event && event->type() == PEEvent::ANYEDGE
+		  ? dynamic_cast<const PEIdent*>(event->expr()) : nullptr;
+	    if (id && !id->path().package && id->path().name.size() == 1
+		&& id->path().name.front().index.empty()) {
+		  perm_string seqname = id->path().name.front().name;
+		  std::vector<sva_seq_step_t>*steps = nullptr;
+		  PEventStatement*seq_clock = nullptr;
+		  std::map<sva_scoped_name_t,
+			   std::vector<sva_seq_step_t>*>::iterator sit =
+			sva_resolve_(sva_module_sequences, seqname);
+		  if (sit != sva_module_sequences.end() && sit->second) {
+			std::map<perm_string,PExpr*>no_subst;
+			steps = sva_clone_steps_subst_(loc, sit->second, no_subst);
+		  } else {
+			std::set<sva_scoped_name_t>::iterator tag =
+			      sva_resolve_(sva_property_shaped_sequences, seqname);
+			if (tag != sva_property_shaped_sequences.end()) {
+			      std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+				    sva_resolve_(sva_module_properties, seqname);
+			      if (pit != sva_module_properties.end() && pit->second
+				  && !pit->second->tree && pit->second->seq) {
+				    std::map<perm_string,PExpr*>no_subst;
+				    steps = sva_clone_steps_subst_(loc, pit->second->seq,
+								   no_subst);
+				    seq_clock = pit->second->clk_evt
+					  ? sva_clone_event_control_(pit->second->clk_evt,
+								     loc, nullptr)
+					  : nullptr;
+				  }
+			}
+		  }
+		  if (steps && !steps->empty() && !pform_cur_module.empty()) {
+			unsigned inst = sva_gensym_counter++;
+			char buf[64];
+			snprintf(buf, sizeof buf, "_ivl_sva_seq_clock_%u", inst);
+			perm_string event_name = lex_strings.make(buf);
+			LexicalScope*saved_scope = lexical_scope;
+			lexical_scope = pform_cur_module.front();
+			pform_make_event(loc, pform_ident_t(event_name, loc.lexical_pos),
+					 nullptr, IVL_VLT_INHERITED);
+			lexical_scope = saved_scope;
+
+			sva_decl_sequence_forget_sampled_(steps);
+			sva_property_t*seq_prop = new sva_property_t;
+			seq_prop->op_type = 0;
+			seq_prop->seq = steps;
+			seq_prop->clk_evt = seq_clock;
+			pform_name_t event_path;
+			event_path.push_back(name_component_t(event_name));
+			PTrigger*trigger = pform_new_trigger(loc, nullptr, event_path,
+							     loc.lexical_pos);
+			PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
+			FILE_NAME(no_failure_action, loc);
+			pform_make_assertion(loc, seq_prop, no_failure_action, trigger, 0);
+
+			PEIdent*wait_id = new PEIdent(event_path, loc.lexical_pos);
+			FILE_NAME(wait_id, loc);
+			PEEvent*wait_event = new PEEvent(PEEvent::ANYEDGE, wait_id);
+			FILE_NAME(wait_event, loc);
+			PEventStatement*seq_event = new PEventStatement(wait_event);
+			FILE_NAME(seq_event, loc);
+			delete clk;
+			clk = seq_event;
+		  } else {
+			delete seq_clock;
+			pform_sva_destroy_sequence(steps);
+		  }
+	    }
+      }
       if (prop->clk_evt && clk) {
 	    ostringstream inner, outer;
 	    prop->clk_evt->dump_inline(inner);
@@ -18802,6 +19010,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      local_guard_expr[key] = be;
 			      continue;
 			}
+			be = sva_booleanize_(loc, be);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
@@ -19073,8 +19282,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    loc, inst, r_kill, clear_attempt_state()));
       if (cover && match_action)
 	    body.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
-      body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
-			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
       auto spawn_obligation_stmt = [&](long source) -> Statement* {
 	    char msg[192];
@@ -19290,6 +19497,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					      sva_bit_(loc, 1));
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+		  acc_v.push_back(sva_report_stmt_(loc, inst,
+						    SVA_CB_SUCCESS));
 		  if (match_action)
 		    acc_v.push_back(increment_verdict(r_match));
 	    } else if (implication && !forbidden) {
@@ -19613,8 +19822,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = pre;
       full.push_back(sva_observed_wait_(loc));
+	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
-	    if (disable) {
+	  if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
@@ -20197,10 +20408,28 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 {
       std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
 	    sva_resolve_(sva_module_sequences, seqname);
-      if (it == sva_module_sequences.end() || !it->second)
-	    return nullptr;
+      std::vector<sva_seq_step_t>*body_ptr =
+	    it != sva_module_sequences.end() ? it->second : nullptr;
+      if (!body_ptr) {
+	    /* This issue is the same-clock .triggered case.  A property-shaped
+	       source can be matched across clock domains, which needs distinct
+	       handoff semantics and must not use this single-clock indicator. */
+	    if (method != perm_string::literal("triggered")) return nullptr;
+	    /* Explicitly clocked sequence declarations keep their complete IR in
+	       the property-shaped tables.  A fixed chain there has the same
+	       endpoint expression as the plain sequence representation. */
+	    std::set<sva_scoped_name_t>::iterator tag =
+		  sva_resolve_(sva_property_shaped_sequences, seqname);
+	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
+	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+		  sva_resolve_(sva_module_properties, seqname);
+	    if (pit == sva_module_properties.end() || !pit->second
+		|| pit->second->tree || !pit->second->seq)
+		  return nullptr;
+	    body_ptr = pit->second->seq;
+      }
 
-      std::vector<sva_seq_step_t>&body = *it->second;
+      std::vector<sva_seq_step_t>&body = *body_ptr;
       bool ok = !body.empty();
       long L = 0;
       std::vector<long> off (body.size(), 0);
@@ -24357,7 +24586,8 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
       tick.push_back(sva_clone_wait_(loc, clk));
 	/* Sample each distinct guard once (steals the expression). */
       for (unsigned k = 0 ; k < glist.size() ; k += 1)
-	    tick.push_back(sva_assign_(loc, g_r[k], glist[k]));
+	    tick.push_back(sva_assign_(loc, g_r[k],
+				       sva_booleanize_(loc, glist[k])));
       for (unsigned i = 0 ; i < N ; i += 1)
 	    tick.push_back(sva_assign_(loc, nx_r[i], sva_bit_(loc, 0)));
       for (size_t i = 0 ; i < xnfa.edges.size() ; i += 1) {
@@ -25267,6 +25497,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	    else prep_live_operands += 1;
 	    PExpr*be = sva_rewrite_sampled_(loc, src, inst, hist_idx,
 					   pre, post, init_zero);
+	    be = sva_booleanize_(loc, be);
 	    perm_string reg = sva_make_reg_(loc, inst, "rb", idx);
 	    pre.push_back(sva_assign_(loc, reg, be));
 	    return reg;
@@ -27866,8 +28097,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					 prep_live_operands);
 	    if (prep) src = prep;
 	    else prep_live_operands += 1;
-	    return sva_rewrite_sampled_(loc, src, inst, hist_idx,
-				 pre, post, init_zero);
+	    return sva_booleanize_(loc, sva_rewrite_sampled_(loc, src, inst,
+							      hist_idx, pre, post,
+							      init_zero));
       };
 
 	/* Rewrite sampled-value functions, then capture every step
@@ -28154,6 +28386,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						    sva_id_(loc, w_regs[q]));
 			FILE_NAME(add, loc);
 			sat.push_back(sva_assign_(loc, r_cnt, add));
+			PCondit*report = new PCondit(sva_id_(loc, w_regs[q]),
+						     sva_report_stmt_(loc, inst,
+								     SVA_CB_SUCCESS),
+						     nullptr);
+			FILE_NAME(report, loc);
+			sat.push_back(report);
 		  }
 		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
@@ -28221,6 +28459,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), elig);
 		  FILE_NAME(add, loc);
 		  sat.push_back(sva_assign_(loc, r_cnt, add));
+		  PCondit*report = new PCondit(sva_clone_expr_(elig),
+					       sva_report_stmt_(loc, inst,
+							       SVA_CB_SUCCESS),
+					       nullptr);
+		  FILE_NAME(report, loc);
+		  sat.push_back(report);
 	    } else if (pass_stmt) {
 		  PCondit*pm = new PCondit(elig, pass_stmt, nullptr);
 		  FILE_NAME(pm, loc);
@@ -28282,6 +28526,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  PCondit*report = new PCondit(sva_clone_expr_(match),
+					       sva_report_stmt_(loc, inst,
+							       SVA_CB_SUCCESS),
+					       nullptr);
+		  FILE_NAME(report, loc);
+		  body.push_back(report);
 		  if (pass_stmt) {
 			PCondit*pm = new PCondit(
 			      sva_clone_expr_(match),
@@ -28370,16 +28620,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (track_vacuity)
 	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, user_pass);
 
-	/* M12B-rest: cbAssertionStart -- an attempt starts at every
-	   sampled clock tick the checker evaluates (IEEE 1800-2017
-	   40.5.2; concurrent assertions launch an attempt each clock).
-	   Placed inside the disable guard: a disabled tick aborts
-	   attempts rather than starting one. Gated on
-	   $ivl_assert_cb_active like every report, so it costs nothing
-	   when no callback is registered. */
-      body.insert(body.begin(), sva_if_(loc,
-	    sva_enabled_expr_(loc, inst),
-	    sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       body.insert(body.begin(), sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
 
@@ -28389,6 +28629,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       full.push_back(sva_observed_wait_(loc));
       if (track_failure_age)
 	    full.push_back(sva_clock_stmt_(loc, inst));
+	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);

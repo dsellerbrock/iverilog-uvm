@@ -1,0 +1,3 @@
+ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: warning: class-typed r-value in a 4-state context: treating the target as a class variable whose type did not resolve (compile-progress); substituting 0.
+ivltests/sv_class_handle_compound_to_integral_assignment_fail.v:6: error: A class handle cannot be assigned to an integral target (IEEE 1800-2017/2023 6.22.5).
+Elaboration failed

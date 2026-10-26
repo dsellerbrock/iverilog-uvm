@@ -4788,3 +4788,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017/2023 §14.16.2; whether the selected-slice restriction should be more granular needs a separate interpretation and regression.
 - **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
 - **Triage status:** Known boundary; not part of #909.
+
+### DD-142 — class-to-integral rejection has expression-provenance limits
+
+- **Discovered while working:** M9 #759.
+- **Observation:** The §6.22.5 rejection deliberately relies on a resolved identifier type because `expr_type()` can report a class placeholder for calls, ternaries, and `new` while generic templates or forward class references are still being elaborated. Current function-return and ternary reducers compile with only the existing fallback warning; those forms remain unchecked. Resolved identifier assignments reject, but the width-based class-to-logic fallback in `netmisc.cc` still emits its “substituting 0” warning first.
+- **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the scoped rejection is in `elab_expr.cc::elaborate_rval_expr`.
+- **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
+- **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).

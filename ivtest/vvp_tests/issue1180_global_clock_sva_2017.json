@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1180_global_clock_sva.v",
+    "iverilog-args" : [ "-g2017", "-gassertions", "-s", "issue1180_global_clock_sva" ],
+    "gold"          : "issue1180_global_clock_sva"
+}
