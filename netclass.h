@@ -656,6 +656,9 @@ class netclass_t : public ivl_type_s {
       }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
+      { covgrp_items_[idx].goal_prop = goal_prop;
+        covgrp_items_[idx].comment_prop = comment_prop; }
 	// Resolve the IEEE hierarchical pseudo-members
 	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on

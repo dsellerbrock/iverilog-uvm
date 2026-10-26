@@ -37,6 +37,11 @@ while IFS= read -r key; do
     python3 ../scripts/run_with_timeout.py 120 -- python3 ./vvp_reg.py "$tmp/one-json.list" >>"../$OUT/t1-json.log" 2>&1 || status=1
 done < <(awk '{print $1}' "$T1_JSON")
 
+mkdir -p "../$OUT/diagnostics"
+for log in log/sv_covergroup_item_goal_comment*-iverilog-stderr.log; do
+    [ -f "$log" ] && cp "$log" "../$OUT/diagnostics/"
+done
+
 printf 'status=%s\nlegacy_t1=%s\njson_t1=%s\n' \
     "$status" "$(wc -l <"$T1_LEGACY")" "$(wc -l <"$T1_JSON")" \
     >"../$OUT/summary.txt"
