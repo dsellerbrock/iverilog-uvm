@@ -43476,6 +43476,82 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
+            group_options.goal_prop = add_unique_cov_counter(
+                  "__covgrp_group_option_goal");
+            group_options.comment_prop = add_unique_cov_property(
+                  "__covgrp_group_option_comment", &netstring_t::type_string);
+            if (cgdef->is_extension) {
+                  int inherited_idx = property_idx_from_name(cgdef->name);
+                  ivl_assert(*pclass, get_super() && inherited_idx >= 0
+                        && static_cast<size_t>(inherited_idx) < super_props);
+                  const netclass_t*base_cg = dynamic_cast<const netclass_t*>(
+                        get_super()->get_prop_type(static_cast<size_t>(inherited_idx)));
+                  ivl_assert(*pclass, base_cg && base_cg->is_covergroup());
+                  // The base covergroup may still be lazily materialized here.
+                  const netclass_t::covgrp_options_t&base_options =
+                        base_cg->covgrp_options();
+                  if (base_options.goal_prop >= 0)
+                        ivl_assert(*pclass, group_options.goal_prop
+                              == base_options.goal_prop);
+                  if (base_options.comment_prop >= 0)
+                        ivl_assert(*pclass, group_options.comment_prop
+                              == base_options.comment_prop);
+            }
+            auto add_item_goal_comment_props = [&](const std::string&stem) {
+                  return std::make_pair(
+                        add_unique_cov_counter(stem + "_option_goal"),
+                        add_unique_cov_property(stem + "_option_comment",
+                                                &netstring_t::type_string));
+            };
+            std::vector<std::pair<int,int>> cp_goal_comment_props(
+                  cgdef->coverpoints.size(), std::make_pair(-1, -1));
+            std::vector<std::pair<int,int>> cross_goal_comment_props(
+                  cgdef->crosses.size(), std::make_pair(-1, -1));
+            // Keep option slots in declaration-class order. That preserves
+            // each inherited prefix across multiple covergroup extensions,
+            // although coverpoints and crosses are stored in separate lists.
+            std::vector<const PClass*> item_option_class_order;
+            for (const netclass_t*owner = this; owner; owner = owner->get_super()) {
+                  const NetScope*owner_scope = owner->class_scope();
+                  const PClass*owner_pclass = owner_scope
+                        ? owner_scope->class_pform() : nullptr;
+                  if (owner_pclass
+                      && std::find(item_option_class_order.begin(),
+                                   item_option_class_order.end(),
+                                   owner_pclass) == item_option_class_order.end())
+                        item_option_class_order.push_back(owner_pclass);
+            }
+            std::reverse(item_option_class_order.begin(),
+                        item_option_class_order.end());
+            auto current_class = std::find(item_option_class_order.begin(),
+                                           item_option_class_order.end(), pclass);
+            if (current_class != item_option_class_order.end())
+                  item_option_class_order.erase(current_class);
+            item_option_class_order.push_back(pclass);
+            for (const PClass*owner_pclass : item_option_class_order) {
+                  for (size_t idx = 0; idx < cgdef->coverpoints.size(); ++idx) {
+                        const auto&cp = cgdef->coverpoints[idx];
+                        if (cp.decl_class == owner_pclass)
+                              cp_goal_comment_props[idx] = add_item_goal_comment_props(
+                                    "__covgrp_item_cp_" + std::to_string(idx));
+                  }
+                  for (size_t idx = 0; idx < cgdef->crosses.size(); ++idx) {
+                        const auto&cross = cgdef->crosses[idx];
+                        if (cross.decl_class == owner_pclass)
+                              cross_goal_comment_props[idx] = add_item_goal_comment_props(
+                                    "__covgrp_item_cross_" + std::to_string(idx));
+                  }
+            }
+            for (size_t idx = 0; idx < cgdef->coverpoints.size(); ++idx) {
+                  if (cp_goal_comment_props[idx].first < 0)
+                        cp_goal_comment_props[idx] = add_item_goal_comment_props(
+                              "__covgrp_item_cp_" + std::to_string(idx));
+            }
+            for (size_t idx = 0; idx < cgdef->crosses.size(); ++idx) {
+                  if (cross_goal_comment_props[idx].first < 0)
+                        cross_goal_comment_props[idx] = add_item_goal_comment_props(
+                              "__covgrp_item_cross_" + std::to_string(idx));
+            }
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
@@ -43979,7 +44055,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						nullptr, -1,
 						cp_option_props.first,
 						cp_option_props.second,
-						-1, -1,
+						cp_goal_comment_props[cp_idx].first,
+						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
 
@@ -45802,7 +45879,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // product of the contributing coverpoints' value
 		      // bins.  Named cross bins (binsof selects) land in
 		      // M11-3; their pform is captured already.
-		    for (auto& cross : cgdef->crosses) {
+		    for (size_t cross_idx = 0; cross_idx < cgdef->crosses.size(); ++cross_idx) {
+			  auto&cross = cgdef->crosses[cross_idx];
 		  const netclass_t*cross_decl_class =
 			covgrp_decl_class(cross.decl_class, "cross");
 		  if (!cg_standalone && cross_decl_class
@@ -45990,7 +46068,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross.iff_expr, x_guard_src,
 						x_option_props.first,
 						x_option_props.second,
-						-1, -1,
+						cross_goal_comment_props[cross_idx].first,
+						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
 
@@ -46982,18 +47061,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    }
 
-	    // Keep existing coverage-bin property indexes stable. The new mutable
-	    // option storage follows all pre-existing hidden properties.
-	    group_options.goal_prop = add_unique_cov_counter(
-		  "__covgrp_group_option_goal");
-	    group_options.comment_prop = add_unique_cov_property(
-		  "__covgrp_group_option_comment", &netstring_t::type_string);
+	    // Every compiled item must carry its mutable goal/comment property.
 		    for (size_t item = 0; item < cg_class->covgrp_item_count(); item++) {
-			  std::string stem = "__covgrp_item_" + std::to_string(item);
-		  cg_class->set_covgrp_item_option_props(
-			item, add_unique_cov_counter(stem + "_option_goal"),
-			add_unique_cov_property(stem + "_option_comment",
-						&netstring_t::type_string));
+			  ivl_assert(*pclass, cg_class->covgrp_item(item).goal_prop >= 0
+				&& cg_class->covgrp_item(item).comment_prop >= 0);
 		    }
 
 		    // Replace the covergroup property declaration on the
