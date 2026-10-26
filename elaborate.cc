@@ -34320,8 +34320,10 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 class constraint_function_purity_t : public target_t {
     public:
       explicit constraint_function_purity_t(Design*des,
-		bool require_const_properties = false)
-		: des_(des), require_const_properties_(require_const_properties) { }
+		bool require_const_properties = false,
+		bool scan_static_body_before_return_proof = false)
+		: des_(des), require_const_properties_(require_const_properties),
+		scan_static_body_before_return_proof_(scan_static_body_before_return_proof) { }
 
       bool check(const NetScope*scope)
       {
@@ -34344,7 +34346,7 @@ class constraint_function_purity_t : public target_t {
 		  status_[scope] = 3;
 		  return fail_("is not an elaborated function");
 	    }
-	    if (!scope->is_auto()
+	    if (!scan_static_body_before_return_proof_ && !scope->is_auto()
 		&& !constraint_static_return_definite_(
 		      def->proc(), def->return_sig())) {
 		  status_[scope] = 3;
@@ -34359,6 +34361,10 @@ class constraint_function_purity_t : public target_t {
 	    bool save_ok = ok_;
 	    ok_ = true;
 	    walk_(def->proc());
+	    if (ok_ && scan_static_body_before_return_proof_ && !scope->is_auto()
+		&& !constraint_static_return_definite_(
+		      def->proc(), def->return_sig()))
+		  fail_("is nonautomatic and does not unconditionally assign its return value");
 	    bool pure = ok_;
 	    ok_ = save_ok && pure;
 	    function_ = save;
@@ -34555,6 +34561,7 @@ class constraint_function_purity_t : public target_t {
       }
       Design*des_;
 	bool require_const_properties_ = false;
+	bool scan_static_body_before_return_proof_ = false;
       const NetScope*function_ = nullptr;
       const NetNet*return_ = nullptr;
       bool automatic_ = true;
@@ -34925,6 +34932,35 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
       return false;
 }
 
+}
+
+/* IEEE 1800-2017/2023 16.6: a user function in a concurrent assertion
+ * expression must be side-effect free and either automatic or proven not
+ * to preserve state. Reuse the constraint function-body proof, which checks
+ * both the call arguments and the complete nested function call graph. */
+bool concurrent_assertion_function_pure(Design*des, const NetEUFunc*call,
+		std::string&reason)
+{
+      if (!call || !call->func() || !call->func()->func_def()) {
+	    reason = "function body is unresolved";
+	    return false;
+      }
+      const NetFuncDef*def = call->func()->func_def();
+      for (unsigned idx = 0; idx < def->port_count(); ++idx) {
+	    const NetNet*port = def->port(idx);
+	    if (!port || port->port_type() == NetNet::POUTPUT
+		|| port->port_type() == NetNet::PINOUT
+		|| (port->port_type() == NetNet::PREF && !port->get_const())) {
+		  reason = "function has an output, inout, or ref argument";
+		  return false;
+	    }
+      }
+      constraint_function_purity_t purity(des, false, true);
+      if (!purity.expression(call)) {
+	    reason = purity.reason();
+	    return false;
+      }
+      return true;
 }
 
 static string constraint_state_expression_slot_(

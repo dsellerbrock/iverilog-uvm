@@ -13984,6 +13984,7 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    cf->mark_concurrent_assertion_expr();
 	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
 		  sva_mark_strict_(parms[i].parm);
