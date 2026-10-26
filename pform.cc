@@ -11699,6 +11699,14 @@ static PExpr* sva_not_(const struct vlltype&loc, PExpr*e)
       return u;
 }
 
+/* Convert an assertion expression to its one-bit procedural-if truth value
+   before storing it in a sample register. A direct assignment would truncate
+   multi-bit expressions, losing nonzero bits above bit zero. */
+static PExpr* sva_booleanize_(const struct vlltype&loc, PExpr*e)
+{
+      return sva_not_(loc, sva_not_(loc, e));
+}
+
 static PExpr* sva_logic_(const struct vlltype&loc, char op,
 			 PExpr*l, PExpr*r)
 {
@@ -18802,6 +18810,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      local_guard_expr[key] = be;
 			      continue;
 			}
+			be = sva_booleanize_(loc, be);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
@@ -24357,7 +24366,8 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
       tick.push_back(sva_clone_wait_(loc, clk));
 	/* Sample each distinct guard once (steals the expression). */
       for (unsigned k = 0 ; k < glist.size() ; k += 1)
-	    tick.push_back(sva_assign_(loc, g_r[k], glist[k]));
+	    tick.push_back(sva_assign_(loc, g_r[k],
+				       sva_booleanize_(loc, glist[k])));
       for (unsigned i = 0 ; i < N ; i += 1)
 	    tick.push_back(sva_assign_(loc, nx_r[i], sva_bit_(loc, 0)));
       for (size_t i = 0 ; i < xnfa.edges.size() ; i += 1) {
@@ -25267,6 +25277,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	    else prep_live_operands += 1;
 	    PExpr*be = sva_rewrite_sampled_(loc, src, inst, hist_idx,
 					   pre, post, init_zero);
+	    be = sva_booleanize_(loc, be);
 	    perm_string reg = sva_make_reg_(loc, inst, "rb", idx);
 	    pre.push_back(sva_assign_(loc, reg, be));
 	    return reg;
@@ -27866,8 +27877,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					 prep_live_operands);
 	    if (prep) src = prep;
 	    else prep_live_operands += 1;
-	    return sva_rewrite_sampled_(loc, src, inst, hist_idx,
-				 pre, post, init_zero);
+	    return sva_booleanize_(loc, sva_rewrite_sampled_(loc, src, inst,
+							      hist_idx, pre, post,
+							      init_zero));
       };
 
 	/* Rewrite sampled-value functions, then capture every step
