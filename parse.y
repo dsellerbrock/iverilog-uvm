@@ -8593,7 +8593,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { pform_sva_clear_assertion_label();
 	Statement*item = $2;
 	if (!item) {
-	      item = new PBlock(PBlock::BL_SEQ);
+	      PBlock*empty = new PBlock(PBlock::BL_SEQ);
+	      empty->concurrent_assertion_only();
+	      item = empty;
 	      FILE_NAME(item, @1);
 	}
 	if ($1) {
@@ -8601,6 +8603,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
+	      if (const PBlock*assertion = dynamic_cast<const PBlock*>(item))
+		    if (assertion->is_concurrent_assertion_only())
+			  scope->concurrent_assertion_only();
 	      item = scope;
 	}
 	delete[] $1;

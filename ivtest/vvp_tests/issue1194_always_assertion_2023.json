@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1194_always_assertion.v",
+  "iverilog-args": ["-g2023", "-s", "issue1194_always_assertion"],
+  "gold": "issue1194_always_assertion"
+}
