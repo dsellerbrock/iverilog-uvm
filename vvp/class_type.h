@@ -311,6 +311,10 @@ class class_type : public __vpiHandle {
 	    std::string weight_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
+	    unsigned goal = 100;
+	    std::string comment;
+	    int goal_prop = -1;
+	    int comment_prop = -1;
 	    bool is_cross = false;
 	    std::string name;   // M12-7: coverpoint/cross label
 	    int iff_src = -1;   // parent property for event-driven cross iff
@@ -390,6 +394,15 @@ class class_type : public __vpiHandle {
 	covgrp_items_[idx].at_least_prop = at_least_prop;
 	covgrp_items_[idx].weight_prop = weight_prop;
 	return true; }
+      bool set_covgrp_item_option_values(size_t idx, int goal_prop,
+					 unsigned goal, int comment_prop,
+					 const std::string&comment)
+	{ if (idx >= covgrp_items_.size()) return false;
+	  covgrp_items_[idx].goal_prop = goal_prop;
+	  covgrp_items_[idx].goal = goal;
+	  covgrp_items_[idx].comment_prop = comment_prop;
+	  covgrp_items_[idx].comment = comment;
+	  return true; }
       bool set_covgrp_item_guard(size_t idx, bool has_guard)
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
@@ -517,8 +530,11 @@ class class_type : public __vpiHandle {
             bool merge_instances = true;
             bool per_instance = false;
             unsigned weight = 1, get_inst_coverage = 1;
+            unsigned goal = 100;
+            std::string comment;
             int weight_prop = -1, get_inst_coverage_prop = -1;
             int per_instance_prop = -1;
+            int goal_prop = -1, comment_prop = -1;
       };
       void set_covgrp_options(const covgrp_options_t&options)
       { covgrp_options_ = options; covgrp_options_present_ = true; }
