@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "vvp_m_hier_named_task_block.v",
+    "gold"   : "vvp_m_hier_named_task_block",
+    "iverilog-args" : [ "-g2023" ]
+}

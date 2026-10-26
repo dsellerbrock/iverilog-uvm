@@ -51,6 +51,13 @@ static vpiHandle systask_handle(int type, vpiHandle ref)
 
       switch (type) {
 	  case vpiScope:
+	    /* A task call emitted inside a named block in a subroutine can
+	       precede the block's scope declaration in the VVP file. In that
+	       case the call handle's compile-time scope is the enclosing task,
+	       while the executing thread has the more specific lexical scope.
+	       Use that scope for the active call (including $display %m). */
+	    if (rfp == vpip_cur_task && vpip_current_vthread)
+		  return vthread_scope(vpip_current_vthread);
 	    return rfp->scope;
 
 	  case vpiUserSystf:
