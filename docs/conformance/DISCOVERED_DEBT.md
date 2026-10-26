@@ -4789,6 +4789,36 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
 - **Triage status:** Known boundary; not part of #909.
 
+### DD-141 — associative `find_index` on struct values aborts code generation
+
+- **Discovered while working:** M9 #854, while qualifying custom iterator-index
+  lookup for struct array items.
+- **Observation:** On unpatched main `5c081171`, an associative array of structs
+  using `find_index(item) with (item.index == 7)` fails in both `-g2017` and
+  `-g2023` during VVP code generation with `unsupported associative find_index
+  runtime type`. This is independent of #854: the probe uses the default index
+  name, not the optional index-name argument. Expected: compile/run succeeds
+  and the result queue contains the key `"key"`. Actual: the compiler exits
+  during code generation before creating a runnable VVP file.
+- **File/function:** `tgt-vvp/eval_object.c`,
+  `draw_assoc_index_locator_expr_()`; `unique_runtime_type_supported_()`
+  rejects the struct iterator type around line 1652.
+- **Possible clause:** IEEE 1800-2023 §7.12.1 (associative locator methods) and
+  §7.12.4 (iterator index querying).
+- **Evidence:** `~/codex-supervisor/evidence/a3-m9-854-lead-probes-20261025/`
+  (manifested Slurm 4840 output, probe source, and script; the same diagnostic
+  also appeared in Slurm 4834).
+- **Reproducer status:** confirmed on main with `A3-m9-854-lead-probes.sv`,
+  module `m9_854_assoc_struct_default_index`. Both commands fail:
+  `iverilog -g2017 -s m9_854_assoc_struct_default_index -o /tmp/assoc.vvp
+  A3-m9-854-lead-probes.sv` and the same command with `-g2023`; source is in
+  the evidence directory above.
+- **Triage status:** separate backend issue; open+closed searches found no
+  direct match. Open #485 covers associative assignment-pattern values, while
+  closed #853 covers struct-valued index keys crashing at runtime; neither
+  covers struct elements in `find_index`. Leave outside #854 and report the
+  minimal reproducer for supervisor issue filing.
+
 ### DD-142 — class-to-integral rejection has expression-provenance limits
 
 - **Discovered while working:** M9 #759.
@@ -4796,3 +4826,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the scoped rejection is in `elab_expr.cc::elaborate_rval_expr`.
 - **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
 - **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
+
+### DD-143 — assertion function output-argument rejection has a generic diagnostic
+
+- **Discovered while working:** M9 #1183.
+- **Observation:** A function with an output argument used in a concurrent assertion is rejected in both editions before the assertion-purity check, with `Assignment l-value too complex` at the assignment in the function body. IEEE 1800-2023 §16.6 explicitly prohibits output, inout, or ref arguments in functions appearing in assertion expressions, so the rejection is correct; only the diagnostic is generic.
+- **Evidence:** `evidence/m9-1183-function-purity-20261026/t1-first-pass/sv_assert_function_output_arg_fail_{2017,2023}.runner.log`.
+- **Triage status:** Diagnostic clarity only; no additional conformance claim or implementation change in #1183.

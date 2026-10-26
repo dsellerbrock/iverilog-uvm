@@ -18463,6 +18463,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 								       class_type->get_name()))
 			class_type = visible_class;
 	    }
+	    if (class_type->is_interface_class()
+		&& (method_name == perm_string::literal("rand_mode")
+		    || method_name == perm_string::literal("constraint_mode"))) {
+		  cerr << get_fileline() << ": error: " << method_name
+		       << "() is not allowed on an interface class handle"
+		       << " (IEEE 1800-2017/2023 8.26.9)." << endl;
+		  des->errors += 1;
+		  delete obj_expr;
+		  return 0;
+	    }
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
@@ -34650,8 +34660,11 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 		  "$onehot0", "$pow", "$realtobits", "$right", "$rtoi",
 		  "$shortrealtobits", "$signed", "$sin", "$sinh", "$size",
 		  "$sqrt", "$tan", "$tanh", "$typename", "$unsigned",
-		  "$ivl_array_query$size", "$ivl_assoc_method$exists",
+		  "$ivl_clocking_sample", "$ivl_array_query$size",
+		  "$ivl_assoc_method$exists",
 		  "$ivl_assoc_method$num", "$ivl_checked_property_index",
+		  // Read-only Preponed operand sample (§14.13, §16.5.1); validate operands recursively below.
+		  "$ivl_clocking_sample",
 		  "$ivl_class_method$constraint_mode_get",
 		  "$ivl_class_method$get_randstate", "$ivl_class_method$rand_mode_get",
 		  "$ivl_class_method$rand_mode_get_assoc",
@@ -42003,6 +42016,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      for (auto* cgdef : pclass->type->covergroups) {
 		    if (!cgdef) continue;
 
+		      // IEEE 1800-2017/2023 19.8.1 places the constructor and
+		      // overridden sample() formals in one lexical scope.
+		    for (perm_string ctor_formal : cgdef->ctor_formals) {
+			  for (perm_string sample_formal : cgdef->sample_formals) {
+				if (ctor_formal != sample_formal) continue;
+				cerr << pclass->get_fileline()
+				     << ": error: covergroup constructor and sample() "
+				     << "formals share the name '" << ctor_formal
+				     << "' (IEEE 1800 19.8.1)." << endl;
+				des->errors += 1;
+			  }
+		    }
+
 		    string cg_cname = string("__covgrp_")
 				      + string(name_.str())
 				      + "_" + string(cgdef->name.str()) + "_t";
@@ -44183,13 +44209,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
-				      if (base_kind != 0) {
-					    cerr << "sorry: covergroup '" << cgdef->name
-						 << "': ignore/illegal transition bins are "
-						 << "not supported; bin '" << bin.name
-						 << "' is dropped." << endl;
-					    continue;
-				      }
+				      if (base_kind == 1) continue;
 				      // shortcut: wildcard transition bins need literal patterns and
 				      // cannot be arrayed; add set indexing when a case needs it.
 				      if (bin.wildcard && bin.arrayed) {
@@ -44394,6 +44414,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    pieces.push_back(std::move(terms));
 					    bool pieces_changed = false;
 					    for (auto&ignored : ignored_trans) {
+						  if (base_kind == 2) break;
 						  std::vector<std::vector<trans_term_t>> next_pieces;
 						  for (auto&piece : pieces) {
 							bool plain = true;
@@ -44482,13 +44503,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    "c:" + std::to_string(r.second) + ":" + tag));
 						  }
 						  for (auto&r : term.ir_ranges)
-							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							      4u | (base_kind == 2 ? 1024u : 0u),
 							      family, bin.arrayed ? 0 : ~(uint64_t)0,
 							      bin.name.str(), r.first, r.second,
 							      cp_value_width, cp_value_signed, bin_guard,
 							      sq, st, term.repeat, term.min, term.max);
 					    }
-					    has_value_bins = true;
+					    if (base_kind == 0) has_value_bins = true;
 					    continue;
 				      }
 				      if (bin.arrayed && family_total > array_transition_limit) {
@@ -44511,7 +44533,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  for (auto&r : term.ranges) {
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
-							      4u | (bin.wildcard ? 8u : 0u),
+							      (base_kind == 2 ? 2u | 1024u : 4u)
+								    | (bin.wildcard ? 8u : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
@@ -44522,6 +44545,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 					    }
 				      }
+				      if (base_kind == 2) continue;
 				      if (bin.arrayed) {
 					    for (uint64_t logical = 0;
 						 logical < (uint64_t)family_total; logical++) {
@@ -45254,6 +45278,80 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // must not trigger unrelated automatic-bin synthesis.
 				if (rr.empty()) {
 				      if (base_kind == 0) has_value_bins = true;
+				      continue;
+				}
+
+				if (bin.arrayed && !bin.array_size && bin.wildcard
+				    && base_kind == 0) {
+				      // IEEE 1800-2017/2023 19.5.4: an open wildcard-bin
+				      // array has one ordinary bin for each distinct 2-state
+				      // value matched by its patterns. Expand patterns here so
+				      // sampling and cross-bin selection see concrete values.
+				      static const uint64_t wildcard_array_bin_limit = 65536;
+				      if (cp_value_width == 0 || cp_value_width > 64) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' has a coverpoint wider than 64 bits; "
+						 << "the bin array is not represented." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      uint64_t value_mask = cp_value_width == 64
+					    ? UINT64_MAX
+					    : (UINT64_C(1) << cp_value_width) - 1;
+				      std::set<uint64_t> values;
+				      std::set<std::pair<uint64_t,uint64_t>> patterns(
+					    rr.begin(), rr.end());
+				      bool too_many = false;
+				      for (const auto&pattern : patterns) {
+					    std::vector<unsigned> free_bits;
+					    for (unsigned bit = 0; bit < cp_value_width; bit++)
+						  if (!(pattern.second & (UINT64_C(1) << bit)))
+							free_bits.push_back(bit);
+					    if (free_bits.size() > 16) {
+						  too_many = true;
+						  break;
+					    }
+					    uint64_t count = UINT64_C(1) << free_bits.size();
+					    for (uint64_t combination = 0; combination < count;
+						 combination++) {
+						  uint64_t value = pattern.first & value_mask;
+						  for (size_t free_idx = 0;
+						       free_idx < free_bits.size(); free_idx++)
+							if (combination & (UINT64_C(1) << free_idx))
+							      value |= UINT64_C(1) << free_bits[free_idx];
+						  values.insert(value);
+						  if (values.size() > wildcard_array_bin_limit) {
+							too_many = true;
+							break;
+						  }
+					    }
+					    if (too_many) break;
+				      }
+				      if (too_many) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' needs more than "
+						 << wildcard_array_bin_limit
+						 << " value-keyed counters; the bin array is dropped."
+						 << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      for (uint64_t value : values) {
+					    std::vector<std::pair<uint64_t,uint64_t>> value_range;
+					    value_range.push_back(std::make_pair(value, value));
+					    std::string bn = bstem + "_" + std::to_string(value);
+					    unsigned source_prop = add_value_prop(
+						  bn, value_range, base_kind, bin_guard);
+					    xbin_desc_t d;
+					    d.name = lex_strings.make((std::string(bin.name.str())
+							       + "[" + std::to_string(value)
+							       + "]").c_str());
+					    d.ranges = value_range;
+					    d.source_prop = (int)source_prop;
+					    d.guard_idx = bin_guard;
+					    vbins.push_back(std::move(d));
+				      }
+				      has_value_bins = true;
 				      continue;
 				}
 

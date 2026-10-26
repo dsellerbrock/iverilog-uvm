@@ -545,6 +545,8 @@ class class_type : public __vpiHandle {
 	// guard properties the event process reads.
       void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+      void set_covgrp_owner_prop(int p) { covgrp_owner_prop_ = p; }
+      int covgrp_owner_prop() const { return covgrp_owner_prop_; }
       void add_covgrp_src(int srcprop, int guardsrc)
       { covgrp_srcprops_.push_back(srcprop);
 	covgrp_guardsrcs_.push_back(guardsrc);
@@ -599,6 +601,7 @@ class class_type : public __vpiHandle {
       };
       mutable std::map<unsigned,cov_cross_type_t> covgrp_cross_type_;
       int covgrp_parent_prop_ = -1;
+      int covgrp_owner_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
       std::vector<std::string> covgrp_sample_irs_;

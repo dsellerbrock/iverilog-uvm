@@ -65,6 +65,21 @@ static perm_string pform_coverpoint_implicit_name_(PExpr*expr)
 	  return perm_string::literal("cp");
 }
 
+/* IEEE 1800-2023 8.3 note 25 limits dynamic method override specifiers to
+ * methods declared in non-interface classes. */
+static void pform_check_method_override_interface_class_(const struct vlltype&loc)
+{
+	  for (LexicalScope* scope = pform_peek_scope(); scope;
+	       scope = scope->parent_scope()) {
+		PClass* class_scope = dynamic_cast<PClass*>(scope);
+		if (!class_scope)
+		      continue;
+		if (class_scope->type && class_scope->type->interface_class)
+		      yyerror(loc, "error: Method override specifiers are not allowed in an interface class (IEEE 1800-2023 8.3).");
+		break;
+	  }
+}
+
 /* Port declaration lists use this structure for context. */
 static struct {
       NetNet::Type port_net_type;
@@ -4195,6 +4210,10 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
+			  if ((*$6)[idx__].port->get_port_type() == NetNet::POUTPUT)
+				yyerror(@4, "error: Covergroup sample formal '%s' cannot "
+					"have output direction (IEEE 1800 19.8.1).",
+					(*$6)[idx__].port->basename().operator const char*());
 			  formals__->push_back((*$6)[idx__].port->basename());
 			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
@@ -4450,8 +4469,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
   | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* M9: cover sequence — same machinery as cover property. */
+      { /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
+	      $4->sequence_cover = true;
 	      pform_make_assertion(@1, $4, 0, $6, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
@@ -5156,6 +5176,18 @@ bins_item
 	cov_bins_set_ranges_(b, $6);
 	b->with_expr = $8;
 	b->iff_expr = $9;
+	delete[] $3;
+	$$ = b;
+      }
+  | K_wildcard bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	b->arrayed = true;
+	cov_bins_set_ranges_(b, $8);
+	b->with_expr = $10;
+	b->iff_expr = $11;
 	delete[] $3;
 	$$ = b;
       }
@@ -6661,11 +6693,19 @@ lifetime_opt /* IEEE1800-2005: A.2.1.3 */
   ;
 
 method_function_keyword
-  : K_function dynamic_override_specifiers { $$ = $2; }
+  : K_function dynamic_override_specifiers
+      {
+	pform_check_method_override_interface_class_(@2);
+	$$ = $2;
+      }
   ;
 
 method_task_keyword
-  : K_task dynamic_override_specifiers { $$ = $2; }
+  : K_task dynamic_override_specifiers
+      {
+	pform_check_method_override_interface_class_(@2);
+	$$ = $2;
+      }
   ;
 
 class_item_method_function_keyword
@@ -7539,7 +7579,7 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      reported an error too. A parenthesized expression is still just an
      expression, so the previous form keeps working. */
   | K_default K_disable K_iff expression ';'
-      { pform_sva_set_default_disable($4); }
+      { pform_sva_set_default_disable(@2, $4); }
   /* M9: named no-argument property/sequence declarations, usable by
      assertions later in the SAME module. */
   | K_property IDENTIFIER ';' property_spec ';' K_endproperty
@@ -9168,6 +9208,8 @@ property_case_items
 sva_comb_atom
   : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
+  | event_control sva_seq_expr %prec sva_seq_comb_done
+      { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
   ;
@@ -9674,7 +9716,13 @@ property_qualifier_opt /* IEEE1800-2005 A.1.8: ... { property_qualifier } */
   ;
 
 property_qualifier_list /* IEEE1800-2005 A.1.8 */
-  : property_qualifier_list property_qualifier { $$ = $1 | $2; }
+  : property_qualifier_list property_qualifier
+      { $$ = $1 | $2;
+	if ($1.random_count() == 1 &&
+	    ($2.test_rand() || $2.test_randc()))
+	      yyerror(@2, "error: a class property declaration may contain only "
+		      "one random qualifier (IEEE 1800-2017 8.3).");
+      }
   | property_qualifier { $$ = $1; }
   ;
 
@@ -10483,6 +10531,13 @@ block_item_decl
 
   | parameter_declaration
 
+  /* IEEE 1800-2017 11.12: lets are declarations in sequential and
+     parallel blocks and in subroutines, which share this grammar rule. */
+  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
+      { perm_string tmp2 = lex_strings.make($2);
+        pform_make_let(@1, tmp2, $3, $5);
+      }
+
   /* Blocks can have type declarations. */
 
   | type_declaration
@@ -11261,7 +11316,9 @@ case_inside_items
      coercion and constant-expression checking happen in the matched leaf's
      context. */
 match_pattern
-  : '.' IDENTIFIER
+  : '(' match_pattern ')'
+      { $$ = $2; }
+  | '.' IDENTIFIER
       { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::VARIABLE);
 	tmp->name(lex_strings.make($2));
 	FILE_NAME(tmp, @1);
@@ -16217,11 +16274,6 @@ module_item
 	yyerrok;
       }
 
-  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
-      { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
-      }
-
   /* Maybe this is a discipline declaration? If so, then the lexor
      will see the discipline name as an identifier. We match it to the
      discipline or type name semantically. */
@@ -16575,6 +16627,10 @@ module_item
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
+			  if ((*$6)[idx__].port->get_port_type() == NetNet::POUTPUT)
+				yyerror(@4, "error: Covergroup sample formal '%s' cannot "
+					"have output direction (IEEE 1800 19.8.1).",
+					(*$6)[idx__].port->basename().operator const char*());
 			  formals__->push_back((*$6)[idx__].port->basename());
 			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);

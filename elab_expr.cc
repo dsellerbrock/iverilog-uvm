@@ -2008,6 +2008,15 @@ NetNet* find_array_method_iter_index(const NetNet*iter_net,
       return 0;
 }
 
+static NetNet* find_struct_array_method_iter_index_(
+	const NetNet*iter_net, perm_string member_name)
+{
+      const netstruct_t*struct_type = iter_net ? iter_net->struct_type() : 0;
+      if (!struct_type || struct_type->member_index(member_name) != (unsigned)-1)
+	    return 0;
+      return find_array_method_iter_index(iter_net, member_name);
+}
+
 static bool array_method_iter_index_forbidden_(const NetNet*iter_net,
 					       perm_string index_name =
 					       perm_string::literal("index"))
@@ -5715,23 +5724,27 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
 
       /* Reuse procedural-assignment validation for consts, nets and other
          read-valid but write-invalid names before exporting the expression
-         side effect. The bounded backend below currently accepts only the
-         resulting scalar signal shape. */
+         side effect. */
       NetAssign_*lval = left_->elaborate_lval(des, scope, false, false);
       if (!lval)
             return nullptr;
-      delete lval;
 
       NetExpr*lp = left_->elaborate_expr(des, scope, l_width, flags);
-      if (!lp)
+      if (!lp) {
+            delete lval;
             return nullptr;
+      }
 
       NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
-      if (!lsig || lsig->word_index()) {
+      const bool concat_lvalue = lval->more != 0
+	    || dynamic_cast<NetEConcat*>(lp) != 0;
+      if ((!concat_lvalue && (!lsig || lsig->word_index()))
+          || (concat_lvalue && op_ != '=')) {
             cerr << get_fileline() << ": sorry: Assignment expressions "
                  << "currently require a scalar variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5740,6 +5753,7 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
                  << "currently require an integral variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5747,26 +5761,30 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*rp = right_->elaborate_expr(des, scope, l_width, flags);
       if (!rp) {
             delete lp;
+            delete lval;
             return nullptr;
       }
       rp = cast_to_width(rp, l_width, signed_flag_, *this);
 
-      NetNet*target = lsig->sig();
       /* The ordinary l-value used for validation above is temporary;
 	 without this permanent note, `x = (member = 1)' can evade the
 	 continuous/procedural-driver check. An already reserved continuous
 	 driver is the opposite elaboration order of the same conflict. */
-      if (target->coerced_to_uwire()
-	  && target->test_part_driven(target->vector_width()-1, 0, 0)) {
-	cerr << get_fileline() << ": error: Variable '" << target->name()
-	     << "' cannot have continuous and procedural drivers on the"
-	     << " same bits." << endl;
-	des->errors += 1;
-	delete lp;
-	delete rp;
-	return nullptr;
+      for (NetAssign_*cur = lval; cur; cur = cur->more) {
+	NetNet*target = cur->sig();
+	if (target && target->coerced_to_uwire()
+	    && target->test_part_driven(target->vector_width()-1, 0, 0)) {
+	  cerr << get_fileline() << ": error: Variable '" << target->name()
+	       << "' cannot have continuous and procedural drivers on the"
+	       << " same bits." << endl;
+	  des->errors += 1;
+	  delete lp;
+	  delete rp;
+	  delete lval;
+	  return nullptr;
+	}
+	if (target) target->note_assignment_expression_write();
       }
-      target->note_assignment_expression_write();
 
       string name = "$ivl_assign_expr$";
       name += op_;
@@ -5775,6 +5793,10 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       fun->set_line(*this);
       fun->parm(0, lp);
       fun->parm(1, rp);
+      if (concat_lvalue)
+	fun->set_ref_output(lval);
+      else
+	delete lval;
 
       return cast_to_width(fun, expr_wid, signed_flag_, *this);
 }
@@ -7689,7 +7711,7 @@ static bool stream_property_readable_(Design*des, NetScope*scope,
       if (quiet)
 	    return true;
       if (ct->get_prop_qual(pidx).test_local()
-	  && !ct->test_scope_is_method(scope)) {
+	  && !ct->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << inner->get_fileline() << ": error: Local property "
 		 << ct->get_prop_name(pidx)
 		 << " is not accessible in this context." << endl;
@@ -15037,7 +15059,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && !class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -16587,7 +16610,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && ! class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -23524,8 +23548,12 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       if (found_symbol && sr.net
 	  && sr.path_tail.size() == 1
 	  && sr.path_tail.front().index.empty()) {
-	    if (NetNet*idx_net = find_array_method_iter_index(
-		  sr.net, sr.path_tail.front().name)) {
+	    NetNet*idx_net = sr.net->struct_type()
+		  ? find_struct_array_method_iter_index_(
+			sr.net, sr.path_tail.front().name)
+		  : find_array_method_iter_index(
+			sr.net, sr.path_tail.front().name);
+	    if (idx_net) {
 		expr_type_   = idx_net->data_type();
 		expr_width_  = idx_net->vector_width();
 		min_width_   = expr_width_;
@@ -24145,6 +24173,26 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && net->unpacked_dimensions() == 0
 		  && (net->darray_type() || net->queue_type());
+
+	    if (gn_system_verilog() && net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			net, member_name)) {
+			if (array_method_iter_index_forbidden_(net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!indexed_container_member_path
 		&& (net->struct_type()
@@ -25319,6 +25367,26 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && sr.net->unpacked_dimensions() == 0
 		  && (sr.net->darray_type() || sr.net->queue_type());
+
+	    if (gn_system_verilog() && sr.net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			sr.net, member_name)) {
+			if (array_method_iter_index_forbidden_(sr.net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!sr.path_tail.empty()
 		&& !indexed_container_member_path
