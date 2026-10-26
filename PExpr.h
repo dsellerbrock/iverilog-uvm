@@ -1501,6 +1501,8 @@ class PECallFunction : public PExpr {
             { return let_substitution_(des, scope); }
 
       const pform_scoped_name_t& path() const { return path_; }
+      void set_lexical_pos(unsigned pos) { lexical_pos_ = pos; }
+      unsigned lexical_pos() const { return lexical_pos_; }
       const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
       PExpr* receiver_expr() const { return receiver_; }
       virtual void dump(std::ostream &) const override;
@@ -1556,6 +1558,7 @@ class PECallFunction : public PExpr {
       bool concurrent_assertion_expr_ = false;
       bool sampled_default_clock_ = false;
       pform_scoped_name_t path_;
+      unsigned lexical_pos_ = UINT_MAX;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
       bool randomize_with_identifier_list_present_ = false;

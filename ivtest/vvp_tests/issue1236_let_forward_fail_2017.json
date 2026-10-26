@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1236_let_forward_fail.v",
+  "iverilog-args": ["-g2017", "-s", "issue1236_let_forward_fail"],
+  "gold": "issue1236_let_forward_fail_2017"
+}

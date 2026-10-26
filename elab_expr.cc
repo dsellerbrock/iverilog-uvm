@@ -11482,6 +11482,15 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
 
+      if (get_file() == let->get_file()
+          && let->lexical_pos() > lexical_pos_) {
+            cerr << get_fileline() << ": error: let `" << comp.name
+                 << "' is used before its declaration." << endl;
+            des->errors += 1;
+            let_subst_tried_ = true;
+            return 0;
+      }
+
       let_subst_tried_ = true;
       let_subst_ = let_expand_(des, *this, let, parms_);
       return let_subst_;
@@ -11499,6 +11508,15 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 	    lookup = des->find_package(path_.package->pscope_name());
       PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
       if (let == 0) return 0;
+
+      if (get_file() == let->get_file()
+          && let->lexical_pos() > lexical_pos()) {
+            cerr << get_fileline() << ": error: let `" << comp.name
+                 << "' is used before its declaration." << endl;
+            des->errors += 1;
+            let_subst_tried_ = true;
+            return 0;
+      }
 
       let_subst_tried_ = true;
       static const std::vector<named_pexpr_t> no_args;

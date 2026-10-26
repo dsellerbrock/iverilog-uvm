@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1236_let_forward_fail_2017 CE,-g2017 ivltests
+issue1236_let_forward_fail_2023 CE,-g2023 ivltests
+
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
 #

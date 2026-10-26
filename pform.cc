@@ -1875,6 +1875,7 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 	    check_potential_imports(loc, name.front().name, true);
 
       PECallFunction*tmp = new PECallFunction(name, parms);
+      tmp->set_lexical_pos(loc.lexical_pos);
       tmp->set_leading_type_args(type_args);
       if (type_args)
 	    tmp->set_scoped_type_prefix();
@@ -6604,7 +6605,7 @@ void pform_make_let(const struct vlltype&loc,
 			delete expr;
 			return;
 		  }
-		  PLet*res = new PLet(name, scope, ports, expr);
+		  PLet*res = new PLet(name, scope, ports, expr, loc.lexical_pos);
 		  FILE_NAME(res, loc);
 		  package->lets[name] = res;
 		  return;
@@ -6639,7 +6640,7 @@ void pform_make_let(const struct vlltype&loc,
 	    return;
       }
 
-      PLet*res = new PLet(name, scope, ports, expr);
+      PLet*res = new PLet(name, scope, ports, expr, loc.lexical_pos);
       FILE_NAME(res, loc);
       mod->lets[name] = res;
 }

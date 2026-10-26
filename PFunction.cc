@@ -103,8 +103,8 @@ PNamedItem::SymbolType PFunction::symbol_type() const
 
 
 PLet::PLet(perm_string name, LexicalScope*parent, list<let_port_t*>*ports,
-           PExpr*expr)
-: PTaskFunc(name, parent), ports_(ports), expr_(expr)
+           PExpr*expr, unsigned lexical_pos)
+: PTaskFunc(name, parent), ports_(ports), expr_(expr), lexical_pos_(lexical_pos)
 {
 }
 
