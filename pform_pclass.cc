@@ -1124,6 +1124,7 @@ void pform_class_covergroup(const struct vlltype&loc,
 	    }
 	    for (const auto&item : added_options)
 		  cg->options[item.first] = item.second;
+	    cg->extension_options = added_options;
       }
       // Resolve implicit cross items after inheritance is merged so names
       // from a base covergroup remain references to its components.

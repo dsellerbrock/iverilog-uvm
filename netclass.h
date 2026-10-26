@@ -515,6 +515,12 @@ class netclass_t : public ivl_type_s {
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    int weight_prop = -1;   // mutable per-instance option slot
+	    int goal_prop = -1;
+	    int comment_prop = -1;
+	    unsigned goal = 100;
+	    std::string comment;
+	    PExpr* goal_expr = nullptr;
+	    PExpr* comment_expr = nullptr;
 	    bool is_cross = false;
 	    perm_string name;   // M12-7: coverpoint/cross label
 	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
@@ -601,7 +607,11 @@ class netclass_t : public ivl_type_s {
 			   perm_string name = perm_string(),
 			   const std::string&weight_ir = std::string(),
 			   PExpr*iff_expr = nullptr, int iff_src = -1,
-			   int at_least_prop = -1, int weight_prop = -1)
+			   int at_least_prop = -1, int weight_prop = -1,
+			   int goal_prop = -1, int comment_prop = -1,
+			   PExpr*goal_expr = nullptr, PExpr*comment_expr = nullptr,
+			   unsigned goal = 100,
+			   const std::string&comment = std::string())
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
@@ -609,6 +619,12 @@ class netclass_t : public ivl_type_s {
 	it.weight_ir = weight_ir;
 	it.at_least_prop = at_least_prop;
 	it.weight_prop = weight_prop;
+	it.goal_prop = goal_prop;
+	it.comment_prop = comment_prop;
+	it.goal_expr = goal_expr;
+	it.comment_expr = comment_expr;
+	it.goal = goal;
+	it.comment = comment;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_expr = iff_expr;
@@ -622,9 +638,14 @@ class netclass_t : public ivl_type_s {
             PExpr* weight_expr = nullptr;
             PExpr* per_instance_expr = nullptr;
             PExpr* get_inst_coverage_expr = nullptr;
+            unsigned goal = 100;
+            std::string comment;
+            PExpr* goal_expr = nullptr;
+            PExpr* comment_expr = nullptr;
             NetScope* declaration_scope = nullptr;
             int weight_prop = -1, per_instance_prop = -1;
             int get_inst_coverage_prop = -1;
+            int goal_prop = -1, comment_prop = -1;
       };
       covgrp_options_t& covgrp_options() { return covgrp_options_; }
       const covgrp_options_t& covgrp_options() const { return covgrp_options_; }
@@ -635,12 +656,19 @@ class netclass_t : public ivl_type_s {
                   return covgrp_options_.per_instance_prop;
             if (name == perm_string::literal("get_inst_coverage"))
                   return covgrp_options_.get_inst_coverage_prop;
+            if (name == perm_string::literal("goal"))
+                  return covgrp_options_.goal_prop;
+            if (name == perm_string::literal("comment"))
+                  return covgrp_options_.comment_prop;
             return -1;
       }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
+      { covgrp_items_[idx].goal_prop = goal_prop;
+        covgrp_items_[idx].comment_prop = comment_prop; }
 	// Resolve the IEEE hierarchical pseudo-members
-	//   <coverpoint-or-cross>.option.{at_least,weight}
+	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on
 	// each covergroup object. The item labels themselves are metadata rather
 	// than class properties, so expression/l-value elaboration uses this hook
@@ -653,6 +681,10 @@ class netclass_t : public ivl_type_s {
 			return item.at_least_prop;
 		  if (option_name == perm_string::literal("weight"))
 			return item.weight_prop;
+		  if (option_name == perm_string::literal("goal"))
+			return item.goal_prop;
+		  if (option_name == perm_string::literal("comment"))
+			return item.comment_prop;
 		  return -1;
 	    }
 	    return -1;
