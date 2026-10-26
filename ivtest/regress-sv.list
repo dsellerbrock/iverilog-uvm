@@ -6053,3 +6053,7 @@ issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issu
 issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
 issue1194_always_assertion_2017 normal,-g2017,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
 issue1194_always_assertion_2023 normal,-g2023,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
+
+# IEEE 1800-2017/2023 assignment expressions with concatenation l-values
+issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
+issue1229_assignment_concat_expr_2023 normal,-g2023,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold

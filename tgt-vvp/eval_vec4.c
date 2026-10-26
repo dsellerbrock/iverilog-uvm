@@ -1694,6 +1694,21 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
 
       assert(ivl_expr_parms(expr) == 2);
       assert(lhs && rhs);
+
+      unsigned lval_count = ivl_expr_ref_lval_count(expr);
+      if (lval_count > 0) {
+            draw_eval_vec4(rhs);
+            fprintf(vvp_out, "    %%dup/vec4; preserve concatenation assignment value\n");
+            for (unsigned idx = 0; idx < lval_count; idx += 1) {
+                  ivl_lval_t lval = ivl_expr_ref_lval_at(expr, idx);
+                  if (idx + 1 < lval_count)
+                        fprintf(vvp_out, "    %%split/vec4 %u;\n",
+                                ivl_lval_width(lval));
+                  draw_store_vec4_lval(lval);
+            }
+            return;
+      }
+
       assert(ivl_expr_type(lhs) == IVL_EX_SIGNAL);
       assert(ivl_expr_oper1(lhs) == 0);
 
