@@ -1,0 +1,2 @@
+ivltests/issue1204_sample_formal_option_fail.v:4: error: sample() formal 'x' may only designate a coverpoint or conditional guard expression.
+1 error(s) during elaboration.
