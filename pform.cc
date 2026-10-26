@@ -8079,15 +8079,6 @@ static Statement* pform_rs_expand_join_(
 		  error_count += 1; ctx.bad = true; break;
 	    }
 	    const rs_rule_t&rule = (*prod->rules)[0];
-	    bool code_only = rule.items;
-	    if (rule.items) for (const rs_item_t&part : *rule.items)
-		  if (part.kind != rs_item_t::CODE) code_only = false;
-	    if (!code_only) {
-		  cerr << ctx.loc << ": sorry: randsequence rand join currently "
-		       << "interleaves code-block items; nested production/control "
-		       << "items are not supported in joined lanes yet." << endl;
-		  error_count += 1; ctx.bad = true; break;
-	    }
 	    pform_rs_join_lane_t lane;
 	    lane.production = prod;
 	    lane.rule = &rule;
@@ -8118,9 +8109,9 @@ static Statement* pform_rs_expand_join_(
 	    for (size_t lane_index : schedule.lanes) {
 		  const pform_rs_join_lane_t&lane = lanes[lane_index];
 		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
-		  Statement*copy = pform_rs_clone_stmt_(ctx, part.code,
-						   &lane.subst, 0);
-		  if (copy) statements.push_back(copy);
+		  Statement*expanded = pform_rs_expand_item_(ctx, part,
+							     &lane.subst);
+		  if (expanded) statements.push_back(expanded);
 	    }
 	    PCase::Item*branch = new PCase::Item;
 	    uint64_t weight = (uint64_t)llround(schedule.probability
