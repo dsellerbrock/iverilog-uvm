@@ -7536,7 +7536,7 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      reported an error too. A parenthesized expression is still just an
      expression, so the previous form keeps working. */
   | K_default K_disable K_iff expression ';'
-      { pform_sva_set_default_disable($4); }
+      { pform_sva_set_default_disable(@2, $4); }
   /* M9: named no-argument property/sequence declarations, usable by
      assertions later in the SAME module. */
   | K_property IDENTIFIER ';' property_spec ';' K_endproperty

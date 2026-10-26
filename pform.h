@@ -459,7 +459,8 @@ extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,
 					 std::list<perm_string>*formals,
 					 std::vector<sva_seq_step_t>*steps);
-extern void pform_sva_set_default_disable(PExpr*expr);
+extern void pform_sva_set_default_disable(const struct vlltype&loc,
+                                          PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 /* Evaluate the integral constant-expression subset used by SVA
    repetition and cycle-delay bounds while the module is being parsed. */
