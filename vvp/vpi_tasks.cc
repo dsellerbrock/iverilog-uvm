@@ -992,6 +992,10 @@ void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
       vpip_current_vthread = thr;
 
       vpip_cur_task = dynamic_cast<__vpiSysTaskCall*>(ref);
+      __vpiScope*saved_scope = vpip_cur_task->scope;
+      __vpiScope*call_scope = thr ? vthread_scope(thr) : 0;
+      if (call_scope)
+	    vpip_cur_task->scope = call_scope;
 
       if (vpip_cur_task->defn->info.calltf) {
 	    assert(vpi_mode_flag == VPI_MODE_NONE);
@@ -1021,6 +1025,7 @@ void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
 	/* If the function returns a value, push it to the appropriate stack. */
       if (vpip_cur_task->get_type_code() == vpiSysFuncCall)
 	    static_cast<sysfunc_def*>(vpip_cur_task)->push_return(thr);
+      vpip_cur_task->scope = saved_scope;
       vpip_cur_task = 0;
 }
 

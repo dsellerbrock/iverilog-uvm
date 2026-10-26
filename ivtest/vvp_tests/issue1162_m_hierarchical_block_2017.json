@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1162_m_hierarchical_block.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue1162_m_hierarchical_block" ],
+    "gold"          : "issue1162_m_hierarchical_block"
+}

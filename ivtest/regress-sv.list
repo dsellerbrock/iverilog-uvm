@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1162_m_hierarchical_block_2017 normal,-g2017 ivltests gold=issue1162_m_hierarchical_block-vvp-stdout.gold
+issue1162_m_hierarchical_block_2023 normal,-g2023 ivltests gold=issue1162_m_hierarchical_block-vvp-stdout.gold
+
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
 #
