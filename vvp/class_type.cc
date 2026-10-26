@@ -793,7 +793,8 @@ class property_string : public class_property_t {
 
 class property_object : public class_property_t {
     public:
-      inline explicit property_object(uint64_t as): array_size_(as==0? 1 : as) { }
+      inline explicit property_object(uint64_t as, class_type*defn=0)
+	: defn_(defn), array_size_(as==0? 1 : as) { }
       ~property_object() override { }
 
       size_t instance_size() const override { return array_size_ * sizeof(vvp_object_t); }
@@ -810,6 +811,7 @@ class property_object : public class_property_t {
       void copy(char*dst, char*src) override;
 
     private:
+      class_type*defn_;
       size_t array_size_;
 };
 
@@ -1309,6 +1311,15 @@ void property_object::copy(char*dst, char*src)
 {
       vvp_object_t*dst_obj = reinterpret_cast<vvp_object_t*>(dst+offset_);
       const vvp_object_t*src_obj = reinterpret_cast<vvp_object_t*>(src+offset_);
+	// Embedded covergroups use synthetic class names, while standalone
+	// covergroup types retain their declared names. IEEE 1800-2017/2023
+	// 8.12 requires only the former handles to be null after a shallow copy.
+      if (defn_ && defn_->is_covergroup()
+	  && defn_->covgrp_owner_prop() >= 0) {
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  dst_obj[idx] = vvp_object_t();
+	    return;
+      }
       for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
 	    dst_obj[idx] = src_obj[idx];
 }
@@ -2143,7 +2154,8 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       else if (t == "S")
 	    properties_[idx].type = new property_string(array_size);
       else if (t == "o")
-	    properties_[idx].type = new property_object(array_size);
+	    properties_[idx].type = new property_object(array_size,
+		const_cast<class_type*>(property_declared_class_type(idx)));
       else if (t.compare(0,3,"oc:") == 0) {
 	    compile_vpi_lookup(&properties_[idx].declared_class_type,
 			       strdup(t.c_str()+3));
@@ -3239,6 +3251,17 @@ void compile_class_covgrp_parent(uint64_t prop)
 	    return;
       }
       compile_class->set_covgrp_parent_prop((int)prop);
+}
+
+void compile_class_covgrp_owner(uint64_t prop)
+{
+      assert(compile_class);
+      if (prop > (uint64_t)std::numeric_limits<int>::max()) {
+	    yyerror("invalid .covgrp_owner metadata value");
+	    compile_errors += 1;
+	    return;
+      }
+      compile_class->set_covgrp_owner_prop((int)prop);
 }
 
 void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc)
