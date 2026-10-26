@@ -1,0 +1,5 @@
+ivltests/issue1225_unknown_vector_range_fail.v:8: error: Range bound expression contains unknown or high-impedance bits: Z
+ivltests/issue1225_unknown_vector_range_fail.v:7: error: Range bound expression contains unknown or high-impedance bits: Z
+ivltests/issue1225_unknown_vector_range_fail.v:6: error: Range bound expression contains unknown or high-impedance bits: X
+ivltests/issue1225_unknown_vector_range_fail.v:5: error: Range bound expression contains unknown or high-impedance bits: X
+4 error(s) during elaboration.
