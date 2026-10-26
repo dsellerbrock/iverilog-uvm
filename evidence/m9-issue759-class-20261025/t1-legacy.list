@@ -480,7 +480,6 @@ sv_randomize_with_identifier_unknown_fail CE,-g2012 ivltests gold=sv_randomize_w
 sv_randomize_with_identifier_no_block_fail CE,-g2012 ivltests gold=sv_randomize_with_identifier_no_block_fail.gold
 sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_randomize_with_identifier_list_fail.gold
 sv_scope_randomize_null_fail CE,-g2017 ivltests gold=sv_scope_randomize_null_fail.gold
-sv_scope_randomize_null_fail CE,-g2023 ivltests gold=sv_scope_randomize_null_fail.gold
 sv_sampled_value_clocking_input_unsupported CE,-g2017 ivltests
 sv_assert_clocking_input_skew_delay_2017 CE,-g2017,-gassertions ivltests
 sv_assert_clocking_input_skew_delay_2023 CE,-g2023,-gassertions ivltests
@@ -1467,7 +1466,6 @@ sv_force_assign_legal_targets normal,-g2017,-s,sv_force_assign_legal_targets ivl
 sv_force_assign_legal_targets_2023 normal,-g2023,-s,sv_force_assign_legal_targets ivltests gold=sv_force_assign_legal_targets.gold
 sv_protected_envelope_unsupported_2017 CE,-g2012,-s,sv_protected_envelope_unsupported_2017 ivltests
 sv_protected_envelope_unsupported_2023 CE,-g2012,-s,sv_protected_envelope_unsupported_2023 ivltests
-
 sv_constraint_function_result_priority_progress normal,-g2017,-s,test ivltests gold=sv_constraint_function_result_priority_progress.gold
 sv_constraint_function_result_priority_progress_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_result_priority_progress.gold
 sv_constraint_function_priority_rng_replay normal,-g2017,-s,test ivltests gold=sv_constraint_function_priority_rng_replay.gold
@@ -1479,3 +1477,6 @@ sv_constraint_function_priority_distribution_2023 normal,-g2023,-s,test ivltests
 sv_event_array_invalid_wait normal,-g2017,-s,sv_event_array_invalid_wait ivltests gold=sv_event_array_invalid_wait.gold
 pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold
+sv_type_this normal,-g2023 ivltests gold=sv_type_this.gold
+sv_type_this_2017 CE,-g2017 ivltests gold=sv_type_this_2017.gold
+sv_type_this_outside_class CE,-g2023 ivltests gold=sv_type_this_outside_class.gold
