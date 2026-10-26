@@ -1,0 +1,4 @@
+./ivltests/issue1203_invalid_coverage_weight_2017.v:5: error: covergroup option.weight requires a non-negative integral value.
+./ivltests/issue1203_invalid_coverage_weight_2017.v:10: error: covergroup option.weight requires a non-negative integral value.
+./ivltests/issue1203_invalid_coverage_weight_2017.v:15: error: covergroup type_option.weight requires a non-negative integral value.
+3 error(s) during elaboration.

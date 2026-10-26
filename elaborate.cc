@@ -43351,6 +43351,39 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
+            auto check_literal_weight = [&](PExpr*expr, const char*where,
+                                            bool type_option) {
+                  if (!expr) return;
+                  const PENumber*number = dynamic_cast<const PENumber*>(expr);
+                  const PEFNumber*real = dynamic_cast<const PEFNumber*>(expr);
+                  double sign = 1.0;
+                  if (!number && !real) {
+                        const PEUnary*unary = dynamic_cast<const PEUnary*>(expr);
+                        if (!unary || (unary->get_op() != '+'
+                              && unary->get_op() != '-')
+                              ) return;
+                        number = dynamic_cast<const PENumber*>(unary->get_expr());
+                        real = dynamic_cast<const PEFNumber*>(unary->get_expr());
+                        if (!number && !real) return;
+                        if (unary->get_op() == '-') sign = -1.0;
+                  }
+                  if (number && !number->value().is_defined()) return;
+                  double value = sign * (real ? real->value().as_double()
+                                                : number->value().as_double());
+                  bool integral = std::isfinite(value) && std::floor(value) == value;
+                  // Type-option negative integral constants already receive
+                  // the established diagnostic from the integer conversion
+                  // check below. This check primarily catches real truncation.
+                  if (type_option && integral && value < 0) return;
+                  if (!integral || value < 0) {
+                        cerr << expr->get_fileline() << ": error: " << where
+                             << " requires a non-negative integral value."
+                             << endl;
+                        des->errors += 1;
+                  }
+            };
+            check_literal_weight(group_options.weight_expr,
+                                 "covergroup option.weight", false);
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
@@ -43377,11 +43410,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                         bind_formal(cgdef->sample_formals[fi],
                                     cg_class->covgrp_sample_formal_type(fi),
                                     false);
-                  // 19.10 declares an int member; use ordinary assignment
-                  // conversion before enforcing table 19-3's domain.
+                  check_literal_weight(it->second, (std::string(where)
+                        + " type_option.weight").c_str(), true);
+                  // Preserve the established conversion and range behavior
+                  // after checking literal real values before truncation.
                   NetExpr*value = is_direct_ctor_formal(it->second) ? nullptr
-                        : elaborate_rval_expr(des, class_scope_, &netvector_t::atom2s32,
-                                              it->second, true);
+                        : elaborate_rval_expr(des, class_scope_,
+                              &netvector_t::atom2s32, it->second, true);
                   NetEConst*constant = dynamic_cast<NetEConst*>(value);
                   unsigned result = 1;
                   if (constant && constant->value().is_defined()
