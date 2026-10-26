@@ -8502,10 +8502,10 @@ static unsigned sva_gensym_counter = 0;
 
 /* M9D: parameterized named property/sequence declarations. The formal
    argument names are substituted with the actual argument expressions at
-   each instantiation (signal/boolean formals only — a formal used as a
-   delay bound is already a non-constant `##` and diagnosed at lowering). */
+   each instantiation. Local input formals are initialized through the
+   sequence local-variable assignment path. */
 struct sva_param_seq_t {
-      std::vector<perm_string> formals;
+      std::vector<sva_sequence_formal_t> formals;
       std::vector<sva_seq_step_t>* body = nullptr;
 };
 struct sva_param_prop_t {
@@ -9390,7 +9390,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 }
 
 void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
-				  std::list<perm_string>*formals,
+				  std::list<sva_sequence_formal_t>*formals,
 				  std::vector<sva_seq_step_t>*steps)
 {
       pform_sva_end_local_declarations();
@@ -9405,7 +9405,10 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 	    return;
       }
       sva_param_seq_t rec;
-      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      if (formals) {
+	    for (sva_sequence_formal_t f : *formals)
+	      rec.formals.push_back(f);
+      }
       sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
       sva_param_sequences[sva_decl_key_(use_name)] = rec;
@@ -11145,8 +11148,55 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     const std::vector<named_pexpr_t>&parms)
 {
       std::map<perm_string,PExpr*> subst;
-      if (!sva_build_subst_(loc, "sequence", nm, decl.formals, parms, subst))
+      std::vector<PExpr*> owned_subst;
+      if (parms.size() != decl.formals.size()) {
+	    cerr << loc << ": error: sequence `" << nm << "' expects "
+		 << decl.formals.size() << " argument(s), got " << parms.size()
+		 << "." << endl;
+	    error_count += 1;
 	    return nullptr;
+      }
+
+      std::vector<sva_seq_step_t> initializers;
+      for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
+	    const sva_sequence_formal_t&formal = decl.formals[k];
+	    if (!parms[k].parm) {
+		  cerr << loc << ": error: sequence `" << nm
+		       << "' argument " << (k+1) << " is empty." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    if (!formal.local_input) {
+		  subst[formal.name] = parms[k].parm;
+		  continue;
+	    }
+
+	    char name_buf[64];
+	    snprintf(name_buf, sizeof name_buf, "_ivl_sva_local_arg_%u",
+		     sva_gensym_counter++);
+	    perm_string local_name = lex_strings.make(name_buf);
+	    subst[formal.name] = sva_id_(loc, local_name);
+	    owned_subst.push_back(subst[formal.name]);
+
+	    PExpr*actual = sva_clone_subst_(parms[k].parm, nullptr);
+	    if (!actual) {
+		  cerr << loc << ": sorry: sequence `" << nm
+		       << "' local input argument cannot be copied." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    PECastType*typed = new PECastType(formal.type, actual);
+	    FILE_NAME(typed, loc);
+	    sva_seq_step_t init;
+	    init.expr = sva_bit_(loc, 1);
+	    init.lv_name = local_name;
+	    init.lv_rhs = typed;
+	    initializers.push_back(init);
+      }
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
@@ -11182,10 +11232,15 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  delete st.rep_hi_expr;
 		  sva_destroy_match_calls_(st.match_calls);
 		  pform_sva_destroy_sequence(out);
+		  pform_sva_destroy_sequence(&initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
 	    out->push_back(st);
       }
+      out->insert(out->begin(), initializers.begin(), initializers.end());
+      initializers.clear();
+      for (PExpr*expr : owned_subst) delete expr;
       return out;
 }
 
