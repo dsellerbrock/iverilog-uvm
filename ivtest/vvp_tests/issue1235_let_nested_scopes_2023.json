@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1235_let_nested_scopes_2023.v",
+    "iverilog-args": ["-g2023", "-s", "issue1235_let_nested_scopes"],
+    "gold": "issue1235_let_nested_scopes_2023"
+}
