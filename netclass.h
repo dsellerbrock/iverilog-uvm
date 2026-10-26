@@ -517,6 +517,8 @@ class netclass_t : public ivl_type_s {
 	    int weight_prop = -1;   // mutable per-instance option slot
 	    int goal_prop = -1;
 	    int comment_prop = -1;
+	    unsigned goal = 100;
+	    std::string comment;
 	    PExpr* goal_expr = nullptr;
 	    PExpr* comment_expr = nullptr;
 	    bool is_cross = false;
@@ -607,7 +609,9 @@ class netclass_t : public ivl_type_s {
 			   PExpr*iff_expr = nullptr, int iff_src = -1,
 			   int at_least_prop = -1, int weight_prop = -1,
 			   int goal_prop = -1, int comment_prop = -1,
-			   PExpr*goal_expr = nullptr, PExpr*comment_expr = nullptr)
+			   PExpr*goal_expr = nullptr, PExpr*comment_expr = nullptr,
+			   unsigned goal = 100,
+			   const std::string&comment = std::string())
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
@@ -619,6 +623,8 @@ class netclass_t : public ivl_type_s {
 	it.comment_prop = comment_prop;
 	it.goal_expr = goal_expr;
 	it.comment_expr = comment_expr;
+	it.goal = goal;
+	it.comment = comment;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_expr = iff_expr;
@@ -632,6 +638,8 @@ class netclass_t : public ivl_type_s {
             PExpr* weight_expr = nullptr;
             PExpr* per_instance_expr = nullptr;
             PExpr* get_inst_coverage_expr = nullptr;
+            unsigned goal = 100;
+            std::string comment;
             PExpr* goal_expr = nullptr;
             PExpr* comment_expr = nullptr;
             NetScope* declaration_scope = nullptr;

@@ -860,6 +860,7 @@ struct class_type_t : public data_type_t {
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)
 	    std::map<perm_string, PExpr*> options;
+	    std::map<perm_string, PExpr*> extension_options;
       };
       std::vector<pform_covergroup_t*> covergroups;
 

@@ -4857,6 +4857,30 @@ extern "C" int ivl_type_covgrp_per_instance_prop(ivl_type_t net)
       return class_type ? class_type->covgrp_options().per_instance_prop : -1;
 }
 
+extern "C" unsigned ivl_type_covgrp_goal(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().goal : 100;
+}
+
+extern "C" int ivl_type_covgrp_goal_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().goal_prop : -1;
+}
+
+extern "C" const char* ivl_type_covgrp_comment(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().comment.c_str() : "";
+}
+
+extern "C" int ivl_type_covgrp_comment_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().comment_prop : -1;
+}
+
 extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -4880,6 +4904,42 @@ extern "C" const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx)
 	  && (size_t)idx < class_type->covgrp_item_count())
 	    return class_type->covgrp_item((size_t)idx).weight_ir.c_str();
       return "";
+}
+
+extern "C" unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).goal;
+      return 100;
+}
+
+extern "C" int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).goal_prop;
+      return -1;
+}
+
+extern "C" const char* ivl_type_covgrp_item_comment(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).comment.c_str();
+      return "";
+}
+
+extern "C" int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).comment_prop;
+      return -1;
 }
 
 extern "C" int ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx)

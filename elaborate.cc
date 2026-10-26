@@ -42377,6 +42377,34 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return std::make_pair(dflt, ir);
 		    };
+		      // Fold values that can be stored in the covergroup type record;
+	      // constructor-dependent values remain instance initializers.
+	    auto opt_goal = [&](PExpr*expr) -> std::pair<unsigned,PExpr*> {
+		  if (!expr) return std::make_pair(100u, static_cast<PExpr*>(nullptr));
+		  NetExpr*value = is_direct_ctor_formal(expr) ? nullptr
+			: elab_and_eval(des, class_scope_, expr,
+					&netvector_t::atom2s32, false);
+		  if (NetEConst*constant = dynamic_cast<NetEConst*>(value)) {
+			unsigned goal = static_cast<unsigned>(constant->value().as_ulong64());
+			delete value;
+			return std::make_pair(goal, static_cast<PExpr*>(nullptr));
+		  }
+		  delete value;
+		  return std::make_pair(100u, expr);
+	    };
+	    auto opt_comment = [](PExpr*expr) -> std::pair<std::string,PExpr*> {
+		  if (const PEString*value = dynamic_cast<const PEString*>(expr))
+			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
+		  return std::make_pair(std::string(), expr);
+	    };
+	    auto reject_dynamic_extension_option = [&](PExpr*expr) {
+		  cerr << expr->get_fileline()
+		       << ": sorry: constructor-dependent coverage option "
+		       << "goal/comment declared or overridden in a covergroup "
+		       << "extension is not supported (IEEE 1800-2023 19.4.1, 19.7)."
+		       << endl;
+		  des->errors += 1;
+	    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
@@ -43413,12 +43441,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto per_instance_it = cgdef->options.find(perm_string::literal("per_instance"));
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
+            group_options.goal = 100;
+            group_options.goal_expr = nullptr;
             auto goal_it = cgdef->options.find(perm_string::literal("goal"));
-            if (goal_it != cgdef->options.end())
-                  group_options.goal_expr = goal_it->second;
+            if (goal_it != cgdef->options.end()) {
+                  std::pair<unsigned,PExpr*>goal = opt_goal(goal_it->second);
+                  group_options.goal = goal.first;
+                  group_options.goal_expr = goal.second;
+            }
+            group_options.comment.clear();
+            group_options.comment_expr = nullptr;
             auto comment_it = cgdef->options.find(perm_string::literal("comment"));
-            if (comment_it != cgdef->options.end())
-                  group_options.comment_expr = comment_it->second;
+            if (comment_it != cgdef->options.end()) {
+                  std::pair<std::string,PExpr*>comment =
+                        opt_comment(comment_it->second);
+                  group_options.comment = comment.first;
+                  group_options.comment_expr = comment.second;
+            }
+            if (cgdef->is_extension) {
+                  auto goal_override = cgdef->extension_options.find(
+                        perm_string::literal("goal"));
+                  if (goal_override != cgdef->extension_options.end()
+                        && group_options.goal_expr)
+                        reject_dynamic_extension_option(group_options.goal_expr);
+                  auto comment_override = cgdef->extension_options.find(
+                        perm_string::literal("comment"));
+                  if (comment_override != cgdef->extension_options.end()
+                        && group_options.comment_expr)
+                        reject_dynamic_extension_option(group_options.comment_expr);
+            }
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
@@ -43914,6 +43965,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  std::pair<int,int> cp_option_props = add_option_props(cp_option_stem);
 			  auto cp_goal_it = cp.options.find(perm_string::literal("goal"));
 			  auto cp_comment_it = cp.options.find(perm_string::literal("comment"));
+		  std::pair<unsigned,PExpr*>cp_goal = opt_goal(
+			cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second);
+		  std::pair<std::string,PExpr*>cp_comment = opt_comment(
+			cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
+		  if (cgdef->is_extension && cp.declared_by_extension) {
+			if (cp_goal.second) reject_dynamic_extension_option(cp_goal.second);
+			if (cp_comment.second) reject_dynamic_extension_option(cp_comment.second);
+		  }
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
@@ -43921,8 +43980,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_option_props.first,
 						cp_option_props.second,
 						-1, -1,
-						cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second,
-						cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
+						cp_goal.second, cp_comment.second,
+						cp_goal.first, cp_comment.first);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -45916,6 +45975,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  std::pair<int,int> x_option_props = add_option_props(x_option_stem);
 			  auto x_goal_it = cross.options.find(perm_string::literal("goal"));
 			  auto x_comment_it = cross.options.find(perm_string::literal("comment"));
+		  std::pair<unsigned,PExpr*>x_goal = opt_goal(
+			x_goal_it == cross.options.end() ? nullptr : x_goal_it->second);
+		  std::pair<std::string,PExpr*>x_comment = opt_comment(
+			x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
+		  if (cgdef->is_extension && cross.declared_by_extension) {
+			if (x_goal.second) reject_dynamic_extension_option(x_goal.second);
+			if (x_comment.second) reject_dynamic_extension_option(x_comment.second);
+		  }
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
@@ -45924,8 +45991,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						x_option_props.first,
 						x_option_props.second,
 						-1, -1,
-					x_goal_it == cross.options.end() ? nullptr : x_goal_it->second,
-					x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
+					x_goal.second, x_comment.second,
+					x_goal.first, x_comment.first);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
@@ -46915,26 +46982,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    }
 
-		    // Keep existing coverage-bin property indexes stable. The new mutable
-		    // option storage follows all pre-existing hidden properties.
-		    if (group_options.goal_prop < 0)
-			  group_options.goal_prop = add_unique_cov_counter(
-				"__covgrp_group_option_goal");
-		    if (group_options.comment_prop < 0)
-			  group_options.comment_prop = add_unique_cov_property(
-				"__covgrp_group_option_comment", &netstring_t::type_string);
+	    // Keep existing coverage-bin property indexes stable. The new mutable
+	    // option storage follows all pre-existing hidden properties.
+	    group_options.goal_prop = add_unique_cov_counter(
+		  "__covgrp_group_option_goal");
+	    group_options.comment_prop = add_unique_cov_property(
+		  "__covgrp_group_option_comment", &netstring_t::type_string);
 		    for (size_t item = 0; item < cg_class->covgrp_item_count(); item++) {
-			  const netclass_t::covgrp_item_t&item_data =
-				cg_class->covgrp_item(item);
 			  std::string stem = "__covgrp_item_" + std::to_string(item);
-			  int goal_prop = item_data.goal_prop;
-			  int comment_prop = item_data.comment_prop;
-			  if (goal_prop < 0)
-				goal_prop = add_unique_cov_counter(stem + "_option_goal");
-			  if (comment_prop < 0)
-				comment_prop = add_unique_cov_property(
-				      stem + "_option_comment", &netstring_t::type_string);
-			  cg_class->set_covgrp_item_option_props(item, goal_prop, comment_prop);
+		  cg_class->set_covgrp_item_option_props(
+			item, add_unique_cov_counter(stem + "_option_goal"),
+			add_unique_cov_property(stem + "_option_comment",
+						&netstring_t::type_string));
 		    }
 
 		    // Replace the covergroup property declaration on the
