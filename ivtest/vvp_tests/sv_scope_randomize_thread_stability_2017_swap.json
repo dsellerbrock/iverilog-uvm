@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_scope_randomize_thread_stability.v",
+    "iverilog-args": ["-g2017", "-DSWAP", "-s", "main"],
+    "gold": "sv_scope_randomize_thread_stability"
+}

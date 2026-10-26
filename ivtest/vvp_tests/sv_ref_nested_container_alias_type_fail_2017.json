@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_ref_nested_container_alias_type_fail_2017.v","iverilog-args":["-g2017","-s","sv_ref_nested_container_alias_type_fail"],"gold":"sv_ref_nested_container_alias_type_fail"}

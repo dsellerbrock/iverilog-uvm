@@ -3573,7 +3573,7 @@ static bool qreverse_dispatch_(vvp_darray*arr)
 
 /* Phase 63b/Q-methods: Fisher-Yates shuffle in place. */
 template<typename ELEM>
-static void qshuffle_helper_(vvp_darray*arr)
+static void qshuffle_helper_(vvp_darray*arr, vthread_t thr)
 {
       size_t sz = arr->get_size();
       if (sz < 2) return;
@@ -3583,7 +3583,7 @@ static void qshuffle_helper_(vvp_darray*arr)
       std::vector<size_t> permutation(sz);
       for (size_t i = 0 ; i < sz ; i += 1) permutation[i] = i;
       for (size_t i = sz - 1 ; i > 0 ; i -= 1) {
-            size_t j = (size_t)(rand() % (long)(i + 1));
+            size_t j = (size_t)(thread_rng_next_(thr) % (i + 1));
             std::swap(permutation[i], permutation[j]);
       }
       reorder_queue_rand_modes_(arr, permutation);
@@ -3591,25 +3591,26 @@ static void qshuffle_helper_(vvp_darray*arr)
             arr->set_word((unsigned)i, original[permutation[i]]);
 }
 
-static bool qshuffle_dispatch_(vvp_darray*arr)
+static bool qshuffle_dispatch_(vvp_darray*arr, vthread_t thr)
 {
       if (!arr) return true;
+      vthread_t rng_owner = logical_process_thread_(thr);
       if (dynamic_cast<vvp_queue_real*>(arr)
           || dynamic_cast<vvp_darray_real*>(arr)) {
-            qshuffle_helper_<double>(arr);
+            qshuffle_helper_<double>(arr, rng_owner);
             return true;
       }
       if (dynamic_cast<vvp_queue_string*>(arr)
           || dynamic_cast<vvp_darray_string*>(arr)) {
-            qshuffle_helper_<string>(arr);
+            qshuffle_helper_<string>(arr, rng_owner);
             return true;
       }
       if (dynamic_cast<vvp_queue_object*>(arr)
           || dynamic_cast<vvp_darray_object*>(arr)) {
-            qshuffle_helper_<vvp_object_t>(arr);
+            qshuffle_helper_<vvp_object_t>(arr, rng_owner);
             return true;
       }
-      qshuffle_helper_<vvp_vector4_t>(arr);
+      qshuffle_helper_<vvp_vector4_t>(arr, rng_owner);
       return true;
 }
 
@@ -3666,12 +3667,11 @@ bool of_QREVERSE_O(vthread_t thr, vvp_code_t)
 
 bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 {
-      (void)thr;
       vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qshuffle_dispatch_(arr);
+      return qshuffle_dispatch_(arr, thr);
 }
 
 bool of_QSHUFFLE_O(vthread_t thr, vvp_code_t)
@@ -3681,7 +3681,7 @@ bool of_QSHUFFLE_O(vthread_t thr, vvp_code_t)
       vvp_darray*arr = pop_queue_order_receiver_(
             thr, "%qshuffle/o", recv, root_net, root_obj);
       if (!arr) return true;
-      qshuffle_dispatch_(arr);
+      qshuffle_dispatch_(arr, thr);
       notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                   "queue-shuffle-object");
       return true;
@@ -3750,7 +3750,6 @@ bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
  */
 bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 {
-      (void)thr;
       vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/order");
       if (!arr) return true;
 	// Mode rides in bit_idx[0]: cp->number shares the first union
@@ -3772,7 +3771,8 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 	    else if (op == 2)
 		  qreverse_helper_<vvp_vector4_t>(arr->vals);
 	    else
-		  qshuffle_helper_<vvp_vector4_t>(arr->vals);
+		  qshuffle_helper_<vvp_vector4_t>(
+			arr->vals, logical_process_thread_(thr));
 	    return true;
       }
 
@@ -3796,7 +3796,8 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 	    break;
 	  default:
 	    for (unsigned i = sz - 1 ; i > 0 ; i -= 1) {
-		  unsigned j = (unsigned)(rand() % (i + 1));
+		  unsigned j = (unsigned)(thread_rng_next_(
+			logical_process_thread_(thr)) % (i + 1));
 		  std::swap(words[i], words[j]);
 	    }
 	    break;
@@ -30274,6 +30275,57 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net2))
             container = fun->peek_object();
       formal->bind_elem(cp->net, container, use_index);
+      return true;
+}
+
+/* %ref/bind/el/o <formal> -- bind to an element of the container object
+ * already on the object stack. */
+bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t use_index = -1;
+      vector4_to_value(idxv, use_index, true, false);
+      vvp_object_t container;
+      thr->pop_object(container);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, container, use_index);
+      return true;
+}
+
+/* %ref/bind/el/el/o <formal> -- bind through one object-valued container
+ * element to an element of the nested container. */
+bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t inner_vec = thr->pop_vec4();
+      vvp_vector4_t outer_vec = thr->pop_vec4();
+      int64_t inner_index = -1, outer_index = -1;
+      vector4_to_value(inner_vec, inner_index, true, false);
+      vector4_to_value(outer_vec, outer_index, true, false);
+      vvp_object_t outer_container;
+      thr->pop_object(outer_container);
+      vvp_object_t inner_container;
+      if (outer_index >= 0) {
+	    if (vvp_darray*array = outer_container.peek<vvp_darray>()) {
+		  if ((uint64_t)outer_index < array->get_size())
+			array->get_word((unsigned)outer_index, inner_container);
+	    }
+      }
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, inner_container, inner_index);
       return true;
 }
 

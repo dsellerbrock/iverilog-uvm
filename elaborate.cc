@@ -2455,6 +2455,8 @@ struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
       size_t property_idx;
+      unsigned msb;
+      unsigned lsb;
       const LineInfo*location;
 };
 
@@ -2759,6 +2761,47 @@ static bool interface_member_static_binding_(const NetAssign_*lval,
       return true;
 }
 
+/* Return the statically selected bit range of an interface variable
+ * continuous-assignment l-value. A missing part-select denotes the complete
+ * packed member; an explicit select is already expressed as a canonical bit
+ * offset by l-value elaboration. */
+static bool interface_member_static_range_(const NetAssign_*lval,
+					   unsigned member_width,
+					   unsigned&msb, unsigned&lsb)
+{
+      if (!lval || member_width == 0)
+	    return false;
+
+      lsb = 0;
+      unsigned width = lval->lwidth();
+      if (const NetExpr*base = lval->get_base()) {
+	    unique_ptr<NetExpr>base_value(base->dup_expr());
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(base_value.get());
+	    if (!constant) {
+		  unsigned saved_opt_const_func = opt_const_func;
+		  opt_const_func = std::max(opt_const_func, 2u);
+		  NetExpr*folded = base_value.release();
+		  eval_expr(folded, -1);
+		  base_value.reset(folded);
+		  opt_const_func = saved_opt_const_func;
+		  constant = dynamic_cast<const NetEConst*>(base_value.get());
+	    }
+	    if (!constant || !constant->value().is_defined())
+		  return false;
+	    unsigned long offset = constant->value().as_ulong();
+	    if (offset > member_width || width > member_width - offset)
+		  return false;
+	    lsb = static_cast<unsigned>(offset);
+      } else if (width != member_width) {
+	    return false;
+      }
+      if (width == 0 || width > member_width - lsb)
+	    return false;
+      msb = lsb + width - 1;
+      return true;
+}
+
 /* A virtual clocking-output drive writes generated buffer, pending-mask and
  * kick properties. The buffer and pending mask belong to one raw clockvar;
  * the kick alone is only an event trigger. Match the defining clocking
@@ -3049,14 +3092,14 @@ static void finalize_interface_continuous_drivers_(Design*des)
       }
       pending_interface_continuous_drivers_.clear();
 
-	/* A continuous assignment to a variable has one driver. Interface
-	 * property lowering is behavioral and therefore cannot use the ordinary
-	 * elaborate_lnet conversion to an unresolved wire. Reserve the bound
-	 * member's complete packed word here, after port binding, so aliases
-	 * through separate module ports still collide on the concrete signal.
+	/* Interface variable property lowering is behavioral and therefore cannot
+	 * use the ordinary elaborate_lnet conversion to an unresolved wire.
+	 * Reserve the bound member's selected packed bits here, after port binding,
+	 * so aliases through separate module ports still collide on the concrete signal.
 	 * An unbound simulation root has no concrete member signal, so retain a
 	 * parallel key set to diagnose multiple drivers on that formal member. */
-      set<tuple<const NetNet*,unsigned,size_t> >unbound_root_drivers;
+      set<tuple<const NetNet*,unsigned,size_t,unsigned> >
+	    unbound_root_driver_bits;
       for (const pending_interface_variable_continuous_driver_t&pending :
 	   pending_interface_variable_continuous_drivers_) {
 	    const NetNet*unbound_root = 0;
@@ -3065,9 +3108,14 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  pending.port_word, pending.property_idx,
 		  &unbound_root, &unbound_word);
 	    if (!member && unbound_root) {
-		  tuple<const NetNet*,unsigned,size_t>key(
-			unbound_root, unbound_word, pending.property_idx);
-		  if (!unbound_root_drivers.insert(key).second) {
+		  bool overlap = false;
+		  for (unsigned bit = pending.lsb; bit <= pending.msb; bit += 1) {
+			tuple<const NetNet*,unsigned,size_t,unsigned>key(
+			      unbound_root, unbound_word, pending.property_idx, bit);
+			overlap = !unbound_root_driver_bits.insert(key).second
+			      || overlap;
+		  }
+		  if (overlap) {
 			const netclass_t*interface_type =
 			      dynamic_cast<const netclass_t*>(
 				    unbound_root->net_type());
@@ -3095,12 +3143,12 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  continue;
 	    }
 
-	    unsigned msb = member->vector_width() - 1;
 	    const netclass_t*interface_type = dynamic_cast<const netclass_t*>(
 		  pending.port->net_type());
 	    bool property_writer = interface_member_has_property_writer_(
 		  member, interface_type);
-	    if (member->test_part_procedurally_driven(msb, 0, 0)
+	    if (member->test_part_procedurally_driven(
+		  pending.msb, pending.lsb, 0)
 		|| property_writer) {
 	      if (gn_commercial_unsafe_flag && !property_writer
 		  && member->scope() && member->scope()->is_interface())
@@ -3116,14 +3164,15 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		continue;
 	      }
 	    }
-	    if (member->test_part_driven(msb, 0, 0)) {
+	    if (member->test_part_driven(pending.msb, pending.lsb, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable "
 		       << "interface member `" << member->name()
 		       << "' cannot have multiple drivers." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
-	    bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+	    bool overlap = member->test_and_set_part_driver(
+		  pending.msb, pending.lsb, 0);
 	    ivl_assert(*pending.location, !overlap);
       }
       pending_interface_variable_continuous_drivers_.clear();
@@ -3759,25 +3808,28 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			NetNet*port = 0;
 			unsigned port_word = 0;
 			size_t property_idx = 0;
-			bool complete_packed_member =
+			unsigned driven_msb = 0;
+			unsigned driven_lsb = 0;
+			bool packed_member =
 			      !property_lval->word()
-			      && !property_lval->get_base()
 			      && declaration.type
 			      && !dynamic_cast<const netuarray_t*>(declaration.type)
 			      && !dynamic_cast<const netdarray_t*>(declaration.type)
 			      && !dynamic_cast<const netqueue_t*>(declaration.type)
-			      && type_is_vectorable(declaration.type->base_type())
-			      && property_lval->lwidth()
-				 == declaration.type->packed_width();
-			bool static_binding = complete_packed_member
+			      && type_is_vectorable(declaration.type->base_type());
+			bool static_range = packed_member
+			      && interface_member_static_range_(property_lval.get(),
+					 declaration.type->packed_width(),
+					 driven_msb, driven_lsb);
+			bool static_binding = static_range
 			      && interface_member_static_binding_(
 				    property_lval.get(), port, port_word,
 				    property_idx);
 			if (!static_binding) {
 			      cerr << get_fileline() << ": sorry: A continuous "
 				   << "assignment to an interface variable member "
-				      "currently requires one statically bound "
-				      "complete packed member." << endl;
+				      "currently requires one statically bound packed "
+				      "member or constant part-select." << endl;
 			      des->errors += 1;
 			      delete_unique_delays_(
 				    rise_time, fall_time, decay_time);
@@ -3790,7 +3842,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      const_cast<PExpr*>(pin(1)), nullptr, true);
 			if (ok) {
 			      pending_interface_variable_continuous_driver_t pending = {
-				    port, port_word, property_idx, this
+				    port, port_word, property_idx,
+				    driven_msb, driven_lsb, this
 			      };
 			      pending_interface_variable_continuous_drivers_.push_back(
 				    pending);
@@ -13222,10 +13275,23 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 
       const unsigned nitems = items_->size();
 
+      // §18.16 gives every weight its self-determined precision and uses
+      // the widest weight precision for the unsigned sum and comparisons.
+      unsigned weight_width = 0;
+      for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
+            PCase::Item*cur = (*items_)[idx];
+            if (!cur || cur->expr.size() != 1 || cur->expr.front() == 0)
+                  continue;
+            PExpr::width_mode_t mode = PExpr::SIZED;
+            unsigned wid = cur->expr.front()->test_width(des, scope, mode);
+            if (wid > weight_width) weight_width = wid;
+      }
+      if (weight_width == 0) weight_width = 1;
+
       NetBlock*top = new NetBlock(NetBlock::SEQU, 0);
       top->set_line(*this);
 
-	// Evaluate each weight once into a 32-bit unsigned temp.
+	// Evaluate each weight once into an unsigned temp at the common sum width.
       vector<NetNet*> wsig (nitems);
       for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
 	    PCase::Item*cur = (*items_)[idx];
@@ -13238,7 +13304,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 		  return 0;
 	    }
 
-	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), 32,
+	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), weight_width,
 				       false, false, IVL_VT_BOOL, true);
 	    if (we == 0) {
 		  delete top;
@@ -13246,7 +13312,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    wsig[idx] = new NetNet(scope, scope->local_symbol(),
-				   NetNet::REG, &netvector_t::atom2u32);
+			   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
 	    wsig[idx]->set_line(*this);
 	    wsig[idx]->local_flag(true);
 
@@ -13257,7 +13323,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 
 	// sum = w0 + ... + wn
       NetNet*sum_sig = new NetNet(scope, scope->local_symbol(),
-				  NetNet::REG, &netvector_t::atom2u32);
+			  NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
       sum_sig->set_line(*this);
       sum_sig->local_flag(true);
       {
@@ -13266,7 +13332,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    for (unsigned idx = 1 ; idx < nitems ; idx += 1) {
 		  NetESignal*rd = new NetESignal(wsig[idx]);
 		  rd->set_line(*this);
-		  sum_expr = new NetEBAdd('+', sum_expr, rd, 32, false);
+		  sum_expr = new NetEBAdd('+', sum_expr, rd, weight_width, false);
 		  sum_expr->set_line(*this);
 	    }
 	    NetAssign*as = new NetAssign(new NetAssign_(sum_sig), sum_expr);
@@ -13274,23 +13340,32 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    top->append(as);
       }
 
-	// pick = $urandom_range(sum - 1)
+	// Draw enough process-RNG bits for the sum precision, then reduce to
+	// the weighted range.  $urandom_range has a 32-bit return type.
       NetNet*pick_sig = new NetNet(scope, scope->local_symbol(),
-				   NetNet::REG, &netvector_t::atom2u32);
+				   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
       pick_sig->set_line(*this);
       pick_sig->local_flag(true);
 
       NetBlock*inner = new NetBlock(NetBlock::SEQU, 0);
       inner->set_line(*this);
       {
+	    NetExpr*random_bits = 0;
+	    unsigned chunks = (weight_width + 31) / 32;
+	    NetEConcat*concat = new NetEConcat(chunks, 1, IVL_VT_LOGIC);
+	    for (unsigned idx = 0 ; idx < chunks ; idx += 1) {
+	          NetESFunc*ur = new NetESFunc("$urandom_range", IVL_VT_BOOL, 32, 1);
+	          ur->set_line(*this);
+	          ur->parm(0, make_const_val(0xffffffffU));
+	          concat->set(idx, ur);
+	    }
+	    random_bits = concat;
 	    NetESignal*sum_rd = new NetESignal(sum_sig);
 	    sum_rd->set_line(*this);
-	    NetExpr*maxv = new NetEBAdd('-', sum_rd, make_const_val(1), 32, false);
-	    maxv->set_line(*this);
-	    NetESFunc*ur = new NetESFunc("$urandom_range", IVL_VT_BOOL, 32, 1);
-	    ur->set_line(*this);
-	    ur->parm(0, maxv);
-	    NetAssign*as = new NetAssign(new NetAssign_(pick_sig), ur);
+	    NetExpr*pick_expr = new NetEBDiv('%', random_bits, sum_rd,
+	                                      weight_width, false);
+	    pick_expr->set_line(*this);
+	    NetAssign*as = new NetAssign(new NetAssign_(pick_sig), pick_expr);
 	    as->set_line(*this);
 	    inner->append(as);
       }
@@ -13321,7 +13396,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 	    for (int k = 1 ; k <= idx ; k += 1) {
 		  NetESignal*rd = new NetESignal(wsig[k]);
 		  rd->set_line(*this);
-		  thresh = new NetEBAdd('+', thresh, rd, 32, false);
+		  thresh = new NetEBAdd('+', thresh, rd, weight_width, false);
 		  thresh->set_line(*this);
 	    }
 	    NetESignal*pick_rd = new NetESignal(pick_sig);
@@ -19566,6 +19641,24 @@ static bool ref_actual_type_equivalent_(Design*des, const NetNet*port,
  * the caller then emits its copy pair against it rather than against
  * the port.
  */
+static bool ref_property_is_dynamic_container_(const NetAssign_*property_lval)
+{
+      if (!property_lval || property_lval->get_property_idx() < 0)
+	    return false;
+      const NetAssign_*receiver = property_lval->nest();
+      ivl_type_t receiver_type = property_lval->sig()
+	    ? property_lval->sig()->net_type()
+	    : receiver ? receiver->net_type() : 0;
+      const netclass_t*owner_type =
+	    dynamic_cast<const netclass_t*>(receiver_type);
+      if (!owner_type) return false;
+      ivl_type_t property_type = owner_type->get_prop_type(
+	    (size_t)property_lval->get_property_idx());
+      if (!property_type) return false;
+      return property_type->base_type() == IVL_VT_DARRAY
+	    || property_type->base_type() == IVL_VT_QUEUE;
+}
+
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
@@ -19756,6 +19849,73 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  bind->set_line(*this);
 		  delete lv;
 		  return bind;
+	    }
+
+	      /* An element of a dynamic array or queue stored in a class
+		 property is still an element ref actual (IEEE 1800-2017/2023
+		 13.5.2). Capture the receiver and property at the call site so
+		 the runtime can bind the element cell directly. Copying this
+		 lvalue through a temporary loses outdated-element identity when
+		 the property container is deleted or replaced in the task. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->nest()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& !lv->is_array_slice() && lv->nest()->get_property_idx() >= 0
+		&& ref_property_is_dynamic_container_(lv->nest())
+		&& lv->nest()->word() != 0
+		&& lv->nest()->get_base() == 0
+		&& !lv->nest()->is_array_slice()) {
+		  const NetAssign_*property_lval = lv->nest();
+		  NetExpr*obj_e = property_lval->sig()
+			? static_cast<NetExpr*>(new NetESignal(property_lval->sig()))
+			: netassign_object_value_expr_(property_lval->nest(), this);
+		  if (obj_e) {
+			obj_e->set_line(*this);
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetEConst*pid_e = new NetEConst(verinum(
+			      (uint64_t)property_lval->get_property_idx(), 32));
+			pid_e->set_line(*this);
+			vector<NetExpr*> argv(5);
+			argv[0] = formal_e;
+			argv[1] = obj_e;
+			argv[2] = pid_e;
+			argv[3] = property_lval->word()->dup_expr();
+			argv[4] = lv->word()->dup_expr();
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_prop_nested_elem",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
+	    }
+	    if (sig == 0 && inside_ok && lv->more == 0
+		&& lv->get_property_idx() >= 0 && lv->word() != 0
+		&& ref_property_is_dynamic_container_(lv)
+		&& lv->get_base() == 0 && !lv->is_array_slice()) {
+		  NetExpr*obj_e = 0;
+		  if (lv->sig()) {
+			obj_e = new NetESignal(lv->sig());
+			obj_e->set_line(*this);
+		  } else if (lv->nest()) {
+			obj_e = netassign_object_value_expr_(lv->nest(), this);
+		  }
+		  if (obj_e) {
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetEConst*pid_e = new NetEConst(verinum(
+			      (uint64_t)lv->get_property_idx(), 32));
+			pid_e->set_line(*this);
+			vector<NetExpr*> argv(4);
+			argv[0] = formal_e;
+			argv[1] = obj_e;
+			argv[2] = pid_e;
+			argv[3] = lv->word()->dup_expr();
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_prop_elem",
+					     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
 	    }
 
 	      /* A word of a static unpacked array: arr[i]. Automatic
@@ -28517,44 +28677,62 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       variable holds 'z until the first clocking drive. A
 		       variable, including one with a continuous assignment that was
 		       coerced to UNRESOLVED_WIRE, keeps the procedural clocking write. */
-		  if (raw->unpacked_dimensions() > 0
-		      && raw->type() != NetNet::REG
-		      && raw->type() != NetNet::IMPLICIT_REG
+		  std::vector<NetNet*> array_net_drives;
+		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
 		      && (raw->type() != NetNet::UNRESOLVED_WIRE
 			  || !raw->coerced_to_uwire())) {
-		    cerr << cb->get_fileline() << ": sorry: a clocking "
-			 << "output array of nets requires per-word net "
-			 << "drivers." << endl;
-		    des->errors += 1;
-		    continue;
-		  }
-		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
-		      && raw->type() != NetNet::UNRESOLVED_WIRE) {
 			string vname = string("_ivl_odrv$") + cb->name.str()
 			      + "$" + sig_it->str();
-			NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
-						  NetNet::REG, raw->net_type());
-			drive->set_line(*cb);
-			drive->local_flag(true);
-			NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
-						     raw->vector_width(), false);
-			buffer->set_line(*cb);
-			des->add_node(buffer);
-			connect(drive->pin(0), buffer->pin(1));
-			connect(raw->pin(0), buffer->pin(0));
-			verinum z_v (verinum::Vz, raw->vector_width());
-			NetEConst*z = new NetEConst(z_v);
-			z->set_line(*cb);
-			NetAssign*init = new NetAssign(new NetAssign_(drive), z);
-			init->set_line(*cb);
-			prologue->append(init);
-			raw = drive;
+		if (raw->unpacked_dimensions() > 0) {
+		      for (unsigned word = 0; word < raw->pin_count(); ++word) {
+			    string wname = vname + "$" + std::to_string(word);
+			    NetNet*drive = new NetNet(scope,
+				  lex_strings.make(wname.c_str()), NetNet::REG,
+				  raw->net_type());
+			    drive->set_line(*cb);
+			    drive->local_flag(true);
+			    array_net_drives.push_back(drive);
+			    NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+					 raw->vector_width(), false);
+			    buffer->set_line(*cb);
+			    des->add_node(buffer);
+			    connect(drive->pin(0), buffer->pin(1));
+			    connect(raw->pin(word), buffer->pin(0));
+			    verinum z_v (verinum::Vz, raw->vector_width());
+			    NetEConst*z = new NetEConst(z_v);
+			    z->set_line(*cb);
+			    NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+			    init->set_line(*cb);
+			    prologue->append(init);
+		      }
+		} else {
+		      NetNet*drive = new NetNet(scope, lex_strings.make(vname.c_str()),
+					NetNet::REG, raw->net_type());
+		      drive->set_line(*cb);
+		      drive->local_flag(true);
+		      NetBUFZ*buffer = new NetBUFZ(scope, scope->local_symbol(),
+					   raw->vector_width(), false);
+		      buffer->set_line(*cb);
+		      des->add_node(buffer);
+		      connect(drive->pin(0), buffer->pin(1));
+		      connect(raw->pin(0), buffer->pin(0));
+		      verinum z_v (verinum::Vz, raw->vector_width());
+		      NetEConst*z = new NetEConst(z_v);
+		      z->set_line(*cb);
+		      NetAssign*init = new NetAssign(new NetAssign_(drive), z);
+		      init->set_line(*cb);
+		      prologue->append(init);
+		      raw = drive;
+		}
 		  }
 		  unsigned words = obuf->unpacked_count();
 		  for (unsigned word = 0; word < words; ++word) {
-		    std::unique_ptr<NetAssign_> target(
-			  clone_clocking_selected_lval_(raw, target_shape.get()));
-		    if (obuf->unpacked_dimensions() && !target->word())
+		    std::unique_ptr<NetAssign_> target;
+		    if (!array_net_drives.empty())
+			  target.reset(new NetAssign_(array_net_drives[word]));
+		    else
+			  target.reset(clone_clocking_selected_lval_(raw, target_shape.get()));
+		    if (array_net_drives.empty() && obuf->unpacked_dimensions() && !target->word())
 			  target->set_word(make_const_val_s(word));
 		    out_targets.push_back(std::move(target));
 		    out_bufs.push_back(obuf);
@@ -30848,6 +31026,91 @@ static bool constraint_ir_references_randc_(const string&ir,
       return false;
 }
 
+/* IEEE 1800-2017 18.5.4 / 1800-2023 18.5.3: a dist expression must contain at
+ * least one random variable. Classify its resolved IR tokens: solver-storage
+ * paths are random only when their declaration is rand/randc, and
+ * std::randomize with-clause variables are synthetic p: tokens. User-defined
+ * function calls become v:/fv: state slots; IEEE 1800-2017 18.5.12 / 1800-2023
+ * 18.5.11 say, "Functions shall be called before constraints are solved, and
+ * their return values shall be treated as state variables," while "Random
+ * variables used as function arguments shall establish an implicit variable
+ * ordering or priority." Intrinsic solver operations such as countones,
+ * onehot and onehot0 retain their operand tokens. Classify by IR, not names. */
+static bool constraint_ir_references_rand_(const string&ir,
+					   const netclass_t*cls)
+{
+      auto prop_random = [&](unsigned long idx) -> bool {
+	    if (!cls || scope_randomize_emit_ctx_
+		|| idx >= cls->get_properties())
+		  return true;
+	    property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+	    return qual.test_rand() || qual.test_randc();
+      };
+
+      const char*begin = ir.c_str();
+      for (const char*p = begin ; *p ; ++p) {
+	    bool token_start = p == begin
+		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+	    if (!token_start)
+		  continue;
+	    char*end = nullptr;
+
+	    if ((p[0] == 'p' || p[0] == 'e' || p[0] == 'q'
+		 || p[0] == 's' || p[0] == 'u') && p[1] == ':') {
+		  unsigned long idx = strtoul(p + 2, &end, 10);
+		  if (end != p + 2 && *end == ':' && prop_random(idx))
+			return true;
+		  continue;
+	    }
+
+	    if ((p[0] == 'm' || p[0] == 'a') && p[1] == ':') {
+		  unsigned long outer = strtoul(p + 2, &end, 10);
+		  if (end == p + 2 || *end != ':')
+			continue;
+		  if (!cls || scope_randomize_emit_ctx_
+		      || outer >= cls->get_properties())
+			return true;
+		  unsigned long member = strtoul(end + 1, &end, 10);
+		  property_qualifier_t outer_qual =
+			cls->get_prop_qual((size_t)outer);
+		  const netstruct_t*record = dynamic_cast<const netstruct_t*>(
+			cls->get_prop_type((size_t)outer));
+		  if (!record || member >= record->members().size())
+			return true;
+		  const property_qualifier_t&member_qual =
+			record->members()[(size_t)member].qualifier;
+	  /* IEEE 1800-2017/2023 18.4: a member of an unpacked structure is
+	   * random only when declared rand/randc, and its containing property
+	   * must itself be rand/randc. */
+		  if ((outer_qual.test_rand() || outer_qual.test_randc())
+		      && (member_qual.test_rand() || member_qual.test_randc()))
+			return true;
+		  continue;
+	    }
+
+	    if ((p[0] == 'x' || p[0] == 'r') && p[1] == ':') {
+		  if (!cls || scope_randomize_emit_ctx_
+		      || constraint_nested_element_is_random_(p + 2, cls))
+			return true;
+		  continue;
+	    }
+
+	    const char*array_element = nullptr;
+	    if (strncmp(p, "delem ", 6) == 0) array_element = p + 6;
+	    else if (strncmp(p, "skelem ", 7) == 0) array_element = p + 7;
+	    else if (strncmp(p, "qkeyelem ", 9) == 0) array_element = p + 9;
+	    else if (strncmp(p, "qmelem ", 7) == 0) array_element = p + 7;
+	    if (array_element) {
+		  unsigned long idx = strtoul(array_element, &end, 10);
+		  if (end != array_element && *end == ':' && prop_random(idx))
+			return true;
+		  continue;
+	    }
+
+      }
+      return false;
+}
+
 /* A constraint can be emitted repeatedly while a foreach is unrolled or a
  * generic class is specialized. Diagnose the source construct, not each
  * emitted copy or each randc operand within it. */
@@ -33045,9 +33308,8 @@ static string packed_typed_select_ir_(
       };
       if ((ic.sel == index_component_t::SEL_IDX_UP
 	   || ic.sel == index_component_t::SEL_IDX_DO)
-	  && vec && packed_type->base_type() == IVL_VT_BOOL
-	  && dims.size() == 1
-	  && min(outer.get_msb(), outer.get_lsb()) == 0
+	  && vec && (packed_type->base_type() == IVL_VT_BOOL
+		     || packed_type->base_type() == IVL_VT_LOGIC)
 	  && ic.msb && ic.lsb && constraint_ir_design_ctx_ && scope) {
 	    // Fold bounds with ordinary elaboration. Constraint IR drops X/Z
 	    // bits and cannot fold every constant expression.
@@ -33069,33 +33331,47 @@ static string packed_typed_select_ir_(
 				    bits, bits.len(), bits.has_sign()), out);
 	    };
 	    constraint_const_ir_t base_index, width;
-	    if (!constant_value(ic.msb, base_index)
-		|| !constant_value(ic.lsb, width))
+	    if (!constant_value(ic.lsb, width))
 		  return "";
-	    uint64_t digit = 0;
-	    if (!constraint_fixed_index_offset_(
-		  base_index, 0, outer.width(), digit)) return "";
-	    uint64_t first = outer.get_msb() >= outer.get_lsb()
-		  ? digit : outer.width() - 1 - digit;
 	    uint64_t count = constraint_resize_const_bits_(
 		  width, 64, width.is_signed);
 	    if (count == 0 || count > outer.width()
 		|| (width.is_signed && (int64_t)count < 0)) return "";
-	    uint64_t delta = count - 1;
-	    bool toward_high = (ic.sel == index_component_t::SEL_IDX_UP)
-		  == (outer.get_msb() >= outer.get_lsb());
-	    uint64_t last = 0;
-	    if (toward_high) {
-		  if (delta > outer.width() - 1 - first) return "";
-		  last = first + delta;
-	    } else {
-		  if (delta > first) return "";
-		  last = first - delta;
+	    uint64_t digit = 0;
+	    string index = pexpr_to_constraint_ir(
+		  ic.msb, cls, value_slots, scope, loop_env);
+	    if (constraint_parse_const_ir_(index, base_index)
+		&& constraint_fixed_index_offset_(
+		  base_index, min(outer.get_msb(), outer.get_lsb()),
+		  outer.width(), digit)) {
+		  uint64_t first = outer.get_msb() >= outer.get_lsb()
+			? digit : outer.width() - 1 - digit;
+		  uint64_t delta = count - 1;
+		  bool toward_high = (ic.sel == index_component_t::SEL_IDX_UP)
+			== (outer.get_msb() >= outer.get_lsb());
+		  uint64_t last = 0;
+		  if (toward_high) {
+			if (delta > outer.width() - 1 - first) return "";
+			last = first + delta;
+		  } else {
+			if (delta > first) return "";
+			last = first - delta;
+		  }
+		  uint64_t high = max(first, last), low = min(first, last);
+		  return "(part " + base + " c:"
+			+ to_string((high + 1) * elem_width - 1)
+			+ " c:" + to_string(low * elem_width) + ")";
 	    }
-	    uint64_t high = max(first, last), low = min(first, last);
-	    return "(part " + base + " c:"
-		  + to_string((high + 1) * elem_width - 1)
-		  + " c:" + to_string(low * elem_width) + ")";
+	    if (index.empty() || outer.get_msb() > INT_MAX
+		|| outer.get_msb() < INT_MIN || outer.get_lsb() > INT_MAX
+		|| outer.get_lsb() < INT_MIN || elem_width == 0
+		|| elem_width > INT_MAX) return "";
+	    return "(idxpart " + base + " " + index + " c:"
+		  + to_string(count) + " c:"
+		  + to_string(ic.sel == index_component_t::SEL_IDX_UP ? 1 : 0)
+		  + " c:" + to_string(outer.get_msb()) + " c:"
+		  + to_string(outer.get_lsb()) + " c:"
+		  + to_string(elem_width) + ")";
       }
       if (ic.sel == index_component_t::SEL_BIT && ic.msb && !ic.lsb) {
 	    uint64_t off = 0;
@@ -40685,6 +40961,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			cerr << ins->get_fileline() << ": error: dist subject expression "
 			     << "requires unsupported IEEE 11.8.2 top-down context "
 			     << "propagation; use a typed intermediate expression." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
+	    if (is_dist
+		&& !constraint_ir_references_rand_(s, cls)) {
+		  if (constraint_ir_design_ctx_
+		      && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+			cerr << ins->get_fileline() << ": error: the expression "
+			     << "of a dist constraint must contain at least one "
+			     << "random variable (a function result is a state value)."
+			     << endl;
 			constraint_ir_design_ctx_->errors += 1;
 		  }
 		  return "";

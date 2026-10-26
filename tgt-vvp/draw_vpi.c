@@ -43,6 +43,11 @@ struct args_info {
        * method. The word address is captured on the vec4 stack before the
        * explicit method arguments are evaluated. */
       ivl_signal_t array_word_sig;
+      /* Queue/dynamic-array element receiver passed as (container,index). */
+      int container_word;
+      unsigned index_stack;
+      char index_sign;
+      unsigned index_width;
       struct args_info *child; /* Arguments can be nested. */
 };
 
@@ -977,6 +982,31 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			continue;
 	    }
 
+	    /* VPI array-word aliases support fixed arrays. Queue and dynamic-array
+	     * variables have a separate VPI handle, so pass the container and its
+	     * captured index to the string method for a writable word lookup. */
+	    if (!force_value_capture && idx == 0
+		&& tf_name && !strcmp(tf_name, "$ivl_string_method$itoa")
+		&& ivl_expr_type(expr) == IVL_EX_SELECT
+		&& ivl_expr_value(expr) == IVL_VT_STRING
+		&& ivl_expr_oper1(expr)
+		&& ivl_expr_type(ivl_expr_oper1(expr)) == IVL_EX_SIGNAL
+		&& (ivl_signal_data_type(ivl_expr_signal(ivl_expr_oper1(expr)))
+		      == IVL_VT_DARRAY
+		    || ivl_signal_data_type(ivl_expr_signal(ivl_expr_oper1(expr)))
+		      == IVL_VT_QUEUE)) {
+	      ivl_expr_t address = ivl_expr_oper2(expr);
+	      draw_eval_vec4(address);
+	      args[idx].index_stack = vec4_stack_need++;
+	      args[idx].container_word = 1;
+	      args[idx].index_sign = ivl_expr_signed(address) ? 's' : 'u';
+	      args[idx].index_width = ivl_expr_width(address);
+	      snprintf(buffer, sizeof buffer, "v%p_0",
+	               ivl_expr_signal(ivl_expr_oper1(expr)));
+	      args[idx].text = strdup(buffer);
+	      continue;
+	    }
+
 	    switch (ivl_expr_type(expr)) {
 
 		    /* These expression types can be handled directly,
@@ -1300,6 +1330,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  fprintf(vvp_out, ", S<%u,vec4,%c%u>",pos, sign_flag, wid);
 	    } else {
 		  fprintf(vvp_out, ", %s", args[idx].text);
+	    }
+	    if (args[idx].container_word) {
+		  unsigned pos = vec4_stack_need - args[idx].index_stack - 1;
+		  fprintf(vvp_out, ", S<%u,vec4,%c%u>", pos,
+		          args[idx].index_sign, args[idx].index_width);
 	    }
 
 	    free(args[idx].text);

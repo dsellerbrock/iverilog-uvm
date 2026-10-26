@@ -758,6 +758,19 @@ void pform_class_constraint(const struct vlltype&loc,
       perm_string pname = lex_strings.make(name);
 	  class_type_t*type = pform_cur_class->type;
 	  bool had_decl = type->constraint_declarations.count(pname) != 0;
+	  auto existing_decl = type->constraint_declarations.find(pname);
+	  if (existing_decl != type->constraint_declarations.end()
+	      && !existing_decl->second.is_prototype) {
+	    cerr << loc << ": error: Constraint `" << pname
+	         << "' is already declared in this class (IEEE 1800-2017/2023 18.5)."
+	         << endl;
+	    error_count += 1;
+	    if (items) {
+	      for (PExpr*item : *items) delete item;
+	      delete items;
+	    }
+	    return;
+	  }
       class_type_t::constraint_decl_info_t&decl =
 	    type->constraint_declarations[pname];
       FILE_NAME(&decl, loc);

@@ -1,0 +1,19 @@
+ivltests/sv_constraint_dist_state_only_fail.v:25: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:26: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:27: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:28: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:29: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:30: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:32: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:35: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:38: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:41: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:44: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:47: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:50: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:53: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:63: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:63: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+ivltests/sv_constraint_dist_state_only_fail.v:64: error: the expression of a dist constraint must contain at least one random variable (a function result is a state value).
+ivltests/sv_constraint_dist_state_only_fail.v:64: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+18 error(s) during elaboration.
