@@ -6053,3 +6053,5 @@ issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issu
 issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
 issue1194_always_assertion_2017 normal,-g2017,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
 issue1194_always_assertion_2023 normal,-g2023,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
+issue1215_duplicate_extern_method_2017 CE,-g2017,-s,main ivltests gold=issue1215_duplicate_extern_method_2017.gold
+issue1215_duplicate_extern_method_2023 CE,-g2023,-s,main ivltests gold=issue1215_duplicate_extern_method_2023.gold
