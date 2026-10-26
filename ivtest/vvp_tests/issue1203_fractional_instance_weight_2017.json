@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1203_fractional_instance_weight.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "issue1203_fractional_instance_weight"
+}

@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1203_negative_weight.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue1203_negative_weight"
+}

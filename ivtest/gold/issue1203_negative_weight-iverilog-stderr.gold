@@ -1,0 +1,2 @@
+ivltests/issue1203_negative_weight.v:4: error: coverage option weight requires a non-negative integral value.
+1 error(s) during elaboration.

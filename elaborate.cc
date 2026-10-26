@@ -42340,6 +42340,71 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (formal == name) return true;
 			  return false;
 		    };
+		    // Tables 19-1 and 19-3 constrain the value itself, so preserve real
+		    // constants long enough to reject fractions before conversion to the
+		    // implementation's integral option property.
+	    auto coverage_weight_value = [&](PExpr*expr, unsigned&result) -> bool {
+		  if (const PEFNumber*literal = dynamic_cast<const PEFNumber*>(expr)) {
+			double number = literal->value().as_double();
+			if (std::isfinite(number) && number >= 0.0
+			    && std::floor(number) == number && number <= INT32_MAX) {
+			      result = static_cast<unsigned>(number);
+			      return true;
+			}
+			return false;
+		  }
+		  if (expr->expr_type() == IVL_VT_REAL) {
+			NetExpr*real_value = elaborate_rval_expr(
+			      des, class_scope_, &netreal_t::type_real, expr, true);
+			NetEConst*real_constant = dynamic_cast<NetEConst*>(real_value);
+			bool valid = false;
+			if (real_constant && real_constant->value().is_defined()) {
+			      double number = real_constant->value().as_double();
+			      valid = std::isfinite(number) && number >= 0.0
+				    && std::floor(number) == number
+				    && number <= INT32_MAX;
+			      if (valid) result = static_cast<unsigned>(number);
+			}
+			delete real_value;
+			return valid;
+		  }
+		  // Keep the ordinary int-context elaboration for constant functions,
+		  // $bits, and other SystemVerilog constant expressions.
+		  NetExpr*typed = elaborate_rval_expr(des, class_scope_,
+				&netvector_t::atom2s32, expr, true);
+		  NetExpr*value = elab_and_eval(des, class_scope_, expr,
+					       -1, false, false);
+		  NetEConst*constant = dynamic_cast<NetEConst*>(value);
+		  bool valid = false;
+		  if (constant && constant->value().is_defined()) {
+			if (expr->expr_type() == IVL_VT_REAL
+			    || constant->expr_type() == IVL_VT_REAL) {
+			      double number = constant->value().as_double();
+			      valid = std::isfinite(number) && number >= 0.0
+				    && std::floor(number) == number
+				    && number <= INT32_MAX;
+			      if (valid) result = static_cast<unsigned>(number);
+			} else {
+			      NetEConst*integral = dynamic_cast<NetEConst*>(typed);
+			      if (integral && integral->value().is_defined()
+				    && !integral->value().is_negative()) {
+				    uint64_t number = integral->value().as_ulong64();
+				    valid = number <= INT32_MAX;
+				    if (valid) result = static_cast<unsigned>(number);
+			      }
+			}
+		  } else if (NetEConst*integral = dynamic_cast<NetEConst*>(typed)) {
+			if (integral->value().is_defined()
+			    && !integral->value().is_negative()) {
+			      uint64_t number = integral->value().as_ulong64();
+			      valid = number <= INT32_MAX;
+			      if (valid) result = static_cast<unsigned>(number);
+			}
+		  }
+		  delete typed;
+		  delete value;
+		  return valid;
+	    };
 
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
@@ -42371,14 +42436,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (it == opts.end() || !it->second)
 				return std::make_pair(dflt, std::string());
 			  if (!is_direct_ctor_formal(it->second)) {
-				NetExpr*e = elab_and_eval(des, class_scope_, it->second,
-						      -1, false, false);
-				if (NetEConst*c = dynamic_cast<NetEConst*>(e)) {
-				      unsigned val = (unsigned)c->value().as_ulong64();
-				      delete e;
+				unsigned val = dflt;
+				if (coverage_weight_value(it->second, val))
 				      return std::make_pair(val, std::string());
-				}
-				delete e;
+				cerr << it->second->get_fileline()
+				     << ": error: coverage option weight requires a non-negative integral value."
+				     << endl;
+				des->errors += 1;
+				return std::make_pair(dflt, std::string());
 			  }
 			  std::string ir = pexpr_to_constraint_ir(
 				it->second, cg_class, nullptr, class_scope_);
@@ -42481,6 +42546,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    };
 		    opt_check(cgdef->options, "covergroup");
+		    // Validate a covergroup-level instance weight before its initializer
+		    // is converted to the synthesized integral option property.
+		    (void) opt_weight(cgdef->options, 1);
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
@@ -43458,23 +43526,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                         bind_formal(cgdef->sample_formals[fi],
                                     cg_class->covgrp_sample_formal_type(fi),
                                     false);
-                  // 19.10 declares an int member; use ordinary assignment
-                  // conversion before enforcing table 19-3's domain.
-                  NetExpr*value = is_direct_ctor_formal(it->second) ? nullptr
-                        : elaborate_rval_expr(des, class_scope_, &netvector_t::atom2s32,
-                                              it->second, true);
-                  NetEConst*constant = dynamic_cast<NetEConst*>(value);
+                  // Preserve the original numeric value to check the domain
+                  // before converting to the implementation's int member.
                   unsigned result = 1;
-                  if (constant && constant->value().is_defined()
-                        && constant->value().as_ulong64() <= INT32_MAX)
-                        result = constant->value().as_ulong64();
-                  else {
+                  bool valid = !is_direct_ctor_formal(it->second)
+					&& coverage_weight_value(it->second, result);
+                  if (!valid) {
                         cerr << it->second->get_fileline()
                              << ": error: " << where
                              << " type_option.weight requires a non-negative integral constant." << endl;
                         des->errors += 1;
                   }
-                  delete value;
                   for (auto alias = aliases.rbegin(); alias != aliases.rend(); ++alias) {
                         class_scope_->restore_signal_alias(alias->name, alias->previous);
                         delete alias->net;
