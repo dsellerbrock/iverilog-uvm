@@ -1,0 +1,58 @@
+=== unrelated static-property fixture ===
+=== focused legacy ivtest: /tmp/a3-759-static-read-legacy.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+sv_class_static_fixed_array_container_element_read_fail: Passed - CE.
+============================================================================
+Test results:
+  Total=1, Passed=1, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== focused JSON/VVP ivtest: /tmp/a3-759-static-read-json.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/a3-759-static-read-json.list
+----------------------------------------------------------------------------
+sv_class_static_fixed_array_container_element_read_fail: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+=== 14 paired #759 regressions ===
+=== focused legacy ivtest: /tmp/a3-759-focused-legacy.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                 sv_class_handle_to_integral_assignment_fail: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_compound_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_clockvar_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+     sv_class_handle_initializer_to_integral_assignment_fail: Passed - CE.
+sv_class_handle_initializer_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_property_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2023: Passed - CE.
+             sv_class_handle_specialization_to_integral_fail: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2023: Passed - CE.
+                        sv_class_handle_generic_template_new: Passed.
+                   sv_class_handle_generic_template_new_2023: Passed.
+============================================================================
+Test results:
+  Total=14, Passed=14, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== focused JSON/VVP ivtest: /tmp/a3-759-focused-json.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/a3-759-focused-json.list
+----------------------------------------------------------------------------
+   sv_class_handle_clockvar_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+                   sv_class_handle_generic_template_new_2017: Passed.
+                   sv_class_handle_generic_template_new_2023: Passed.
+sv_class_handle_initializer_to_integral_assignment_fail_2017: Passed - CE.
+sv_class_handle_initializer_to_integral_assignment_fail_2023: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2017: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2023: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2017: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 14, Failed 0.

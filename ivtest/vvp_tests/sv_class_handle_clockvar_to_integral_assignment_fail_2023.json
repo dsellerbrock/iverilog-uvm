@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_class_handle_clockvar_to_integral_assignment_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_class_handle_clockvar_to_integral_assignment_fail"]
+}

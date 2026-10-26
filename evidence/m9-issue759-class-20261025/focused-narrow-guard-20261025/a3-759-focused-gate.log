@@ -1,0 +1,59 @@
+=== focused legacy ivtest: /tmp/a3-759-focused-legacy.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                 sv_class_handle_to_integral_assignment_fail: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_compound_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_clockvar_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+     sv_class_handle_initializer_to_integral_assignment_fail: Passed - CE.
+sv_class_handle_initializer_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_property_to_integral_assignment_fail: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2023: Passed - CE.
+             sv_class_handle_specialization_to_integral_fail: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2023: Passed - CE.
+                        sv_class_handle_generic_template_new: Passed.
+                   sv_class_handle_generic_template_new_2023: Passed.
+============================================================================
+Test results:
+  Total=14, Passed=14, Failed=0, Not Implemented=0, Expected Fail=0
+
+=== focused JSON/VVP ivtest: /tmp/a3-759-focused-json.list ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): /tmp/a3-759-focused-json.list
+----------------------------------------------------------------------------
+   sv_class_handle_clockvar_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_clockvar_to_integral_assignment_fail_2023: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_compound_to_integral_assignment_fail_2023: Passed - CE.
+                   sv_class_handle_generic_template_new_2017: Passed.
+                   sv_class_handle_generic_template_new_2023: Passed.
+sv_class_handle_initializer_to_integral_assignment_fail_2017: Passed - CE.
+sv_class_handle_initializer_to_integral_assignment_fail_2023: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2017: Passed - CE.
+   sv_class_handle_property_to_integral_assignment_fail_2023: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2017: Passed - CE.
+        sv_class_handle_specialization_to_integral_fail_2023: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2017: Passed - CE.
+            sv_class_handle_to_integral_assignment_fail_2023: Passed - CE.
+============================================================================
+Test results: Ran 14, Failed 0.
+        2.17 real         1.00 user         0.74 sys
+            21790720  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              116141  page reclaims
+                1256  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   2  signals received
+                 170  voluntary context switches
+                3871  involuntary context switches
+            25193257  instructions retired
+            13972290  cycles elapsed
+             1524096  peak memory footprint

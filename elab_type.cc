@@ -3047,14 +3047,16 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    const pform_scoped_name_t&path = ident->path();
 	    if (path.name.size() == 1
 		&& path.name.front().name == perm_string::literal(THIS_TOKEN)) {
-		  // Keep rejected type(this) references non-null for error recovery.
-		  if (!sv_require_feature(this, SVF_TYPE_THIS)) {
-			des->errors += 1;
-			return new netvector_t(IVL_VT_LOGIC);
-		  }
 		  const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
 		  const netclass_t*current_class =
 			class_scope ? class_scope->class_def() : 0;
+		  // Use the enclosing class as the recovery type when available.
+		  if (!sv_require_feature(this, SVF_TYPE_THIS)) {
+			des->errors += 1;
+			if (current_class)
+			      return const_cast<netclass_t*>(current_class);
+			return new netvector_t(IVL_VT_LOGIC);
+		  }
 		  if (!current_class) {
 			cerr << get_fileline()
 			     << ": error: type(this) requires an enclosing class scope."
