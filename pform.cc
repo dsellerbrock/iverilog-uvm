@@ -7755,7 +7755,10 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    values[idx] = actual.parm
 		? sva_clone_subst_(actual.parm, outer) : nullptr;
-	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+	    const bool input_formal =
+		(*prod.formals)[idx].direction == NetNet::PINPUT;
+	    if (!values[idx]
+		|| (input_formal && !pform_rs_constant_actual_(values[idx]))) {
 		  cerr << ctx.loc << ": sorry: randsequence input actuals must be "
 		       << "side-effect-free constant expressions; production `"
 		       << prod.name << "' has a nonconstant actual." << endl;
@@ -7765,15 +7768,23 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 
       for (size_t idx = 0 ; !ctx.bad && idx < count ; ++idx) {
 	    const rs_formal_t&formal = (*prod.formals)[idx];
-	    if (formal.direction != NetNet::PINPUT) {
-		  cerr << formal.get_fileline() << ": sorry: randsequence output, "
-		       << "inout, and ref production formals are not supported yet."
+	    if (formal.direction != NetNet::PINPUT
+		&& formal.direction != NetNet::POUTPUT) {
+		  cerr << formal.get_fileline() << ": sorry: randsequence inout and "
+		       << "ref production formals are not supported yet."
 		       << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    if (formal.direction != NetNet::PINPUT && !values[idx]) {
+		  cerr << ctx.loc << ": error: randsequence production `"
+		       << prod.name << "' requires an actual for output formal `"
+		       << formal.name << "'." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
 	    if (!values[idx] && formal.default_expr)
 		  values[idx] = sva_clone_subst_(formal.default_expr, &bound);
-	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+	    if (!values[idx] || (formal.direction == NetNet::PINPUT
+				  && !pform_rs_constant_actual_(values[idx]))) {
 		  cerr << ctx.loc << ": error: randsequence production `"
 		       << prod.name << "' has no constant actual for formal `"
 		       << formal.name << "'." << endl;
