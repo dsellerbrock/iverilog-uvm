@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1197_semantic_leading_identical.v",
+    "iverilog-args" : [ "-g2017", "-gassertions", "-s", "issue1197_semantic_leading_identical" ],
+    "gold"          : "issue1197_semantic_leading_identical"
+}

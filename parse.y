@@ -8860,6 +8860,15 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
+  /* IEEE 1800-2017/2023 16.16.1: property conjunction can contain an
+     independently clocked right operand when both semantic leading clocks
+     are identical. The left operand inherits the enclosing clock; retain
+     the right operand's explicit clock on the combined property so
+     property_spec can check it against that enclosing clock. */
+  | sva_seq_atom K_and event_control sva_seq_expr
+      { $$ = pform_sva_tree_comb(@2, 'a', pform_sva_leaf_prop($1),
+				 pform_sva_leaf_prop($4));
+	if ($$) $$->clk_evt = $3; }
   | sva_multiclock_seq
       { $$ = $1; }
   /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully
