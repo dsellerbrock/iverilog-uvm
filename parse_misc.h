@@ -198,6 +198,9 @@ struct sva_mc_seg_t {
 };
 
 struct sva_property_t {
+      // `cover sequence' counts every match from an attempt, unlike
+      // `cover property', which records at most one success per attempt.
+      bool sequence_cover = false;
       // Names declared by this property's assertion_variable_declarations.
       // Keep identity even when a local has no match-item assignment: its
       // bare identifier still shadows any same-named module object and must
