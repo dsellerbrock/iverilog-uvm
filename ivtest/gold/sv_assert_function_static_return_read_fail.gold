@@ -1,0 +1,2 @@
+./ivltests/sv_assert_function_static_return_read_fail.v:10: error: Function `retained' used in a concurrent assertion expression does not meet the IEEE 1800-2017/2023 16.6 requirements: reads retained state from a nonautomatic function return variable.
+1 error(s) during elaboration.

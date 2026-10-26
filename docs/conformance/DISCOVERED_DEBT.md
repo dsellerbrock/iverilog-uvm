@@ -4796,3 +4796,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the scoped rejection is in `elab_expr.cc::elaborate_rval_expr`.
 - **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
 - **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
+
+### DD-143 — assertion function output-argument rejection has a generic diagnostic
+
+- **Discovered while working:** M9 #1183.
+- **Observation:** A function with an output argument used in a concurrent assertion is rejected in both editions before the assertion-purity check, with `Assignment l-value too complex` at the assignment in the function body. IEEE 1800-2023 §16.6 explicitly prohibits output, inout, or ref arguments in functions appearing in assertion expressions, so the rejection is correct; only the diagnostic is generic.
+- **Evidence:** `evidence/m9-1183-function-purity-20261026/t1-first-pass/sv_assert_function_output_arg_fail_{2017,2023}.runner.log`.
+- **Triage status:** Diagnostic clarity only; no additional conformance claim or implementation change in #1183.
