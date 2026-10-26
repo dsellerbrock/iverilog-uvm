@@ -2445,8 +2445,8 @@ vpip_routines_s vpi_routines = {
     .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
     .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
     .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
-    .print_finish_stats         = vpip_print_finish_stats,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
+    .print_finish_stats         = vpip_print_finish_stats,
 };
 #endif
