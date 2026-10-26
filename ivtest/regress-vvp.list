@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+issue1212_local_subclass_access_2017 vvp_tests/issue1212_local_subclass_access_2017.json
+issue1212_local_subclass_access_2023 vvp_tests/issue1212_local_subclass_access_2023.json
 sv_queue_string_itoa_2017 vvp_tests/sv_queue_string_itoa_2017.json
 sv_queue_string_itoa_2023 vvp_tests/sv_queue_string_itoa_2023.json
 issue1184_sva_sampled_queue_delete_2017 vvp_tests/issue1184_sva_sampled_queue_delete_2017.json
