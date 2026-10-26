@@ -97,6 +97,15 @@ static typedef_t* pending_cross_value_typedef_ = nullptr;
 static typedef_t* pending_cross_queue_typedef_ = nullptr;
 static bool pending_cross_scope_active_ = false;
 
+/* Procedural declarations that reach statement_item must still obey the
+   declaration-prefix rule. */
+static std::set<LexicalScope*> procedural_scopes_with_statements_;
+static void pform_check_procedural_declaration_order_(const struct vlltype&loc)
+{
+      if (procedural_scopes_with_statements_.count(pform_peek_scope()))
+            yyerror(loc, "error: Declarations must precede statements in a procedural block.");
+}
+
 /* I1 (Phase 62g): accumulator for cross declarations seen during the
    current covergroup parse.  cross_item rules append here; the enclosing
    covergroup action moves them to the pform_covergroup_t.  Non-static
@@ -18863,7 +18872,8 @@ statement_item /* This is roughly statement_item in the LRM */
   /* Accept declaration-style statements for user types in procedural blocks.
      These are treated as declarations-only and emit no executable statement. */
   | K_const TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($2.type);
+      { pform_check_procedural_declaration_order_(@1);
+        typeref_t*tmp = new typeref_t($2.type);
 	FILE_NAME(tmp, @2);
 	pform_make_var(@2, $3, tmp, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED;
@@ -18872,12 +18882,14 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+      { pform_check_procedural_declaration_order_(@1);
+        if ($2) pform_make_var(@2, $3, $2, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	$$ = nullptr;
       }
   | data_type list_of_variable_decl_assignments ';'
-      { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
+      { pform_check_procedural_declaration_order_(@1);
+        if ($1) pform_make_var(@1, $2, $1, nullptr, false);
 	$$ = nullptr;
       }
 
@@ -18902,12 +18914,14 @@ statement_item /* This is roughly statement_item in the LRM */
      appearing after some other declaration or statement needed this
      alternative. Mirrors the two non-const rules just above. */
   | K_const variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
-      { if ($3) pform_make_var(@3, $4, $3, nullptr, true);
+      { pform_check_procedural_declaration_order_(@1);
+        if ($3) pform_make_var(@3, $4, $3, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	$$ = nullptr;
       }
   | K_const data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, true);
+      { pform_check_procedural_declaration_order_(@1);
+        if ($2) pform_make_var(@2, $3, $2, nullptr, true);
 	$$ = nullptr;
       }
 
@@ -18948,7 +18962,8 @@ statement_item /* This is roughly statement_item in the LRM */
      leaves it without a rule because data_type does not derive K_reg
      (ivtest constfunc8). Mirror the block_item_decl extension rule. */
   | K_reg data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+      { pform_check_procedural_declaration_order_(@1);
+        if ($2) pform_make_var(@2, $3, $2, nullptr, false);
 	$$ = nullptr;
       }
 
@@ -18976,7 +18991,8 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($2.type);
+      { pform_check_procedural_declaration_order_(@1);
+        typeref_t*dtype = new typeref_t($2.type);
 	FILE_NAME(dtype, @2);
 	pform_make_var(@2, $3, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -18984,14 +19000,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($1.type);
+      { pform_check_procedural_declaration_order_(@1);
+        typeref_t*dtype = new typeref_t($1.type);
 	FILE_NAME(dtype, @1);
 	pform_make_var(@1, $2, dtype, nullptr, false);
 	delete[] $1.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($2.type, 0, $3);
+      { pform_check_procedural_declaration_order_(@1);
+        typeref_t*dtype = new typeref_t($2.type, 0, $3);
 	FILE_NAME(dtype, @2);
 	pform_make_var(@2, $4, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -18999,7 +19017,8 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($1.type, 0, $2);
+      { pform_check_procedural_declaration_order_(@1);
+        typeref_t*dtype = new typeref_t($1.type, 0, $2);
 	FILE_NAME(dtype, @1);
 	pform_make_var(@1, $3, dtype, nullptr, false);
 	delete[] $1.text;
@@ -20698,7 +20717,10 @@ statement_or_null_list_opt
 statement_or_null_list
   : statement_or_null_list statement_or_null
       { std::vector<Statement*>*tmp = $1;
-	if ($2) tmp->push_back($2);
+	if ($2) {
+	      tmp->push_back($2);
+	      procedural_scopes_with_statements_.insert(pform_peek_scope());
+	}
 	$$ = tmp;
       }
   /* Imports update lexical lookup while parsing and emit no statement.
@@ -20719,7 +20741,10 @@ statement_or_null_list
       }
   | statement_or_null
       { std::vector<Statement*>*tmp = new std::vector<Statement*>(0);
-	if ($1) tmp->push_back($1);
+	if ($1) {
+	      tmp->push_back($1);
+	      procedural_scopes_with_statements_.insert(pform_peek_scope());
+	}
 	$$ = tmp;
       }
   | package_import_declaration

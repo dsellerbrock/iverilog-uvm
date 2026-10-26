@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1226_declaration_after_statement.v",
+  "iverilog-args": ["-g2023", "-s", "issue1226_declaration_after_statement"],
+  "gold": "issue1226_declaration_after_statement"
+}
