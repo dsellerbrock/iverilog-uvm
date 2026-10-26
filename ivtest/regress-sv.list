@@ -6081,3 +6081,7 @@ sv_protected_external_access_fail_legacy CE,-g2017 ivltests
 sv_protected_subclass_access_legacy normal,-g2017 ivltests gold=sv_protected_subclass_access_legacy.gold
 issue1215_duplicate_extern_method_2017 CE,-g2017,-s,main ivltests gold=issue1215_duplicate_extern_method_2017.gold
 issue1215_duplicate_extern_method_2023 CE,-g2023,-s,main ivltests gold=issue1215_duplicate_extern_method_2023.gold
+
+# IEEE 1800-2017/2023 assignment expressions with concatenation l-values
+issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
+issue1229_assignment_concat_expr_2023 normal,-g2023,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
