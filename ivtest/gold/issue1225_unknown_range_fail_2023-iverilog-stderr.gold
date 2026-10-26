@@ -1,0 +1,3 @@
+ivltests/issue1225_unknown_range_fail.v:5: error: Range bound contains unknown or high-impedance bits: Z
+ivltests/issue1225_unknown_range_fail.v:4: error: Range bound contains unknown or high-impedance bits: X
+2 error(s) during elaboration.
