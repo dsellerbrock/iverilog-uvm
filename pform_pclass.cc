@@ -661,6 +661,12 @@ void pform_bind_extern_func(PFunction*func)
       map<perm_string,PFunction*>::iterator it = pform_cur_class->funcs.find(name);
       if (it != pform_cur_class->funcs.end()) {
 	    PFunction*proto = it->second;
+	    if (proto->get_statement()) {
+		  cerr << func->get_fileline() << ": error: More than one out-of-block definition was provided for extern method `"
+		       << name << "' (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+		  return;
+	    }
 	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
 	    const std::vector<pform_tf_port_t>*def_ports = func->peek_ports();
 	    size_t proto_count = proto_ports && !proto_ports->empty()
@@ -702,6 +708,12 @@ void pform_bind_extern_task(PTask*task)
       map<perm_string,PTask*>::iterator it = pform_cur_class->tasks.find(name);
       if (it != pform_cur_class->tasks.end()) {
 	    PTask*proto = it->second;
+	    if (proto->get_statement()) {
+		  cerr << task->get_fileline() << ": error: More than one out-of-block definition was provided for extern method `"
+		       << name << "' (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+		  return;
+	    }
 	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
 	    const std::vector<pform_tf_port_t>*def_ports = task->peek_ports();
 	    size_t proto_count = proto_ports ? proto_ports->size() : 0;

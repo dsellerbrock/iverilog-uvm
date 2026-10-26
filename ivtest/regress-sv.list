@@ -6068,3 +6068,5 @@ issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
 # IEEE 1800-2017/2023 §8.18: protected class properties are restricted to the class hierarchy.
 sv_protected_external_access_fail_legacy CE,-g2017 ivltests
 sv_protected_subclass_access_legacy normal,-g2017 ivltests gold=sv_protected_subclass_access_legacy.gold
+issue1215_duplicate_extern_method_2017 CE,-g2017,-s,main ivltests gold=issue1215_duplicate_extern_method_2017.gold
+issue1215_duplicate_extern_method_2023 CE,-g2023,-s,main ivltests gold=issue1215_duplicate_extern_method_2023.gold
