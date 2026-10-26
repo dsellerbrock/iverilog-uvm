@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1226_late_block_decl.v",
+  "iverilog-args": ["-g2017", "-s", "issue1226_late_block_decl"],
+  "gold": "issue1226_late_block_decl"
+}

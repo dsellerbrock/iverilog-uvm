@@ -18860,8 +18860,9 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
-  /* Accept declaration-style statements for user types in procedural blocks.
-     These are treated as declarations-only and emit no executable statement. */
+  /* Some procedural variable declarations arrive through statement_item due
+     to the declaration/statement grammar conflicts. Mark these syntax-only
+     nodes so statement_or_null_list can enforce their declaration prefix. */
   | K_const TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*tmp = new typeref_t($2.type);
 	FILE_NAME(tmp, @2);
@@ -18869,16 +18870,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	var_lifetime = LexicalScope::INHERITED;
 	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$2.text;
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
   | variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
       { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
   | data_type list_of_variable_decl_assignments ';'
       { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
 
   /* The lexer returns this carrier only while a task/function lexical scope
@@ -18889,26 +18890,18 @@ statement_item /* This is roughly statement_item in the LRM */
     param_type parameter_assign_list ';'
       { $$ = nullptr; }
 
-  /* `const <data_type> name = init;` intermixed with statements (not
-     the first declaration in the block). The K_const TYPE_IDENTIFIER
-     rule above only covers a user-defined type name; a `const` of a
-     keyword-spelled type (`const int`, `const string`) or a
-     package-scoped type (`const otp_ctrl_pkg::x_t`) never lexes as
-     TYPE_IDENTIFIER, so it fell through to no rule at all here and
-     was misparsed as the start of an ordinary (non-declaration)
-     statement -- "Syntax in assignment statement l-value." A `const`
-     declared FIRST in a block matched fine via block_item_decl before
-     the parser committed to the statement-list path; only a `const`
-     appearing after some other declaration or statement needed this
-     alternative. Mirrors the two non-const rules just above. */
+  /* The `K_const TYPE_IDENTIFIER` alternative above does not cover const
+     declarations with keyword-spelled or package-scoped types. These forms
+     may also arrive through statement_item while parsing the declaration
+     prefix; the statement-list ordering check rejects them after a statement. */
   | K_const variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
       { if ($3) pform_make_var(@3, $4, $3, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
   | K_const data_type list_of_variable_decl_assignments ';'
       { if ($2) pform_make_var(@2, $3, $2, nullptr, true);
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
 
   /* An event declaration intermixed with statements. Leading variable
@@ -18949,7 +18942,7 @@ statement_item /* This is roughly statement_item in the LRM */
      (ivtest constfunc8). Mirror the block_item_decl extension rule. */
   | K_reg data_type list_of_variable_decl_assignments ';'
       { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
-	$$ = nullptr;
+	$$ = new PNoop(true);
       }
 
   /* A non-ANSI task/function port direction declaration that arrives
@@ -20698,7 +20691,21 @@ statement_or_null_list_opt
 statement_or_null_list
   : statement_or_null_list statement_or_null
       { std::vector<Statement*>*tmp = $1;
-	if ($2) tmp->push_back($2);
+	if (PNoop*decl = dynamic_cast<PNoop*>($2)) {
+	      if (decl->is_declaration()) {
+		    for (Statement*prev : *tmp) {
+			  PNoop*prev_decl = dynamic_cast<PNoop*>(prev);
+			  if (!prev_decl || !prev_decl->is_declaration()) {
+				yyerror(@2, "error: Variable declarations must precede statements in a procedural block.");
+				break;
+			  }
+		    }
+	      }
+	}
+	PNoop*decl = dynamic_cast<PNoop*>($2);
+	if (decl && decl->is_declaration())
+	      delete $2;
+	else if ($2) tmp->push_back($2);
 	$$ = tmp;
       }
   /* Imports update lexical lookup while parsing and emit no statement.
@@ -20719,7 +20726,10 @@ statement_or_null_list
       }
   | statement_or_null
       { std::vector<Statement*>*tmp = new std::vector<Statement*>(0);
-	if ($1) tmp->push_back($1);
+	if ($1 && dynamic_cast<PNoop*>($1)
+	    && dynamic_cast<PNoop*>($1)->is_declaration())
+	      delete $1;
+	else if ($1) tmp->push_back($1);
 	$$ = tmp;
       }
   | package_import_declaration

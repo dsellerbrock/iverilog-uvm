@@ -994,9 +994,12 @@ class PNoop  : public Statement {
 
     public:
       bool refs_name(perm_string name) const override;
-      PNoop() { }
+      explicit PNoop(bool declaration = false) : declaration_(declaration) { }
+      bool is_declaration() const { return declaration_; }
       ~PNoop() override { }
       NetProc* elaborate(Design*des, NetScope*scope) const override;
+    private:
+      bool declaration_;
 };
 
 class PRepeat : public Statement {

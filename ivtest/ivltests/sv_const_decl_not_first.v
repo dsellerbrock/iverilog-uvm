@@ -1,12 +1,6 @@
-// IEEE 1800-2017 6.18/6.20: a `const` variable declaration may appear
-// anywhere among the statements of a procedural block, not only as
-// the block's first item. The statement_item grammar had plain
-// (non-const) alternatives for a data_type declaration appearing
-// after another declaration or statement, but the only `const`
-// alternative in that position required a user-defined TYPE_IDENTIFIER
-// -- a `const` of a keyword-spelled type (int, string) or a
-// package-scoped type never matched, and fell through to a syntax
-// error ("Syntax in assignment statement l-value").
+// IEEE 1800-2017 6.21: variable declarations must precede statements in a
+// procedural block. Exercise const declarations of keyword and package types
+// after other declarations but before the first statement.
 //
 // Reduced from OpenTitan lc_ctrl_scoreboard.sv, where a task declares
 // three ordinary local variables and then:
@@ -22,8 +16,8 @@ class C;
     const string MsgFmt = "ok";   // const string after a const decl
     p::rec_t rr;
     const p::rec_t Z = '{v: 4'hA}; // const of a package-scoped type
+    const int W = 7;
     $display("stmt");
-    const int W = 7;              // const after an ordinary statement
     if (Y != 5 || MsgFmt != "ok" || Z.v !== 4'hA || W != 7) begin
       $display("FAILED Y=%0d MsgFmt=%s Z=%h W=%0d", Y, MsgFmt, Z.v, W);
       $finish;
