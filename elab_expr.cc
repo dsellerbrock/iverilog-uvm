@@ -15752,7 +15752,7 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
  * pseudo hierarchy rather than class objects. Replace the three source
  * components
  *
- *     <coverpoint-or-cross>.option.{at_least,weight}
+ *     <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
  *
  * with the synthesized scalar property that carries the mutable value on
  * this covergroup object. Advance the iterator to the final consumed
@@ -15814,8 +15814,9 @@ static void report_unsupported_covergroup_item_option_(
 {
       cerr << loc->get_fileline() << ": sorry: procedural " << access
 	   << " of coverpoint/cross option `" << item << ".option."
-	   << member << "' is not supported; only option.at_least and "
-	   << "option.weight are implemented." << endl;
+	   << member << "' is not supported; supported options are "
+	   << "option.at_least, option.weight, option.goal, and "
+	   << "option.comment." << endl;
       des->errors += 1;
 }
 
@@ -30255,14 +30256,36 @@ unsigned PENewClass::test_width(Design*, NetScope*, width_mode_t&)
 // Compile option initializers as ordinary assignments. Constructor actuals
 // have already been captured in the object, so an initializer never evaluates
 // an actual argument again and retains normal four-state expression semantics.
-static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
-                                        const netclass_t*type, NetExpr*object,
-                                        const LineInfo&loc)
+static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
+{
+      if (!type || !type->is_covergroup()) return false;
+      const auto&options = type->covgrp_options();
+      if (options.goal_expr || options.comment_expr) return true;
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            if (item.goal_expr || item.comment_expr) return true;
+      }
+      return false;
+}
+
+NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                  const netclass_t*type, NetExpr*object,
+                                  const LineInfo&loc,
+                                  const netclass_t*inherited)
 {
       if (!type->is_covergroup()) return object;
       const auto&options = type->covgrp_options();
-      if (!options.weight_expr && !options.get_inst_coverage_expr
-            && !options.per_instance_expr) return object;
+      bool has_dynamic_options = options.weight_expr
+            || options.get_inst_coverage_expr || options.per_instance_expr
+            || options.goal_expr || options.comment_expr;
+      for (size_t idx = 0; !has_dynamic_options
+            && idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            has_dynamic_options = item.goal_expr || item.comment_expr;
+      }
+      if (!has_dynamic_options
+            && !(inherited && covgrp_has_dynamic_goal_comment(inherited)))
+            return object;
       NetScope*declaration = options.declaration_scope;
       ivl_assert(loc, declaration);
       NetScope*wrapper = new NetScope(declaration, hname_t(declaration->local_symbol()),
@@ -30300,20 +30323,47 @@ static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
                                             type->covgrp_ctor_formal_prop(idx), nullptr);
             body->append(new NetAssign(new NetAssign_(formal), value));
       }
-      auto assign_option = [&](int prop, PExpr*expr) {
-            if (!expr) return;
-            NetExpr*value = elaborate_rval_expr(des, wrapper, type->get_prop_type(prop),
-                                                expr, false);
+      auto assign_option = [&](int prop, PExpr*expr, NetExpr*default_value) {
+            if (prop < 0) {
+                  delete default_value;
+                  return;
+            }
+            NetExpr*value = default_value;
+            if (expr) {
+                  delete value;
+                  value = elaborate_rval_expr(des, wrapper, type->get_prop_type(prop),
+                                              expr, false);
+            }
             if (!value) return;
             NetAssign_*lval = new NetAssign_(receiver);
             lval->set_property(lex_strings.make(type->get_prop_name(prop)), prop);
             NetAssign*assignment = new NetAssign(lval, value);
-            assignment->set_line(*expr);
+            assignment->set_line(expr ? *expr : loc);
             body->append(assignment);
       };
-      assign_option(options.weight_prop, options.weight_expr);
-      assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr);
-      assign_option(options.per_instance_prop, options.per_instance_expr);
+      assign_option(options.weight_prop, options.weight_expr, nullptr);
+      assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr, nullptr);
+      assign_option(options.per_instance_prop, options.per_instance_expr, nullptr);
+      auto signed_goal_value = [](unsigned goal) -> NetExpr* {
+            verinum value((uint64_t)goal, 32);
+            value.has_sign(true);
+            return new NetEConst(value);
+      };
+      assign_option(options.goal_prop, options.goal_expr,
+            inherited && !options.goal_expr
+                  ? signed_goal_value(options.goal) : nullptr);
+      assign_option(options.comment_prop, options.comment_expr,
+            inherited && !options.comment_expr
+                  ? new NetECString(options.comment) : nullptr);
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const netclass_t::covgrp_item_t&item = type->covgrp_item(idx);
+            assign_option(item.goal_prop, item.goal_expr,
+                  inherited && !item.goal_expr
+                        ? signed_goal_value(item.goal) : nullptr);
+            assign_option(item.comment_prop, item.comment_expr,
+                  inherited && !item.comment_expr
+                        ? new NetECString(item.comment) : nullptr);
+      }
       def->set_proc(body);
       NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);
       call->set_line(loc);

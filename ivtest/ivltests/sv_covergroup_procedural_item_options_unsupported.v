@@ -1,6 +1,5 @@
-// IEEE 1800-2023 19.7.1 defines more per-item options than this bounded
-// implementation currently models. Recognized item-option hierarchy must
-// fail loudly instead of collapsing reads to zero or dropping writes.
+// Unknown item-option members must fail instead of collapsing to zero or
+// silently dropping a write.
 class unsupported_declaration_at_least_wrap;
   covergroup cg(int threshold) with function sample(bit value);
     cp: coverpoint value {
