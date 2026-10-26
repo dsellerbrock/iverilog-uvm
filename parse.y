@@ -4192,6 +4192,10 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
+			  if ((*$6)[idx__].port->get_port_type() == NetNet::POUTPUT)
+				yyerror(@4, "error: Covergroup sample formal '%s' cannot "
+					"have output direction (IEEE 1800 19.8.1).",
+					(*$6)[idx__].port->basename().operator const char*());
 			  formals__->push_back((*$6)[idx__].port->basename());
 			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
@@ -16504,6 +16508,10 @@ module_item
 	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
+			  if ((*$6)[idx__].port->get_port_type() == NetNet::POUTPUT)
+				yyerror(@4, "error: Covergroup sample formal '%s' cannot "
+					"have output direction (IEEE 1800 19.8.1).",
+					(*$6)[idx__].port->basename().operator const char*());
 			  formals__->push_back((*$6)[idx__].port->basename());
 			  ftypes__->push_back((*$6)[idx__].port);
 			  fdefaults__->push_back((*$6)[idx__].defe);
