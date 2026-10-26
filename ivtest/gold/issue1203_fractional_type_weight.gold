@@ -1,0 +1,2 @@
+./ivltests/issue1203_fractional_type_weight.v:4: error: covergroup type_option.weight requires a non-negative integral constant.
+1 error(s) during elaboration.
