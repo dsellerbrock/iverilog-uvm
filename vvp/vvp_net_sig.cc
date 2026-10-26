@@ -107,6 +107,22 @@ vvp_object_t vvp_fun_signal_object::prepare_received_container_object(
       return value;
 }
 
+vvp_object_t vvp_fun_signal_object::get_object_preponed() const
+{
+      if (hist_enabled_ && hist_valid_ && hist_time_ == schedule_simtime())
+	    return hist_prev_;
+      return get_object();
+}
+
+void vvp_fun_signal_object::snapshot_object_preponed(const vvp_object_t&value)
+{
+      if (hist_enabled_ && (!hist_valid_ || hist_time_ != schedule_simtime())) {
+	    hist_prev_ = value.test_nil() ? value : value.duplicate();
+	    hist_time_ = schedule_simtime();
+	    hist_valid_ = true;
+      }
+}
+
 static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
                                                      __vpiScope*scope,
                                                      const char*where)
@@ -2592,6 +2608,7 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
       bool handle_changed = needs_init_ || value_ != bit;
 
       if (handle_changed || value_epoch_ != bit_epoch) {
+	    snapshot_object_preponed(value_);
             if (handle_changed && attached_net_ && !value_.test_nil())
                   value_.unregister_signal_alias(attached_net_, 0);
 	    value_ = bit;
