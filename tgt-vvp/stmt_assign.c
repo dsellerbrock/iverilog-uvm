@@ -1736,7 +1736,7 @@ int draw_capture_lval_ref(ivl_lval_t lval)
  * think that it the proper way to do it, so soon I should change the
  * %store/vec4 to not include the width operand.
  */
-static void store_vec4_to_one_lval(ivl_lval_t lval)
+void store_vec4_to_one_lval(ivl_lval_t lval)
 {
 	    ivl_signal_t lsig = ivl_lval_sig(lval);
 	    unsigned lwid = ivl_lval_width(lval);

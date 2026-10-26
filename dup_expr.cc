@@ -320,6 +320,8 @@ NetEAssignExpr* NetEAssignExpr::dup_expr() const
             ivl_assert(*this, parm(idx));
             tmp->parm(idx, parm(idx)->dup_expr());
       }
+      if (ref_output())
+	    tmp->set_ref_output(ref_output()->dup_lval());
       tmp->set_line(*this);
       return tmp;
 }

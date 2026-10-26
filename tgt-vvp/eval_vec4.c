@@ -1690,14 +1690,16 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
       const char*name = ivl_expr_name(expr);
       ivl_expr_t lhs = ivl_expr_parm(expr, 0);
       ivl_expr_t rhs = ivl_expr_parm(expr, 1);
+      unsigned lval_count = ivl_expr_ref_lvals(expr);
       char op = name[sizeof prefix - 1];
 
       assert(ivl_expr_parms(expr) == 2);
       assert(lhs && rhs);
-      assert(ivl_expr_type(lhs) == IVL_EX_SIGNAL);
-      assert(ivl_expr_oper1(lhs) == 0);
+      assert(ivl_expr_type(lhs) == IVL_EX_SIGNAL
+             || (lval_count && ivl_expr_type(lhs) == IVL_EX_CONCAT));
 
-      ivl_signal_t sig = ivl_expr_signal(lhs);
+      ivl_signal_t sig = (ivl_expr_type(lhs) == IVL_EX_SIGNAL)
+            ? ivl_expr_signal(lhs) : 0;
       unsigned wid = ivl_expr_width(lhs);
 
       if (op == '=') {
@@ -1732,10 +1734,21 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
             }
       }
 
-      if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+      if (sig && ivl_signal_data_type(sig) == IVL_VT_BOOL)
             fprintf(vvp_out, "    %%cast2; assignment expression destination\n");
       fprintf(vvp_out, "    %%dup/vec4;\n");
-      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+      if (lval_count) {
+	    for (unsigned idx = 0 ; idx < lval_count ; idx += 1) {
+		  ivl_lval_t lval = ivl_expr_ref_lval_n(expr, idx);
+		  if (idx + 1 < lval_count)
+			fprintf(vvp_out, "    %%split/vec4 %u;\n",
+				ivl_lval_width(lval));
+		  store_vec4_to_one_lval(lval);
+	    }
+      } else {
+	    assert(sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+      }
 }
 
 static void draw_sfunc_vec4(ivl_expr_t expr)

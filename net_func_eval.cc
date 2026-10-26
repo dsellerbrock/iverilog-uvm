@@ -1941,7 +1941,32 @@ NetExpr* NetEAssignExpr::evaluate_function(const LineInfo&loc,
 {
       ivl_assert(*this, nparms() == 2);
       const NetESignal*lhs = dynamic_cast<const NetESignal*>(parm(0));
-      if (!lhs) return 0;
+      if (!lhs) {
+	    if (!ref_output()) return 0;
+
+	    unique_ptr<NetExpr>rhs(parm(1)->evaluate_function(loc, context_map));
+	    const NetEConst*rhs_const = rhs
+		  ? dynamic_cast<const NetEConst*>(rhs.get()) : 0;
+	    if (!rhs_const) return 0;
+
+	    verinum assigned_value = rhs_const->value();
+	    char op = name()[strlen(name())-1];
+	    if (op != '=') {
+		  unique_ptr<NetExpr>old_value(
+			parm(0)->evaluate_function(loc, context_map));
+		  const NetEConst*old_const = old_value
+			? dynamic_cast<const NetEConst*>(old_value.get()) : 0;
+		  if (!old_const) return 0;
+		  assigned_value = old_const->value();
+		  eval_func_lval_op_vec_(loc, op, assigned_value,
+				 rhs_const->value());
+	    }
+
+	    unique_ptr<NetExpr>assigned(new NetEConst(assigned_value));
+	    NetAssign store(ref_output()->dup_lval(), assigned->dup_expr());
+	    if (!store.evaluate_function(loc, context_map)) return 0;
+	    return assigned.release();
+      }
       NetExpr*invalid_slot = 0;
       bool discard_store = false;
       NetExpr**slot = eval_func_signal_slot_(loc, lhs, context_map,

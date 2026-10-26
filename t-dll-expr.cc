@@ -703,6 +703,8 @@ void dll_target::expr_sfunc(const NetESFunc*net)
 	    ? dll_procedure_new_array<unsigned char>(cnt) : 0;
       expr->u_.sfunc_.ref_lval = 0;
       expr->u_.sfunc_.ref_lval2 = 0;
+      expr->u_.sfunc_.ref_lvals = 0;
+      expr->u_.sfunc_.ref_lvals_count = 0;
       for (unsigned idx = 0 ; idx < cnt ; idx += 1)
 	    if (expr->u_.sfunc_.vif_parm_default)
 	          expr->u_.sfunc_.vif_parm_default[idx] =
@@ -724,10 +726,21 @@ void dll_target::expr_sfunc(const NetESFunc*net)
       }
 
       if (net->ref_output()) {
-	    expr->u_.sfunc_.ref_lval =
-		  dll_procedure_new<struct ivl_lval_s>();
-	    make_single_lval_(net, expr->u_.sfunc_.ref_lval,
-			      net->ref_output());
+	    unsigned count = 0;
+	    for (const NetAssign_*item = net->ref_output(); item;
+		 item = item->more)
+		  count += 1;
+	    expr->u_.sfunc_.ref_lvals =
+		  dll_procedure_new_array<ivl_lval_t>(count);
+	    expr->u_.sfunc_.ref_lvals_count = count;
+	    unsigned idx = 0;
+	    for (const NetAssign_*item = net->ref_output(); item;
+		 item = item->more, idx += 1) {
+		  expr->u_.sfunc_.ref_lvals[idx] =
+			dll_procedure_new<struct ivl_lval_s>();
+		  make_single_lval_(net, expr->u_.sfunc_.ref_lvals[idx], item);
+	    }
+	    expr->u_.sfunc_.ref_lval = expr->u_.sfunc_.ref_lvals[0];
       }
       if (net->ref_output2()) {
 	    expr->u_.sfunc_.ref_lval2 =
