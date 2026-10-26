@@ -650,6 +650,35 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
  * result_width == 0 means the statement form (no value pushed);
  * otherwise the 1/0 result is pushed onto the vec4 stack.
  */
+static int sv_class_assignment_compatible_(ivl_type_t from, ivl_type_t to)
+{
+      if (!from || !to) return 0;
+      if (from == to) return 1;
+      if (sv_class_assignment_compatible_(ivl_type_super(from), to))
+            return 1;
+      for (unsigned idx = 0; idx < ivl_type_interface_count(from); idx += 1)
+            if (sv_class_assignment_compatible_(ivl_type_interface(from, idx), to))
+                  return 1;
+      return 0;
+}
+
+static ivl_type_t sv_class_expr_type_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) == IVL_EX_SIGNAL) {
+            ivl_signal_t signal = ivl_expr_signal(expr);
+            return signal ? ivl_signal_net_type(signal) : 0;
+      }
+      ivl_type_t type = ivl_expr_net_type(expr);
+      if (type) return type;
+      if (ivl_expr_type(expr) == IVL_EX_SELECT) {
+            ivl_expr_t container = ivl_expr_oper1(expr);
+            ivl_type_t container_type = container
+                  ? sv_class_expr_type_(container) : 0;
+            return container_type ? ivl_type_element(container_type) : 0;
+      }
+      return 0;
+}
+
 static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
                                       unsigned result_width,
                                       unsigned file_idx, unsigned lineno)
@@ -669,6 +698,7 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       int select_is_queue = 0;
       unsigned lab_fail, lab_done;
       int depth_on_fail;
+      int source_type_compatible;
 
       if (!(dest && src))
             return 0;
@@ -747,6 +777,22 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       if (!(dest_type && ivl_type_base(dest_type) == IVL_VT_CLASS))
             return 0;
 
+      /* IEEE 1800-2017/2023 8.16 makes compatibility depend on the
+         source expression's declared type, except when the expression
+         itself is the literal null.  A null value in a variable of an
+         unrelated class type is not that literal-null case. */
+      source_type_compatible = ivl_expr_type(src) == IVL_EX_NULL;
+      if (!source_type_compatible) {
+            ivl_type_t source_type = sv_class_expr_type_(src);
+            /* Assignment compatibility follows both the concrete
+               superclass chain and implemented/extended interface
+               classes. */
+            source_type_compatible = source_type
+                  && (ivl_type_is_interface(source_type)
+                      || sv_class_assignment_compatible_(source_type, dest_type)
+                      || sv_class_assignment_compatible_(dest_type, source_type));
+      }
+
       if (ivl_expr_type(dest) == IVL_EX_PROPERTY)
             idx = ivl_expr_oper1(dest);
       pidx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
@@ -794,8 +840,15 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       }
 
       draw_eval_object(src);
-      fprintf(vvp_out, "    %%test/class C%p; $cast: 6.24.2 type check\n",
-              dest_type);
+      if (source_type_compatible) {
+            fprintf(vvp_out, "    %%test/class C%p; $cast: 8.16 type check\n",
+                    dest_type);
+      } else {
+            /* The source type makes this cast illegal regardless of the
+               handle's current value (8.16).  Keep the source evaluation
+               above for side effects, then take the ordinary failure path. */
+            fprintf(vvp_out, "    %%flag_set/imm 4, 0; $cast: incompatible source type\n");
+      }
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
               thread_count, lab_fail);
 

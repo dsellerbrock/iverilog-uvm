@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1210_cast_unrelated_null.v:27: $finish called at 0 (1s)
