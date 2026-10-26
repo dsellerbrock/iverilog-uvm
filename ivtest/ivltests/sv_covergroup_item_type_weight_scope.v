@@ -2,7 +2,7 @@ module test;
   localparam int arg=9;
   localparam int packet=9;
   localparam int outer_weight=3;
-  covergroup cg(logic [2:0] arg) with function sample(int x,bit y,logic [4:0] packet);
+  covergroup cg(logic [2:0] arg,logic [4:0] packet) with function sample(int x,bit y);
     type_option.merge_instances=1;
     type_option.weight=$bits(arg);
     option.get_inst_coverage=1;
@@ -28,7 +28,7 @@ module test;
   cg c;
   outer_cg o;
   initial begin
-    c=new(0); c.sample(0,0,0);
+    c=new(0,0); c.sample(0,0);
     f=new(21); f.sample(0,2);
     o=new; o.sample(0,2);
     if (c.get_coverage()!=34.375) $fatal(1,"type query lost formal widths");
