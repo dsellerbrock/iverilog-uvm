@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_sample_formal_option_fail.v:5: error: covergroup sample() formal 'x' may only be used in a coverpoint or conditional guard expression.
+1 error(s) during elaboration.
