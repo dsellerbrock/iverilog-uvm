@@ -6061,3 +6061,6 @@ issue1194_always_assertion_2017 normal,-g2017,-s,issue1194_always_assertion ivlt
 issue1194_always_assertion_2023 normal,-g2023,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
 issue1207_duplicate_random_qualifier_2017 CE,-g2017 ivltests
 issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
+# IEEE 1800-2017/2023 §8.18: protected class properties are restricted to the class hierarchy.
+sv_protected_external_access_fail_legacy CE,-g2017 ivltests
+sv_protected_subclass_access_legacy normal,-g2017 ivltests gold=sv_protected_subclass_access_legacy.gold

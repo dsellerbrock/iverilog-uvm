@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_protected_subclass_access.v",
+  "iverilog-args": ["-g2023", "-s", "sv_protected_subclass_access"],
+  "gold": "sv_protected_subclass_access_2023"
+}
