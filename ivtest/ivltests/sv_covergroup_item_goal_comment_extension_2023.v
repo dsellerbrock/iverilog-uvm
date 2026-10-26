@@ -11,10 +11,11 @@ class base_option_holder;
 endclass
 
 class derived_option_holder extends base_option_holder;
+  bit extra_value;
   covergroup extends cg;
     option.goal = 61;
     option.comment = "derived";
-    extra_cp: coverpoint value;
+    extra_cp: coverpoint extra_value;
   endgroup : cg
   function new; super.new(); endfunction
 endclass

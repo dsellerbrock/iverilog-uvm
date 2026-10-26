@@ -46917,16 +46917,24 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 		    // Keep existing coverage-bin property indexes stable. The new mutable
 		    // option storage follows all pre-existing hidden properties.
-		    group_options.goal_prop = add_unique_cov_counter(
-			  "__covgrp_group_option_goal");
-		    group_options.comment_prop = add_unique_cov_property(
-			  "__covgrp_group_option_comment", &netstring_t::type_string);
+		    if (group_options.goal_prop < 0)
+			  group_options.goal_prop = add_unique_cov_counter(
+				"__covgrp_group_option_goal");
+		    if (group_options.comment_prop < 0)
+			  group_options.comment_prop = add_unique_cov_property(
+				"__covgrp_group_option_comment", &netstring_t::type_string);
 		    for (size_t item = 0; item < cg_class->covgrp_item_count(); item++) {
+			  const netclass_t::covgrp_item_t&item_data =
+				cg_class->covgrp_item(item);
 			  std::string stem = "__covgrp_item_" + std::to_string(item);
-			  cg_class->set_covgrp_item_option_props(item,
-				add_unique_cov_counter(stem + "_option_goal"),
-				add_unique_cov_property(stem + "_option_comment",
-							&netstring_t::type_string));
+			  int goal_prop = item_data.goal_prop;
+			  int comment_prop = item_data.comment_prop;
+			  if (goal_prop < 0)
+				goal_prop = add_unique_cov_counter(stem + "_option_goal");
+			  if (comment_prop < 0)
+				comment_prop = add_unique_cov_property(
+				      stem + "_option_comment", &netstring_t::type_string);
+			  cg_class->set_covgrp_item_option_props(item, goal_prop, comment_prop);
 		    }
 
 		    // Replace the covergroup property declaration on the
