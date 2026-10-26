@@ -46,6 +46,8 @@ vpip_register_driver_activity_cb
 vpip_get_port_component
 vpip_get_stacktrace
 vpip_print_finish_stats
+vpip_register_immediate_cover
+vpip_report_immediate_cover
 vpip_format_strength
 vpip_make_systf_system_defined
 vpip_mcd_rawwrite

@@ -376,6 +376,20 @@ void vpip_print_finish_stats(void)
       assert(vpip_routines);
       vpip_routines->print_finish_stats();
 }
+void vpip_register_immediate_cover(PLI_INT32 source_id, const char*name,
+                                   const char*file, PLI_INT32 line,
+                                   vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->register_immediate_cover(source_id, name, file, line,
+                                               scope);
+}
+void vpip_report_immediate_cover(PLI_INT32 source_id, PLI_INT32 success,
+                                 vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->report_immediate_cover(source_id, success, scope);
+}
 void vpip_cancel_deferred_asserts(const char*selector, PLI_INT32 levels)
 {
       assert(vpip_routines);
