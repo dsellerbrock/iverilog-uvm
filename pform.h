@@ -1097,6 +1097,8 @@ extern Statement* pform_make_deferred_cover(const struct vlltype&loc,
 				     PExpr*expr,
 				     Statement*pass_stmt,
 				     bool is_final);
+extern Statement* pform_make_immediate_cover(const struct vlltype&loc,
+				     PExpr*expr, Statement*pass_stmt);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);

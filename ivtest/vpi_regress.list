@@ -226,3 +226,5 @@ fst_sv_types normal,-g2017 fst_text.c fst_sv_types.gold -lz
 fst_sv_types_2023 normal,-g2023 fst_text.c fst_sv_types_2023.gold -lz
 fst_dump_control normal,-g2017 fst_text.c fst_dump_control.gold -lz
 fst_dump_control_2023 normal,-g2023 fst_text.c fst_dump_control_2023.gold -lz
+sv_assert_cover_api_2017 normal,-g2017 sv_assert_cover_api.c sv_assert_cover_api_2017.log
+sv_assert_cover_api_2023 normal,-g2023 sv_assert_cover_api.c sv_assert_cover_api_2023.log

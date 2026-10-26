@@ -685,10 +685,20 @@ class __vpiAssertion : public __vpiHandle {
 	  scope_(scope), latency_(-1), fail_full_latency_(false),
 	  deferred_source_id_(source_id), deferred_type_(deferred_type) { }
 
+      __vpiAssertion(const char*name, const char*file, int line,
+		     __vpiScope*scope, int immediate_type)
+	: idx_(-1), name_(name ? name : ""), file_(file ? file : ""),
+	  line_(line), scope_(scope), latency_(-1),
+	  fail_full_latency_(false), immediate_type_(immediate_type) { }
+
       int get_type_code(void) const override { return vpiAssertion; }
 
       int vpi_get(int code) override
       {
+	    if (code == vpiAssertAttemptCovered) return attempts_;
+	    if (code == vpiAssertSuccessCovered) return successes_;
+	    if (code == vpiType && immediate_type_ != vpiUndefined)
+		  return immediate_type_;
 	    if (code == vpiType && deferred_source_id_)
 		  return deferred_type_;
 	    if (code == vpiLineNo) return line_;
@@ -764,6 +774,12 @@ class __vpiAssertion : public __vpiHandle {
 	    cbs_.push_back(c);
       }
 
+      void report_immediate_cover(bool success)
+      {
+	    attempts_ += 1;
+	    if (success) successes_ += 1;
+      }
+
 	/* Record every sampled checker clock, even when assertion control
 	   suppresses a new start. Ages then index real raw simulation times
 	   instead of assuming a fixed clock period or a gapless START ring. */
@@ -779,6 +795,8 @@ class __vpiAssertion : public __vpiHandle {
 	   the established two-argument report behavior for other checkers. */
       void fire(int reason, int age = -1)
       {
+	    if (reason == cbAssertionStart) attempts_ += 1;
+	    else if (reason == cbAssertionSuccess) successes_ += 1;
 	    if (cbs_.empty()) return;
 	    vvp_time64_t now_raw = schedule_simtime();
 	    s_vpi_time t;
@@ -855,11 +873,14 @@ class __vpiAssertion : public __vpiHandle {
       int line_;
       __vpiScope*scope_;
       std::vector<assert_cb_t> cbs_;
+      int attempts_ = 0;
+      int successes_ = 0;
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
       bool deferred_enabled_ = true;
+      int immediate_type_ = vpiUndefined;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
 };
@@ -868,6 +889,8 @@ static std::vector<__vpiAssertion*> assertion_registry;
 static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
       deferred_assertion_by_key;
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
+      immediate_cover_by_key;
 static int assertion_cb_total = 0;
 
 static bool selector_path_prefix_(const char*path, const char*prefix)
@@ -972,6 +995,33 @@ void vpip_register_deferred_assertion(unsigned long source_id,
       assertion_registry.push_back(obj);
       deferred_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
+}
+
+void vpip_register_immediate_cover(PLI_INT32 source_id, const char*name,
+				   const char*file, PLI_INT32 line,
+				   vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!source_id || !sc || !line) return;
+      std::pair<__vpiScope*,int>key(sc, (int)source_id);
+      if (immediate_cover_by_key.find(key) != immediate_cover_by_key.end())
+	    return;
+      __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
+						      vpiImmediateCover);
+      assertion_registry.push_back(obj);
+      immediate_cover_by_key[key] = obj;
+      vpip_attach_to_scope(sc, obj);
+}
+
+void vpip_report_immediate_cover(PLI_INT32 source_id, PLI_INT32 success,
+				 vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
+	    immediate_cover_by_key.find(std::make_pair(sc, (int)source_id));
+      if (it != immediate_cover_by_key.end())
+	    it->second->report_immediate_cover(success != 0);
 }
 
 PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,

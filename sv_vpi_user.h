@@ -119,6 +119,10 @@ EXTERN_C_START
 
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
+/* Assertion coverage status properties: 2017 40.5.2/40.5.3,
+   2023 40.5.2. */
+#define vpiAssertAttemptCovered 770
+#define vpiAssertSuccessCovered 771
 /* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
  * VPI property codes are a separate value set; vpiImmediateAssert shares the
  * integer value of the Icarus vpiCoverCount property code. */
