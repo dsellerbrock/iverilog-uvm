@@ -632,6 +632,9 @@ pform_sva_multiclock_comb_antecedent(
 			   std::vector<sva_seq_step_t>*conseq,
 			   std::vector<sva_mc_seg_t>*tail);
 extern sva_property_t*
+pform_sva_clocked_leaf_prop(const struct vlltype&loc, PEventStatement*clk,
+			    std::vector<sva_seq_step_t>*chain);
+extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,
 		       sva_property_t*conseq);

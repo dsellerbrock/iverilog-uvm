@@ -17780,6 +17780,22 @@ sva_property_t* pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain)
       return p;
 }
 
+/* A clocked sequence operand in a property combinator retains its clock on
+   the property shell until the combinator can verify and propagate it. */
+sva_property_t* pform_sva_clocked_leaf_prop(const struct vlltype&loc,
+					    PEventStatement*clk,
+					    std::vector<sva_seq_step_t>*chain)
+{
+      sva_property_t*p = pform_sva_leaf_prop(chain);
+      if (!p) {
+	    delete clk;
+	    return nullptr;
+      }
+      p->clk_evt = clk;
+      (void)loc;
+      return p;
+}
+
 /* Take the tree out of a combinator-operand property, normalizing a
    chain-bearing property (legacy fixed-intersect result) to a leaf.
    Consumes the property shell (clk/disable/antecedent are always null
@@ -17809,7 +17825,31 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 				    sva_property_t*a, sva_property_t*b)
 {
-      (void)loc;
+      PEventStatement*clk = nullptr;
+      if (a && b && a->clk_evt && b->clk_evt) {
+	    ostringstream left, right;
+	    a->clk_evt->dump_inline(left);
+	    b->clk_evt->dump_inline(right);
+	    if (left.str() != right.str()) {
+		  cerr << loc << ": error: property operands have incompatible "
+		       << "semantic leading clocks (IEEE 1800-2017/2023 16.16.1)."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(a);
+		  pform_sva_destroy_property(b);
+		  return nullptr;
+	    }
+	    clk = a->clk_evt;
+	    a->clk_evt = nullptr;
+	    delete b->clk_evt;
+	    b->clk_evt = nullptr;
+	      } else if (a && a->clk_evt) {
+	    clk = a->clk_evt;
+	    a->clk_evt = nullptr;
+	      } else if (b && b->clk_evt) {
+	    clk = b->clk_evt;
+	    b->clk_evt = nullptr;
+      }
       sva_stree_t*ta = sva_prop_take_tree_(a);
       sva_stree_t*tb = sva_prop_take_tree_(b);
       if (!ta || !tb) {
@@ -17824,6 +17864,7 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
       sva_property_t*p = new sva_property_t;
       p->tree = t;
       p->op_type = 0;
+      p->clk_evt = clk;
       return p;
 }
 

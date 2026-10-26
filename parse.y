@@ -9168,6 +9168,8 @@ property_case_items
 sva_comb_atom
   : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
+  | event_control sva_seq_expr %prec sva_seq_comb_done
+      { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
   ;
