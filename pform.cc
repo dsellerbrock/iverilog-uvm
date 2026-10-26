@@ -17477,6 +17477,82 @@ sva_property_t* pform_sva_apply_property_context(
 	    delete disable_iff;
 	    return nullptr;
       }
+
+	/* IEEE 1800-2017 9.4.2.4 and 1800-2023 16.5.2 permit a named
+	   sequence instance as an event control. In property_spec it is the
+	   assertion clock: trigger a private event on each successful endpoint
+	   instead of treating the sequence name as a signal. */
+      if (clk && clk->event_expressions().size() == 1) {
+	    const PEEvent*event = clk->event_expressions().front();
+	    const PEIdent*id = event && event->type() == PEEvent::ANYEDGE
+		  ? dynamic_cast<const PEIdent*>(event->expr()) : nullptr;
+	    if (id && !id->path().package && id->path().name.size() == 1
+		&& id->path().name.front().index.empty()) {
+		  perm_string seqname = id->path().name.front().name;
+		  std::vector<sva_seq_step_t>*steps = nullptr;
+		  PEventStatement*seq_clock = nullptr;
+		  std::map<sva_scoped_name_t,
+			   std::vector<sva_seq_step_t>*>::iterator sit =
+			sva_resolve_(sva_module_sequences, seqname);
+		  if (sit != sva_module_sequences.end() && sit->second) {
+			std::map<perm_string,PExpr*>no_subst;
+			steps = sva_clone_steps_subst_(loc, sit->second, no_subst);
+		  } else {
+			std::set<sva_scoped_name_t>::iterator tag =
+			      sva_resolve_(sva_property_shaped_sequences, seqname);
+			if (tag != sva_property_shaped_sequences.end()) {
+			      std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+				    sva_resolve_(sva_module_properties, seqname);
+			      if (pit != sva_module_properties.end() && pit->second
+				  && !pit->second->tree && pit->second->seq) {
+				    std::map<perm_string,PExpr*>no_subst;
+				    steps = sva_clone_steps_subst_(loc, pit->second->seq,
+								   no_subst);
+				    seq_clock = pit->second->clk_evt
+					  ? sva_clone_event_control_(pit->second->clk_evt,
+								     loc, nullptr)
+					  : nullptr;
+				  }
+			}
+		  }
+		  if (steps && !steps->empty() && !pform_cur_module.empty()) {
+			unsigned inst = sva_gensym_counter++;
+			char buf[64];
+			snprintf(buf, sizeof buf, "_ivl_sva_seq_clock_%u", inst);
+			perm_string event_name = lex_strings.make(buf);
+			LexicalScope*saved_scope = lexical_scope;
+			lexical_scope = pform_cur_module.front();
+			pform_make_event(loc, pform_ident_t(event_name, loc.lexical_pos),
+					 nullptr, IVL_VLT_INHERITED);
+			lexical_scope = saved_scope;
+
+			sva_decl_sequence_forget_sampled_(steps);
+			sva_property_t*seq_prop = new sva_property_t;
+			seq_prop->op_type = 0;
+			seq_prop->seq = steps;
+			seq_prop->clk_evt = seq_clock;
+			pform_name_t event_path;
+			event_path.push_back(name_component_t(event_name));
+			PTrigger*trigger = pform_new_trigger(loc, nullptr, event_path,
+							     loc.lexical_pos);
+			PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
+			FILE_NAME(no_failure_action, loc);
+			pform_make_assertion(loc, seq_prop, no_failure_action, trigger, 0);
+
+			PEIdent*wait_id = new PEIdent(event_path, loc.lexical_pos);
+			FILE_NAME(wait_id, loc);
+			PEEvent*wait_event = new PEEvent(PEEvent::ANYEDGE, wait_id);
+			FILE_NAME(wait_event, loc);
+			PEventStatement*seq_event = new PEventStatement(wait_event);
+			FILE_NAME(seq_event, loc);
+			delete clk;
+			clk = seq_event;
+		  } else {
+			delete seq_clock;
+			pform_sva_destroy_sequence(steps);
+		  }
+	    }
+      }
       if (prop->clk_evt && clk) {
 	    ostringstream inner, outer;
 	    prop->clk_evt->dump_inline(inner);
