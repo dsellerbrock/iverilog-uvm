@@ -9607,7 +9607,13 @@ property_qualifier_opt /* IEEE1800-2005 A.1.8: ... { property_qualifier } */
   ;
 
 property_qualifier_list /* IEEE1800-2005 A.1.8 */
-  : property_qualifier_list property_qualifier { $$ = $1 | $2; }
+  : property_qualifier_list property_qualifier
+      { $$ = $1 | $2;
+	if ($1.random_count() == 1 &&
+	    ($2.test_rand() || $2.test_randc()))
+	      yyerror(@2, "error: a class property declaration may contain only "
+		      "one random qualifier (IEEE 1800-2017 8.3).");
+      }
   | property_qualifier { $$ = $1; }
   ;
 

@@ -6023,3 +6023,5 @@ pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold
 issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
 issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
+issue1207_duplicate_random_qualifier_2017 CE,-g2017 ivltests
+issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
