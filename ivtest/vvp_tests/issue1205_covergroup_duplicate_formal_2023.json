@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1205_covergroup_duplicate_formal_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1205_covergroup_duplicate_formal_2023"]
+}
