@@ -16,6 +16,8 @@ sv_modport_expression_2017 normal,-g2017 ivltests gold=sv_modport_expression-vvp
 sv_modport_expression_2023 normal,-g2023 ivltests gold=sv_modport_expression-vvp-stdout.gold
 sv_modport_expression_concat_2017 normal,-g2017 ivltests gold=sv_modport_expression_concat.gold
 sv_modport_expression_concat_2023 normal,-g2023 ivltests gold=sv_modport_expression_concat.gold
+issue1208_interface_class_override_specifier_2017 CE,-g2017 ivltests
+issue1208_interface_class_override_specifier_2023 CE,-g2023 ivltests
 #    This program is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the

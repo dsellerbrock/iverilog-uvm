@@ -97,6 +97,15 @@ static typedef_t* pending_cross_value_typedef_ = nullptr;
 static typedef_t* pending_cross_queue_typedef_ = nullptr;
 static bool pending_cross_scope_active_ = false;
 
+/* IEEE 1800-2023 8.3 note 25 limits dynamic override specifiers to
+ * methods declared in ordinary classes. */
+static void check_dynamic_override_scope_(const YYLTYPE&loc)
+{
+	PClass* class_scope = dynamic_cast<PClass*>(pform_peek_scope());
+	if (class_scope && class_scope->type && class_scope->type->interface_class)
+		yyerror(loc, "error: Dynamic method override specifiers are not allowed in interface classes (IEEE 1800-2023 8.3).");
+}
+
 /* I1 (Phase 62g): accumulator for cross declarations seen during the
    current covergroup parse.  cross_item rules append here; the enclosing
    covergroup action moves them to the pform_covergroup_t.  Non-static
@@ -6676,25 +6685,28 @@ class_item_method_task_keyword
   ;
 
 dynamic_override_specifiers
-  : ':' K_initial { $$ = METHOD_OVERRIDE_INITIAL; }
-  | ':' K_extends { $$ = METHOD_OVERRIDE_EXTENDS; }
-  | ':' K_final { $$ = METHOD_OVERRIDE_FINAL; }
+  : ':' K_initial { check_dynamic_override_scope_(@2); $$ = METHOD_OVERRIDE_INITIAL; }
+  | ':' K_extends { check_dynamic_override_scope_(@2); $$ = METHOD_OVERRIDE_EXTENDS; }
+  | ':' K_final { check_dynamic_override_scope_(@2); $$ = METHOD_OVERRIDE_FINAL; }
   | dynamic_override_specifiers ':' K_initial
-      { if ($1 & METHOD_OVERRIDE_INITIAL)
+      { check_dynamic_override_scope_(@3);
+        if ($1 & METHOD_OVERRIDE_INITIAL)
 	      yyerror(@3, "error: Duplicate ':initial' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_EXTENDS)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_INITIAL;
       }
   | dynamic_override_specifiers ':' K_extends
-      { if ($1 & METHOD_OVERRIDE_EXTENDS)
+      { check_dynamic_override_scope_(@3);
+        if ($1 & METHOD_OVERRIDE_EXTENDS)
 	      yyerror(@3, "error: Duplicate ':extends' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_INITIAL)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_EXTENDS;
       }
   | dynamic_override_specifiers ':' K_final
-      { if ($1 & METHOD_OVERRIDE_FINAL)
+      { check_dynamic_override_scope_(@3);
+        if ($1 & METHOD_OVERRIDE_FINAL)
 	      yyerror(@3, "error: Duplicate ':final' method override specifier.");
 	$$ = $1 | METHOD_OVERRIDE_FINAL;
       }
