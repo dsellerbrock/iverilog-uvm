@@ -5159,6 +5159,18 @@ bins_item
 	delete[] $3;
 	$$ = b;
       }
+  | K_wildcard bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	b->arrayed = true;
+	cov_bins_set_ranges_(b, $8);
+	b->with_expr = $10;
+	b->iff_expr = $11;
+	delete[] $3;
+	$$ = b;
+      }
   /* arrayed bins: name[] (one bin per value) and name[N] (N bins) */
   | bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();

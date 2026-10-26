@@ -45257,6 +45257,80 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
+				if (bin.arrayed && !bin.array_size && bin.wildcard
+				    && base_kind == 0) {
+				      // IEEE 1800-2017/2023 19.5.4: an open wildcard-bin
+				      // array has one ordinary bin for each distinct 2-state
+				      // value matched by its patterns. Expand patterns here so
+				      // sampling and cross-bin selection see concrete values.
+				      static const uint64_t wildcard_array_bin_limit = 65536;
+				      if (cp_value_width == 0 || cp_value_width > 64) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' has a coverpoint wider than 64 bits; "
+						 << "the bin array is not represented." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      uint64_t value_mask = cp_value_width == 64
+					    ? UINT64_MAX
+					    : (UINT64_C(1) << cp_value_width) - 1;
+				      std::set<uint64_t> values;
+				      std::set<std::pair<uint64_t,uint64_t>> patterns(
+					    rr.begin(), rr.end());
+				      bool too_many = false;
+				      for (const auto&pattern : patterns) {
+					    std::vector<unsigned> free_bits;
+					    for (unsigned bit = 0; bit < cp_value_width; bit++)
+						  if (!(pattern.second & (UINT64_C(1) << bit)))
+							free_bits.push_back(bit);
+					    if (free_bits.size() > 16) {
+						  too_many = true;
+						  break;
+					    }
+					    uint64_t count = UINT64_C(1) << free_bits.size();
+					    for (uint64_t combination = 0; combination < count;
+						 combination++) {
+						  uint64_t value = pattern.first & value_mask;
+						  for (size_t free_idx = 0;
+						       free_idx < free_bits.size(); free_idx++)
+							if (combination & (UINT64_C(1) << free_idx))
+							      value |= UINT64_C(1) << free_bits[free_idx];
+						  values.insert(value);
+						  if (values.size() > wildcard_array_bin_limit) {
+							too_many = true;
+							break;
+						  }
+					    }
+					    if (too_many) break;
+				      }
+				      if (too_many) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' needs more than "
+						 << wildcard_array_bin_limit
+						 << " value-keyed counters; the bin array is dropped."
+						 << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      for (uint64_t value : values) {
+					    std::vector<std::pair<uint64_t,uint64_t>> value_range;
+					    value_range.push_back(std::make_pair(value, value));
+					    std::string bn = bstem + "_" + std::to_string(value);
+					    unsigned source_prop = add_value_prop(
+						  bn, value_range, base_kind, bin_guard);
+					    xbin_desc_t d;
+					    d.name = lex_strings.make((std::string(bin.name.str())
+							       + "[" + std::to_string(value)
+							       + "]").c_str());
+					    d.ranges = value_range;
+					    d.source_prop = (int)source_prop;
+					    d.guard_idx = bin_guard;
+					    vbins.push_back(std::move(d));
+				      }
+				      has_value_bins = true;
+				      continue;
+				}
+
 				if (base_kind == 1) { // ignore_bins: no counter
 				      unsigned tup = 0;
 				      for (auto&r : rr)
