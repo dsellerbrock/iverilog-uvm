@@ -7663,7 +7663,7 @@ static bool stream_property_readable_(Design*des, NetScope*scope,
       if (quiet)
 	    return true;
       if (ct->get_prop_qual(pidx).test_local()
-	  && !ct->test_scope_is_method(scope)) {
+	  && !ct->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << inner->get_fileline() << ": error: Local property "
 		 << ct->get_prop_name(pidx)
 		 << " is not accessible in this context." << endl;
@@ -15011,7 +15011,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && !class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -16561,7 +16562,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && ! class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
