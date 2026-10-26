@@ -2422,12 +2422,9 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 
 	    if (prop_idx >= 0) {
 		  ivl_type_t owner_type = ivl_signal_net_type(sig);
-		  ivl_expr_t part_off = ivl_lval_part_off(lval);
-		  if (ivl_lval_idx(lval) || (part_off
-		      && ivl_expr_type(part_off) != IVL_EX_NUMBER
-		      && ivl_expr_type(part_off) != IVL_EX_ULONG)) {
+		  if (ivl_lval_idx(lval)) {
 			fprintf(stderr, "%s:%u: sorry: indexed or dynamically "
-				"selected member in a packed property concatenation "
+				"selected object in a packed property concatenation "
 				"is not yet supported.\n",
 				ivl_stmt_file(net), ivl_stmt_lineno(net));
 			return 1;
@@ -2483,8 +2480,10 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    ivl_expr_t part_off = ivl_lval_part_off(lval);
 	    uint64_t negative_part_off_bits = 0;
 	    int dynamic_part_off = part_off
-		  && packed_property_negative_offset_bits64_(
-			part_off, &negative_part_off_bits);
+		  && (packed_property_negative_offset_bits64_(
+			part_off, &negative_part_off_bits)
+		      || (ivl_expr_type(part_off) != IVL_EX_NUMBER
+			  && ivl_expr_type(part_off) != IVL_EX_ULONG));
 	      /* An X/Z or nonnegative constant too large for any packed property
 	       * is wholly out of bounds. The assignment slice is a no-op, but the
 	       * complete r-value and receiver have already been evaluated and
@@ -2504,8 +2503,12 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    if (dynamic_part_off) {
 		  off_reg = allocate_word();
 		  off_flag = allocate_flag();
-		  emit_packed_property_negative_offset_(
-			off_reg, negative_part_off_bits);
+		  if (packed_property_negative_offset_bits64_(
+			    part_off, &negative_part_off_bits))
+			emit_packed_property_negative_offset_(
+			      off_reg, negative_part_off_bits);
+		  else
+			draw_eval_expr_into_integer(part_off, off_reg);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 	    }
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");

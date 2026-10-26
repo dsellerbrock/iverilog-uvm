@@ -3643,6 +3643,34 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* A concatenation l-value can contain interface properties alongside
+	   ordinary packed selects. It cannot be represented by one structural
+	   lnet because each interface member is resolved through its handle.
+	   Use the same continuous-store process as a direct interface-member
+	   l-value so every concatenation operand receives its assigned bits. */
+      if (dynamic_cast<const PEConcat*>(pin(0))
+	  && reads_interface_member_(this, des, scope,
+				     const_cast<PExpr*>(pin(0)))) {
+	    bool unsupported_delay = delay_count() > 0
+		  && !(is_defined_zero_delay_(rise_time)
+		       && is_defined_zero_delay_(fall_time)
+		       && is_defined_zero_delay_(decay_time));
+	    if (unsupported_delay || !var_allowed_in_sv) {
+		  cerr << get_fileline() << ": sorry: Nonzero/dynamic delay and "
+			  "non-default drive strength on a continuous assignment "
+			  "with an interface-member concatenation l-value are not "
+			  "currently supported." << endl;
+		  des->errors += 1;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    elaborate_vif_member_assign_(des, scope, this,
+		  const_cast<PExpr*>(pin(0)), const_cast<PExpr*>(pin(1)),
+		  nullptr, true);
+	    return;
+      }
+
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
 	   The member resolves through the class-typed handle at run time, and even
