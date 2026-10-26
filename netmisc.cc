@@ -2948,7 +2948,14 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
       } else {
             unsigned errors_before = des->errors;
             NetExpr*texpr = elab_and_eval(des, scope, range.first, -1, true);
-            if (! eval_as_long(index_l, texpr)) {
+            const NetEConst*constant = dynamic_cast<const NetEConst*>(texpr);
+            if (constant && !constant->value().is_defined()) {
+                  cerr << range.first->get_fileline() << ": error: "
+                          "Range bound expression contains undefined bits: "
+                       << *range.first << endl;
+                  dimension_ok = false;
+                  des->errors += 1;
+            } else if (! eval_as_long(index_l, texpr)) {
                   if (des->errors == errors_before) {
                         cerr << range.first->get_fileline() << ": error: "
                                 "Dimensions must be constant." << endl;
@@ -2983,7 +2990,14 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
             } else {
                   errors_before = des->errors;
                   texpr = elab_and_eval(des, scope, range.second, -1, true);
-                  if (! eval_as_long(index_r, texpr)) {
+                  constant = dynamic_cast<const NetEConst*>(texpr);
+                  if (constant && !constant->value().is_defined()) {
+                        cerr << range.second->get_fileline() << ": error: "
+                                "Range bound expression contains undefined bits: "
+                             << *range.second << endl;
+                        dimension_ok = false;
+                        des->errors += 1;
+                  } else if (! eval_as_long(index_r, texpr)) {
                         if (des->errors == errors_before) {
                               cerr << range.second->get_fileline() << ": error: "
                                       "Dimensions must be constant." << endl;

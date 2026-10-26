@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vector_range_unknown_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_vector_range_unknown_2017"
+}
