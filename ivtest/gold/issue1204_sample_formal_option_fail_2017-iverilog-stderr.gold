@@ -1,0 +1,2 @@
+ivltests/issue1204_sample_formal_option_fail.v:4: error: covergroup option 'weight' may not reference sample() formal 'x' (IEEE 1800-2017/2023 19.8.1).
+1 error(s) during elaboration.

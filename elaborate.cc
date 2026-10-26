@@ -42430,6 +42430,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		"type_option.merge_instances", "type_option.real_interval",
 		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
+				if (kv.second) {
+				      for (perm_string formal : cgdef->sample_formals) {
+					    if (!kv.second->refs_name(formal)) continue;
+					    cerr << kv.second->get_fileline()
+						 << ": error: covergroup option '" << kv.first
+						 << "' may not reference sample() formal '"
+						 << formal << "' (IEEE 1800-2017/2023 19.8.1)."
+						 << endl;
+					    des->errors += 1;
+					    break;
+				      }
+				}
 					if (kv.first == "type_option.cross_retain_auto_bins") {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
 					      cerr << "error: cross_retain_auto_bins is an instance "
