@@ -43413,12 +43413,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto per_instance_it = cgdef->options.find(perm_string::literal("per_instance"));
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
+            auto goal_it = cgdef->options.find(perm_string::literal("goal"));
+            if (goal_it != cgdef->options.end())
+                  group_options.goal_expr = goal_it->second;
+            auto comment_it = cgdef->options.find(perm_string::literal("comment"));
+            if (comment_it != cgdef->options.end())
+                  group_options.comment_expr = comment_it->second;
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
+            group_options.goal_prop = add_unique_cov_counter(
+                  "__covgrp_group_option_goal");
+            group_options.comment_prop = add_unique_cov_property(
+                  "__covgrp_group_option_comment", &netstring_t::type_string);
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
@@ -43904,14 +43914,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
-			  std::pair<int,int> cp_option_props =
-				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
+			  std::string cp_option_stem = "__covgrp_item_" + std::to_string(cp_idx);
+			  std::pair<int,int> cp_option_props = add_option_props(cp_option_stem);
+			  int cp_goal_prop = add_unique_cov_counter(cp_option_stem + "_option_goal");
+			  int cp_comment_prop = add_unique_cov_property(
+				cp_option_stem + "_option_comment", &netstring_t::type_string);
+			  auto cp_goal_it = cp.options.find(perm_string::literal("goal"));
+			  auto cp_comment_it = cp.options.find(perm_string::literal("comment"));
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
 						nullptr, -1,
 						cp_option_props.first,
-						cp_option_props.second);
+						cp_option_props.second,
+						cp_goal_prop, cp_comment_prop,
+						cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second,
+						cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -45901,15 +45919,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				     << "(IEEE 1800-2023 19.4.1)." << endl;
 				des->errors += 1;
 			  }
-			  std::pair<int,int> x_option_props =
-				add_option_props("__covgrp_item_" + std::to_string(item_idx));
+			  std::string x_option_stem = "__covgrp_item_" + std::to_string(item_idx);
+			  std::pair<int,int> x_option_props = add_option_props(x_option_stem);
+			  int x_goal_prop = add_unique_cov_counter(x_option_stem + "_option_goal");
+			  int x_comment_prop = add_unique_cov_property(
+				x_option_stem + "_option_comment", &netstring_t::type_string);
+			  auto x_goal_it = cross.options.find(perm_string::literal("goal"));
+			  auto x_comment_it = cross.options.find(perm_string::literal("comment"));
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
 						x_weight.second,
 						cross.iff_expr, x_guard_src,
 						x_option_props.first,
-						x_option_props.second);
+					x_option_props.second,
+					x_goal_prop, x_comment_prop,
+					x_goal_it == cross.options.end() ? nullptr : x_goal_it->second,
+					x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
