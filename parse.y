@@ -11707,6 +11707,22 @@ event_control /* A.K.A. clocking_event */
 	$$ = tmps;
 	delete $2;
       }
+  | '@' SYSTEM_IDENTIFIER
+      { /* IEEE 1800-2017 16.5.2 uses `@$global_clock` as a clocking
+	   event in a concurrent assertion. Keep the bare system-identifier
+	   form specific to that event; ordinary system functions still need
+	   to be part of a parenthesized event expression. */
+	if (strcmp($2, "$global_clock") != 0) {
+	  yyerror(@2, "error: only $global_clock may be used as an unparenthesized system clocking event.");
+	}
+	PECallFunction*tmpi = new PECallFunction(lex_strings.make($2));
+	FILE_NAME(tmpi, @2);
+	PEEvent*tmpe = new PEEvent(PEEvent::ANYEDGE, tmpi);
+	PEventStatement*tmps = new PEventStatement(tmpe);
+	FILE_NAME(tmps, @1);
+	$$ = tmps;
+	delete[] $2;
+      }
   | '@' '(' event_expression_list ')'
       { PEventStatement*tmp = new PEventStatement(*$3);
 	FILE_NAME(tmp, @1);

@@ -1,0 +1,1 @@
+issue1180_global_clock_sva normal,-g2017,-gassertions ivltests gold=issue1180_global_clock_sva.gold
