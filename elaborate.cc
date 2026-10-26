@@ -41935,6 +41935,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      for (auto* cgdef : pclass->type->covergroups) {
 		    if (!cgdef) continue;
 
+		      // IEEE 1800-2017/2023 19.8.1 places the constructor and
+		      // overridden sample() formals in one lexical scope.
+		    for (perm_string ctor_formal : cgdef->ctor_formals) {
+			  for (perm_string sample_formal : cgdef->sample_formals) {
+				if (ctor_formal != sample_formal) continue;
+				cerr << pclass->get_fileline()
+				     << ": error: covergroup constructor and sample() "
+				     << "formals share the name '" << ctor_formal
+				     << "' (IEEE 1800 19.8.1)." << endl;
+				des->errors += 1;
+			  }
+		    }
+
 		    string cg_cname = string("__covgrp_")
 				      + string(name_.str())
 				      + "_" + string(cgdef->name.str()) + "_t";
