@@ -969,6 +969,17 @@ bool netclass_t::test_scope_is_method(const NetScope*scope) const
 	    return true;
 }
 
+bool netclass_t::test_scope_is_method_or_subclass(const NetScope*scope) const
+{
+      const NetScope*class_scope = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*caller = class_scope ? class_scope->class_def() : nullptr;
+      for (const netclass_t*cur = caller ; cur ; cur = cur->get_super()) {
+	    if (cur == this)
+		  return true;
+      }
+      return false;
+}
+
 const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
 					 ivl_type_t &par_type) const
 {

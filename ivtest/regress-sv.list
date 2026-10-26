@@ -6023,3 +6023,6 @@ pla_output_net_fail_2017 CE,-g2017 ivltests gold=pla_output_net_fail_2017.gold
 pla_output_net_fail_2023 CE,-g2023 ivltests gold=pla_output_net_fail_2023.gold
 issue1155_unpacked_struct_equality_2017 normal,-g2017,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
 issue1155_unpacked_struct_equality_2023 normal,-g2023,-s,test ivltests gold=issue1155_unpacked_struct_equality.gold
+# IEEE 1800-2017/2023 §8.18: protected class properties are restricted to the class hierarchy.
+sv_protected_external_access_fail_legacy CE,-g2017 ivltests
+sv_protected_subclass_access_legacy normal,-g2017 ivltests gold=sv_protected_subclass_access_legacy.gold
