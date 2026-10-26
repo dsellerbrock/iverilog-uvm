@@ -20353,10 +20353,28 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 {
       std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
 	    sva_resolve_(sva_module_sequences, seqname);
-      if (it == sva_module_sequences.end() || !it->second)
-	    return nullptr;
+      std::vector<sva_seq_step_t>*body_ptr =
+	    it != sva_module_sequences.end() ? it->second : nullptr;
+      if (!body_ptr) {
+	    /* This issue is the same-clock .triggered case.  A property-shaped
+	       source can be matched across clock domains, which needs distinct
+	       handoff semantics and must not use this single-clock indicator. */
+	    if (method != perm_string::literal("triggered")) return nullptr;
+	    /* Explicitly clocked sequence declarations keep their complete IR in
+	       the property-shaped tables.  A fixed chain there has the same
+	       endpoint expression as the plain sequence representation. */
+	    std::set<sva_scoped_name_t>::iterator tag =
+		  sva_resolve_(sva_property_shaped_sequences, seqname);
+	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
+	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+		  sva_resolve_(sva_module_properties, seqname);
+	    if (pit == sva_module_properties.end() || !pit->second
+		|| pit->second->tree || !pit->second->seq)
+		  return nullptr;
+	    body_ptr = pit->second->seq;
+      }
 
-      std::vector<sva_seq_step_t>&body = *it->second;
+      std::vector<sva_seq_step_t>&body = *body_ptr;
       bool ok = !body.empty();
       long L = 0;
       std::vector<long> off (body.size(), 0);
