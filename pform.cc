@@ -18510,6 +18510,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       bool negated = (prop->op_type == 3);
       bool cover = (kind == 2);
+      bool sequence_cover = cover && prop->sequence_cover;
       bool implication = (prop->op_type == 1 || prop->op_type == 2);
       bool forbidden = implication && prop->forbidden_consequent;
 	/* A cover of the logical dual needs a first-class recursive-property
@@ -19517,10 +19518,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					       (negated || forbidden) ? r_f : r_p,
 					      sva_bit_(loc, 1)));
 	    }
-	    if (!endpoint_fanout) {
+	    if (!endpoint_fanout && !(cover && sequence_cover)) {
 		  clear_slot(k, acc_v);
 		  if (track_ob)
 			acc_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+	    } else if (!endpoint_fanout && sequence_cover) {
+		  /* A sequence-cover attempt remains live after a match while any
+		     later endpoint is still possible. Retire only its accepting
+		     state; the other NFA paths can produce further matches. */
+		  for (unsigned j = 0; j < N; ++j)
+			acc_v.push_back(sva_assign_(loc, s[k][j],
+			      j == nfa.accept ? sva_bit_(loc, 0)
+					      : sva_id_(loc, nx[j])));
+		  std::vector<Statement*> retire;
+		  clear_slot(k, retire);
+		  acc_v.push_back(sva_if_(loc, sva_not_(loc, alive),
+					  sva_block_(loc, retire), nullptr));
 	    }
 
 	    if (track_ob) {
@@ -27914,6 +27927,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Negated properties (op 3) and plain sequences (op 0) attempt
 	   every cycle. */
       bool negated = (prop->op_type == 3);
+      bool sequence_cover = kind == 2 && prop->sequence_cover;
       bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
@@ -28402,7 +28416,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			FILE_NAME(report, loc);
 			sat.push_back(report);
 		  }
-		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+		  if (!sequence_cover)
+			sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
 	    std::vector<Statement*> miss;
 	    if (kind != 2 && !negated) {
@@ -28480,7 +28495,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
 	    }
-	    sat.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    sat.push_back(sva_assign_(loc, r_pend,
+		  sequence_cover ? (PExpr*)elig
+				 : (PExpr*)sva_bit_(loc, 0)));
 	    std::vector<Statement*> miss;
 	    PEBLogic*acc = new PEBLogic('o', sva_id_(loc, r_pend),
 					sva_id_(loc, r_mat));

@@ -4454,8 +4454,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
   | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* M9: cover sequence — same machinery as cover property. */
+      { /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
+	      $4->sequence_cover = true;
 	      pform_make_assertion(@1, $4, 0, $6, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
