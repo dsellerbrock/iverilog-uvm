@@ -18,7 +18,7 @@ module test;
   endgroup
   covergroup rounded_cg with function sample(int x,int y);
     type_option.merge_instances=1;
-    cx: coverpoint x { type_option.weight=1.5; bins b[]={0,1}; }
+    cx: coverpoint x { type_option.weight=1; bins b[]={0,1}; }
     cy: coverpoint y { bins b[]={0,1}; }
   endgroup
   explicit_cg a;
@@ -35,7 +35,7 @@ module test;
     ck("ordinary instance weights",a.get_inst_coverage(),12.5);
     ck("independent default type weights",b.get_coverage(),25.0);
     ck("instance zero weight retained",b.get_inst_coverage(),0.0);
-    ck("typed constant rounding",c.get_coverage(),100.0/3.0);
+    ck("integral constant type weight",c.get_coverage(),25.0);
     a.cy.option.weight=0;
     ck("procedural instance option leaves type unchanged",a.get_coverage(),37.5);
     ck("procedural instance option takes effect",a.get_inst_coverage(),50.0);

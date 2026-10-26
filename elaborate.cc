@@ -42351,12 +42351,42 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // formal (19.7).  Preserve such an expression as compact
 		      // property IR and evaluate it against the particular object;
 		      // it is not a declaration-time constant shared by the type.
+		    auto check_weight_value = [&](PExpr*expr, const char*where,
+						 bool check_integral = true) -> bool {
+			  if (!expr) return true;
+			  if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+				if (ident->path().name.size() == 1
+				    && ident->path().name.front().index.empty()
+				    && !class_scope_->find_signal(
+					  ident->path().name.front().name))
+				      return true;
+			  }
+			  NetExpr*value = elab_and_eval(des, class_scope_, expr,
+						-1, false, false);
+			  bool valid = true;
+			  if (const NetEConst*constant = dynamic_cast<const NetEConst*>(value))
+				valid = !check_integral || (constant->value().is_defined()
+				      && !constant->value().is_negative());
+			  else if (const NetECReal*real = dynamic_cast<const NetECReal*>(value)) {
+				double number = real->value().as_double();
+				valid = std::isfinite(number) && number >= 0.0
+				      && std::floor(number) == number;
+			  }
+			  delete value;
+			  if (!valid) {
+				cerr << expr->get_fileline() << ": error: " << where
+				     << " requires a non-negative integral value." << endl;
+				des->errors += 1;
+			  }
+			  return valid;
+		    };
 		    auto opt_weight = [&](const std::map<perm_string,PExpr*>&opts,
 					 unsigned dflt)
 			  -> std::pair<unsigned,std::string> {
 			  auto it = opts.find(perm_string::literal("weight"));
 			  if (it == opts.end() || !it->second)
 				return std::make_pair(dflt, std::string());
+			  check_weight_value(it->second, "covergroup option.weight");
 			  if (!is_direct_ctor_formal(it->second)) {
 				NetExpr*e = elab_and_eval(des, class_scope_, it->second,
 						      -1, false, false);
@@ -43407,6 +43437,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto weight_it = cgdef->options.find(perm_string::literal("weight"));
             if (weight_it != cgdef->options.end())
                   group_options.weight_expr = weight_it->second;
+            if (weight_it != cgdef->options.end())
+                  check_weight_value(weight_it->second, "covergroup option.weight");
             auto inst_it = cgdef->options.find(perm_string::literal("get_inst_coverage"));
             if (inst_it != cgdef->options.end())
                   group_options.get_inst_coverage_expr = inst_it->second;
@@ -43423,6 +43455,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
                   if (it == options.end()) return 1;
+                  check_weight_value(it->second, "covergroup type_option.weight", false);
                   // Covergroup formals are object properties, so ordinary
                   // constant lookup needs typed aliases even when called
                   // before/after the coverpoint expression binding interval.
