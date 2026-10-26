@@ -27591,6 +27591,10 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
 
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
+	  if (const PBlock*block = dynamic_cast<const PBlock*>(statement_))
+	    if (block->is_concurrent_assertion_only())
+		  return true;
+
       scope->in_final(type() == IVL_PR_FINAL);
       NetProc*cur;
       {
