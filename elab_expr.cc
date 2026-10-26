@@ -30185,15 +30185,36 @@ unsigned PENewClass::test_width(Design*, NetScope*, width_mode_t&)
 // Compile option initializers as ordinary assignments. Constructor actuals
 // have already been captured in the object, so an initializer never evaluates
 // an actual argument again and retains normal four-state expression semantics.
-static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
-                                        const netclass_t*type, NetExpr*object,
-                                        const LineInfo&loc)
+static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
+{
+      if (!type || !type->is_covergroup()) return false;
+      const auto&options = type->covgrp_options();
+      if (options.goal_expr || options.comment_expr) return true;
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            if (item.goal_expr || item.comment_expr) return true;
+      }
+      return false;
+}
+
+NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                  const netclass_t*type, NetExpr*object,
+                                  const LineInfo&loc,
+                                  const netclass_t*inherited)
 {
       if (!type->is_covergroup()) return object;
       const auto&options = type->covgrp_options();
-      if (!options.weight_expr && !options.get_inst_coverage_expr
-            && !options.per_instance_expr && !options.goal_expr
-            && !options.comment_expr) return object;
+      bool has_dynamic_options = options.weight_expr
+            || options.get_inst_coverage_expr || options.per_instance_expr
+            || options.goal_expr || options.comment_expr;
+      for (size_t idx = 0; !has_dynamic_options
+            && idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            has_dynamic_options = item.goal_expr || item.comment_expr;
+      }
+      if (!has_dynamic_options
+            && !(inherited && covgrp_has_dynamic_goal_comment(inherited)))
+            return object;
       NetScope*declaration = options.declaration_scope;
       ivl_assert(loc, declaration);
       NetScope*wrapper = new NetScope(declaration, hname_t(declaration->local_symbol()),
@@ -30252,12 +30273,25 @@ static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       assign_option(options.weight_prop, options.weight_expr, nullptr);
       assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr, nullptr);
       assign_option(options.per_instance_prop, options.per_instance_expr, nullptr);
-      assign_option(options.goal_prop, options.goal_expr, nullptr);
-      assign_option(options.comment_prop, options.comment_expr, nullptr);
+      auto signed_goal_value = [](unsigned goal) -> NetExpr* {
+            verinum value((uint64_t)goal, 32);
+            value.has_sign(true);
+            return new NetEConst(value);
+      };
+      assign_option(options.goal_prop, options.goal_expr,
+            inherited && !options.goal_expr
+                  ? signed_goal_value(options.goal) : nullptr);
+      assign_option(options.comment_prop, options.comment_expr,
+            inherited && !options.comment_expr
+                  ? new NetECString(options.comment) : nullptr);
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const netclass_t::covgrp_item_t&item = type->covgrp_item(idx);
-            assign_option(item.goal_prop, item.goal_expr, nullptr);
-            assign_option(item.comment_prop, item.comment_expr, nullptr);
+            assign_option(item.goal_prop, item.goal_expr,
+                  inherited && !item.goal_expr
+                        ? signed_goal_value(item.goal) : nullptr);
+            assign_option(item.comment_prop, item.comment_expr,
+                  inherited && !item.comment_expr
+                        ? new NetECString(item.comment) : nullptr);
       }
       def->set_proc(body);
       NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);

@@ -48,9 +48,18 @@ module sv_covergroup_item_goal_comment;
     cp_cross: cross cp_a, cp_b;
   endgroup
 
+  covergroup item_only_dynamic(int item_goal, string item_comment)
+      with function sample(bit value);
+    cp: coverpoint value {
+      option.goal = item_goal;
+      option.comment = item_comment;
+    }
+  endgroup
+
   configured first, second;
   group_only group_only_item;
   defaults defaults_item;
+  item_only_dynamic standalone_item_only;
   option_holder embedded_item;
   real before_type_coverage, before_instance_coverage;
   int old_weight, old_at_least;
@@ -60,6 +69,7 @@ module sv_covergroup_item_goal_comment;
     second = new(41, "second");
     group_only_item = new(51, "group-only");
     defaults_item = new;
+    standalone_item_only = new(19, "standalone item only");
     embedded_item = new(61, "embedded");
 
     if (first.option.goal != 31 || first.option.comment != "first"
@@ -81,6 +91,11 @@ module sv_covergroup_item_goal_comment;
         || group_only_item.cp_cross.option.goal != 100
         || group_only_item.cp_cross.option.comment != "")
       $fatal(1, "covergroup goal/comment incorrectly defaulted to child options");
+    if (standalone_item_only.option.goal != 100
+        || standalone_item_only.option.comment != ""
+        || standalone_item_only.cp.option.goal != 19
+        || standalone_item_only.cp.option.comment != "standalone item only")
+      $fatal(1, "standalone item-only dynamic options were not initialized");
     if (embedded_item.embedded.option.goal != 61
         || embedded_item.embedded.option.comment != "embedded")
       $fatal(1, "embedded covergroup constructor options were not initialized");

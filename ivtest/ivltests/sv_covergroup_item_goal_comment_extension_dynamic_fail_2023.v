@@ -1,1 +1,0 @@
-`include "sv_covergroup_item_goal_comment_extension_dynamic_fail.v"

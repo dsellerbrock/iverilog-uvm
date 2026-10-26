@@ -810,6 +810,8 @@ class netclass_t : public ivl_type_s {
       netclass_t* covgrp_extension_class(perm_string name) const
 	    { auto found = covgrp_extensions_.find(name);
 	      return found == covgrp_extensions_.end() ? nullptr : found->second; }
+      const std::map<perm_string,netclass_t*>& covgrp_extension_classes() const
+            { return covgrp_extensions_; }
       void set_covgrp_extension_class(perm_string name, netclass_t*type)
 	    { covgrp_extensions_[name] = type; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }

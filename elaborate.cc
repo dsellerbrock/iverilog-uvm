@@ -13920,6 +13920,39 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 	    return tmp;
       }
 
+      auto append_extension_options = [&](NetBlock*block) {
+	    bool appended = false;
+	    for (const auto&extension : class_this->covgrp_extension_classes()) {
+		  const perm_string name = extension.first;
+		  netclass_t*type = extension.second;
+		  if (!type || !type->is_covergroup()) continue;
+		  int prop = class_this->property_idx_from_name(name);
+		  if (prop < 0) continue;
+
+		  NetExpr*handle = new NetEProperty(new NetESignal(var_this),
+						    (unsigned)prop, nullptr);
+		  const netclass_t*inherited = nullptr;
+		  int inherited_prop = class_super->property_idx_from_name(name);
+		  if (inherited_prop >= 0) {
+			inherited = dynamic_cast<const netclass_t*>(
+			      class_super->get_prop_type(
+				    static_cast<size_t>(inherited_prop)));
+			if (inherited && !inherited->is_covergroup()) inherited = nullptr;
+		  }
+		  NetExpr*call = elaborate_covgrp_options(des, scope, type,
+						      handle, *this, inherited);
+		  if (call == handle) continue;
+
+		  NetAssign_*lvalue = new NetAssign_(var_this);
+		  lvalue->set_property(lex_strings.make(name.str()), (unsigned)prop);
+		  NetAssign*assignment = new NetAssign(lvalue, call);
+		  assignment->set_line(*this);
+		  block->append(assignment);
+		  appended = true;
+	    }
+	    return appended;
+      };
+
 	// If super.new(...) is a user defined constructor, then call
 	// it. This is a bit more complicated because there may be arguments.
 	      if (NetScope*new_scope = class_super->get_constructor()) {
@@ -14046,15 +14079,21 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 			set_this->set_line(*this);
 			blk->append(set_this);
 			blk->append(stmt);
+		    append_extension_options(blk);
 			return blk;
 		  }
 	    }
-	    return stmt;
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+	    blk->set_line(*this);
+	    blk->append(stmt);
+	    append_extension_options(blk);
+	    return blk;
       }
 
 	// There is no constructor at all in the parent, so skip it.
       NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
       tmp->set_line(*this);
+	append_extension_options(tmp);
       return tmp;
 }
 
@@ -42397,14 +42436,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
 		  return std::make_pair(std::string(), expr);
 	    };
-	    auto reject_dynamic_extension_option = [&](PExpr*expr) {
-		  cerr << expr->get_fileline()
-		       << ": sorry: constructor-dependent coverage option "
-		       << "goal/comment declared or overridden in a covergroup "
-		       << "extension is not supported (IEEE 1800-2023 19.4.1, 19.7)."
-		       << endl;
-		  des->errors += 1;
-	    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
@@ -43458,18 +43489,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   group_options.comment = comment.first;
                   group_options.comment_expr = comment.second;
             }
-            if (cgdef->is_extension) {
-                  auto goal_override = cgdef->extension_options.find(
-                        perm_string::literal("goal"));
-                  if (goal_override != cgdef->extension_options.end()
-                        && group_options.goal_expr)
-                        reject_dynamic_extension_option(group_options.goal_expr);
-                  auto comment_override = cgdef->extension_options.find(
-                        perm_string::literal("comment"));
-                  if (comment_override != cgdef->extension_options.end()
-                        && group_options.comment_expr)
-                        reject_dynamic_extension_option(group_options.comment_expr);
-            }
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
@@ -44045,10 +44064,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second);
 		  std::pair<std::string,PExpr*>cp_comment = opt_comment(
 			cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
-		  if (cgdef->is_extension && cp.declared_by_extension) {
-			if (cp_goal.second) reject_dynamic_extension_option(cp_goal.second);
-			if (cp_comment.second) reject_dynamic_extension_option(cp_comment.second);
-		  }
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
@@ -46057,10 +46072,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			x_goal_it == cross.options.end() ? nullptr : x_goal_it->second);
 		  std::pair<std::string,PExpr*>x_comment = opt_comment(
 			x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
-		  if (cgdef->is_extension && cross.declared_by_extension) {
-			if (x_goal.second) reject_dynamic_extension_option(x_goal.second);
-			if (x_comment.second) reject_dynamic_extension_option(x_comment.second);
-		  }
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
