@@ -4803,3 +4803,43 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Observation:** A function with an output argument used in a concurrent assertion is rejected in both editions before the assertion-purity check, with `Assignment l-value too complex` at the assignment in the function body. IEEE 1800-2023 §16.6 explicitly prohibits output, inout, or ref arguments in functions appearing in assertion expressions, so the rejection is correct; only the diagnostic is generic.
 - **Evidence:** `evidence/m9-1183-function-purity-20261026/t1-first-pass/sv_assert_function_output_arg_fail_{2017,2023}.runner.log`.
 - **Triage status:** Diagnostic clarity only; no additional conformance claim or implementation change in #1183.
+
+### DD-144 — dynamic non-goal coverage options may be clobbered by extension constants
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** The derived-constructor wrapper added for goal/comment inheritance can also expose the same ordering problem for `weight`, `per_instance`, or `get_inst_coverage`: a base constructor may write a dynamic value before the extension's constant value is applied. These options are outside the current goal/comment fix and remain unverified.
+- **File/function:** `elab_expr.cc::elaborate_covgrp_options` and the extension path in `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Tech-lead source review during #689; the analogous dynamic-goal/constant-extension-goal case reproduced in `evidence/slurm-vvpdiag-attempt04/recorded/run-2023.stdout`. No reducer was run for the other option names.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-145 — compound dynamic goal expressions emit a misleading unresolved-name warning
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** A compound covergroup goal expression such as `initial_goal + 1` is probed for constant evaluation in class scope, which emits `Unable to bind ... initial_goal ... (compile-progress: unresolved reference)` before the expression falls back to run-time evaluation. A bare constructor-formal expression does not emit this warning. The corresponding `opt_weight` path uses the same probe pattern; that case is not yet reproduced.
+- **File/function:** `elaborate.cc::opt_goal` and the corresponding `opt_weight` probe.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the warning was captured alongside unrelated test errors.
+- **Reproducer status:** confirmed for `opt_goal`; sketched for `opt_weight`
+- **Triage status:** untriaged; warning cleanup is outside #689.
+
+### DD-146 — extension coverpoints cannot use an inherited sample argument
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** In a 2023 embedded covergroup extension, a derived coverpoint over the inherited `sample()` formal is rejected with a `sorry` saying the expression is unsupported when sampled through a base-class handle. A coverpoint over a derived-class member compiles, so this is a separate inherited-sample resolution limit.
+- **File/function:** Embedded covergroup extension expression binding in `elaborate.cc`.
+- **Possible clause:** IEEE 1800-2023 §19.4.1.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the derived-member control compiled in job 4943.
+- **Reproducer status:** confirmed
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — synthetic constructor chains can silently skip missing base arguments
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** `PChainConstructor::elaborate` returns an empty block when a synthesized `new@` chain has missing base-constructor arguments. That compile-progress fallback can hide a required `super.new()` call instead of reporting the missing arguments.
+- **File/function:** `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2023 §8.7.
+- **Evidence:** source review during #689; the implicit-derived covergroup test now creates a synthesized constructor chain. The missing-argument fallback itself has not yet been reproduced.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
