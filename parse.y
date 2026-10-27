@@ -8181,7 +8181,7 @@ package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
+        pform_make_let(@2, tmp2, $3, $5);
       }
   | parameter_declaration
   | type_declaration
@@ -10574,7 +10574,7 @@ block_item_decl
      parallel blocks and in subroutines, which share this grammar rule. */
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
+        pform_make_let(@2, tmp2, $3, $5);
       }
 
   /* Blocks can have type declarations. */
