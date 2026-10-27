@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1208_interface_class_method_specifier_2023.v",
+    "iverilog-args" : [ "-g2023" ]
+}

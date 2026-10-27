@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1233_signed_x_bitwise_2017.v:10: $finish called at 0 (1s)
