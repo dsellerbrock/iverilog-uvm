@@ -4853,3 +4853,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Tech-lead source review during the #1688 inherited-slot investigation; no reproducer run.
 - **Reproducer status:** unverified.
 - **Triage status:** logged for a separate follow-up; do not widen #689.
+
+### DD-148 — concurrent assertions do not validate clocking-input sampling events
+
+- **Discovered while working:** #711 (M9 sampled-value functions over clocking inputs).
+- **Observation:** The procedural sampled-value lowering now validates that a
+  clocking input's event is provably the same as the inferred procedural event.
+  The concurrent-assertion path still maps `cb.d` to its raw source without
+  comparing the clocking block event to the assertion event. Its mapped-input
+  selector path also ignores selectors such as `cb.e[1]` when `e` aliases an
+  expression. Do not broaden #711 to change this assertion behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §16.5.1; the event relationship
+  needs a focused interpretation and paired regression before changing it.
+- **Reproducer sketch (not yet run):** declare `clocking cb @(negedge clk);`
+  with `input #1step d`, then evaluate `$rose(cb.d)` in
+  `assert property (@(posedge clk) ...)`. For the selector case, declare
+  `input e = a` and use `$past(cb.e[1])` in an assertion.
+- **File/function:** `pform.cc::sva_wrap_preponed_`, clocking-input branch near
+  the sampled operand rewrite.
+- **Triage status:** discovered debt outside the procedural #711 fix; no
+  conformance claim filed and no assertion reproducer run yet.

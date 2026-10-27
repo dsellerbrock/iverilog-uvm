@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_sampled_clocking_input_skew_two_fail.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_sampled_clocking_input_skew_two_fail_json"
+}

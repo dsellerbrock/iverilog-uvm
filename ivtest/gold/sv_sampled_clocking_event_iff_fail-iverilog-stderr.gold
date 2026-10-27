@@ -1,0 +1,1 @@
+./ivltests/sv_sampled_clocking_event_iff_fail.v:10: sorry: clocking-block input `cb.d' in a procedural sampled-value function requires the clocking event to match the inferred procedural clock (IEEE 1800-2017/2023 16.9.3, 16.14.6).
