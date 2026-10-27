@@ -2446,5 +2446,6 @@ vpip_routines_s vpi_routines = {
     .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
     .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
     .print_finish_stats         = vpip_print_finish_stats,
+    .covgrp_db                  = vpip_covgrp_db,
 };
 #endif
