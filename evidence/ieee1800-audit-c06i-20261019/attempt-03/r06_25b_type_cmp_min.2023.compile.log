@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_25b_type_cmp_min.sv:5: syntax error
+tests/1800_audit/c06/r06_25b_type_cmp_min.sv:5: error: Invalid module instantiation

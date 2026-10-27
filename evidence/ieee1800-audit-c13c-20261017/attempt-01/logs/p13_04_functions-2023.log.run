@@ -1,0 +1,16 @@
+PASS 13.4.1.assign_to_name
+PASS 13.4.1.return_stmt
+PASS 13.4.1.return_overrides_name
+PASS 13.4.empty_body_returns_implicit_var
+PASS 13.4.1.struct_member_via_fn_name
+PASS 13.4.1.void_call_stmt
+PASS 13.4.2.static_items_shared
+PASS 13.4.2.automatic_items_fresh
+PASS 13.4.2.recursive_factorial
+PASS 13.4.3.constant_fn_clogb2
+PASS 13.4.4.fork_join_none_returns_now
+PASS 13.4.4.fork_join_none_body_runs
+PASS 13.4.4.event_trigger_in_fn
+PASS 13.4.4.nba_in_fn_deferred
+PASS 13.4.4.nba_in_fn_lands
+DONE fails=0

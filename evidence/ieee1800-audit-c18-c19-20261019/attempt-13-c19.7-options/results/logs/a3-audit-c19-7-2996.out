@@ -1,0 +1,3 @@
+sha256sum: 'input/*.sv': No such file or directory
+sha256sum: 'input/neg/*.sv': No such file or directory
+GATE_RESULT=FAIL

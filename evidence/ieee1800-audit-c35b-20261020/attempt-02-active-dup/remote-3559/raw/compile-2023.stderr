@@ -1,0 +1,1 @@
+iverilog: note: wrote DPI export C stubs to p35_task.out.dpiexport.c (compile it into your DPI object).

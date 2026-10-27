@@ -1,0 +1,12 @@
+INIT handles a_null=0 b_null=0 modes=1,1
+INIT constrained randomize rc=0 x=0
+OFF modes=0,1
+OFF randomize rc=0 x=0
+FAIL static_mode_shared
+FAIL static_off_all
+ON modes=0,1
+ON randomize rc=1 x=7
+FAIL static_on_all
+RESULT pass=2 fail=3
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/p18_05_static_mode.sv:24: probe failed
+       Time: 0  Scope: t

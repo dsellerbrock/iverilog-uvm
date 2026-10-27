@@ -1,0 +1,41 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p08_23_scope_type_s1	2	NA	0.01	12108	NA	NA
+2017	p08_23_scope_type_s2	2	NA	0.01	11988	NA	NA
+2017	p08_23_scope_type_s3	2	NA	0.01	12064	NA	NA
+2017	p08_23_scope_type_s4	2	NA	0.01	12104	NA	NA
+2017	p08_23_scope_type_s5	2	NA	0.01	12020	NA	NA
+2023	p08_23_scope_type_s1	2	NA	0.01	12096	NA	NA
+2023	p08_23_scope_type_s2	2	NA	0.01	12028	NA	NA
+2023	p08_23_scope_type_s3	2	NA	0.01	12040	NA	NA
+2023	p08_23_scope_type_s4	2	NA	0.01	12084	NA	NA
+2023	p08_23_scope_type_s5	2	NA	0.01	12076	NA	NA
+--- p08_23_scope_type_s1-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s1.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s1.sv:6: error: Invalid module instantiation
+--- p08_23_scope_type_s1-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s1.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s1.sv:6: error: Invalid module instantiation
+--- p08_23_scope_type_s2-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s2.sv:7: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s2.sv:7: error: Invalid module instantiation
+--- p08_23_scope_type_s2-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s2.sv:7: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s2.sv:7: error: Invalid module instantiation
+--- p08_23_scope_type_s3-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s3.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s3.sv:11: error: Invalid module instantiation
+--- p08_23_scope_type_s3-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s3.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s3.sv:11: error: Invalid module instantiation
+--- p08_23_scope_type_s4-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s4.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s4.sv:6: error: I give up on this function definition.
+--- p08_23_scope_type_s4-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s4.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s4.sv:6: error: I give up on this function definition.
+--- p08_23_scope_type_s5-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s5.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s5.sv:11: error: I give up on this function definition.
+--- p08_23_scope_type_s5-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s5.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-split/input/p08_23_scope_type_s5.sv:11: error: I give up on this function definition.

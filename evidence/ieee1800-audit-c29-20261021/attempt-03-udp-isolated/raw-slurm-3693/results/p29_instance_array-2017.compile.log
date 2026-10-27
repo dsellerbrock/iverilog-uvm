@@ -1,0 +1,2 @@
+tests/p29_instance_array.sv:15: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.

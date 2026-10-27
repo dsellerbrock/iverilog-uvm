@@ -1,0 +1,914 @@
+checking build system type... aarch64-apple-darwin27.0.0
+checking host system type... aarch64-apple-darwin27.0.0
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C23 features... -std=gnu23
+checking how to run the C preprocessor... gcc -std=gnu23 -E
+checking for aarch64-apple-darwin27.0.0-gcc... no
+checking for gcc... gcc
+checking whether the compiler supports GNU C... (cached) yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C23 features... (cached) -std=gnu23
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking how to run the C preprocessor... gcc -std=gnu23 -E
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for ranlib... ranlib
+checking for ld... ld
+checking for ar... ar
+checking for strip... strip
+checking for windres... no
+checking for gperf... gperf
+checking for man... man
+checking for ps2pdf... ps2pdf
+checking for groff... no
+checking for git... git
+checking for flex... flex
+checking for bison... bison
+checking for Microsoft Windows... no
+checking for gcc -std=gnu23 options to detect undeclared functions... none needed
+checking for gcc -std=gnu23 options to ignore future-version functions... -Werror=unguarded-availability-new
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking whether __SUNPRO_C is declared... no
+checking if gcc supports -Wextra... yes
+checking for g++ options to detect undeclared functions... none needed
+checking for g++ options to ignore future-version functions... -Werror=unguarded-availability-new
+checking whether __SUNPRO_CC is declared... no
+checking for getopt.h... yes
+checking for inttypes.h... (cached) yes
+checking for libiberty.h... no
+checking for iosfwd... yes
+checking for sys/wait.h... yes
+checking for execinfo.h... yes
+checking size of unsigned long long... 8
+checking size of unsigned long... 8
+checking size of unsigned... 4
+checking size of void *... 8
+checking for tputs in -ltermcap... yes
+checking for readline in -lreadline... yes
+checking for add_history in -lreadline... yes
+checking for readline/readline.h... yes
+checking for readline/history.h... yes
+checking for sys/resource.h... yes
+checking for pthread_create in -lpthread... yes
+checking for gzwrite in -lz... yes
+checking for gzwrite in -lz... (cached) yes
+checking for BZ2_bzdopen in -lbz2... yes
+checking for BZ2_bzdopen in -lbz2... (cached) yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for declarations of fseeko and ftello... yes
+configure: Not using valgrind hooks
+checking for sys/times... yes
+checking for dlfcn.h... yes
+checking for dlopen in -ldl... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether byte ordering is bigendian... no
+checking for extra libs needed... 
+checking for flag to make position independent code... -fPIC
+checking for realpath... yes
+checking for fopen64... no
+checking for library containing lround... none required
+checking for library containing llround... none required
+checking for library containing nan... none required
+checking for library containing fmin... none required
+checking for library containing fmax... none required
+checking if uint64_t and unsigned long are identical... no
+checking for -rdynamic compiler flag... -Wl,-all_load
+checking for shared library link flag... -bundle -undefined dynamic_lookup -flat_namespace
+checking for leading underscores... no
+checking for trailing underscores... no
+checking for sanity of prefix... ok
+checking for sanity of exec_prefix... ok
+checking for sanity of libdir... ok
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating ivlpp/Makefile
+config.status: creating vhdlpp/Makefile
+config.status: creating vvp/Makefile
+config.status: creating vpi/Makefile
+config.status: creating driver/Makefile
+config.status: creating driver-vpi/Makefile
+config.status: creating cadpli/Makefile
+config.status: creating libveriuser/Makefile
+config.status: creating tgt-null/Makefile
+config.status: creating tgt-stub/Makefile
+config.status: creating tgt-vvp/Makefile
+config.status: creating tgt-vhdl/Makefile
+config.status: creating tgt-fpga/Makefile
+config.status: creating tgt-verilog/Makefile
+config.status: creating tgt-pal/Makefile
+config.status: creating tgt-vlog95/Makefile
+config.status: creating tgt-pcb/Makefile
+config.status: creating tgt-blif/Makefile
+config.status: creating tgt-sizer/Makefile
+config.status: creating config.h
+config.status: config.h is unchanged
+config.status: creating _pli_types.h
+config.status: _pli_types.h is unchanged
+config.status: creating vhdlpp/vhdlpp_config.h
+config.status: vhdlpp/vhdlpp_config.h is unchanged
+config.status: creating vvp/config.h
+config.status: vvp/config.h is unchanged
+config.status: creating vpi/vpi_config.h
+config.status: vpi/vpi_config.h is unchanged
+config.status: creating libveriuser/config.h
+config.status: libveriuser/config.h is unchanged
+config.status: creating tgt-vvp/vvp_config.h
+config.status: tgt-vvp/vvp_config.h is unchanged
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: tgt-vhdl/vhdl_config.h is unchanged
+config.status: creating tgt-pcb/pcb_config.h
+config.status: tgt-pcb/pcb_config.h is unchanged
+sed -e 's;@SHARED@;-bundle -undefined dynamic_lookup -flat_namespace;' -e 's;@PIC@;-fPIC;' \
+	    -e 's;@ENABLE_PLI1@;no;' \
+	    -e 's;@SUFFIX@;;' \
+	    -e 's;@IVCC@;gcc -std=gnu23;' \
+	    -e 's;@IVCXX@;g++;' \
+	    -e 's;@IVCFLAGS@;-Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2;' \
+	    -e 's;@IVCXXFLAGS@;-Wall -Wextra -Wshadow   -g -O2 -std=c++11;' \
+	    -e 's;@IVCTARGETFLAGS@;;' \
+	    -e 's;@INCLUDEDIR@;/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog;' \
+	    -e 's;@LIBDIR@;/tmp/a3-1800-audit-c06j-20261020-build/install/lib;' /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/iverilog-vpi.sh > iverilog-vpi
+chmod +x iverilog-vpi
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc -o vvp_z3.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/logic.cc -o logic.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/delay.cc -o delay.o
+mv logic.d dep/logic.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/words.cc -o words.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:11452:6: warning: misleading indentation; statement is not part of the previous 'for' [-Wmisleading-indentation]
+ 11452 |             for (const auto&sv : builder.size_vars) {
+       |             ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:11446:7: note: previous statement is here
+ 11446 |       for (const auto&pv : builder.prop_vars)
+       |       ^
+mv delay.d dep/delay.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/island_tran.cc -o island_tran.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:14682:21: warning: declaration shadows a local variable [-Wshadow]
+ 14682 |                   if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
+       |                                   ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:14624:18: note: previous declaration is here
+ 14624 |             vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer), builder.local_index(mv.outer));
+       |                         ^
+mv words.d dep/words.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_modules.cc -o vpi_modules.o
+mv island_tran.d dep/island_tran.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_bit.cc -o vpi_bit.o
+mv vpi_modules.d dep/vpi_modules.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_callback.cc -o vpi_callback.o
+mv vpi_bit.d dep/vpi_bit.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_cobject.cc -o vpi_cobject.o
+mv vpi_callback.d dep/vpi_callback.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_const.cc -o vpi_const.o
+mv vpi_const.d dep/vpi_const.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_darray.cc -o vpi_darray.o
+mv vpi_cobject.d dep/vpi_cobject.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_event.cc -o vpi_event.o
+mv vpi_event.d dep/vpi_event.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_iter.cc -o vpi_iter.o
+mv vpi_darray.d dep/vpi_darray.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_mcd.cc -o vpi_mcd.o
+mv vpi_iter.d dep/vpi_iter.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_priv.cc -o vpi_priv.o
+mv vpi_mcd.d dep/vpi_mcd.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_scope.cc -o vpi_scope.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_priv.cc:89:20: warning: declaration shadows a local variable [-Wshadow]
+   89 |             unsigned long word = abits & mask;
+      |                           ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_priv.cc:51:21: note: previous declaration is here
+   51 |       unsigned long word;
+      |                     ^
+1 warning generated.
+mv vpi_priv.d dep/vpi_priv.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_real.cc -o vpi_real.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_scope.cc:852:11: warning: private field 'idx_' is not used [-Wunused-private-field]
+  852 |       int idx_;
+      |           ^
+1 warning generated.
+mv vpi_scope.d dep/vpi_scope.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_signal.cc -o vpi_signal.o
+mv vpi_real.d dep/vpi_real.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_string.cc -o vpi_string.o
+mv vpi_string.d dep/vpi_string.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_tasks.cc -o vpi_tasks.o
+mv vpi_signal.d dep/vpi_signal.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_time.cc -o vpi_time.o
+mv vpi_tasks.d dep/vpi_tasks.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_vthr_vector.cc -o vpi_vthr_vector.o
+mv vpi_time.d dep/vpi_time.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpip_bin.cc -o vpip_bin.o
+mv vpip_bin.d dep/vpip_bin.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpip_hex.cc -o vpip_hex.o
+mv vpi_vthr_vector.d dep/vpi_vthr_vector.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpip_oct.cc -o vpip_oct.o
+mv vpip_hex.d dep/vpip_hex.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpip_to_dec.cc -o vpip_to_dec.o
+mv vpip_oct.d dep/vpip_oct.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpip_format.cc -o vpip_format.o
+mv vpip_format.d dep/vpip_format.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_vpi.cc -o vvp_vpi.o
+mv vvp_vpi.d dep/vvp_vpi.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/main.cc -o main.o
+mv vpip_to_dec.d dep/vpip_to_dec.d
+../version.exe `head -1 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp.man.in`'\n' > vvp.man
+tail -n +2 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp.man.in >> vvp.man
+mv main.d dep/main.d
+2 warnings generated.
+mv vvp_z3.d dep/vvp_z3.d
+g++ -Wl,-all_load  -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vvp main.o lib_main.o parse.o parse_misc.o lexor.o arith.o array_common.o array.o bufif.o compile.o concat.o dff.o class_type.o enum_type.o extend.o file_line.o latch.o npmos.o part.o permaheap.o reduce.o resolv.o sfunc.o stop.o substitute.o symbols.o ufunc.o codes.o vthread.o schedule.o statistics.o tables.o udp.o vvp_island.o vvp_net.o vvp_net_sig.o vvp_perf_stats.o vvp_object.o vvp_assoc.o vvp_cobject.o vvp_darray.o vvp_dpi.o vvp_mailbox.o vvp_vinterface.o vvp_z3.o event.o logic.o delay.o words.o island_tran.o vpi_modules.o vpi_bit.o vpi_callback.o vpi_cobject.o vpi_const.o vpi_darray.o vpi_event.o vpi_iter.o vpi_mcd.o vpi_priv.o vpi_scope.o vpi_real.o vpi_signal.o vpi_string.o vpi_tasks.o vpi_time.o vpi_vthr_vector.o vpip_bin.o vpip_hex.o vpip_oct.o vpip_to_dec.o vpip_format.o vvp_vpi.o -lbz2 -lz -lpthread -lreadline -ltermcap   -lz3 -lffi -ldl
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/libvpi.c
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_table.c -o sys_table.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_convert.c -o sys_convert.o
+rm -f libvpi.a
+ar cqv libvpi.a libvpi.o
+mv sys_table.d dep
+mv sys_convert.d dep
+q - libvpi.o
+ranlib libvpi.a
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_countdrivers.c -o sys_countdrivers.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_coverage.c -o sys_coverage.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_darray.c -o sys_darray.o
+mv sys_countdrivers.d dep
+mv sys_darray.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_deposit.c -o sys_deposit.o
+mv sys_coverage.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_display.c -o sys_display.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_fileio.c -o sys_fileio.o
+mv sys_deposit.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_finish.c -o sys_finish.o
+mv sys_fileio.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_icarus.c -o sys_icarus.o
+mv sys_finish.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_plusargs.c -o sys_plusargs.o
+mv sys_icarus.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_queue.c -o sys_queue.o
+mv sys_plusargs.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_random.c -o sys_random.o
+mv sys_display.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_random_mti.c -o sys_random_mti.o
+mv sys_queue.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_readmem.c -o sys_readmem.o
+mv sys_random.d dep
+flex -t /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_readmem_lex.lex > sys_readmem_lex.c
+mv sys_random_mti.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_scanf.c -o sys_scanf.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_sva.c -o sys_sva.o
+mv sys_readmem.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_sdf.c -o sys_sdf.o
+mv sys_sva.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_time.c -o sys_time.o
+mv sys_sdf.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_vcd.c -o sys_vcd.o
+mv sys_time.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_vcdoff.c -o sys_vcdoff.o
+mv sys_scanf.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_dumpports.c -o sys_dumpports.o
+mv sys_vcd.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vcd_priv.c -o vcd_priv.o
+mv sys_vcdoff.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/mt19937int.c -o mt19937int.o
+mv mt19937int.d dep
+mv vcd_priv.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_priv.c -o sys_priv.o
+bison --verbose -t -p sdf -d -o sdf_parse.c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sdf_parse.y
+mv sys_priv.d dep
+flex -t /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sdf_lexor.lex > sdf_lexor.c
+mv sys_dumpports.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/stringheap.c -o stringheap.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vams_simparam.c -o vams_simparam.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/table_mod.c -o table_mod.o
+mv stringheap.d dep
+bison --verbose -t -p tblmod -d -o table_mod_parse.c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/table_mod_parse.y
+mv vams_simparam.d dep
+flex -t /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/table_mod_lexor.lex > table_mod_lexor.c
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_lxt.c -o sys_lxt.o
+mv table_mod.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/lxt_write.c -o lxt_write.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_lxt2.c -o sys_lxt2.o
+mv sys_lxt.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/lxt2_write.c -o lxt2_write.o
+mv sys_lxt2.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -DFST_WRITER_PARALLEL -DHAVE_LIBPTHREAD -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_fst.c -o sys_fst.o
+mv sys_fst.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -DFST_WRITER_PARALLEL -DHAVE_LIBPTHREAD -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/fstapi.c -o fstapi.o
+mv lxt_write.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/fastlz.c -o fastlz.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/fstapi.c:511:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  511 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/fstapi.c:541:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  541 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/fstapi.c:572:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  572 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+mv lxt2_write.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/lz4.c -o lz4.o
+mv fastlz.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vcd_priv2.cc -o vcd_priv2.o
+mv vcd_priv2.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_sv_class.cc -o sys_sv_class.o
+3 warnings generated.
+mv fstapi.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/va_math.c -o va_math.o
+mv va_math.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/sys_clog2.c -o sys_clog2.o
+mv sys_clog2.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2005_math.c -o v2005_math.o
+mv v2005_math.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_table.c -o v2009_table.o
+mv sys_sv_class.d dep
+mv v2009_table.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_array.c -o v2009_array.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_bitvec.c -o v2009_bitvec.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_array.c:67:27: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+   67 |       vpiHandle argv, arg[MAX_ARGC];
+      |                           ^~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_array.c:68:26: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+   68 |       PLI_INT32 arg_type[MAX_ARGC];
+      |                          ^~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_array.c:159:35: warning: unused parameter 'name' [-Wunused-parameter]
+  159 | static void high_array(const char*name, vpiHandle callh, vpiHandle arg)
+      |                                   ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_array.c:248:34: warning: unused parameter 'name' [-Wunused-parameter]
+  248 | static void low_array(const char*name, vpiHandle callh, vpiHandle arg)
+      |                                  ^
+4 warnings generated.
+mv v2009_array.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_enum.c -o v2009_enum.o
+mv v2009_bitvec.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/v2009_string.c -o v2009_string.o
+mv v2009_enum.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vhdl_table.c -o vhdl_table.o
+mv v2009_string.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vhdl_textio.c -o vhdl_textio.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vhdl_textio.c:236:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  236 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vhdl_textio.c:495:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  495 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+mv vhdl_table.d dep
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vhdl_textio.c:852:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  852 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/vpi_debug.c -o vpi_debug.o
+mv vpi_debug.d dep
+3 warnings generated.
+mv lz4.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_readmem_lex.c -o sys_readmem_lex.o
+mv vhdl_textio.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sdf_parse.c -o sdf_parse.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sdf_lexor.c -o sdf_lexor.o
+mv sdf_parse.d dep
+mv sdf_lexor.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c table_mod_parse.c -o table_mod_parse.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/..  -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c table_mod_lexor.c -o table_mod_lexor.o
+mv sys_readmem_lex.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o va_math.vpi va_math.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o v2005_math.vpi sys_clog2.o v2005_math.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi 
+mv table_mod_parse.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o v2009.vpi v2009_table.o v2009_array.o v2009_bitvec.o v2009_enum.o v2009_string.o sys_priv.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+mv table_mod_lexor.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vhdl_sys.vpi vhdl_table.o sys_priv.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vhdl_textio.vpi vhdl_textio.o sys_priv.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vpi_debug.vpi vpi_debug.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+g++ -bundle -undefined dynamic_lookup -flat_namespace -o system.vpi sys_table.o sys_convert.o sys_countdrivers.o sys_coverage.o sys_darray.o sys_deposit.o sys_display.o sys_fileio.o sys_finish.o sys_icarus.o sys_plusargs.o sys_queue.o sys_random.o sys_random_mti.o sys_readmem.o sys_readmem_lex.o sys_scanf.o sys_sva.o sys_sdf.o sys_time.o sys_vcd.o sys_vcdoff.o sys_dumpports.o vcd_priv.o mt19937int.o sys_priv.o sdf_parse.o sdf_lexor.o stringheap.o vams_simparam.o table_mod.o table_mod_parse.o table_mod_lexor.o sys_lxt.o lxt_write.o sys_lxt2.o lxt2_write.o sys_fst.o fstapi.o fastlz.o lz4.o vcd_priv2.o sys_sv_class.o -L. -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null/null.c -o null.o
+mv null.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o null.tgt null.o 
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/stub.c -o stub.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/classes.c -o classes.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/constant.c -o constant.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/stub.c:1427:15: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+ 1427 |       switch (ivl_signal_port(net)) {
+      |               ^~~~~~~~~~~~~~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/stub.c:1427:15: note: add missing switch cases
+ 1427 |       switch (ivl_signal_port(net)) {
+      |               ^
+mv classes.d dep
+mv constant.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/enumerate.c -o enumerate.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/expression.c -o expression.o
+mv enumerate.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/statement.c -o statement.o
+mv expression.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/switches.c -o switches.o
+mv statement.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/types.c -o types.o
+mv switches.d dep
+1 warning generated.
+mv stub.d dep
+mv types.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o stub.tgt stub.o classes.o constant.o enumerate.o expression.o statement.o switches.o types.o 
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp.c -o vvp.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_class.c -o draw_class.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_delay.c -o draw_delay.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp.c:785:13: warning: unused function 'segfault_handler' [-Wunused-function]
+  785 | static void segfault_handler(int sig)
+      |             ^~~~~~~~~~~~~~~~
+mv draw_delay.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_enum.c -o draw_enum.o
+mv draw_class.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_mux.c -o draw_mux.o
+mv draw_enum.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_net_input.c -o draw_net_input.o
+1 warning generated.
+mv vvp.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_substitute.c -o draw_substitute.o
+mv draw_mux.d dep
+mv draw_substitute.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_switch.c -o draw_switch.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_ufunc.c -o draw_ufunc.o
+mv draw_switch.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/draw_vpi.c -o draw_vpi.o
+mv draw_net_input.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_condit.c -o eval_condit.o
+mv eval_condit.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_expr.c -o eval_expr.o
+mv draw_ufunc.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_object.c -o eval_object.o
+mv eval_expr.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_real.c -o eval_real.o
+mv draw_vpi.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_string.c -o eval_string.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_object.c:3408:49: warning: '/*' within block comment [-Wcomment]
+ 3408 |              * used as the max-size bound for %store/qb/* (0 = unbounded). */
+      |                                                        ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_object.c:3429:14: warning: declaration shadows a local variable [-Wshadow]
+ 3429 |                   unsigned kind;
+      |                            ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_object.c:3279:17: note: previous declaration is here
+ 3279 |             const char*kind = name + 28;
+      |                        ^
+mv eval_string.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_vec4.c -o eval_vec4.o
+mv eval_real.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/modpath.c -o modpath.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/eval_vec4.c:1322:61: warning: '/*' within block comment [-Wcomment]
+ 1322 |                * numeric queue index reads garbage; emit %aa/load/v/* with
+      |                                                                    ^
+mv modpath.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/stmt_assign.c -o stmt_assign.o
+2 warnings generated.
+mv eval_object.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp_process.c -o vvp_process.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp_process.c:6605:57: warning: '/*' within block comment [-Wcomment]
+ 6605 |             /* Iterator-type dispatch: pick the right %load/dar/* +
+      |                                                                ^
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp_process.c:6606:15: warning: '/*' within block comment [-Wcomment]
+ 6606 |                %store/* pair to fetch q[idx] into iter.
+      |                      ^
+1 warning generated.
+mv eval_vec4.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp_proc_loops.c -o vvp_proc_loops.o
+mv vvp_proc_loops.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp_scope.c -o vvp_scope.o
+mv stmt_assign.d dep
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-1800-audit-c06j-20261020-build/install/bin/vvp' | cat /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp.conf.in - > vvp.conf
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-1800-audit-c06j-20261020-build/install/bin/vvp' | cat /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/vvp-s.conf.in - > vvp-s.conf
+mv vvp_scope.d dep
+2 warnings generated.
+mv vvp_process.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vvp.tgt vvp.o draw_class.o draw_delay.o draw_enum.o draw_mux.o draw_net_input.o draw_substitute.o draw_switch.o draw_ufunc.o draw_vpi.o eval_condit.o eval_expr.o eval_object.o eval_real.o eval_string.o eval_vec4.o modpath.o stmt_assign.o vvp_process.o vvp_proc_loops.o vvp_scope.o 
+mkdir dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl.cc -o vhdl.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/state.cc -o state.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl_element.cc -o vhdl_element.o
+mv vhdl_element.d dep
+mv vhdl.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl_type.cc -o vhdl_type.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl_syntax.cc -o vhdl_syntax.o
+mv state.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/scope.cc -o scope.o
+mv vhdl_type.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/process.cc -o process.o
+mv process.d dep
+mv scope.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/stmt.cc -o stmt.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/expr.cc -o expr.o
+mv vhdl_syntax.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/lpm.cc -o lpm.o
+mv lpm.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/support.cc -o support.o
+mv expr.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/cast.cc -o cast.o
+mv stmt.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/logic.cc -o logic.o
+mv support.d dep
+mv cast.d dep
+mv logic.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vhdl.tgt vhdl.o state.o vhdl_element.o vhdl_type.o vhdl_syntax.o scope.o process.o stmt.o expr.o lpm.o support.o cast.o logic.o 
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/vlog95.c -o vlog95.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/event.c -o event.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/expr.c -o expr.o
+mv event.d dep
+mv vlog95.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/logic_lpm.c -o logic_lpm.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/misc.c -o misc.o
+mv expr.d dep
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/logic_lpm.c:2670:13: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+ 2670 |                   switch (ivl_signal_port(sig)) {
+      |                           ^~~~~~~~~~~~~~~~~~~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/logic_lpm.c:2670:13: note: add missing switch cases
+ 2670 |                   switch (ivl_signal_port(sig)) {
+      |                           ^
+ 2671 |                       case IVL_SIP_INPUT:  fprintf(stderr, " input"); break;
+ 2672 |                       case IVL_SIP_OUTPUT: fprintf(stderr, " output"); break;
+ 2673 |                       case IVL_SIP_INOUT:  fprintf(stderr, " inout"); break;
+ 2674 |                       case IVL_SIP_NONE: break;
+ 2675 |                   }
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/numbers.c -o numbers.o
+mv misc.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/scope.c -o scope.o
+mv numbers.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/stmt.c -o stmt.o
+1 warning generated.
+mv logic_lpm.d dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95 -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/udp.c -o udp.o
+mv scope.d dep
+mv udp.d dep
+mv stmt.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vlog95.tgt vlog95.o event.o expr.o logic_lpm.o misc.o numbers.o scope.o stmt.o udp.o -lm 
+mkdir dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/pcb.cc -o pcb.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/scope.cc -o scope.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/show_netlist.cc -o show_netlist.o
+mv pcb.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/show_pcb.cc -o show_pcb.o
+mv show_netlist.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/footprint.cc -o footprint.o
+mv scope.d dep
+bison --verbose -t -p fp --defines=fp.h -o fp.cc /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/fp.y
+flex -s -ofp_lex.cc /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/fp.lex
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c fp.cc -o fp.o
+mv show_pcb.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c fp_lex.cc -o fp_lex.o
+mv footprint.d dep
+fp.cc:1007:9: warning: variable 'fpnerrs' set but not used [-Wunused-but-set-variable]
+ 1007 |     int yynerrs = 0;
+      |         ^
+fp.cc:72:25: note: expanded from macro 'yynerrs'
+   72 | #define yynerrs         fpnerrs
+      |                         ^
+mv fp_lex.d dep
+1 warning generated.
+mv fp.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o pcb.tgt pcb.o scope.o show_netlist.o show_pcb.o footprint.o fp.o fp_lex.o 
+mkdir dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/blif.cc -o blif.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/constants.cc -o constants.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/logic_gate.cc -o logic_gate.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/blif.cc:180:14: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+  180 |             switch (dir) {
+      |                     ^~~
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/blif.cc:180:14: note: add missing switch cases
+  180 |             switch (dir) {
+      |                     ^
+mv constants.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm.cc -o lpm.o
+mv logic_gate.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_add.cc -o lpm_add.o
+1 warning generated.
+mv blif.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_cmp_eq.cc -o lpm_cmp_eq.o
+mv lpm.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_cmp_gt.cc -o lpm_cmp_gt.o
+mv lpm_add.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_ff.cc -o lpm_ff.o
+mv lpm_cmp_eq.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_mux.cc -o lpm_mux.o
+mv lpm_cmp_gt.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_part_vp.cc -o lpm_part_vp.o
+mv lpm_ff.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_re_logic.cc -o lpm_re_logic.o
+mv lpm_mux.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_shift.cc -o lpm_shift.o
+mv lpm_part_vp.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/lpm_sign_ext.cc -o lpm_sign_ext.o
+mv lpm_re_logic.d dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/nex_data.cc -o nex_data.o
+mv lpm_shift.d dep
+mv lpm_sign_ext.d dep
+mv nex_data.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o blif.tgt blif.o constants.o logic_gate.o lpm.o lpm_add.o lpm_cmp_eq.o lpm_cmp_gt.o lpm_ff.o lpm_mux.o lpm_part_vp.o lpm_re_logic.o lpm_shift.o lpm_sign_ext.o nex_data.o 
+mkdir dep
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/sizer.cc -o sizer.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/scan_lpms.cc -o scan_lpms.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/scan_logs.cc -o scan_logs.o
+mv scan_logs.d dep
+mv scan_lpms.d dep
+mv sizer.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o sizer.tgt sizer.o scan_lpms.o scan_logs.o 
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c -DIVL_ROOT='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"' -DIVL_SUFFIX='""' -DIVL_INC='"/tmp/a3-1800-audit-c06j-20261020-build/install/include"' -DIVL_LIB='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib"' -DDLLIB='"-ldl"' -DIVL_UVM_VERSION='"Accellera:1800.2:UVM:2020.3.1"' -DIVL_INCLUDE_INSTALL_DIR="\"\"" /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/main.c
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/substit.c -o substit.o
+flex -s -t /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/cflexor.lex > cflexor.c
+bison --verbose -t -p cf -d -o cfparse.c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/cfparse.y
+mv substit.d dep
+../version.exe `head -1 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/iverilog.man.in`'\n' > iverilog.man
+tail -n +2 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/iverilog.man.in >> iverilog.man
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cflexor.c -o cflexor.o
+gcc -std=gnu23 -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cfparse.c -o cfparse.o
+mv main.d dep
+mv cfparse.d dep
+mv cflexor.d dep
+gcc -std=gnu23 -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib main.o substit.o cflexor.o cfparse.o -o iverilog 
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install"
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/bin
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/include
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/lib
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/share
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/share/man
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1
+/usr/bin/install -c -m 644 iverilog-vpi.man "/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1/iverilog-vpi.1"
+/usr/bin/install -c ./iverilog-vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/bin/iverilog-vpi"
+/usr/bin/install -c ./ivl "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/ivl"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/constants.vams "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include/constants.vams"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/disciplines.vams "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include/disciplines.vams"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_legacy_recorder.svh "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include/uvm_legacy_recorder.svh"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivl_target.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/ivl_target.h"
+/usr/bin/install -c -m 644 ./_pli_types.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/_pli_types.h"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/sv_vpi_user.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/sv_vpi_user.h"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/svdpi.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/svdpi.h"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi_user.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/vpi_user.h"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/acc_user.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/acc_user.h"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/veriuser.h "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog/veriuser.h"
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer install &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver install &&  true
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivlpp/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./ivlpp "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/ivlpp"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vhdlpp/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./vhdlpp "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdlpp"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" \
+		"/tmp/a3-1800-audit-c06j-20261020-build/install/lib" \
+		"/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1" \
+		"/tmp/a3-1800-audit-c06j-20261020-build/install"
+/usr/bin/install -c -m 644 vvp.man "/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1/vvp.1"
+/usr/bin/install -c ./vvp "/tmp/a3-1800-audit-c06j-20261020-build/install/bin/vvp"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vpi/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c -m 644 ./libvpi.a "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/libvpi.a"
+/usr/bin/install -c ./system.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/system.vpi"
+/usr/bin/install -c ./va_math.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/va_math.vpi"
+/usr/bin/install -c ./v2005_math.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/v2005_math.vpi"
+/usr/bin/install -c ./v2009.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/v2009.vpi"
+/usr/bin/install -c ./vhdl_sys.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdl_sys.vpi"
+/usr/bin/install -c ./vhdl_textio.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdl_textio.vpi"
+/usr/bin/install -c ./vpi_debug.vpi "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vpi_debug.vpi"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./null.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/null.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null/null.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/null.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-null/null-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/null-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./stub.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/stub.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/stub.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/stub.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-stub/stub-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/stub-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vvp/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./vvp.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vvp.tgt"
+/usr/bin/install -c -m 644 ./vvp.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vvp.conf"
+/usr/bin/install -c -m 644 ./vvp-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vvp-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./vhdl.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdl.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdl.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vhdl/vhdl-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vhdl-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./vlog95.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vlog95.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/vlog95.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vlog95.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-vlog95/vlog95-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/vlog95-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./pcb.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/pcb.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/pcb.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/pcb.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-pcb/pcb-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/pcb-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./blif.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/blif.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/blif.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/blif.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-blif/blif-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/blif-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"
+/usr/bin/install -c ./sizer.tgt "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/sizer.tgt"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/sizer.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/sizer.conf"
+/usr/bin/install -c -m 644 /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tgt-sizer/sizer-s.conf "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/sizer-s.conf"
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/driver/../mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" \
+		"/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1" \
+		"/tmp/a3-1800-audit-c06j-20261020-build/install"
+/usr/bin/install -c -m 644 iverilog.man "/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1/iverilog.1"
+/usr/bin/install -c ./iverilog "/tmp/a3-1800-audit-c06j-20261020-build/install/bin/iverilog"
+/Applications/Xcode.app/Contents/Developer/usr/bin/make installuvm
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/mkinstalldirs "/tmp/a3-1800-audit-c06j-20261020-build/install/bin" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/include/iverilog" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/include" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install/share/man/man1" \
+	    "/tmp/a3-1800-audit-c06j-20261020-build/install"
+Installing UVM sources to /tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/uvm/src ...
+mkdir /tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/uvm
+Building UVM DPI runtime module ...
+IVPI=./iverilog-vpi VVP_DEF=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp.def \
+	    sh /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/build_uvm_dpi.sh --name=uvm_dpi \
+	    -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm -I. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi -Lvpi /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc
+Compiling /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc...
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:73:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   73 |     sprintf(buffer, "uvm_glob_to_re called with glob=NULL");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:97:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   97 |       sprintf(buffer, "uvm_glob_to_re() glob exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:119:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  119 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:129:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  129 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:146:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  146 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:161:13: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  161 |             sprintf(buffer, "uvm_glob_to_re() expansion exceeds max length(%0d)", UVM_REGEX_MAX_LENGTH);
+      |             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:188:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  188 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:198:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  198 |         sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:206:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  206 |       sprintf(buffer, "uvm_glob_to_re glob expansion exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:258:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  258 |       sprintf(buffer, "uvm_re_comp() re exceeds max length (%0d)", UVM_REGEX_MAX_LENGTH);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:285:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  285 |     sprintf(buffer, "uvm_re_comp: internal memory allocation error");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:310:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  310 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL rexp");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:75:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_regex.cc:314:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  314 |     sprintf(uvm_re_buffer(), "uvm_re_exec: NULL str");
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm_dpi/uvm_dpi_iverilog.cc:78:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/uvm-core/src/dpi/uvm_svcmd_dpi.c:47:20: warning: unused parameter 'lvl' [-Wunused-parameter]
+   47 | void push_data(int lvl,char *entry, int cmd) {
+      |                    ^
+14 warnings generated.
+Making uvm_dpi.vpi from  uvm_dpi_iverilog.o...
+rm -f uvm_dpi_iverilog.o
+Installed /tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl/uvm_dpi.vpi
+       54.87 real        84.27 user        14.34 sys
+           845856768  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2132130  page reclaims
+               47856  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                 613  signals received
+                3129  voluntary context switches
+               78503  involuntary context switches
+            21779413  instructions retired
+            11279317  cycles elapsed
+             1622400  peak memory footprint

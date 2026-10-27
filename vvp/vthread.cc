@@ -191,6 +191,8 @@ class vvp_process : public vvp_object {
       void mark_killed();
       unsigned status() const;
       vthread_t owner() const;
+      void add_descendant(vvp_object_t process);
+      const std::vector<vvp_object_t>& descendants() const;
 
 	/* Returns true when THR was actually queued, so that the %process/await
 	   opcode only parks a thread it managed to register. */
@@ -223,6 +225,7 @@ class vvp_process : public vvp_object {
 
     private:
       vthread_t owner_;
+      std::vector<vvp_object_t> descendants_;
       unsigned final_status_;
       bool final_status_valid_;
       std::set<vthread_t> waiters_;
@@ -925,6 +928,10 @@ struct vthread_s {
 	// suspended) so the process continues where it left off.
       unsigned suspended :1;
       unsigned suspend_resched :1;
+	// A named-event wait is removed when a blocked process is suspended.
+	// Resume must execute the wait opcode again instead of consuming an
+	// event occurrence that happened while the process was suspended.
+      unsigned resume_event_wait :1;
 	// True while the thread is parked on a procedural delay (#d). Unlike
 	// i_am_waiting / waiting_for_event this is not otherwise tracked
 	// (a delay just reschedules the thread on the timing wheel, which
@@ -941,6 +948,9 @@ struct vthread_s {
          point is the subsequent resume, not the earlier suspension and
          not a procedural-delay resume. */
       unsigned deferred_assert_flush_on_run :1;
+      /* A matured unique/priority case report executes its captured VPI
+         call on a fresh thread. Do not enqueue that call a second time. */
+      unsigned is_observed_report_action :1;
       unsigned owns_automatic_context :1;
       unsigned owned_context_is_chain :1;
 	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
@@ -964,6 +974,8 @@ struct vthread_s {
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
       set<struct vthread_s*>detached_children;
+	/* Immediate detached subprocesses, excluding promoted descendants. */
+      set<struct vthread_s*>wait_fork_children;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* DPI export (35.5): non-null on an exported SV *task* thread that is
@@ -1023,6 +1035,9 @@ struct vthread_s {
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
       vvp_net_t*event;
+      waitable_hooks_s*event_hooks;
+      vvp_object_t event_vif;
+      bool synchronous_drive;
       uint64_t ecount;
 	/* A selected class-property event keeps its source subscriptions on the
 	 * original process, but evaluates its value in a short-lived bytecode
@@ -1459,6 +1474,16 @@ vthread_t vvp_process::owner() const
       return owner_;
 }
 
+void vvp_process::add_descendant(vvp_object_t process)
+{
+      descendants_.push_back(process);
+}
+
+const std::vector<vvp_object_t>& vvp_process::descendants() const
+{
+      return descendants_;
+}
+
 bool vvp_process::add_waiter(vthread_t thr)
 {
       if (!thr || thr->i_have_ended)
@@ -1505,7 +1530,8 @@ static vvp_code_t deferred_action_next_code_(vvp_code_t code)
 static bool capture_deferred_args_(vthread_t thr,
                                    vvp_code_t action_pc,
                                    deferred_assert_args_s&out,
-                                   const char*mode)
+                                   const char*mode,
+                                   bool allow_warning = false)
 {
       if (!thr || !action_pc) {
             fprintf(stderr,
@@ -1537,14 +1563,18 @@ static bool capture_deferred_args_(vthread_t thr,
 
       const char*task_name = call->defn ? call->defn->info.tfname : 0;
       vvp_code_t action_end = deferred_action_next_code_(action_pc);
+      bool is_display = task_name && strcmp(task_name, "$display") == 0;
+      bool is_error = task_name && strcmp(task_name, "$error") == 0;
+      bool is_warning = task_name && strcmp(task_name, "$warning") == 0;
       if (!task_name
-          || (strcmp(task_name, "$display") != 0
-              && strcmp(task_name, "$error") != 0)
-          || !action_end || action_end->opcode != of_END) {
+          || (!is_display && !is_error && !(allow_warning && is_warning))
+          || ((is_display || is_error)
+              && (!action_end || action_end->opcode != of_END))) {
             fprintf(stderr,
                     "vvp: malformed %s-deferred VPI action thunk; expected "
-                    "exactly one $display/$error call followed by %%end; "
-                    "source stacks were not consumed.\n", mode);
+                    "a $display/$error action ending in %%end%s; "
+                    "source stacks were not consumed.\n", mode,
+                    allow_warning ? " or a $warning call" : "");
             return false;
       }
 
@@ -1893,6 +1923,7 @@ void vvp_process::mature_deferred_asserts()
 	    report.action_scope->threads.erase(action);
 	    action->is_reactive_process = 1;
 	    action->in_region_drain = 1;
+            action->is_observed_report_action = 1;
 	    for (size_t idx = 0 ; idx < report.action_args.vec4.size(); idx += 1)
 		  action->push_vec4(report.action_args.vec4[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.real.size(); idx += 1)
@@ -1901,7 +1932,15 @@ void vvp_process::mature_deferred_asserts()
 		  action->push_str(report.action_args.str[idx]);
 	    for (size_t idx = 0 ; idx < report.action_args.obj.size(); idx += 1)
 		  action->push_object(report.action_args.obj[idx]);
-	    schedule_vthread(action, 0, false);
+	    if (report.source_id == 0) {
+		  /* Case violation warnings are tool reports, not assertion action
+		     blocks. Emit them in the Observed callback itself after the
+		     process's pending report has matured. */
+		  vthread_mark_scheduled(action);
+		  vthread_run(action);
+	    } else {
+		  schedule_vthread(action, 0, false);
+	    }
       }
 }
 
@@ -3243,6 +3282,28 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*array = recv.peek<vvp_darray>();
+	  vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
+
+	  if (assoc && dim == 1) {
+		int32_t value = 0;
+		if (cp->number == 0) {
+		      value = static_cast<int32_t>(assoc->size());
+		} else if (cp->number == 3 || cp->number == 4) {
+		      vvp_vector4_t key;
+		      bool found = cp->number == 3
+			    ? assoc->first_key(key, true) : assoc->last_key(key, true);
+		      if (!found) {
+			    vvp_vector4_t unknown(32, BIT4_X);
+			    thr->push_vec4(unknown);
+			    return true;
+		      }
+		      vector4_to_value(key, value, true, false);
+		}
+		vvp_vector4_t result;
+		size_to_vec4_(static_cast<uint32_t>(value), result);
+		thr->push_vec4(result);
+		return true;
+	  }
 
       for (int cur = 1 ; array && cur < dim ; cur += 1) {
 	    if (array->get_size() == 0) {
@@ -3512,7 +3573,7 @@ static bool qreverse_dispatch_(vvp_darray*arr)
 
 /* Phase 63b/Q-methods: Fisher-Yates shuffle in place. */
 template<typename ELEM>
-static void qshuffle_helper_(vvp_darray*arr)
+static void qshuffle_helper_(vvp_darray*arr, vthread_t thr)
 {
       size_t sz = arr->get_size();
       if (sz < 2) return;
@@ -3522,7 +3583,7 @@ static void qshuffle_helper_(vvp_darray*arr)
       std::vector<size_t> permutation(sz);
       for (size_t i = 0 ; i < sz ; i += 1) permutation[i] = i;
       for (size_t i = sz - 1 ; i > 0 ; i -= 1) {
-            size_t j = (size_t)(rand() % (long)(i + 1));
+            size_t j = (size_t)(thread_rng_next_(thr) % (i + 1));
             std::swap(permutation[i], permutation[j]);
       }
       reorder_queue_rand_modes_(arr, permutation);
@@ -3530,25 +3591,26 @@ static void qshuffle_helper_(vvp_darray*arr)
             arr->set_word((unsigned)i, original[permutation[i]]);
 }
 
-static bool qshuffle_dispatch_(vvp_darray*arr)
+static bool qshuffle_dispatch_(vvp_darray*arr, vthread_t thr)
 {
       if (!arr) return true;
+      vthread_t rng_owner = logical_process_thread_(thr);
       if (dynamic_cast<vvp_queue_real*>(arr)
           || dynamic_cast<vvp_darray_real*>(arr)) {
-            qshuffle_helper_<double>(arr);
+            qshuffle_helper_<double>(arr, rng_owner);
             return true;
       }
       if (dynamic_cast<vvp_queue_string*>(arr)
           || dynamic_cast<vvp_darray_string*>(arr)) {
-            qshuffle_helper_<string>(arr);
+            qshuffle_helper_<string>(arr, rng_owner);
             return true;
       }
       if (dynamic_cast<vvp_queue_object*>(arr)
           || dynamic_cast<vvp_darray_object*>(arr)) {
-            qshuffle_helper_<vvp_object_t>(arr);
+            qshuffle_helper_<vvp_object_t>(arr, rng_owner);
             return true;
       }
-      qshuffle_helper_<vvp_vector4_t>(arr);
+      qshuffle_helper_<vvp_vector4_t>(arr, rng_owner);
       return true;
 }
 
@@ -3605,12 +3667,11 @@ bool of_QREVERSE_O(vthread_t thr, vvp_code_t)
 
 bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 {
-      (void)thr;
       vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qshuffle_dispatch_(arr);
+      return qshuffle_dispatch_(arr, thr);
 }
 
 bool of_QSHUFFLE_O(vthread_t thr, vvp_code_t)
@@ -3620,7 +3681,7 @@ bool of_QSHUFFLE_O(vthread_t thr, vvp_code_t)
       vvp_darray*arr = pop_queue_order_receiver_(
             thr, "%qshuffle/o", recv, root_net, root_obj);
       if (!arr) return true;
-      qshuffle_dispatch_(arr);
+      qshuffle_dispatch_(arr, thr);
       notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                   "queue-shuffle-object");
       return true;
@@ -3689,7 +3750,6 @@ bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
  */
 bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 {
-      (void)thr;
       vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/order");
       if (!arr) return true;
 	// Mode rides in bit_idx[0]: cp->number shares the first union
@@ -3711,7 +3771,8 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 	    else if (op == 2)
 		  qreverse_helper_<vvp_vector4_t>(arr->vals);
 	    else
-		  qshuffle_helper_<vvp_vector4_t>(arr->vals);
+		  qshuffle_helper_<vvp_vector4_t>(
+			arr->vals, logical_process_thread_(thr));
 	    return true;
       }
 
@@ -3735,7 +3796,8 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 	    break;
 	  default:
 	    for (unsigned i = sz - 1 ; i > 0 ; i -= 1) {
-		  unsigned j = (unsigned)(rand() % (i + 1));
+		  unsigned j = (unsigned)(thread_rng_next_(
+			logical_process_thread_(thr)) % (i + 1));
 		  std::swap(words[i], words[j]);
 	    }
 	    break;
@@ -5063,7 +5125,7 @@ class randomize_graph_session_t {
                         objects.push_back(entry.hold);
       }
 
-      void rollback()
+      void rollback(bool restore_rng = true)
       {
             while (!pending_randc_.empty()) {
                   pending_randc_.back()->randc_transaction_rollback();
@@ -5072,7 +5134,8 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
-		  (void)it->cobj->rng_set_state(it->rng_state);
+		  if (restore_rng)
+			(void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -5081,6 +5144,20 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_static_value_s>::reverse_iterator it =
 		       static_values_.rbegin(); it != static_values_.rend(); ++it)
 		  it->defn->static_randomize_transaction_rollback(it->pid);
+      }
+
+      std::vector<std::string> rng_states() const
+      {
+            std::vector<std::string> states;
+            for (const randomize_graph_entry_s&entry : entries_)
+                  states.push_back(entry.cobj->rng_get_state());
+            return states;
+      }
+
+      void set_rng_states(const std::vector<std::string>&states)
+      {
+            for (size_t idx = 0; idx < entries_.size() && idx < states.size(); ++idx)
+                  (void)entries_[idx].cobj->rng_set_state(states[idx]);
       }
 
     private:
@@ -6131,12 +6208,13 @@ static bool randomize_free_hook_(vthread_t thr, __vpiScope*&scope);
 static bool randomize_invoke_state_call_(vthread_t thr,
                                         randomize_call_context_s&call);
 
-static bool randomize_staged_finish_(vthread_t thr, bool success)
+static bool randomize_staged_finish_(vthread_t thr, bool success,
+                                     bool keep_rng_advance = false)
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
       if (success) success = state->session.commit();
-      if (!success) state->session.rollback();
+      if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
       call.staged.reset();
@@ -6206,24 +6284,49 @@ static bool randomize_staged_resume_(vthread_t thr)
                   if (call.state_call_pending || !running) return running;
                   if (!call.state_calls_ok) return randomize_staged_finish_(thr, false);
             }
-            auto objects = state->session.solve_objects;
-            for (size_t idx = 0; idx < objects.size(); ++idx) {
-                  auto&object = objects[idx];
-                  object.staged_selection = true;
-                  object.staged_active = stage.active.at(idx);
-                  object.include_class_constraints = false;
-                  object.inherited_ir.clear();
-                  object.extra_ir.clear();
-                  object.planned_class_ir.clear();
-                  object.class_slot_vals = call.state_values[object.object];
+            /* Build the object vector for the current priority set. With
+             * independent_only, omit items whose outcome depends on an
+             * earlier set (item.ordered, set by vvp_z3_plan_function_stages);
+             * that subset is used only to classify a failure. */
+            auto build_stage_objects = [&](bool independent_only) {
+                  auto staged_objects = state->session.solve_objects;
+                  for (size_t idx = 0; idx < staged_objects.size(); ++idx) {
+                        auto&object = staged_objects[idx];
+                        object.staged_selection = true;
+                        object.staged_active = stage.active.at(idx);
+                        object.include_class_constraints = false;
+                        object.inherited_ir.clear();
+                        object.extra_ir.clear();
+                        object.planned_class_ir.clear();
+                        object.class_slot_vals = call.state_values[object.object];
+                  }
+                  for (const auto&item : stage.items) {
+                        if (independent_only && item.ordered) continue;
+                        auto&object = staged_objects.at(item.object);
+                        if (item.class_ir) object.planned_class_ir.push_back(item.ir);
+                        else object.extra_ir.push_back(item.ir);
+                  }
+                  return staged_objects;
+            };
+            auto objects = build_stage_objects(false);
+            if (!vvp_z3_randomize_graph(objects)) {
+                  /* A later priority set failed. If its items that do not
+                   * depend on an earlier set are already infeasible, no earlier
+                   * outcome could help: restore everything including the RNG.
+                   * Otherwise the miss came from the earlier draw: values and
+                   * randc history roll back, but the draw stays consumed.
+                   * shortcut: ordered-only intrinsic conflicts keep the draw;
+                   * upgrade if an earlier-outcome independence proof is added. */
+                  bool keep_advance = false;
+                  if (state->stage > 0) {
+                        std::vector<std::string> after_failed =
+                              state->session.rng_states();
+                        keep_advance = vvp_z3_randomize_graph(
+                              build_stage_objects(true));
+                        state->session.set_rng_states(after_failed);
+                  }
+                  return randomize_staged_finish_(thr, false, keep_advance);
             }
-            for (const auto&item : stage.items) {
-                  auto&object = objects.at(item.object);
-                  if (item.class_ir) object.planned_class_ir.push_back(item.ir);
-                  else object.extra_ir.push_back(item.ir);
-            }
-            if (!vvp_z3_randomize_graph(objects))
-                  return randomize_staged_finish_(thr, false);
             state->stage += 1;
             state->next_call = 0;
       }
@@ -7620,6 +7723,55 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
       cobj->get_defn()->type_bump(prop);
 }
 
+static uint64_t covgrp_wide_auto_bin_(const vvp_vector4_t&value,
+				       unsigned bins)
+{
+	  unsigned width = value.size();
+	  vector<uint32_t> size((width + 31) / 32, 0);
+	  uint64_t remainder = 0;
+	  // Compute floor(2**width / bins), the common range size. The
+	  // standard assigns any non-divisible remainder to the last bin.
+	  for (unsigned pos = width + 1; pos-- > 0;) {
+		uint64_t next = (remainder << 1) | (pos == width ? 1 : 0);
+		remainder = next % bins;
+		if (pos < width && next / bins)
+		      size[pos / 32] |= uint32_t(1) << (pos % 32);
+	  }
+	  vector<uint32_t> sampled(size.size(), 0);
+	  uint64_t carry = 0;
+	  for (unsigned word = 0; word < size.size(); word++) {
+		unsigned count = min(32u, width - word * 32);
+		for (unsigned bit = 0; bit < count; bit++)
+		      if (value.value(word * 32 + bit) == BIT4_1)
+			    sampled[word] |= uint32_t(1) << bit;
+	  }
+	  unsigned low = 0, high = bins;
+	  while (low + 1 < high) {
+		unsigned bin = low + (high - low) / 2;
+		vector<uint32_t> boundary(size.size() + 1, 0);
+		carry = 0;
+		for (unsigned word = 0; word < size.size(); word++) {
+		      uint64_t part = uint64_t(size[word]) * bin + carry;
+		      boundary[word] = uint32_t(part);
+		      carry = part >> 32;
+		}
+		boundary[size.size()] = uint32_t(carry);
+		bool at_least = false;
+		for (unsigned word = size.size(); word-- > 0;) {
+		      uint32_t bound = boundary[word];
+		      uint32_t got = word < sampled.size() ? sampled[word] : 0;
+		      if (got != bound) {
+			    at_least = got > bound;
+			    break;
+		      }
+		      if (word == 0) at_least = true;
+		}
+		if (at_least) low = bin;
+		else high = bin;
+	  }
+	  return low;
+}
+
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
@@ -7648,16 +7800,10 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
       if (wide_val && wide_val->has_xz()) return false;
 	  if (bin.kind & 512) {
 	    unsigned width = bin.hi >> 32;
-	    unsigned bits = bin.hi & 0xffffffffu;
+	    unsigned bins = bin.hi & 0xffffffffu;
 	    if (!wide_val || width <= 64 || wide_val->size() != width
-		|| bits > 64 || bits > width
-		|| (bits < 64 && (bin.lo >> bits) != 0)) return false;
-	    unsigned start = width - bits;
-	    for (unsigned bit = 0; bit < bits; bit++)
-		if (wide_val->value(start + bit)
-		    != ((bin.lo >> bit) & 1 ? BIT4_1 : BIT4_0))
-		      return false;
-	    return true;
+		|| bins == 0 || bin.lo >= bins) return false;
+	    return covgrp_wide_auto_bin_(*wide_val, bins) == bin.lo;
       }
       if (bin.kind & 64) {
 	    unsigned width = bin.hi >> 16;
@@ -9269,8 +9415,23 @@ static size_t covgrp_cp_count_(const class_type*defn)
 // Keep the synthetic per_instance slot out of stable bin-property diagnostics.
 static unsigned covgrp_diag_prop_idx_(const class_type*defn, unsigned prop)
 {
-      int per_instance = defn->covgrp_options().per_instance_prop;
-      return per_instance >= 0 && (size_t)per_instance < prop ? prop - 1 : prop;
+      const class_type::covgrp_options_t&options = defn->covgrp_options();
+      unsigned hidden = 0;
+      if (options.per_instance_prop >= 0
+	  && (size_t)options.per_instance_prop < prop) ++hidden;
+      if (options.goal_prop >= 0 && (size_t)options.goal_prop < prop) ++hidden;
+      if (options.comment_prop >= 0
+	  && (size_t)options.comment_prop < prop) ++hidden;
+      // Inherited item goal/comment slots precede the bins so base and
+      // extension covergroups use the same property indexes.
+      for (unsigned idx = 0; idx < prop && idx < defn->property_count(); ++idx) {
+	    const std::string&name = defn->property_name(idx);
+	    if (name.compare(0, 14, "__covgrp_item_") == 0
+		&& (name.find("_option_goal") != std::string::npos
+		    || name.find("_option_comment") != std::string::npos))
+		  ++hidden;
+      }
+      return prop - hidden;
 }
 
 static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
@@ -9759,6 +9920,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned item;
 	    unsigned cp;
       };
+	std::vector<default_special_t> default_array_props;
       std::vector<default_special_t> default_illegal;
       std::vector<default_special_t> default_ignore;
 
@@ -9773,6 +9935,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  if (!bin_enabled(first.guard_idx)) continue;
 		  default_props.push_back(std::make_pair(kv.first,
 						 first.item_idx));
+		  continue;
+	    }
+	    if (k == 7) {
+		  if (!bin_enabled(first.guard_idx)) continue;
+		  default_special_t special = { kv.first, first.item_idx,
+					first.cp_idx };
+		  default_array_props.push_back(special);
 		  continue;
 	    }
 	    if (k == 5 || k == 6) {
@@ -9955,6 +10124,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    covgrp_bump_count_(cobj, dp.first);
       }
+	for (auto&dp : default_array_props) {
+	    if (!item_enabled(dp.item)) continue;
+	    if (item_matched.count(dp.item) && item_matched[dp.item])
+		  continue;
+	    if (dp.cp >= ncp || !cp_sampled[dp.cp] || cp_suppressed[dp.cp])
+		  continue;
+	    // An array default bin is keyed by each unmatched sampled value.
+	    // These counters remain outside the coverage denominator, as required
+	    // for default bins, while retaining distinct value identities.
+	    std::string value_key;
+	    if (wide_vals[dp.cp].size() != 0) {
+		  unsigned width = wide_vals[dp.cp].size();
+		  value_key.append(reinterpret_cast<const char*>(&width), sizeof width);
+		  for (unsigned bit = 0; bit < width; bit++)
+			value_key.push_back(static_cast<char>(wide_vals[dp.cp].value(bit)));
+	    } else {
+		  uint64_t value = cp_vals[dp.cp];
+		  value_key.append(reinterpret_cast<const char*>(&value), sizeof value);
+	    }
+	    cobj->cov_default_array_bump(dp.prop, value_key);
+	}
 }
 
 /* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
@@ -10138,9 +10328,13 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * excluded from both numerator and denominator (19.11 option model).
  */
 double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
-				    int selected_item)
+				    int selected_item,
+				    long double*covered_bins,
+				    long double*defined_bins)
 {
       if (contributes) *contributes = false;
+      if (covered_bins) *covered_bins = 0.0L;
+      if (defined_bins) *defined_bins = 0.0L;
       double result = 0.0;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -10154,7 +10348,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7)
 			continue;
 		  if (k == 4 && bin.trans_family != class_type::COV_NO_FAMILY) {
 			if (seen_trans_families.insert(bin.trans_family).second) {
@@ -10254,6 +10448,8 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 			      hits += 1;
 		  }
 		  if (total == 0.0) continue;
+		  if (covered_bins) *covered_bins += hits;
+		  if (defined_bins) *defined_bins += total;
 		  double icov = (double)(100.0L * (long double)hits / total);
 		  if (selected_item >= 0) {
 		    if (contributes) *contributes = true;
@@ -10277,15 +10473,48 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
       return result;
 }
 
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+static bool of_COVGRP_GET_INST_COVERAGE_(vthread_t thr, bool has_output_refs)
 {
+	  vvp_object_t total_ref_obj, covered_ref_obj;
+	  if (has_output_refs) {
+		thr->pop_object(total_ref_obj);
+		thr->pop_object(covered_ref_obj);
+	  }
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-            ? cobj->get_defn()->type_coverage(cobj)
-            : vvp_covgrp_instance_coverage(cobj));
+      long double covered = 0.0L, defined = 0.0L;
+	  bool contributes = false;
+      double result = cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+	    ? cobj->get_defn()->type_coverage(cobj)
+	    : vvp_covgrp_instance_coverage(cobj, &contributes, -1,
+						 &covered, &defined);
+      if (has_output_refs) {
+	    vvp_lvalue_ref*covered_ref = covered_ref_obj.peek<vvp_lvalue_ref>();
+	    vvp_lvalue_ref*total_ref = total_ref_obj.peek<vvp_lvalue_ref>();
+	    auto store_count = [](vvp_lvalue_ref*ref, long double count) {
+		  if (!ref) return;
+		  uint32_t value = static_cast<uint32_t>(count);
+		  vvp_vector4_t data(ref->value_width(), BIT4_0);
+		  for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
+			if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
+		  ref->store_vec4(data);
+	    };
+	    store_count(covered_ref, contributes ? covered : 0.0L);
+	    store_count(total_ref, contributes ? defined : 0.0L);
+      }
+      thr->push_real(result);
       return true;
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      return of_COVGRP_GET_INST_COVERAGE_(thr, false);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t)
+{
+      return of_COVGRP_GET_INST_COVERAGE_(thr, true);
 }
 
 bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
@@ -10836,6 +11065,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->deferred_assert_flush_on_run = 0;
+      thr->is_observed_report_action = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context_is_chain = 0;
       thr->rand_sel_armed = false;
@@ -10856,6 +11086,9 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->waiting_for_event = 0;
       thr->post_finish_wait = 0;
       thr->event  = 0;
+      thr->event_hooks = 0;
+      thr->event_vif = vvp_object_t();
+      thr->synchronous_drive = false;
       thr->ecount = 0;
 
       thr->flags[0] = BIT4_0;
@@ -10989,11 +11222,8 @@ static void vthread_reap(vthread_t thr)
 	    thr->children.erase(cur);
       }
       while (! thr->detached_children.empty()) {
-	      /* When a thread ends with detached children still alive,
-	       * SystemVerilog `wait fork` semantics require those grandchildren
-	       * to remain reachable from the still-living grandparent so that
-	       * an outer `wait fork` can wait for them.  Reparent them to
-	       * thr->parent and keep them in detached_children. */
+	      /* Keep detached descendants reachable for process control, but
+	       * do not make them children of the grandparent for wait fork. */
 	    set<vthread_t>::iterator cur = thr->detached_children.begin();
 	    vthread_t child = *cur;
 	    assert(child);
@@ -11003,10 +11233,13 @@ static void vthread_reap(vthread_t thr)
 		  child->parent = thr->parent;
 		  child->is_reactive_process |= thr->is_reactive_process;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(cur);
       }
       if (thr->parent) {
@@ -11020,6 +11253,7 @@ static void vthread_reap(vthread_t thr)
 				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
 		  }
 		  assert(res == 1);
+		  thr->parent->wait_fork_children.erase(thr);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
 		  if (res != 1) {
@@ -16169,8 +16403,12 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
  * pointer identity. A virtual interface represents an interface INSTANCE, so
  * separately materialized wrappers compare by their bound scope and interface
  * definition (IEEE 1800-2017/2023 25.9).
- * Pops both, sets flag 4 = 1 if equal, 0 if not.
+ * Pops both, sets flags 4 and 6 to the logical and exact results. Structs
+ * compare by value; ordinary objects retain handle identity.
  */
+static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
+			     vvp_bit4_t&logical, vvp_bit4_t&exact);
+
 bool of_CMPOBJ(vthread_t thr, vvp_code_t)
 {
       vvp_object_t re;
@@ -16179,13 +16417,26 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(le);
 
       bool eq = (le == re);
+      vvp_bit4_t logical = eq ? BIT4_1 : BIT4_0;
+      vvp_bit4_t exact = logical;
+      vvp_cobject*left_struct = le.peek<vvp_cobject>();
+      vvp_cobject*right_struct = re.peek<vvp_cobject>();
+      bool compare_struct = left_struct && right_struct
+	    && left_struct->get_defn() == right_struct->get_defn()
+	    && left_struct->get_defn()->is_struct_type()
+	    && !left_struct->get_defn()->is_union_type();
+      if (compare_struct) {
+	    struct_equality_(left_struct, right_struct, logical, exact);
+	    eq = logical == BIT4_1;
+      }
       vvp_vinterface*left_vif = le.peek<vvp_vinterface>();
       vvp_vinterface*right_vif = re.peek<vvp_vinterface>();
       if (left_vif && right_vif) {
 	    eq = left_vif->vif_scope() == right_vif->vif_scope()
 	       && left_vif->get_defn() == right_vif->get_defn();
       }
-      thr->flags[4] = eq ? BIT4_1 : BIT4_0;
+      thr->flags[4] = compare_struct ? logical : (eq ? BIT4_1 : BIT4_0);
+      thr->flags[6] = compare_struct ? exact : (eq ? BIT4_1 : BIT4_0);
 
       const char*scope_name = scope_name_or_unknown_(thr->parent_scope);
       if (scope_trace_enabled_("IVL_CMPOBJ_TRACE", scope_name)) {
@@ -16226,6 +16477,85 @@ static bool vector_equality_step_(const vvp_vector4_t&lv, const vvp_vector4_t&rv
 
 static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj,
 				vvp_bit4_t&logical, vvp_bit4_t&exact);
+
+/* Compare the stored members of an unpacked struct value. Structs are
+ * represented by cobjects at runtime, but equality is value equality rather
+ * than the handle identity used for ordinary class objects. */
+static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
+			     vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      logical = exact = BIT4_1;
+      if (!left || !right || left->get_defn() != right->get_defn()) {
+	    logical = exact = BIT4_0;
+	    return;
+      }
+      const class_type*defn = left->get_defn();
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    const std::string&type = defn->property_base_type(pid);
+	    size_t count = (size_t)defn->property_array_size(pid);
+	    if (count == 0) count = 1;
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  if (type == "S") {
+			if (left->get_string(pid, idx) != right->get_string(pid, idx)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (type == "r") {
+			if (left->get_real(pid, idx) != right->get_real(pid, idx)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (type.compare(0, 5, "oc:C") == 0) {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			vvp_cobject*lchild = lobj.peek<vvp_cobject>();
+			vvp_cobject*rchild = robj.peek<vvp_cobject>();
+			if (lchild && rchild && lchild->get_defn()->is_struct_type()
+			    && rchild->get_defn()->is_struct_type()) {
+			      vvp_bit4_t sub_logical, sub_exact;
+			      struct_equality_(lchild, rchild, sub_logical, sub_exact);
+			      if (sub_logical == BIT4_0) {
+				    logical = exact = BIT4_0;
+				    return;
+			      }
+			      if (sub_logical != BIT4_1) logical = BIT4_X;
+			      if (sub_exact != BIT4_1) exact = BIT4_0;
+			} else if (!(lobj == robj)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else if (!type.empty() && (type[0] == 'D'
+					       || type[0] == 'Q' || type[0] == 'M')) {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			vvp_bit4_t sub_logical, sub_exact;
+			container_equality_(lobj, robj, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (!type.empty() && type[0] == 'o') {
+			vvp_object_t lobj, robj;
+			left->get_object(pid, lobj, idx);
+			right->get_object(pid, robj, idx);
+			if (!(lobj == robj)) {
+			      logical = exact = BIT4_0;
+			      return;
+			}
+		  } else {
+			vvp_vector4_t lv, rv;
+			left->get_vec4(pid, lv, idx);
+			right->get_vec4(pid, rv, idx);
+			if (!vector_equality_step_(lv, rv, logical, exact))
+			      return;
+		  }
+	    }
+      }
+}
 
 /* Associative arrays are equal when they hold the same keys with equal
  * values. peek_entry walks both in key order. */
@@ -17865,6 +18195,8 @@ bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t cp)
  * blocking task calls and named sequential blocks deliberately share that
  * process, while explicit fork branches retain their own queue.
  */
+static bool validate_final_deferred_task_thunk_(vvp_code_t action);
+
 bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 {
       vthread_t owner = logical_process_thread_(thr);
@@ -17875,7 +18207,9 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
       vvp_code_t key = cp->cptr2;
 
-      if (!process || !key || key->opcode != of_DEFER_ENQUEUE_KEY
+      bool task_key = key && key->opcode == of_DEFER_ENQUEUE_TASK_KEY;
+      if (!process || !key
+          || (key->opcode != of_DEFER_ENQUEUE_KEY && !task_key)
           || !key->number || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
@@ -17888,7 +18222,16 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       }
       vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
-      if (!capture_deferred_args_(thr, action_pc, action_args, "observed"))
+      if (task_key) {
+            if (!validate_final_deferred_task_thunk_(action_pc)) {
+                  fprintf(stderr,
+                          "vvp: malformed observed-deferred user-task thunk; "
+                          "expected a complete zero-formal task call and "
+                          "dropped the report.\n");
+                  return true;
+            }
+      } else if (!capture_deferred_args_(thr, action_pc, action_args,
+                                         "observed"))
 	    return true;
 
       process->enqueue_deferred_assert(
@@ -17897,6 +18240,11 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 }
 
 bool of_DEFER_ENQUEUE_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+bool of_DEFER_ENQUEUE_TASK_KEY(vthread_t, vvp_code_t)
 {
       return true;
 }
@@ -18152,6 +18500,7 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 		       << "Warning: skipping out of range delete(" << idx
 		       << ") on queue of size " << size << "." << endl;
 	    } else {
+		  obj->snapshot_object_preponed(obj->peek_object());
 		  queue->erase(idx);
                   notify_mutated_object_signal_(thr, net, "queue-delete-elem");
 	    }
@@ -18202,6 +18551,12 @@ bool of_DELETE_O_ELEM(vthread_t thr, vvp_code_t)
 		         << "Warning: skipping out of range delete(" << idx
 		         << ") on queue of size " << size << "." << endl;
 	      } else {
+		    if (root_net) {
+			  vvp_fun_signal_object*root_signal =
+				vvp_fun_as_signal_object(root_net->fun);
+			  if (root_signal)
+				root_signal->snapshot_object_preponed(root_obj);
+		    }
 		    queue->erase(idx);
                   notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                               "queue-delete-o-elem");
@@ -18339,7 +18694,8 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
 	       * the parent's detached_children, so do not erase manually. */
 	    if (parent && parent->i_am_waiting
-		&& parent->detached_children.size() == 1) {
+		&& parent->wait_fork_children.size() == 1
+		&& parent->wait_fork_children.count(thr)) {
 		    /* This is the last detached child; the wait fork
 		     * predicate will become true once we reap. */
 		  parent->i_am_waiting = 0;
@@ -19019,10 +19375,8 @@ bool of_END(vthread_t thr, vvp_code_t)
             }
       }
 
-	/* Move any detached children to the parent.  This preserves
-	 * SystemVerilog `wait fork` semantics: an outer `wait fork` must
-	 * wait for grandchildren whose intermediate parent has already
-	 * ended.  If we have no parent, fully orphan them as before. */
+	/* Move detached children to the parent for process control.  They
+	 * remain descendants, so they are not added to its wait-fork set. */
       while (! thr->detached_children.empty()) {
 	    vthread_t child = *(thr->detached_children.begin());
 	    assert(child);
@@ -19031,10 +19385,13 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    if (thr->parent) {
 		  child->parent = thr->parent;
 		  thr->parent->detached_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child)
+			  thr->parent->wait_fork_children.insert(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
 	    }
+	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(thr->detached_children.begin());
       }
 
@@ -19063,7 +19420,8 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* If the parent is waiting for the detached children to
 	       * finish then the last detached child needs to tell the
 	       * parent to wake up when it is finished. */
-	    if (tmp->i_am_waiting && tmp->detached_children.empty()) {
+	    if (tmp->i_am_waiting && tmp->wait_fork_children.size() == 1
+		&& tmp->wait_fork_children.count(thr)) {
 		  tmp->i_am_waiting = 0;
 		  tmp->deferred_assert_flush_on_run = 1;
 		  schedule_vthread(tmp, 0, true);
@@ -19071,6 +19429,7 @@ bool of_END(vthread_t thr, vvp_code_t)
 	      /* Fully detach this thread so it will be reaped below. */
 	    thr->i_am_detached = 0;
 	    thr->parent = 0;
+	    tmp->wait_fork_children.erase(thr);
       }
 
 	/* If I have no parent, then no one can %join me and there is
@@ -19319,9 +19678,88 @@ bool of_FUNCTION_DEFERRED_CHECK(vthread_t thr, vvp_code_t)
       return false;
 }
 
+static bool wait_vif_runtime_fatal_(const char*opcode);
+
+enum vif_evctl_edge_t {
+      VIF_EVCTL_POSEDGE,
+      VIF_EVCTL_NEGEDGE,
+      VIF_EVCTL_ANYEDGE
+};
+
+enum vif_evctl_count_t {
+      VIF_EVCTL_COUNT_IMMEDIATE,
+      VIF_EVCTL_COUNT_UNSIGNED,
+      VIF_EVCTL_COUNT_SIGNED
+};
+
+static bool of_EVCTLVIF_(vthread_t thr, vvp_code_t cp,
+                         vif_evctl_edge_t edge,
+                         vif_evctl_count_t count_mode)
+{
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      uint64_t ecount;
+      if (count_mode == VIF_EVCTL_COUNT_IMMEDIATE)
+            ecount = cp->bit_idx[1];
+      else if (count_mode == VIF_EVCTL_COUNT_SIGNED) {
+            int64_t value = thr->words[cp->bit_idx[1]].w_int;
+            ecount = value < 0 ? 0 : value;
+      } else
+            ecount = thr->words[cp->bit_idx[1]].w_uint;
+
+      thr->ecount = ecount;
+      if (ecount == 0)
+            return true;
+
+      thr->event_vif = obj;
+      vvp_vinterface*vif = thr->event_vif.peek<vvp_vinterface>();
+      if (!vif)
+            return wait_vif_runtime_fatal_("%evctl/vif");
+
+      unsigned member = cp->number;
+      unsigned word = cp->bit_idx[0];
+      if (edge == VIF_EVCTL_POSEDGE)
+            thr->event_hooks = vif->get_posedge_functor(member, word);
+      else if (edge == VIF_EVCTL_NEGEDGE)
+            thr->event_hooks = vif->get_negedge_functor(member, word);
+      else
+            thr->event_hooks = vif->get_anyedge_functor(member, word);
+      return true;
+}
+
+#define VIF_EVCTL_HANDLER(name, edge, count_mode) \
+bool name(vthread_t thr, vvp_code_t cp) \
+{ return of_EVCTLVIF_(thr, cp, edge, count_mode); }
+
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE_I, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_POSEDGE_S, VIF_EVCTL_POSEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE_I, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_NEGEDGE_S, VIF_EVCTL_NEGEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE_I, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_IMMEDIATE)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_UNSIGNED)
+VIF_EVCTL_HANDLER(of_EVCTLVIF_ANYEDGE_S, VIF_EVCTL_ANYEDGE,
+                  VIF_EVCTL_COUNT_SIGNED)
+
+#undef VIF_EVCTL_HANDLER
+
 bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       thr->ecount = thr->words[cp->bit_idx[0]].w_uint;
       return true;
@@ -19329,13 +19767,17 @@ bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 bool of_EVCTLC(vthread_t thr, vvp_code_t)
 {
       thr->event = 0;
+      thr->event_hooks = 0;
+      thr->event_vif = vvp_object_t();
+      thr->synchronous_drive = false;
       thr->ecount = 0;
       return true;
 }
 
 bool of_EVCTLI(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       thr->ecount = cp->bit_idx[0];
       return true;
@@ -19343,11 +19785,19 @@ bool of_EVCTLI(vthread_t thr, vvp_code_t cp)
 
 bool of_EVCTLS(vthread_t thr, vvp_code_t cp)
 {
-      assert(thr->event == 0 && thr->ecount == 0);
+      assert(thr->event == 0 && thr->event_hooks == 0
+             && thr->event_vif.test_nil() && thr->ecount == 0);
       thr->event = cp->net;
       int64_t val = thr->words[cp->bit_idx[0]].w_int;
       if (val < 0) val = 0;
       thr->ecount = val;
+      return true;
+}
+
+bool of_EVCTL_SYNC(vthread_t thr, vvp_code_t)
+{
+      assert(!thr->synchronous_drive);
+      thr->synchronous_drive = true;
       return true;
 }
 
@@ -19806,6 +20256,17 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	  && (cp->scope->get_type_code() == vpiTask
 	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
+
+	/* Keep the logical process tree after vthread_reap reparents detached
+	   threads for wait fork. A finished process handle must still reach its
+	   live fork descendants when process::kill() is called later. */
+      if (!child->is_fork_v_child) {
+	    vthread_t parent_process = logical_process_thread_(thr);
+	    vvp_process*parent_obj = parent_process
+		  ? parent_process->process_obj_.peek<vvp_process>() : 0;
+	    if (parent_obj)
+		  parent_obj->add_descendant(child->process_obj_);
+      }
 
 	/* R3 (IEEE 1800-2017 18.13.1): a real independent process -- exactly
 	   the threads logical_process_thread_() does NOT walk past, i.e.
@@ -21546,6 +22007,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		  assert(res == 1);
 		  child->i_am_detached = 1;
 		  thr->detached_children.insert(child);
+		  thr->wait_fork_children.insert(child);
 	    }
       }
 
@@ -22502,11 +22964,9 @@ static void aa_warn_invalid_write_(vthread_t thr)
 }
 
 template <class ASSOC, class KEY>
-static bool aa_invalid_write_(vthread_t thr, ASSOC*assoc, const KEY&key)
+static bool aa_invalid_write_(vthread_t thr, ASSOC*, const KEY&key)
 {
       if (!aa_index_has_xz_(key)) return false;
-      /* 7.4.5/7.8.7 allow a new associative entry; 7.8.6 rejects overwrites. */
-      if (assoc && !assoc->exists_key(key)) return false;
       aa_warn_invalid_write_(thr);
       return true;
 }
@@ -22823,6 +23283,11 @@ static bool aa_delete_str(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -22840,6 +23305,11 @@ static bool aa_delete_obj(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -22856,6 +23326,11 @@ static bool aa_delete_vec(vthread_t thr)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->erase_key(key);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -23708,6 +24183,11 @@ bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t)
       vvp_object_t recv = thr->peek_object();
       vvp_assoc_base*assoc = peek_assoc_receiver_<vvp_assoc_base>(thr);
       if (assoc && assoc->size() > 0) {
+	    vvp_net_t*root_net = thr->peek_object_source_net(0);
+	    vvp_fun_signal_object*root_signal = root_net
+		  ? vvp_fun_as_signal_object(root_net->fun) : 0;
+	    if (root_signal)
+		  root_signal->snapshot_object_preponed(thr->peek_object_root(0));
 	    assoc->clear();
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -25165,6 +25645,24 @@ bool of_HIST_ON(vthread_t, vvp_code_t cp)
 	    ssig->enable_sample_hist();
       else if (vvp_wire_real*rsig = dynamic_cast<vvp_wire_real*>(net->fil))
 	    rsig->enable_sample_hist();
+      if (net->fun && net->fun->as_signal_object()) {
+	    vvp_fun_signal_object*sig = net->fun->as_signal_object();
+	    if (sig->default_object_kind() != vvp_fun_signal_object::INIT_OBJ_NONE
+		|| static_cast<bool>(sig->default_container_layout()))
+		  sig->enable_sample_hist();
+      }
+      return true;
+}
+
+/* %load/preponed/obj <var-label> */
+bool of_LOAD_PREPONED_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      if (net->fun && net->fun->as_signal_object()) {
+	    thr->push_object(net->fun->as_signal_object()->get_object_preponed());
+	    return true;
+      }
+      thr->push_object(vvp_object_t());
       return true;
 }
 
@@ -27110,6 +27608,15 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       if (!proc)
 	    return true;
 
+	vthread_t owner = logical_process_thread_(thr);
+      if (owner && proc->owner() == owner) {
+	    cerr << "runtime error: process::await() called on the current process."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
       unsigned status = proc->status();
       if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
 	    return true;
@@ -27170,6 +27677,26 @@ static void kill_detached_subprocesses_(vthread_t thr)
       }
 }
 
+static void kill_process_descendants_(vvp_process*proc)
+{
+      if (!proc) return;
+
+      const std::vector<vvp_object_t>&descendants = proc->descendants();
+      for (size_t idx = 0 ; idx < descendants.size() ; idx += 1) {
+	    vvp_process*child = descendants[idx].peek<vvp_process>();
+	    if (!child) continue;
+
+	    kill_process_descendants_(child);
+	    vthread_t owner = child->owner();
+	    if (!owner) continue;
+
+	    kill_detached_subprocesses_(owner);
+	    unsigned status = child->status();
+	    if (status != PROCESS_STATE_FINISHED && status != PROCESS_STATE_KILLED)
+		  (void)do_disable(owner, owner);
+      }
+}
+
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -27180,11 +27707,18 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 	    return true;
 
       vthread_t target = proc->owner();
-      if (!target)
-	    return true;
-
       unsigned status = proc->status();
-      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED) {
+            /* IEEE 1800-2023 9.7 explicitly requires kill() on a terminal
+               process to still terminate its live descendants. 2017 9.7
+               likewise requires kill() to terminate all subprocesses. */
+	    kill_process_descendants_(proc);
+	    if (target)
+		  kill_detached_subprocesses_(target);
+	    return true;
+      }
+
+      if (!target)
 	    return true;
 
       vthread_t self_process = logical_process_thread_(thr);
@@ -27238,7 +27772,7 @@ static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
  *   blocked (waiting on an event/join) leaves the block in place and lets
  *   the eventual wake re-arm the reschedule.
  */
-bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+static bool process_suspend_(vthread_t thr, bool reject_function_self_suspend)
 {
       vvp_object_t obj;
       thr->pop_object(obj);
@@ -27262,6 +27796,15 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
 
+	// IEEE 1800-2023 9.7 prohibits a function from suspending its own
+	// process. Keep the 2017 opcode's permitted behavior unchanged.
+      if (reject_function_self_suspend && self_suspend && thr->i_am_in_function) {
+	    cerr << "runtime error: function called process::suspend() on the current process." << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
 	// Every thread the process is made of, not just the one the handle
 	// names: while a named block or a task frame is executing, IT is the
 	// thread that has to stop and `target' is parked in %join behind it.
@@ -27271,6 +27814,20 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
 	    vthread_t part = parts[idx];
 	    part->suspended = 1;
+
+	      // A named-event wait is edge-like: an occurrence while suspended
+	      // must not satisfy it. Remove the waiter now and remember to arm
+	      // the same wait again when resume() is called. Other wait kinds
+	      // keep their existing wake behavior (notably wait conditions and
+	      // delays, whose state is re-evaluated on wake).
+	    if (part->waiting_for_event && part->last_pause_pc
+	        && part->last_pause_pc->opcode == &of_WAIT
+	        && part->last_pause_pc->net
+	        && part->last_pause_pc->net->fun
+	        && dynamic_cast<vvp_named_event*>(part->last_pause_pc->net->fun)) {
+		  vthread_cancel_event_wait(part);
+		  part->resume_event_wait = 1;
+	    }
 
 	      // A running/ready thread must be rescheduled by resume() to
 	      // make progress. A blocked one (waiting on an event or a join)
@@ -27288,6 +27845,16 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       }
 
       return true;
+}
+
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, false);
+}
+
+bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t)
+{
+      return process_suspend_(thr, true);
 }
 
 /*
@@ -27323,6 +27890,12 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
 	    if (!part->suspended) continue;
 
 	    part->suspended = 0;
+
+	    if (part->resume_event_wait) {
+		  part->resume_event_wait = 0;
+		  part->pc = part->last_pause_pc;
+		  part->suspend_resched = 1;
+	    }
 
 	    if (part->suspend_resched) {
 		  part->suspend_resched = 0;
@@ -29765,6 +30338,57 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %ref/bind/el/o <formal> -- bind to an element of the container object
+ * already on the object stack. */
+bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t use_index = -1;
+      vector4_to_value(idxv, use_index, true, false);
+      vvp_object_t container;
+      thr->pop_object(container);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, container, use_index);
+      return true;
+}
+
+/* %ref/bind/el/el/o <formal> -- bind through one object-valued container
+ * element to an element of the nested container. */
+bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t inner_vec = thr->pop_vec4();
+      vvp_vector4_t outer_vec = thr->pop_vec4();
+      int64_t inner_index = -1, outer_index = -1;
+      vector4_to_value(inner_vec, inner_index, true, false);
+      vector4_to_value(outer_vec, outer_index, true, false);
+      vvp_object_t outer_container;
+      thr->pop_object(outer_container);
+      vvp_object_t inner_container;
+      if (outer_index >= 0) {
+	    if (vvp_darray*array = outer_container.peek<vvp_darray>()) {
+		  if ((uint64_t)outer_index < array->get_size())
+			array->get_word((unsigned)outer_index, inner_container);
+	    }
+      }
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el/el/o error: the formal is not a ref signal."
+	         << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net, inner_container, inner_index);
+      return true;
+}
+
 /*
  * %ref/bind/w <array>, <formal>
  *
@@ -30564,8 +31188,16 @@ bool of_SCOPY(vthread_t thr, vvp_code_t)
 
       vvp_object_t&dest = thr->peek_object();
         // If it is null there is nothing to copy
-      if (!tmp.test_nil())
+      if (!tmp.test_nil()) {
+	    const vvp_cobject*src = tmp.peek<vvp_cobject>();
+	    vvp_cobject*dst = dest.peek<vvp_cobject>();
+	    if (src && dst && src->get_defn() != dst->get_defn()) {
+		  // A base handle may refer to a derived object. IEEE 1800-2017/2023
+		  // 8.12 requires its shallow copy to retain the dynamic type.
+		  dest = new vvp_cobject(src->get_defn());
+	    }
 	    dest.shallow_copy(tmp);
+      }
 
       return true;
 }
@@ -31983,11 +32615,14 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
  * NONBLOCKING store to a vec4 property of a class object or virtual
  * interface (IEEE 1800-2017 10.4.2): pops <wid> bits of value from the
  * vec4 stack and the receiver handle from the object stack, then
- * schedules the property store in the NBA region after <delay> ticks.
+ * schedules the property store in NBA after <delay> ticks, or in Re-NBA for
+ * a synchronous clocking drive.
  * The receiver and value are captured now; a null receiver is a no-op.
  */
 bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid   = cp->number;
       unsigned delay = cp->bit_idx[0];
       unsigned wid   = cp->bit_idx[1];
@@ -32001,8 +32636,18 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
-				vthread_is_reactive(thr));
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4(obj, pid, val, root_obj,
+				   thr->event_hooks, thr->ecount,
+					   vthread_is_reactive(thr) || synchronous_drive);
+	    else
+		  schedule_evctl_prop_vec4(obj, pid, val, root_obj, thr->event,
+					   thr->ecount,
+					   vthread_is_reactive(thr) || synchronous_drive);
+	  } else
+	    schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
+				      vthread_is_reactive(thr) || synchronous_drive);
       return true;
 }
 
@@ -32016,6 +32661,8 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
  */
 bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid = cp->number;
       unsigned delay = cp->bit_idx[0];
       uint64_t bitoff = cp->bit_idx[1];
@@ -32027,8 +32674,19 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj, delay,
-				     vthread_is_reactive(thr));
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+						thr->event_hooks, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive);
+	    else
+		  schedule_evctl_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+						thr->event, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive);
+	  } else
+	    schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj,
+					    delay,
+					    vthread_is_reactive(thr) || synchronous_drive);
       return true;
 }
 
@@ -32037,6 +32695,8 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
                                  bool signed_offset)
 {
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
       unsigned pid = cp->number;
       unsigned delay = cp->bit_idx[0];
       unsigned off_reg = cp->bit_idx[1];
@@ -32050,9 +32710,26 @@ static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
       if (obj.test_nil() || thr->flags[4] != BIT4_0)
             return true;
 
-      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
-                                    val, root_obj, delay,
-                                    vthread_is_reactive(thr), signed_offset);
+      if (thr->ecount != 0) {
+	    if (thr->event_hooks)
+		  schedule_evctl_prop_vec4_bits(obj, pid,
+						thr->words[off_reg].w_uint, val,
+						root_obj, thr->event_hooks,
+						thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive,
+						signed_offset);
+	    else
+		  schedule_evctl_prop_vec4_bits(obj, pid,
+						thr->words[off_reg].w_uint, val,
+						root_obj, thr->event, thr->ecount,
+						vthread_is_reactive(thr) || synchronous_drive,
+						signed_offset);
+	  } else
+	    schedule_assign_prop_vec4_bits(obj, pid,
+					    thr->words[off_reg].w_uint,
+					    val, root_obj, delay,
+					    vthread_is_reactive(thr) || synchronous_drive,
+					    signed_offset);
       return true;
 }
 
@@ -33619,6 +34296,25 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       const char*next_op = "<nullpc>";
       bool trace = false;
 
+      /* Unique/priority case diagnostics are evaluated in Active, but
+         IEEE 1800-2017 12.5.3.1 applies 12.4.2.1's Observed deferral and
+         process-resume flush mechanics to their reports. */
+      if (cp->bit_idx[0] && thr && !thr->is_observed_report_action) {
+	    vthread_t owner = logical_process_thread_(thr);
+	    vvp_process*process = owner
+		  ? owner->process_obj_.peek<vvp_process>() : 0;
+	    __vpiScope*scope = thr->parent_scope;
+	    deferred_assert_args_s args;
+	    if (!process || !scope
+		|| !capture_deferred_args_(thr, cp, args, "observed", true)) {
+		  fprintf(stderr,
+			  "vvp: unable to queue unique/priority case violation report.\n");
+		  return true;
+	    }
+	    process->enqueue_deferred_assert(0, cp, scope, args);
+	    return true;
+      }
+
       if (vpi_call_trace_enabled_()) {
             if (cp->handle) {
                   const char*name = vpi_get_str(vpiName, cp->handle);
@@ -33650,6 +34346,34 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       }
 
       vpip_execute_vpi_call(thr, cp->handle);
+
+      /* A matured unique/priority case warning borrows the source VPI-call
+         instruction, but its fresh action thread must stop after that call
+         rather than continuing through the original process body. */
+      if (thr && thr->is_observed_report_action)
+	    return of_END(thr, nullptr);
+
+      /* $exit is a program control task, not an alias for $finish.  The
+       * program initial procedure that calls it completes here; the
+       * program-completion counter finishes simulation only after the
+       * remaining program initial procedures have completed.  Calls from
+       * module processes (and other non-program processes) are ignored. */
+      const char*called_task = cp->handle
+          ? vpi_get_str(vpiName, cp->handle) : nullptr;
+      if (called_task && strcmp(called_task, "$exit") == 0
+          && thr && thr->is_program_init) {
+            vpiHandle scope = vpi_handle(vpiScope, cp->handle);
+            bool in_program = false;
+            while (scope) {
+                  if (vpi_get(vpiType, scope) == vpiProgram) {
+                        in_program = true;
+                        break;
+                  }
+                  scope = vpi_handle(vpiScope, scope);
+            }
+            if (in_program)
+                  return of_END(thr, nullptr);
+      }
 
       if (trace) {
             fprintf(stderr,
@@ -33817,12 +34541,7 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
-      if (!net) {
-	      /* Out-of-range index: nothing to wait on. Treat like an
-		 immediately-false wait so the thread does not hang
-		 forever on a malformed index. */
-	    return true;
-      }
+      if (!net) net = event_array_null_net();
 
       if (thr->i_am_in_function)
 	    thr->i_am_in_function = 0;
@@ -33865,9 +34584,9 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children when waiting. */
       assert(thr->children.empty());
 
-	/* If there are no detached children then there is nothing to
+	/* If there are no immediate detached children then there is nothing to
 	 * wait for. */
-      if (thr->detached_children.empty()) return true;
+	if (thr->wait_fork_children.empty()) return true;
 
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */
@@ -34826,6 +35545,25 @@ bool of_VIF_FATAL(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/* A null virtual-interface property receiver is a fatal component access
+ * under IEEE 1800-2017/2023 25.9. */
+bool of_VIF_NULLCHECK(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() < 1 || !thr->peek_object().test_nil())
+            return true;
+      static bool reported = false;
+      if (!reported) {
+            reported = true;
+            fprintf(stderr,
+                    "runtime error: attempted to use a null virtual interface;"
+                    " a virtual interface must be initialized before"
+                    " referencing one of its components.\n");
+            vpip_set_return_value(1);
+            schedule_finish(0);
+      }
+      return false;
+}
+
 /*
  * %vif/tickchg <M>
  *
@@ -35231,7 +35969,11 @@ bool of_MBX_NUM(vthread_t thr, vvp_code_t)
  */
 bool of_SEM_NEW(vthread_t thr, vvp_code_t cp)
 {
-      size_t cnt = cp->number;
+      /* keyCount is a signed 32-bit int; preserve its negative deficit. */
+      uint32_t raw_count = cp->number & 0xffffffff;
+      int64_t cnt = (raw_count & 0x80000000)
+                  ? (int64_t)raw_count - 0x100000000LL
+                  : (int64_t)raw_count;
       vvp_object_t sem(new vvp_semaphore(cnt));
       thr->push_object(sem);
       return true;
@@ -35253,6 +35995,13 @@ bool of_SEM_GET(vthread_t thr, vvp_code_t)
 	    unsigned nbits = nv.size() < 32 ? nv.size() : 32;
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
+      }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.get() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
       }
       thr->pop_vec4(1);
 
@@ -35282,6 +36031,13 @@ bool of_SEM_PUT(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      if (nval & (1UL << 31)) {
+	    cerr << "runtime error: semaphore.put() called with negative keyCount" << endl;
+	    thr->pop_vec4(1);
+	    vvp_object_t sem_obj;
+	    thr->pop_object(sem_obj);
+	    return true;
+      }
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
@@ -35307,13 +36063,16 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
 	    for (unsigned i = 0; i < nbits; ++i)
 		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
       }
+      bool negative = nval & (1UL << 31);
+      if (negative)
+	    cerr << "runtime error: semaphore.try_get() called with negative keyCount" << endl;
       thr->pop_vec4(1);
 
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
       vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
-      bool ok = sem ? sem->try_get(nval ? nval : 1) : false;
+      bool ok = !negative && sem ? sem->try_get(nval ? nval : 1) : false;
       vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
       return true;

@@ -1,0 +1,14 @@
+PASS: p14_03_clocking_decl -g2023
+PASS: p14_03_clocking_decl_2017 -g2017
+PASS: p14_03_clocking_decl_2017 -g2023
+FAIL compile expected pass: p14_03_end_label -g2017
+FAIL compile expected pass: p14_03_end_label -g2023
+PASS: p14_03_zero_output_skew -g2023
+FAIL compile expected rejection: p14_03_clocking_decl -g2017
+FAIL compile expected rejection: p14_03_zero_output_skew -g2017
+REJECTED: neg/n14_03_write_input -g2017 (exit 1)
+REJECTED: neg/n14_03_write_input -g2023 (exit 1)
+FAIL compile expected rejection: neg/n14_03_read_output -g2017
+FAIL compile expected rejection: neg/n14_03_read_output -g2023
+REJECTED: neg/n14_03_unnamed_nondefault -g2017 (exit 4)
+REJECTED: neg/n14_03_unnamed_nondefault -g2023 (exit 4)

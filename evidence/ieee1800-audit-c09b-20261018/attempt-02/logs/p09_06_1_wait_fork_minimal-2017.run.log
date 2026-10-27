@@ -1,0 +1,4 @@
+INFO elapsed=50 d=1
+FAIL 9.6.1.minimal_ignores_descendant
+PASS 9.6.1.minimal_waits_for_immediate_child (elapsed=7)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_1_wait_fork_minimal.sv:12: $finish called at 57 (1s)

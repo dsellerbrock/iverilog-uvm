@@ -1,0 +1,161 @@
+host=DAN-DESKTOP
+source=cae035642e056644274a01e98d4422ce286685b4
+Icarus Verilog version 13.0 (devel) (cae03564)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Bundled UVM: Accellera:1800.2:UVM:2020.3.1
+Icarus Verilog Preprocessor version 13.0 (devel) (cae03564)
+
+Copyright (c) 1999-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Icarus Verilog Parser/Elaborator version 13.0 (devel) (cae03564)
+
+Copyright (c) 1998-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+ FLAGS DLL vvp.tgt
+vvp.tgt: Icarus Verilog VVP Code Generator 13.0 (devel) (cae03564)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Icarus Verilog runtime version 13.0 (devel) (cae03564)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+741e7e037c73a73d65f5b6fbc2f777965895db591b9ba27d2ca6ce1b91c68967  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_dynamic_type.sv
+960eb0ec3d0f4dc518079a431228fe784b72eb8c489dbd254ac2f768a2a86767  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_ops.sv
+ec506d3f2afe8b8b7d524d07fcf4f807c57995693c31972570999e9905465d5e  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_unbounded_try_put_2023.sv
+db5eeb2db60bb2ca7aa3c18261e39ab0216f6acae903e7eae39f72b87ae95c63  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/neg/n15_04_mailbox_typed_mismatch.sv
+ops-2017 compile_exit=0
+ops-2017 run_exit=0
+dynamic-2017 compile_exit=0
+dynamic-2017 run_exit=1
+typed-mismatch-2017 expected_compile_failure_exit=1
+ops-2023 compile_exit=0
+ops-2023 run_exit=0
+dynamic-2023 compile_exit=0
+dynamic-2023 run_exit=1
+typed-mismatch-2023 expected_compile_failure_exit=1
+unbounded-try-put-2023 compile_exit=0
+unbounded-try-put-2023 run_exit=0
+overall=FAIL
+
+===== dynamic-2017.compile.log =====
+
+===== dynamic-2017.run.log =====
+FAILED: try_peek reports a negative type mismatch
+FAILED: try_get reports a negative type mismatch
+FAILED: mismatched try_get leaves the message queued
+FAILED: try_peek succeeds with equivalent type
+FAILED: try_get succeeds and removes the message
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_dynamic_type.sv:35: 5 dynamic mailbox checks failed
+       Time: 0  Scope: p15_04_mailbox_dynamic_type.$unm_blk_2
+
+===== dynamic-2023.compile.log =====
+
+===== dynamic-2023.run.log =====
+FAILED: try_peek reports a negative type mismatch
+FAILED: try_get reports a negative type mismatch
+FAILED: mismatched try_get leaves the message queued
+FAILED: try_peek succeeds with equivalent type
+FAILED: try_get succeeds and removes the message
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_dynamic_type.sv:35: 5 dynamic mailbox checks failed
+       Time: 0  Scope: p15_04_mailbox_dynamic_type.$unm_blk_2
+
+===== ops-2017.compile.log =====
+
+===== ops-2017.run.log =====
+PASS mailbox clause 15.4 core
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_ops.sv:144: $finish called at 11 (1s)
+
+===== ops-2023.compile.log =====
+
+===== ops-2023.run.log =====
+PASS mailbox clause 15.4 core
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_ops.sv:144: $finish called at 11 (1s)
+
+===== typed-mismatch-2017.compile.log =====
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/neg/n15_04_mailbox_typed_mismatch.sv:6: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+1 error(s) during elaboration.
+
+===== typed-mismatch-2023.compile.log =====
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/neg/n15_04_mailbox_typed_mismatch.sv:6: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+1 error(s) during elaboration.
+
+===== unbounded-try-put-2023.compile.log =====
+
+===== unbounded-try-put-2023.run.log =====
+PASS 2023 unbounded try_put
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/p15_04_mailbox_unbounded_try_put_2023.sv:13: $finish called at 0 (1s)

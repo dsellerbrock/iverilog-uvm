@@ -1,0 +1,7 @@
+top.u2.m v=x t=5
+top.u1.m v=x t=5
+top.u2.m v=5 t=15
+top.u1.m v=3 t=15
+top.u2.m v=5 t=25
+top.u1.m v=f t=25
+input/B4_internal_signal.sv:16: $finish called at 30 (1ns)

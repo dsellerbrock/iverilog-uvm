@@ -1,0 +1,111 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+TOOLCHAIN: /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin
+SOURCE COMMIT: b9441bafbdb0b6b7413c09e0381845e69481391b
+Icarus Verilog version 13.0 (devel) ()
+
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+### p06_16a_decl_conv -g2017
+compile_rc=0
+run_rc=0
+RESULT pass=27 fail=0
+### p06_16b_index_ops -g2017
+compile_rc=0
+run_rc=0
+RESULT pass=24 fail=0
+### p06_16c_methods -g2017
+compile_rc=0
+tests/1800_audit/c06/p06_16c_methods.sv:30: warning: Index expressions on this property type used as compile-progress fallback.
+run_rc=0
+FAIL member
+FAIL member_wr
+FAIL arr
+RESULT pass=18 fail=3
+### p06_16d_conv -g2017
+compile_rc=0
+run_rc=0
+INFO atoi(-5)=0
+INFO atohex(0x1f)=0
+INFO atoi(big)=-539222987
+INFO atoreal(-1.25)=-1.250000
+FAIL hex_rt
+INFO realtoa(2.5)=2.5
+INFO hextoa(-1)=-1
+RESULT pass=22 fail=1
+### n06_16_int_to_string_implicit -g2017
+compile_rc=0 vvp_generated=yes
+### n06_16_len_arity -g2017
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_len_arity.sv:1: error: String method `len' requires 0 arguments, got 1.
+Elaboration failed
+### n06_16_repl_nonconst_integral -g2017
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_repl_nonconst_integral.sv:1: error: A string concatenation or replication cannot be assigned to an integral target without an explicit cast.
+Elaboration failed
+### n06_16_string_to_byte -g2017
+compile_rc=0 vvp_generated=yes
+### n06_16_substr_arity -g2017
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_substr_arity.sv:1: error: String method `substr' requires 2 arguments, got 1.
+Elaboration failed
+### p06_16a_decl_conv -g2023
+compile_rc=0
+run_rc=0
+RESULT pass=27 fail=0
+### p06_16b_index_ops -g2023
+compile_rc=0
+run_rc=0
+RESULT pass=24 fail=0
+### p06_16c_methods -g2023
+compile_rc=0
+tests/1800_audit/c06/p06_16c_methods.sv:30: warning: Index expressions on this property type used as compile-progress fallback.
+run_rc=0
+FAIL member
+FAIL member_wr
+FAIL arr
+RESULT pass=18 fail=3
+### p06_16d_conv -g2023
+compile_rc=0
+run_rc=0
+INFO atoi(-5)=0
+INFO atohex(0x1f)=0
+INFO atoi(big)=-539222987
+INFO atoreal(-1.25)=-1.250000
+FAIL hex_rt
+INFO realtoa(2.5)=2.5
+INFO hextoa(-1)=-1
+RESULT pass=22 fail=1
+### n06_16_int_to_string_implicit -g2023
+compile_rc=0 vvp_generated=yes
+### n06_16_len_arity -g2023
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_len_arity.sv:1: error: String method `len' requires 0 arguments, got 1.
+Elaboration failed
+### n06_16_repl_nonconst_integral -g2023
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_repl_nonconst_integral.sv:1: error: A string concatenation or replication cannot be assigned to an integral target without an explicit cast.
+Elaboration failed
+### n06_16_string_to_byte -g2023
+compile_rc=0 vvp_generated=yes
+### n06_16_substr_arity -g2023
+compile_rc=1 vvp_generated=no
+tests/1800_audit/c06/neg/n06_16_substr_arity.sv:1: error: String method `substr' requires 2 arguments, got 1.
+Elaboration failed
+        1.34 real         0.43 user         0.45 sys
+             7716864  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               77398  page reclaims
+                 444  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  26  signals received
+                 196  voluntary context switches
+                2200  involuntary context switches
+           252451958  instructions retired
+           162755971  cycles elapsed
+             2523616  peak memory footprint

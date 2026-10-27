@@ -1,0 +1,7 @@
+725	OPEN	[IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations	1800-audit	2026-10-19T22:21:21Z
+743	OPEN	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:24:01Z
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+728	OPEN	[IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays	1800-audit	2026-10-19T22:48:15Z
+745	CLOSED	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:26:37Z
+483	CLOSED	[IEEE 1800] §13.5.2 — Allow const-ref forwarding to const-ref formals		2026-10-15T03:25:21Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z

@@ -1,0 +1,2 @@
+ivltests/sv_class_handle_arithmetic_invalid.sv:9: error: Class handle is not allowed with the '+' operator.
+1 error(s) during elaboration.

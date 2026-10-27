@@ -1,0 +1,4 @@
+ASSIGN w1=100 w2=200 w3=300
+RESUME count=3 order=3,2,1
+RESULT pass=1 fail=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15.4b-20261020-01/input/r15_04b_waiter_assignment.sv:17: $finish called at 20 (1s)

@@ -250,19 +250,22 @@ extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					       pform_name_t&rewritten,
 					       bool as_lvalue = false,
 					       bool*input_write = nullptr,
-					       perm_string*clocking_access = nullptr);
+				       perm_string*clocking_access = nullptr,
+				       bool*output_read = nullptr);
 extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						   const symbol_search_results&sr,
 						   pform_name_t&rewritten,
 						   bool as_lvalue = false,
 						   bool*input_write = nullptr,
-						   perm_string*clocking_access = nullptr);
+						   perm_string*clocking_access = nullptr,
+						   bool*output_read = nullptr);
 extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 							 const NetScope*scope,
 							 pform_name_t&rewritten,
 							 bool as_lvalue = false,
 							 bool*input_write = nullptr,
-							 perm_string*clocking_access = nullptr);
+							 perm_string*clocking_access = nullptr,
+							 bool*output_read = nullptr);
 
 /* Enforce the member surface and write directions of one modport-qualified
    interface handle. Compiler-generated clocking state is admitted only when
@@ -612,7 +615,8 @@ extern NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
  */
 extern NetExpr* elab_sys_task_arg(Design*des, NetScope*scope,
                                   perm_string name, unsigned arg_idx,
-                                  PExpr*pe, bool need_const =false);
+                                  PExpr*pe, bool need_const =false,
+                                  unsigned extra_flags = 0);
 
 /* Elaborate a typed-mailbox input without losing the dynamic string category.
  * Generic system-task arguments intentionally lower a string literal through
@@ -735,6 +739,10 @@ extern const netclass_t* find_method_containing_class(
       Design*des, const LineInfo&loc, NetScope*scope);
 extern bool scope_method_uses_implicit_this(Design*des, NetScope*scope);
 extern NetNet* find_implicit_this_handle(Design*des, NetScope*scope);
+extern NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                         const netclass_t*type, NetExpr*object,
+                                         const LineInfo&loc,
+                                         const netclass_t*inherited = nullptr);
 extern void netmisc_release_elaboration_caches();
 
 /*
@@ -782,6 +790,13 @@ extern bool nex_output_precise_partsel;
    A synthesis ownership walk leaves this false because the write may land
    on any word and therefore must claim every possible destination. */
 extern bool nex_output_precise_array_word;
+
+/* For always_comb conflict checking, use the static unpacked-array prefix
+   recorded on a dynamic l-value instead of dropping or widening its output. */
+extern bool nex_output_static_array_prefix;
+
+/* Optional sink for output ranges proven exact by NetAssign_::nex_output(). */
+extern NexusSet* nex_output_exact_sink;
 
 /* During synchronous synthesis, intercept eligible unpacked-array writes so
    the process output/enable machinery can use one synthetic token instead of

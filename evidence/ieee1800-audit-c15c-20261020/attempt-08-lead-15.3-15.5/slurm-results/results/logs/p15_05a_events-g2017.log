@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-lead-20261020-1/input/p15_05a_events.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-lead-20261020-1/input/p15_05a_events.sv:23: error: Syntax error in task/function port declaration.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-lead-20261020-1/input/p15_05a_events.sv:23: syntax error
+I give up.

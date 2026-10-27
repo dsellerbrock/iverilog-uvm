@@ -1,0 +1,6 @@
+base=10f3a0a2509d0852c2556cb6622fb0025121fb2d
+current_head=02acbc6ae38f6b4300a158bf20787e46121484ea
+candidate_delta=e3b7376125b75518391e010e26a48bd094577d5cfbb67f4556906f1d37f3de76
+prebuilt_source=job-3816
+cpu=0
+cpus_per_task=4

@@ -1,0 +1,4 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+77df6ec15ea56b2423a3f410b41cc7cc9cad01f6c0206e910226d220520afc7a  p24_03_2_program_port_reactive.sv
+edition=2017 result=PASS
+edition=2023 result=PASS

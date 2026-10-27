@@ -1,0 +1,35 @@
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+COMPILE_OK p05_lex -g2017
+RUN_OK p05_lex -g2017
+L1 1 1010xzz0
+L2 -3 ff00000001
+L3 150.0 9
+L4 a	b\c"dA
+
+L5 ok
+COMPILE_OK p05_lex23 -g2017
+RUN_OK p05_lex23 -g2017
+L6 AB 2
+NESTED_COMMENT_REJECTED -g2017 exit=3
+tests/n05_nested_comment.sv:2: error: Possible nested comment.
+tests/n05_nested_comment.sv:2: syntax error
+I give up.
+COMPILE_OK p05_lex -g2023
+RUN_OK p05_lex -g2023
+L1 1 1010xzz0
+L2 -3 ff00000001
+L3 150.0 9
+L4 a	b\c"dA
+
+L5 ok
+COMPILE_OK p05_lex23 -g2023
+RUN_OK p05_lex23 -g2023
+L6 AB 2
+NESTED_COMMENT_REJECTED -g2023 exit=3
+tests/n05_nested_comment.sv:2: error: Possible nested comment.
+tests/n05_nested_comment.sv:2: syntax error
+I give up.
+FINAL_STATUS=0

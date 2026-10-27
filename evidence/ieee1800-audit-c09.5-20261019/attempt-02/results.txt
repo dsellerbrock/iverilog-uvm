@@ -1,0 +1,31 @@
+compiler: Icarus Verilog version 13.0 (devel) ()
+compiler sha256: 4f3fbe94d8cb08d55e37e831a67f85289806acdfebf6bf2f393ac572c9b36d8d
+vvp sha256: 9cec8fe710d7aa9d1c056658d3a8c2bb0f54a239a96edfaad48ffe871282d208
+=== -g2017 compile ===
+=== -g2017 run ===
+PASS all process execution threads clause 9.5
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c09/p09_05_threads.sv:66: $finish called at 18 (1s)
+PASS final procedure thread clause 9.5
+=== -g2023 compile ===
+=== -g2023 run ===
+PASS all process execution threads clause 9.5
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c09/p09_05_threads.sv:66: $finish called at 18 (1s)
+PASS final procedure thread clause 9.5
+        0.21 real         0.11 user         0.05 sys
+             8175616  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                9888  page reclaims
+                  62  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  37  voluntary context switches
+                 190  involuntary context switches
+            71784652  instructions retired
+            32657267  cycles elapsed
+             2327008  peak memory footprint

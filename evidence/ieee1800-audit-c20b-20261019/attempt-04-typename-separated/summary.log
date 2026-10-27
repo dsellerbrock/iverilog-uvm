@@ -1,0 +1,34 @@
+r20_06_tn_a g2017 compile rc=0
+r20_06_tn_a g2017 run rc=0
+T1 [bit]
+T2 [int]
+r20_06_tn_b g2017 compile rc=0
+r20_06_tn_b g2017 run rc=0
+T3 [enum{A=32'sd0,B=32'sd1,C=32'sd99}X]
+r20_06_tn_c g2017 compile rc=0
+r20_06_tn_c g2017 run rc=0
+T4 [bit [9:1]]
+r20_06_tn_d g2017 compile rc=0
+r20_06_tn_d g2017 run rc=0
+T5 [struct {bit P;bit Q;}$[0:9]]
+r20_06_tn_e g2017 compile rc=2
+tests/1800_audit/c20/r20_06_tn_e.sv:2: error: Error in struct/union member.
+r20_06_tn_f g2017 compile rc=2
+tests/1800_audit/c20/r20_06_tn_f.sv:3: error: Error in struct/union member.
+r20_06_tn_a g2023 compile rc=0
+r20_06_tn_a g2023 run rc=0
+T1 [bit]
+T2 [int]
+r20_06_tn_b g2023 compile rc=0
+r20_06_tn_b g2023 run rc=0
+T3 [enum{A=32'sd0,B=32'sd1,C=32'sd99}X]
+r20_06_tn_c g2023 compile rc=0
+r20_06_tn_c g2023 run rc=0
+T4 [bit [9:1]]
+r20_06_tn_d g2023 compile rc=0
+r20_06_tn_d g2023 run rc=0
+T5 [struct {bit P;bit Q;}$[0:9]]
+r20_06_tn_e g2023 compile rc=2
+tests/1800_audit/c20/r20_06_tn_e.sv:2: error: Error in struct/union member.
+r20_06_tn_f g2023 compile rc=2
+tests/1800_audit/c20/r20_06_tn_f.sv:3: error: Error in struct/union member.

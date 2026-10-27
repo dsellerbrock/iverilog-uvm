@@ -1,0 +1,6 @@
+
+--- "20.3" "time system functions" ---
+
+--- "$realtime" scope timeunit ---
+
+--- scaled $time realtime stime ---

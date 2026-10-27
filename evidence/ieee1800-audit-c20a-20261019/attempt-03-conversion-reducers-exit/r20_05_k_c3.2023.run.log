@@ -1,0 +1,21 @@
+sorry: Format 4 not implemented for getting real values.
+Assertion failed: (0), function vpip_real_get_value, file vpi_priv.cc, line 1032.
+time: command terminated abnormally
+        0.05 real         0.00 user         0.00 sys
+             5013504  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 556  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  26  involuntary context switches
+            72786408  instructions retired
+            25690084  cycles elapsed
+             2572696  peak memory footprint

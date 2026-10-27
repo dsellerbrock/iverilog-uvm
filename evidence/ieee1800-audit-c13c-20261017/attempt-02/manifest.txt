@@ -1,0 +1,14 @@
+IEEE 1800 clause 13 probe c13c follow-up
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08; base HEAD 162be2db341577782a0d4d4828b7c551c0f65e86.
+Probe sources: p13_04_1_fn_scope_hier.sv, p13_04_1_implicit_var_2023.sv.
+Toolchain: protected Icarus 13.0 devel from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66.
+Host: DAN-DESKTOP; Slurm request 1 CPU, 1 GiB, 10 minutes. Compile timeout 60 seconds; simulation timeout 30 seconds, TERM then KILL after 2 seconds.
+Normative scope: IEEE 1800-2017 §13.4.1 p.326; IEEE 1800-2023 §13.4.1 pp.342–344.
+Source and script SHA-256:
+5fd1d794cf2b4ed94a84c3e7070d8ec446834a74a76c6b93c5f568aa6219db71  tests/1800_audit/c13/p13_04_1_fn_scope_hier.sv
+13ecf8301108fd55cdcd1d3a3448a28f7cf0f736d80daca5f518c6e0fd40205d  tests/1800_audit/c13/p13_04_1_implicit_var_2023.sv
+71b50d582520b6ade23bf4bf148fa2f62d2caa5e81d43b3e2fe16b28b0effb61  a3-m7-c13c-followup.sbatch
+
+Slurm job: 2300. Probe script FINAL_STATUS=1 because the required 2023 implicit-variable checks fail; 2017 result is informational.
+71b50d582520b6ade23bf4bf148fa2f62d2caa5e81d43b3e2fe16b28b0effb61  evidence/ieee1800-audit-c13c-20261017/attempt-02/a3-m7-c13c-followup.sbatch

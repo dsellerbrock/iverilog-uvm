@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_const_assign.sv:1: error: Assignment to const signal `c` is not allowed.
+Elaboration failed

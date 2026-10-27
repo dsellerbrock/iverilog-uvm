@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_clocking_input_unsupported.v:14: sorry: procedural sampled-value expression has 1 operand(s) that cannot be lowered with the required IEEE 1800-2017 16.5.1 sampling/lifetime rules.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-scope-type/input/n08_26_sub_m6_nested_interface_class.sv:2: error: Nested class `Inner' is not allowed in an interface class.
+1 error(s) during elaboration.

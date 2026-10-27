@@ -1,0 +1,4 @@
+T 5 q=x
+T 15 q=0
+T 25 q=1
+p24_04_race_mod.sv:13: $finish called at 26 (1s)

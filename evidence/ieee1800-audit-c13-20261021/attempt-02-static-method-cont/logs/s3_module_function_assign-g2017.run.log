@@ -1,0 +1,3 @@
+S3 x=0 y=1
+S3 x=1 y=0
+input/s3_module_function_assign.sv:9: $finish called at 2 (1s)

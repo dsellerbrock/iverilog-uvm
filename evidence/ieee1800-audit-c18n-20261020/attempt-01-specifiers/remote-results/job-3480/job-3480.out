@@ -1,0 +1,66 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib	expected
+2017	p18_05_2_specifiers	3	NA	Command	exited with non-zero status 3	NA	NA	run
+2017	n18_05_2_s1_initial_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s2_extends_missing	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s3_both_specifiers	6	NA	Command	exited with non-zero status 6	NA	NA	reject
+2017	n18_05_2_s4_final_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s5_final_mismatch	2	NA	Command	exited with non-zero status 2	NA	NA	reject
+2017	p18_05_3_inside	0	0	0.01	12100	7.14	40864	run
+2023	p18_05_2_specifiers	0	0	0.01	11988	0.17	40280	run
+2023	n18_05_2_s1_initial_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s2_extends_missing	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s3_both_specifiers	6	NA	Command	exited with non-zero status 6	NA	NA	reject
+2023	n18_05_2_s4_final_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s5_final_mismatch	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	p18_05_3_inside	0	0	0.01	12052	7.14	40704	run
+--- n18_05_2_s1_initial_override-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s1_initial_override.sv:2: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+--- n18_05_2_s1_initial_override-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s1_initial_override.sv:2: error: Constraint `c1' uses :initial but replaces an inherited constraint (IEEE 1800-2023 18.5.2).
+1 error(s) during elaboration.
+--- n18_05_2_s2_extends_missing-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s2_extends_missing.sv:2: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+--- n18_05_2_s2_extends_missing-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s2_extends_missing.sv:2: error: Constraint `cz' uses :extends without replacing an inherited constraint (IEEE 1800-2023 18.5.2).
+1 error(s) during elaboration.
+--- n18_05_2_s3_both_specifiers-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: syntax error
+I give up.
+--- n18_05_2_s3_both_specifiers-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: syntax error
+I give up.
+--- n18_05_2_s4_final_override-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s4_final_override.sv:1: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+--- n18_05_2_s4_final_override-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s4_final_override.sv:2: error: Constraint `c1' replaces an inherited :final constraint (IEEE 1800-2023 18.5.2).
+1 error(s) during elaboration.
+--- n18_05_2_s5_final_mismatch-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s5_final_mismatch.sv:1: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s5_final_mismatch.sv:2: error: Out-of-body definition of constraint `p' does not match the prototype's override specifiers (IEEE 1800-2023 18.5.2).
+--- n18_05_2_s5_final_mismatch-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s5_final_mismatch.sv:2: error: Out-of-body definition of constraint `p' does not match the prototype's override specifiers (IEEE 1800-2023 18.5.2).
+--- p18_05_2_specifiers-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/p18_05_2_specifiers.sv:3: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/p18_05_2_specifiers.sv:6: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/p18_05_2_specifiers.sv:7: error: constraint override specifiers requires IEEE1800-2023; compile with -g2023 (or -glatest).
+--- p18_05_2_specifiers-g2023.compile.log
+--- p18_05_3_inside-g2017.compile.log
+--- p18_05_3_inside-g2023.compile.log
+--- p18_05_2_specifiers-g2023.run.log
+SPEC ok=50 bad=0
+--- p18_05_3_inside-g2017.run.log
+3:487 5:499 9:480 10:489 11:482 12:493 13:524 14:529 15:517 S1
+S2 bad=0
+S3 bad=0
+--- p18_05_3_inside-g2023.run.log
+3:487 5:499 9:480 10:489 11:482 12:493 13:524 14:529 15:517 S1
+S2 bad=0
+S3 bad=0

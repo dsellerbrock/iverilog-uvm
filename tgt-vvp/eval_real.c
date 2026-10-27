@@ -496,7 +496,12 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
 				  ? ivl_expr_parm(expr, 0) : 0;
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%covgrp/get_inst_coverage;\n");
+	    ivl_lval_t covered_lval = ivl_expr_ref_lval(expr);
+	    ivl_lval_t total_lval = ivl_expr_ref_lval2(expr);
+	    if (covered_lval) draw_capture_lval_ref(covered_lval);
+	    if (total_lval) draw_capture_lval_ref(total_lval);
+	    fprintf(vvp_out, "    %%covgrp/get_inst_coverage%s;\n",
+		    covered_lval && total_lval ? "/ref" : "");
 	    return;
       }
 

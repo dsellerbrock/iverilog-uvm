@@ -1,0 +1,4 @@
+RETURN 5 0
+DESIGN 5 1
+NEXT 15 1
+p24_05_calls.sv:21: $finish called at 15 (1s)

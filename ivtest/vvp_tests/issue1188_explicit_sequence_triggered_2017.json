@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1188_explicit_sequence_triggered.v",
+  "iverilog-args": ["-g2017", "-s", "issue1188_explicit_sequence_triggered"],
+  "gold": "issue1188_explicit_sequence_triggered"
+}

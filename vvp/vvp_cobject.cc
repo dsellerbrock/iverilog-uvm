@@ -311,6 +311,11 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 		  array->set_all_rand_mode(mode);
 	    else if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
 		  assoc->set_all_rand_mode(mode);
+	    else if (vvp_cobject*aggregate = obj.peek<vvp_cobject>()) {
+		  if (aggregate->get_defn()->is_struct_type()
+		      && !aggregate->get_defn()->is_union_type())
+			aggregate->set_all_rand_mode(mode);
+	    }
       }
 }
 
@@ -401,17 +406,30 @@ void vvp_cobject::set_all_rand_mode(bool mode)
 
 bool vvp_cobject::constraint_mode(size_t cid) const
 {
+      if (defn_->constraint_is_static(cid))
+	    return defn_->static_constraint_mode(cid);
       if (cid < constraint_mode_.size()) return constraint_mode_[cid];
       return true;
 }
 
 void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
 {
+      if (defn_->constraint_is_static(cid)) {
+	    defn_->set_static_constraint_mode(cid, mode);
+	    return;
+      }
       if (cid >= constraint_mode_.size() || constraint_mode_[cid] == mode)
             return;
       constraint_mode_[cid] = mode;
       if (mode) ++active_constraints_;
       else --active_constraints_;
+}
+
+bool vvp_cobject::has_active_constraints(void) const
+{
+      for (size_t cid = 0; cid < defn_->constraint_count(); ++cid)
+	    if (constraint_mode(cid)) return true;
+      return false;
 }
 
 // Dense randc cycle history is capped at 20 bits (128KB per property).
@@ -1217,6 +1235,8 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       constraint_mode_ = that->constraint_mode_;
       active_constraints_ = that->active_constraints_;
       randc_history_ = that->randc_history_;
+      rng_state_ = that->rng_state_;
+      rng_seeded_ = that->rng_seeded_;
 	// Constructor-derived coverage topology belongs to the copied property
 	// values, not to the destination's previous contents. Rebuild both caches
 	// lazily so a covergroup object copy cannot retain stale dynamic ranges or

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_unknown_formal.sv:3: error: No argument called `zz`.
+1 error(s) during elaboration.

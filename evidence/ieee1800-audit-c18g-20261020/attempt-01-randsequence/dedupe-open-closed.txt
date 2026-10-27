@@ -1,0 +1,6 @@
+Repository: dsellerbrock/iverilog-uvm
+Search mode: `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url`
+
+Queries and results before the probe: `randsequence`, `randcase`, `production`, and `rand join` returned no open or closed issues.
+
+Repeated all four open+closed searches after the probe and immediately before the lead classification; all four remained empty.

@@ -1,0 +1,10 @@
+Host: DAN-DESKTOP (DAN-DESKTOP Slurm)
+Job: 3552, partition verilog, 1 CPU, 1 GiB, 10-minute limit
+Submission: cd /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c21b-evcd-20261020-01 && sbatch --parsable --wait run.sbatch
+Submission/wait SSH returned job ID 3552 and exit code 0; wall time including SSH was about 2 seconds. Slurm accounting is disabled, so exact job duration and peak RSS are unavailable.
+Toolchain source SHA: cc25756d187314742d347267c2a513b3e640a7fb
+iverilog SHA-256: 1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593
+vvp SHA-256: e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb
+Probe: tests/1800_audit/c21/p21_evcd.sv; SHA-256 7c2c3df4a09b5805ae6ae963866ca21f82aad234bd67aad76d41965361f1fd37d.
+Compile/runtime statuses: 0 for both -g2017 and -g2023. EVCD sizes: 392 bytes, 37 lines, both editions.
+Raw source, stdout/stderr, EVCD files, scratch copies, and Slurm log: remote-3552/.

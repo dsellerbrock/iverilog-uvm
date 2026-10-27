@@ -1,0 +1,15 @@
+Usage: vvp [options] input-file [+plusargs...]
+Options:
+ -h             Print this help message.
+ -i             Interactive mode (unbuffered stdio).
+ -d lib.so      Load DPI shared library.
+ -l file        Logfile, '-' for <stderr>
+ -M path        VPI module directory
+ -M -           Clear VPI module path
+ -m module      Load vpi module.
+ -n             Non-interactive ($stop = $finish).
+ -N             Same as -n, but exit code is 1 instead of 0
+ -q             Quiet mode (suppress output on MCD bit 0).
+ -s             $stop right away.
+ -v             Verbose progress messages.
+ -V             Print the version information.

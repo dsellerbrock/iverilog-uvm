@@ -1,0 +1,40 @@
+$date
+	Tue Oct 20 13:34:59 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module p21_evcd_drv.u $end
+$var port 1 <0 p $end
+$var port 1 <1 out_weak_enable $end
+$var port 1 <2 out_strong_enable $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpports
+pf 0 0 <0
+pD 6 0 <1
+pD 6 0 <2
+$end
+#1000
+pD 6 0 <0
+#2000
+pd 6 0 <0
+pU 0 6 <1
+#3000
+pl 6 0 <0
+pD 6 0 <1
+pU 0 6 <2
+#4000
+p0 6 0 <0
+#5000
+p0 3 0 <0
+pU 0 6 <1
+pD 6 0 <2
+#6000
+pf 0 0 <0
+pD 6 0 <1
+$vcdclose #7000 $end

@@ -1,0 +1,16 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:46: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:47: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:49: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:52: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:54: error: A pure virtual method may only be declared in a virtual class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:55: error: class end label `IntfC` doesn't match class name `ClassAB`.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:57: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: error: Syntax error defining function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:60: error: function end label `funcC` doesn't match function name `IntfC`.

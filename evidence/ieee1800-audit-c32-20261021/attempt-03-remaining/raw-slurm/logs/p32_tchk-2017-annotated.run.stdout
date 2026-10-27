@@ -1,0 +1,2 @@
+SDF WARNING: p32_tchk.sdf:8: TIMINGCHECK not supported.
+p32_tchk.sv:18: $finish called at 11 (1ns)

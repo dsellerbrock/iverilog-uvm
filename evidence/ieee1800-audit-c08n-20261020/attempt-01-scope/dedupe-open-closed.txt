@@ -1,0 +1,29 @@
+Repository: dsellerbrock/iverilog-uvm. Searches used
+`gh issue list --state all` on 2026-10-20; open and closed states are included.
+
+Lead-requested searches:
+
+- `"class scope resolution"`: OPEN #760 (forward-declared class type
+  selection); CLOSED #497 (package-qualified static class-method calls in
+  expressions).
+- `"out-of-block"`: OPEN #841 (external constraint block scope); CLOSED #641
+  (out-of-class extern function with implicit return type).
+- `"extern function class"`: no matches.
+- `"parameterized class static"`: no matches.
+- `"8.24"`: CLOSED #641.
+- `"8.25"`: OPEN #766 (specialized class-scoped types), #659 (embedded
+  covergroup runtime metadata), and #663 (inherited type-parameter members).
+
+Signature-specific searches:
+
+- `"signature mismatch"`: no matches.
+- `"extern prototype"`: CLOSED #641.
+- `"method prototype"`: no matches.
+- `"prototype declaration"`: no matches.
+- `"mismatched extern"`: no matches.
+- `"out-of-class function"`: no matches.
+
+Inspected #497, #641, #659, #760, #766, #663, and #841. None covers an
+out-of-block method whose argument list does not match its extern prototype.
+The positive `C::T` return-type case and other probe forms passed; #766 is not
+overlap for these observed results.

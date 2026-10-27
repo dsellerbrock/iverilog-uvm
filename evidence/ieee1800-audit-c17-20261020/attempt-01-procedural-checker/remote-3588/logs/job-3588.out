@@ -1,0 +1,19 @@
+edition	case	compile_rc	run_rc	result
+2017	procedural	2	NA	COMPILE_REJECTED
+2017	static_control	0	0	PASS
+2023	procedural	2	NA	COMPILE_REJECTED
+2023	static_control	0	0	PASS
+--- 2017-procedural.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c17-proc-checker-20261020-01/input/p17_03_procedural_checker_instance.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c17-proc-checker-20261020-01/input/p17_03_procedural_checker_instance.sv:10: error: Malformed statement
+--- 2017-static_control.compile.log
+--- 2023-procedural.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c17-proc-checker-20261020-01/input/p17_03_procedural_checker_instance.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c17-proc-checker-20261020-01/input/p17_03_procedural_checker_instance.sv:10: error: Malformed statement
+--- 2023-static_control.compile.log
+--- 2017-static_control.stdout.log
+PASSED
+--- 2023-static_control.stdout.log
+PASSED
+--- 2017-static_control.stderr.log
+--- 2023-static_control.stderr.log

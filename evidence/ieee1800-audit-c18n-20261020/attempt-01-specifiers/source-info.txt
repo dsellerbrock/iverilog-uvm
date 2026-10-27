@@ -1,0 +1,5 @@
+repo_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+branch=m7-1800-audit-c08
+working_tree=dirty (pre-existing audit work plus these probes)
+compiler_source_sha=cc25756d187314742d347267c2a513b3e640a7fb
+compiler_path=/home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/{iverilog,vvp}

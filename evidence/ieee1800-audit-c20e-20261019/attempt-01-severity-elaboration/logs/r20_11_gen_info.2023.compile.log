@@ -1,0 +1,28 @@
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[0]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[1]
+INFO: tests/1800_audit/c20/r20_11_gen_info.sv:1:
+tests/1800_audit/c20/r20_11_gen_info.sv:1: sorry: Elaboration tasks currently only support a single string argument.
+      During elaboration  Scope: L[2]
+3 error(s) during elaboration.
+        0.04 real         0.01 user         0.01 sys
+             4816896  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1762  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  33  involuntary context switches
+            18671976  instructions retired
+             8795922  cycles elapsed
+             1261928  peak memory footprint

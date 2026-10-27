@@ -1,0 +1,8 @@
+$random -2147414528 -1671855048 1129920902 -1374483364 1730349006 seed -417135238
+$dist_uniform 0 11 77 18 91 seed -417135238
+$dist_normal 6 -24 2 8 -4 seed 584849259
+$dist_exponential 110 22 3 17 1 seed -417135238
+$dist_poisson 0 5 5 4 5 seed 799809129
+$dist_chi_square 1 2 1 5 1 seed -1217539842
+$dist_t 0 -7 1 0 2 seed 1692139853
+$dist_erlang 66 10 1 8 9 seed 797919023

@@ -1,0 +1,40 @@
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique constraint"
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "uniqueness"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "18.5.5"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique randc"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique equivalent type"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique slice"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique array constraint"
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique variables"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique expression constraint"
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique"
+778	OPEN	[IEEE 1800] §12.5 — a case statement with two default items is accepted and the last default executes	1800-audit	2026-10-20T06:01:41Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique equivalent type"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "unique real"
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "rand real constraint"
+836	OPEN	[IEEE 1800] §18.5.4 (2023 §18.5.3) — dist expression with no rand variable is accepted silently	1800-audit	2026-10-20T15:03:32Z
+837	OPEN	[IEEE 1800] §18.5.4 — -g2017 applies the 2023 whole-range dist weight when range values are excluded by other constraints	1800-audit	2026-10-20T15:10:53Z
+510	CLOSED	[IEEE 1800-2023] §19.5.1 — Implement real-valued coverpoint bins		2026-10-09T14:17:59Z
+
+$ gh issue view 463 --repo dsellerbrock/iverilog-uvm --json number,title,state,body,url
+{"body":"## Gap\n\nThe current 2023 subset covers scalar finite-interval constraints only. Extend legal real randomization to remaining standard forms, including arrays/aggregates and distribution use where specified, while keeping deterministic failure and rollback for unsupported domains.\n\n## Acceptance\n\n- Verify and cite the exact applicable IEEE 1800 subclause(s); compare 2017 and 2023 wording where relevant and preserve edition-specific acceptance/rejection.\n- Add self-authored minimal positive, negative, and boundary regressions; register applicable cases in both the legacy and JSON runners.\n- Run focused legacy and JSON tests plus neighboring cases, then update the conformance matrix with the tested boundary and evidence.\n- Any PR for this issue must target `main` and must not merge until required CI checks pass on that exact PR head.\n\n## Scope\n\nIEEE language/runtime support only. Do not patch OpenTitan or Caliptra application sources as a substitute for compiler behavior.\n\nSource: [current conformance record](https://github.com/dsellerbrock/iverilog-uvm/blob/main/docs/conformance/ieee1800_2023_delta.md).\n","number":463,"state":"OPEN","title":"[IEEE 1800] §18 — Expand rand real beyond scalar finite intervals","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/463"}
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "constraint state read not supported"

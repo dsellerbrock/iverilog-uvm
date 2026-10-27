@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_modport_expression_concat.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_modport_expression_concat" ],
+    "gold" : "sv_modport_expression_concat"
+}

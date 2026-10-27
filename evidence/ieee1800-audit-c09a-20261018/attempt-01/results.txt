@@ -1,0 +1,6 @@
+host=DAN-DESKTOP
+2026-10-17T22:33:20-06:00
+slurm_job_id=2532
+toolchain_commit=9b5fad2afb4104caa816b257d5bccc40f01b8c66
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Icarus Verilog version 13.0 (devel) (9b5fad2af)

@@ -1,0 +1,7 @@
+SYS_SIDE_EFFECT
+S0 0
+S3 768
+$stacktrace: call stack (innermost frame first):
+  #0 p20_18_misc.leaf (/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-misc-20261020-01/source/p20_18_misc.sv:5)
+  #1 p20_18_misc (location unavailable -- recompile with -pfileline=1 to see call-site lines for enclosing frames)
+ST 1

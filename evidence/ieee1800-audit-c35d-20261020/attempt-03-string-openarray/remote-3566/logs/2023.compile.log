@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-string-array-20261020-01/input/p35_string_openarray.sv:2: sorry: DPI import 'c_array_size': open array argument 'values' must have packed bit/logic or real elements; the call is skipped.

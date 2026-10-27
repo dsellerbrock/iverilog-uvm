@@ -1,0 +1,2 @@
+ERROR: tests/1800_audit/c18/neg/n18_13_urandom_args.sv:4: $urandom takes at most one argument.
+                                                          Found 1 extra argument.

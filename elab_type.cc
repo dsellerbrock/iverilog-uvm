@@ -658,6 +658,10 @@ static void finish_interface_declaration_scope_(Design*des, NetScope*scope,
 	    if (cur->second)
 		  scope->add_signal_placeholder(cur->second);
 
+      for (map<perm_string,PLet*>::const_iterator cur = mod->unit_lets.begin();
+	   cur != mod->unit_lets.end(); ++cur)
+	    scope->add_let(cur->first, cur->second);
+
       for (map<perm_string,PLet*>::const_iterator cur = mod->lets.begin();
 		 cur != mod->lets.end(); ++cur)
 	    scope->add_let(cur->first, cur->second);
@@ -3043,14 +3047,16 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    const pform_scoped_name_t&path = ident->path();
 	    if (path.name.size() == 1
 		&& path.name.front().name == perm_string::literal(THIS_TOKEN)) {
-		  // Keep rejected type(this) references non-null for error recovery.
-		  if (!sv_require_feature(this, SVF_TYPE_THIS)) {
-			des->errors += 1;
-			return new netvector_t(IVL_VT_LOGIC);
-		  }
 		  const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
 		  const netclass_t*current_class =
 			class_scope ? class_scope->class_def() : 0;
+		  // Use the enclosing class as the recovery type when available.
+		  if (!sv_require_feature(this, SVF_TYPE_THIS)) {
+			des->errors += 1;
+			if (current_class)
+			      return const_cast<netclass_t*>(current_class);
+			return new netvector_t(IVL_VT_LOGIC);
+		  }
 		  if (!current_class) {
 			cerr << get_fileline()
 			     << ": error: type(this) requires an enclosing class scope."
@@ -3119,9 +3125,18 @@ NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
       if (scope) {
 	    if (NetScope*pkg = des->find_package(scope->pscope_name())) {
 		  s = pkg;
-	    } else if (s) {
-		  if (netclass_t*cls = ensure_visible_class_type(des, s, scope->pscope_name()))
-			s = const_cast<NetScope*>(cls->class_scope());
+	    } else {
+		  Module*interface_scope = dynamic_cast<Module*>(scope);
+		  if (interface_scope && interface_scope->is_interface) {
+			netclass_t*interface_class = elaborate_interface_type_(
+			      des, s, interface_scope);
+			if (interface_class && interface_class->class_scope())
+			      s = const_cast<NetScope*>(interface_class->class_scope());
+		  } else if (s) {
+			if (netclass_t*cls = ensure_visible_class_type(
+			      des, s, scope->pscope_name()))
+			      s = const_cast<NetScope*>(cls->class_scope());
+		  }
 	    }
       }
 
@@ -3134,8 +3149,30 @@ NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
             des, s, qualifier());
       const netclass_t*class_type =
             dynamic_cast<const netclass_t*>(qualifier_type);
-      if (class_type && class_type->class_scope())
-            return const_cast<NetScope*>(class_type->class_scope());
+      if (class_type && class_type->class_scope()) {
+            NetScope*class_scope =
+                  const_cast<NetScope*>(class_type->class_scope());
+            if (!typedef_ref() && deferred_member_ != perm_string()) {
+                  const PClass*pclass = class_scope->class_pform();
+                  if (pclass) {
+                        auto member = pclass->typedefs.find(deferred_member_);
+                        if (member != pclass->typedefs.end())
+                              set_typedef_ref(member->second);
+                  }
+                  if (!typedef_ref()) {
+                        if (!deferred_reported_) {
+                              deferred_reported_ = true;
+                              cerr << get_fileline() << ": error: "
+                                   << deferred_member_
+                                   << " doesn't name a type in class scope."
+                                   << endl;
+                              des->errors += 1;
+                        }
+                        return nullptr;
+                  }
+            }
+            return class_scope;
+      }
 
       cerr << get_fileline() << ": error: Class-scoped type qualifier `";
       qualifier()->debug_dump(cerr);
@@ -3231,7 +3268,7 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 	    return netvector_t::integer_type();
 
       bool type_ok = true;
-      switch (basic_type) {
+      if (!has_checked_basic_type()) switch (basic_type) {
       case ENUM:
 	    type_ok = dynamic_cast<const netenum_t *>(elab_type);
 	    break;
@@ -3260,6 +3297,8 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 		 << endl;
 	    des->errors++;
       }
+	  if (basic_type != ANY)
+		mark_basic_type_checked();
 
       return elab_type;
 }

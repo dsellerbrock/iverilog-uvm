@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_18_unresolved_fwd.sv:1: error: Forward typedef `S` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.

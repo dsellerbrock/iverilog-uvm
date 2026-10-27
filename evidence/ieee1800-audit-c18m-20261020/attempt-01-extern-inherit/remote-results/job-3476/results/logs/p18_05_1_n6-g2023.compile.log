@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: error: Constraint `t' is already declared pure in this class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-extern-inherit/input/p18_05_1_n6.sv:1: warning: Static variable initialization requires explicit lifetime in this context.

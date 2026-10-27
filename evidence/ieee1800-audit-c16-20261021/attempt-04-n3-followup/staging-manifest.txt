@@ -1,0 +1,11 @@
+Purpose: lead-selected §16.16 N3 follow-up; paired `-g2017` / `-g2023` compile and runtime probes.
+Local host: Mac; staged to DAN-DESKTOP Slurm.
+Branch: m7-1800-audit-c09
+Repository HEAD at staging: 9e95f8eced5be8aee3caa3a2a046cdb1db49de1f
+Pinned compiler: Icarus 13.0 devel cc25756d1 at /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb
+Resources: 1 CPU, 1 GiB, 15 min; each compile and simulation capped at 30 s.
+a66aea9a14479fc0752176f41660e4f1199c64b1ce1350e475cb5b7975a81d29  evidence/ieee1800-audit-c16-20261021/attempt-04-n3-followup/input/N3a_named_property_procedural.sv
+44bf591ac184d26ee335343d93d5145e47cb7516e09eac65f291bf2a8a49319f  evidence/ieee1800-audit-c16-20261021/attempt-04-n3-followup/input/N3b_named_property_evaluation.sv
+6a51c706b2107c9c628add46b447e0955a82b534a8cd878f46075802f04d30e3  evidence/ieee1800-audit-c16-20261021/attempt-04-n3-followup/input/N3c_multiclock_rule_c.sv
+63796de04eb9b04d424ae102dc113285bfdfdc890e45d9a428e5c6363b2f4269  evidence/ieee1800-audit-c16-20261021/attempt-04-n3-followup/input/N3d_named_property_module_assertion.sv
+454e843877b7da5f2c9a2e0ebb61bf04ccb2f18cd3c6a516cc6b6ad2519d055d  evidence/ieee1800-audit-c16-20261021/attempt-04-n3-followup/run.sbatch

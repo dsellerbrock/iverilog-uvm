@@ -1,0 +1,4 @@
+INFO bits_empty=1
+INFO bits_8_bytes=1 (expect 64)
+PASS wait_runtime_var
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_3_bits_queue.sv:13: $finish called at 1 (1s)

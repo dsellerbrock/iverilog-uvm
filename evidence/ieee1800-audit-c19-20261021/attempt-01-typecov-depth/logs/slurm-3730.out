@@ -1,0 +1,42 @@
+=== p19_typecov_T1 -g2017 ===
+input/p19_typecov_T1.sv:12: error: No function named `cg.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T1	2017	1	NA
+=== p19_typecov_T1 -g2023 ===
+input/p19_typecov_T1.sv:12: error: No function named `cg.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T1	2023	1	NA
+=== p19_typecov_T2 -g2017 ===
+input/p19_typecov_T2.sv:12: error: No function named `cg.cp.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T2	2017	1	NA
+=== p19_typecov_T2 -g2023 ===
+input/p19_typecov_T2.sv:12: error: No function named `cg.cp.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T2	2023	1	NA
+=== p19_typecov_T3 -g2017 ===
+T3 instance handle type coverage=75.00 PASS; ref=75.00 cov=0 tot=0
+p19_typecov_T3	2017	0	0
+=== p19_typecov_T3 -g2023 ===
+T3 instance handle type coverage=75.00 PASS; ref=75.00 cov=0 tot=0
+p19_typecov_T3	2023	0	0
+=== p19_typecov_T4 -g2017 ===
+T4 instance cp type coverage=75.00 PASS
+p19_typecov_T4	2017	0	0
+=== p19_typecov_T4 -g2023 ===
+T4 instance cp type coverage=75.00 PASS
+p19_typecov_T4	2023	0	0
+=== p19_typecov_T5 -g2017 ===
+T5 instance covergroup=50.00 coverpoint=50.00 second=50.00 PASS
+p19_typecov_T5	2017	0	0
+=== p19_typecov_T5 -g2023 ===
+T5 instance covergroup=50.00 coverpoint=50.00 second=50.00 PASS
+p19_typecov_T5	2023	0	0
+=== p19_typecov_T6 -g2017 ===
+input/p19_typecov_T6.sv:13: error: No function named `cg.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T6	2017	1	NA
+=== p19_typecov_T6 -g2023 ===
+input/p19_typecov_T6.sv:13: error: No function named `cg.get_coverage' found in this context (top).
+1 error(s) during elaboration.
+p19_typecov_T6	2023	1	NA

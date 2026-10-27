@@ -1,0 +1,8 @@
+edition	probe	compile_rc	run_rc
+2017	p18_05_4_dist	0	124
+2023	p18_05_4_dist	0	124
+edition	probe	compile_rc	first_diagnostic
+2017	p18_05_4_n1_randc	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_n1_randc.sv:6: warning: Static variable initialization requires explicit lifetime in this context.
+2017	p18_05_4_n2_norand	0	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_n2_norand.sv:6: warning: Static variable initialization requires explicit lifetime in this context.
+2023	p18_05_4_n1_randc	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_n1_randc.sv:6: warning: Static variable initialization requires explicit lifetime in this context.
+2023	p18_05_4_n2_norand	0	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_n2_norand.sv:6: warning: Static variable initialization requires explicit lifetime in this context.

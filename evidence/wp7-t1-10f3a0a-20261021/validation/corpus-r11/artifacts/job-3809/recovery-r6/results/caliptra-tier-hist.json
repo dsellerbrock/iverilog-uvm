@@ -1,0 +1,165 @@
+{
+  "candidate_patch_sha256": "d732f301ae0abcb05dd5a3093d40f9ae40460fa0e104572a414892afcfef5db0",
+  "cases": {
+    "cptra_ss_test_rom": {
+      "candidate": {
+        "calls": 0,
+        "elapsed_ns": 331500406545,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "83990b5638ba244e26097b53d3c6bcd61545a40139fcbc4f81222a7b442c2bf7",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "isolated_count_cache_hits": 0,
+          "model_evaluations": 0
+        }
+      },
+      "functional_logs_identical": true,
+      "generated_firmware_identical": true,
+      "reference": {
+        "calls": 0,
+        "elapsed_ns": 334048207498,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "f55c9c36ebabadacd271a1751ad3b78cdce669066840e0f5d4a52da2c7fed99e",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "model_evaluations": 0
+        }
+      }
+    },
+    "smoke_test_dma_aes_gcm_short_1_dword": {
+      "candidate": {
+        "calls": 0,
+        "elapsed_ns": 342827075705,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "1d33501b679e5c87fa4e09978c926f3ee8eb76a217f2151c53e61c77615a63ca",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "isolated_count_cache_hits": 0,
+          "model_evaluations": 0
+        }
+      },
+      "functional_logs_identical": true,
+      "generated_firmware_identical": true,
+      "reference": {
+        "calls": 0,
+        "elapsed_ns": 335264335457,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "c7d5f511122cf054aa414adb09380973ff71c999574dbd2eacbd2b8ef1551829",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "model_evaluations": 0
+        }
+      }
+    },
+    "smoke_test_sha256": {
+      "candidate": {
+        "calls": 0,
+        "elapsed_ns": 331184060047,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "19a37f945708c23446fa4c10ef1c39aac625c0b4e2804985208011c8b39e3d4a",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "isolated_count_cache_hits": 0,
+          "model_evaluations": 0
+        }
+      },
+      "functional_logs_identical": true,
+      "generated_firmware_identical": true,
+      "reference": {
+        "calls": 0,
+        "elapsed_ns": 328624437733,
+        "mcycle_window": [
+          100,
+          2100,
+          2000
+        ],
+        "raw_log_sha256": "9d880146a982de4d1645b6dc38055bd5836c07db87d1ee670350bab54596ba6b",
+        "tiers": {
+          "T0": 0,
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "z3": {
+          "checks": 0,
+          "contexts": 0,
+          "model_evaluations": 0
+        }
+      }
+    }
+  },
+  "measurement_base": "10f3a0a2509d0852c2556cb6622fb0025121fb2d",
+  "normalization": [
+    "VVP_PERF_STATS record",
+    "MCYCLE_WINDOW elapsed_ns field",
+    "CALIPTRA_PROGRESS_HEARTBEAT lines",
+    "the two known source-root prefixes"
+  ],
+  "qualified": true,
+  "window": [
+    100,
+    2100,
+    2000
+  ]
+}

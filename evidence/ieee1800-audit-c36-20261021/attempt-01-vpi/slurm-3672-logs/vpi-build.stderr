@@ -1,0 +1,20 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c36-20261021-01/input/vpi_basic.c:5:1: warning: missing initializer for field ‘high’ of ‘s_vpi_time’ {aka ‘struct t_vpi_time’} [-Wmissing-field-initializers]
+    5 | static s_vpi_time cb_time = { vpiSimTime };
+      | ^~~~~~
+In file included from /home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c36-20261021-01/input/vpi_basic.c:1:
+/home/dsell/toolchains/iverilog-fb584a25-20261020/include/iverilog/vpi_user.h:97:18: note: ‘high’ declared here
+   97 |       PLI_UINT32 high;
+      |                  ^~~~
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c36-20261021-01/input/vpi_basic.c:6:1: warning: missing initializer for field ‘value’ of ‘s_vpi_value’ {aka ‘struct t_vpi_value’} [-Wmissing-field-initializers]
+    6 | static s_vpi_value cb_value = { vpiIntVal };
+      | ^~~~~~
+/home/dsell/toolchains/iverilog-fb584a25-20261020/include/iverilog/vpi_user.h:130:9: note: ‘value’ declared here
+  130 |       } value;
+      |         ^~~~~
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c36-20261021-01/input/vpi_basic.c: In function ‘probe’:
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c36-20261021-01/input/vpi_basic.c:20:3: warning: missing initializer for field ‘value’ of ‘s_vpi_value’ {aka ‘struct t_vpi_value’} [-Wmissing-field-initializers]
+   20 |   s_vpi_value v = { vpiIntVal };
+      |   ^~~~~~~~~~~
+/home/dsell/toolchains/iverilog-fb584a25-20261020/include/iverilog/vpi_user.h:130:9: note: ‘value’ declared here
+  130 |       } value;
+      |         ^~~~~

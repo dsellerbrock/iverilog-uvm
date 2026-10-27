@@ -1,0 +1,2 @@
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: syntax error
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: error: Malformed statement

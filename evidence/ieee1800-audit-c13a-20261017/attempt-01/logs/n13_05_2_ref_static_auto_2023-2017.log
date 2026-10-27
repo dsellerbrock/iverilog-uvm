@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_static_auto_2023.sv:2: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).

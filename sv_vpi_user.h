@@ -87,11 +87,24 @@ EXTERN_C_START
 #define vpiCoverWeight      664
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
+/* Icarus extension: true when a vpiClassVar or member has a declared
+ * unpacked struct type. */
+#define vpiIsStruct         667
 
 /********* TYPESPECS *************/
 #define vpiClassTypespec    630
 #define vpiEnumTypespec     633
 #define vpiEnumConst        634
+#define vpiStructTypespec   638
+#define vpiUnionTypespec    639
+#define vpiBitTypespec      640
+#define vpiLogicTypespec    641
+#define vpiTypespecMember   644
+/* One-to-one relation from a variable or net to its typespec. Icarus uses
+ * the same number for the vpiCovergroup object type above. */
+#define vpiTypespec         605
+/* Property: true for a packed struct or union typespec. */
+#define vpiPacked           630
 
 #define vpiClassDefn        652
 
@@ -106,6 +119,10 @@ EXTERN_C_START
 
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
+/* Assertion coverage status properties: 2017 40.5.2/40.5.3,
+   2023 40.5.2. */
+#define vpiAssertAttemptCovered 770
+#define vpiAssertSuccessCovered 771
 /* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
  * VPI property codes are a separate value set; vpiImmediateAssert shares the
  * integer value of the Icarus vpiCoverCount property code. */

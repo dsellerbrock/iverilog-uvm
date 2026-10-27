@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_class_handle_equality_unrelated_fail.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "sv_class_handle_equality_unrelated_2023"
+}

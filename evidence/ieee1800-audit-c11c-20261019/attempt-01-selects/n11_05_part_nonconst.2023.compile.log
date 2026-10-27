@@ -1,0 +1,7 @@
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1: error: A reference to a net or variable (`a') is not allowed in a constant expression.
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1: error: Part select expressions must be constant integral values.
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1:      : The msb expression violates that rule: a
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1: error: A reference to a net or variable (`a') is not allowed in a constant expression.
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1: error: Part select expressions must be constant integral values.
+tests/1800_audit/c11/neg/n11_05_part_nonconst.sv:1:      : The msb expression violates that rule: a
+4 error(s) during elaboration.

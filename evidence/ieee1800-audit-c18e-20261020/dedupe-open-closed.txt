@@ -1,0 +1,13 @@
+Open+closed dedupe before the §18.5.8 probe (2026-10-20):
+
+GitHub issue searches used `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search <term>` for:
+- `constraint foreach`
+- `iterative constraint`
+- `array reduction constraint`
+- `foreach rand`
+
+All four searches returned no issues. Related existing issues checked manually:
+- #487 CLOSED is a procedural array traversal issue under §12.7.3, not `foreach` constraints.
+- #680 CLOSED is about non-random function calls in inline constraints under §18.5.12, not iterative constraints under §18.5.8.
+
+No overlapping open or closed issue was found for this probe.

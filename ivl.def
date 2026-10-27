@@ -89,6 +89,7 @@ ivl_expr_union_active_member
 ivl_expr_property_idx
 ivl_expr_repeat
 ivl_expr_ref_lval
+ivl_expr_ref_lval2
 ivl_expr_scope
 ivl_expr_sel_type
 ivl_expr_signal
@@ -343,6 +344,7 @@ ivl_stmt_break_kind
 ivl_stmt_call
 ivl_stmt_case_count
 ivl_stmt_case_expr
+ivl_stmt_case_group
 ivl_stmt_case_is_quality_if
 ivl_stmt_case_quality
 ivl_stmt_case_stmt
@@ -362,6 +364,7 @@ ivl_stmt_flow_control
 ivl_stmt_force_link_rval
 ivl_stmt_init_stmt
 ivl_stmt_is_assoc_rmw
+ivl_stmt_is_clocking_drive
 ivl_stmt_lexp
 ivl_stmt_lineno
 ivl_stmt_lval
@@ -429,6 +432,7 @@ ivl_type_queue_max_size
 ivl_type_constraints
 ivl_type_constraint_name
 ivl_type_constraint_ir
+ivl_type_constraint_static
 ivl_type_constraint_state_call_constraint
 ivl_type_constraint_state_call_dep
 ivl_type_constraint_state_call_dep_kind
@@ -499,6 +503,10 @@ ivl_type_covgrp_merge_instances
 ivl_type_covgrp_type_weight
 ivl_type_covgrp_weight
 ivl_type_covgrp_weight_prop
+ivl_type_covgrp_goal
+ivl_type_covgrp_goal_prop
+ivl_type_covgrp_comment
+ivl_type_covgrp_comment_prop
 ivl_type_covgrp_items
 ivl_type_covgrp_item_type_weight
 ivl_type_covgrp_item_at_least
@@ -506,6 +514,10 @@ ivl_type_covgrp_item_at_least_prop
 ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_weight_ir
 ivl_type_covgrp_item_weight_prop
+ivl_type_covgrp_item_goal
+ivl_type_covgrp_item_goal_prop
+ivl_type_covgrp_item_comment
+ivl_type_covgrp_item_comment_prop
 ivl_type_covgrp_item_is_cross
 ivl_type_covgrp_item_name
 ivl_type_covgrp_item_guardsrc

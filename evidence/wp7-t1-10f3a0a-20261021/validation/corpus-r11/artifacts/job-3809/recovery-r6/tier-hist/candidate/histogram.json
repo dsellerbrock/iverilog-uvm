@@ -1,0 +1,87 @@
+{
+  "randomize_dv_txn": {
+    "stderr_sha256": "ac9c462d850f57bf83e0daf35727cfd56ddc82e2838ce9cc20ec1d744204a823",
+    "stdout_sha256": "358ac60dd6f5697bede9b3c2c4d1877f363efd8d3868c1ae222eef8e795ab81a",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 400
+    },
+    "z3": {
+      "checks": 37298,
+      "contexts": 25,
+      "isolated_count_cache_hits": 350,
+      "model_evaluations": 62790
+    }
+  },
+  "randomize_t0_disabled": {
+    "stderr_sha256": "3a25a57f759800c508be0e061cee96a92d0d2906a8cd093a4f10f002f0603ed0",
+    "stdout_sha256": "43c33e3238b9cd7adc626e0f899a028a9f30708fcc0cc34ec45cf8811ba7914f",
+    "tiers": {
+      "T0": 400,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "isolated_count_cache_hits": 0,
+      "model_evaluations": 0
+    }
+  },
+  "randomize_t4_soft": {
+    "stderr_sha256": "702822205aebca1bb3ec22e8b1b832c0bd55d2b6e720f75b59172f5cc6fb2df6",
+    "stdout_sha256": "360f2bc1511a8440d1c28d1eb53ce364b0f12c06516ef07a5bc865fe611edd13",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 400
+    },
+    "z3": {
+      "checks": 1128,
+      "contexts": 25,
+      "isolated_count_cache_hits": 0,
+      "model_evaluations": 182
+    }
+  },
+  "randomize_z3": {
+    "stderr_sha256": "6a5ad49e2ecb109c7682453c63aa9dab107c02afc9c8fa458f49494a3d760fb3",
+    "stdout_sha256": "956a1ad3032a330d8894506d849ce3e11c2aa53d380ce47ccb7afc23f841f786",
+    "tiers": {
+      "T0": 0,
+      "T1": 0,
+      "T2": 282,
+      "T3": 518,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 9845,
+      "contexts": 33,
+      "isolated_count_cache_hits": 0,
+      "model_evaluations": 1164
+    }
+  },
+  "uvm_traffic": {
+    "stderr_sha256": "28f8ff6ad335ea9bc5fa2722e5c1012cd00d3c94b64ed9e61144aee8581a9ae1",
+    "stdout_sha256": "ab3ff7439a35b06a9040289e4a6227536f3a6c43559d3fa7978986ea3fb2f08b",
+    "tiers": {
+      "T0": 5000,
+      "T1": 0,
+      "T2": 0,
+      "T3": 0,
+      "T4": 0
+    },
+    "z3": {
+      "checks": 0,
+      "contexts": 0,
+      "isolated_count_cache_hits": 0,
+      "model_evaluations": 0
+    }
+  }
+}

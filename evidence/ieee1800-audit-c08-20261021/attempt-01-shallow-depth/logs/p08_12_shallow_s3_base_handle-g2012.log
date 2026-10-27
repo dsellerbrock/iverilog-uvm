@@ -1,0 +1,20 @@
+tests/1800_audit/c08/p08_12_shallow_s3_base_handle.sv:10: Error: System task/function $cast() is not defined by any module.
+/tmp/a3-c08-shallow-final-1792580455/p08_12_shallow_s3_base_handle: Program not runnable, 1 errors.
+        0.03 real         0.01 user         0.01 sys
+             5111808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2805  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  78  involuntary context switches
+            15990324  instructions retired
+             8885406  cycles elapsed
+             1507712  peak memory footprint

@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-08-20261018/input/p18_08_struct_mode.sv:17: rand_mode(0) did not disable every rand struct member
+       Time: 0  Scope: test.$unm_blk_1

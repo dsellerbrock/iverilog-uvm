@@ -1,0 +1,20 @@
+#461 [OPEN] [IEEE 1800] §8 — Implement weak_reference#(T)
+## Gap
+
+weak_reference#(T) is recorded as unsupported and may require lifetime/collection support. First establish the standard’s observable expiration and handle semantics; implement only the minimum mechanism needed for those semantics and test strong/weak reference interactions.
+
+## Acceptance
+
+- Verify and cite the exact applicable IEEE 1800 subclause(s); compare 2017 and 2023 wording where relevant and preserve edition-specific acceptance/rejection.
+- Add self-authored minimal positive, negative, and boundary regressions; register applicable cases in both the legacy and JSON runners.
+- Run focused legacy and JSON tests plus neighboring cases, then update the conformance matrix with the tested boundary and evidence.
+- Any PR for this issue must target `main` and must not merge until required CI checks pass on that exact PR head.
+
+## Scope
+
+IEEE language/runtime support only. Do not patch OpenTitan or Caliptra application sources as a substitute for compiler behavior.
+
+Source: [current conformance record](https://github.com/dsellerbrock/iverilog-uvm/blob/main/docs/conformance/ieee1800_2023_delta.md).
+
+COMMENTS:
+

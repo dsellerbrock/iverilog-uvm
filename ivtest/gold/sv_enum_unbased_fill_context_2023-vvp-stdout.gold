@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_enum_unbased_fill_context_2023.v:13: $finish called at 0 (1s)

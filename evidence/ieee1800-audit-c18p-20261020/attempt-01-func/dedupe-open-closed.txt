@@ -1,0 +1,11 @@
+--- "function in constraint"
+--- "constraint function call"
+--- "18.5.12"
+680	CLOSED	[IEEE 1800] evaluate non-random function calls in inline constraints	https://github.com/dsellerbrock/iverilog-uvm/issues/680
+494	CLOSED	[IEEE 1800] §§18.4/18.5.11 — Capture queue-size leaves passed to constraint functions	https://github.com/dsellerbrock/iverilog-uvm/issues/494
+--- "function implicit ordering"
+
+Reviewed search hits:
+- #680 is a non-random function call with non-rand arguments in an inline constraint; the current probes cover function argument restrictions and random-argument implicit ordering, not inline non-rand function translation.
+- #494 is constraint-function capture of queue-size leaves; the current probes do not use queue sizes.
+Neither directly covers the tested rules.

@@ -1,0 +1,6 @@
+
+--- "20.4" "$timeunit" "$timeprecision" ---
+
+--- timeunit timeprecision scope ---
+
+--- IEEE 1800-2023 20.4 functions ---

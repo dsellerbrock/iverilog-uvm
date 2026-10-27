@@ -1,0 +1,7 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:4: error: Errors in the constraint block item list.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:6: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:7: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:7: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18j-dist2023-20261020-01/input/p18_05_3_n1_default_colon_eq.sv:7: syntax error
+I give up.

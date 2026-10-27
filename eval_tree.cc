@@ -389,6 +389,11 @@ NetEConst* NetEBComp::must_be_leeq_(const NetExpr*le, const verinum&rv, bool eq_
 	// The following optimization is not valid if le can contain 'x'
 	// or 'z' values.
       if (le->expr_type() == IVL_VT_LOGIC) return 0;
+	// Its maximum-value argument is an integral bit-vector argument. A
+	// string's expr_width is not its lexical value, so this shortcut can
+	// incorrectly fold string relational comparisons (including inside
+	// range bounds) to true.
+      if (le->expr_type() == IVL_VT_STRING) return 0;
 
       ivl_assert(*le, le->expr_width() > 0);
       verinum lv (verinum::V1, le->expr_width());
@@ -1844,6 +1849,46 @@ NetECReal* NetESFunc::evaluate_itor_(const NetExpr*arg_)
       return new NetECReal(verireal(arg));
 }
 
+NetExpr* NetESFunc::evaluate_real_conversion_(ID id, const NetExpr*arg)
+{
+      const NetEConst*bits = dynamic_cast<const NetEConst*>(arg);
+      const NetECReal*real = dynamic_cast<const NetECReal*>(arg);
+
+      switch (id) {
+          case BITSTOR: {
+                if (!bits) return 0;
+                uint64_t raw = bits->value().as_ulong64();
+                double value;
+                memcpy(&value, &raw, sizeof(value));
+                return new NetECReal(verireal(value));
+          }
+          case REALTOB: {
+                if (!real) return 0;
+                double value = real->value().as_double();
+                uint64_t raw;
+                memcpy(&raw, &value, sizeof(raw));
+                return new NetEConst(verinum(raw, 64));
+          }
+          case SHORTTOB: {
+                if (!real) return 0;
+                float value = static_cast<float>(real->value().as_double());
+                uint32_t raw;
+                memcpy(&raw, &value, sizeof(raw));
+                return new NetEConst(verinum(static_cast<uint64_t>(raw),
+                                              static_cast<unsigned>(32)));
+          }
+          case BITSTOS: {
+                if (!bits) return 0;
+                uint32_t raw = static_cast<uint32_t>(bits->value().as_ulong64());
+                float value;
+                memcpy(&value, &raw, sizeof(value));
+                return new NetECReal(verireal(value));
+          }
+          default:
+                return 0;
+      }
+}
+
 NetECReal* NetESFunc::evaluate_math_one_arg_(ID id, const NetExpr*arg_) const
 {
       const NetEConst*tmpi = dynamic_cast<const NetEConst*>(arg_);
@@ -2439,6 +2484,11 @@ NetExpr* NetESFunc::evaluate_one_arg_(ID id, const NetExpr*arg) const
 	    return evaluate_onehot0_(arg);
 	  case RTOI:
 	    return evaluate_rtoi_(arg);
+          case BITSTOR:
+          case REALTOB:
+          case SHORTTOB:
+          case BITSTOS:
+            return evaluate_real_conversion_(id, arg);
 	  case UPDIMS:
 	    return evaluate_unpacked_dimensions_(arg);
 	  default:
@@ -2477,6 +2527,10 @@ NetESFunc::ID NetESFunc::built_in_id_() const
       if (funcs_need_init) {
 	    built_in_func["$itor"] = ITOR;
 	    built_in_func["$rtoi"] = RTOI;
+	    built_in_func["$bitstoreal"] = BITSTOR;
+	    built_in_func["$realtobits"] = REALTOB;
+	    built_in_func["$shortrealtobits"] = SHORTTOB;
+	    built_in_func["$bitstoshortreal"] = BITSTOS;
       }
 
 	/* These are available in 1364-2005 and later or if the Icarus misc

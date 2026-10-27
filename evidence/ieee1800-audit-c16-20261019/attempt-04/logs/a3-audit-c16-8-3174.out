@@ -1,0 +1,33 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+=== p16_08_sequence_basic -g2017 ===
+PASS: p16_08_sequence_basic -g2017
+PASSED
+=== p16_08_sequence_args -g2017 ===
+GAP: expected-positive sequence probe rejected p16_08_sequence_args -g2017 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_args.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_args.sv:17: error: No function named `typed_pair' found in this context (test).
+1 error(s) during elaboration.
+=== p16_08_sequence_default -g2017 ===
+GAP: expected-positive sequence probe rejected p16_08_sequence_default -g2017 (exit 2)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:7: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:12: error: Invalid module item.
+=== n16_08_end_label_mismatch -g2017 (must reject) ===
+GAP: mismatched endsequence label was not diagnosed -g2017 (exit 0)
+=== p16_08_sequence_basic -g2023 ===
+PASS: p16_08_sequence_basic -g2023
+PASSED
+=== p16_08_sequence_args -g2023 ===
+GAP: expected-positive sequence probe rejected p16_08_sequence_args -g2023 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_args.sv:11: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_args.sv:17: error: No function named `typed_pair' found in this context (test).
+1 error(s) during elaboration.
+=== p16_08_sequence_default -g2023 ===
+GAP: expected-positive sequence probe rejected p16_08_sequence_default -g2023 (exit 2)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:7: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.8-20261019-a01/input/p16_08_sequence_default.sv:12: error: Invalid module item.
+=== n16_08_end_label_mismatch -g2023 (must reject) ===
+GAP: mismatched endsequence label was not diagnosed -g2023 (exit 0)

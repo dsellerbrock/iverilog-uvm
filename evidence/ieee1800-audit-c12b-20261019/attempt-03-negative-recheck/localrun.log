@@ -1,0 +1,32 @@
+n12_07_foreach_index_write.sv g2017 accepted rc=0
+n12_07_foreach_same_name.sv g2017 accepted rc=0
+n12_07_foreach_too_many.sv g2017 accepted rc=0
+n12_07_for_scope_escape.sv g2017 accepted rc=0
+n12_07_foreach_too_many_indices.sv g2017 accepted rc=0
+n12_08_break_cross_fork.sv g2017 accepted rc=0
+n12_08_continue_fork.sv g2017 accepted rc=0
+n12_07_foreach_index_write.sv g2023 accepted rc=0
+n12_07_foreach_same_name.sv g2023 accepted rc=0
+n12_07_foreach_too_many.sv g2023 accepted rc=0
+n12_07_for_scope_escape.sv g2023 accepted rc=0
+n12_07_foreach_too_many_indices.sv g2023 accepted rc=0
+n12_08_break_cross_fork.sv g2023 accepted rc=0
+n12_08_continue_fork.sv g2023 accepted rc=0
+        0.80 real         0.30 user         0.30 sys
+             8175616  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               47357  page reclaims
+                 315  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  15  signals received
+                 116  voluntary context switches
+                1601  involuntary context switches
+            90205273  instructions retired
+            48409650  cycles elapsed
+             2408928  peak memory footprint

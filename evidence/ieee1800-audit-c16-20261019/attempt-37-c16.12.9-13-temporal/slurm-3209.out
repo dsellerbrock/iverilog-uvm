@@ -1,0 +1,25 @@
+job_id=3209
+host=DAN-DESKTOP
+source_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T16:07:47-06:00
+e1b56856b29980750fb0e40655abad8eec507640830e86ac9c0e8ecf3d1a3f6c  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv
+641e16dd3bf64c9df10423f03b5581f548b834d66a33d281a272bc6fecb7f79f  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_10_nexttime.sv
+94aac15db87d8d9a28c987c75c71b119f7f5aa857b986dc637e35b42d0cc93aa  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_11_always.sv
+d7ffbee0498faeb7c7331385a066d505b52c4ed1b8c56055c00e5ac1f35ff077  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_12_until.sv
+0eb879955bc5e28f69c8463bd11c7e86633c6b687e5bc1a0b6205c751bcd1dca  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_13_eventually.sv
+d0b1c773685aa1df7f92acae3670819a92c9089cdd8ea92b15066ec4855bb3db  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/neg/n16_12_13_unbounded_eventually.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+positive=p16_12_09_followed_by.sv edition=2017 compile_exit=6 run_exit=NA
+positive=p16_12_10_nexttime.sv edition=2017 compile_exit=0 run_exit=0
+positive=p16_12_11_always.sv edition=2017 compile_exit=0 run_exit=0
+positive=p16_12_12_until.sv edition=2017 compile_exit=0 run_exit=0
+positive=p16_12_13_eventually.sv edition=2017 compile_exit=0 run_exit=0
+negative=n16_12_13_unbounded_eventually.sv edition=2017 compile_exit=2 outcome=EXPECTED_REJECTION
+positive=p16_12_09_followed_by.sv edition=2023 compile_exit=6 run_exit=NA
+positive=p16_12_10_nexttime.sv edition=2023 compile_exit=0 run_exit=0
+positive=p16_12_11_always.sv edition=2023 compile_exit=0 run_exit=0
+positive=p16_12_12_until.sv edition=2023 compile_exit=0 run_exit=0
+positive=p16_12_13_eventually.sv edition=2023 compile_exit=0 run_exit=0
+negative=n16_12_13_unbounded_eventually.sv edition=2023 compile_exit=2 outcome=EXPECTED_REJECTION

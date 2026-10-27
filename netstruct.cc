@@ -18,6 +18,7 @@
  */
 
 # include  "netlist.h"
+# include  "netparray.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  <iostream>
@@ -25,6 +26,24 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static bool net_type_contains_chandle_(ivl_type_t type)
+{
+      if (type == &netvector_t::chandle_type)
+	    return true;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return net_type_contains_chandle_(array->element_type());
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (net_type_contains_chandle_(member.net_type))
+			return true;
+	    return false;
+      }
+
+      return false;
+}
 
 netstruct_t::netstruct_t()
 : union_(false), packed_(false), signed_(false)
@@ -83,6 +102,17 @@ void netstruct_t::packed(bool flag)
 void netstruct_t::append_member(Design*des, const netstruct_t::member_t&val)
 {
       ivl_assert(*this, val.net_type);
+
+	// IEEE 1800-2017/2023 6.14 excludes chandle from packed types and
+	// untagged unions. Check the elaborated member type so typedefs and
+	// aggregate/array wrappers cannot hide a chandle.
+      if ((packed_ || (union_ && !tagged_))
+	  && net_type_contains_chandle_(val.net_type)) {
+	    cerr << get_fileline() << ": error: chandle is not permitted in a "
+		 << (packed_ ? "packed type" : "untagged union")
+		 << " (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	}
 
       members_.push_back(val);
       if (packed_) {

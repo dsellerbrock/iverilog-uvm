@@ -1,0 +1,2 @@
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: syntax error
+tests/1800_audit/c12/p12_05b_casex_unique_inside_pattern.sv:22: error: Malformed statement

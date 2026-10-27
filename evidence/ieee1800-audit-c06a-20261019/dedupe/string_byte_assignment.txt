@@ -1,0 +1,1 @@
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)

@@ -1,0 +1,2 @@
+ivltests/sv_const_function_fork_fail.v:3: error: A fork statement is not permitted in a constant function.
+1 error(s) during elaboration.

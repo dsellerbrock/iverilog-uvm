@@ -1,0 +1,2 @@
+PASSED: §16.17 expect blocks and resumes on pass/fail
+/home/dsell/slurm-runs/iverilog-uvm/a3/c16-final-20261019-02/tests/1800_audit/c16/p16_17_expect.sv:21: $finish called at 16 (1s)

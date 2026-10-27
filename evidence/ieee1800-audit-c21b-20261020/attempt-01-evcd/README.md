@@ -1,0 +1,9 @@
+# §21.7 extended VCD probe
+
+Slurm job 3552 compiled and ran `p21_evcd.sv` with the pinned main compiler `cc25756d187314742d347267c2a513b3e640a7fb` under `-g2017` and `-g2023`. Both compile/runtime pairs exited 0 and emitted identical EVCD files, each 392 bytes and 37 lines. Each invocation had a 30-second timeout; the job requested 1 CPU, 1 GiB, and 10 minutes. Raw outputs, hashes, logs and scratch files are in [remote-3552](remote-3552/); convenient copies of the EVCD files are [2017](p21-2017.evcd) and [2023](p21-2023.evcd).
+
+The output has the `$date`, `$version`, `$timescale`, `$scope`, `$var port` declarations for `a` and `y`, `$enddefinitions`, and `p` state/strength records. `$dumpportsoff` at time 2 writes the required N/X suspension checkpoint; the transition made while dumping is off is not written as a change. At time 3 `$dumpportson` immediately writes the current U/H values as the resumption checkpoint, as §21.7.3.2 requires. The time-4 D/H changes are recorded. Thus the expected absence of any record at time 3 must be read as “no off-period change record”; the file does contain the resumption checkpoint.
+
+The 400-byte limit was not reached: both files are 392 bytes and contain no limit comment. This run verifies the `$dumpportslimit` call and argument form, but does not test the required stop/comment behavior at the limit. The simple assigned inverter also does not exercise the multiple-driver rules of §21.7.4.3.2 or reproduce the full §21.7.4.4 example. The §21.7.3.7 filename-mismatch and omitted-optional-argument rules were not exercised. Exact standards text and these coverage limits are recorded in [STANDARD.md](STANDARD.md).
+
+Open/closed searches for `$dumpports`, `extended VCD`, `evcd`, `21.7.3`, and `21.7.4` are in `dedupe-*.json`; none returned a matching issue.

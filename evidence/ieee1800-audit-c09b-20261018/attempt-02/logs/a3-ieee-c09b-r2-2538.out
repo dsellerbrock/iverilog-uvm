@@ -1,0 +1,80 @@
+host=DAN-DESKTOP
+2026-10-17T22:52:38-06:00
+slurm_job_id=2538
+toolchain_commit=9b5fad2afb4104caa816b257d5bccc40f01b8c66
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+c6be7c4b5be506eb9e9d04d9c144976115ae3649ad994880256625dafb217137  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/run_with_timeout.py
+4c9f0ead1c95022a9f7e22e8bc4a6dc7ab078169afe682f7050a7103f71c0286  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_1_wait_fork.sv
+028eb5ce1fec4cdcb6febcb9680df4b271a38b86535c79755dcc76bb22daa8e2  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_1_wait_fork_minimal.sv
+2a370d19a1514c43c3e9451315744df2c79e1daec3ca4edf49fb68214e3fa865  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_2_disable.sv
+=== p09_06_1_wait_fork -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.1.wait_fork_no_children_returns_immediately
+INFO 9.6.1.done_cnt=6 desc_done=2 elapsed=60
+FAIL 9.6.1.wait_fork_returns_at_last_immediate_child
+PASS 9.6.1.wait_fork_children_done
+FAIL 9.6.1.wait_fork_excludes_descendants
+PASS 9.6.1.descendants_still_ran
+DONE fails=2
+=== p09_06_1_wait_fork_minimal -g2017 ===
+compile_rc=0
+run_rc=0
+INFO elapsed=50 d=1
+FAIL 9.6.1.minimal_ignores_descendant
+PASS 9.6.1.minimal_waits_for_immediate_child (elapsed=7)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_1_wait_fork_minimal.sv:12: $finish called at 57 (1s)
+=== p09_06_2_disable -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.2.self_disable_skips_rest
+PASS 9.6.2.forward_goto_style
+PASS 9.6.2.disable_task_from_inside
+PASS 9.6.2.task_continues_when_not_disabled
+PASS 9.6.2.disable_acts_as_continue_and_break
+PASS 9.6.2.disable_idle_block_is_noop
+PASS 9.6.2.disable_task_all_activations
+PASS 9.6.2.disable_in_fork_terminates_join
+PASS 9.6.2.monostable_set
+PASS 9.6.2.monostable_retrigger_extends
+PASS 9.6.2.monostable_expires
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_2_disable.sv:43: $finish called at 352 (1s)
+=== p09_06_1_wait_fork -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.1.wait_fork_no_children_returns_immediately
+INFO 9.6.1.done_cnt=6 desc_done=2 elapsed=60
+FAIL 9.6.1.wait_fork_returns_at_last_immediate_child
+PASS 9.6.1.wait_fork_children_done
+FAIL 9.6.1.wait_fork_excludes_descendants
+PASS 9.6.1.descendants_still_ran
+DONE fails=2
+=== p09_06_1_wait_fork_minimal -g2023 ===
+compile_rc=0
+run_rc=0
+INFO elapsed=50 d=1
+FAIL 9.6.1.minimal_ignores_descendant
+PASS 9.6.1.minimal_waits_for_immediate_child (elapsed=7)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_1_wait_fork_minimal.sv:12: $finish called at 57 (1s)
+=== p09_06_2_disable -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.2.self_disable_skips_rest
+PASS 9.6.2.forward_goto_style
+PASS 9.6.2.disable_task_from_inside
+PASS 9.6.2.task_continues_when_not_disabled
+PASS 9.6.2.disable_acts_as_continue_and_break
+PASS 9.6.2.disable_idle_block_is_noop
+PASS 9.6.2.disable_task_all_activations
+PASS 9.6.2.disable_in_fork_terminates_join
+PASS 9.6.2.monostable_set
+PASS 9.6.2.monostable_retrigger_extends
+PASS 9.6.2.monostable_expires
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_2_disable.sv:43: $finish called at 352 (1s)
+FINAL_STATUS=1

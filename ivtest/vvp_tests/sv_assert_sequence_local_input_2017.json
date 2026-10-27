@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_assert_sequence_local_input.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "output-contains": [
+        "PASSED"
+    ]
+}

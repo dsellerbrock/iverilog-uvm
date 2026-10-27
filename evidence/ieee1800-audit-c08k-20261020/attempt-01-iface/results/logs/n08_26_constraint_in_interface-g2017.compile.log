@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_constraint_in_interface.sv:2: error: Constraint `c' is not allowed in an interface class.
+1 error(s) during elaboration.

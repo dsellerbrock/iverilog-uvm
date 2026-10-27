@@ -1,0 +1,2 @@
+GLOBAL 3
+input/g1_global_clock_event.sv:13: $finish called at 26000 (1ps)

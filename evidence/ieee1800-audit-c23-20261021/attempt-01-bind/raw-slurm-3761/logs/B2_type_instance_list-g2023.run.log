@@ -1,0 +1,4 @@
+top.u1.m v=3 t=5
+top.u1.m v=f t=15
+top.u1.m v=f t=25
+input/B2_type_instance_list.sv:16: $finish called at 30 (1ns)

@@ -1,0 +1,28 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:5: warning: Port 2 (id) of module cnt expects 2 bit(s), given 32.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:5:        : Pruning (signed) 30 high bits of the expression.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:6: warning: Port 2 (id) of module cnt expects 2 bit(s), given 32.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:6:        : Pruning (signed) 30 high bits of the expression.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:7: warning: Port 2 (id) of module cnt expects 2 bit(s), given 32.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/p23_03b_default_empty.sv:7:        : Pruning (signed) 30 high bits of the expression.
+D1=5
+D2=5
+D3=0
+        0.04 real         0.01 user         0.00 sys
+             6438912  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1309  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  32  involuntary context switches
+           135563426  instructions retired
+            44852913  cycles elapsed
+             3785088  peak memory footprint
+exit_code=0

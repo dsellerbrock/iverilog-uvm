@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-01/input/tests/1800_audit/c07/p07_10_queue.sv:12: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-01/input/tests/1800_audit/c07/p07_10_queue.sv:12: Syntax in assignment statement l-value.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-01/input/tests/1800_audit/c07/p07_10_queue.sv:23: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-01/input/tests/1800_audit/c07/p07_10_queue.sv:23: Syntax in assignment statement l-value.

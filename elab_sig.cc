@@ -105,6 +105,10 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
 {
       if (!des || !td || !resolved_type)
 	    return;
+      if (td->get_basic_type() == typedef_t::ANY)
+	    return;
+      if (td->has_checked_basic_type())
+	    return;
 
       bool type_ok = true;
       switch (td->get_basic_type()) {
@@ -131,6 +135,9 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
       }
 
       if (type_ok)
+	    td->mark_basic_type_checked();
+
+      if (type_ok)
 	    return;
 
       const data_type_t*declared_type = td->get_data_type();
@@ -140,6 +147,7 @@ static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
 	   << "`. It was forward declared as `" << td->get_basic_type()
 	   << "` at " << td->get_fileline() << "." << endl;
       des->errors += 1;
+      td->mark_basic_type_checked();
 }
 
 /* Name recovery is only valid for the compiler's class-forward placeholders.
@@ -555,6 +563,34 @@ static bool get_const_argument(NetExpr*exp, long&res)
 }
 #endif
 
+/* IEEE 1800-2017 6.7.1 permits a built-in net to have an unpacked
+ * structure (or fixed-size unpacked array) type when all of its leaves are
+ * 4-state integral values.  Unpacked aggregates have no scalar data_type(),
+ * so recognize the complete recursive type instead of rejecting them as
+ * IVL_VT_NO_TYPE. */
+static bool valid_builtin_net_data_type_(ivl_type_t type)
+{
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    if (array->static_dimensions().empty())
+		  return false;
+	    return valid_builtin_net_data_type_(array->element_type());
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->packed())
+		  return record->base_type() == IVL_VT_LOGIC;
+	    if (record->union_flag())
+		  return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!valid_builtin_net_data_type_(member.net_type))
+			return false;
+	    return true;
+      }
+
+      return type && type->packed()
+	    && type->base_type() == IVL_VT_LOGIC;
+}
+
 void Statement::elaborate_sig(Design*, NetScope*) const
 {
 }
@@ -576,7 +612,12 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (sig->user_nettype())
 	    return;
 
-      if ((sig->type() == NetNet::WIRE) && (sig->data_type() != IVL_VT_LOGIC)) {
+      const bool valid_unpacked_net = sig->type() == NetNet::WIRE
+	    && valid_builtin_net_data_type_(type);
+
+      if ((sig->type() == NetNet::WIRE)
+	  && (sig->data_type() != IVL_VT_LOGIC)
+	  && !valid_unpacked_net) {
 	    if (gn_cadence_types_flag) {
 		  sig->type(NetNet::UNRESOLVED_WIRE);
 	    } else {
@@ -596,6 +637,18 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 		  break;
 	    }
       }
+
+      if (valid_unpacked_net)
+	    return;
+
+      /* Variable ports may carry unpacked structures and unions of any
+       * supported member types.  Their data type is not constrained by the
+       * built-in net restrictions above. */
+      if (scope->type() == NetScope::MODULE
+	  && sig->port_type() != NetNet::NOT_A_PORT
+	  && wire->symbol_type() == PNamedItem::VAR
+	  && dynamic_cast<const netstruct_t*>(type))
+	    return;
 
       // Icarus allows real nets as an extension
       if (type->base_type() == IVL_VT_REAL)
@@ -630,15 +683,21 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 static void sig_check_port_type(Design*des, const NetScope*scope,
 			        const PWire *wire, const NetNet *sig)
 {
-      if (sig->port_type() == NetNet::PREF
-          && scope->type() == NetScope::MODULE) {
-	    cerr << wire->get_fileline() << ": warning: "
-		 << "Reference ports on modules are not fully supported." << endl;
-      }
-
       // Some extra checks for module ports
       if (scope->type() != NetScope::MODULE)
 	    return;
+
+	  // IEEE 1800-2017/2023 6.14 explicitly excludes chandle module ports.
+	  // Keep chandle legal for subroutine arguments, which are not module ports.
+      if (sig->port_type() != NetNet::NOT_A_PORT
+	  && sig->net_type() == &netvector_t::chandle_type) {
+	    cerr << wire->get_fileline() << ": error: Port `"
+		 << wire->basename() << "` of module `"
+		 << scope->module_name()
+		 << "` shall not have the chandle data type "
+		 << "(IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+      }
 
 	/* If the signal is an input and is also declared as a
 	   reg, then report an error. In SystemVerilog a input
@@ -887,6 +946,24 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
    Inputs that cannot be sampled (non-vector types, arrays) keep the existing
    alias behavior; the read-rewrite helpers key off the presence of the sample
    variable, so the two stay consistent. */
+static bool clocking_output_expr_is_lvalue_(const PExpr*expr)
+{
+      if (dynamic_cast<const PEIdent*>(expr))
+	    return true;
+
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(expr);
+      if (!concat || concat->has_repeat() || concat->is_empty_concat())
+	    return false;
+
+      const std::vector<PExpr*>&parts = concat->stream_parms();
+      for (std::vector<PExpr*>::const_iterator part = parts.begin()
+	   ; part != parts.end() ; ++part) {
+	    if (!clocking_output_expr_is_lvalue_(*part))
+		  return false;
+      }
+      return true;
+}
+
 static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
@@ -903,6 +980,25 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+		  if (is_out) {
+			std::map<perm_string,PExpr*>::const_iterator da =
+			      cb->decl_assigns.find(*sig_it);
+			if (da != cb->decl_assigns.end()
+			    && !clocking_output_expr_is_lvalue_(da->second)) {
+			      /* IEEE 1800-2017/2023 14.5 requires an output
+				 clocking declaration assignment to be legal as a
+				 module output-port connection. Inspect only the
+				 expression form here: elaborating it as a structural
+				 lnet would incorrectly register the clocking drive as
+				 a continuous driver. */
+			      cerr << cb->get_fileline() << ": error: clocking output `"
+			       << *sig_it << "' expression is not a legal module "
+			       << "output-port connection (IEEE 1800-2017/2023 14.5): "
+			       << *da->second << "." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+		  }
 
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw) {
@@ -1088,6 +1184,9 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      opend->set_line(*cb);
 			}
 			any_output = true;
+			if (raw->type() == NetNet::REG
+			    || raw->type() == NetNet::IMPLICIT_REG)
+			      ivl_register_clocking_output_variable(raw, cb->name);
 			any = true;
 		  }
 	    }
@@ -1394,6 +1493,48 @@ static bool interface_method_has_body_(const NetScope*method)
 	    return def && def->proc();
       }
       return false;
+}
+
+static void validate_pure_virtual_methods_(Design*des, netclass_t*type,
+					   const PClass*pclass)
+{
+      if (!type || !pclass || type->is_virtual())
+	    return;
+
+      vector<const netclass_t*>chain;
+      for (const netclass_t*base = type; base; base = base->get_super())
+	    chain.push_back(base);
+
+      map<perm_string,const NetScope*>unimplemented;
+      for (auto cls = chain.rbegin(); cls != chain.rend(); ++cls) {
+	    const NetScope*scope = (*cls)->class_scope();
+	    if (!scope)
+		  continue;
+	    for (const auto&child : scope->children()) {
+		  const NetScope*method = child.second;
+		  if (!method || (method->type() != NetScope::FUNC
+				  && method->type() != NetScope::TASK))
+			continue;
+		  const PTaskFunc*decl = method->type() == NetScope::FUNC
+			? static_cast<const PTaskFunc*>(method->func_pform())
+			: static_cast<const PTaskFunc*>(method->task_pform());
+		  if (decl && decl->is_pure_method())
+			unimplemented[child.first.peek_name()] = method;
+		  else if (unimplemented.count(child.first.peek_name())
+			   && interface_method_has_body_(method))
+			unimplemented.erase(child.first.peek_name());
+	    }
+      }
+
+      for (const auto&pure : unimplemented) {
+	    cerr << pclass->get_fileline() << ": error: Non-virtual class `"
+		 << type->get_name() << "' does not implement inherited pure virtual "
+		    "method `" << pure.first << "' (IEEE 1800-2017/2023 8.21)." << endl;
+	    cerr << pure.second->get_fileline()
+		 << ":      : Pure virtual method `" << pure.first
+		 << "' is declared here." << endl;
+	    des->errors += 1;
+      }
 }
 
 static void collect_interface_class_graph_(const netclass_t*type,
@@ -1973,10 +2114,12 @@ class covergroup_constructor_order_classifier_t :
       public pform_constructor_order_classifier_t {
     public:
       covergroup_constructor_order_classifier_t(
-	    const netclass_t*parent, const PFunction*constructor,
-	    const map<size_t,const netclass_t*>&embedded_covergroups)
-      : parent_(parent), constructor_(constructor),
-	embedded_covergroups_(embedded_covergroups)
+	    const netclass_t*parent, const PTaskFunc*method,
+	    const map<size_t,const netclass_t*>&embedded_covergroups,
+	    bool outside_new = false)
+      : parent_(parent), constructor_(method),
+	embedded_covergroups_(embedded_covergroups),
+	outside_new_(outside_new)
       { }
 
       bool classify_instance_constant_initializer(
@@ -2006,6 +2149,8 @@ class covergroup_constructor_order_classifier_t :
 	    vector<pform_constructor_order_dependency_t>&dependencies)
 	    const override
       {
+	    if (outside_new_)
+		  return false;
 	    if (!assignment.plain_blocking
 		|| !dynamic_cast<const PENewClass*>(assignment.rval))
 		  return false;
@@ -2029,6 +2174,21 @@ class covergroup_constructor_order_classifier_t :
 		  dependencies.push_back(use_dep);
 	    }
 	    return !dependencies.empty();
+      }
+
+      bool classify_forbidden_embedded_covergroup_assignment(
+	    const pform_constructor_order_assignment_t&assignment,
+	    size_t&property_idx) const override
+      {
+	    if (!outside_new_)
+		  return false;
+	    int prop = property_from_lval_(assignment);
+	    if (prop < 0
+		|| embedded_covergroups_.find(static_cast<size_t>(prop))
+		   == embedded_covergroups_.end())
+		  return false;
+	    property_idx = static_cast<size_t>(prop);
+	    return true;
       }
 
       bool classify_repeat_count(const PExpr*count,
@@ -2088,8 +2248,9 @@ class covergroup_constructor_order_classifier_t :
 
     private:
       const netclass_t*parent_;
-      const PFunction*constructor_;
+      const PTaskFunc*constructor_;
       const map<size_t,const netclass_t*>&embedded_covergroups_;
+      bool outside_new_;
 
       static bool scope_declares_(const LexicalScope*scope, perm_string name)
       {
@@ -2217,6 +2378,11 @@ static void report_constructor_order_violations_(
 		       << "' can be assigned only once along every reachable path "
 			  "through its corresponding class constructor "
 			  "(IEEE 1800 8.19).";
+		  break;
+	    case PFORM_CTOR_ORDER_COVERGROUP_ASSIGNMENT_OUTSIDE_NEW:
+		  cerr << "embedded covergroup variable `" << property
+		       << "' may only be assigned in the parent class new method "
+			  "(IEEE 1800 19.4).";
 		  break;
 	    }
 	    cerr << endl;
@@ -2684,6 +2850,14 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    if (cur->second != constructor_function) {
+		  covergroup_constructor_order_classifier_t method_classifier(
+			this, cur->second, embedded_covergroups, true);
+		  pform_constructor_order_result_t method_order =
+			audit_pform_constructor_order(
+			      cur->second->get_statement(), method_classifier);
+		  report_constructor_order_violations_(des, this, method_order);
+	    }
 	    cur->second->elaborate_sig(des, scope);
       }
 
@@ -2696,8 +2870,16 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    covergroup_constructor_order_classifier_t method_classifier(
+		  this, cur->second, embedded_covergroups, true);
+	    pform_constructor_order_result_t method_order =
+		  audit_pform_constructor_order(cur->second->get_statement(),
+					method_classifier);
+	    report_constructor_order_violations_(des, this, method_order);
 	    cur->second->elaborate_sig(des, scope);
       }
+
+      validate_pure_virtual_methods_(des, this, pclass);
 
       class_scope_->elaborate_nettypes(des);
 
@@ -3360,6 +3542,24 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetExpr*> &pdefs,
 				     vector<perm_string> &port_names) const
 {
+      bool automatic_lifetime = false;
+      if (const PTask*task = dynamic_cast<const PTask*>(this))
+	    automatic_lifetime = task->is_auto();
+      else if (const PFunction*func = dynamic_cast<const PFunction*>(this))
+	    automatic_lifetime = func->is_auto();
+
+      if (!automatic_lifetime && !method_of() && ports_) {
+	    for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+		  NetNet*port = scope->find_signal(ports_->at(idx).port->basename());
+		  if (port && port->port_type() == NetNet::PREF) {
+			cerr << port->get_fileline() << ": error: Argument passing by reference "
+			     << "is illegal for a subroutine with static lifetime "
+			     << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+			des->errors += 1;
+		  }
+	    }
+      }
+
       if (ports_ == 0) {
 	    ports.clear();
 	    pdefs.clear();
@@ -3463,10 +3663,28 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				       * expression such as (UVM_LOG | UVM_RM_RECORD) then had a
 				       * 1-bit operator with 32-bit operands and aborted constant
 				       * folding. */
+				      bool old_procedural_context =
+					    pform_procedural_expr_context;
+				      bool old_default_context = pform_default_argument_context;
+				      bool old_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = true;
+				      pform_default_argument_context = true;
+				      pform_default_argument_requires_procedural_context = false;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func());
+				      if (tmp_def
+					  && pform_default_argument_requires_procedural_context)
+					    tmp_def->mark_requires_procedural_context();
+				      bool default_requires_procedural_context =
+					    pform_default_argument_requires_procedural_context;
+				      pform_procedural_expr_context = old_procedural_context;
+				      pform_default_argument_context = old_default_context;
+				      pform_default_argument_requires_procedural_context =
+					    old_requires_procedural_context
+					    || default_requires_procedural_context;
 				} else {
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,
@@ -3479,6 +3697,10 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
+		  } else if (tmp->port_type() == NetNet::PREF) {
+			/* A ref default is an lvalue, not a value to copy into the
+			 * formal. Keep its parse form on the subroutine declaration;
+			 * the call site binds it in this declaration scope. */
 		  } else {
 			cerr << get_fileline() << ": sorry: Default arguments "
 			        "for subroutine output or inout ports are not "
@@ -3795,6 +4017,11 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    wtype = NetNet::WIRE;
       if (wtype == NetNet::IMPLICIT_REG)
 	    wtype = NetNet::REG;
+      // A module ref port names the caller's variable directly.  Its
+      // formal therefore has to be represented as a variable even when
+      // the declaration's ordinary net default is wire.
+      if (port_type_ == NetNet::PREF && scope->type() == NetScope::MODULE)
+	    wtype = NetNet::REG;
 
       NetNetType*user_type = user_nettype()
             ? scope->elaborate_nettype(des, user_nettype()) : 0;
@@ -3823,8 +4050,10 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
 
       if (is_elaborating_) {
-	    if (sig_predeclared)
+	    if (sig_predeclared) {
+		  sig->set_virtual_interface(resolved_virtual_interface);
 		  return sig;
+	    }
 		    cerr << get_fileline() << ": error: Circular dependency "
 			    "detected in declaration of '" << name_ << "'."
 			 << " scope=" << scope_path(scope) << endl;
@@ -4106,6 +4335,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (user_type) {
             sig->set_user_nettype(user_type);
       }
+      sig->set_virtual_interface(resolved_virtual_interface);
 
       if (is_interconnect()) {
             sig->mark_interconnect(!sig->packed_dims().empty()

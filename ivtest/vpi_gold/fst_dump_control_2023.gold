@@ -1,0 +1,52 @@
+Compiling vpi/fst_text.c...
+Making fst_dump_control_2023.vpi from  fst_text.o...
+FST info: dumpfile fst_dump_control.fst opened for output.
+--- fst_dump_control.fst: timescale 1e0 s, 0..14
+scope module top
+  var reg 2 a [1:0]
+  var real 8 r
+scope module top
+  scope module inner : mid
+    var reg 1 m
+    scope module deep : leaf
+      var reg 4 l [3:0]
+scope module top
+  scope module other : mid
+    scope module deep : leaf
+      var reg 4 l [3:0]
+dump off at 4
+dump on at 10
+#0
+  top.other.deep.l [3:0] = 0000
+  top.inner.deep.l [3:0] = 0000
+  top.inner.m = 0
+  top.r = 0.5
+  top.a [1:0] = 00
+#2
+  top.a [1:0] = 01
+#3
+  top.inner.deep.l [3:0] = 0001
+  top.other.deep.l [3:0] = 0001
+#4
+  top.other.deep.l [3:0] = xxxx
+  top.inner.deep.l [3:0] = xxxx
+  top.a [1:0] = xx
+  top.r = nan
+  top.inner.m = x
+#10
+  top.inner.m = 0
+  top.r = 1.25
+  top.a [1:0] = 11
+  top.inner.deep.l [3:0] = 0011
+  top.other.deep.l [3:0] = 0011
+#12
+  top.other.deep.l [3:0] = 0100
+  top.other.deep.l [3:0] = 0100
+  top.inner.deep.l [3:0] = 0100
+  top.inner.deep.l [3:0] = 0100
+  top.a [1:0] = 11
+  top.r = 1.25
+  top.inner.m = 0
+#13
+  top.a [1:0] = 00
+--- end

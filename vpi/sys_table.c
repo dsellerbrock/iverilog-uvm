@@ -43,7 +43,8 @@ extern void sys_readmem_register(void);
 extern void sys_scanf_register(void);
 extern void sys_sdf_register(void);
 extern void sys_time_register(void);
-extern void sys_vcd_register(void);
+extern const struct vcd_dump_tasks*sys_vcd_setup(void);
+static void sys_vcd_register(void) { vcd_register_dump_tasks(sys_vcd_setup(), NULL); }
 extern void sys_vcdoff_register(void);
 extern void sys_special_register(void);
 extern void table_model_register(void);
@@ -56,11 +57,15 @@ extern void sys_lxt_register(void);
 static void sys_lxt_register(void) { fputs("LXT support disabled since libbzip2 not available\n",stderr); exit(1); }
 #endif
 extern void sys_lxt2_register(void);
-extern void sys_fst_register(void);
+extern const struct vcd_dump_tasks*sys_fst_setup(void);
+static void sys_fst_register(void) { vcd_register_dump_tasks(sys_fst_setup(), NULL); }
+  /* No dumper was named: $dumpfile("*.fst") selects FST, anything else VCD. */
+static void sys_auto_register(void) { vcd_register_dump_tasks(sys_vcd_setup(), sys_fst_setup()); }
 #else
 static void sys_lxt_register(void) { fputs("LXT support disabled since zlib not available\n",stderr); exit(1); }
 static void sys_lxt2_register(void) { fputs("LXT2 support disabled since zlib not available\n",stderr); exit(1); }
 static void sys_fst_register(void) { fputs("FST support disabled since zlib not available\n",stderr); exit(1); }
+static void sys_auto_register(void) { sys_vcd_register(); }
 #endif
 
 static void sys_lxt_or_vcd_register(void)
@@ -79,7 +84,7 @@ static void sys_lxt_or_vcd_register(void)
 		  dumper = cp + 1;
 
       } else {
-	    dumper = "vcd";
+	    dumper = "auto";
       }
 
 	/* Scan the extended arguments, looking for flags that select
@@ -159,7 +164,10 @@ static void sys_lxt_or_vcd_register(void)
 	    }
       }
 
-      if (strcmp(dumper, "vcd") == 0)
+      if (strcmp(dumper, "auto") == 0)
+	    sys_auto_register();
+
+      else if (strcmp(dumper, "vcd") == 0)
 	    sys_vcd_register();
 
       else if (strcmp(dumper, "VCD") == 0)

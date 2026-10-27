@@ -1,0 +1,5 @@
+tests/1800_audit/c06/p06_25b_type_cmp.sv:10: sorry: type() could not resolve the type of this identifier reference (hierarchical or forward references are not supported).
+tests/1800_audit/c06/p06_25b_type_cmp.sv:10: sorry: type() could not resolve the type of this identifier reference (hierarchical or forward references are not supported).
+tests/1800_audit/c06/p06_25b_type_cmp.sv:11: sorry: type() could not resolve the type of this identifier reference (hierarchical or forward references are not supported).
+tests/1800_audit/c06/p06_25b_type_cmp.sv:11: sorry: type() could not resolve the type of this identifier reference (hierarchical or forward references are not supported).
+4 error(s) during elaboration.

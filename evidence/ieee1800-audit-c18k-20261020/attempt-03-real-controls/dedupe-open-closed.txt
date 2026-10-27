@@ -1,0 +1,10 @@
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "real inside"
+463	OPEN	[IEEE 1800] §18 — Expand rand real beyond scalar finite intervals	enhancement	2026-10-20T15:24:24Z
+767	OPEN	[IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value	1800-audit	2026-10-20T06:38:09Z
+102	CLOSED	Per-iteration `automatic` local captured by join_none fork shares one slot inside a class method		2026-07-21T04:38:55Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "binary64 feasible"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "finite real interval"
+463	OPEN	[IEEE 1800] §18 — Expand rand real beyond scalar finite intervals	enhancement	2026-10-20T15:24:24Z
+

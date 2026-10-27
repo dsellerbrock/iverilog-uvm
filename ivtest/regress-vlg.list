@@ -1846,3 +1846,4 @@ sv_ifdef_escaped_identifier_fail CE,-g2017,-s,test ivltests gold=sv_ifdef_escape
 cmpi			normal			ivltests
 vvp_vec4_functor_logic normal ivltests gold=vvp_vec4_functor_logic.gold
 vvp_vec4_functor_arith normal ivltests gold=vvp_vec4_functor_arith.gold
+proc_cont_var_select_1364_ext normal,-s,proc_cont_var_select_1364_ext ivltests gold=proc_cont_var_select_1364_ext.gold

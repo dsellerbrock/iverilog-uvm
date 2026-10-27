@@ -1,0 +1,7 @@
+PASS 19.10.cg_option_weight_rw
+PASS 19.10.cp_option_weight_rw
+PASS 19.10.cp_option_at_least_rw
+PASS 19.10.cross_option_weight_rw
+PASS 19.10.cross_option_at_least_rw
+PASS 19.10 option structure organization
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/p19_10_option_structs.sv:31: $finish called at 0 (1s)

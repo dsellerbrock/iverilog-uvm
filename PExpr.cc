@@ -22,6 +22,7 @@
 
 # include  <algorithm>
 # include  <iostream>
+# include  <vector>
 
 # include  "compiler.h"
 # include  "PExpr.h"
@@ -34,6 +35,27 @@
 # include  <typeinfo>
 
 using namespace std;
+
+namespace {
+static std::vector<pform_name_t> modport_expression_contexts;
+}
+
+void push_modport_expression_context(const pform_name_t&root)
+{
+      modport_expression_contexts.push_back(root);
+}
+
+void pop_modport_expression_context()
+{
+      assert(!modport_expression_contexts.empty());
+      modport_expression_contexts.pop_back();
+}
+
+const pform_name_t* modport_expression_context()
+{
+      return modport_expression_contexts.empty()
+	    ? nullptr : &modport_expression_contexts.back();
+}
 
 PMatchPattern::PMatchPattern(kind_t kind)
 : kind_(kind)
@@ -653,6 +675,7 @@ PEIdent* PEIdent::clone_for_reference() const
       res->scoped_type_prefix_ = scoped_type_prefix_;
       res->dotted_suffix_ = dotted_suffix_;
       res->clocking_access_ = clocking_access_;
+      res->modport_expression_access_ = modport_expression_access_;
       return res;
 }
 

@@ -1,0 +1,10 @@
+--- /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-03/input/expected.txt	2026-10-20 11:19:58.380728658 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-03/results/logs/run-g2017.stdout.log	2026-10-20 11:20:03.072939550 -0600
+@@ -1,5 +1,5 @@
+-PI 0 0 0
+-PB 0 0 0
++PI x x 0
++PB x x 0
+ PL x x x
+ PG x x x
+ PR 0.0 0.0 0.0

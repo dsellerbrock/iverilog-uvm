@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_param_mismatch.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+Elaboration failed

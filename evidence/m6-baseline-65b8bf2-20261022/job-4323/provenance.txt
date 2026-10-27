@@ -1,0 +1,12 @@
+host=DAN-DESKTOP
+measurement_base=65b8bf2045dfa7a66120bb8c81d8941e97d6daaa
+qd_bfm=d1529c922da402943148a0fb22648f347e30eed9
+caliptra_rtl=49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e
+rtl_adams_bridge=b77e3d899e828d626cfc2a0d26a6b5704cc121e0
+uvm_core=78c06547a2a0a29b3dc9dcafae62b75b2ff61544
+window=100:2100
+cpu=9
+build_flags=-g -O2 -fno-omit-frame-pointer
+configure=--enable-libveriuser
+perf version 7.0.14
+valgrind-3.26.0

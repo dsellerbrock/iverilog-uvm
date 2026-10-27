@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/n18_05_solve_randc.sv:1: error: 'randc' variables cannot be used in 'solve before' constraints.
+1 error(s) during elaboration.

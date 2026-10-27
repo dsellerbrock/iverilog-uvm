@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_12_hier_let.sv:1: error: Unable to bind wire/reg/memory `m.g' in `m'
+1 error(s) during elaboration.

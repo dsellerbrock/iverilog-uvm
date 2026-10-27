@@ -658,6 +658,10 @@ extern void vpip_format_strength(char*str, s_vpi_value*value, unsigned bit);
      $finish system tasks bundled with iverilog use this function to
      tell vvp to exit SUCCESS or FAILURE. */
 extern void vpip_set_return_value(int value);
+/* IEEE 1800-2023 19.9 functional-coverage database control. */
+#define VPIP_COVGRP_DB_SET_NAME 0
+#define VPIP_COVGRP_DB_LOAD     1
+extern int vpip_covgrp_db(int op, const char*name);
 
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
@@ -672,6 +676,7 @@ extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
    available, unlike best-effort tracking for outer frames. */
 extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
+extern void vpip_print_finish_stats(void);
 /* Cancel pending deferred-immediate reports selected by hierarchy path. */
 extern void vpip_cancel_deferred_asserts(const char*selector,
                                          PLI_INT32 levels);
@@ -682,6 +687,8 @@ extern void vpip_set_deferred_assertions_enabled(const char*selector,
                                                   PLI_INT32 enabled);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
+/* True when the current VVP design was compiled as SystemVerilog. */
+extern int vpip_is_system_verilog_mode(void);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
    (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the
@@ -694,6 +701,14 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
                                   vpiHandle scope);
+/* Immediate-cover source identities and evaluation results (IEEE 1800-2017
+   16.3 / 40.5.3; 2023 16.3 / 40.5.2). */
+extern void vpip_register_immediate_cover(PLI_INT32 source_id,
+                                          const char*name, const char*file,
+                                          PLI_INT32 line, vpiHandle scope);
+extern void vpip_report_immediate_cover(PLI_INT32 source_id,
+                                         PLI_INT32 success,
+                                         vpiHandle scope);
 /* Internal fixed-checker attempt identity. clock records every sampled
    edge, including edges on which assertion control suppresses starts. */
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
@@ -784,7 +799,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 11;
+static const PLI_UINT32 vpip_routines_version = 13;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -845,6 +860,12 @@ typedef struct {
     PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
     void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
                                                    PLI_INT32);
+    void        (*register_immediate_cover)(PLI_INT32, const char*,
+                                             const char*, PLI_INT32,
+                                             vpiHandle);
+    void        (*report_immediate_cover)(PLI_INT32, PLI_INT32, vpiHandle);
+    void        (*print_finish_stats)(void);
+    int         (*covgrp_db)(int, const char*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

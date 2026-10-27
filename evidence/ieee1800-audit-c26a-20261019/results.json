@@ -1,0 +1,774 @@
+[
+  {
+    "test": "p_complex-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_complex.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_complex.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.044,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_complex-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_complex.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.018,
+    "stdout": "P9 4 6\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_explicit-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_explicit.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_explicit.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_explicit-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_explicit.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "P1 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_export-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_export.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_export.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.025,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_export-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_export.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.013,
+    "stdout": "P7 5 5\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_local-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_local.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_func_local.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.038,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_local-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_local.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "P4 2\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_wild-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_wild.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_func_wild.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.036,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_wild-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_wild.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "P5 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_header-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_header.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_header.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.023,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_header.sv:4: error: Net `a` can not be of type `<no_type>`.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "p_qualified-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_qualified.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_qualified.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.037,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_qualified-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_qualified.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.019,
+    "stdout": "P2 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_varinit-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_varinit.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_varinit.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_varinit-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_varinit.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.017,
+    "stdout": "P8 7\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_wild_bind-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_wild_bind.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_wild_bind.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.025,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_wild_bind-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_wild_bind.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.013,
+    "stdout": "P3 1 2\n",
+    "stderr": ""
+  },
+  {
+    "test": "n26_explicit_two_pkgs-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_two_pkgs.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.022,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_two_pkgs.sv:3: error: 'c' has already been imported into this scope from package 'p'.\n"
+  },
+  {
+    "test": "n26_explicit_vs_local-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.032,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2: error: 'c' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2:      : It was declared here as a variable.\n"
+  },
+  {
+    "test": "n26_export_missing-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_missing.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.058,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_missing.sv:2: error: `zz` has not been imported from p1.\n"
+  },
+  {
+    "test": "n26_export_then_declare-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_then_declare.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.052,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_then_declare.sv:2: error: 'x' has already been imported into this scope from package 'p1'.\n"
+  },
+  {
+    "test": "n26_implicit_net-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_implicit_net.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.042,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_implicit_net.sv:1: syntax error\nI give up.\n"
+  },
+  {
+    "test": "n26_import_in_class-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_import_in_class.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.05,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_import_in_class.sv:2: error: An import statement is illegal directly within a class scope (IEEE 1800-2017/2023 A.1.8/A.2.1.3).\n"
+  },
+  {
+    "test": "n26_late_local_decl-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_late_local_decl.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_late_local_decl.sv:2: error: 'x' has already been imported into this scope from package 'p'.\n"
+  },
+  {
+    "test": "n26_unit_ref-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_unit_ref.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n26_wild_conflict-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_conflict.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.021,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_conflict.sv:3: error: Ambiguous use of 'c'. It is exported by both 'p' and by 'q'.\n"
+  },
+  {
+    "test": "n26_wild_late_import-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_late_import.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.022,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_late_import.sv:6: error: 'c' has already been imported into this scope from package 'q'.\n"
+  },
+  {
+    "test": "n26_wild_ref_other_pkg-2017",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_ref_other_pkg.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.028,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_ref_other_pkg.sv:7: error: Enumeration type mismatch in assignment.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "p_complex-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_complex.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_complex.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.03,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_complex-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_complex.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.017,
+    "stdout": "P9 4 6\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_explicit-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_explicit.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_explicit.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.036,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_explicit-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_explicit.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "P1 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_export-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_export.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_export.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_export-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_export.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "P7 5 5\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_local-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_local.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_func_local.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.032,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_local-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_local.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.017,
+    "stdout": "P4 2\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_wild-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_wild.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_func_wild.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.027,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_func_wild-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_func_wild.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "P5 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_header-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_header.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_header.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.024,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_header.sv:4: error: Net `a` can not be of type `<no_type>`.\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "p_qualified-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_qualified.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_qualified.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.028,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_qualified-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_qualified.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "P2 1\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_varinit-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_varinit.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_varinit.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.033,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_varinit-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_varinit.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "P8 7\n",
+    "stderr": ""
+  },
+  {
+    "test": "p_wild_bind-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_wild_bind.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_wild_bind.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.036,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "p_wild_bind-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c26a-20261019/p_wild_bind.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.02,
+    "stdout": "P3 1 2\n",
+    "stderr": ""
+  },
+  {
+    "test": "n26_explicit_two_pkgs-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_two_pkgs.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.022,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_two_pkgs.sv:3: error: 'c' has already been imported into this scope from package 'p'.\n"
+  },
+  {
+    "test": "n26_explicit_vs_local-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.023,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2: error: 'c' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2:      : It was declared here as a variable.\n"
+  },
+  {
+    "test": "n26_export_missing-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_missing.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.041,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_missing.sv:2: error: `zz` has not been imported from p1.\n"
+  },
+  {
+    "test": "n26_export_then_declare-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_then_declare.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.034,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_then_declare.sv:2: error: 'x' has already been imported into this scope from package 'p1'.\n"
+  },
+  {
+    "test": "n26_implicit_net-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_implicit_net.sv"
+    ],
+    "exit": 2,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_implicit_net.sv:1: syntax error\nI give up.\n"
+  },
+  {
+    "test": "n26_import_in_class-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_import_in_class.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.025,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_import_in_class.sv:2: error: An import statement is illegal directly within a class scope (IEEE 1800-2017/2023 A.1.8/A.2.1.3).\n"
+  },
+  {
+    "test": "n26_late_local_decl-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_late_local_decl.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.024,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_late_local_decl.sv:2: error: 'x' has already been imported into this scope from package 'p'.\n"
+  },
+  {
+    "test": "n26_unit_ref-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_unit_ref.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n26_wild_conflict-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_conflict.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_conflict.sv:3: error: Ambiguous use of 'c'. It is exported by both 'p' and by 'q'.\n"
+  },
+  {
+    "test": "n26_wild_late_import-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_late_import.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.038,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_late_import.sv:6: error: 'c' has already been imported into this scope from package 'q'.\n"
+  },
+  {
+    "test": "n26_wild_ref_other_pkg-2023",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_ref_other_pkg.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.028,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_ref_other_pkg.sv:7: error: Enumeration type mismatch in assignment.\n1 error(s) during elaboration.\n"
+  }
+]

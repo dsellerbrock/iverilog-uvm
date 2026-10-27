@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017-02/inputs/c13/p13_05_3_inout_default.sv:3: error: Missing argument 1 ('io') of call to task.
+2 error(s) during elaboration.

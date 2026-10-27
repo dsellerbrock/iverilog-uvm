@@ -1,0 +1,2 @@
+FAIL: bare ##0 finished at 2000; expected suspension to clocking event at 5
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c14-10-11-current6604-20261019-a01/input/p14_11_zero_cycle_delay_bare.sv:16: $finish(1) called at 2000 (1ps)

@@ -77,6 +77,12 @@ static void show_this_item(struct vcd_info*info)
 	    value.format = vpiRealVal;
 	    vpi_get_value(info->item, &value);
 	    fstWriterEmitValueChange(dump_file, info->ident, &value.value.real);
+      } else if (type == vpiStringVar) {
+	    value.format = vpiStringVal;
+	    vpi_get_value(info->item, &value);
+	    fstWriterEmitVariableLengthValueChange(dump_file, info->ident,
+	                                           value.value.str,
+	                                           strlen(value.value.str));
       } else {
 	    value.format = vpiBinStrVal;
 	    vpi_get_value(info->item, &value);
@@ -93,8 +99,8 @@ static void show_this_item_x(struct vcd_info*info)
 	      /* Some tools dump nothing here...? */
             double mynan = strtod("NaN", NULL);
 	    fstWriterEmitValueChange(dump_file, info->ident, &mynan);
-      } else if (type == vpiNamedEvent) {
-	    /* Do nothing for named events. */
+      } else if (type == vpiNamedEvent || type == vpiStringVar) {
+	    /* Do nothing for named events. A string has no x value. */
       } else {
 	    int siz = vpi_get(vpiSize, info->item);
 	    char *xmem = malloc(siz);
@@ -382,6 +388,7 @@ static void open_dumpfile(vpiHandle callh)
 	    else
 		  fstWriterSetDate(dump_file, "");
 	    fstWriterSetVersion(dump_file, "Icarus Verilog");
+	    if (dump_limit > 0) fstWriterSetDumpSizeLimit(dump_file, dump_limit);
 	    sprintf(scale_buf, "\t%u%s\n", scale, units_names[udx]);
 	    fstWriterSetTimescaleFromString(dump_file, scale_buf);
 	      /* Set the faster dump type when requested. */
@@ -457,8 +464,16 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
       item_type = vpi_get(vpiType, item);
       switch (item_type) {
 	  case vpiNamedEvent: type = FST_VT_VCD_EVENT; break;
-	  case vpiIntVar:
 	  case vpiIntegerVar: type = FST_VT_VCD_INTEGER; break;
+	    /* The SystemVerilog types have their own FST types. */
+	  case vpiIntVar:      type = FST_VT_SV_INT; break;
+	  case vpiBitVar:      type = FST_VT_SV_BIT; break;
+	  case vpiByteVar:     type = FST_VT_SV_BYTE; break;
+	  case vpiShortIntVar: type = FST_VT_SV_SHORTINT; break;
+	  case vpiLongIntVar:  type = FST_VT_SV_LONGINT; break;
+	  case vpiStringVar:   type = FST_VT_GEN_STRING; break;
+	    /* Class objects are not dumped. */
+	  case vpiClassVar: return;
 	    /* FST (gtkwave) assumes PARAMETER are bit, so handle other cases */
 	  case vpiParameter:
 	    switch (vpi_get(vpiConstType, item)) {
@@ -469,10 +484,6 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	    /* Icarus converts realtime to real. */
 	  case vpiRealVar:    type = FST_VT_VCD_REAL; break;
 	  case vpiMemoryWord:
-	  case vpiBitVar:
-	  case vpiByteVar:
-	  case vpiShortIntVar:
-	  case vpiLongIntVar:
 	  case vpiReg:        type = FST_VT_VCD_REG; break;
 	    /* Icarus converts a time to a plain register. */
 	  case vpiTimeVar:    type = FST_VT_VCD_TIME; break;
@@ -496,6 +507,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	  case vpiNamedFork:  stype = FST_ST_VCD_FORK; break;
 	  case vpiFunction:   stype = FST_ST_VCD_FUNCTION; break;
 	  case vpiGenScope:   stype = FST_ST_VCD_GENERATE; break;
+	  case vpiInterface:  stype = FST_ST_VCD_INTERFACE; break;
 	  case vpiModule:     stype = FST_ST_VCD_MODULE; break;
 	  case vpiPackage:    stype = FST_ST_VCD_PACKAGE; break;
 	  case vpiTask:       stype = FST_ST_VCD_TASK; break;
@@ -544,11 +556,18 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	  case vpiMemoryWord:
 	  case vpiReg:
 	  case vpiTimeVar:
+	  case vpiStringVar:
 	  case vpiNet:
 
 	      /* If we are skipping all signal or this is in an automatic
 	       * scope then just return. */
             if (skip || vpi_get(vpiAutomatic, item)) return;
+
+	      /* The compiler makes named events "_ivl_<n>" for some event
+	       * controls (e.g. through a modport). They were not declared, so
+	       * do not dump them. */
+	    if (item_type == vpiNamedEvent &&
+	        strncmp(vpi_get_str(vpiName, item), "_ivl_", 5) == 0) return;
 
 	      /* Skip this signal if it has already been included.
 	       * This can only happen for implicitly given signals. */
@@ -571,17 +590,27 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	       * a size of 1 and some viewers do not accept a width of
 	       * zero so we will also use a width of one for events. */
 	    if (item_type == vpiNamedEvent) size = 1;
+	    else if (item_type == vpiStringVar) size = 0;
 	    else size = vpi_get(vpiSize, item);
 	      /* The FST format supports a port direction so if the net
 	       * is a port set the direction to one of the following:
 	       *   FST_VD_INPUT, FST_VD_OUTPUT or FST_VD_INOUT */
 	    dir = FST_VD_IMPLICIT;
 
-	    if (size > 1 || vpi_get(vpiLeftRange, item) != 0) {
+	    if (item_type != vpiStringVar &&
+	        (size > 1 || vpi_get(vpiLeftRange, item) != 0)) {
 		  char *buf = malloc(strlen(escname) + 65);
-		  sprintf(buf, "%s [%i:%i]", escname,
-                            (int)vpi_get(vpiLeftRange, item),
-                            (int)vpi_get(vpiRightRange, item));
+		  int left = vpi_get(vpiLeftRange, item);
+		  int right = vpi_get(vpiRightRange, item);
+		    /* VPI gives only the outer range of a multidimensional
+		     * packed variable. It is dumped as one vector, so
+		     * collapse the range to the total width (IEEE 1800-2023
+		     * 21.7.5). */
+		  if (size > 0 && abs(left - right) + 1 != (int)size) {
+			left = size - 1;
+			right = 0;
+		  }
+		  sprintf(buf, "%s [%i:%i]", escname, left, right);
 
 		  new_ident = fstWriterCreateVar(dump_file, type,
 		                                 dir, size, buf,
@@ -654,6 +683,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	    break;
 
 	  case vpiModule:
+	  case vpiInterface:
 	  case vpiPackage:
 	  case vpiGenScope:
 	  case vpiFunction:
@@ -675,6 +705,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 			/* Scope */
 			vpiFunction,
 			vpiGenScope,
+			vpiInterface,
 			vpiModule,
 			vpiNamedBegin,
 			vpiNamedFork,
@@ -767,6 +798,7 @@ static int draw_scope(vpiHandle item, vpiHandle callh)
 	  case vpiFunction:    type = FST_ST_VCD_FUNCTION;   break;
 	  case vpiNamedFork:   type = FST_ST_VCD_FORK;       break;
 	  case vpiGenScope:    type = FST_ST_VCD_GENERATE;   break;
+	  case vpiInterface:   type = FST_ST_VCD_INTERFACE;  break;
 	  case vpiModule:      type = FST_ST_VCD_MODULE;     break;
 	  case vpiTask:        type = FST_ST_VCD_TASK;       break;
 	  default:
@@ -844,6 +876,7 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	        case vpiParameter:
 	        case vpiRealVar:
 	        case vpiReg:
+	        case vpiStringVar:
 	        case vpiTimeVar:
 		    /* Warn if the variables scope (which includes the
 		     * variable) or the variable itself was already
@@ -886,12 +919,15 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-void sys_fst_register(void)
+const struct vcd_dump_tasks*sys_fst_setup(void)
 {
+      static const struct vcd_dump_tasks tasks = {
+	    sys_dumpall_calltf, sys_dumpfile_calltf, sys_dumpflush_calltf,
+	    sys_dumplimit_calltf, sys_dumpoff_calltf, sys_dumpon_calltf,
+	    sys_dumpvars_calltf
+      };
       int idx;
       struct t_vpi_vlog_info vlog_info;
-      s_vpi_systf_data tf_data;
-      vpiHandle res;
 
 	/* Scan the extended arguments, looking for fst optimization flags. */
       vpi_get_vlog_info(&vlog_info);
@@ -913,68 +949,5 @@ void sys_fst_register(void)
 		}
       }
 
-      /* All the compiletf routines are located in vcd_priv.c. */
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpall";
-      tf_data.calltf    = sys_dumpall_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpall";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpfile";
-      tf_data.calltf    = sys_dumpfile_calltf;
-      tf_data.compiletf = sys_one_string_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpfile";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpflush";
-      tf_data.calltf    = sys_dumpflush_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpflush";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumplimit";
-      tf_data.calltf    = sys_dumplimit_calltf;
-      tf_data.compiletf = sys_one_numeric_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumplimit";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpoff";
-      tf_data.calltf    = sys_dumpoff_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpoff";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpon";
-      tf_data.calltf    = sys_dumpon_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpon";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpvars";
-      tf_data.calltf    = sys_dumpvars_calltf;
-      tf_data.compiletf = sys_dumpvars_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpvars";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
+      return &tasks;
 }

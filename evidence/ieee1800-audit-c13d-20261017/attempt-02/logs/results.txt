@@ -1,0 +1,36 @@
+host=DAN-DESKTOP
+2026-10-17T17:14:43-06:00
+toolchain=Icarus Verilog version 13.0 (devel) (9b5fad2af)
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+test_source=fb5eef541b9477078089c8ff54ac7e0eb7d860b807d165e63278b8a62f0e6d90  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017-attempt02/inputs/p13_03_tasks.sv
+compile_timeout=60s run_timeout=30s
+=== -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 13.3.directions
+INFO u=1 v=0
+PASS 13.3.default_dir_type_logic
+PASS 13.3.return_exits
+PASS 13.3.empty_task
+PASS 13.3.2.static_output_retained
+PASS 13.3.2.auto_output_reinit
+PASS 13.3.1.static_var_in_auto_task
+PASS 13.3.2.static_shared_concurrent
+PASS 13.3.2.auto_replicated
+DONE fails=0
+=== -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 13.3.directions
+INFO u=1 v=0
+PASS 13.3.default_dir_type_logic
+PASS 13.3.return_exits
+PASS 13.3.empty_task
+PASS 13.3.2.static_output_retained
+PASS 13.3.2.auto_output_reinit
+PASS 13.3.1.static_var_in_auto_task
+PASS 13.3.2.static_shared_concurrent
+PASS 13.3.2.auto_replicated
+DONE fails=0
+FINAL_STATUS=0

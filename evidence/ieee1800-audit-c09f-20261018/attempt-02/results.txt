@@ -1,0 +1,9 @@
+# Slurm job 2553: c09f clause 9.4 probes, attempt 02
+Host: DAN-DESKTOP. Pinned toolchain commit 9b5fad2; Icarus SHA 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a.
+The remote job directory and full per-test output are recorded in results.raw.txt and logs/. Slurm accounting is disabled; job 2553 is no longer in squeue, and the harness reached RUNNER_STATUS=1.
+
+Both -g2017 and -g2023:
+- p09_04_3_bits_queue compiled and ran, but reported $bits(empty queue)=1 and $bits(eight-byte queue)=1 (expected 64); the runtime wait check passed. Classification requires lead review of the correct §20.6.2 meaning for dynamic queues.
+- p09_04_4_seq_reducer compiled and ran, but emitted unresolved-reference warnings for abc.triggered; output was TRIGGERED t=0 and two ASSERT_PASS lines. Inconclusive for sequence.triggered and event-based sequence sampling until §16 review.
+- p09_04_5_intra compiled; it passed the first nine §9.4.5 checks, then timed out (runner exit 124) before any result after repeat_count_once. The timed-out portion includes X-repeat handling, delayed NBA, and NBA repeat checks; those results are inconclusive.
+- Negative repeat-without-event source was rejected during parsing in both editions.

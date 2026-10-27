@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue947_unit_forward_reference_fail.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue947_unit_forward_reference_fail"
+}

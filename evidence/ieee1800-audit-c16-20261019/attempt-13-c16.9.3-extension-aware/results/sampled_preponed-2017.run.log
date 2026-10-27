@@ -1,0 +1,3 @@
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+procedural live: 11 (expect 11)
+sampled: good=7 bad=0 (expect 7/0)

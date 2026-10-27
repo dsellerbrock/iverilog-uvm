@@ -1,0 +1,3 @@
+ivltests/sv_break_continue_fork_outer.v:6: error: 'break' cannot control a loop outside a fork-join block.
+ivltests/sv_break_continue_fork_outer.v:9: error: 'continue' cannot control a loop outside a fork-join block.
+2 error(s) during elaboration.

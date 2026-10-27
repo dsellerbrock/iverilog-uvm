@@ -1,0 +1,6 @@
+--- "function result treated as state"
+--- "function result constraint ordering"
+--- "constraint function result"
+--- "randomize function result constraint"
+--- "function return value state variable"
+--- "function call implicit ordering"

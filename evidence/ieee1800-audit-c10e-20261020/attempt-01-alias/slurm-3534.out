@@ -1,0 +1,36 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh5abbabcf" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+633cb27716f6b218e6ef52e5ca8090acaf3f24879b381302e845021d5c6580e4  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_duplicate_pair.sv
+a2569e7f711193c14ef2711682dcf48eebc0c4e378343bdf13a755c8841f1d7b  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_self.sv
+8557a6443eeb5cb1c662d4de1cb121b2ea90877fc31602d291da76033752b02e  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_variable.sv
+64ef4c157fedbb31cb511f34c071f19652cd14cbbff9ea2ab85fa54e4bfea5ba  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_width_mismatch.sv
+4d7711ee7b818377adf316a1541e96039be90b99cec4619c792d458382e16845  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/p10_11_alias.sv
+p10_11_alias-2017 compile_rc=0
+p10_11_alias-2017 run_rc=0
+AL 44332211 1
+n10_11_alias_variable-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_variable.sv:4: error: Variable 'v' cannot be driven by a primitive or continuous assignment with non-default strength.
+1 error(s) during elaboration.
+n10_11_alias_width_mismatch-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_width_mismatch.sv:4: error: Net alias operands have different widths (4 and 8).
+1 error(s) during elaboration.
+n10_11_alias_self-2017 compile_rc=0
+n10_11_alias_self-2017 run_rc=0
+n10_11_alias_duplicate_pair-2017 compile_rc=0
+n10_11_alias_duplicate_pair-2017 run_rc=0
+p10_11_alias-2023 compile_rc=0
+p10_11_alias-2023 run_rc=0
+AL 44332211 1
+n10_11_alias_variable-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_variable.sv:4: error: Variable 'v' cannot be driven by a primitive or continuous assignment with non-default strength.
+1 error(s) during elaboration.
+n10_11_alias_width_mismatch-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-alias-20261020-01/source/n10_11_alias_width_mismatch.sv:4: error: Net alias operands have different widths (4 and 8).
+1 error(s) during elaboration.
+n10_11_alias_self-2023 compile_rc=0
+n10_11_alias_self-2023 run_rc=0
+n10_11_alias_duplicate_pair-2023 compile_rc=0
+n10_11_alias_duplicate_pair-2023 run_rc=0

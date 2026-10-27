@@ -1,0 +1,2 @@
+input/o3_expression_at_least.sv:5: warning: Unable to bind wire/reg/memory `al' in `o3_expression_at_least.cg' (compile-progress: unresolved reference).
+sorry: covergroup option 'at_least' is not a constant; using default 1.

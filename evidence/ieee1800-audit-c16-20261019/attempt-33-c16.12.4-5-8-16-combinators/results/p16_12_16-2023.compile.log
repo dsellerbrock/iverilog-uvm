@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-33/input/p16_12_16_case.sv:15: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-33/input/p16_12_16_case.sv:17: error: Unable to bind wire/reg/memory `p_case' in `test'
+1 error(s) during elaboration.
+compile_exit=1

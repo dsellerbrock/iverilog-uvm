@@ -1,0 +1,3 @@
+PASS wrote 2-state int and enum arrays
+RUN PASS
+OUTPUT CONTENTS PASS

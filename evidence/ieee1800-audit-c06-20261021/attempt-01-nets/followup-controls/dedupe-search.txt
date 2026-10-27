@@ -1,0 +1,30 @@
+#921 [OPEN] [IEEE 1800] §25.9 — Virtual interface of an interface containing outside hierarchical references is accepted (required error)
+#909 [OPEN] [IEEE 1800] §14.16.2 — Continuous, primitive and procedural-continuous drivers of an output-clockvar variable are accepted (required error)
+#908 [OPEN] [IEEE 1800] §14.16 — Blocking assignment and regular intra-assignment delay to a clockvar are accepted (required error)
+#897 [OPEN] [IEEE 1800] §6.22/§23.3.3 — port connection between two distinct user-defined nettypes with the same data type is accepted
+#885 [OPEN] [IEEE 1800] Annex K — installed vpi_user.h omits 257 (2017) / 260 (2023) standard names (e.g., vpiAlways, cbAssign, vpiWidth)
+#859 [OPEN] [IEEE 1800] §10.10.3 — sized vector concatenation as an item of an unpacked array concatenation is rejected (C = {{8'h01, 8'h02}, 3})
+#857 [OPEN] [IEEE 1800] §10.9.2 — structure assignment pattern default does not descend into an unpacked-array member ('{default:5} on struct {int x; int y[2];})
+#853 [OPEN] [IEEE 1800] §7.8.5 — associative array indexed by an unpacked struct crashes vvp (SIGSEGV/SIGBUS)
+#819 [OPEN] [IEEE 1800] §6.7.1 — a net or input port with a two-state data type is accepted
+#818 [OPEN] [IEEE 1800] §23.2.2 — an unpacked struct port (net or variable, input or output) is rejected with an internal error
+#817 [OPEN] [IEEE 1800] §26.2 — a package item that refers to a compilation-unit item is accepted
+#816 [OPEN] [IEEE 1800] §25.9 — a component of a virtual interface is accepted in a continuous assignment
+#807 [OPEN] [IEEE 1800] §21.7.5 — an unpacked struct variable is not dumped to the VCD file (no fork scope, no members)
+#801 [OPEN] [IEEE 1800] §21.2.1.7 — %p of an associative array of structs prints question marks for the element values
+#788 [OPEN] [IEEE 1800] §20.6.2 — $bits of an unpacked struct type is rejected and of an unpacked struct variable returns the wrong value
+#768 [OPEN] [IEEE 1800] §10.6 — multi-operand procedural continuous assignment RHS is evaluated only once
+#767 [OPEN] [IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value
+#763 [OPEN] [IEEE 1800] §6.14 — chandle used in an arithmetic expression, continuous assignment or event control is accepted
+#753 [OPEN] [IEEE 1800] §6.21 — nonblocking assignment to a dynamic-array element is accepted
+#675 [OPEN] [IEEE 1800] §18.8 — rand_mode() on whole unpacked structure does not affect all members
+#642 [OPEN] [IEEE 1800] §13.8 — Class static method call in a continuous assignment fails with an internal error
+#635 [OPEN] [IEEE 1800] §13.4 — Reject output/inout/ref function calls outside procedural statements
+#539 [CLOSED] Packed struct assignment pattern member loses enum value with wider sibling expression
+#536 [CLOSED] Caliptra firmware throughput on Icarus c339 projects about 11 days for 271 tests
+#499 [CLOSED] [IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element
+#493 [CLOSED] [IEEE 1800] §10.6 — Release selected packed subfields without a target assertion
+#485 [OPEN] [IEEE 1800] §§7.6/7.8 — Validate variable-size associative pattern values transactionally
+#474 [CLOSED] [IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads
+#435 [OPEN] [IEEE 1800] §6 — Support class-method resolution functions for user-defined nettypes
+#415 [CLOSED] [IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns

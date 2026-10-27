@@ -1,0 +1,7 @@
+tests/1800_audit/c11/p11_09b_no_pkg.sv:13: warning: Choosing typ expression.
+tests/1800_audit/c11/p11_09b_no_pkg.sv:13: warning: Choosing typ expression.
+tests/1800_audit/c11/p11_09b_no_pkg.sv:18: sorry: the body of let `mult' (or an actual argument) has an expression shape the let expander cannot copy; the let call cannot be elaborated.
+tests/1800_audit/c11/p11_09b_no_pkg.sv:18: error: No function named `mult' found in this context (p11g2).
+tests/1800_audit/c11/p11_09b_no_pkg.sv:19: sorry: typed/ranged let ports are not supported yet (let `sq', port `v').
+tests/1800_audit/c11/p11_09b_no_pkg.sv:19: error: No function named `sq' found in this context (p11g2).
+4 error(s) during elaboration.

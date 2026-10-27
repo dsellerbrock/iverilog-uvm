@@ -1,0 +1,12 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+5967ac778242fb7de8d804d59f1b5d832ecb1f1b20b46da30256eef5f0fd26d2  r20_02_exit.sv
+edition=2017 compile_exit=0
+edition=2017 run_exit=0
+2017 stdout:
+EX0
+2017 stderr:
+edition=2023 compile_exit=0
+edition=2023 run_exit=0
+2023 stdout:
+EX0
+2023 stderr:

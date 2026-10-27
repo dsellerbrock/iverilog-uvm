@@ -1,0 +1,39 @@
+Open+closed GitHub issue searches captured 2026-10-20T15:51:50.685500+00:00.
+Repository: dsellerbrock/iverilog-uvm; every query uses --state all --limit 50.
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'extern constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint prototype'
+#831 OPEN [IEEE 1800] §18.5.11 — constraint_mode() on a static constraint block affects only the calling object https://github.com/dsellerbrock/iverilog-uvm/issues/831
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'pure constraint'
+#681 OPEN [IEEE 1800] §18.12 — Zero-argument scope randomize() with constraint checker fails elaboration https://github.com/dsellerbrock/iverilog-uvm/issues/681
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint inheritance'
+#456 CLOSED [IEEE 1800] §18 — Implement constraint override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/456
+#418 CLOSED [IEEE 1800] §18 — Solve coupled parent and child class constraints https://github.com/dsellerbrock/iverilog-uvm/issues/418
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'external constraint block'
+#831 OPEN [IEEE 1800] §18.5.11 — constraint_mode() on a static constraint block affects only the calling object https://github.com/dsellerbrock/iverilog-uvm/issues/831
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search '18.5.1'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search '18.5.2'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint override'
+#456 CLOSED [IEEE 1800] §18 — Implement constraint override specifiers https://github.com/dsellerbrock/iverilog-uvm/issues/456
+#12 CLOSED Phase 8: Randomization completeness — dist, soft, solve..before, query forms https://github.com/dsellerbrock/iverilog-uvm/issues/12
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'external constraint module scope'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'out-of-block constraint'
+(no search results)
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search 'constraint prototype same name block'
+(no search results)
+
+Direct review carried from attempt 01: #456 (dynamic constraint override specifiers), #418 (coupled parent/child object solving), #831 (static constraint_mode), #681 (scope randomize), and #12 (general randomization completeness) do not describe these external-block scope or prototype/body collision rules. Existing local `sv_constraint_prototype_collision_fail.v` checks extern prototype plus a second implicit prototype, a distinct collision shape.

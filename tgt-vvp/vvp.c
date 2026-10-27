@@ -827,6 +827,8 @@ __inline__ static void draw_execute_header(ivl_design_t des)
 	    fprintf(vvp_out, " \"(" VERSION_TAG ")\"");
       }
       fprintf(vvp_out, ";\n");
+      if (strcmp(ivl_design_flag(des, "ivl-systemverilog"), "1") == 0)
+            fprintf(vvp_out, ":ivl_systemverilog;\n");
 }
 
 __inline__ static void draw_module_declarations(ivl_design_t des)
@@ -994,6 +996,7 @@ static int finish_design_output(ivl_design_t des, int rc)
       const char*path = ivl_design_flag(des, "-o");
 
       emit_deferred_array_decls();
+      emit_signal_vartypes();
 
         /* Emit no-op TD stubs for referenced labels that were not
            materialized as function/task definitions. */

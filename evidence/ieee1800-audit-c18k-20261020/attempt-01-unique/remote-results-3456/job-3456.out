@@ -1,0 +1,15 @@
+edition	probe	compile_rc	run_rc	expected	first_diagnostic
+2017	p18_05_5_unique	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_unique.sv:7: warning: Constraint item in 'u' of class U1 is not representable in the constraint solver; randomize() of this class will fail.
+2017	p18_05_5_unique_shapes	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_unique_shapes.sv:4: warning: Constraint item in 'c' of class S1 is not representable in the constraint solver; randomize() of this class will fail.
+2017	p18_05_5_n1_randc	1	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_n1_randc.sv:6: error: 'randc' variables cannot be used in 'unique' constraints.
+2017	p18_05_5_n2_type	0	0	reject	
+2017	p18_05_5_n3_expr	0	0	reject	
+2017	p18_05_4_unique_real	5	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_4_unique_real.sv:4: error: property 'r1' of class R1 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+2017	p18_05_4_unique_real_scalar	3	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_4_unique_real_scalar.sv:4: error: property 'r1' of class R1 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+2023	p18_05_5_unique	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_unique.sv:7: warning: Constraint item in 'u' of class U1 is not representable in the constraint solver; randomize() of this class will fail.
+2023	p18_05_5_unique_shapes	0	0	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_unique_shapes.sv:4: warning: Constraint item in 'c' of class S1 is not representable in the constraint solver; randomize() of this class will fail.
+2023	p18_05_5_n1_randc	1	NA	reject	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_5_n1_randc.sv:6: error: 'randc' variables cannot be used in 'unique' constraints.
+2023	p18_05_5_n2_type	0	0	reject	
+2023	p18_05_5_n3_expr	0	0	reject	
+2023	p18_05_4_unique_real	2	NA	run	/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-04/input/p18_05_4_unique_real.sv:13: sorry: this rand real/shortreal shape is not currently supported in IEEE 1800-2023 mode.
+2023	p18_05_4_unique_real_scalar	0	0	run	

@@ -1,0 +1,8 @@
+INFO atoi(-5)=0
+INFO atohex(0x1f)=0
+INFO atoi(big)=-539222987
+INFO atoreal(-1.25)=-1.250000
+FAIL hex_rt
+INFO realtoa(2.5)=2.5
+INFO hextoa(-1)=-1
+RESULT pass=22 fail=1

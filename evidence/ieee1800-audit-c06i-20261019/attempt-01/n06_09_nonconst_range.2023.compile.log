@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_09_nonconst_range.sv:1: error: A reference to a net or variable (`n') is not allowed in a constant expression.
+1 error(s) during elaboration.

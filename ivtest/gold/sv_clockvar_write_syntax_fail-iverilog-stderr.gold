@@ -1,0 +1,3 @@
+ivltests/sv_clockvar_write_syntax_fail.v:13: error: clocking-block output `cb.data' may only be written using synchronous drive syntax (IEEE 1800-2017 14.16).
+ivltests/sv_clockvar_write_syntax_fail.v:14: error: clocking-block output `cb.data' may only be written using synchronous drive syntax (IEEE 1800-2017 14.16).
+2 error(s) during elaboration.

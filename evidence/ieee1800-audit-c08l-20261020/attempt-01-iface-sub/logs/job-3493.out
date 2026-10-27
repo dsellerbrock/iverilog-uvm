@@ -1,0 +1,82 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p08_26_sub	16	NA	0.27	12044	NA	NA
+2023	p08_26_sub	16	NA	0.01	12096	NA	NA
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_sub_m1_type_not_inherited	1	expected-nonzero	0.01	12052
+2017	n08_26_sub_m2_implements_type_parameter	1	expected-nonzero	0.14	12096
+2017	n08_26_sub_m3_forward_interface_typedef	1	expected-nonzero	0.01	12104
+2017	n08_26_sub_m4_new_interface_handle	1	expected-nonzero	0.01	12048
+2017	n08_26_sub_m5_inherited_nonvirtual	1	expected-nonzero	0.01	12096
+2017	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12048
+2023	n08_26_sub_m1_type_not_inherited	1	expected-nonzero	0.01	12052
+2023	n08_26_sub_m2_implements_type_parameter	1	expected-nonzero	0.01	12052
+2023	n08_26_sub_m3_forward_interface_typedef	1	expected-nonzero	0.01	12104
+2023	n08_26_sub_m4_new_interface_handle	1	expected-nonzero	0.01	12100
+2023	n08_26_sub_m5_inherited_nonvirtual	1	expected-nonzero	0.01	12100
+2023	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12060
+--- n08_26_sub_m1_type_not_inherited-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m1_type_not_inherited.sv:7: error: t1_t doesn't name a type.
+--- n08_26_sub_m1_type_not_inherited-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m1_type_not_inherited.sv:7: error: t1_t doesn't name a type.
+--- n08_26_sub_m2_implements_type_parameter-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m2_implements_type_parameter.sv:5: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.
+--- n08_26_sub_m2_implements_type_parameter-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m2_implements_type_parameter.sv:5: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.
+--- n08_26_sub_m3_forward_interface_typedef-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m3_forward_interface_typedef.sv:3: error: A forward-declared interface class cannot be used in an extends or implements list.
+--- n08_26_sub_m3_forward_interface_typedef-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m3_forward_interface_typedef.sv:3: error: A forward-declared interface class cannot be used in an extends or implements list.
+--- n08_26_sub_m4_new_interface_handle-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m4_new_interface_handle.sv:7: error: Can not create object of virtual class `PutImp`.
+Elaboration failed
+--- n08_26_sub_m4_new_interface_handle-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m4_new_interface_handle.sv:7: error: Can not create object of virtual class `PutImp`.
+Elaboration failed
+--- n08_26_sub_m5_inherited_nonvirtual-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m5_inherited_nonvirtual.sv:10: error: Method `f' in class `ExtClass2' must be virtual to implement an interface-class method.
+1 error(s) during elaboration.
+--- n08_26_sub_m5_inherited_nonvirtual-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m5_inherited_nonvirtual.sv:10: error: Method `f' in class `ExtClass2' must be virtual to implement an interface-class method.
+1 error(s) during elaboration.
+--- n08_26_sub_m6_nested_interface_class-g2017.compile.log
+error: Unable to find the root module "n08_26_sub_m6_nested_interface_class" in the Verilog source.
+     : Perhaps ``-s n08_26_sub_m6_nested_interface_class'' is incorrect?
+1 error(s) during elaboration.
+--- n08_26_sub_m6_nested_interface_class-g2023.compile.log
+error: Unable to find the root module "n08_26_sub_m6_nested_interface_class" in the Verilog source.
+     : Perhaps ``-s n08_26_sub_m6_nested_interface_class'' is incorrect?
+1 error(s) during elaboration.
+--- p08_26_sub-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:46: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:47: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:49: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:52: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:54: error: A pure virtual method may only be declared in a virtual class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:55: error: class end label `IntfC` doesn't match class name `ClassAB`.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:57: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: error: Syntax error defining function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:60: error: function end label `funcC` doesn't match function name `IntfC`.
+--- p08_26_sub-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:44: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:45: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:46: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:47: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:48: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:49: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:52: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:54: error: A pure virtual method may only be declared in a virtual class.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:55: error: class end label `IntfC` doesn't match class name `ClassAB`.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:57: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:58: error: Syntax error defining function.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/p08_26_sub.sv:60: error: function end label `funcC` doesn't match function name `IntfC`.

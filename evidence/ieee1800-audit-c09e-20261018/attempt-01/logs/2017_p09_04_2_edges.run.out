@@ -1,0 +1,9 @@
+PASS 9.4.2.posedge_table9_2
+PASS 9.4.2.negedge_table9_2
+PASS 9.4.2.edge_is_pos_or_neg
+PASS 9.4.2.implicit_event_any_change
+PASS 9.4.2.edge_only_on_lsb
+PASS 9.4.2.implicit_event_vector_any_bit
+PASS 9.4.2.operand_change_without_result_change_not_event
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_edges.sv:27: $finish called at 24 (1s)

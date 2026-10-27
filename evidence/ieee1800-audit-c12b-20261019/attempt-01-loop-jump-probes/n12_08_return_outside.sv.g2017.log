@@ -1,0 +1,2 @@
+tests/1800_audit/c12/neg/n12_08_return_outside.sv:1: error: Cannot "return" from this scope: m
+Elaboration failed

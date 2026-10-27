@@ -1,0 +1,7 @@
+host=MacBook Air (localrun)
+source_commit=b9441bafbdb0b6b7413c09e0381845e69481391b
+iverilog_version=Icarus Verilog version 13.0 (devel)
+iverilog=/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+iverilog_sha256=7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0
+vvp=/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp
+vvp_sha256=e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d

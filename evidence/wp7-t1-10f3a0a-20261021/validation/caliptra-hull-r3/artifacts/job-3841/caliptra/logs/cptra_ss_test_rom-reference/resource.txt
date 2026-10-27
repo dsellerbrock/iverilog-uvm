@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "timeout --signal=INT --kill-after=60s 1800s taskset -c 0 /home/dsell/toolchains/iverilog-c339/deps/bin/python3.12 /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-hull-cache-20261021-corpus-r1/input/caliptra/run_caliptra_top_profile.py --case cptra_ss_test_rom --case-yaml cptra_ss_test_rom/cptra_ss_test_rom.yml --output /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-hull-cache-20261021-caliptra-r3/caliptra/out/reference/cptra_ss_test_rom"
+	User time (seconds): 405.05
+	System time (seconds): 3.40
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 6:48.56
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1855788
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 1013024
+	Voluntary context switches: 3613651
+	Involuntary context switches: 3613401
+	Swaps: 0
+	File system inputs: 592
+	File system outputs: 778328
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

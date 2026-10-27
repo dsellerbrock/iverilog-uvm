@@ -1,0 +1,2 @@
+sv_ansi_explicit_port_inherit normal,-g2017,-s,sv_ansi_explicit_port_inherit ivltests gold=sv_ansi_explicit_port_inherit.gold
+sv_ansi_explicit_port_inherit_2023 normal,-g2023,-s,sv_ansi_explicit_port_inherit ivltests gold=sv_ansi_explicit_port_inherit.gold

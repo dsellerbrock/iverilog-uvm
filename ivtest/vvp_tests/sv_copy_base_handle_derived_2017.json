@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_copy_base_handle_derived.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_copy_base_handle_derived"
+}

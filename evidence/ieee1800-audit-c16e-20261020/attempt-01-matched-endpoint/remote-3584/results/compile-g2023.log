@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog/a3/c16e-matched-endpoint-20261020-01/input/p16_13_5_matched_cross_clock.sv:12: warning: the pass statement of this `cover property' is not executed (recorded corner); it is dropped. The match counter still counts.
+/home/dsell/slurm-runs/iverilog/a3/c16e-matched-endpoint-20261020-01/input/p16_13_5_matched_cross_clock.sv:10: error: Unable to bind wire/reg/memory `source_seq.matched' in `main'
+1 error(s) during elaboration.

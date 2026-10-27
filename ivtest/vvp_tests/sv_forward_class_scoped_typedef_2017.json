@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_forward_class_scoped_typedef.v",
+    "iverilog-args": ["-g2017", "-s", "sv_forward_class_scoped_typedef"],
+    "gold": "sv_forward_class_scoped_typedef"
+}

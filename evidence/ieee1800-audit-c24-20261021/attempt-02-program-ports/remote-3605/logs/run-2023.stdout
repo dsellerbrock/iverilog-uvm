@@ -1,0 +1,4 @@
+dw2=0
+dw2=1
+PASS program_port_reactive
+p24_03_2_program_port_reactive.sv:24: $finish called at 11 (1s)

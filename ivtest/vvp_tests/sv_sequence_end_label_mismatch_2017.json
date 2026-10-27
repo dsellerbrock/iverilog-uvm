@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_sequence_end_label_mismatch.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_sequence_end_label_mismatch"
+}

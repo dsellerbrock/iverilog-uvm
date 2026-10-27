@@ -1,0 +1,32 @@
+INFO: tests/1800_audit/c20/r20_10_severity.sv:3: info 1
+      Time: 0  Scope: p20sev
+LOC1 tests/1800_audit/c20/r20_10_severity.sv:3
+WARNING: tests/1800_audit/c20/r20_10_severity.sv:4: warn w
+         Time: 0  Scope: p20sev
+LOC2 tests/1800_audit/c20/r20_10_severity.sv:4
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:5: err ab
+       Time: 0  Scope: p20sev
+LOC3 tests/1800_audit/c20/r20_10_severity.sv:5
+ERROR: tests/1800_audit/c20/r20_10_severity.sv:6: 
+       Time: 5  Scope: p20sev
+AFTER_ERROR_NOARG
+FATAL: tests/1800_audit/c20/r20_10_severity.sv:7: fatal 42
+       Time: 6  Scope: p20sev
+        0.01 real         0.00 user         0.00 sys
+             5193728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 618  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  12  involuntary context switches
+            79077032  instructions retired
+            26141870  cycles elapsed
+             2720128  peak memory footprint

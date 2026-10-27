@@ -1,0 +1,1 @@
+/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog -g2023 -o /dev/null tests/1800_audit/c23/neg/n23_09_bad_instance_select.sv

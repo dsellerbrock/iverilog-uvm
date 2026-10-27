@@ -1,0 +1,12 @@
+host=DAN-DESKTOP
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+toolchain=/home/dsell/toolchains/iverilog-fb584a25-20261020
+e4b0cf18bef7bdea21ba041a759f3d338b5826c3a1e8c0f2216794e130bb92b0  ./p31_skewtimer.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+edition=2017 compile_exit=1
+p31_skewtimer.sv:14: sorry: $timeskew event_based/remain_active flag arguments are not supported; the check is dropped.
+edition=2023 compile_exit=1
+p31_skewtimer.sv:14: sorry: $timeskew event_based/remain_active flag arguments are not supported; the check is dropped.

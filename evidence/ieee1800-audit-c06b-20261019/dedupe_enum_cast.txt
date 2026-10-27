@@ -1,0 +1,2 @@
+47	CLOSED	Phase 75: Fallback hardening — eliminate remaining warning noise		2026-07-28T14:57:12Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z

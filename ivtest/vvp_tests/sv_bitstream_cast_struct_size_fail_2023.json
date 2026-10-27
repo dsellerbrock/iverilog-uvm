@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bitstream_cast_struct_size_fail.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_bitstream_cast_struct_size_fail"
+}

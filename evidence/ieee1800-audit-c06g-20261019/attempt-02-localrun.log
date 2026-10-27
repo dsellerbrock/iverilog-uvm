@@ -1,0 +1,48 @@
+
+p06_18b_forward_kinds -g2017 compile rc=0
+run rc=0
+FWD enum=1 struct=3 union=5 class=3 generic=9 duplicate=0
+
+p06_18c_coupled_class -g2017 compile rc=0
+run rc=0
+NODE=7
+
+p06_18d_forward_class_scope -g2017 compile rc=1
+tests/1800_audit/c06/p06_18d_forward_class_scope.sv:2: error: C doesn't name a visible class.
+
+p06_18e_interface_based_typedef -g2017 compile rc=2
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: syntax error
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: error: Syntax error in typedef clause.
+
+p06_18b_forward_kinds -g2023 compile rc=0
+run rc=0
+FWD enum=1 struct=3 union=5 class=3 generic=9 duplicate=0
+
+p06_18c_coupled_class -g2023 compile rc=0
+run rc=0
+NODE=7
+
+p06_18d_forward_class_scope -g2023 compile rc=1
+tests/1800_audit/c06/p06_18d_forward_class_scope.sv:2: error: C doesn't name a visible class.
+
+p06_18e_interface_based_typedef -g2023 compile rc=2
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: syntax error
+tests/1800_audit/c06/p06_18e_interface_based_typedef.sv:2: error: Syntax error in typedef clause.
+        1.67 real         0.56 user         0.30 sys
+            16908288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               49600  page reclaims
+                 664  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 119  voluntary context switches
+                1487  involuntary context switches
+           104746774  instructions retired
+            56782132  cycles elapsed
+             2458080  peak memory footprint

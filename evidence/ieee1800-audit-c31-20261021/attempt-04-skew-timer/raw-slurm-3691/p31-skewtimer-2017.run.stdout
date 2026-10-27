@@ -1,0 +1,3 @@
+p31_skewtimer.sv:13: Timing violation: $timeskew check in p31_skewtimer at time 30
+K2 30
+COUNTS K1=0 K2=1 K3=0 K4=0 C0=0

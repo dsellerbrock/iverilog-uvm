@@ -1,0 +1,2 @@
+DPI BASIC TEST: PASS (6/6)
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/dpi_basic_test.sv:24: $finish called at 0 (1s)

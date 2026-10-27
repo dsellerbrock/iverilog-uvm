@@ -1,0 +1,19 @@
+Q a2_size=4 exp 4
+        0.01 real         0.00 user         0.00 sys
+             5488640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 636  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  10  involuntary context switches
+            77844608  instructions retired
+            20262102  cycles elapsed
+             2720128  peak memory footprint

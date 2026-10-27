@@ -1,0 +1,8 @@
+base=10f3a0a2509d0852c2556cb6622fb0025121fb2d
+ M vvp/vvp_perf_stats.cc
+ M vvp/vvp_perf_stats.h
+ M vvp/vvp_z3.cc
+4cf1df6d30546e5bc8984fa643fb2beed9ba9432465a7c08b8afaa7cacff7c42  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-factor-count-cache-20261021-gates-r1/install/candidate/bin/iverilog
+e910bc212684fbc5a77a5621fd15c5bbc9588451cea5a07676a81f43b96126e0  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-factor-count-cache-20261021-gates-r1/install/candidate/bin/vvp
+a21180ebdd8aaf984efaccb92009a7d2e6f3326cf7b5391bf7b4fc0626a64078  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-factor-count-cache-20261021-gates-r1/install/candidate/lib/ivl/uvm_dpi.vpi
+d732f301ae0abcb05dd5a3093d40f9ae40460fa0e104572a414892afcfef5db0  /home/dsell/slurm-runs/iverilog-uvm/a5-perf/wp7-t1-factor-count-cache-20261021-gates-r1/input/t1-factor-count-cache.patch

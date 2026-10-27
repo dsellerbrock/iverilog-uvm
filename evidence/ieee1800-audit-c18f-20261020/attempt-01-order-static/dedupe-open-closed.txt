@@ -1,0 +1,11 @@
+Repository: dsellerbrock/iverilog-uvm
+Search mode: `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url`
+
+Pre-probe searches (no candidate feature gap filed yet):
+
+- `"solve before"`: #491 CLOSED (queue-element solve-before target identity) and #12 CLOSED (historical randomization completeness umbrella, including solve-before).
+- `variable ordering constraint`: #491, #494 CLOSED; #494 is queue-size capture into constraint functions.
+- `"solve...before"`: #491 and #12 CLOSED.
+- `static constraint`, `static constraint_mode`, and `extern static constraint`: no results.
+
+Reviewed full issue bodies for #491, #12, and #494. #491 is limited to preserving selected queue-element targets. #494 concerns queue-size function arguments. #12 is a broad completed randomization umbrella and includes generic solve-before, so the lead must decide whether any new behavior failure is already covered and should receive a comment rather than a new issue.

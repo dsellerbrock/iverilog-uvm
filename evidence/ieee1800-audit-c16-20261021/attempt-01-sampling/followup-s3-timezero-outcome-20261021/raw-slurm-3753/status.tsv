@@ -1,0 +1,5 @@
+case	edition	compile_rc	run_rc
+s3d_time_zero_assertion_attempt_control	2017	0	0
+s3d_time_zero_assertion_attempt_control	2023	0	0
+s3e_time_zero_default_sample_value	2017	0	0
+s3e_time_zero_default_sample_value	2023	0	0

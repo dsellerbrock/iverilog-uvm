@@ -477,6 +477,7 @@ extern void compile_array_port(char*label, char*name, long addr);
 
 extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);
+extern void compile_vartype(char*label, char*text);
 
 /*
  * Compile the .ufunc statement.
@@ -550,7 +551,8 @@ extern void compile_vpi_call(char*label, char*name,
 			     unsigned vec4_stack,
 			     unsigned real_stack,
 			     unsigned string_stack,
-			     unsigned object_stack);
+			     unsigned object_stack,
+			     bool defer_observed = false);
 
 /* Compile a function call. The vbit and vwid encode the return
    type. If the vwid >0, the return type is a vector. If the vwid is
@@ -699,7 +701,7 @@ extern void compile_class_property(
       std::vector<std::pair<int,int> >*dimensions);
 extern void compile_class_interface(char*dispatch_prefix);
 extern void compile_class_static_property(unsigned idx, char*storage);
-extern void compile_class_constraint(char*name, char*ir);
+extern void compile_class_constraint(char*name, char*ir, uint64_t is_static);
 extern void compile_class_constraint_dep(uint64_t kind, uint64_t property,
 		uint64_t leaf);
 extern void compile_class_constraint_call(uint64_t constraint, char*label,
@@ -742,6 +744,10 @@ extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t guardsrc = 0);
 extern void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop);
+extern void compile_class_covgrp_option_values(uint64_t goal_prop,
+					       uint64_t goal,
+					       uint64_t comment_prop,
+					       char*comment);
 extern void compile_class_covgrp_per_instance(uint64_t value,
       uint64_t property);
 extern void compile_class_covgrp_type_weight(uint64_t weight);
@@ -749,6 +755,11 @@ extern void compile_class_covgrp_item_type_weight(uint64_t item_idx, uint64_t we
 extern void compile_class_covgrp_item_options(uint64_t item_idx,
 					      uint64_t at_least_prop,
 					      uint64_t weight_prop);
+extern void compile_class_covgrp_item_option_values(uint64_t item_idx,
+						    uint64_t goal_prop,
+						    uint64_t goal,
+						    uint64_t comment_prop,
+						    char*comment);
 extern void compile_class_covgrp_item_guard(uint64_t item_idx,
 					    uint64_t has_guard);
 extern void compile_class_covgrp_parent(uint64_t prop);

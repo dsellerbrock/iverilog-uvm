@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:10: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Unable to bind wire/reg/memory `abc' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_2_4_sequence_event.sv:11: warning: Failed to evaluate event expression 'abc' (compile-progress: event skipped).

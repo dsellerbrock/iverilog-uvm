@@ -1,0 +1,2 @@
+ivltests/sv_unique_constraint_non_equivalent_2017.v:4: error: all members of a unique constraint group shall have equivalent types (IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4).
+1 error(s) during elaboration.

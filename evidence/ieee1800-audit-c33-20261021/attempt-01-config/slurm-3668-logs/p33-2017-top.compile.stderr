@@ -1,0 +1,1 @@
+p33_cfg.sv:1: sorry: config declarations (library-based cell binding) are not supported; remove the config block or select the implementation with plain module names.

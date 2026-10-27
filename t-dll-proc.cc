@@ -331,6 +331,8 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 
 	/* Make the lval fields. */
       make_assign_lvals_(net);
+	if (net->is_clocking_drive())
+	      ensure_assign_aux_(stmt_cur_)->clocking_drive = true;
 
 	/* Make the rval field. */
       assert(expr_ == 0);
@@ -584,10 +586,13 @@ void dll_target::proc_case(const NetCase*net)
 	    dll_procedure_new_array<ivl_expr_t>(ncase);
       stmt_cur_->u_.case_.case_st =
 	    dll_procedure_new_array<struct ivl_statement_s>(ncase);
+      stmt_cur_->u_.case_.case_group =
+	    dll_procedure_new_array<unsigned>(ncase);
 
       ivl_statement_t save_cur = stmt_cur_;
 
       for (unsigned idx = 0 ;  idx < ncase ;  idx += 1) {
+	    save_cur->u_.case_.case_group[idx] = net->group(idx);
 	    const NetExpr*ex = net->expr(idx);
 	    if (ex) {
 		  ex->expr_scan(this);

@@ -1,0 +1,5 @@
+1 w=0
+6 w=1
+16 w=x
+26 w=1
+inputs/c14/d7_net_multiple_clocking_drivers.sv:10: $finish called at 50 (1ns)

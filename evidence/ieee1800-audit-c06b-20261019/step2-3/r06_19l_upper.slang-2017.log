@@ -1,0 +1,8 @@
+tests/1800_audit/c06/r06_19l_upper.sv:2:51: error: parentheses are required when chaining method calls
+ initial begin c = green; $display("upper => %s", c.name.toupper()); end endmodule
+                                                  ^~~~~~~~~~~~~~
+Top level design units:
+    t
+
+
+Build failed: 1 error, 0 warnings

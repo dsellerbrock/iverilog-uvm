@@ -1,0 +1,1 @@
+tests/1800_audit/c14/neg/n14_05_illegal_output_expr.sv:5: sorry: clocking_decl_assign for `out' is not a resolvable signal path; the clockvar is not sampled.

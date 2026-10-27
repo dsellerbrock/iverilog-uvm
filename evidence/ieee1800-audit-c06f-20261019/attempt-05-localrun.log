@@ -1,0 +1,24 @@
+compile -g2017 rc=0
+run -g2017 rc=0
+MATCH=1
+compile -g2023 rc=0
+run -g2023 rc=0
+MATCH=1
+        0.78 real         0.19 user         0.11 sys
+            16990208  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               16218  page reclaims
+                 215  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  27  voluntary context switches
+                 662  involuntary context switches
+            72678067  instructions retired
+            35541217  cycles elapsed
+             2359776  peak memory footprint

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c14-10-11-current6604-20261019-a01/input/neg/n14_11_no_default_clocking.sv:2: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+Elaboration failed

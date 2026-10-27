@@ -1,0 +1,1 @@
+Slurm job 3486 outputs, timing, hashes and logs copied and verified before cleanup. Removed the completed owned run directory after evidence capture.

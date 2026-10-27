@@ -1,0 +1,3 @@
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12096
+2023	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12084

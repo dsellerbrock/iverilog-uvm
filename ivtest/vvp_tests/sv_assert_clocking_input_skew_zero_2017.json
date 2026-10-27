@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_assert_clocking_input_skew_zero_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions"]
+}

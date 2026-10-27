@@ -1,0 +1,13 @@
+Host: DAN-DESKTOP
+UTC start: 2026-10-19 06:54:42 UTC
+Source SHA-256: 8fa2f3a91467d42ed23563d837f91cfd04303a3c47699dfe3bd3158781c66831  /home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-14-20261019-01/input/p18_14_stability.sv
+iverilog SHA-256: 17661deebeaf8180f5761c82d1eeb31f30b5605739c724cb82dc4a04975a8256  /home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog
+vvp SHA-256: 911cd2ba4a1f1a62afeb6b9463ee18a3aab338e09cb5eb89c8b1a73b0b4138cc  /home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/vvp
+Icarus Verilog version 13.0 (devel) ()
+
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/A3/issue679-main-82023726-20261019-02/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/A3/issue679-main-82023726-20261019-02/install/lib/ivl/ivl -V -C"/tmp/ivrlh2ff9d627" -C"/home/dsell/slurm-runs/iverilog-uvm/A3/issue679-main-82023726-20261019-02/install/lib/ivl/vvp.conf""
+Icarus Verilog runtime version 13.0 (devel) ()
+
+Commands: timeout 30s iverilog -g2017/-g2023 -s test; timeout 30s vvp -n
+UTC end: 2026-10-19 06:54:42 UTC

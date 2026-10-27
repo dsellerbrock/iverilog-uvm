@@ -1,0 +1,98 @@
+== p06_19a_enum_decl -g2017 compile_rc=0
+run_rc=0
+INFO enum_values IDLE=00000000000000000000000000000000 XX=0000000000000000000000000000000x S1=00000000000000000000000000000001 S2=00000000000000000000000000000010
+FAIL integer_xz
+RESULT pass=13 fail=1
+== p06_19b_enum_methods -g2017 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/p06_19b_enum_methods.sv:38: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/p06_19b_enum_methods.sv:38: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19a_default_value -g2017 compile_rc=0
+run_rc=0
+INFO enum_integer_default=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx decimal=x
+== r06_19d_enum_name_member -g2017 compile_rc=0
+run_rc=0
+INFO name_member=green
+== r06_19e_enum_name_call -g2017 compile_rc=0
+run_rc=0
+INFO name_call=green
+== r06_19f_enum_name_len_chain -g2017 compile_rc=0
+run_rc=0
+INFO name_len_chain=5
+== r06_19g_class_property_method -g2017 compile_rc=0
+run_rc=0
+INFO class_name=green
+INFO class_next=2
+INFO class_first=0
+== r06_19h_array_element_method -g2017 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/r06_19h_array_element_method.sv:6: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/r06_19h_array_element_method.sv:7: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19i_queue_element_method -g2017 compile_rc=0
+run_rc=0
+INFO queue_name=yellow
+INFO queue_next=0
+== r06_19j_class_property_bare_method -g2017 compile_rc=0
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:7: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:8: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).
+run_rc=0
+INFO class_next_bare=32
+INFO class_first_bare=32
+== p06_19a_enum_decl -g2023 compile_rc=0
+run_rc=0
+INFO enum_values IDLE=00000000000000000000000000000000 XX=0000000000000000000000000000000x S1=00000000000000000000000000000001 S2=00000000000000000000000000000010
+FAIL integer_xz
+RESULT pass=13 fail=1
+== p06_19b_enum_methods -g2023 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/p06_19b_enum_methods.sv:38: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/p06_19b_enum_methods.sv:38: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19a_default_value -g2023 compile_rc=0
+run_rc=0
+INFO enum_integer_default=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx decimal=x
+== r06_19d_enum_name_member -g2023 compile_rc=0
+run_rc=0
+INFO name_member=green
+== r06_19e_enum_name_call -g2023 compile_rc=0
+run_rc=0
+INFO name_call=green
+== r06_19f_enum_name_len_chain -g2023 compile_rc=0
+run_rc=0
+INFO name_len_chain=5
+== r06_19g_class_property_method -g2023 compile_rc=0
+run_rc=0
+INFO class_name=green
+INFO class_next=2
+INFO class_first=0
+== r06_19h_array_element_method -g2023 compile_rc=0
+run_rc=1
+tests/1800_audit/c06/r06_19h_array_element_method.sv:6: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/r06_19h_array_element_method.sv:7: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.
+== r06_19i_queue_element_method -g2023 compile_rc=0
+run_rc=0
+INFO queue_name=yellow
+INFO queue_next=0
+== r06_19j_class_property_bare_method -g2023 compile_rc=0
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:7: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/r06_19j_class_property_bare_method.sv:8: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).
+run_rc=0
+INFO class_next_bare=32
+INFO class_first_bare=32
+        7.82 real         1.98 user         1.12 sys
+            16990208  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              169343  page reclaims
+                2192  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  18  signals received
+                 242  voluntary context switches
+                4933  involuntary context switches
+           286458808  instructions retired
+           193024118  cycles elapsed
+             2507232  peak memory footprint

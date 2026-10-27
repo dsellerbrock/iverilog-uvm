@@ -1,0 +1,2 @@
+tests/1800_audit/c11/r11_14_c_stream_array.sv:1: error: Array up needs an array index here.
+1 error(s) during elaboration.

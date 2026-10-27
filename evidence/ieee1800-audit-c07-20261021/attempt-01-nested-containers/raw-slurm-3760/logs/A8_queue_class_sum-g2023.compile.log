@@ -1,0 +1,2 @@
+input/A8_queue_class_sum.sv:12: error: Array reduction method sum() requires an array of integral elements (IEEE 1800-2017 7.12.3).
+1 error(s) during elaboration.

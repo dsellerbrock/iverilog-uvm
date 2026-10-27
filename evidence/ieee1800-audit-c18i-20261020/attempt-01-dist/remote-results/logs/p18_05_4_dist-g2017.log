@@ -1,0 +1,10 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:29: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:29: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:29: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:29: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:30: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:30: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_dist.sv:30: warning: Static variable initialization requires explicit lifetime in this context.
+Timed out after 30.0s: /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/results/p18_05_4_dist-g2017.vvp
+D1 100:1020 200:1985 300:4995 other=0
+D2 100:1007 200:0 300:4993 other=0

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-properties-20261019-31/input/p16_12_01_07_core_properties.sv:25: warning: the pass statement of this `cover property' is not executed (recorded corner); it is dropped. The match counter still counts.
+compile_exit=0

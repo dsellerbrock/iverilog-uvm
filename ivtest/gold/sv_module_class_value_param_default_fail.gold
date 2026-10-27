@@ -1,0 +1,2 @@
+./ivltests/sv_module_class_value_param_default_fail.v:2: error: Value is not assignment-compatible with class-typed parameter `p`.
+1 error(s) during elaboration.

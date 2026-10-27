@@ -1,0 +1,75 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+e5458e314693c5bb1ec17ba11129f1128ca3904643b350570a1a6a59827be172  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/n16_09_03_missing_clock.sv
+982dc8934031b6c545678d491f253287296a74f4632821c62bacec3a61b3d3bf  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sampled_preponed.sv
+=== sv_sampled_value_procedural -g2017 ===
+GAP: compile failed sv_sampled_value_procedural -g2017
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_procedural.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_default_clocking -g2017 ===
+GAP: compile failed sv_sampled_value_default_clocking -g2017
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_default_clocking.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_explicit_clock -g2017 ===
+GAP: compile failed sv_sampled_value_explicit_clock -g2017
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_explicit_clock.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_preponed_writer_first -g2017 ===
+GAP: compile failed sv_sampled_value_preponed_writer_first -g2017
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_preponed_writer_first.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_assert_multiclock_sampled_values -g2017 ===
+GAP: compile failed sv_assert_multiclock_sampled_values -g2017
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_assert_multiclock_sampled_values.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sampled_preponed -g2017 ===
+PASS: sampled_preponed -g2017
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+procedural live: 11 (expect 11)
+sampled: good=7 bad=0 (expect 7/0)
+=== diagnostic sv_sampled_value_clocking_input_unsupported -g2017 ===
+compile_exit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_clocking_input_unsupported.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== diagnostic n16_09_03_missing_clock -g2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/n16_09_03_missing_clock.sv:4: warning: this sampled value function has no clocking event to sample on (IEEE 1800-2017 16.9.3): it is not inside a concurrent assertion, not inside an edge-triggered always block, and the module declares no default clocking. It falls back to the unsampled value -- $past returns the current value and $rose/$fell return 0.
+run_exit=0
+NO_CLOCK_PAST=00000000000000000000000000000001
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/n16_09_03_missing_clock.sv:5: $finish called at 0 (1s)
+=== sv_sampled_value_procedural -g2023 ===
+GAP: compile failed sv_sampled_value_procedural -g2023
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_procedural.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_default_clocking -g2023 ===
+GAP: compile failed sv_sampled_value_default_clocking -g2023
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_default_clocking.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_explicit_clock -g2023 ===
+GAP: compile failed sv_sampled_value_explicit_clock -g2023
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_explicit_clock.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_sampled_value_preponed_writer_first -g2023 ===
+GAP: compile failed sv_sampled_value_preponed_writer_first -g2023
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_preponed_writer_first.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sv_assert_multiclock_sampled_values -g2023 ===
+GAP: compile failed sv_assert_multiclock_sampled_values -g2023
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_assert_multiclock_sampled_values.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== sampled_preponed -g2023 ===
+PASS: sampled_preponed -g2023
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+procedural live: 11 (expect 11)
+sampled: good=7 bad=0 (expect 7/0)
+=== diagnostic sv_sampled_value_clocking_input_unsupported -g2023 ===
+compile_exit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/sv_sampled_value_clocking_input_unsupported.sv: No such file or directory
+Preprocessor failed with 1 errors.
+=== diagnostic n16_09_03_missing_clock -g2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/n16_09_03_missing_clock.sv:4: warning: this sampled value function has no clocking event to sample on (IEEE 1800-2017 16.9.3): it is not inside a concurrent assertion, not inside an edge-triggered always block, and the module declares no default clocking. It falls back to the unsampled value -- $past returns the current value and $rose/$fell return 0.
+run_exit=0
+NO_CLOCK_PAST=00000000000000000000000000000001
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a03/input/n16_09_03_missing_clock.sv:5: $finish called at 0 (1s)

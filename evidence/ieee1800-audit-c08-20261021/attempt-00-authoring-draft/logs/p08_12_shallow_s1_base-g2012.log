@@ -1,0 +1,21 @@
+SORRY: Compare class handles not implemented
+SORRY: Compare class handles not implemented
+error: Code generation had 2 error(s).
+        0.02 real         0.00 user         0.00 sys
+             4014080  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2039  page reclaims
+                 102  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  10  voluntary context switches
+                  96  involuntary context switches
+            13710758  instructions retired
+             5165593  cycles elapsed
+             1507712  peak memory footprint

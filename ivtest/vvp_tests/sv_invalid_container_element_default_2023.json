@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_invalid_container_element_default.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_invalid_container_element_default"
+}

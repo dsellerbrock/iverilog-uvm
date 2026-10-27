@@ -1,0 +1,22 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_03_mix_positional_named.sv:1: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_03_mix_positional_named.sv:1: error: Syntax error in instance port expression(s).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c23/neg/n23_03_mix_positional_named.sv:1: error: Invalid module instantiation
+        0.04 real         0.01 user         0.01 sys
+             4014080  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2283  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  70  involuntary context switches
+            73086733  instructions retired
+            31885299  cycles elapsed
+             1261928  peak memory footprint
+exit_code=3

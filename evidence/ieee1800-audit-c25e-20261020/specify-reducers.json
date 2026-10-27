@@ -1,0 +1,122 @@
+[
+  {
+    "probe": "reduce_specify_local",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_local.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_local.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_local.2017.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "Q x\n"
+  },
+  {
+    "probe": "reduce_specify_if_path",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_path.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: Invalid simple path\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: error: Syntax error in specify block\n"
+  },
+  {
+    "probe": "reduce_specify_if_setup",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_setup.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_setup.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_setup.2017.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": ""
+  },
+  {
+    "probe": "reduce_specify_local",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_local.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_local.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_local.2023.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "Q x\n"
+  },
+  {
+    "probe": "reduce_specify_if_path",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_path.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: Invalid simple path\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_path.sv:2: error: Syntax error in specify block\n"
+  },
+  {
+    "probe": "reduce_specify_if_setup",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-gspecify",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_setup.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/reduce_specify_if_setup.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c25e-20261020/reduce_specify_if_setup.2023.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": ""
+  }
+]

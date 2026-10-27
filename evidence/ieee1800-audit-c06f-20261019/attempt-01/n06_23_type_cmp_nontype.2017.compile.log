@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_23_type_cmp_nontype.sv:1: sorry: type() may only be compared against another type() operand (IEEE 1800-2017 6.23).
+Elaboration failed

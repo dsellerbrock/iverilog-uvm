@@ -1,0 +1,2 @@
+COUNTS 3 2
+input/g2_nested_global_clock_resolution.sv:8: $finish called at 31000 (1ps)

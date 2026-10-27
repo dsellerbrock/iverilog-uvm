@@ -1,0 +1,8 @@
+--- too large to enumerate
+--- not uniformly over its solutions
+--- uniform value distribution joint
+--- "uniform value distribution"
+--- "uniform over legal value combinations"
+--- "joint randomization"
+--- "sampled against the hard constraints"
+--- "uniform constraint solver"

@@ -1,0 +1,6 @@
+{
+    "type"                : "normal",
+    "source"              : "sv_vcd_unpacked_struct_2023.v",
+    "iverilog-args"       : [ "-g2023", "-s", "sv_vcd_unpacked_struct_2023" ],
+    "gold"                : "sv_vcd_unpacked_struct_2023"
+}

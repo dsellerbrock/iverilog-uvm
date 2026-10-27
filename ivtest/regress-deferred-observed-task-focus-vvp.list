@@ -1,0 +1,3 @@
+# IEEE 1800-2017/2023 16.4 user task actions in observed deferred assertions.
+sv_deferred_observed_task0_2017 vvp_tests/sv_deferred_observed_task0_2017.json
+sv_deferred_observed_task0_2023 vvp_tests/sv_deferred_observed_task0_2023.json

@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m2_implements_type_parameter.sv:5: error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.

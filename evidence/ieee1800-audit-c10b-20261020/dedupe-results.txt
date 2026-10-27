@@ -1,0 +1,45 @@
+
+--- "10.5" ---
+
+--- variable declaration assignment ---
+#715 OPEN [IEEE 1800] §16.10 — Support declaration assignments in assertion variable declarations https://github.com/dsellerbrock/iverilog-uvm/issues/715
+#817 OPEN [IEEE 1800] §26.2 — a package item that refers to a compilation-unit item is accepted https://github.com/dsellerbrock/iverilog-uvm/issues/817
+#699 OPEN [IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation https://github.com/dsellerbrock/iverilog-uvm/issues/699
+#767 OPEN [IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value https://github.com/dsellerbrock/iverilog-uvm/issues/767
+#438 CLOSED [IEEE 1800] §14 — Support 1D fixed-unpacked variable clockvar outputs https://github.com/dsellerbrock/iverilog-uvm/issues/438
+#545 CLOSED [Icarus] Caliptra clock generator is rejected without a timescale https://github.com/dsellerbrock/iverilog-uvm/issues/545
+#44 CLOSED Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax https://github.com/dsellerbrock/iverilog-uvm/issues/44
+
+--- variable initialization ---
+#752 OPEN [IEEE 1800] §6.21 — initialized static variable without an explicit lifetime is accepted with only a warning https://github.com/dsellerbrock/iverilog-uvm/issues/752
+#815 OPEN [IEEE 1800] §25.9 — using a null virtual interface does not cause a fatal run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/815
+#101 CLOSED Copy constructor as a declaration initializer (`C d = new src;`) does not copy https://github.com/dsellerbrock/iverilog-uvm/issues/101
+
+--- declaration initialization ---
+#752 OPEN [IEEE 1800] §6.21 — initialized static variable without an explicit lifetime is accepted with only a warning https://github.com/dsellerbrock/iverilog-uvm/issues/752
+
+--- static variable initializer ---
+#101 CLOSED Copy constructor as a declaration initializer (`C d = new src;`) does not copy https://github.com/dsellerbrock/iverilog-uvm/issues/101
+
+--- variable initializer ---
+#699 OPEN [IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation https://github.com/dsellerbrock/iverilog-uvm/issues/699
+#809 OPEN [IEEE 1800] §23.2.2.3 — an explicitly named port followed by a plain port in an ANSI port list is a syntax error https://github.com/dsellerbrock/iverilog-uvm/issues/809
+#101 CLOSED Copy constructor as a declaration initializer (`C d = new src;`) does not copy https://github.com/dsellerbrock/iverilog-uvm/issues/101
+#100 CLOSED Class-property unpacked array of real/string stores every element to the same slot https://github.com/dsellerbrock/iverilog-uvm/issues/100
+
+--- initialization is not continuous assignment ---
+
+--- net declaration initializer ---
+#820 OPEN [IEEE 1800] §6.7.1 — a net declaration that mixes initialized and uninitialized names is a syntax error https://github.com/dsellerbrock/iverilog-uvm/issues/820
+#809 OPEN [IEEE 1800] §23.2.2.3 — an explicitly named port followed by a plain port in an ANSI port list is a syntax error https://github.com/dsellerbrock/iverilog-uvm/issues/809
+
+--- initialized variable ---
+#752 OPEN [IEEE 1800] §6.21 — initialized static variable without an explicit lifetime is accepted with only a warning https://github.com/dsellerbrock/iverilog-uvm/issues/752
+#817 OPEN [IEEE 1800] §26.2 — a package item that refers to a compilation-unit item is accepted https://github.com/dsellerbrock/iverilog-uvm/issues/817
+#815 OPEN [IEEE 1800] §25.9 — using a null virtual interface does not cause a fatal run-time error https://github.com/dsellerbrock/iverilog-uvm/issues/815
+#726 OPEN [IEEE 1800] §16.12.19 — Support local variable formal arguments in property declarations https://github.com/dsellerbrock/iverilog-uvm/issues/726
+#674 OPEN [IEEE 1800] §14.16.2 — Support unpacked net clockvar outputs https://github.com/dsellerbrock/iverilog-uvm/issues/674
+#816 OPEN [IEEE 1800] §25.9 — a component of a virtual interface is accepted in a continuous assignment https://github.com/dsellerbrock/iverilog-uvm/issues/816
+#545 CLOSED [Icarus] Caliptra clock generator is rejected without a timescale https://github.com/dsellerbrock/iverilog-uvm/issues/545
+
+--- static class member initialization ---

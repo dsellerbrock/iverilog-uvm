@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_missing_implementation.sv:5: error: Non-virtual class `MissingPut' does not implement interface method `put'.
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-uconcat-20261020-03/source/n10_10_pattern_array_item_type.sv:6: error: Array B needs an array index here.
+1 error(s) during elaboration.

@@ -1,0 +1,4 @@
+FAIL member
+FAIL member_wr
+FAIL arr
+RESULT pass=18 fail=3

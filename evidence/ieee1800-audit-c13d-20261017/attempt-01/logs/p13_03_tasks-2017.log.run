@@ -1,0 +1,10 @@
+PASS 13.3.directions
+FAIL 13.3.default_dir_input
+PASS 13.3.return_exits
+PASS 13.3.empty_task
+PASS 13.3.2.static_output_retained
+PASS 13.3.2.auto_output_reinit
+PASS 13.3.1.static_var_in_auto_task
+PASS 13.3.2.static_shared_concurrent
+PASS 13.3.2.auto_replicated
+DONE fails=1

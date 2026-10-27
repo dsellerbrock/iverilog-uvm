@@ -1,0 +1,29 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib	expected
+2017	p18_05_12_func	0	0	0.01	12128	0.87	40648	run
+2017	n18_05_12_n1_output_arg	1	NA	0.01	12052	NA	NA	reject
+2017	n18_05_12_n2_ref_arg	1	NA	0.01	11988	NA	NA	reject
+2023	p18_05_12_func	0	0	0.01	12084	0.87	40812	run
+2023	n18_05_12_n1_output_arg	1	NA	0.01	12040	NA	NA	reject
+2023	n18_05_12_n2_ref_arg	1	NA	0.01	12104	NA	NA	reject
+--- n18_05_12_n1_output_arg-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18p-20261020-func/input/n18_05_12_n1_output_arg.sv:8: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.
+--- n18_05_12_n1_output_arg-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18p-20261020-func/input/n18_05_12_n1_output_arg.sv:8: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.
+--- n18_05_12_n2_ref_arg-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18p-20261020-func/input/n18_05_12_n2_ref_arg.sv:7: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.
+--- n18_05_12_n2_ref_arg-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18p-20261020-func/input/n18_05_12_n2_ref_arg.sv:7: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.
+--- p18_05_12_func-g2017.compile.log
+--- p18_05_12_func-g2023.compile.log
+--- p18_05_12_func-g2017.run.log
+F1 bad=0
+F2 ok=0 bad=0
+F3 bad=0
+--- p18_05_12_func-g2023.run.log
+F1 bad=0
+F2 ok=0 bad=0
+F3 bad=0

@@ -1,0 +1,26 @@
+{
+  "applicable": 1027,
+  "corpus_commit": "c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7",
+  "failed_applicable": 424,
+  "nonproblematic": 603,
+  "pass_rate_percent": 58.71,
+  "passed": 603,
+  "problematic": 424,
+  "result_classes": {
+    "ACCEPTANCE_ONLY": 44,
+    "CRASH": 8,
+    "DEGRADED": 111,
+    "EXPECTED_REJECT_UNVERIFIED": 60,
+    "SEMANTIC_FAIL": 4,
+    "STATIC_ACCEPT": 395,
+    "UNEXPECTED_ACCEPT": 13,
+    "UNEXPECTED_REJECT": 288,
+    "VERIFIED_RUNTIME": 104
+  },
+  "test_count": 1027,
+  "uvm_count": 104,
+  "uvm_result_classes": {
+    "EXPECTED_REJECT_UNVERIFIED": 3,
+    "UNEXPECTED_REJECT": 101
+  }
+}

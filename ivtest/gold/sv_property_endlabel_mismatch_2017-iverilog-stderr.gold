@@ -1,0 +1,1 @@
+ivltests/sv_property_endlabel_mismatch.sv:4: error: property end label `p_mismatched` doesn't match property name `p_correct`.

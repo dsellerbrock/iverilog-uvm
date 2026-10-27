@@ -1,0 +1,7 @@
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:09:34Z
+680	OPEN	[IEEE 1800] evaluate non-random function calls in inline constraints	from-caliptra-dv	2026-10-19T05:33:35Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+474	CLOSED	[IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads		2026-10-15T04:26:17Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z

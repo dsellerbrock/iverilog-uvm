@@ -1,0 +1,180 @@
+r12_07_diag_do_assoc g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   9  involuntary context switches
+            79754843  instructions retired
+            24820326  cycles elapsed
+             3850624  peak memory footprint
+r12_07_diag_forever g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  18  involuntary context switches
+            78984131  instructions retired
+            27485823  cycles elapsed
+             3834240  peak memory footprint
+r12_07_diag_fork_loc g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  11  involuntary context switches
+            79220505  instructions retired
+            28401820  cycles elapsed
+             3801472  peak memory footprint
+r12_07_diag_multi g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  18  involuntary context switches
+            81169840  instructions retired
+            26722500  cycles elapsed
+             3834240  peak memory footprint
+r12_07_diag_noexpr g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 113  involuntary context switches
+            81125295  instructions retired
+            27413532  cycles elapsed
+             3834240  peak memory footprint
+r12_07_diag_queue g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  39  involuntary context switches
+            79941143  instructions retired
+            21992472  cycles elapsed
+             3817856  peak memory footprint
+r12_07_diag_while_sh g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  63  involuntary context switches
+            81299509  instructions retired
+            23854791  cycles elapsed
+             3785088  peak memory footprint
+r12_07_diag_x_for g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  10  involuntary context switches
+            79092062  instructions retired
+            25204074  cycles elapsed
+             3850624  peak memory footprint
+r12_07_diag_x_repeat g2017 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  11  involuntary context switches
+            80426460  instructions retired
+            22024391  cycles elapsed
+             3785088  peak memory footprint
+r12_07_diag_do_assoc g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  35  involuntary context switches
+            80274922  instructions retired
+            22511837  cycles elapsed
+             3785088  peak memory footprint
+r12_07_diag_forever g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  49  involuntary context switches
+            79817017  instructions retired
+            24389354  cycles elapsed
+             3834240  peak memory footprint
+r12_07_diag_fork_loc g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  22  involuntary context switches
+            80671288  instructions retired
+            25591074  cycles elapsed
+             3817856  peak memory footprint
+r12_07_diag_multi g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  14  involuntary context switches
+            80460113  instructions retired
+            22604184  cycles elapsed
+             3817856  peak memory footprint
+r12_07_diag_noexpr g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  51  involuntary context switches
+            80084108  instructions retired
+            21754474  cycles elapsed
+             3785088  peak memory footprint
+r12_07_diag_queue g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  18  involuntary context switches
+            79699207  instructions retired
+            26387786  cycles elapsed
+             3867008  peak memory footprint
+r12_07_diag_while_sh g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   6  involuntary context switches
+            78939649  instructions retired
+            25247762  cycles elapsed
+             3834240  peak memory footprint
+r12_07_diag_x_for g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  12  involuntary context switches
+            79404424  instructions retired
+            29471746  cycles elapsed
+             3785088  peak memory footprint
+r12_07_diag_x_repeat g2023 compile rc=0
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  30  involuntary context switches
+            79615567  instructions retired
+            23342393  cycles elapsed
+             3834240  peak memory footprint
+        2.32 real         0.68 user         0.69 sys
+             8208384  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              108433  page reclaims
+                1135  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  52  signals received
+                 325  voluntary context switches
+                4345  involuntary context switches
+           212485353  instructions retired
+           126300218  cycles elapsed
+             2572768  peak memory footprint

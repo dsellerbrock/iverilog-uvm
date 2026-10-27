@@ -1,0 +1,44 @@
+[
+  {
+    "probe": "g_region",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/g_region.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/g_region.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c27-20261020/g_region.2017.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "GR 1\n"
+  },
+  {
+    "probe": "g_region",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c27-20261020/g_region.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c27/g_region.sv"
+    ],
+    "compile_exit": 0,
+    "compile_output": "",
+    "run_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/tmp/a3-audit-c27-20261020/g_region.2023.vvp"
+    ],
+    "run_exit": 0,
+    "stdout": "GR 1\n"
+  }
+]

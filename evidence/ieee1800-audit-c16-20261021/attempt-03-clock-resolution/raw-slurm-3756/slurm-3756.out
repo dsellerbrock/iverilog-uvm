@@ -1,0 +1,72 @@
+C1 FAIL 15
+input/C1_sequence_clock.sv:8: $finish called at 60 (1ns)
+C1_sequence_clock	2017	0	0
+C1 FAIL 15
+input/C1_sequence_clock.sv:8: $finish called at 60 (1ns)
+C1_sequence_clock	2023	0	0
+C2 FAIL 15
+input/C2_property_clock.sv:8: $finish called at 60 (1ns)
+C2_property_clock	2017	0	0
+C2 FAIL 15
+input/C2_property_clock.sv:8: $finish called at 60 (1ns)
+C2_property_clock	2023	0	0
+C3 FAIL 20
+input/C3_procedural_inferred.sv:8: $finish called at 60 (1ns)
+C3_procedural_inferred	2017	0	0
+C3 FAIL 20
+input/C3_procedural_inferred.sv:8: $finish called at 60 (1ns)
+C3_procedural_inferred	2023	0	0
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module item.
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module instantiation
+input/C4_clocking_block_property.sv:12: error: Invalid module item.
+C4_clocking_block_property	2017	5	NA
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module item.
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module instantiation
+input/C4_clocking_block_property.sv:12: error: Invalid module item.
+C4_clocking_block_property	2023	5	NA
+C5 FAIL 20
+input/C5_default_negedge.sv:8: $finish called at 60 (1ns)
+C5_default_negedge	2017	0	0
+C5 FAIL 20
+input/C5_default_negedge.sv:8: $finish called at 60 (1ns)
+C5_default_negedge	2023	0	0
+C6a FAIL 15
+input/C6_inferred_overrides_default.sv:8: $finish called at 60 (1ns)
+C6_inferred_overrides_default	2017	0	0
+C6a FAIL 15
+input/C6_inferred_overrides_default.sv:8: $finish called at 60 (1ns)
+C6_inferred_overrides_default	2023	0	0
+C7b FAIL 20
+input/C7_explicit_overrides_default.sv:8: $finish called at 60 (1ns)
+C7_explicit_overrides_default	2017	0	0
+C7b FAIL 20
+input/C7_explicit_overrides_default.sv:8: $finish called at 60 (1ns)
+C7_explicit_overrides_default	2023	0	0
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:12: error: Invalid module item.
+N1_explicit_clock_in_clocking_block	2017	6	NA
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:10: error: Invalid module item.
+input/N1_explicit_clock_in_clocking_block.sv:10: syntax error
+input/N1_explicit_clock_in_clocking_block.sv:12: error: Invalid module item.
+N1_explicit_clock_in_clocking_block	2023	6	NA
+input/N2_no_leading_clock.sv:9: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+N2_no_leading_clock	2017	1	NA
+input/N2_no_leading_clock.sv:9: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+N2_no_leading_clock	2023	1	NA
+input/N3_inferred_multiclock.sv:13: error: Unable to bind wire/reg/memory `q2' in `tb'
+1 error(s) during elaboration.
+N3_inferred_multiclock	2017	1	NA
+input/N3_inferred_multiclock.sv:13: error: Unable to bind wire/reg/memory `q2' in `tb'
+1 error(s) during elaboration.
+N3_inferred_multiclock	2023	1	NA

@@ -1,0 +1,16 @@
+job_id=3205
+host=DAN-DESKTOP
+source_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T16:00:07-06:00
+c61a65f29844921921261d8d269d98cce0db8739b381d5db418f22eb587249ca  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-33/input/p16_12_04_05_property_and_or.sv
+f20fcd91c636bc12fa7b1cebccf127a833a5d1e4733588c14388dc56f8bf7ee6  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-33/input/p16_12_08_implies_iff.sv
+327fdd11b823191543bd65df0792e93998528db7bfe8774b31c4b2630a04d71a  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-combinators-20261019-33/input/p16_12_16_case.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+input=p16_12_04_05_property_and_or.sv edition=2017 compile_exit=2 run_exit=NA
+input=p16_12_08_implies_iff.sv edition=2017 compile_exit=0 run_exit=0
+input=p16_12_16_case.sv edition=2017 compile_exit=1 run_exit=NA
+input=p16_12_04_05_property_and_or.sv edition=2023 compile_exit=2 run_exit=NA
+input=p16_12_08_implies_iff.sv edition=2023 compile_exit=0 run_exit=0
+input=p16_12_16_case.sv edition=2023 compile_exit=1 run_exit=NA

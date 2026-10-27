@@ -1,0 +1,4 @@
+E str2elem a='Syz'
+E implicit8 s='A' len=1
+E implicit16 s='AB' len=2
+E str2byte c=83

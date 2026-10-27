@@ -1,0 +1,14 @@
+2017	program_clocking	compile	pass	0
+2017	program_clocking	run	0	0
+2017	checker_default_clocking	compile	pass	0
+2017	checker_default_clocking	run	0	0
+2017	checker_named_clocking	compile	pass	0
+2017	checker_named_clocking	run	0	0
+2017	compilation_unit_clocking	compile	fail	2
+2023	program_clocking	compile	pass	0
+2023	program_clocking	run	0	0
+2023	checker_default_clocking	compile	pass	0
+2023	checker_default_clocking	run	0	0
+2023	checker_named_clocking	compile	pass	0
+2023	checker_named_clocking	run	0	0
+2023	compilation_unit_clocking	compile	fail	2

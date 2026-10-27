@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_process_resume_event_rearm.v",
+  "iverilog-args": ["-g2017", "-s", "sv_process_resume_event_rearm"],
+  "gold": "sv_process_resume_event_rearm"
+}

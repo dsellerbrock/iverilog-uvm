@@ -1,0 +1,22 @@
+t3=[00000005|00000100|00001234]
+w797=[00000003]
+w797_8bit=[03]
+/tmp/a3-p21a-debug.sv:6: $finish called at 0 (1s)
+        0.07 real         0.02 user         0.02 sys
+             5193728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3234  page reclaims
+                  26  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                 152  involuntary context switches
+            32572260  instructions retired
+            18196097  cycles elapsed
+             1507712  peak memory footprint

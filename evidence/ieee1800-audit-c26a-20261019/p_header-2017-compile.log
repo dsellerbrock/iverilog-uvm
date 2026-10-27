@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/p_header.sv:4: error: Net `a` can not be of type `<no_type>`.
+1 error(s) during elaboration.

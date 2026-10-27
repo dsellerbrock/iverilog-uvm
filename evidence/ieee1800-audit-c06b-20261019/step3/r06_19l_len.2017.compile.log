@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_19l_len.sv:2: error: Object t.c has no method "name.len(...)".
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s1_initial_override.sv:2: error: Constraint `c1' uses :initial but replaces an inherited constraint (IEEE 1800-2023 18.5.2).
+1 error(s) during elaboration.

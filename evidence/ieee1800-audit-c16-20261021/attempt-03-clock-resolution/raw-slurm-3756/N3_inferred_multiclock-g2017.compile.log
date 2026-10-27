@@ -1,0 +1,2 @@
+input/N3_inferred_multiclock.sv:13: error: Unable to bind wire/reg/memory `q2' in `tb'
+1 error(s) during elaboration.

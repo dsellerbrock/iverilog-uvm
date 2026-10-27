@@ -1,0 +1,19 @@
+Q clog1025=11 exp 11
+        0.01 real         0.00 user         0.00 sys
+             6356992  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 686  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  17  involuntary context switches
+            78357918  instructions retired
+            21091541  cycles elapsed
+             3735936  peak memory footprint

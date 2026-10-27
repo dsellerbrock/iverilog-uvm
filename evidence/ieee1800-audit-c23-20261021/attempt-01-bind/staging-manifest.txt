@@ -1,0 +1,9 @@
+Purpose: lead-selected Clause 23.11 bind semantics probes B1-B8 and NB, paired -g2017/-g2023.
+Local host: Mac; staged to DAN-DESKTOP Slurm.
+Branch: m7-1800-audit-c09
+Repository HEAD at staging: 7c8a5aebdfa0e9768e80ea0441eda9495d709bd7
+Working tree at staging: dirty from the pending Clause 7/§6.16 documentation update; only the standalone probe inputs and this run script are staged for this job.
+Pinned compiler: Icarus 13.0 devel cc25756d1 at /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb
+Resources: 1 CPU, 1 GiB, 15 min; every compile and simulation is capped at 30 seconds.
+Slurm job: 3761.
+Audit lead classification: §23.11 IMPLEMENTED (tested subset), no issue; `$unit` and wildcard-import visibility unassessed.

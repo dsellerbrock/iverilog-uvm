@@ -1,0 +1,35 @@
+IEEE 1800 clause 13 probe c13a
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08
+Committed base: 1b682f5391d5b666bc940199a9d8961aaaf9d813
+Working tree at staging: only untracked tests/1800_audit/c13/ (probe sources)
+Compiler toolchain: protected shared Icarus built from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66
+Host: DAN-DESKTOP (Slurm)
+Requested resources: 1 CPU, 1 GiB, 10 minutes; per-compile 30 s, per-run 10 s, TERM then KILL after 2 s.
+Normative check: 1800-2017 PDF p.331-332 has no `ref static` occurrence; §13.5.2 describes ref formals and disallows them in static-lifetime subroutines. Probe editions: all applicable cases in -g2017 and -g2023; `ref static` positive only in 2023, rejected in 2017.
+?? evidence/ieee1800-audit-c13a-20261017/
+?? tests/1800_audit/c13/
+91e890f23e78d03ab2d7807be7618a4270383a76c7f7644673646b8fc296fa77  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_args.sv
+f344cebfe4934d02282ff63e27f39113346165395caff91a95cd143ce03737d2  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_2_ref_static_2023.sv
+3a60b1fffb8dacc32d4fb9bbd8bb187c28da83df9eda4882ad34c8ae5fda1c01  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_const_ref_write.sv
+fb78a9e49f0ac7183899131cdc0710711a35c122f2a8ee1b11eded14c68a47b8  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_in_static_sub.sv
+45be424a1e65fe646852e0748c11c59735e44820d9c5f1cf0abc31e42d70b490  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_input.sv
+ed8437f4c721ba4203f3900e8512c4fca94759668579aac1e1a4deecfdcb60f1  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_net.sv
+a2212cef80a823d7c32f1d7e5610effdb1f359501575676cada9f6a4dd00ca38  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_static_auto_2023.sv
+48b9d3158318abb3afbfa97be9613020861070af18b8c4d182d90d0a7f412f0c  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_type_mismatch.sv
+243eb787ed30bedeb447e1c0aece92af1f42a510fad5de4afada9c62326771a1  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_default_unresolved.sv
+314e2901b78344efce1957694833e8ae560dc69d2ba3d40774ed445c88abce8d  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_no_default_empty.sv
+0df77a76c9dd63902f0a824c4f8935ac33002612322e61a46270903b75dec9bc  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_no_default_omitted.sv
+Remote compiler SHA-256: 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288
+Remote VVP SHA-256: c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a
+45be424a1e65fe646852e0748c11c59735e44820d9c5f1cf0abc31e42d70b490  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_input.sv
+48b9d3158318abb3afbfa97be9613020861070af18b8c4d182d90d0a7f412f0c  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_type_mismatch.sv
+3a60b1fffb8dacc32d4fb9bbd8bb187c28da83df9eda4882ad34c8ae5fda1c01  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_const_ref_write.sv
+a2212cef80a823d7c32f1d7e5610effdb1f359501575676cada9f6a4dd00ca38  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_static_auto_2023.sv
+243eb787ed30bedeb447e1c0aece92af1f42a510fad5de4afada9c62326771a1  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_default_unresolved.sv
+0df77a76c9dd63902f0a824c4f8935ac33002612322e61a46270903b75dec9bc  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_no_default_omitted.sv
+fb78a9e49f0ac7183899131cdc0710711a35c122f2a8ee1b11eded14c68a47b8  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_in_static_sub.sv
+314e2901b78344efce1957694833e8ae560dc69d2ba3d40774ed445c88abce8d  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_3_no_default_empty.sv
+ed8437f4c721ba4203f3900e8512c4fca94759668579aac1e1a4deecfdcb60f1  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_2_ref_net.sv
+91e890f23e78d03ab2d7807be7618a4270383a76c7f7644673646b8fc296fa77  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_args.sv
+f344cebfe4934d02282ff63e27f39113346165395caff91a95cd143ce03737d2  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_2_ref_static_2023.sv

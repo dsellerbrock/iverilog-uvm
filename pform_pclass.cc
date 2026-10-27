@@ -261,7 +261,8 @@ void pform_blend_class_constructors(PClass*pclass)
       else if (use_new2 && use_new == 0)
             chain_new = use_new2->extract_chain_constructor();
 
-      if (pclass->type->base_default && chain_new
+      if ((pclass->type->base_default || !pclass->type->base_args.empty())
+          && chain_new
           && !chain_new->is_synthesized()) {
 	    cerr << pclass->get_fileline()
 		 << ": error: A class with arguments in its extends specifier "
@@ -342,6 +343,23 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   list<data_type_t*>*interface_types,
 				   bool base_default)
 {
+      // IEEE 1800-2017/2023 9.7 defines process as a built-in class that
+      // cannot be extended. Bare class names in an extends clause are
+      // represented as type_parameter_t until class lookup is complete.
+      if (base_type) {
+	    const type_parameter_t*base_name =
+		  dynamic_cast<const type_parameter_t*>(base_type);
+	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(base_type);
+	    if ((base_name && base_name->name == lex_strings.make("process"))
+		|| (base_ref && base_ref->typedef_ref()
+		    && base_ref->typedef_ref()->name == lex_strings.make("process"))) {
+		  cerr << loc.get_fileline()
+		       << ": error: The built-in process class cannot be extended."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
+
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
       pform_enclosing_classes_.push_back(pform_cur_class);
@@ -459,6 +477,13 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       if (pform_cur_class == 0)
 	    return;
 
+      if (net->pscope_name() == perm_string::literal("new") &&
+	  (net->method_qualifiers().test_static() || net->is_virtual_method())) {
+	    cerr << loc << ": error: A constructor shall not be declared as static or virtual "
+		 << "(IEEE 1800-2017/2023 8.7)." << endl;
+	    error_count += 1;
+      }
+
       if (net->is_pure_method() && !pform_cur_class->type->virtual_class) {
 	    cerr << loc << ": error: A pure virtual method may only be declared "
 		 << "in a virtual class." << endl;
@@ -484,14 +509,36 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
 
 void pform_set_recent_class_method_qualifiers(property_qualifier_t qual)
 {
-      if (pform_recent_class_method_)
+
+      if (pform_recent_class_method_) {
 	    pform_recent_class_method_->set_method_qualifiers(qual);
+	    if (pform_recent_class_method_->pscope_name() == perm_string::literal("new") &&
+		qual.test_static()) {
+		  cerr << pform_recent_class_method_->get_fileline()
+		       << ": error: A constructor shall not be declared as static or virtual "
+		       << "(IEEE 1800-2017/2023 8.7)." << endl;
+		  error_count += 1;
+	    }
+      }
 }
 
 void pform_mark_recent_class_method_virtual(void)
 {
-      if (pform_recent_class_method_)
-	    pform_recent_class_method_->set_virtual_method(true);
+	  if (pform_recent_class_method_) {
+		if (pform_recent_class_method_->method_qualifiers().test_static()) {
+		      cerr << pform_recent_class_method_->get_fileline()
+			   << ": error: Static methods cannot be virtual "
+			   << "(IEEE 1800 8.10)." << endl;
+		      error_count += 1;
+		}
+		pform_recent_class_method_->set_virtual_method(true);
+		if (pform_recent_class_method_->pscope_name() == perm_string::literal("new")) {
+		      cerr << pform_recent_class_method_->get_fileline()
+			   << ": error: A constructor shall not be declared as static or virtual "
+			   << "(IEEE 1800-2017/2023 8.7)." << endl;
+		      error_count += 1;
+		}
+	  }
       pform_recent_class_method_ = 0;
 }
 
@@ -557,13 +604,23 @@ void pform_end_class_declaration(const struct vlltype&loc)
 {
       ivl_assert(loc, pform_cur_class);
 
+	// A covergroup extension needs an implicit constructor so its option
+	// initializers run after the base constructor.
+	bool has_cg_extension = false;
+	for (auto*cg : pform_cur_class->type->covergroups)
+	      if (cg && cg->is_extension) has_cg_extension = true;
+	bool needs_extension_ctor = has_cg_extension
+	      && pform_cur_class->type->base_type
+	      && pform_cur_class->funcs.find(perm_string::literal("new"))
+		 == pform_cur_class->funcs.end();
+
 	// If there were initializer statements, then collect them
 	// into an implicit constructor function. Also make sure that an
 	// explicit constructor exists if base class constructor arguments are
 	// specified, so that the base class constructor will be called.
       if (!pform_cur_class->type->initialize.empty() ||
 	  !pform_cur_class->type->base_args.empty() ||
-	  pform_cur_class->type->base_default) {
+	  pform_cur_class->type->base_default || needs_extension_ctor) {
 	    PFunction*func = pform_push_function_scope(loc, "new@", LexicalScope::AUTOMATIC);
 	    if (pform_cur_class->type->base_default) {
 		  func->set_ports(pform_class_constructor_default_ports(loc, func));
@@ -614,6 +671,19 @@ void pform_bind_extern_func(PFunction*func)
       map<perm_string,PFunction*>::iterator it = pform_cur_class->funcs.find(name);
       if (it != pform_cur_class->funcs.end()) {
 	    PFunction*proto = it->second;
+	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
+	    const std::vector<pform_tf_port_t>*def_ports = func->peek_ports();
+	    size_t proto_count = proto_ports && !proto_ports->empty()
+		  ? proto_ports->size() - 1 : 0; // Exclude function return value.
+	    size_t def_count = def_ports && !def_ports->empty()
+		  ? def_ports->size() - 1 : 0;
+	    if (proto_count != def_count) {
+		  cerr << func->get_fileline() << ": error: Out-of-block definition of function `"
+		       << name << "' has " << def_count
+		       << " arguments, but its extern prototype has " << proto_count
+		       << " (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+	    }
 	    if (!func->method_of() && proto->method_of())
 		  func->set_method_type_only(proto->method_of());
 	    if (!func->is_virtual_method() && proto->is_virtual_method())
@@ -642,6 +712,17 @@ void pform_bind_extern_task(PTask*task)
       map<perm_string,PTask*>::iterator it = pform_cur_class->tasks.find(name);
       if (it != pform_cur_class->tasks.end()) {
 	    PTask*proto = it->second;
+	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
+	    const std::vector<pform_tf_port_t>*def_ports = task->peek_ports();
+	    size_t proto_count = proto_ports ? proto_ports->size() : 0;
+	    size_t def_count = def_ports ? def_ports->size() : 0;
+	    if (proto_count != def_count) {
+		  cerr << task->get_fileline() << ": error: Out-of-block definition of task `"
+		       << name << "' has " << def_count
+		       << " arguments, but its extern prototype has " << proto_count
+		       << " (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+	    }
 	    if (!task->method_of() && proto->method_of())
 		  task->set_method_type_only(proto->method_of());
 	    if (!task->is_virtual_method() && proto->is_virtual_method())
@@ -687,6 +768,19 @@ void pform_class_constraint(const struct vlltype&loc,
       perm_string pname = lex_strings.make(name);
 	  class_type_t*type = pform_cur_class->type;
 	  bool had_decl = type->constraint_declarations.count(pname) != 0;
+	  auto existing_decl = type->constraint_declarations.find(pname);
+	  if (existing_decl != type->constraint_declarations.end()
+	      && !existing_decl->second.is_prototype) {
+	    cerr << loc << ": error: Constraint `" << pname
+	         << "' is already declared in this class (IEEE 1800-2017/2023 18.5)."
+	         << endl;
+	    error_count += 1;
+	    if (items) {
+	      for (PExpr*item : *items) delete item;
+	      delete items;
+	    }
+	    return;
+	  }
       class_type_t::constraint_decl_info_t&decl =
 	    type->constraint_declarations[pname];
       FILE_NAME(&decl, loc);
@@ -1001,7 +1095,9 @@ void pform_class_covergroup(const struct vlltype&loc,
 		  if (found == cg->coverpoints.end())
 			cg->coverpoints.push_back(std::move(item));
 		  else {
+			item.option_slot = found->option_slot;
 			class_type_t::pform_coverpoint_t base_only = *found;
+			base_only.option_slot = -1;
 			string alias = "$ivl_inherited_"
 			      + string(extends_name.str()) + "_"
 			      + std::to_string(found - cg->coverpoints.begin());
@@ -1035,15 +1131,24 @@ void pform_class_covergroup(const struct vlltype&loc,
 				       });
 		  if (found == cg->crosses.end())
 			cg->crosses.push_back(std::move(item));
-		  else
+		  else {
+			item.option_slot = found->option_slot;
 			*found = std::move(item);
+		  }
 	    }
 	    for (const auto&item : added_options)
 		  cg->options[item.first] = item.second;
+	    cg->extension_options = added_options;
       }
       // Resolve implicit cross items after inheritance is merged so names
       // from a base covergroup remain references to its components.
       pform_covergroup_implicit_cross_coverpoints_(loc, cg);
+      for (auto&cp : cg->coverpoints)
+	    if (cp.option_slot < 0)
+		  cp.option_slot = cg->option_slot_count++;
+      for (auto&cross : cg->crosses)
+	    if (cross.option_slot < 0)
+		  cross.option_slot = cg->option_slot_count++;
       for (auto&cross : cg->crosses) {
 	    if (!cross.value_type || !cross.value_type->members) continue;
 	    auto member = cross.value_type->members->begin();

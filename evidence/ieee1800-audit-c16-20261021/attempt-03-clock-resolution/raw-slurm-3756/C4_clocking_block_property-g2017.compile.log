@@ -1,0 +1,5 @@
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module item.
+input/C4_clocking_block_property.sv:10: syntax error
+input/C4_clocking_block_property.sv:10: error: Invalid module instantiation
+input/C4_clocking_block_property.sv:12: error: Invalid module item.

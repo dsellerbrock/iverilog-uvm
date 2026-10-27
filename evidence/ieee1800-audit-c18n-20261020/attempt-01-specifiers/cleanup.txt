@@ -1,0 +1,1 @@
+Slurm job 3480 completed; results and logs were copied and verified before remote cleanup. Removed 45789 bytes of owned run directory, including staged source copies and vvp build outputs.

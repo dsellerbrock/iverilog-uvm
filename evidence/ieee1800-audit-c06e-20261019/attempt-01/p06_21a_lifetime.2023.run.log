@@ -1,0 +1,4 @@
+M2 f1=1 f2=1
+RESULT pass=7 fail=0
+PROG loc=1 i=1
+PROG loc=1 i=2

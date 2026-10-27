@@ -1,0 +1,1 @@
+input/NB3_class_property.sv:11: warning: this operand cannot be sampled in the Preponed region (IEEE 1800-2017 16.5.1) and is read live; a blocking write to it in the same time slot as the clock will be visible.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.8-10-20261019-23/input/p16_09_08_first_match.sv:7: sorry: `first_match' of a variable-length sequence that feeds a continuation is not supported by the automaton engine in this shape yet; the assertion is dropped.
+compile_exit=1

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-01/input/neg/n15_04_mailbox_typed_mismatch.sv:6: error: Typed mailbox method `put' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+1 error(s) during elaboration.

@@ -1,0 +1,23 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh4d037bf6" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+2ffcad251696e8ce7c40adea406f143b1c73815ff78ae1ca0679a5a5943bce46  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_4_iterarg.sv
+6539f32f58d9db762302f907597c5b3e021a22f84e9282628354771830551727  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv
+iterarg-2017 compile_rc=1
+iterarg-2023 compile_rc=1
+map-2023 compile_rc=0
+map-2023 run_rc=0
+M1 2 3 4
+M2 4 6 9
+M3 1 1 0 1
+M4 2 10 20
+M5 3 5 8
+map-2017 compile_rc=5 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:5: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:6: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:7: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:8: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-map-20261020-01/source/p07_12_5_map.sv:9: error: the array map() method requires IEEE1800-2023; compile with -g2023 (or -glatest).
+5 error(s) during elaboration.

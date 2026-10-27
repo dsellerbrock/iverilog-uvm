@@ -1,0 +1,4 @@
+ASSIGN w1=100 w2=200 w3=300
+RESUME count=3 order=3,2,1
+RESULT pass=1 fail=0
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/r15_04b_waiter_assignment.sv:17: $finish called at 20 (1s)

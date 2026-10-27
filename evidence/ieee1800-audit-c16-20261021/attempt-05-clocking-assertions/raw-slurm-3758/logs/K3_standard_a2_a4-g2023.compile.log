@@ -1,0 +1,18 @@
+input/K3_standard_a2_a4.sv:10: syntax error
+input/K3_standard_a2_a4.sv:10: error: Invalid module item.
+input/K3_standard_a2_a4.sv:11: syntax error
+input/K3_standard_a2_a4.sv:11: error: Invalid module instantiation
+input/K3_standard_a2_a4.sv:15: error: Invalid module item.
+input/K3_standard_a2_a4.sv:19: syntax error
+input/K3_standard_a2_a4.sv:21: error: Invalid module item.
+input/K3_standard_a2_a4.sv:22: syntax error
+input/K3_standard_a2_a4.sv:22: error: Invalid module item.
+input/K3_standard_a2_a4.sv:23: syntax error
+input/K3_standard_a2_a4.sv:25: error: Invalid module item.
+input/K3_standard_a2_a4.sv:26: syntax error
+input/K3_standard_a2_a4.sv:26: error: Invalid module item.
+input/K3_standard_a2_a4.sv:27: syntax error
+input/K3_standard_a2_a4.sv:29: error: Invalid module item.
+input/K3_standard_a2_a4.sv:30: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+input/K3_standard_a2_a4.sv:31: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+input/K3_standard_a2_a4.sv:32: error: concurrent assertion has no clocking event, no enclosing procedural event control to infer one from, and no default clocking block is declared (IEEE 1800-2017 16.14.6).

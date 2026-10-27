@@ -1,0 +1,143 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+BATCH_SOURCE: b9441bafbdb0b6b7413c09e0381845e69481391b
+BATCH_IVL_SHA: 7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+BATCH_VVP_SHA: e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+== batch batch_diag_A -g2017 compile_rc=0
+evidence/ieee1800-audit-c06a-20261019/run-diag2.sh: line 6: 56930 Abort trap: 6              perl -e 'alarm 60; exec @ARGV' "$vvp" -n "$out.vvp" > "$out.run.log" 2>&1
+run_rc=134
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.
+A len member=8 static=4 struct=8 local=3
+== batch batch_diag_B -g2017 compile_rc=0
+tests/1800_audit/c06/r06_16_diag_B.sv:7: warning: Index expressions on this property type used as compile-progress fallback.
+tests/1800_audit/c06/r06_16_diag_B.sv:8: warning: Index expressions on this property type used as compile-progress fallback.
+run_rc=0
+B putc member='Obj'
+B idxwr member='O'
+B struct idxwr='X'
+B static idxwr='Stat'
+== batch batch_diag_C -g2017 compile_rc=0
+run_rc=0
+C len var=1 const=1
+C getc=99 idx=99 substr='cc' cmp=0 upper='CCC'
+C idxwr arr1='Bb'
+C copy len=3
+C dyn len=3
+C assoc len=4
+C queue len=4
+== batch batch_diag_D -g2017 compile_rc=0
+run_rc=0
+D hex255='ff'
+D hex7fffffff='7fffffff'
+D hex-1='-1'
+D hex80000000='-80000000'
+D oct-1='-1'
+D oct2e9='-20000000000'
+D bin-1='-1'
+D bin80000000='-10000000000000000000000000000000'
+D itoa80000000='-2147483648'
+== batch batch_diag_E -g2017 compile_rc=0
+run_rc=0
+E str2elem a='Syz'
+E implicit8 s='A' len=1
+E implicit16 s='AB' len=2
+E str2byte c=83
+== batch batch_diag_A -g2023 compile_rc=0
+evidence/ieee1800-audit-c06a-20261019/run-diag2.sh: line 6: 56973 Abort trap: 6              perl -e 'alarm 60; exec @ARGV' "$vvp" -n "$out.vvp" > "$out.run.log" 2>&1
+run_rc=134
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.
+A len member=8 static=4 struct=8 local=3
+== batch batch_diag_B -g2023 compile_rc=0
+tests/1800_audit/c06/r06_16_diag_B.sv:7: warning: Index expressions on this property type used as compile-progress fallback.
+tests/1800_audit/c06/r06_16_diag_B.sv:8: warning: Index expressions on this property type used as compile-progress fallback.
+run_rc=0
+B putc member='Obj'
+B idxwr member='O'
+B struct idxwr='X'
+B static idxwr='Stat'
+== batch batch_diag_C -g2023 compile_rc=0
+run_rc=0
+C len var=1 const=1
+C getc=99 idx=99 substr='cc' cmp=0 upper='CCC'
+C idxwr arr1='Bb'
+C copy len=3
+C dyn len=3
+C assoc len=4
+C queue len=4
+== batch batch_diag_D -g2023 compile_rc=0
+run_rc=0
+D hex255='ff'
+D hex7fffffff='7fffffff'
+D hex-1='-1'
+D hex80000000='-80000000'
+D oct-1='-1'
+D oct2e9='-20000000000'
+D bin-1='-1'
+D bin80000000='-10000000000000000000000000000000'
+D itoa80000000='-2147483648'
+== batch batch_diag_E -g2023 compile_rc=0
+run_rc=0
+E str2elem a='Syz'
+E implicit8 s='A' len=1
+E implicit16 s='AB' len=2
+E str2byte c=83
+MAIN_ANCESTOR_SOURCE: fafa49958d71c38e7a0a110f6df90a931e92a4cf (contained in origin/main)
+MAIN_ANCESTOR_IVL_SHA: 9bbf7f2bc039feb1f0463c3ece4665851478e524e6fba5a532afc53abb40f7b3  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue666-cast-20261019/local-install/bin/iverilog
+MAIN_ANCESTOR_VVP_SHA: ca1af64e88fe379e124367902d2f8390af6ba81a53b5abd75847055425b85801  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue666-cast-20261019/local-install/bin/vvp
+== main_ancestor main_diag_C -g2017 compile_rc=0
+run_rc=0
+C len var=1 const=1
+C getc=99 idx=99 substr='cc' cmp=0 upper='CCC'
+C idxwr arr1='Bb'
+C copy len=3
+C dyn len=3
+C assoc len=4
+C queue len=4
+== main_ancestor main_diag_D -g2017 compile_rc=0
+run_rc=0
+D hex255='ff'
+D hex7fffffff='7fffffff'
+D hex-1='-1'
+D hex80000000='-80000000'
+D oct-1='-1'
+D oct2e9='-20000000000'
+D bin-1='-1'
+D bin80000000='-10000000000000000000000000000000'
+D itoa80000000='-2147483648'
+== main_ancestor main_diag_C -g2023 compile_rc=0
+run_rc=0
+C len var=1 const=1
+C getc=99 idx=99 substr='cc' cmp=0 upper='CCC'
+C idxwr arr1='Bb'
+C copy len=3
+C dyn len=3
+C assoc len=4
+C queue len=4
+== main_ancestor main_diag_D -g2023 compile_rc=0
+run_rc=0
+D hex255='ff'
+D hex7fffffff='7fffffff'
+D hex-1='-1'
+D hex80000000='-80000000'
+D oct-1='-1'
+D oct2e9='-20000000000'
+D bin-1='-1'
+D bin80000000='-10000000000000000000000000000000'
+D itoa80000000='-2147483648'
+        3.01 real         0.57 user         0.46 sys
+             8192000  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               66570  page reclaims
+                 723  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   6  signals received
+                 128  voluntary context switches
+                2078  involuntary context switches
+           201451077  instructions retired
+           129612355  cycles elapsed
+             2458080  peak memory footprint

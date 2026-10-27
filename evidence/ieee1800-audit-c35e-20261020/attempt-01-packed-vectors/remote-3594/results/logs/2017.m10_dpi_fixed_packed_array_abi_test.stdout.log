@@ -1,0 +1,2 @@
+PASS m10_dpi_fixed_packed_array_abi_test
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c35e-20261020-01/input/m10_dpi_fixed_packed_array_abi_test.sv:66: $finish called at 0 (1s)

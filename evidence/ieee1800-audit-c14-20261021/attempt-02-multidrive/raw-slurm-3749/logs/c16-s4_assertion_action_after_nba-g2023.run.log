@@ -1,0 +1,2 @@
+S4 x=1
+inputs/c16/s4_assertion_action_after_nba.sv:5: $finish called at 5 (1ns)

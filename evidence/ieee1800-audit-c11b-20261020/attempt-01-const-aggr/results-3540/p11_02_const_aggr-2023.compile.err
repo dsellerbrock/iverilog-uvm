@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-const-aggr-20261020-01/source/p11_02_const_aggr.sv:14: sorry: a conditional with whole unpacked array operands is only supported when the condition is a constant.
+1 error(s) during elaboration.

@@ -1,0 +1,9 @@
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: warning: Extra digits given for sized binary constant.
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: syntax error
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: error: Syntax error in task arguments.
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: warning: Extra digits given for sized binary constant.
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: warning: Extra digits given for sized binary constant.
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:22: error: Malformed statement
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:25: warning: Extra digits given for sized binary constant.
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:25: syntax error
+tests/1800_audit/c11/p11_04c_bit_shift_cond.sv:25: error: Malformed statement

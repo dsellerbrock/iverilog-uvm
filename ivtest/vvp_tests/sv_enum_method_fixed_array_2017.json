@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "sv_enum_method_fixed_array.v",
+    "iverilog-args" : [ "-g2017" ]
+}

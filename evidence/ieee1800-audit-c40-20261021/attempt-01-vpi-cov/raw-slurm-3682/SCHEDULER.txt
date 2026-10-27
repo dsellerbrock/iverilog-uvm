@@ -1,0 +1,13 @@
+job_id=3682
+partition=verilog
+state=COMPLETED
+exit_code=0:0
+node=DAN-DESKTOP
+requested_cpus=1
+requested_mem=1G
+requested_time=00:05:00
+submit_time=2026-10-21T02:45:26 MDT
+start_time=2026-10-21T02:45:37 MDT
+end_time=2026-10-21T02:45:37 MDT
+runtime=00:00:00 (scheduler-rounded)
+accounting=disabled; peak RSS unavailable

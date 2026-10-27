@@ -1,0 +1,2 @@
+ivltests/sv_net_alias_self_neg.v:3: error: Net alias cannot connect a net to itself.
+1 error(s) during elaboration.

@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_discard_warning.sv:3: warning: User function 'nv' is being called as a task.

@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_19h_array_element_method.sv:6: compiler error: The second argument to enum method $ivl_enum_method$name() must be an enumeration variable, found a vpiMemoryWord.
+tests/1800_audit/c06/r06_19h_array_element_method.sv:7: compiler error: The second argument to enum method $ivl_enum_method$next() must be an enumeration variable, found a vpiMemoryWord.

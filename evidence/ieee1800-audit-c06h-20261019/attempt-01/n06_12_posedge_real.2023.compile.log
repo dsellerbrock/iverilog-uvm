@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_12_posedge_real.sv:1: error: 'posedge' cannot be used with real expressions 'r'.
+1 error(s) during elaboration.

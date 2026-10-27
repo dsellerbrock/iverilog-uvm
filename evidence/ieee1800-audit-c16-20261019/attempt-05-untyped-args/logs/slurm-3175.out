@@ -1,0 +1,9 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+=== p16_08_sequence_untyped_args -g2017 ===
+PASS: untyped sequence formals -g2017
+PASSED
+=== p16_08_sequence_untyped_args -g2023 ===
+PASS: untyped sequence formals -g2023
+PASSED

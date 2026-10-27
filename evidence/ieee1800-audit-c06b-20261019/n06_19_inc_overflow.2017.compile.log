@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_19_inc_overflow.sv:2: error: Enumeration name b has an inferred value that overflowed.
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+port=1
+ivltests/sv_udnt_port_alias.v:13: $finish called at 1 (1s)

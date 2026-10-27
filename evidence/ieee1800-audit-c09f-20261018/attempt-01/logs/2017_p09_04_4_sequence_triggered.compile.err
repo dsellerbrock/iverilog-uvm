@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:11: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:12: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_4_sequence_triggered.sv:13: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_break_continue_fork_inner.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_break_continue_fork_inner"
+}

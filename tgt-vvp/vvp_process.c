@@ -1426,6 +1426,50 @@ static int show_stmt_assign_nb_real(ivl_statement_t net)
       return 0;
 }
 
+static int draw_evctl_vif_object_(ivl_statement_t net, ivl_event_t ev)
+{
+      unsigned root_pin = ivl_event_vif_root_pin(ev);
+      ivl_expr_t vif_object_expr = ivl_event_vif_object_expr(ev);
+      ivl_nexus_t this_nex = 0;
+      if (ivl_event_nany(ev) > root_pin)
+	    this_nex = ivl_event_any(ev, root_pin);
+      else if (ivl_event_npos(ev) > root_pin)
+	    this_nex = ivl_event_pos(ev, root_pin);
+      else if (ivl_event_nneg(ev) > root_pin)
+	    this_nex = ivl_event_neg(ev, root_pin);
+
+      if (!this_nex && !vif_object_expr) {
+	    fprintf(stderr,
+		    "%s:%u: error: virtual-interface event %s has no root nexus\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net),
+		    ivl_event_basename(ev));
+	    return 1;
+      }
+      if (vif_object_expr) {
+	    if (draw_eval_object(vif_object_expr)) return 1;
+      } else {
+	    draw_object_from_net(this_nex, ivl_event_scope(ev));
+      }
+
+      unsigned path_count = ivl_event_vif_path_count(ev);
+      if (path_count > 0) {
+	    for (unsigned idx = 0; idx < path_count; idx += 1)
+		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+			  ivl_event_vif_path_index(ev, idx));
+	    fprintf(vvp_out, "    %%pop/obj %u, 1;\n", path_count);
+      } else if (ivl_event_vif_N(ev) != UINT_MAX) {
+	    unsigned pre_N = ivl_event_vif_pre_N(ev);
+	    int has_pre = (pre_N != UINT_MAX);
+	    if (has_pre)
+		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+	    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+		    ivl_event_vif_N(ev));
+	    fprintf(vvp_out, "    %%pop/obj %u, 1;\n", has_pre ? 2 : 1);
+      }
+
+      return 0;
+}
+
 static int show_stmt_assign_nb(ivl_statement_t net)
 {
       ivl_lval_t lval;
@@ -1433,6 +1477,9 @@ static int show_stmt_assign_nb(ivl_statement_t net)
       ivl_expr_t del  = ivl_stmt_delay_expr(net);
       ivl_signal_t sig;
       unsigned nevents = ivl_stmt_nevent(net);
+      lval = ivl_stmt_lval(net, 0);
+      int property_lvalue = ivl_lval_property_idx(lval) >= 0
+	    || ivl_lval_nest(lval);
 
       show_stmt_file_line(net, "Nonblocking assignment.");
 
@@ -1479,6 +1526,29 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	/* If we have an event control build the control structure. */
       if (nevents) {
 	    assert(del == 0);
+	    ivl_event_t vif_event = 0;
+	    const char*vif_edge = 0;
+	    if (property_lvalue) {
+		  for (unsigned idx = 0; idx < nevents; idx += 1) {
+			ivl_event_t ev = ivl_stmt_events(net, idx);
+			if (ivl_event_is_vif_posedge(ev)
+			    || ivl_event_is_vif_negedge(ev)
+			    || ivl_event_is_vif_anyedge(ev)) {
+			      if (nevents != 1) {
+				    fprintf(stderr,
+					    "%s:%u: vvp.tgt sorry: event-controlled "
+					    "property assignments with multiple virtual-interface "
+					    "events are not yet supported.\n",
+					    ivl_stmt_file(net), ivl_stmt_lineno(net));
+				    return 1;
+			      }
+			      vif_event = ev;
+			      vif_edge = ivl_event_is_vif_posedge(ev) ? "posedge"
+					: ivl_event_is_vif_negedge(ev) ? "negedge"
+					: "anyedge";
+			}
+		  }
+	    }
 
 	    ivl_expr_t cnt = ivl_stmt_cond_expr(net);
 	    unsigned long count = 1;
@@ -1487,6 +1557,21 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 		  count = ivl_expr_uvalue(cnt);
 		  cnt = 0;
 	    }
+	    if (vif_event) {
+		  int count_index = -1;
+		  if (cnt) {
+			count_index = allocate_word();
+			draw_eval_expr_into_integer(cnt, count_index);
+		  }
+		  if (draw_evctl_vif_object_(net, vif_event)) return 1;
+		  unsigned member_word = ivl_event_vif_member_word(vif_event);
+		  const char*count_mode = !cnt ? "/i"
+			: ivl_expr_signed(cnt) ? "/s" : "";
+		  fprintf(vvp_out, "    %%evctl/vif/%s%s %u, %u, %lu;\n",
+			  vif_edge, count_mode, ivl_event_vif_M(vif_event),
+			  member_word, cnt ? (unsigned long)count_index : count);
+		  if (count_index >= 0) clr_word(count_index);
+	    } else {
 
 	    char name[256];
 	    if (nevents == 1) {
@@ -1519,6 +1604,7 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else {
 		  fprintf(vvp_out, "    %%evctl/i %s, %lu;\n", name, count);
 	    }
+	    }
       } else {
 	    assert(ivl_stmt_cond_expr(net) == 0);
       }
@@ -1538,10 +1624,10 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 
 	/* Nonblocking store to a class-object / virtual-interface property
 	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
-	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields
-	   are supported, including variable selectors and constant delays. Residual property
-	   forms are rejected below; executing them as blocking assignments
-	   would silently change their event-region semantics. */
+	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields are
+	   supported, including variable selectors, constant delays, and event
+	   controls. Residual property forms are rejected below; executing them as
+	   blocking assignments would silently change their event-region semantics. */
 	if (ivl_lval_property_idx(lval) >= 0 || ivl_lval_nest(lval) ||
 	    (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS)) {
 	    uint64_t prop_delay = 0;
@@ -1552,9 +1638,11 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else if (del) {
 		  can_delay = 0;
 	    }
-	    if (nevents == 0 && can_delay &&
-	        show_stmt_assign_nb_cobject(net, prop_delay) == 0)
+	    if (can_delay && show_stmt_assign_nb_cobject(net, prop_delay) == 0) {
+		  if (nevents)
+			fprintf(vvp_out, "    %%evctl/c;\n");
 		  return 0;
+	    }
 	    fprintf(stderr, "%s:%u: vvp.tgt error: this nonblocking "
 		    "property assignment form is not yet supported without "
 		    "changing its NBA semantics.\n",
@@ -1829,9 +1917,11 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       int any_flag = allocate_flag();
       int multi_flag = allocate_flag();
+      int item_flag = allocate_flag();
       int first_match_word = allocate_word();
       unsigned*body_label = count ? calloc(count, sizeof(unsigned)) : 0;
       int quality_if = ivl_stmt_case_is_quality_if(net);
+      unsigned current_item = (unsigned)-1;
 
       show_stmt_file_line(net, "Case statement.");
 
@@ -1850,12 +1940,21 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	   the per-item match result into any_flag/multi_flag. */
       for (idx = 0 ;  idx < count ;  idx += 1) {
 	    ivl_expr_t cex = ivl_stmt_case_expr(net, idx);
+	    unsigned item = ivl_stmt_case_group(net, idx);
 	    unsigned lab_after, lab_already_matched;
 	    int result_flag = 4;
 
 	    if (cex == 0) {
 		  default_case = idx;
 		  continue;
+	    }
+
+	      /* The target API exposes each comma-separated label as an entry.
+	         The case group metadata lets this warning count only the first
+	         matching label from each source case_item. */
+	    if (item != current_item) {
+		  fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", item_flag);
+		  current_item = item;
 	    }
 
 	    body_label[idx] = local_count++;
@@ -1906,11 +2005,16 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
 		    thread_count, lab_after, result_flag);
 
-	      /* This item matched. If any_flag is already set, a
-		 previous item also matched, so this is (at least) a
-		 second match: fold that into multi_flag before
-		 marking any_flag. */
+	      /* Count at most one matching expression per case_item. */
+	    lab_already_matched = local_count++;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+		    thread_count, lab_already_matched, item_flag);
 	    fprintf(vvp_out, "    %%flag_or %d, %d;\n", multi_flag, any_flag);
+	    fprintf(vvp_out, "    %%flag_set/imm %d, 1;\n", item_flag);
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+		    lab_already_matched);
+
+	      /* Preserve the first matching label for first-match dispatch. */
 	    lab_already_matched = local_count++;
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
 		    thread_count, lab_already_matched, any_flag);
@@ -1935,7 +2039,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 		    "\"multiple case items match for unique or unique0 case "
 		    "statement\" {0 0 0 0};\n",
 		    ivl_file_table_index(ivl_stmt_file(net)),
@@ -1964,6 +2068,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	   nested unique case can safely reuse them. */
       clr_flag(any_flag);
       clr_flag(multi_flag);
+      clr_flag(item_flag);
       clr_word(first_match_word);
 
 	/* Nothing matched: fall through to the default (if any) or
@@ -1980,7 +2085,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	      fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			  "\"value is unhandled for priority or unique case statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
@@ -2110,8 +2215,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
-              else
-		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		  else
+		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
 			    "\"value is unhandled for priority or unique case statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
@@ -3551,6 +3656,7 @@ static int show_stmt_wait_arr(ivl_statement_t net, ivl_scope_t sscope)
  */
 struct deferred_final_task_frame_s {
       int active;
+      int is_final;
       int phase; /* 0: before call, 1: after call, 2: rejected */
       int saw_alloc;
       int saw_free;
@@ -3752,6 +3858,30 @@ static int deferred_final_task_validate_(ivl_statement_t net,
       return 0;
 }
 
+static int deferred_observed_task_validate_(ivl_statement_t net,
+                                             ivl_scope_t task)
+{
+      const char*reason = 0;
+      if (!task || ivl_scope_type(task) != IVL_SCT_TASK) {
+            reason = "the resolved subroutine is not a task";
+      } else if (ivl_scope_ports(task) != 0) {
+            reason = "the task has formal arguments";
+      } else if (ivl_scope_is_dpi_import(task)) {
+            reason = "DPI task calls are outside this slice";
+      } else {
+            return 1;
+      }
+
+      fprintf(stderr,
+              "%s:%u: sorry: observed-deferred user-task action is not "
+              "supported because %s; only a zero-argument direct "
+              "SystemVerilog task is supported.\n",
+              ivl_stmt_file(net), ivl_stmt_lineno(net),
+              reason ? reason : "its resolved shape is unsupported");
+      vvp_errors += 1;
+      return 0;
+}
+
 static int show_stmt_utask(ivl_statement_t net)
 {
       ivl_scope_t task = ivl_stmt_call(net);
@@ -3766,7 +3896,10 @@ static int show_stmt_utask(ivl_statement_t net)
                   deferred_final_task_frame_.phase = 2;
                   return 1;
             }
-            if (!deferred_final_task_validate_(net, task)) {
+            if ((deferred_final_task_frame_.is_final
+                 && !deferred_final_task_validate_(net, task))
+                || (!deferred_final_task_frame_.is_final
+                    && !deferred_observed_task_validate_(net, task))) {
                   deferred_final_task_frame_.phase = 2;
                   return 1;
             }
@@ -5949,8 +6082,8 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
                                              ivl_scope_t sscope)
 {
       const char*name = ivl_stmt_name(net);
-      const int is_begin = strcmp(name,
-            "$ivl_deferred_final_task_begin") == 0;
+      const int is_final = strstr(name, "final") != NULL;
+      const int is_begin = strstr(name, "_begin") != NULL;
       long source_id = deferred_final_task_marker_id_(net);
 
       if (source_id <= 0 || !sscope) {
@@ -5976,28 +6109,33 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             memset(&deferred_final_task_frame_, 0,
                    sizeof deferred_final_task_frame_);
             deferred_final_task_frame_.active = 1;
+            deferred_final_task_frame_.is_final = is_final;
             deferred_final_task_frame_.source_id = source_id;
             deferred_final_task_frame_.action_scope = sscope;
             deferred_final_task_frame_.action_lab = local_count++;
             deferred_final_task_frame_.after_lab = local_count++;
 
-            show_stmt_file_line(net,
-                                "Final deferred user-task assertion pin.");
-            fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+            show_stmt_file_line(net, is_final
+                  ? "Final deferred user-task assertion pin."
+                  : "Observed deferred user-task assertion enqueue.");
+            fprintf(vvp_out, is_final
+                  ? "    %%defer/final T_%u.%u, S_%p;\n"
+                  : "    %%defer/enqueue T_%u.%u, S_%p;\n",
                     thread_count, deferred_final_task_frame_.action_lab,
                     sscope);
             fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
                     deferred_final_task_frame_.after_lab);
             fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
                     deferred_final_task_frame_.action_lab);
-            fprintf(vvp_out, "    %%defer/final/taskkey %ld;\n",
-                    source_id);
+            fprintf(vvp_out, is_final
+                  ? "    %%defer/final/taskkey %ld;\n"
+                  : "    %%defer/enqueue/taskkey %ld;\n", source_id);
             return 0;
       }
 
       if (!deferred_final_task_frame_.active) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task end "
+                    "%s:%u: error: internal deferred user-task end "
                     "marker has no matching begin marker.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6007,14 +6145,14 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
       int rc = 0;
       if (deferred_final_task_frame_.source_id != source_id) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task marker "
+                    "%s:%u: error: internal deferred user-task marker "
                     "source ids do not match.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
             rc = 1;
       } else if (deferred_final_task_frame_.phase == 0) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred user-task thunk "
+                    "%s:%u: error: internal deferred user-task thunk "
                     "contains no resolved task call.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6023,7 +6161,7 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
                  && deferred_final_task_frame_.saw_alloc
                  != deferred_final_task_frame_.saw_free) {
             fprintf(stderr,
-                    "%s:%u: error: internal final-deferred automatic-task "
+                    "%s:%u: error: internal automatic-task "
                     "thunk has an unbalanced alloc/free pair.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             vvp_errors += 1;
@@ -6202,7 +6340,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
             return show_deferred_assert_enqueue_(net, sscope);
 
       if (strcmp(stmt_name, "$ivl_deferred_final_task_begin") == 0
-          || strcmp(stmt_name, "$ivl_deferred_final_task_end") == 0)
+          || strcmp(stmt_name, "$ivl_deferred_final_task_end") == 0
+          || strcmp(stmt_name, "$ivl_deferred_observed_task_begin") == 0
+          || strcmp(stmt_name, "$ivl_deferred_observed_task_end") == 0)
             return show_deferred_final_task_marker_(net, sscope);
 
       if (strncmp(stmt_name, "$ivl_std_randomize_with|", 24) == 0) {
@@ -6961,6 +7101,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
 	  || strcmp(stmt_name, "$ivl_process$await") == 0
 	  || strcmp(stmt_name, "$ivl_process$suspend") == 0
+	  || strcmp(stmt_name, "$ivl_process$suspend$2023") == 0
 	  || strcmp(stmt_name, "$ivl_process$resume") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
 	    const char*op;
@@ -6972,6 +7113,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  op = "%process/await";
 	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
 		  op = "%process/suspend";
+	    else if (strcmp(stmt_name, "$ivl_process$suspend$2023") == 0)
+		  op = "%process/suspend/2023";
 	    else
 		  op = "%process/resume";
 	    fprintf(vvp_out, "    %s;\n", op);
@@ -7497,6 +7640,50 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* $ivl_ref_bind_prop_elem(<formal>, <receiver>, <pid>, <index>) --
+       * bind to an element of a dynamic container stored in a class
+       * property, preserving the element identity across deletion. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_prop_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
+	    ivl_expr_t idx = ivl_stmt_parm(net, 3);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    if (fsig && obj && pid && idx
+		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(idx);
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
+			  (unsigned long)get_number_immediate(pid));
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%ref/bind/el/o v%p_0;\n", fsig);
+	    }
+	    return 0;
+      }
+
+      /* $ivl_ref_bind_prop_nested_elem(<formal>, <receiver>, <pid>,
+       * <outer-index>, <inner-index>) -- bind through one container element
+       * to an element in the nested dynamic container. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_prop_nested_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
+	    ivl_expr_t outer = ivl_stmt_parm(net, 3);
+	    ivl_expr_t inner = ivl_stmt_parm(net, 4);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    if (fsig && obj && pid && outer && inner
+		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(outer);
+		  draw_eval_vec4(inner);
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
+			  (unsigned long)get_number_immediate(pid));
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%ref/bind/el/el/o v%p_0;\n", fsig);
+	    }
+	    return 0;
+      }
+
       /* $ivl_ref_bind_word(<formal>, <array>, <index>) -- bind a ref
        * formal to one word of a static unpacked array. The index is
        * the canonical word offset. */
@@ -7912,7 +8099,9 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
       if (deferred_final_task_frame_.active) {
             int is_end = code == IVL_ST_STASK
                   && strcmp(ivl_stmt_name(net),
-                            "$ivl_deferred_final_task_end") == 0;
+                            deferred_final_task_frame_.is_final
+                                  ? "$ivl_deferred_final_task_end"
+                                  : "$ivl_deferred_observed_task_end") == 0;
 
             if (deferred_final_task_frame_.phase == 2 && !is_end)
                   return 0;

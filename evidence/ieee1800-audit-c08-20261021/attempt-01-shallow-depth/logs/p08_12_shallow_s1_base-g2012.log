@@ -1,0 +1,19 @@
+PASS S1 base copy source=3 copy=4
+        0.01 real         0.00 user         0.00 sys
+             5226496  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2785  page reclaims
+                  34  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  48  involuntary context switches
+            15661048  instructions retired
+             6573729  cycles elapsed
+             1524096  peak memory footprint

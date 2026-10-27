@@ -1,0 +1,1 @@
+/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog -g2017 -o reducer.vvp /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21v_event_declared.sv && /tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp reducer.vvp

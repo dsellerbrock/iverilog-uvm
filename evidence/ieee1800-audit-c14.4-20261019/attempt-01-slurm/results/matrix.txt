@@ -1,0 +1,8 @@
+PASS: p14_04_zero_step_skew -g2017
+PASS: p14_04_numeric_skew -g2017
+PASS: p14_04_edge_skew -g2017
+REJECTED: n14_04_nonconstant_skew -g2017 (exit 1)
+PASS: p14_04_zero_step_skew -g2023
+PASS: p14_04_numeric_skew -g2023
+PASS: p14_04_edge_skew -g2023
+REJECTED: n14_04_nonconstant_skew -g2023 (exit 1)

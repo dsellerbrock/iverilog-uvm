@@ -97,6 +97,7 @@ class PExpr : public LineInfo {
       static const unsigned NO_FLAGS     = 0x0;
       static const unsigned NEED_CONST   = 0x1;
       static const unsigned SYS_TASK_ARG = 0x2;
+      static const unsigned SYS_TASK_ARG_OUTPUT = 0x1000;
       static const unsigned ANNOTATABLE  = 0x4;
       // Permit the symbolic unbounded value only while evaluating a value
       // parameter assignment or the argument of $isunbounded().
@@ -266,6 +267,24 @@ class PExpr : public LineInfo {
     private: // not implemented
       PExpr(const PExpr&);
       PExpr& operator= (const PExpr&);
+};
+
+// True while elaborating expressions that are part of a procedural
+// statement. IEEE 1800-2017/2023 13.4 restricts function calls with output,
+// inout, or non-const ref arguments to this context.
+extern bool pform_procedural_expr_context;
+extern bool pform_default_argument_context;
+extern bool pform_default_argument_requires_procedural_context;
+
+class PExprProceduralContextGuard {
+    public:
+      explicit PExprProceduralContextGuard(bool enable)
+      : old_(pform_procedural_expr_context)
+      { pform_procedural_expr_context = enable; }
+      ~PExprProceduralContextGuard()
+      { pform_procedural_expr_context = old_; }
+    private:
+      bool old_;
 };
 
 /* Boolean match predicate. Statement contexts install pattern variables in
@@ -541,6 +560,7 @@ class PEIdent : public PExpr {
 	// exist. Marked identifiers take the error branch instead.
       void set_strict_bind() { strict_bind_ = true; }
       bool strict_bind() const { return strict_bind_; }
+      bool no_implicit_sig() const { return no_implicit_sig_; }
 
 	// Set on COMPILER-GENERATED references that merely shadow a name
 	// the user already wrote (the $ivl_clocking_hist_on bookkeeping
@@ -549,6 +569,8 @@ class PEIdent : public PExpr {
 	// duplicate the diagnostic.
       void set_quiet_bind() { quiet_bind_ = true; }
       bool quiet_bind() const { return quiet_bind_; }
+      void set_modport_expression_access() { modport_expression_access_ = true; }
+      bool modport_expression_access() const { return modport_expression_access_; }
 
       // Add another name to the string of hierarchy that is the
       // current identifier.
@@ -615,6 +637,12 @@ class PEIdent : public PExpr {
       void set_clocking_access(perm_string name) { clocking_access_ = name; }
       perm_string clocking_access() const { return clocking_access_; }
 
+      // Set on the clockvar l-value of a parsed synchronous drive. Other
+      // procedural assignments to a clockvar are illegal (IEEE 1800-2017
+      // 14.16), even though assignments to its associated signal are legal.
+      void mark_clocking_drive_lval() { clocking_drive_lval_ = true; }
+      bool is_clocking_drive_lval() const { return clocking_drive_lval_; }
+
       virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
@@ -680,6 +708,8 @@ class PEIdent : public PExpr {
       bool scoped_type_prefix_ = false;
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
+      bool clocking_drive_lval_ = false;
+      bool modport_expression_access_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
 
@@ -898,6 +928,10 @@ class PEIdent : public PExpr {
       bool eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,
 			     long&midx, long&lidx) const;
 };
+
+void push_modport_expression_context(const pform_name_t&root);
+void pop_modport_expression_context();
+const pform_name_t* modport_expression_context();
 
 class PEMemberAccess : public PExpr {
 
@@ -1212,6 +1246,8 @@ class PEUnary : public PExpr {
     public:
       inline char get_op() const { return op_; }
       inline PExpr*get_expr() const { return expr_; }
+      void mark_concurrent_assertion_expr() { concurrent_assertion_expr_ = true; }
+      bool concurrent_assertion_expr() const { return concurrent_assertion_expr_; }
 
     private:
       NetExpr* elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const;
@@ -1219,6 +1255,7 @@ class PEUnary : public PExpr {
     private:
       char op_;
       PExpr*expr_;
+      bool concurrent_assertion_expr_ = false;
 };
 
 class PEBinary : public PExpr {
@@ -1509,11 +1546,14 @@ class PECallFunction : public PExpr {
 	// call, the same way a `let' expansion substitutes.
       void set_sampled_subst(PExpr*e) { sampled_subst_ = e; }
       PExpr* sampled_subst() const { return sampled_subst_; }
+      void mark_concurrent_assertion_expr() { concurrent_assertion_expr_ = true; }
+      bool concurrent_assertion_expr() const { return concurrent_assertion_expr_; }
       void set_sampled_default_clock() { sampled_default_clock_ = true; }
       bool sampled_default_clock() const { return sampled_default_clock_; }
 
     private:
       PExpr*sampled_subst_ = nullptr;
+      bool concurrent_assertion_expr_ = false;
       bool sampled_default_clock_ = false;
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;

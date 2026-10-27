@@ -1,0 +1,140 @@
+host=DAN-DESKTOP
+start=2026-10-17T23:10:37-06:00
+job_id=2549
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+
+=== 2017 p09_04_1_delay.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.1.delay_10
+PASS 9.4.1.delay_parameter
+PASS 9.4.1.delay_expression
+PASS 9.4.1.delay_variable
+PASS 9.4.1.x_delay_is_zero
+PASS 9.4.1.z_delay_is_zero
+PASS 9.4.1.negative_delay_is_huge_unsigned
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_1_delay.sv:19: $finish called at 1018 (1s)
+RESULT 2017_p09_04_1_delay compile_rc=0 run_rc=0
+
+=== 2017 p09_04_2_edges.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.posedge_table9_2
+PASS 9.4.2.negedge_table9_2
+PASS 9.4.2.edge_is_pos_or_neg
+PASS 9.4.2.implicit_event_any_change
+PASS 9.4.2.edge_only_on_lsb
+PASS 9.4.2.implicit_event_vector_any_bit
+PASS 9.4.2.operand_change_without_result_change_not_event
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_edges.sv:27: $finish called at 24 (1s)
+RESULT 2017_p09_04_2_edges compile_rc=0 run_rc=0
+
+=== 2017 p09_04_2_or_iff.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.1.or_either
+PASS 9.4.2.1.comma_is_or
+PASS 9.4.2.1.edge_list_with_comma
+PASS 9.4.2.1.mixed_or_and_comma
+PASS 9.4.2.3.iff_false_blocks_and_enable_alone_no_event
+PASS 9.4.2.3.iff_has_precedence_over_or
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_or_iff.sv:26: $finish called at 19 (1s)
+RESULT 2017_p09_04_2_or_iff compile_rc=0 run_rc=0
+
+=== 2017 p09_04_2_implicit_star.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.2.star_includes_all_operands_and_function_args
+PASS 9.4.2.2.star_index_and_rhs_not_lvalue_base
+PASS 9.4.2.2.star_excludes_ids_only_in_event_expr
+FAIL 9.4.2.2.star_wakes_on_rhs_id
+PASS 9.4.2.2.inner_event_then_assign
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_implicit_star.sv:25: $finish called at 15 (1s)
+RESULT 2017_p09_04_2_implicit_star compile_rc=0 run_rc=0
+
+=== 2017 p09_04_2_objects.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_objects.sv:16: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_objects.sv:16: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+
+=== 2017 neg/n09_04_2_nonsingular_event.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/neg/n09_04_2_nonsingular_event.sv:3: error: Array arr needs an array index here.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/neg/n09_04_2_nonsingular_event.sv:3: warning: Failed to evaluate event expression 'arr' (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2017_n09_04_2_nonsingular_event compile_rc=1 run_rc=NA (rejected; diagnostic retained for review)
+
+=== 2023 p09_04_1_delay.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.1.delay_10
+PASS 9.4.1.delay_parameter
+PASS 9.4.1.delay_expression
+PASS 9.4.1.delay_variable
+PASS 9.4.1.x_delay_is_zero
+PASS 9.4.1.z_delay_is_zero
+PASS 9.4.1.negative_delay_is_huge_unsigned
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_1_delay.sv:19: $finish called at 1018 (1s)
+RESULT 2023_p09_04_1_delay compile_rc=0 run_rc=0
+
+=== 2023 p09_04_2_edges.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.posedge_table9_2
+PASS 9.4.2.negedge_table9_2
+PASS 9.4.2.edge_is_pos_or_neg
+PASS 9.4.2.implicit_event_any_change
+PASS 9.4.2.edge_only_on_lsb
+PASS 9.4.2.implicit_event_vector_any_bit
+PASS 9.4.2.operand_change_without_result_change_not_event
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_edges.sv:27: $finish called at 24 (1s)
+RESULT 2023_p09_04_2_edges compile_rc=0 run_rc=0
+
+=== 2023 p09_04_2_or_iff.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.1.or_either
+PASS 9.4.2.1.comma_is_or
+PASS 9.4.2.1.edge_list_with_comma
+PASS 9.4.2.1.mixed_or_and_comma
+PASS 9.4.2.3.iff_false_blocks_and_enable_alone_no_event
+PASS 9.4.2.3.iff_has_precedence_over_or
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_or_iff.sv:26: $finish called at 19 (1s)
+RESULT 2023_p09_04_2_or_iff compile_rc=0 run_rc=0
+
+=== 2023 p09_04_2_implicit_star.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.2.star_includes_all_operands_and_function_args
+PASS 9.4.2.2.star_index_and_rhs_not_lvalue_base
+PASS 9.4.2.2.star_excludes_ids_only_in_event_expr
+FAIL 9.4.2.2.star_wakes_on_rhs_id
+PASS 9.4.2.2.inner_event_then_assign
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_implicit_star.sv:25: $finish called at 15 (1s)
+RESULT 2023_p09_04_2_implicit_star compile_rc=0 run_rc=0
+
+=== 2023 p09_04_2_objects.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_objects.sv:16: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_objects.sv:16: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+
+=== 2023 neg/n09_04_2_nonsingular_event.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/neg/n09_04_2_nonsingular_event.sv:3: error: Array arr needs an array index here.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/neg/n09_04_2_nonsingular_event.sv:3: warning: Failed to evaluate event expression 'arr' (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2023_n09_04_2_nonsingular_event compile_rc=1 run_rc=NA (rejected; diagnostic retained for review)
+
+DONE status=1

@@ -1,0 +1,10 @@
+AFTER 5000
+DATA 25000 3c
+FINAL 31000 3c
+input/k3_direct_hier_cycle_delayed_drive.sv:19: $finish called at 31000 (1ps)
+2017	0	0
+AFTER 5000
+DATA 25000 3c
+FINAL 31000 3c
+input/k3_direct_hier_cycle_delayed_drive.sv:19: $finish called at 31000 (1ps)
+2023	0	0

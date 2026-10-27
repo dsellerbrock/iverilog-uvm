@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_assoc_nonintegral_query.v",
+    "iverilog-args": ["-g2017", "-s", "sv_assoc_nonintegral_query"],
+    "gold": "sv_assoc_nonintegral_query_2017"
+}

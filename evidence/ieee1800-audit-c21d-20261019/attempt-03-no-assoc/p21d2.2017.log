@@ -1,0 +1,23 @@
+WARNING: p21d2.sv:6: $readmemh(p21d_a.txt): Not enough words in the file for the requested range [1:8].
+WARNING: p21d2.sv:7: $readmemh(p21d_a.txt): Too many words in the file for the requested range [6:8].
+ERROR: p21d2.sv:10: $readmemh(p21d_d.txt): address (0x9) is out of range [0x1:0x4]
+FAIL enum_stops
+RESULT pass=10 fail=1
+        0.06 real         0.01 user         0.00 sys
+             6733824  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1317  page reclaims
+                  18  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  24  involuntary context switches
+           145043773  instructions retired
+            41822587  cycles elapsed
+             3899776  peak memory footprint

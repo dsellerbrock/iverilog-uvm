@@ -1,0 +1,7 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k2_specialized.sv:7: error: A hierarchical reference (`C.T') is not allowed in a constant expression.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k2_specialized.sv:7: error: Cast size expression must be constant and greater than zero.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k2_specialized.sv:8: error: A hierarchical reference (`C.T') is not allowed in a constant expression.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k2_specialized.sv:8: error: Cast size expression must be constant and greater than zero.
+4 error(s) during elaboration.
+Command exited with non-zero status 4
+elapsed_seconds=0.00 max_rss_kib=10448

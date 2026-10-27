@@ -1,0 +1,22 @@
+compile_exit=0
+WARNING: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/neg/n21_02_undefined_spec.sv:1: unknown format $display<%q>.
+<%q>          1
+simulation_exit=0
+        0.05 real         0.02 user         0.02 sys
+             5144576  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3551  page reclaims
+                  26  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   9  voluntary context switches
+                 121  involuntary context switches
+            36014651  instructions retired
+            15454186  cycles elapsed
+             1556864  peak memory footprint

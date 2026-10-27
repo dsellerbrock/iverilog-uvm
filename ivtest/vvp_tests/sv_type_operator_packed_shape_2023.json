@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_type_operator_packed_shape.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_type_operator_packed_shape"
+}

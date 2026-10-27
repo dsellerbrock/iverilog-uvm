@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_foreach_same_name_fail.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_constraint_foreach_same_name_fail"
+}

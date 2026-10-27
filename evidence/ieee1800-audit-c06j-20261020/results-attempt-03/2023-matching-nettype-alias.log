@@ -1,0 +1,7 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:5: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:5: Errors in port declarations.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:9: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:9: error: Invalid module item.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:10: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:10: error: Invalid module item.
+COMPILE FAIL rc=6

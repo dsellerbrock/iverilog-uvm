@@ -1,0 +1,3 @@
+S4 x=0 y=1
+S4 x=1 y=0
+input/s4_plain_static_always_comb.sv:11: $finish called at 2 (1s)

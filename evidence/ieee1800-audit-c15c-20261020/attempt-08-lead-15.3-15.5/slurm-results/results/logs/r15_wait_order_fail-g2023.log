@@ -1,0 +1,3 @@
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-lead-20261020-1/input/r15_wait_order_fail.sv:3: wait_order events triggered out of order
+       Time: 1  Scope: p15_wait_order_fail
+SURVIVED

@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k1_typedef.sv:5: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08-scoped-cast-20261021-01/input/p08_05_scoped_cast_k1_typedef.sv:5: error: Syntax error in typedef clause.
+Command exited with non-zero status 2
+elapsed_seconds=0.00 max_rss_kib=8420

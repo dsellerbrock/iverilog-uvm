@@ -1,0 +1,1 @@
+input/NQ2_variable_delay.sv:10: sorry: sequence cycle delays must be literal constants; the assertion is dropped.

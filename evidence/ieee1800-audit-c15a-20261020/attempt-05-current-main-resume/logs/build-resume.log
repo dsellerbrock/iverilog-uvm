@@ -1,0 +1,23 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c parse.cc -o parse.o
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c lexor.cc -o lexor.o
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c tables.cc -o tables.o
+mv tables.d dep/tables.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c vvp_dpi.cc -o vvp_dpi.o
+mv lexor.d dep/lexor.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c vvp_mailbox.cc -o vvp_mailbox.o
+mv parse.d dep/parse.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c vvp_vinterface.cc -o vvp_vinterface.o
+mv vvp_dpi.d dep/vvp_dpi.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -MD -c vvp_z3.cc -o vvp_z3.o
+vvp_z3.cc:35:12: fatal error: 'z3.h' file not found
+   35 | # include  <z3.h>
+      |            ^~~~~~
+1 error generated.
+make[1]: *** [vvp_z3.o] Error 1
+make[1]: *** Waiting for unfinished jobs....
+mv vvp_mailbox.d dep/vvp_mailbox.d
+mv vvp_vinterface.d dep/vvp_vinterface.d
+make: *** [all] Error 2

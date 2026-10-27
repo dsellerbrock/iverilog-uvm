@@ -1,0 +1,26 @@
+edition	probe	compile_rc	run_rc	result
+2023	p08_20_spec_legal	0	0	PASS
+2017	p08_27_fwd	0	0	PASS
+2023	p08_27_fwd	0	0	PASS
+2017	n08_27_forward_missing	1	NA	REJECTED
+2023	n08_27_forward_missing	1	NA	REJECTED
+--- n08_27_forward_missing-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08p-20261020-02/input/tests/1800_audit/c08/n08_27_forward_missing.sv:2: error: Forward typedef `Missing` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.
+--- n08_27_forward_missing-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08p-20261020-02/input/tests/1800_audit/c08/n08_27_forward_missing.sv:2: error: Forward typedef `Missing` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.
+--- p08_20_spec_legal-g2023.compile.log
+--- p08_27_fwd-g2017.compile.log
+--- p08_27_fwd-g2023.compile.log
+--- p08_20_spec_legal-g2023.run.log
+B.f1
+A.f2
+ConcreteB.f3
+A.f4
+ConcreteC.f3
+C.f5
+--- p08_27_fwd-g2017.run.log
+FWD 2 1 8
+--- p08_27_fwd-g2023.run.log
+FWD 2 1 8

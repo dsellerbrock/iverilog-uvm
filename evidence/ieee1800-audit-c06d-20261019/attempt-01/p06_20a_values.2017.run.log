@@ -1,0 +1,4 @@
+SUB p_bits=8 q_bits=4 q=2
+SUB p_bits=3 q_bits=4 q=3
+SUBR p=2.500000
+RESULT pass=12 fail=0

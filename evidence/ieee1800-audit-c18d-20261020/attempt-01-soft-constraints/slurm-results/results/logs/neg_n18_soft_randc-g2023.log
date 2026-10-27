@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-c18-lead-20261020-1/input/c18/neg_n18_soft_randc.sv:1: warning: randc property 'x' of class R has a 32-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 2048 values, and other wide forms cannot guarantee a full cycle.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15-c18-lead-20261020-1/input/c18/neg_n18_soft_randc.sv:1: error: 'randc' variables cannot be used in 'soft' constraints.
+1 error(s) during elaboration.

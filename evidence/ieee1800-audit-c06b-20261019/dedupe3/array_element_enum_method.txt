@@ -1,0 +1,2 @@
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z

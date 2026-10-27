@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_randomize_argument_expression_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_randomize_argument_expression_2017"
+}

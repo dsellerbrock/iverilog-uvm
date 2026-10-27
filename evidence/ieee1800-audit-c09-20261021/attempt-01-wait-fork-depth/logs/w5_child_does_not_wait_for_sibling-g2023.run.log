@@ -1,0 +1,2 @@
+W5 C1 wait fork returned at 30
+input/w5_child_does_not_wait_for_sibling.sv:18: $finish called at 30000 (1ps)

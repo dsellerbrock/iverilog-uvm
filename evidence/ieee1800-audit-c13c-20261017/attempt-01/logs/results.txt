@@ -1,0 +1,112 @@
+host=DAN-DESKTOP
+2026-10-17T16:57:46-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 60s; run 30s; SIGTERM then SIGKILL after 2s.
+
+=== p13_04_functions -g2017 ===
+PASS 13.4.1.assign_to_name
+PASS 13.4.1.return_stmt
+PASS 13.4.1.return_overrides_name
+PASS 13.4.empty_body_returns_implicit_var
+PASS 13.4.1.struct_member_via_fn_name
+PASS 13.4.1.void_call_stmt
+PASS 13.4.2.static_items_shared
+PASS 13.4.2.automatic_items_fresh
+PASS 13.4.2.recursive_factorial
+PASS 13.4.3.constant_fn_clogb2
+PASS 13.4.4.fork_join_none_returns_now
+PASS 13.4.4.fork_join_none_body_runs
+PASS 13.4.4.event_trigger_in_fn
+PASS 13.4.4.nba_in_fn_deferred
+PASS 13.4.4.nba_in_fn_lands
+DONE fails=0
+PASS run
+
+=== p13_04_1_discard_warning -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_discard_warning.sv:3: warning: User function 'nv' is being called as a task.
+warning_count=1
+DONE
+PASS run
+
+=== p13_04_1_implicit_var -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_implicit_var.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_implicit_var.sv:10: error: Malformed statement
+FAIL compile rc=2
+
+=== expect compile rejection: n13_04_1_dup_name_scope -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:3: error: 'f' has already been declared in this scope.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:2:      : It was declared here as a function.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_04_1_dup_name_inside -g2017 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_1_return_no_expr -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Return from top.f requires a return value expression.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Unable to elaborate statement in function f.
+2 error(s) during elaboration.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_04_output_arg_in_cont_assign -g2017 ===
+FAIL unexpectedly compiled
+
+=== p13_04_functions -g2023 ===
+PASS 13.4.1.assign_to_name
+PASS 13.4.1.return_stmt
+PASS 13.4.1.return_overrides_name
+PASS 13.4.empty_body_returns_implicit_var
+PASS 13.4.1.struct_member_via_fn_name
+PASS 13.4.1.void_call_stmt
+PASS 13.4.2.static_items_shared
+PASS 13.4.2.automatic_items_fresh
+PASS 13.4.2.recursive_factorial
+PASS 13.4.3.constant_fn_clogb2
+PASS 13.4.4.fork_join_none_returns_now
+PASS 13.4.4.fork_join_none_body_runs
+PASS 13.4.4.event_trigger_in_fn
+PASS 13.4.4.nba_in_fn_deferred
+PASS 13.4.4.nba_in_fn_lands
+DONE fails=0
+PASS run
+
+=== p13_04_1_discard_warning -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_discard_warning.sv:3: warning: User function 'nv' is being called as a task.
+warning_count=1
+DONE
+PASS run
+
+=== p13_04_1_implicit_var -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_implicit_var.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/p13_04_1_implicit_var.sv:10: error: Malformed statement
+FAIL compile rc=2
+
+=== expect compile rejection: n13_04_1_dup_name_scope -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:3: error: 'f' has already been declared in this scope.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_dup_name_scope.sv:2:      : It was declared here as a function.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_04_1_dup_name_inside -g2023 ===
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_04_1_return_no_expr -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Return from top.f requires a return value expression.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/inputs/c13/neg/n13_04_1_return_no_expr.sv:2: error: Unable to elaborate statement in function f.
+2 error(s) during elaboration.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_04_output_arg_in_cont_assign -g2023 ===
+FAIL unexpectedly compiled
+
+FINAL_STATUS=1

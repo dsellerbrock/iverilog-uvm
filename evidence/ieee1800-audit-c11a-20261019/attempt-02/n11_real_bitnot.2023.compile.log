@@ -1,0 +1,2 @@
+sh: line 1: 24582 Done                    /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivlpp -L -g2023 -F"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg2189fa69c" -f"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg189fa69c" -p"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli189fa69c"
+     24583 Segmentation fault: 11  | /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivl -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh189fa69c" -C"/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/vvp.conf" -- -

@@ -1,0 +1,10 @@
+PASS auto-cross 1 of 4 bins
+PASS user-bin cross 1 of 3 bins
+PASS zero-weight cross calculation
+PASS zero-denominator nonzero-weight returns 0.0
+PASS zero-denominator zero-weight returns 100.0
+PASS auto-cross 2 of 4 bins
+PASS auto-cross all 4 bins
+PASS user-bin cross all 3 bins
+PASS cross computation clause 19.11.2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-11-2-20261019/input/p19_11_2_cross_computation.sv:63: $finish called at 0 (1s)

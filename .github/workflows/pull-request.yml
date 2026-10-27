@@ -21,6 +21,9 @@ jobs:
         submodules: recursive
         persist-credentials: false
 
+    - name: Windows export list
+      run: python3 ci/check-def-exports.py
+
     - name: Install
       run: |
         sudo apt update -qq

@@ -1,0 +1,3 @@
+tests/1800_audit/c06/r06_17_d.sv:1: warning: Could not find variable ``e'' in ``m'' (compile-progress: assignment ignored).
+tests/1800_audit/c06/r06_17_d.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 1 error(s).

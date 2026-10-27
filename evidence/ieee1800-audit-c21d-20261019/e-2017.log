@@ -1,0 +1,23 @@
+FAIL v_s
+WARNING: /Users/danielellerbrock/projects/iverilog_uvm/iverilog Invalid decimal value passed to $value$plusargs:
+                                                                "=5".
+INFO pstring r=1 tn=x
+RESULT pass=9 fail=1
+        0.04 real         0.01 user         0.00 sys
+             6602752  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1308  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  24  involuntary context switches
+           136805442  instructions retired
+            43500833  cycles elapsed
+             3817856  peak memory footprint

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c13-20261019-2/probes/neg/n13_04_3_nonconst_default.sv:10: error: `add_dyn' is not a constant function.
+1 error(s) during elaboration.

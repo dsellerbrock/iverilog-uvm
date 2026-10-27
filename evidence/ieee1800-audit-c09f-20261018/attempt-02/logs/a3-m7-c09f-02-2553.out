@@ -1,0 +1,88 @@
+host=DAN-DESKTOP
+start=2026-10-17T23:28:51-06:00
+job_id=2553
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+
+=== -g2017 p09_04_3_bits_queue.sv ===
+compile_rc=0
+run_rc=0
+INFO bits_empty=1
+INFO bits_8_bytes=1 (expect 64)
+PASS wait_runtime_var
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_3_bits_queue.sv:13: $finish called at 1 (1s)
+PROBE_STATUS 2017_p09_04_3_bits_queue bits-value-not-64-or-missing
+
+=== -g2017 p09_04_4_seq_reducer.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+run_rc=0
+TRIGGERED t=0
+ASSERT_PASS t=25
+ASSERT_PASS t=35
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:5: $finish called at 40 (1s)
+PROBE_STATUS 2017_p09_04_4_seq_reducer assertion=1 triggered=1
+
+=== -g2017 p09_04_5_intra.sv ===
+compile_rc=0
+run_rc=124
+PASS 9.4.5.rhs_sampled_before_delay
+PASS 9.4.5.data_swap
+PASS 9.4.5.event_rhs_sampled_at_encounter
+PASS 9.4.5.data_shift
+PASS 9.4.5.repeat_3
+PASS 9.4.5.repeat_negative
+PASS 9.4.5.repeat_zero
+PASS 9.4.5.repeat_unsigned_13
+PASS 9.4.5.repeat_count_once
+PROBE_STATUS 2017_p09_04_5_intra no-complete-result
+
+=== -g2017 expected compile rejection neg/n09_04_5_repeat_without_event.sv ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/neg/n09_04_5_repeat_without_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/neg/n09_04_5_repeat_without_event.sv:3: error: Malformed statement
+PROBE_STATUS 2017_n09_04_5_repeat_without_event compile-rejected
+
+=== -g2023 p09_04_3_bits_queue.sv ===
+compile_rc=0
+run_rc=0
+INFO bits_empty=1
+INFO bits_8_bytes=1 (expect 64)
+PASS wait_runtime_var
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_3_bits_queue.sv:13: $finish called at 1 (1s)
+PROBE_STATUS 2023_p09_04_3_bits_queue bits-value-not-64-or-missing
+
+=== -g2023 p09_04_4_seq_reducer.sv ===
+compile_rc=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to elaborate wait condition expression (compile-progress fallback).
+run_rc=0
+TRIGGERED t=0
+ASSERT_PASS t=25
+ASSERT_PASS t=35
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:5: $finish called at 40 (1s)
+PROBE_STATUS 2023_p09_04_4_seq_reducer assertion=1 triggered=1
+
+=== -g2023 p09_04_5_intra.sv ===
+compile_rc=0
+run_rc=124
+PASS 9.4.5.rhs_sampled_before_delay
+PASS 9.4.5.data_swap
+PASS 9.4.5.event_rhs_sampled_at_encounter
+PASS 9.4.5.data_shift
+PASS 9.4.5.repeat_3
+PASS 9.4.5.repeat_negative
+PASS 9.4.5.repeat_zero
+PASS 9.4.5.repeat_unsigned_13
+PASS 9.4.5.repeat_count_once
+PROBE_STATUS 2023_p09_04_5_intra no-complete-result
+
+=== -g2023 expected compile rejection neg/n09_04_5_repeat_without_event.sv ===
+compile_rc=2
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/neg/n09_04_5_repeat_without_event.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/neg/n09_04_5_repeat_without_event.sv:3: error: Malformed statement
+PROBE_STATUS 2023_n09_04_5_repeat_without_event compile-rejected
+
+RUNNER_STATUS=1

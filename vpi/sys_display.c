@@ -512,19 +512,35 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         } else {
           unsigned free_flag = 0;
           char *cp = value.value.str;
-          if (ld_zero == 1) {
+          if (vpip_is_system_verilog_mode()) {
+            if (width != -1 || ld_zero == 1) {
+              /* Keep auto-sized zeros for Icarus's existing %-width extension. */
+              if (ljust == 0 || ld_zero == 1)
+                while (*cp == '0' && *(cp+1) != '\0') cp++;
+            }
+            if (ljust == 0 && width > 0) {
+              unsigned swidth = strlen(cp);
+              if ((signed)swidth < width) {
+                unsigned pad = (unsigned)width - swidth;
+                char *padded = malloc((width+1)*sizeof(char));
+                memset(padded, '0', pad);
+                strcpy(padded+pad, cp);
+                cp = padded;
+                free_flag = 1;
+              }
+            }
+          } else if (ld_zero == 1) {
             unsigned swidth = strlen(value.value.str);
-            /* Strip the leading zeros if a width is not given. */
             if (width == -1) while (*cp == '0' && *(cp+1) != '\0') cp++;
-            /* Pad with leading zeros. */
             else if (ljust == 0 && (signed)swidth < width) {
               unsigned pad = (unsigned)width - swidth;
               cp = malloc((width+1)*sizeof(char));
               memset(cp, '0', pad);
               strcpy(cp+pad, value.value.str);
               free_flag = 1;
-            /* For a left aligned value also strip the leading zeros. */
-            } else if (ljust != 0) while (*cp == '0' && *(cp+1) != '\0') cp++;
+            } else if (ljust != 0) {
+              while (*cp == '0' && *(cp+1) != '\0') cp++;
+            }
           }
 
           /* If a width was not given, use a width of zero. */
@@ -742,8 +758,66 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         vpi_printf("WARNING: %s:%d: missing argument for %s%s.\n",
                    info->filename, info->lineno, info->name, fmtb);
       } else {
-        value.format = vpiStringVal;
-        vpi_get_value(info->items[*idx], &value);
+        vpiHandle arg = info->items[*idx];
+        PLI_INT32 type = vpi_get(vpiType, arg);
+        char *owned_string = 0;
+        if (type == vpiRegArray || type == vpiNetArray || type == vpiMemory) {
+          vpiHandle left = vpi_handle(vpiLeftRange, arg);
+          vpiHandle right = vpi_handle(vpiRightRange, arg);
+          size_t used = 0;
+          size_t capacity = 1;
+          char *array_string = malloc(capacity);
+          array_string[0] = '\0';
+          int is_byte_array = left && right;
+          if (is_byte_array) {
+            s_vpi_value bound;
+            bound.format = vpiIntVal;
+            vpi_get_value(left, &bound);
+            PLI_INT32 left_index = bound.value.integer;
+            bound.format = vpiIntVal;
+            vpi_get_value(right, &bound);
+            PLI_INT32 right_index = bound.value.integer;
+            PLI_INT32 step = left_index <= right_index ? 1 : -1;
+            PLI_INT32 count = vpi_get(vpiSize, arg);
+            for (PLI_INT32 offset = 0; offset < count; ++offset) {
+              PLI_INT32 index = left_index + offset * step;
+              vpiHandle word = vpi_handle_by_index(arg, index);
+              if (!word) {
+                is_byte_array = 0;
+                break;
+              }
+              if (vpi_get(vpiSize, word) != 8) {
+                is_byte_array = 0;
+                break;
+              }
+              value.format = vpiIntVal;
+              vpi_get_value(word, &value);
+              if (value.format != vpiIntVal) {
+                is_byte_array = 0;
+                break;
+              }
+              if (used + 2 > capacity) {
+                capacity *= 2;
+                array_string = realloc(array_string, capacity);
+              }
+              array_string[used++] = (char)value.value.integer;
+              array_string[used] = '\0';
+            }
+          }
+          if (left) vpi_free_object(left);
+          if (right) vpi_free_object(right);
+          if (is_byte_array) {
+            value.format = vpiStringVal;
+            value.value.str = array_string;
+            owned_string = array_string;
+          } else {
+            free(array_string);
+            value.format = vpiSuppressVal;
+          }
+        } else {
+          value.format = vpiStringVal;
+          vpi_get_value(arg, &value);
+        }
         if (value.format == vpiSuppressVal) {
           vpi_printf("WARNING: %s:%d: incompatible value for %s%s.\n",
                      info->filename, info->lineno, info->name, fmtb);
@@ -762,6 +836,7 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           else sprintf(result, "%-*s", width, value.value.str);
           size = strlen(result) + 1;
         }
+        free(owned_string);
       }
       break;
 
@@ -1031,8 +1106,9 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
       break;
 
     default:
-      vpi_printf("WARNING: %s:%d: unknown format %s%s.\n",
+      vpi_printf("ERROR: %s:%d: unknown format %s%s.\n",
                  info->filename, info->lineno, info->name, fmtb);
+      vpi_control(vpiFinish, 1);
       size = strlen(result) + 1;
       break;
   }

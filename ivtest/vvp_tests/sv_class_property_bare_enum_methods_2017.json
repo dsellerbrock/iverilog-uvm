@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_property_bare_enum_methods.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_class_property_bare_enum_methods"
+  ],
+  "gold": "sv_class_property_bare_enum_methods"
+}

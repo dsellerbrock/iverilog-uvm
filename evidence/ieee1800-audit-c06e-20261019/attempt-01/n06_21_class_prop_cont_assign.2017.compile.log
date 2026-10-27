@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_21_class_prop_cont_assign.sv:2: sorry: Unable to determine whether this interface member is declared as a net or a variable for continuous-assignment lowering.
+1 error(s) during elaboration.

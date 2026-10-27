@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_array_default_bins.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "sv_covergroup_array_default_bins"
+}

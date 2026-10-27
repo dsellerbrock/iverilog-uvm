@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_05_scalar_select.sv:1: error: can not select part of scalar: s
+Elaboration failed

@@ -1,0 +1,1 @@
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.

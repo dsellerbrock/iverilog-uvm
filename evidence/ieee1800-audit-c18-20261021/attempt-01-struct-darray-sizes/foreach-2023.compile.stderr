@@ -1,0 +1,1 @@
+evidence/ieee1800-audit-c18-20261021/attempt-01-struct-darray-sizes/input/p18_05_struct_foreach_constraint.sv:8: warning: Constraint item in 'array_values' of class nested_item is not representable in the constraint solver; randomize() of this class will fail.

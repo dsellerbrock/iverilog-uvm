@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-01/input/p18_05_4_n2_norand.sv:6: warning: Static variable initialization requires explicit lifetime in this context.

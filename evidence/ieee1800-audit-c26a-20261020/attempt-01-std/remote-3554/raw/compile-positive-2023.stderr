@@ -1,0 +1,4 @@
+input/p26_07_std.sv:6: syntax error
+input/p26_07_std.sv:6: error: Invalid module instantiation
+input/p26_07_std.sv:7: error: Invalid module instantiation
+input/p26_07_std.sv:8: error: Invalid module instantiation

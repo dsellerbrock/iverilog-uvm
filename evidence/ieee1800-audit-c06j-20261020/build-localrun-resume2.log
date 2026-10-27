@@ -1,0 +1,47 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc -o vvp_z3.o
+g++ -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/logic.cc -o logic.o
+g++ -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/delay.cc -o delay.o
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/logic.cc:20:
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/logic.h:22:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_net.h:23:12: fatal error: 'vpi_user.h' file not found
+   23 | # include  "vpi_user.h"
+      |            ^~~~~~~~~~~~
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:28:
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/class_type.h:28:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vpi_priv.h:23:12: fatal error: 'sv_vpi_user.h' file not found
+   23 | # include  "sv_vpi_user.h"
+      |            ^~~~~~~~~~~~~~~
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/delay.cc:20:
+In file included from /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/delay.h:27:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_net.h:23:12: fatal error: 'vpi_user.h' file not found
+   23 | # include  "vpi_user.h"
+      |            ^~~~~~~~~~~~
+1 error generated.
+make[1]: *** [logic.o] Error 1
+make[1]: *** Waiting for unfinished jobs....
+1 error generated.
+make[1]: *** [delay.o] Error 1
+1 error generated.
+make[1]: *** [vvp_z3.o] Error 1
+make: *** [all] Error 2
+        1.43 real         1.84 user         0.30 sys
+            93405184  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               26521  page reclaims
+                 536  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   4  signals received
+                  29  voluntary context switches
+                1560  involuntary context switches
+            14579835  instructions retired
+             7716212  cycles elapsed
+             1491328  peak memory footprint

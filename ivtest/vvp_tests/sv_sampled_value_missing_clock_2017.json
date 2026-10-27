@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_sampled_value_missing_clock.v",
+  "iverilog-args": ["-g2017", "-s", "main"]
+}

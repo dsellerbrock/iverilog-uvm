@@ -1,0 +1,3 @@
+COMPILE PASS
+PASS value=2 narrow=3 enum=2
+RUN PASS

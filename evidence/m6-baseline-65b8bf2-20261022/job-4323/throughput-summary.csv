@@ -1,0 +1,4 @@
+measurement_base,test,median_cycles_per_second,spread_pct,log_identical,hex_identical
+65b8bf2045dfa7a66120bb8c81d8941e97d6daaa,cptra_ss_test_rom,11.167282,0.644,yes,yes
+65b8bf2045dfa7a66120bb8c81d8941e97d6daaa,smoke_test_dma_aes_gcm_short_1_dword,11.076984,2.978,yes,yes
+65b8bf2045dfa7a66120bb8c81d8941e97d6daaa,smoke_test_sha256,11.153798,0.730,yes,yes

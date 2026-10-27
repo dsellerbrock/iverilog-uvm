@@ -1,0 +1,2 @@
+ivltests/issue945_checker_hier_write.v:10: error: Hierarchical reference `my_check.a' to a checker variable is illegal (IEEE 1800-2017/2023 17.7.1).
+Elaboration failed

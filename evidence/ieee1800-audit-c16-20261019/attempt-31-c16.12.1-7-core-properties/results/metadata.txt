@@ -1,0 +1,10 @@
+job_id=3203
+host=DAN-DESKTOP
+source_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:53:49-06:00
+input=p16_12_01_07_core_properties.sv edition=2017 compile_exit=0 run_exit=1
+input=n16_12_endproperty_mismatch.sv edition=2017 compile_exit=0 run_exit=0
+input=p16_12_01_07_core_properties.sv edition=2023 compile_exit=0 run_exit=1
+input=n16_12_endproperty_mismatch.sv edition=2023 compile_exit=0 run_exit=0
+finished=2026-10-19T15:53:49-06:00

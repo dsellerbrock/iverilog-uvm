@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-case-20261019-35/input/p16_12_16_case.sv:18: sorry: a named property with its own leading clock cannot also be instantiated under another explicit clock yet; the assertion is dropped.
+compile_exit=1

@@ -1,0 +1,8 @@
+SDF ERROR: p32_label_mixed.sdf: Too many errors: syntax error
+SDF ERROR: p32_label_mixed.sdf:5: Syntax error in CELL
+SDF ERROR: p32_label_mixed.sdf:1: Invalid DELAYFILE format
+R1 0
+R2 1
+F1 1
+F2 0
+p32_label.sv:24: $finish called at 28 (1ns)

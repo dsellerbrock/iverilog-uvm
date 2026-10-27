@@ -1,0 +1,14 @@
+[
+  {
+    "number": 738,
+    "state": "OPEN",
+    "title": "[IEEE 1800] \u00a76.19.5 \u2014 enum name()/next() on a fixed unpacked array element fail at vvp load",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/738"
+  },
+  {
+    "number": 791,
+    "state": "OPEN",
+    "title": "[IEEE 1800] \u00a720.6.1 \u2014 $typename omits generated enum names and type-name prefixes, and puts a space after struct",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/791"
+  }
+]

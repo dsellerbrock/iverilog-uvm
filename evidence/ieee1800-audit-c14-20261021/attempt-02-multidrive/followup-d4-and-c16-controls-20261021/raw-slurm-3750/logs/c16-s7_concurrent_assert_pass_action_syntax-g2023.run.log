@@ -1,0 +1,6 @@
+S7 PASS 5
+S7 PASS 15
+S7 PASS 25
+S7 PASS 35
+S7 PASS 45
+inputs/c16/s7_concurrent_assert_pass_action_syntax.sv:5: $finish called at 50 (1ns)

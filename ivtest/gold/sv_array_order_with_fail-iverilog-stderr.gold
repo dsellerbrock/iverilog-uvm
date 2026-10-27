@@ -1,0 +1,3 @@
+ivltests/sv_array_order_with_fail.v:5: error: 'reverse() with (...)' is not allowed.
+ivltests/sv_array_order_with_fail.v:6: error: 'shuffle() with (...)' is not allowed.
+2 error(s) during elaboration.

@@ -92,6 +92,24 @@ static int process_params(vpiHandle mitem,
       s_vpi_value val;
       int left_addr, right_addr;
 
+	/* Empty dynamic arrays and queues have no valid memory index. */
+      if (vpi_get(vpiType, mitem) == vpiArrayVar &&
+          vpi_get(vpiSize, mitem) == 0) {
+	    if (start_item || stop_item) {
+		  vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+		             (int)vpi_get(vpiLineNo, callh));
+		  vpi_printf("%s: Address range is invalid for empty array '%s'.\n",
+		             name, vpi_get_str(vpiFullName, mitem));
+		  return 1;
+	    }
+	    *start_addr = 0;
+	    *stop_addr = -1;
+	    *addr_incr = 1;
+	    *min_addr = 0;
+	    *max_addr = -1;
+	    return 0;
+      }
+
 	/* Get left addr of memory */
       val.format = vpiIntVal;
       vpi_get_value(vpi_handle(vpiLeftRange, mitem), &val);
@@ -199,6 +217,7 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       vpiHandle arg;
+      int mem_kind;
 
       /* Check that there is a file name argument. */
       if (argv == 0) {
@@ -229,7 +248,11 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    return 0;
       }
 
-      if (vpi_get(vpiType, arg) != vpiMemory) {
+	/* Dynamic arrays and queues expose their element kind as vpiArrayType. */
+      mem_kind = vpi_get(vpiType, arg);
+      if (mem_kind == vpiArrayVar) mem_kind = vpi_get(vpiArrayType, arg);
+      if (mem_kind != vpiMemory && mem_kind != vpiDynamicArray &&
+	  mem_kind != vpiQueueArray) {
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
 	    vpi_printf("%s's second argument must be a memory.\n", name);
@@ -334,7 +357,8 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	/* We need this many words from the file. */
       word_count = max_addr-min_addr+1;
 
-      wwid = vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
+      wwid = min_addr > max_addr ? 32 :
+	    vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
 
       /* variable that will be used by the lexer to pass values
 	 back to this code */

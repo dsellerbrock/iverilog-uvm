@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1184_sva_sampled_queue_delete_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-gno-icarus-misc", "-gno-xtypes", "-s", "issue1184_sva_sampled_queue_delete"],
+  "gold": "issue1184_sva_sampled_queue_delete"
+}

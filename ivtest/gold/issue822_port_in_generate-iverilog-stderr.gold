@@ -1,0 +1,1 @@
+ivltests/issue822_port_in_generate.sv:3: error: port declaration is not allowed in generate block.

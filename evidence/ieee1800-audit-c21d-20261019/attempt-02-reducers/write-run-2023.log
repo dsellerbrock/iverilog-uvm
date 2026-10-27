@@ -1,0 +1,19 @@
+ERROR: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21d_assoc_writemem.sv:3: $writememh's second argument must be a memory.
+        0.01 real         0.00 user         0.00 sys
+             6242304  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 684  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  14  involuntary context switches
+            78122512  instructions retired
+            27374233  cycles elapsed
+             3768704  peak memory footprint

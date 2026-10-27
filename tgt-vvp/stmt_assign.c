@@ -2422,12 +2422,9 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 
 	    if (prop_idx >= 0) {
 		  ivl_type_t owner_type = ivl_signal_net_type(sig);
-		  ivl_expr_t part_off = ivl_lval_part_off(lval);
-		  if (ivl_lval_idx(lval) || (part_off
-		      && ivl_expr_type(part_off) != IVL_EX_NUMBER
-		      && ivl_expr_type(part_off) != IVL_EX_ULONG)) {
+		  if (ivl_lval_idx(lval)) {
 			fprintf(stderr, "%s:%u: sorry: indexed or dynamically "
-				"selected member in a packed property concatenation "
+				"selected object in a packed property concatenation "
 				"is not yet supported.\n",
 				ivl_stmt_file(net), ivl_stmt_lineno(net));
 			return 1;
@@ -2483,8 +2480,10 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    ivl_expr_t part_off = ivl_lval_part_off(lval);
 	    uint64_t negative_part_off_bits = 0;
 	    int dynamic_part_off = part_off
-		  && packed_property_negative_offset_bits64_(
-			part_off, &negative_part_off_bits);
+		  && (packed_property_negative_offset_bits64_(
+			part_off, &negative_part_off_bits)
+		      || (ivl_expr_type(part_off) != IVL_EX_NUMBER
+			  && ivl_expr_type(part_off) != IVL_EX_ULONG));
 	      /* An X/Z or nonnegative constant too large for any packed property
 	       * is wholly out of bounds. The assignment slice is a no-op, but the
 	       * complete r-value and receiver have already been evaluated and
@@ -2504,8 +2503,12 @@ static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
 	    if (dynamic_part_off) {
 		  off_reg = allocate_word();
 		  off_flag = allocate_flag();
-		  emit_packed_property_negative_offset_(
-			off_reg, negative_part_off_bits);
+		  if (packed_property_negative_offset_bits64_(
+			    part_off, &negative_part_off_bits))
+			emit_packed_property_negative_offset_(
+			      off_reg, negative_part_off_bits);
+		  else
+			draw_eval_expr_into_integer(part_off, off_reg);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 	    }
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
@@ -5116,12 +5119,12 @@ static void resize_property_vec4_wid(ivl_expr_t expr, unsigned wid)
 }
 
 /* Nonblocking assignment to a vec4 class-object / virtual-interface
-   property: `obj.prop <= [#d] value` or a packed field thereof
-   (IEEE 1800-2017 10.4.2). Evaluates the receiver and the r-value NOW and
-   schedules the store in the NBA region via %assign/prop/v[/bits]. Returns
-   0 on success and -1 when the l-value form is not supported here. The
-   caller must reject that residual; executing it as a blocking assignment
-   would be a silent event-region miscompile. */
+   property: `obj.prop <= [#d] value` or an event-controlled assignment,
+   including a packed field thereof (IEEE 1800-2017 10.4.2). Evaluates the
+   receiver and r-value NOW and schedules the store in the NBA region via
+   %assign/prop/v[/bits]. Returns 0 on success and -1 when the l-value form
+   is not supported here. The caller must reject that residual; executing it
+   as a blocking assignment would be a silent event-region miscompile. */
 int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 {
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -5201,6 +5204,9 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
+
+	if (ivl_stmt_is_clocking_drive(net))
+	      fprintf(vvp_out, "    %%evctl/sync;\n");
 
       if (dynamic_part_off) {
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
@@ -5337,9 +5343,10 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  && (ivl_type_base(whole_fixed_leaf) == IVL_VT_QUEUE
 		      || ivl_type_base(whole_fixed_leaf) == IVL_VT_DARRAY);
 
-	    /* Dynamic null-handle guard: if the receiver object is null, skip
-	       property assignment and pop the receiver object without issuing
-	       %store/prop* opcodes. */
+	    /* A null class receiver suppresses a property store. A null VIF
+	       receiver is fatal before the shared null-class guard can skip it. */
+	    if (ivl_type_is_interface(sig_type))
+		  fprintf(vvp_out, "    %%vif/nullcheck;\n");
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
 	    if (fixed_scalar_slot) {

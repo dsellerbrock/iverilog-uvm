@@ -1,0 +1,2 @@
+plain=2 always=2
+./ivltests/issue1194_always_assertion.v:12: $finish called at 16 (1s)

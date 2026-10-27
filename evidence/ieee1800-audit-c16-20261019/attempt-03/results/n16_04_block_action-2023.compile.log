@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_block_action.sv:2: error: The fail action of a deferred immediate assertion must be a single subroutine call or a null statement (IEEE 1800-2017 16.4).

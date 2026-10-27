@@ -1,0 +1,15 @@
+698	OPEN	[IEEE 1800] §13.4.3 — Reject void function invocations inside constant functions	1800-audit	2026-10-19T17:21:14Z
+719	OPEN	[IEEE 1800] §16.11 — Support sequence match-item subroutine calls with arguments and local variables	1800-audit	2026-10-19T21:50:26Z
+682	OPEN	[IEEE 1800] §18.12 — Reject expressions in scope randomize() argument list	1800-audit	2026-10-19T05:37:31Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+740	OPEN	[IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values	1800-audit	2026-10-20T04:14:42Z
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members	from-caliptra-dv	2026-10-20T00:37:55Z
+641	CLOSED	Icarus rejects out-of-class extern function with implicit return type	bug, from-caliptra-dv	2026-10-19T17:02:46Z
+497	CLOSED	[IEEE 1800] §§8.23/26.3 — Allow package-qualified static class calls in expressions		2026-10-14T01:37:11Z
+664	CLOSED	from-caliptra-dv: omitted class-method parentheses rejected in string concatenation	from-caliptra-dv	2026-10-19T17:03:13Z
+500	CLOSED	[IEEE 1800] §23.7.1 — Diagnose unresolved unindexed hierarchical task calls		2026-10-09T09:37:55Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)		2026-07-21T16:21:35Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z
+13	CLOSED	Phase 9: DPI completeness — tasks, output/inout args, chandle, open arrays		2026-05-05T15:24:44Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z

@@ -1,0 +1,9 @@
+ivltests/sv_real_bitwise_ops_fail.v:7: error: ~ operator may not have a REAL operand.
+ivltests/sv_real_bitwise_ops_fail.v:8: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:9: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:10: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:11: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:12: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:13: error: bitwise and shift assignment operators may not have REAL operands.
+ivltests/sv_real_bitwise_ops_fail.v:14: error: bitwise and shift assignment operators may not have REAL operands.
+8 error(s) during elaboration.

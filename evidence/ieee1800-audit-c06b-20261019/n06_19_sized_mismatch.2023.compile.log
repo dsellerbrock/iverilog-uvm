@@ -1,0 +1,4 @@
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has an incorrectly sized constant.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large 5'd19.
+tests/1800_audit/c06/neg/n06_19_sized_mismatch.sv:2: error: Enumeration name bronze has a value that is too large: 5'd19.
+3 error(s) during elaboration.

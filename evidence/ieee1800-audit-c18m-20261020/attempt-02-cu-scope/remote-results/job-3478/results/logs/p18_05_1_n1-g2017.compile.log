@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_n1.sv:1: error: Extern constraint `p' has no out-of-body definition in class `X'.
+1 error(s) during elaboration.

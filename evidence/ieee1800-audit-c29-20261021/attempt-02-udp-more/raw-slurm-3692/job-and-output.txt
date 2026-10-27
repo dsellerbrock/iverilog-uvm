@@ -1,0 +1,11 @@
+JobId=3692 JobName=a3-c29-udp2 UserId=dsell(1000) GroupId=dsell(1000) MCS_label=N/A Priority=1 Nice=0 Account=(null) QOS=(null) JobState=FAILED Reason=NonZeroExitCode Dependency=(null) Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=1:0 RunTime=00:00:00 TimeLimit=00:05:00 TimeMin=N/A SubmitTime=2026-10-21T03:29:16 EligibleTime=2026-10-21T03:29:16 AccrueTime=2026-10-21T03:29:16 StartTime=2026-10-21T03:29:37 EndTime=2026-10-21T03:29:37 Deadline=N/A SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-10-21T03:29:37 Scheduler=Backfill Partition=verilog AllocNode:Sid=localhost:239420 ReqNodeList=(null) ExcNodeList=(null) NodeList=DAN-DESKTOP BatchHost=DAN-DESKTOP NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:* ReqTRES=cpu=1,mem=1G,node=1,billing=1 AllocTRES=cpu=1,mem=1G,node=1,billing=1 Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=* MinCPUsNode=1 MinMemoryNode=1G MinTmpDiskNode=0 Features=(null) DelayBoot=00:00:00 OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null) Command=/home/dsell/slurm-runs/iverilog-uvm/A3/c29-udp-more-20261021-01/run.sbatch SubmitLine=sbatch --parsable --chdir=/home/dsell/slurm-runs/iverilog-uvm/A3/c29-udp-more-20261021-01 --output=/home/dsell/slurm-runs/iverilog-uvm/A3/c29-udp-more-20261021-01/logs/%x-%j.out run.sbatch WorkDir=/home/dsell/slurm-runs/iverilog-uvm/A3/c29-udp-more-20261021-01 StdErr= StdIn=/dev/null StdOut=/home/dsell/slurm-runs/iverilog-uvm/A3/c29-udp-more-20261021-01/logs/a3-c29-udp2-3692.out TresPerTask=cpu=1
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+tests/p29_more.sv:37: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+FAIL p29_more compile -g2017
+tests/p29_more.sv:37: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+FAIL p29_more compile -g2023

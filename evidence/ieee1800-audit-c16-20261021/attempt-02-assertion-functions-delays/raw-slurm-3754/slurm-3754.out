@@ -1,0 +1,138 @@
+B1 FAIL 5
+B1 FAIL 15
+B1 FAIL 25
+B1 FAIL 35
+B1 FAIL 45
+B1 FAIL 55
+B1 FAIL 65
+B1 FAIL 75
+input/B1_x_false.sv:8: $finish called at 80 (1ns)
+B1_x_false	2017	0	0
+B1 FAIL 5
+B1 FAIL 15
+B1 FAIL 25
+B1 FAIL 35
+B1 FAIL 45
+B1 FAIL 55
+B1 FAIL 65
+B1 FAIL 75
+input/B1_x_false.sv:8: $finish called at 80 (1ns)
+B1_x_false	2023	0	0
+B2 FAIL 5
+B2 FAIL 15
+B2 FAIL 25
+B2 FAIL 35
+B2 FAIL 45
+B2 FAIL 55
+B2 FAIL 65
+B2 FAIL 75
+input/B2_z_false.sv:8: $finish called at 80 (1ns)
+B2_z_false	2017	0	0
+B2 FAIL 5
+B2 FAIL 15
+B2 FAIL 25
+B2 FAIL 35
+B2 FAIL 45
+B2 FAIL 55
+B2 FAIL 65
+B2 FAIL 75
+input/B2_z_false.sv:8: $finish called at 80 (1ns)
+B2_z_false	2023	0	0
+input/NB1_side_effect.sv:10: Assignment l-value too complex.
+NB1 FAIL 5
+NB1 FAIL 15
+NB1 FAIL 25
+NB1 FAIL 35
+NB1 FAIL 45
+NB1 FAIL 55
+NB1 FAIL 65
+NB1 FAIL 75
+input/NB1_side_effect.sv:8: $finish called at 80 (1ns)
+NB1_side_effect	2017	0	0
+input/NB1_side_effect.sv:10: Assignment l-value too complex.
+NB1 FAIL 5
+NB1 FAIL 15
+NB1 FAIL 25
+NB1 FAIL 35
+NB1 FAIL 45
+NB1 FAIL 55
+NB1 FAIL 65
+NB1 FAIL 75
+input/NB1_side_effect.sv:8: $finish called at 80 (1ns)
+NB1_side_effect	2023	0	0
+input/NB2_chandle.sv:10: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+input/NB2_chandle.sv:8: $finish called at 80 (1ns)
+NB2_chandle	2017	0	0
+input/NB2_chandle.sv:10: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+input/NB2_chandle.sv:8: $finish called at 80 (1ns)
+NB2_chandle	2023	0	0
+input/NB3_class_property.sv:11: warning: this operand cannot be sampled in the Preponed region (IEEE 1800-2017 16.5.1) and is read live; a blocking write to it in the same time slot as the clock will be visible.
+input/NB3_class_property.sv:8: $finish called at 80 (1ns)
+NB3_class_property	2017	0	0
+input/NB3_class_property.sv:11: warning: this operand cannot be sampled in the Preponed region (IEEE 1800-2017 16.5.1) and is read live; a blocking write to it in the same time slot as the clock will be visible.
+input/NB3_class_property.sv:8: $finish called at 80 (1ns)
+NB3_class_property	2023	0	0
+input/NB4_ref_function.sv:11: Assignment l-value too complex.
+1 error(s) during elaboration.
+NB4_ref_function	2017	1	NA
+input/NB4_ref_function.sv:11: Assignment l-value too complex.
+1 error(s) during elaboration.
+NB4_ref_function	2023	1	NA
+input/NB5_inout_function.sv:11: Assignment l-value too complex.
+1 error(s) during elaboration.
+NB5_inout_function	2017	1	NA
+input/NB5_inout_function.sv:11: Assignment l-value too complex.
+1 error(s) during elaboration.
+NB5_inout_function	2023	1	NA
+terminate called after throwing an instance of 'std::length_error'
+  what():  vector::reserve
+Aborted
+NQ1_reversed_range	2017	134	NA
+terminate called after throwing an instance of 'std::length_error'
+  what():  vector::reserve
+Aborted
+NQ1_reversed_range	2023	134	NA
+input/NQ2_variable_delay.sv:10: sorry: sequence cycle delays must be literal constants; the assertion is dropped.
+NQ2_variable_delay	2017	1	NA
+input/NQ2_variable_delay.sv:10: sorry: sequence cycle delays must be literal constants; the assertion is dropped.
+NQ2_variable_delay	2023	1	NA
+input/Q1_delay_2.sv:8: $finish called at 80 (1ns)
+Q1_delay_2	2017	0	0
+input/Q1_delay_2.sv:8: $finish called at 80 (1ns)
+Q1_delay_2	2023	0	0
+Q2 FAIL 25
+input/Q2_delay_1.sv:8: $finish called at 80 (1ns)
+Q2_delay_1	2017	0	0
+Q2 FAIL 25
+input/Q2_delay_1.sv:8: $finish called at 80 (1ns)
+Q2_delay_1	2023	0	0
+Q3 FAIL 45
+input/Q3_delay_3.sv:8: $finish called at 80 (1ns)
+Q3_delay_3	2017	0	0
+Q3 FAIL 45
+input/Q3_delay_3.sv:8: $finish called at 80 (1ns)
+Q3_delay_3	2023	0	0
+input/Q4_delay_range_1_3.sv:8: $finish called at 80 (1ns)
+Q4_delay_range_1_3	2017	0	0
+input/Q4_delay_range_1_3.sv:8: $finish called at 80 (1ns)
+Q4_delay_range_1_3	2023	0	0
+Q5 FAIL 55
+input/Q5_delay_range_3_4.sv:8: $finish called at 80 (1ns)
+Q5_delay_range_3_4	2017	0	0
+Q5 FAIL 55
+input/Q5_delay_range_3_4.sv:8: $finish called at 80 (1ns)
+Q5_delay_range_3_4	2023	0	0
+input/Q6_delay_plus.sv:8: $finish called at 80 (1ns)
+Q6_delay_plus	2017	0	0
+input/Q6_delay_plus.sv:8: $finish called at 80 (1ns)
+Q6_delay_plus	2023	0	0
+input/Q7_delay_star_weak.sv:8: $finish called at 80 (1ns)
+SVA: unbounded ##[m:$] obligation still pending at end of simulation
+Q7_delay_star_weak	2017	0	0
+input/Q7_delay_star_weak.sv:8: $finish called at 80 (1ns)
+SVA: unbounded ##[m:$] obligation still pending at end of simulation
+Q7_delay_star_weak	2023	0	0
+input/Q8_zero_delay_antecedent.sv:8: $finish called at 80 (1ns)
+Q8_zero_delay_antecedent	2017	0	0
+input/Q8_zero_delay_antecedent.sv:8: $finish called at 80 (1ns)
+Q8_zero_delay_antecedent	2023	0	0

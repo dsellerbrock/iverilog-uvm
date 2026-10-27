@@ -1,0 +1,38 @@
+host=DAN-DESKTOP
+source=cae035642e056644274a01e98d4422ce286685b4
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+7220059eb214402a5466aaf8c6a83366f9adf20aab49a4359a08a78821870191  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_get_mismatch.sv
+adac98e4f92c93c5ec85516e8dcee256b381e6693f843f7bae14da29bd4d6e42  /home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_peek_mismatch.sv
+get-mismatch-2017 compile_exit=0
+get-mismatch-2017 run_exit=0
+peek-mismatch-2017 compile_exit=0
+peek-mismatch-2017 run_exit=0
+get-mismatch-2023 compile_exit=0
+get-mismatch-2023 run_exit=0
+peek-mismatch-2023 compile_exit=0
+peek-mismatch-2023 run_exit=0
+
+===== get-mismatch-2017.compile.log =====
+
+===== get-mismatch-2017.run.log =====
+GET_MISMATCH_RETURNED value=0 num=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_get_mismatch.sv:12: $finish called at 0 (1s)
+
+===== get-mismatch-2023.compile.log =====
+
+===== get-mismatch-2023.run.log =====
+GET_MISMATCH_RETURNED value=0 num=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_get_mismatch.sv:12: $finish called at 0 (1s)
+
+===== peek-mismatch-2017.compile.log =====
+
+===== peek-mismatch-2017.run.log =====
+PEEK_MISMATCH_RETURNED value=0 num=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_peek_mismatch.sv:12: $finish called at 0 (1s)
+
+===== peek-mismatch-2023.compile.log =====
+
+===== peek-mismatch-2023.run.log =====
+PEEK_MISMATCH_RETURNED value=0 num=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/c15.4-20261019-03/input/p15_04_mailbox_peek_mismatch.sv:12: $finish called at 0 (1s)

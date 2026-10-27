@@ -1,0 +1,20 @@
+edition	case	compile_rc	run_rc
+2017	CASE=1	0	0
+2017	CASE=2	0	0
+2017	CASE=3	0	0
+2017	CASE=4	0	0
+2017	CASE=5	0	0
+2017	CASE=6	0	0
+2017	CASE=7	0	0
+2023	CASE=1	0	0
+2023	CASE=2	0	0
+2023	CASE=3	0	0
+2023	CASE=4	0	0
+2023	CASE=5	0	0
+2023	CASE=6	0	0
+2023	CASE=7	0	0
+edition	probe	compile_rc	first_diagnostic
+2017	p18_05_4_n1_randc	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-02/input/p18_05_4_n1_randc.sv:4: error: 'randc' variables cannot be used in 'dist' constraints.
+2017	p18_05_4_n2_norand	0	
+2023	p18_05_4_n1_randc	1	/home/dsell/slurm-runs/iverilog-uvm/a3/c18i-dist-20261020-02/input/p18_05_4_n1_randc.sv:4: error: 'randc' variables cannot be used in 'dist' constraints.
+2023	p18_05_4_n2_norand	0	

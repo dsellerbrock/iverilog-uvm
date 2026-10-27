@@ -1,0 +1,7 @@
+C ok=50 bad=0
+C_P3 ok=50
+B ok=50 bad=0
+D ok=50 bad=0 n12=31 n14=19
+DV ok=50 bad=0 n12=24 n14=26
+E ok=50 bad=0
+W ok=50 bad=0

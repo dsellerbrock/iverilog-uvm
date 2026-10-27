@@ -569,6 +569,24 @@ static value_callback* make_value_change(p_cb_data data)
       value_callback*obj = new value_callback(data);
 
       assert(data->obj);
+	/* Scalar members of object-backed structs are variable views over the
+	 * owning object signal, not standalone __vpiSignal instances. Attach
+	 * their callbacks to that signal while retaining the member handle for
+	 * value comparison and callback delivery. A member mutation republishes
+	 * the owning object through this signal. */
+	if (__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(target)) {
+	      if (!dynamic_cast<__vpiSignal*>(target)) {
+		    vvp_net_t*net = var->get_net();
+		    vvp_fun_signal_base*fun = net
+			  ? dynamic_cast<vvp_fun_signal_base*>(net->fun) : 0;
+		    if (!fun && net)
+			  fun = dynamic_cast<vvp_fun_signal_base*>(net->fil);
+		    if (fun) {
+			  fun->add_vpi_callback(obj);
+			  return obj;
+		    }
+	      }
+	}
 	 switch (target->get_type_code()) {
 
 	  case vpiReg:

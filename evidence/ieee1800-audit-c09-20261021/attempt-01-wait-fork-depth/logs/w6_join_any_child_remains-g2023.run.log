@@ -1,0 +1,2 @@
+W6 wait fork returned at 40
+input/w6_join_any_child_remains.sv:12: $finish called at 40000 (1ps)

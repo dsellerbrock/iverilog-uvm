@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_function_own_name_duplicate_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_function_own_name_duplicate"],
+  "gold": "sv_function_own_name_duplicate_2023"
+}

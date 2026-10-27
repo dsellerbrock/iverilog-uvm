@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.2-20261019-a01/input/p16_09_02_nonconsecutive_rep.sv:20: goto=0 nonconsecutive=0
+       Time: 80000  Scope: test

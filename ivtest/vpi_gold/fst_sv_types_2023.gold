@@ -1,0 +1,63 @@
+Compiling vpi/fst_text.c...
+Making fst_sv_types_2023.vpi from  fst_text.o...
+FST info: dumpfile fst_sv_types.fst opened for output.
+--- fst_sv_types.fst: timescale 1e0 s, 0..15
+scope module top
+  var reg 1 clk
+  var reg 32 pmda [31:0]
+  var bit 1 b
+  var byte 8 by [7:0]
+  var int 32 i [31:0]
+  var integer 32 ig [31:0]
+  var longint 64 li [63:0]
+  var real 8 r
+  var shortint 16 si [15:0]
+  var string 0 str
+  scope generate gen[0]
+    var parameter 2 g
+    var reg 2 gv [1:0]
+  scope generate gen[1]
+    var parameter 2 g
+    var reg 2 gv [1:0]
+  scope interface bus
+    var wire 1 clk
+    var reg 8 data [7:0]
+    var reg 1 valid
+  scope module u : fst_user
+    var wire 1 seen
+#0
+  top.u.seen = 0
+  top.bus.valid = 0
+  top.bus.data [7:0] = 10101010
+  top.bus.clk = 0
+  top.gen[1].gv [1:0] = 01
+  top.gen[1].g = 01
+  top.gen[0].gv [1:0] = 00
+  top.gen[0].g = 00
+  top.str = "hi"
+  top.si [15:0] = 0000000100101100
+  top.r = 1.5
+  top.li [63:0] = 0001001000110100010101100111100010011010101111001101111011110000
+  top.ig [31:0] = 00000000000000000000000000000111
+  top.i [31:0] = 11111111111111111111111111111011
+  top.by [7:0] = 11111111
+  top.b = 0
+  top.pmda [31:0] = 11011110101011011011111011101111
+  top.clk = 0
+#5
+  top.pmda [31:0] = 11011110000000001011111011101111
+  top.b = 1
+  top.by [7:0] = 00000011
+  top.i [31:0] = 00000000000000000000000000001001
+  top.ig [31:0] = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  top.li [63:0] = 0000000000000000000000000000000000000000000000000000000000000001
+  top.r = -3
+  top.si [15:0] = 1111111111111110
+  top.str = "hello"
+  top.bus.valid = 1
+  top.u.seen = 1
+#10
+  top.str = ""
+  top.clk = 1
+  top.bus.clk = 1
+--- end

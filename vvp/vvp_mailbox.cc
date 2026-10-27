@@ -192,7 +192,7 @@ void vvp_mailbox::resume_put_waiters_()
  * vvp_semaphore
  * ================================================================ */
 
-vvp_semaphore::vvp_semaphore(size_t initial_count)
+vvp_semaphore::vvp_semaphore(int64_t initial_count)
 : count_(initial_count)
 {
 }
@@ -208,7 +208,7 @@ vvp_object* vvp_semaphore::duplicate() const
 
 bool vvp_semaphore::try_get(size_t n)
 {
-      if (count_ >= n) {
+      if (count_ >= 0 && (uint64_t)count_ >= n) {
 	    count_ -= n;
 	    return true;
       }
@@ -217,13 +217,13 @@ bool vvp_semaphore::try_get(size_t n)
 
 void vvp_semaphore::put(size_t n)
 {
-      count_ += n;
+      count_ += (int64_t)n;
       resume_waiters_();
 }
 
 bool vvp_semaphore::get(vthread_t thr, const vvp_object_t& self, size_t n)
 {
-      if (count_ >= n) {
+      if (count_ >= 0 && (uint64_t)count_ >= n) {
 	    count_ -= n;
 	    return true;
       }
@@ -260,7 +260,7 @@ void vvp_semaphore::resume_waiters_()
       while (progress) {
 	    progress = false;
 	    for (size_t idx = 0; idx < waiters_.size(); ++idx) {
-		  if (count_ < waiters_[idx].n)
+		  if (count_ < 0 || (uint64_t)count_ < waiters_[idx].n)
 			continue;
 		  waiter_t w = waiters_[idx];
 		  waiters_.erase(waiters_.begin() + (long)idx);

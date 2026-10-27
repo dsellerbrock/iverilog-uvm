@@ -1,0 +1,77 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+4248e73ff1e787e9e656084318f9035d0872bc486ca808ba0c411d1c05c67cd6  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv
+73bd1e4e65ddba4cd8bf711d01de22f3c25a8c667e83838f11af39cd833654e7  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_nonintegral_assoc_query.sv
+20516a225b6b812001c354822a498fe62456eb8ef61e971e72241293e07a6123  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_const_size_ram.sv
+d8cfaab308eb248059dace9bda793fa56c0d86533d029763ac93a0f02a150139  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_const_size_type.sv
+c7454e826109fccc0d667c3c55cf1821bd3d4a3620d675484183d2a92fffec25  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query.sv
+db95d01d9e2fd62588ca1b1ff3854daffb75b95422b293c010f6b59c99bf4f75  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_assoc.sv
+dfe44a2c9a1266ff3b670c23ba3be0d713794eb448a1b65772ae2655ace30344  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_runtime_type.sv
+7f798aacf3787395d74c00634d95be5b40f5a9eecccddedbd23a9705e0f9744b  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv
+p07_11_query-2017 compile_rc=0
+p07_11_query-2017 run_rc=0
+D 2 0 3 2
+U1 2 5 2 5 -1 4
+U2 0 1 -1 2
+P 3 1 4 8
+Y 3 0 2 1
+X xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+p07_11_query_assoc-2017 compile_rc=0
+p07_11_query_assoc-2017 run_rc=0
+A 0 -1 0 -1 0 0 00000000000000000000000000000000
+p07_11_query_runtime_type-2017 compile_rc=0
+p07_11_query_runtime_type-2017 run_rc=0
+R x 16
+p07_11_const_size_type-2017 compile_rc=0
+p07_11_const_size_type-2017 run_rc=0
+ST 0
+p07_11_const_size_ram-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_const_size_ram.sv:4: error: A reference to a net or variable (`Ram') is not allowed in a constant expression.
+1 error(s) during elaboration.
+p07_11_query_var_dimension-2017 compile_rc=0
+p07_11_query_var_dimension-2017 run_rc=1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size has too many arguments.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size has too many arguments.
+n07_11_nonintegral_assoc_query-2017 compile_rc=0
+n07_11_nonintegral_assoc_query-2017 run_rc=0
+0
+n07_11_dynamic_dimension_query-2017 compile_rc=0
+n07_11_dynamic_dimension_query-2017 run_rc=1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size has too many arguments.
+p07_11_query-2023 compile_rc=0
+p07_11_query-2023 run_rc=0
+D 2 0 3 2
+U1 2 5 2 5 -1 4
+U2 0 1 -1 2
+P 3 1 4 8
+Y 3 0 2 1
+X xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+p07_11_query_assoc-2023 compile_rc=0
+p07_11_query_assoc-2023 run_rc=0
+A 0 -1 0 -1 0 0 00000000000000000000000000000000
+p07_11_query_runtime_type-2023 compile_rc=0
+p07_11_query_runtime_type-2023 run_rc=0
+R x 16
+p07_11_const_size_type-2023 compile_rc=0
+p07_11_const_size_type-2023 run_rc=0
+ST 0
+p07_11_const_size_ram-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_const_size_ram.sv:4: error: A reference to a net or variable (`Ram') is not allowed in a constant expression.
+1 error(s) during elaboration.
+p07_11_query_var_dimension-2023 compile_rc=0
+p07_11_query_var_dimension-2023 run_rc=1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size has too many arguments.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/p07_11_query_var_dimension.sv:5: $size has too many arguments.
+n07_11_nonintegral_assoc_query-2023 compile_rc=0
+n07_11_nonintegral_assoc_query-2023 run_rc=0
+0
+n07_11_dynamic_dimension_query-2023 compile_rc=0
+n07_11_dynamic_dimension_query-2023 run_rc=1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size argument must be a dynamic array, queue or string, given a vpiMemory.
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-query3-20261020-01/source/n07_11_dynamic_dimension_query.sv:5: $size has too many arguments.

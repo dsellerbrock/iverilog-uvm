@@ -1,0 +1,8 @@
+WARNING: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-covsys-20261020-01/source/p20_14_cov.sv:32: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-covsys-20261020-01/source/p20_14_cov.sv:33: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-covsys-20261020-01/source/p20_14_cov.sv:34: $coverage_get returns SV_COV_NOCOV because code coverage is not instrumented.
+R1 0
+R2 0
+R3 0
+GC 50.00
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-covsys-20261020-01/source/p20_14_cov.sv:39: $finish called at 0 (1s)

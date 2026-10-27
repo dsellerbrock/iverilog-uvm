@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:10: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-actl-20261020-01/source/p20_12_actl.sv:11: warning: Unable to bind wire/reg/memory `a1' in `p20_12_actl' (compile-progress: unresolved reference).

@@ -1,0 +1,2 @@
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: syntax error
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: error: Malformed statement

@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_24_int_to_struct33.sv:1: sorry: bit-stream cast to `11netstruct_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+Elaboration failed

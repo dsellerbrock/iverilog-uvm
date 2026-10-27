@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_no_global_clock.sv:7: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_no_global_clock-2017.vvp: Program not runnable, 1 errors.
+run_exit=1

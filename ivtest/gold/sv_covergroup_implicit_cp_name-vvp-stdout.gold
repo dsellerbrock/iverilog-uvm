@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_implicit_cp_name.v:21: $finish called at 0 (1s)

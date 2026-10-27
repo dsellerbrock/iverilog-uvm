@@ -1,0 +1,19 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+7ce743c03479122aa47a5818f8b88df256ef263c5cf1719a8953aa1f90e2c8ca  ./p28_strength_reduce.sv
+a9db3b97e1dc56373bb9a9732f8f9d8d6db3014743a8e4a1f4243e7b131804b8  ./p28_switch_notri.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+p28_switch_notri edition=2017 compile_exit=0
+p28_switch_notri edition=2017 run_exit=0
+S St1 HiZ St1 St0
+p28_strength_reduce edition=2017 compile_exit=0
+p28_strength_reduce edition=2017 run_exit=0
+R St1 St0
+p28_switch_notri edition=2023 compile_exit=0
+p28_switch_notri edition=2023 run_exit=0
+S St1 HiZ St1 St0
+p28_strength_reduce edition=2023 compile_exit=0
+p28_strength_reduce edition=2023 run_exit=0
+R St1 St0

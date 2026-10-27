@@ -1,0 +1,162 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p08_26_iface	0	0	0.01	12128	0.01	12048
+2017	p18_05_13_error_order	0	0	0.01	12108	0.32	40988
+2023	p08_26_iface	0	0	0.01	12076	0.01	12040
+2023	p18_05_13_error_order	0	0	0.01	12084	0.33	40964
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_missing_implementation	1	expected-nonzero	0.01	12104
+2017	n08_26_constraint_in_interface	1	expected-nonzero	0.01	12060
+2017	n08_26_nonpure_method	1	expected-nonzero	0.01	12048
+2017	n08_26_nested_interface	0	expected-nonzero	0.01	11972
+2023	n08_26_missing_implementation	1	expected-nonzero	0.01	12104
+2023	n08_26_constraint_in_interface	1	expected-nonzero	0.01	12052
+2023	n08_26_nonpure_method	1	expected-nonzero	0.01	12044
+2023	n08_26_nested_interface	0	expected-nonzero	0.01	12048
+--- n08_26_constraint_in_interface-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_constraint_in_interface.sv:2: error: Constraint `c' is not allowed in an interface class.
+1 error(s) during elaboration.
+--- n08_26_constraint_in_interface-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_constraint_in_interface.sv:2: error: Constraint `c' is not allowed in an interface class.
+1 error(s) during elaboration.
+--- n08_26_missing_implementation-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_missing_implementation.sv:5: error: Non-virtual class `MissingPut' does not implement interface method `put'.
+1 error(s) during elaboration.
+--- n08_26_missing_implementation-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_missing_implementation.sv:5: error: Non-virtual class `MissingPut' does not implement interface method `put'.
+1 error(s) during elaboration.
+--- n08_26_nested_interface-g2017.compile.log
+--- n08_26_nested_interface-g2023.compile.log
+--- n08_26_nonpure_method-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_nonpure_method.sv:2: error: Function `f' in an interface class must be a pure virtual method.
+1 error(s) during elaboration.
+--- n08_26_nonpure_method-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_nonpure_method.sv:2: error: Function `f' in an interface class must be a pure virtual method.
+1 error(s) during elaboration.
+--- p08_26_iface-g2017.compile.log
+--- p08_26_iface-g2023.compile.log
+--- p18_05_13_error_order-g2017.compile.log
+--- p18_05_13_error_order-g2023.compile.log
+--- p08_26_iface-g2017.run.log
+FIFO 1 2
+STACK 2 1
+INH 7
+--- p08_26_iface-g2023.run.log
+FIFO 1 2
+STACK 2 1
+INH 7
+--- p18_05_13_error_order-g2017.run.log
+BEGIN E1C1
+E1C1 ok=50 bad=0 sum10=50
+BEGIN E1C2
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+E1C2 ok=0 bad=0 sum10=0
+BEGIN E1C3
+E1C3 ok=50 bad=0 sum10=0
+END E1C3
+--- p18_05_13_error_order-g2023.run.log
+BEGIN E1C1
+E1C1 ok=50 bad=0 sum10=50
+BEGIN E1C2
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+ERROR: constraint state read: null/invalid constraint object path.
+E1C2 ok=0 bad=0 sum10=0
+BEGIN E1C3
+E1C3 ok=50 bad=0 sum10=0
+END E1C3

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c15.4-20261020-02/input/neg/n15_param_get_int.sv:5: error: Typed mailbox method `get' argument must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+1 error(s) during elaboration.

@@ -1,0 +1,226 @@
+[
+  {
+    "kind": "positive-or-runtime",
+    "probe": "s_specify",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/s_specify.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: Invalid simple path\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: error: Syntax error in specify block\n"
+  },
+  {
+    "kind": "positive-or-runtime",
+    "probe": "r_noexport",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/r_noexport.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "missing_export",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_missing_export.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_missing_export.sv:1: error: Modport `s' exports task/function `Read', but connected module `m' has no implementation for interface port `a' (IEEE 1800-2017/2023 25.7).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "proto_mismatch",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1: syntax error\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "dup_export",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1: syntax error\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "proto_args",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_args.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_args.sv:1: error: Modport prototype for `Read' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "import_no_modport_access",
+    "edition": "2017",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_import_no_modport_access.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_import_no_modport_access.sv:1: error: Task/function `t2' is not visible through modport `a' (IEEE 1800-2017/2023 25.7/25.10).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "positive-or-runtime",
+    "probe": "s_specify",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/s_specify.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv"
+    ],
+    "compile_exit": 4,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: Invalid simple path\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/s_specify.sv:4: error: Syntax error in specify block\n"
+  },
+  {
+    "kind": "positive-or-runtime",
+    "probe": "r_noexport",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/tmp/a3-audit-c25e-20261020/r_noexport.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv:1: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/r_noexport.sv:1: error: Invalid module item.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "missing_export",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_missing_export.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_missing_export.sv:1: error: Modport `s' exports task/function `Read', but connected module `m' has no implementation for interface port `a' (IEEE 1800-2017/2023 25.7).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "proto_mismatch",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_mismatch.sv:1: syntax error\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "dup_export",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv"
+    ],
+    "compile_exit": 2,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1: error: 'a' has already been declared in this scope.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1:      : It was declared here as a net.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_dup_export.sv:1: syntax error\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "proto_args",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_args.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_proto_args.sv:1: error: Modport prototype for `Read' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "kind": "negative",
+    "probe": "import_no_modport_access",
+    "edition": "2023",
+    "compile_command": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/dev/null",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_import_no_modport_access.sv"
+    ],
+    "compile_exit": 1,
+    "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_07_import_no_modport_access.sv:1: error: Task/function `t2' is not visible through modport `a' (IEEE 1800-2017/2023 25.7/25.10).\n1 error(s) during elaboration.\n"
+  }
+]

@@ -1,0 +1,19 @@
+struct ['{sw:1, s:"hi"}]
+        0.10 real         0.02 user         0.03 sys
+             6750208  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2939  page reclaims
+                 440  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  14  voluntary context switches
+                 287  involuntary context switches
+            32829613  instructions retired
+            18299665  cycles elapsed
+             1507712  peak memory footprint

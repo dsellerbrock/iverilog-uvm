@@ -1,0 +1,7 @@
+ivltests/sv_assoc_nonintegral_query.v:4: error: $left cannot be used on an associative array with a non-integral index type.
+ivltests/sv_assoc_nonintegral_query.v:5: error: $right cannot be used on an associative array with a non-integral index type.
+ivltests/sv_assoc_nonintegral_query.v:6: error: $low cannot be used on an associative array with a non-integral index type.
+ivltests/sv_assoc_nonintegral_query.v:7: error: $high cannot be used on an associative array with a non-integral index type.
+ivltests/sv_assoc_nonintegral_query.v:8: error: $increment cannot be used on an associative array with a non-integral index type.
+ivltests/sv_assoc_nonintegral_query.v:9: error: $size cannot be used on an associative array with a non-integral index type.
+6 error(s) during elaboration.

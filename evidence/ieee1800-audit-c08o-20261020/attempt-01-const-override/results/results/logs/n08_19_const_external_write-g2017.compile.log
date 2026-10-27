@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/neg/n08_19_const_external_write.sv:9: error: Property size is constant in this method. (scope=n08_19_const_external_write)
+1 error(s) during elaboration.

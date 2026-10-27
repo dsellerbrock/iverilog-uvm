@@ -1,0 +1,8 @@
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:09:34Z
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+740	OPEN	[IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values	1800-audit	2026-10-20T04:14:42Z
+742	OPEN	[IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error	1800-audit	2026-10-20T04:24:00Z
+756	OPEN	[IEEE 1800] §6.22.1/§6.23 — type() matching of struct, union and array types is not supported	1800-audit	2026-10-20T04:58:43Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+744	CLOSED	[IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error	1800-audit	2026-10-20T04:26:34Z
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z

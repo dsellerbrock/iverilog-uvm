@@ -1,0 +1,4 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_import_in_class.sv:2: error: An import statement is illegal directly within a class scope (IEEE 1800-2017/2023 A.1.8/A.2.1.3).

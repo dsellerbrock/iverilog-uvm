@@ -1,0 +1,24 @@
+D0 lowpop=21
+D1 rc=1 v=0000000011 len=2
+D2 rc=0 v=0000000011 len=2
+D3 i=0 rc=0 v=0000000011 pop=2 len=2
+D3 i=1 rc=0 v=0000000011 pop=2 len=2
+D3 i=2 rc=0 v=0000000011 pop=2 len=2
+D3 i=3 rc=0 v=0000000011 pop=2 len=2
+D3 i=4 rc=0 v=0000000011 pop=2 len=2
+D3 i=5 rc=0 v=0000000011 pop=2 len=2
+D3 i=6 rc=0 v=0000000011 pop=2 len=2
+D3 i=7 rc=0 v=0000000011 pop=2 len=2
+D3 i=8 rc=0 v=0000000011 pop=2 len=2
+D3 i=9 rc=0 v=0000000011 pop=2 len=2
+D3 i=10 rc=0 v=0000000011 pop=2 len=2
+D3 i=11 rc=0 v=0000000011 pop=2 len=2
+D3 i=12 rc=0 v=0000000011 pop=2 len=2
+D3 i=13 rc=0 v=0000000011 pop=2 len=2
+D3 i=14 rc=0 v=0000000011 pop=2 len=2
+D3 i=15 rc=0 v=0000000011 pop=2 len=2
+D3 i=16 rc=0 v=0000000011 pop=2 len=2
+D3 i=17 rc=0 v=0000000011 pop=2 len=2
+D3 i=18 rc=0 v=0000000011 pop=2 len=2
+D3 i=19 rc=0 v=0000000011 pop=2 len=2
+D4 ok=0 bad=0

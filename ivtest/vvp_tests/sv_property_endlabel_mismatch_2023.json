@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_property_endlabel_mismatch.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_property_endlabel_mismatch_2023"
+}

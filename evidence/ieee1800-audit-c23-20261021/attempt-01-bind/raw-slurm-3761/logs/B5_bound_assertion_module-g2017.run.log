@@ -1,0 +1,3 @@
+top.u1.c FAIL 15
+top.u1.c FAIL 25
+input/B5_bound_assertion_module.sv:17: $finish called at 30 (1ns)

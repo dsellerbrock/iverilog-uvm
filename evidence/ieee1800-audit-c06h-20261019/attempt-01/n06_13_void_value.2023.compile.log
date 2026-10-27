@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_13_void_value.sv:1: error: void function `f` can not be called in an expression.
+Elaboration failed

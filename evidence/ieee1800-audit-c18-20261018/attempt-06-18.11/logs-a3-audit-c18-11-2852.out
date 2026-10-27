@@ -1,0 +1,42 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-18T23:27:18-06:00
+
+=== p18_11-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/p18_11_inline_rand_control.sv:13: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+
+=== p18_11-2017.run (timeout 60s) ===
+PASS in-line random variable control clause 18.11
+step_exit=0
+
+=== p18_11-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/p18_11_inline_rand_control.sv:13: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+
+=== p18_11-2023.run (timeout 60s) ===
+PASS in-line random variable control clause 18.11
+step_exit=0
+
+=== n18_11_randomize_expression-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:9: sorry: every argument of randomize() must name a property of the object (IEEE 1800-2017 18.11). The argument list is ignored, so every rand property is randomized.
+step_exit=0
+unexpected compile success: n18_11_randomize_expression-2017.compile
+
+=== n18_11_randomize_local-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_local.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+unexpected compile success: n18_11_randomize_local-2017.compile
+
+=== n18_11_randomize_expression-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:9: sorry: every argument of randomize() must name a property of the object (IEEE 1800-2017 18.11). The argument list is ignored, so every rand property is randomized.
+step_exit=0
+unexpected compile success: n18_11_randomize_expression-2023.compile
+
+=== n18_11_randomize_local-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_local.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+unexpected compile success: n18_11_randomize_local-2023.compile
+GATE_RESULT=FAIL

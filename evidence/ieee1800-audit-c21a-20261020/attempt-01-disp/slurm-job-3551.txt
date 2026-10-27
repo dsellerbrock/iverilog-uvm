@@ -1,0 +1,10 @@
+Host: DAN-DESKTOP (DAN-DESKTOP Slurm)
+Job: 3551, partition verilog, 1 CPU, 1 GiB, 10-minute limit
+Submission: cd /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c21a-disp-20261020-01 && sbatch --parsable --wait run.sbatch
+Submission/wait SSH returned job ID 3551 and exit code 0; wall time including SSH was about 2 seconds. Slurm accounting is disabled, so exact job duration and peak RSS are unavailable.
+Toolchain source SHA: cc25756d187314742d347267c2a513b3e640a7fb
+iverilog SHA-256: 1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593
+vvp SHA-256: e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb
+Probe: tests/1800_audit/c21/p21_disp_io.sv; SHA-256 d416248a7abe497a93013c1862ac4a2c025e9777c02815c1ede1d5238e467480.
+Compile/runtime statuses: 0 for both -g2017 and -g2023. File output was `abc\n` in each edition's scratch directory.
+Raw stdout/stderr, compile logs, output files, and source copy: remote-3551/.

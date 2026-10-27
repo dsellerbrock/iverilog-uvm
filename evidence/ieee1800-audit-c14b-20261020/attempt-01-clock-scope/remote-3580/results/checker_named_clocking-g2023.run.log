@@ -1,0 +1,2 @@
+CHECKER_CLOCKING_SCOPE_OK
+/home/dsell/slurm-runs/iverilog/a3/c14b-clock-scope-20261020-01/input/p14_07_clocking_checker.sv:12: $finish called at 1 (1s)

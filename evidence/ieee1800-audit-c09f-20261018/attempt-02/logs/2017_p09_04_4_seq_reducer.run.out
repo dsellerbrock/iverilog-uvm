@@ -1,0 +1,4 @@
+TRIGGERED t=0
+ASSERT_PASS t=25
+ASSERT_PASS t=35
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:5: $finish called at 40 (1s)

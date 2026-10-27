@@ -1104,13 +1104,20 @@ bool netclass_t::interface_assignment_compatible_from(
 }
 
 void netclass_t::add_constraint_ir(const string&name, const string&ir,
-		const vector<constraint_state_call_t>&calls)
+		const vector<constraint_state_call_t>&calls, bool is_static)
 {
       constraint_ir_t c;
       c.name = name;
       c.ir = ir;
       c.state_calls = calls;
+      c.is_static = is_static;
       constraint_irs_.push_back(c);
+}
+
+bool netclass_t::constraint_ir_is_static(size_t idx) const
+{
+      merge_inherited_constraint_irs_();
+      return idx < constraint_irs_.size() && constraint_irs_[idx].is_static;
 }
 
 void netclass_t::merge_inherited_constraint_irs_() const

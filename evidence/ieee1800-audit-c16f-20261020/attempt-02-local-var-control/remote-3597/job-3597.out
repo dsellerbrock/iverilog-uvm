@@ -1,0 +1,9 @@
+edition	compile_rc	run_rc	pass
+2017	0	0	YES
+2023	0	0	YES
+--- 2017.stdout.log
+PASSED: §16.10 property local variable
+--- 2023.stdout.log
+PASSED: §16.10 property local variable
+--- 2017.stderr.log
+--- 2023.stderr.log

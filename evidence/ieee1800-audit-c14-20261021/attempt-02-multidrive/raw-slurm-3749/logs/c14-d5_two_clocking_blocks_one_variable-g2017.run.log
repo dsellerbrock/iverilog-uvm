@@ -1,0 +1,4 @@
+5 j=1
+10 j=0
+25 j=1
+inputs/c14/d5_two_clocking_blocks_one_variable.sv:9: $finish called at 50 (1ns)

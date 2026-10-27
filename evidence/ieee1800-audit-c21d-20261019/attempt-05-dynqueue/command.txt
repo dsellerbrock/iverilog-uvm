@@ -1,0 +1,3 @@
+Run in this evidence directory:
+~/codex-supervisor/localrun 180 bash -c '<IVL> -g2017 -o p21f.2017.vvp <repo>/tests/1800_audit/c21/p21_04b_dynqueue.sv && <VVP> p21f.2017.vvp'
+~/codex-supervisor/localrun 180 bash -c '<IVL> -g2023 -o p21f.2023.vvp <repo>/tests/1800_audit/c21/p21_04b_dynqueue.sv && <VVP> p21f.2023.vvp'

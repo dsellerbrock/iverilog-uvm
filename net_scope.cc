@@ -611,6 +611,38 @@ bool NetScope::auto_name(const char*prefix, char pad, const char* suffix)
  * Return false if the parameter does not already exist.
  * A parameter is not automatically created.
  */
+static bool defparam_targets_other_genblock_instance(const NetScope*src,
+						     const NetScope*targ)
+{
+      // Check all enclosing generate scopes so nested loops include their
+      // outer iterations.
+      for (const NetScope*gen = src;
+	   gen && gen->type() == NetScope::GENBLOCK;
+	   gen = gen->parent()) {
+	    const NetScope*parent = gen->parent();
+	    if (!parent) break;
+
+	    const hname_t&gen_name = gen->fullname();
+	    if (gen_name.has_numbers() == 0) continue;
+
+	    for (const NetScope*ancestor = targ;
+		 ancestor && ancestor->parent();
+		 ancestor = ancestor->parent()) {
+		  if (ancestor->parent() != parent) continue;
+
+		  const hname_t&target_name = ancestor->fullname();
+		  if (ancestor != gen
+		      && target_name.peek_name() == gen_name.peek_name()
+		      && target_name.has_numbers() != 0
+		      && target_name.peek_numbers() != gen_name.peek_numbers())
+			return true;
+		  break;
+	    }
+      }
+
+      return false;
+}
+
 void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 			         NetScope*scope, bool defparam)
 {
@@ -618,6 +650,16 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 	    cerr << val->get_fileline() << ": error: parameter `"
 	         << key << "` not found in `"
 	         << scope_path(this) << "`." << endl;
+	    des->errors++;
+	    return;
+      }
+
+      if (defparam && defparam_targets_other_genblock_instance(scope, this)) {
+	    cerr << val->get_fileline() << ": error: defparam in generate block `"
+		 << scope_path(scope) << "` cannot target parameter `" << key
+		 << "` in `" << scope_path(this)
+		 << "`, which is in another instance of the same generate block "
+		    "(IEEE 1800-2017/2023 23.10.1)." << endl;
 	    des->errors++;
 	    return;
       }
@@ -1129,6 +1171,16 @@ void NetScope::restore_signal_alias(perm_string name, NetNet*prev)
       symbol_search_cache_clear();
 }
 
+bool NetScope::record_alias_pair(const NetNet*left, const NetNet*right)
+{
+      for (const auto&pair : alias_pairs_)
+	    if ((pair.first == left && pair.second == right)
+		|| (pair.first == right && pair.second == left))
+		  return false;
+      alias_pairs_.push_back(std::make_pair(left, right));
+      return true;
+}
+
 typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 {
       map<perm_string,typedef_t*>::const_iterator cache_td = typedef_search_cache_.find(name);
@@ -1432,17 +1484,24 @@ void NetScope::add_tie_lo(Design*des)
       }
 }
 
-/* M13: let lookup — search this scope then walk up lexical parents,
-   stopping at (and including) the enclosing module scope so lets do
-   not leak across module instance boundaries. */
-PLet* NetScope::find_let(perm_string name) const
+/* M13: let lookup — search local and imported declarations before walking
+   lexical parents. Continue past the design-element scope only to its
+   compilation-unit scope; never cross into a containing module instance. */
+PLet* NetScope::find_let(const Design*des, perm_string name) const
 {
       const NetScope*cur = this;
       for (;;) {
 	    std::map<perm_string,PLet*>::const_iterator it
 		  = cur->lets_.find(name);
 	    if (it != cur->lets_.end()) return it->second;
-	    if (cur->type() == MODULE) return 0;
+	    NetScope*import_scope = const_cast<NetScope*>(cur)->find_import(des, name);
+	    if (import_scope) {
+		  std::map<perm_string,PLet*>::const_iterator imported
+			= import_scope->lets_.find(name);
+		  if (imported != import_scope->lets_.end()) return imported->second;
+	    }
+	    if (cur->type() == MODULE && cur->parent() &&
+		cur->parent()->type() == MODULE) return 0;
 	    cur = cur->parent();
 	    if (cur == 0) return 0;
       }

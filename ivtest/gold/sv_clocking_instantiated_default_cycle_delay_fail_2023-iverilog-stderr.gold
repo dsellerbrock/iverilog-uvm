@@ -1,0 +1,2 @@
+ivltests/sv_clocking_instantiated_default_cycle_delay_fail_2023.v:2: error: ## cycle delay requires a default clocking block in scope (IEEE 1800 14.11).
+1 error(s) during elaboration.

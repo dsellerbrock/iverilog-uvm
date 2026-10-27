@@ -1,0 +1,53 @@
+compiler: Icarus Verilog version 13.0 (devel) ()
+compiler sha256: 4f3fbe94d8cb08d55e37e831a67f85289806acdfebf6bf2f393ac572c9b36d8d
+vvp sha256: 9cec8fe710d7aa9d1c056658d3a8c2bb0f54a239a96edfaad48ffe871282d208
+=== -g2017 compile ===
+=== -g2017 run ===
+PASSED: new() default is 0 keys
+PASSED: put() default adds 1 key
+PASSED: try_get(1) consumed key
+PASSED: new(3) allows try_get(2)
+PASSED: try_get(2) fails with 1 key remaining
+PASSED: try_get(1) succeeds with 1 key remaining
+PASSED: semaphore empty after consuming all keys
+PASSED: put(2) adds 2 keys
+PASSED: get(1) blocks and unblocks after put(1)
+PASSED: FIFO waking count
+PASSED: FIFO order first arrival wakes first
+PASSED: FIFO order second arrival wakes second
+PASS semaphore clause 15.3
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/p15_03_semaphore.sv:87: $finish called at 50 (1s)
+=== -g2023 compile ===
+=== -g2023 run ===
+PASSED: new() default is 0 keys
+PASSED: put() default adds 1 key
+PASSED: try_get(1) consumed key
+PASSED: new(3) allows try_get(2)
+PASSED: try_get(2) fails with 1 key remaining
+PASSED: try_get(1) succeeds with 1 key remaining
+PASSED: semaphore empty after consuming all keys
+PASSED: put(2) adds 2 keys
+PASSED: get(1) blocks and unblocks after put(1)
+PASSED: FIFO waking count
+PASSED: FIFO order first arrival wakes first
+PASSED: FIFO order second arrival wakes second
+PASS semaphore clause 15.3
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c15/p15_03_semaphore.sv:87: $finish called at 50 (1s)
+        0.20 real         0.11 user         0.05 sys
+             8028160  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                9942  page reclaims
+                  78  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  31  voluntary context switches
+                 241  involuntary context switches
+            72231731  instructions retired
+            34067536  cycles elapsed
+             2408928  peak memory footprint

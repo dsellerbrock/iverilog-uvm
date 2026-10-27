@@ -82,6 +82,8 @@ celldefine		normal			celldefine.c		celldefine.gold
 dumpports_activity_cb	normal,-g2012		dumpports_activity_cb.c	dumpports_activity_cb.gold
 check_version		normal			check_version.c		check_version.gold
 display_array		normal,-g2009		display_array.c		display_array.gold
+vpi_typespec normal,-g2017 vpi_typespec.c vpi_typespec.gold
+vpi_typespec_2023 normal,-g2023 vpi_typespec.c vpi_typespec_2023.gold
 class_event_lifetime	normal,-g2012		class_event_lifetime.c	class_event_lifetime.gold
 event1			normal			event1.c		event1.log
 event2			normal			event2.c		event2.log
@@ -122,6 +124,8 @@ pr723			normal			pr723.c			pr723.log
 pr1693971		normal			pr1693971.c		pr1693971.log
 pr2048463		normal			pr2048463.c		pr2048463.log
 pr2314742		normal			pr2314742.c		pr2314742.gold
+issue958_2017	normal,-g2017		issue958.c		issue958_2017.gold
+issue958_2023	normal,-g2023		issue958.c		issue958_2023.gold
 pr2966059		normal			pr2966059.c		pr2966059.gold
 pr2971220		normal			pr2971220.c		pr2971220.gold
 pure_comb_finish_cb	normal,-g2012		pure_comb_finish_cb.c	pure_comb_finish_cb.gold
@@ -130,6 +134,8 @@ putp2			PLI1			putp2.c			putp2.log
 putvalue		normal			putvalue.c		putvalue.log
 range1			normal			range1.c		range1.gold
 realcb			normal			realcb.c		realcb.log
+m8_vpi_real_put_2017	normal,-g2017	m8_vpi_real_put.c	m8_vpi_real_put_2017.log
+m8_vpi_real_put_2023	normal,-g2023	m8_vpi_real_put.c	m8_vpi_real_put_2023.log
 realtime		normal			realtime.c		realtime.log
 realtime2		normal			realtime2.c		realtime2.log
 ro_synch		normal			ro_synch.c		ro_synch.gold
@@ -216,3 +222,9 @@ event_callback_parent_atomic_high normal,-g2017 event_callback_parent_atomic_hig
 event_callback_parent_atomic_high_2023 normal,-g2023 event_callback_parent_atomic_high.c event_callback_parent_atomic_high_2023.log
 event_callback_nested_depth normal,-g2017 event_callback_nested_depth.c event_callback_nested_depth.log
 event_callback_nested_depth_2023 normal,-g2023 event_callback_nested_depth.c event_callback_nested_depth_2023.log
+fst_sv_types normal,-g2017 fst_text.c fst_sv_types.gold -lz
+fst_sv_types_2023 normal,-g2023 fst_text.c fst_sv_types_2023.gold -lz
+fst_dump_control normal,-g2017 fst_text.c fst_dump_control.gold -lz
+fst_dump_control_2023 normal,-g2023 fst_text.c fst_dump_control_2023.gold -lz
+sv_assert_cover_api_2017 normal,-g2017 sv_assert_cover_api.c sv_assert_cover_api_2017.log
+sv_assert_cover_api_2023 normal,-g2023 sv_assert_cover_api.c sv_assert_cover_api_2023.log

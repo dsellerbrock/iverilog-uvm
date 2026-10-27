@@ -1,0 +1,4 @@
+COMPILE PASS
+PASS ns scope: time=1 realtime=1.000 stime=1
+PASS ps scope: time=1000 realtime=1000.000 stime=1000
+RUN PASS

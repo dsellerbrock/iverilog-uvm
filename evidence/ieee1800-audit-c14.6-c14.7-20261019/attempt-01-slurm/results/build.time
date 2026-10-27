@@ -1,0 +1,23 @@
+	Command being timed: "make -j2"
+	User time (seconds): 339.36
+	System time (seconds): 22.85
+	Percent of CPU this job got: 197%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:03.64
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1662908
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 24
+	Minor (reclaiming a frame) page faults: 16539596
+	Voluntary context switches: 7244
+	Involuntary context switches: 5010
+	Swaps: 0
+	File system inputs: 696
+	File system outputs: 1320176
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-02/input/tests/1800_audit/c08/r08_19_const_double_assignment.sv:5: error: instance constant `size' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+1 error(s) during elaboration.

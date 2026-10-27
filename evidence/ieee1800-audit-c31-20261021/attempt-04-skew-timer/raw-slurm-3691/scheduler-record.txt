@@ -1,0 +1,31 @@
+JobId=3691 JobName=a3-c31-skewtimer
+   UserId=dsell(1000) GroupId=dsell(1000) MCS_label=N/A
+   Priority=1 Nice=0 Account=(null) QOS=(null)
+   JobState=COMPLETED Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:00 TimeLimit=00:10:00 TimeMin=N/A
+   SubmitTime=2026-10-21T03:20:42 EligibleTime=2026-10-21T03:20:42
+   AccrueTime=2026-10-21T03:20:42
+   StartTime=2026-10-21T03:21:07 EndTime=2026-10-21T03:21:07 Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-10-21T03:21:07 Scheduler=Backfill
+   Partition=verilog AllocNode:Sid=localhost:225760
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=DAN-DESKTOP
+   BatchHost=DAN-DESKTOP
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   ReqTRES=cpu=1,mem=1G,node=1,billing=1
+   AllocTRES=cpu=1,mem=1G,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=1G MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null)
+   Command=/home/dsell/slurm-runs/iverilog-uvm/A3/c31-skewtimer-20261021-a2/run.sbatch
+   SubmitLine=sbatch /home/dsell/slurm-runs/iverilog-uvm/A3/c31-skewtimer-20261021-a2/run.sbatch
+   WorkDir=/home/dsell
+   StdErr=
+   StdIn=/dev/null
+   StdOut=/home/dsell/slurm-runs/iverilog-uvm/A3/c31-skewtimer-20261021-a2/logs/a3-c31-skewtimer-3691.out
+   TresPerTask=cpu=1
+
+
+Accounting note: sacct reports "Slurm accounting storage is disabled"; peak RSS unavailable.

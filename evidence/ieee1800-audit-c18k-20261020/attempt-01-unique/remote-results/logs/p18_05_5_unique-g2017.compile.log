@@ -1,0 +1,11 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:28: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:29: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:30: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:31: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:32: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:33: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:33: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:33: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:33: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:33: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-01/input/p18_05_5_unique.sv:7: warning: Constraint item in 'u' of class U1 is not representable in the constraint solver; randomize() of this class will fail.

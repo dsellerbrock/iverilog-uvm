@@ -1,0 +1,15 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh41125fec" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+2017 p07_08_assoc compile_rc=0 expected=pass
+/var/spool/slurmd/job03515/slurm_script: line 18: 3724231 Segmentation fault         timeout --signal=TERM --kill-after=2s 30s "$TOOL/vvp" "$binary" > "$OUT/${name}-${edition}.run.out" 2> "$OUT/${name}-${edition}.run.err"
+2017 p07_08_assoc run_rc=139
+2017 n07_08_arg_index_type compile_rc=1 expected=reject
+2017 n07_08_arg_fixed_array compile_rc=2 expected=reject
+2023 p07_08_assoc compile_rc=0 expected=pass
+/var/spool/slurmd/job03515/slurm_script: line 18: 3724248 Segmentation fault         timeout --signal=TERM --kill-after=2s 30s "$TOOL/vvp" "$binary" > "$OUT/${name}-${edition}.run.out" 2> "$OUT/${name}-${edition}.run.err"
+2023 p07_08_assoc run_rc=139
+2023 n07_08_arg_index_type compile_rc=1 expected=reject
+2023 n07_08_arg_fixed_array compile_rc=2 expected=reject

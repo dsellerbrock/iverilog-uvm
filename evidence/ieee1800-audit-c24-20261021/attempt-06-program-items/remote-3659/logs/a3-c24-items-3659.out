@@ -1,0 +1,32 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+80888906d3a349a380c2f8578c85d057e3d5046944c7c918e88d6a7941d667f5  ./n24_03_always.sv
+afa18ae26f5c0aa6551692c97efbc05a2e783e4e54c33da0319b8b2e8a8961bc  ./n24_03_ifinst.sv
+72bff9926f44832cedd7ff395c0906d58a63f7be624d58f5bd6b59979fc0ad5e  ./n24_03_modinst.sv
+5e8d2b176bf05688db0f6c9a4f2b4941fbdf7cbc700cabef25bf23e53cda8401  ./n24_03_nested.sv
+cfd92a867891f80918f0b55251cb7a9c6c2e0d3c9e263de3d77050eeb9a3b38b  ./p24_03_ok.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+p24_03_ok edition=2017 compile_exit=0
+p24_03_ok edition=2017 run_exit=0
+FIN
+n24_03_always edition=2017 compile_exit=1
+n24_03_always.sv:3: error: Always statements are not allowed in program blocks.
+n24_03_modinst edition=2017 compile_exit=1
+n24_03_modinst.sv:5: error: Module instantiations are not allowed in program blocks.
+n24_03_nested edition=2017 compile_exit=1
+n24_03_nested.sv:2: error: module, program, or interface declarations are not allowed in program blocks.
+n24_03_ifinst edition=2017 compile_exit=1
+n24_03_ifinst.sv:5: error: Module instantiations are not allowed in program blocks.
+p24_03_ok edition=2023 compile_exit=0
+p24_03_ok edition=2023 run_exit=0
+FIN
+n24_03_always edition=2023 compile_exit=1
+n24_03_always.sv:3: error: Always statements are not allowed in program blocks.
+n24_03_modinst edition=2023 compile_exit=1
+n24_03_modinst.sv:5: error: Module instantiations are not allowed in program blocks.
+n24_03_nested edition=2023 compile_exit=1
+n24_03_nested.sv:2: error: module, program, or interface declarations are not allowed in program blocks.
+n24_03_ifinst edition=2023 compile_exit=1
+n24_03_ifinst.sv:5: error: Module instantiations are not allowed in program blocks.

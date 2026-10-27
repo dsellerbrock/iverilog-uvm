@@ -1,0 +1,156 @@
+host=DAN-DESKTOP
+2026-10-17T16:42:46-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 30s; run 10s; SIGTERM then SIGKILL after 2s.
+
+=== p13_05_args -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/build/p13_05_args-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv:16: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv:33: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== p13_05_args -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/build/p13_05_args-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv:16: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_args.sv:33: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.
+FAIL compile rc=2
+
+=== expect compile rejection: p13_05_2_ref_static -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_2_ref_static_2023.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_2_ref_static_2023.sv:3: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+PASS rejected rc=1
+
+=== p13_05_2_ref_static -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/build/p13_05_2_ref_static-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/p13_05_2_ref_static_2023.sv
+run: timeout -k 2s 10s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/build/p13_05_2_ref_static-2023.vvp
+PASS 13.5.2.ref_static
+PASS run
+
+=== expect compile rejection: n13_05_2_ref_in_static_sub -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_in_static_sub.sv
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_05_2_ref_net -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: I give up on task port 1 expression: w
+2 error(s) during elaboration.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_05_2_ref_input -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_input.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_input.sv:2: syntax error
+I give up.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_05_2_const_ref_write -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2: error: Assignment to const signal `x` is not allowed.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_2_ref_type_mismatch -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_type_mismatch.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_type_mismatch.sv:4: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_no_default_omitted -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_omitted.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_omitted.sv:3: error: Missing argument 2 ('k') of call to task.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_no_default_empty -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_empty.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_empty.sv:3: error: Missing argument 2 ('k') of call to task.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_default_unresolved -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_default_unresolved.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_default_unresolved.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_2_ref_static_auto_2023 -g2017 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_static_auto_2023.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_static_auto_2023.sv:2: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_2_ref_in_static_sub -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_in_static_sub.sv
+FAIL unexpectedly compiled
+
+=== expect compile rejection: n13_05_2_ref_net -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: I give up on task port 1 expression: w
+2 error(s) during elaboration.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_05_2_ref_input -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_input.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_input.sv:2: syntax error
+I give up.
+PASS rejected rc=2
+
+=== expect compile rejection: n13_05_2_const_ref_write -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2: error: Assignment to const signal `x` is not allowed.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2: Unable to elaborate statement in task top.t at /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_const_ref_write.sv:2.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_2_ref_type_mismatch -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_type_mismatch.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_type_mismatch.sv:4: error: A ref actual must have a type equivalent to the formal (IEEE 1800-2017/2023 13.5.2).
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_no_default_omitted -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_omitted.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_omitted.sv:3: error: Missing argument 2 ('k') of call to task.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_no_default_empty -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_empty.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_no_default_empty.sv:3: error: Missing argument 2 ('k') of call to task.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_3_default_unresolved -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_default_unresolved.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_3_default_unresolved.sv:2: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_2_ref_static_auto_2023 -g2023 ===
+compile: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_static_auto_2023.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_static_auto_2023.sv:3: error: A ref static actual must have static lifetime (IEEE 1800-2023 13.5.2).
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+FINAL_STATUS=1

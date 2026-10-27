@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-value-resolution-20261020-01/input/p19_05_7_resolution.sv:4: warning: covergroup bin 't' has a value outside its effective unsigned 3-bit coverpoint type; the affected range is intersected with that type's domain.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-value-resolution-20261020-01/input/p19_05_7_resolution.sv:5: warning: covergroup bin 't' has a value outside its effective unsigned 3-bit coverpoint type; the affected range is intersected with that type's domain.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-value-resolution-20261020-01/input/p19_05_7_resolution.sv:6: warning: covergroup bin 't' has a value outside its effective unsigned 3-bit coverpoint type; the affected range is intersected with that type's domain.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-value-resolution-20261020-01/input/p19_05_7_resolution.sv:7: warning: covergroup bin 't' has a value outside its effective signed 3-bit coverpoint type; the affected range is intersected with that type's domain.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-value-resolution-20261020-01/input/p19_05_7_resolution.sv:8: warning: covergroup bin 't' has a value outside its effective signed 3-bit coverpoint type; the affected range is intersected with that type's domain.
+V A=100.0 C=50.0 D=50.0 E=50.0 F=100.0

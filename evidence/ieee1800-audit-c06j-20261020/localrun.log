@@ -1,0 +1,19 @@
+evidence/ieee1800-audit-c06j-20261020/run-probes.sh: line 12: name: unbound variable
+        1.04 real         0.05 user         0.03 sys
+             7979008  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                4181  page reclaims
+                  57  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   3  signals received
+                  81  voluntary context switches
+                 140  involuntary context switches
+            22399215  instructions retired
+            13750005  cycles elapsed
+             1540480  peak memory footprint

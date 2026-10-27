@@ -1,0 +1,2 @@
+input/V8a_virtual_interface_port.sv:5: error: virtual interface variable `v' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

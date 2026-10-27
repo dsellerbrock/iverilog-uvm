@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-misc-20261020-01/source/n20_18_system_arity.sv:3: error: The $system function takes zero or one argument; found 2.
+Elaboration failed

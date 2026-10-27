@@ -1,0 +1,2 @@
+C3 FAIL 20
+input/C3_procedural_inferred.sv:8: $finish called at 60 (1ns)

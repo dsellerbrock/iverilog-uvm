@@ -1,0 +1,3 @@
+Lead's open+closed dedupe for §18.5.14 (2026-10-20):
+Search terms: `soft constraint`, `disable soft`, `constraint guard`.
+Only closed Phase 8 issue #12 (broad tracker) was found; no overlapping issue covers this probe.

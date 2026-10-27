@@ -66,6 +66,12 @@ class PPackage;
 struct vlltype;
 struct lgate;
 
+/* Check the IEEE 1800 restriction on calls from design modules to program
+ * subroutines after the caller and callee scopes have been resolved. */
+extern bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
+					     const NetScope*caller,
+					     const NetScope*callee);
+
 /*
  * The min:typ:max expression s selected at parse time using the
  * enumeration. When the compiler makes a choice, it also prints a
@@ -205,6 +211,8 @@ extern void pform_module_define_interconnect_port(
 
 extern Module::port_t* pform_module_port_reference(const struct vlltype&loc,
 						   perm_string name);
+extern void pform_module_defer_port_direction(perm_string name,
+						     NetNet::PortType direction);
 extern void pform_endmodule(const char*, bool inside_celldefine,
                             Module::UCDriveType uc_drive_def);
 
@@ -364,6 +372,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_sequence_formal_t;
 struct sva_mc_seg_t;
 struct sva_prop_case_item_t;
 struct rs_production_t;
@@ -394,6 +403,9 @@ extern void pform_make_assertion(const struct vlltype&loc,
    enclosing `event_control statement_or_null' supplies its event, and
    anything still parked when the module (or checker) ends is an error. */
 extern void pform_sva_infer_procedural_clock(PEventStatement*ctl);
+extern Statement* pform_sva_sequence_event(
+						  const struct vlltype&loc,
+						  PEventStatement*ctl);
 extern void pform_sva_flush_pending_procedural(void);
 extern void pform_sva_flush_pending_named_properties(void);
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
@@ -452,7 +464,7 @@ extern void pform_sva_declare_property_p(const struct vlltype&loc,
 					 sva_property_t*prop);
 extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,
-					 std::list<perm_string>*formals,
+					 std::list<sva_sequence_formal_t>*formals,
 					 std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
@@ -461,6 +473,7 @@ extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 extern bool pform_sva_const_long(PExpr*expr, long&value);
 extern bool pform_sva_overridable_bound(PExpr*expr);
 extern void pform_sva_single_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*delay);
+extern void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*lo, PExpr*hi);
 /* A bare genvar is a constant expression only after its generate loop is
    unrolled and each generated scope receives the implicit localparam value.
    Preserve that name through the parse-time SVA lowering instead of treating
@@ -1091,6 +1104,8 @@ extern Statement* pform_make_deferred_cover(const struct vlltype&loc,
 				     PExpr*expr,
 				     Statement*pass_stmt,
 				     bool is_final);
+extern Statement* pform_make_immediate_cover(const struct vlltype&loc,
+				     PExpr*expr, Statement*pass_stmt);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);

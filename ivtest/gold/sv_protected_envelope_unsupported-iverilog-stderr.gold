@@ -1,0 +1,2 @@
+ivltests/sv_protected_envelope_unsupported.v:1: error: protected envelope decryption is unsupported.
+Preprocessor failed with 1 errors.

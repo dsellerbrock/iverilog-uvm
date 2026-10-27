@@ -1,0 +1,2 @@
+sv_const_function_fork_fail_2017 CE,-g2017 ivltests gold=sv_const_function_fork_fail_2017.gold
+sv_const_function_fork_fail_2023 CE,-g2023 ivltests gold=sv_const_function_fork_fail_2023.gold

@@ -1,0 +1,21 @@
+internal error: vpi_get_value(<format=5>) not implemented for __vpiVThrVec4Stack.
+Assertion failed: (0), function vpi_get_value, file vpi_vthr_vector.cc, line 589.
+time: command terminated abnormally
+        0.05 real         0.00 user         0.00 sys
+             6701056  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 661  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  88  involuntary context switches
+            77242346  instructions retired
+            28655466  cycles elapsed
+             3817880  peak memory footprint

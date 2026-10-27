@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_cycle_delay_expr_positive.v",
+  "iverilog-args": ["-g2023", "-s", "sv_cycle_delay_expr_positive"],
+  "gold": "sv_cycle_delay_expr_positive_2023"
+}

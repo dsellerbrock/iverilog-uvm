@@ -1,0 +1,3 @@
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+sorry: covergroup option 'auto_bin_max' is not a constant; using default 64.
+sorry: covergroup option 'auto_bin_max' is not a constant; using default 64.

@@ -1848,6 +1848,14 @@ void fstWriterClose(fstWriterContext *xc)
     if (xc) {
         pthread_mutex_lock(&xc->mutex);
         pthread_mutex_unlock(&xc->mutex);
+
+        /* Icarus: wait for a flush thread that has not taken the mutex yet.
+         * Closing while it writes the previous section truncates or
+         * interleaves that section (seen after $dumpflush; $finish). */
+        while (xc->in_pthread) {
+            pthread_mutex_lock(&xc->mutex);
+            pthread_mutex_unlock(&xc->mutex);
+        };
     }
 #endif
 

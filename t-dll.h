@@ -447,6 +447,7 @@ struct ivl_expr_s {
 		  unsigned   vif_methods;
 		  unsigned char *vif_parm_default;
 		  ivl_lval_t ref_lval;
+	      ivl_lval_t ref_lval2;
 	    } sfunc_;
 
 	    struct {
@@ -985,6 +986,7 @@ struct ivl_signal_s {
 struct ivl_statement_assign_aux_s {
       ivl_expr_t delay;
       ivl_expr_t count;
+      bool clocking_drive;
       union {
 	    ivl_event_t event;
 	    ivl_event_t*events;
@@ -1028,6 +1030,7 @@ struct ivl_statement_s {
 		  ivl_expr_t cond;
 		  ivl_expr_t*case_ex;
 		  struct ivl_statement_s*case_st;
+		  unsigned*case_group;
 		  unsigned ncase;
 		  unsigned char quality;
 		  bool quality_if;

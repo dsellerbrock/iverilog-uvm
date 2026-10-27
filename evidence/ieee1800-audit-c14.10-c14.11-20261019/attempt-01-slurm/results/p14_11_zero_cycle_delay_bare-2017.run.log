@@ -1,0 +1,2 @@
+FAIL: bare ##0 finished at 2000; expected suspension to clocking event at 5
+tests/1800_audit/c14/p14_11_zero_cycle_delay_bare.sv:16: $finish(1) called at 2000 (1ps)

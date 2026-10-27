@@ -1,0 +1,2 @@
+626	OPEN	[IEEE 1800] §19.8 — set_inst_name() does not set the instance name
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch

@@ -1,0 +1,3 @@
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S1 has an undefined inferred value.
+tests/1800_audit/c06/neg/n06_19_unassigned_after_x.sv:2: error: Enumeration name S2 has an undefined inferred value.
+2 error(s) during elaboration.

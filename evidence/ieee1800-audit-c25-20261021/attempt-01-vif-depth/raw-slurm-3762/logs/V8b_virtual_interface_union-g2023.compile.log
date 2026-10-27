@@ -1,0 +1,2 @@
+input/V8b_virtual_interface_union.sv:6: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:8: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-11-20261019-01/source/tests/1800_audit/c18/neg/n18_11_randomize_expression.sv:9: sorry: every argument of randomize() must name a property of the object (IEEE 1800-2017 18.11). The argument list is ignored, so every rand property is randomized.

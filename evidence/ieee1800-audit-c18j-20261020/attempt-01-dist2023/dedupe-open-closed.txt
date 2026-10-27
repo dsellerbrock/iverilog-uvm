@@ -1,0 +1,105 @@
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist default"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "soft dist"
+12	CLOSED	Phase 8: Randomization completeness — dist, soft, solve..before, query forms		2026-10-20T14:39:54Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "18.5.3"
+836	OPEN	[IEEE 1800] §18.5.4 (2023 §18.5.3) — dist expression with no rand variable is accepted silently	1800-audit	2026-10-20T15:03:32Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist additive weight"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "dist range weight excluded"
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "default :/"
+623	OPEN	[IEEE 1800] §19.5.1 — Support array default bins (bins name[] = default)	1800-audit	2026-10-17T21:08:09Z
+778	OPEN	[IEEE 1800] §12.5 — a case statement with two default items is accepted and the last default executes	1800-audit	2026-10-20T06:01:41Z
+810	OPEN	[IEEE 1800] §23.3.2.2 — an explicit empty named connection of an input port with a default value uses the default	1800-audit	2026-10-20T08:35:30Z
+703	OPEN	[IEEE 1800] §13.5.3 — Support default values for ref subroutine arguments	1800-audit	2026-10-19T20:18:58Z
+727	OPEN	[IEEE 1800] §16.15 — default disable iff must apply regardless of lexical declaration order	1800-audit	2026-10-19T22:39:48Z
+708	OPEN	[IEEE 1800] §16.8 — Support typed formal arguments and default values in sequence declarations	1800-audit	2026-10-19T20:46:04Z
+633	OPEN	[IEEE 1800] §13.5.3 — Support default values for output and inout subroutine arguments	1800-audit	2026-10-17T22:50:35Z
+833	OPEN	[IEEE 1800] §18.17.3 — a randsequence case production with two default items is accepted	1800-audit	2026-10-20T14:26:51Z
+725	OPEN	[IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations	1800-audit	2026-10-19T22:21:21Z
+835	OPEN	[IEEE 1800] §19.7 — non-constant covergroup option assignments (at_least, auto_bin_max) fall back to the default instead of the per-instance value	1800-audit	2026-10-20T14:46:22Z
+710	OPEN	[IEEE 1800] §16.9.3 — Reject $past and value change functions when no clocking event can be inferred	1800-audit	2026-10-19T21:00:32Z
+484	OPEN	[IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements		2026-10-08T15:26:07Z
+819	OPEN	[IEEE 1800] §6.7.1 — a net or input port with a two-state data type is accepted	1800-audit	2026-10-20T09:05:19Z
+766	OPEN	[IEEE 1800] §6.25 — a specialized class-scoped type (C#(T,N)::t) is rejected in variable, typedef and class-property declarations	1800-audit	2026-10-20T05:20:33Z
+454	CLOSED	[IEEE 1800] §8 — Accept the constructor default argument keyword	enhancement	2026-10-14T15:07:57Z
+679	CLOSED	[IEEE 1800] default clocking for sampled-value functions in procedural event controls	from-caliptra-dv	2026-10-20T10:06:27Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+787	OPEN	[IEEE 1800] §20.2 — $finish(2) prints no memory or CPU statistics	1800-audit	2026-10-20T07:11:11Z
+700	OPEN	[IEEE 1800] §14.3 — Support endclocking matching identifier label	1800-audit	2026-10-19T18:28:25Z
+622	OPEN	[IEEE 1800] §19.8 — get_inst_coverage(ref int, ref int) does not assign covered/total bin counts	1800-audit	2026-10-20T14:48:35Z
+692	OPEN	[IEEE 1800] §15.3.1 — Negative initial keyCount in semaphore new() wraps to unsigned keys	1800-audit	2026-10-19T11:58:01Z
+779	OPEN	[IEEE 1800] §12.6.1 — the &&& filter on a pattern-matching case item is a syntax error	1800-audit	2026-10-20T06:03:13Z
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch	1800-audit	2026-10-19T16:02:17Z
+485	OPEN	[IEEE 1800] §§7.6/7.8 — Validate variable-size associative pattern values transactionally		2026-10-08T15:24:54Z
+809	OPEN	[IEEE 1800] §23.2.2.3 — an explicitly named port followed by a plain port in an ANSI port list is a syntax error	1800-audit	2026-10-20T08:32:28Z
+825	OPEN	[IEEE 1800] §25.6 — a specify path whose terminals are interface signals is rejected as an invalid simple path	1800-audit	2026-10-20T09:24:41Z
+767	OPEN	[IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value	1800-audit	2026-10-20T06:38:09Z
+486	CLOSED	[IEEE 1800] §7.8.6 — Warn when reading a nonexistent associative entry		2026-10-15T03:25:24Z
+503	CLOSED	[IEEE 1800] §7.4.6 — Preserve wide unsigned indices on fixed string-array reads		2026-10-08T15:33:21Z
+522	CLOSED	Repair legacy and JSON expectations for real coverpoint tests		2026-10-18T02:08:25Z
+508	CLOSED	[IEEE 1800] §19.6.1.2 — Implement cross-bin matches thresholds		2026-10-09T14:17:58Z
+509	CLOSED	[IEEE 1800] §19.6.1.2 — Evaluate cross with predicates over wildcard-bin values		2026-10-09T14:17:59Z
+474	CLOSED	[IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads		2026-10-15T04:26:17Z
+470	CLOSED	[IEEE 1800] §16 — Run vacuous pass actions on non-fanout assertion paths		2026-10-08T18:55:45Z
+496	CLOSED	[IEEE 1800] §§16.5.1/16.9.3 — Sample procedural `$past` operands in the Preponed region		2026-10-09T11:45:07Z
+502	CLOSED	[IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions		2026-10-09T07:47:17Z
+545	CLOSED	[Icarus] Caliptra clock generator is rejected without a timescale	from-caliptra-dv	2026-10-16T15:38:25Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+667	CLOSED	from-caliptra-dv: wide automatic coverpoint bins fail elaboration	from-caliptra-dv	2026-10-20T14:39:58Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+41	CLOSED	Phase 69: Streaming LHS, packed-struct defaults, array slices		2026-05-06T03:42:39Z
+101	CLOSED	Copy constructor as a declaration initializer (`C d = new src;`) does not copy		2026-07-21T03:14:36Z
+103	CLOSED	`this` is null in a nested detached (join_none) fork body → m7 phase-hopper never all-drops		2026-07-21T14:44:47Z
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)		2026-07-21T16:21:35Z
+40	CLOSED	Phase 68: SVA — property/sequence operators, procedural concurrent assertions		2026-05-06T03:42:39Z
+17	CLOSED	Phase 13: Clocking blocks and program blocks		2026-04-27T18:23:24Z
+16	CLOSED	Phase 12: SVA Part 1 — immediate assertions and simple concurrent properties		2026-04-27T18:23:17Z
+9	CLOSED	Phase 1d: Sequencer/driver TLM dispatch and analysis port write		2026-04-24T22:49:21Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "default := 1"
+623	OPEN	[IEEE 1800] §19.5.1 — Support array default bins (bins name[] = default)	1800-audit	2026-10-17T21:08:09Z
+778	OPEN	[IEEE 1800] §12.5 — a case statement with two default items is accepted and the last default executes	1800-audit	2026-10-20T06:01:41Z
+703	OPEN	[IEEE 1800] §13.5.3 — Support default values for ref subroutine arguments	1800-audit	2026-10-19T20:18:58Z
+833	OPEN	[IEEE 1800] §18.17.3 — a randsequence case production with two default items is accepted	1800-audit	2026-10-20T14:26:51Z
+727	OPEN	[IEEE 1800] §16.15 — default disable iff must apply regardless of lexical declaration order	1800-audit	2026-10-19T22:39:48Z
+708	OPEN	[IEEE 1800] §16.8 — Support typed formal arguments and default values in sequence declarations	1800-audit	2026-10-19T20:46:04Z
+835	OPEN	[IEEE 1800] §19.7 — non-constant covergroup option assignments (at_least, auto_bin_max) fall back to the default instead of the per-instance value	1800-audit	2026-10-20T14:46:22Z
+692	OPEN	[IEEE 1800] §15.3.1 — Negative initial keyCount in semaphore new() wraps to unsigned keys	1800-audit	2026-10-19T11:58:01Z
+787	OPEN	[IEEE 1800] §20.2 — $finish(2) prints no memory or CPU statistics	1800-audit	2026-10-20T07:11:11Z
+819	OPEN	[IEEE 1800] §6.7.1 — a net or input port with a two-state data type is accepted	1800-audit	2026-10-20T09:05:19Z
+700	OPEN	[IEEE 1800] §14.3 — Support endclocking matching identifier label	1800-audit	2026-10-19T18:28:25Z
+484	OPEN	[IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements		2026-10-08T15:26:07Z
+622	OPEN	[IEEE 1800] §19.8 — get_inst_coverage(ref int, ref int) does not assign covered/total bin counts	1800-audit	2026-10-20T14:48:35Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+766	OPEN	[IEEE 1800] §6.25 — a specialized class-scoped type (C#(T,N)::t) is rejected in variable, typedef and class-property declarations	1800-audit	2026-10-20T05:20:33Z
+779	OPEN	[IEEE 1800] §12.6.1 — the &&& filter on a pattern-matching case item is a syntax error	1800-audit	2026-10-20T06:03:13Z
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch	1800-audit	2026-10-19T16:02:17Z
+725	OPEN	[IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations	1800-audit	2026-10-19T22:21:21Z
+825	OPEN	[IEEE 1800] §25.6 — a specify path whose terminals are interface signals is rejected as an invalid simple path	1800-audit	2026-10-20T09:24:41Z
+679	CLOSED	[IEEE 1800] default clocking for sampled-value functions in procedural event controls	from-caliptra-dv	2026-10-20T10:06:27Z
+503	CLOSED	[IEEE 1800] §7.4.6 — Preserve wide unsigned indices on fixed string-array reads		2026-10-08T15:33:21Z
+508	CLOSED	[IEEE 1800] §19.6.1.2 — Implement cross-bin matches thresholds		2026-10-09T14:17:58Z
+509	CLOSED	[IEEE 1800] §19.6.1.2 — Evaluate cross with predicates over wildcard-bin values		2026-10-09T14:17:59Z
+502	CLOSED	[IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions		2026-10-09T07:47:17Z
+474	CLOSED	[IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads		2026-10-15T04:26:17Z
+545	CLOSED	[Icarus] Caliptra clock generator is rejected without a timescale	from-caliptra-dv	2026-10-16T15:38:25Z
+496	CLOSED	[IEEE 1800] §§16.5.1/16.9.3 — Sample procedural `$past` operands in the Preponed region		2026-10-09T11:45:07Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+667	CLOSED	from-caliptra-dv: wide automatic coverpoint bins fail elaboration	from-caliptra-dv	2026-10-20T14:39:58Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)		2026-07-21T16:21:35Z
+103	CLOSED	`this` is null in a nested detached (join_none) fork body → m7 phase-hopper never all-drops		2026-07-21T14:44:47Z
+41	CLOSED	Phase 69: Streaming LHS, packed-struct defaults, array slices		2026-05-06T03:42:39Z
+17	CLOSED	Phase 13: Clocking blocks and program blocks		2026-04-27T18:23:24Z
+9	CLOSED	Phase 1d: Sequencer/driver TLM dispatch and analysis port write		2026-04-24T22:49:21Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+
+$ gh issue list --repo dsellerbrock/iverilog-uvm --state all --limit 50 --search "two default items distribution"

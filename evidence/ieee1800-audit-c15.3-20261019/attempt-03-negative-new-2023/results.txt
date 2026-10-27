@@ -1,0 +1,22 @@
+RESULT: new(-1) initial try_get(1) returned 1 (expected 0)
+RESULT: after put(1) try_get(1) returned 1 (expected 0)
+RESULT: after second put(1) try_get(1) returned 1 (expected 1)
+tests/1800_audit/c15/p15_03_semaphore_neg_new_2023.sv:19: $finish called at 0 (1s)
+        0.14 real         0.02 user         0.03 sys
+             6635520  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2969  page reclaims
+                 319  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  54  voluntary context switches
+                 365  involuntary context switches
+            27283173  instructions retired
+            13878569  cycles elapsed
+             1556864  peak memory footprint

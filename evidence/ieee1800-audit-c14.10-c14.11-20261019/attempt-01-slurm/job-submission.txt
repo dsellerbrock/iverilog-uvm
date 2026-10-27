@@ -1,0 +1,5 @@
+Superseded jobs: 3164 and 3165 (canceled before leaving PENDING)
+Slurm job ID: 3166
+Dependency: afterany:3161 (full T2 batch gate)
+Submitted: 2026-10-19
+State at submission: PENDING, waiting for job 3161

@@ -1,0 +1,2 @@
+input/N3a_named_property_procedural.sv:13: error: Unable to bind wire/reg/memory `q1' in `tb'
+1 error(s) during elaboration.

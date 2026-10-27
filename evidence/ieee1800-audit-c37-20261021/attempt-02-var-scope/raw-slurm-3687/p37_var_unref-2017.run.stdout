@@ -1,0 +1,10 @@
+port=a direction=1 size=1
+port=y direction=2 size=4
+port_count=2
+parameter=P value=7
+parameter_p_count=1
+variables_count=0
+reg=y size=4
+regs_count=1
+child=p37.u def=sub instance=<null> scope=p37 module=p37
+child_u_count=1

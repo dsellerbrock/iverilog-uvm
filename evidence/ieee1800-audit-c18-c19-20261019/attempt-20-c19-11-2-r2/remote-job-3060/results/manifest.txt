@@ -1,0 +1,10 @@
+job_id=3060
+host=DAN-DESKTOP
+started=2026-10-19T04:31:01-06:00
+main_commit=cae035642e056644274a01e98d4422ce286685b4
+iverilog=Icarus Verilog version 13.0 (devel) (cae03564)
+vvp=Icarus Verilog runtime version 13.0 (devel) (cae03564)
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+ca19eaee0f715726d78b534945126a30832e4bf5e0bc218b8dd012d1da1604ec  /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-11-2-r2-20261019/input/n19_11_2_two_arg_cross.sv
+429a71ef05e8e9d5b8e69adb44610a1b1204355d815366ec718262bb23cb71fc  /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-11-2-r2-20261019/input/p19_11_2_cross_computation.sv

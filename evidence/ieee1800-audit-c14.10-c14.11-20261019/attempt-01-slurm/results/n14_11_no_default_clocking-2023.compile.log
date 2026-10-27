@@ -1,0 +1,2 @@
+tests/1800_audit/c14/neg/n14_11_no_default_clocking.sv:2: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+Elaboration failed

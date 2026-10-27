@@ -1,0 +1,3 @@
+Warning: a joint randomization component is too large to enumerate exactly; it is sampled against the hard constraints, not uniformly over its solutions (further similar warnings suppressed).
+Command exited with non-zero status 124
+elapsed_seconds=300.12 max_rss_kib=41748

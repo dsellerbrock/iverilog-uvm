@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_finish_stats.sv",
+  "iverilog-args": ["-g2023", "-s", "sv_finish_stats"],
+  "output-contains": [
+    "$finish(2) called at 3 (1s)",
+    "seconds,",
+    "KBytes size/rss/shared"
+  ]
+}

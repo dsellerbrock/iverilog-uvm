@@ -1,0 +1,24 @@
+g2017 compile rc=0
+FAIL repeat_x
+RESULT pass=23 fail=1
+g2023 compile rc=0
+FAIL repeat_x
+RESULT pass=23 fail=1
+        0.35 real         0.14 user         0.11 sys
+             8159232  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               14858  page reclaims
+                 638  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   4  signals received
+                 119  voluntary context switches
+                 733  involuntary context switches
+            75122746  instructions retired
+            31097228  cycles elapsed
+             2474464  peak memory footprint

@@ -1,0 +1,23 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+=== p16_09_02_consecutive_rep -g2017 ===
+PASS: p16_09_02_consecutive_rep -g2017
+PASSED: consecutive exact and range repetition
+=== p16_09_02_goto_rep -g2017 ===
+GAP: runtime failed p16_09_02_goto_rep -g2017 (exit 1)
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.2-20261019-a02/input/p16_09_02_goto_rep.sv:21: cycles=8 goto pass/fail=7/1
+       Time: 80000  Scope: test
+=== p16_09_02_nonconsecutive_rep -g2017 ===
+PASS: p16_09_02_nonconsecutive_rep -g2017
+PASSED: nonconsecutive repetition extends through two false ticks
+=== p16_09_02_consecutive_rep -g2023 ===
+PASS: p16_09_02_consecutive_rep -g2023
+PASSED: consecutive exact and range repetition
+=== p16_09_02_goto_rep -g2023 ===
+GAP: runtime failed p16_09_02_goto_rep -g2023 (exit 1)
+FATAL: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.2-20261019-a02/input/p16_09_02_goto_rep.sv:21: cycles=8 goto pass/fail=7/1
+       Time: 80000  Scope: test
+=== p16_09_02_nonconsecutive_rep -g2023 ===
+PASS: p16_09_02_nonconsecutive_rep -g2023
+PASSED: nonconsecutive repetition extends through two false ticks

@@ -1,0 +1,14 @@
+[
+  {
+    "number": 770,
+    "state": "OPEN",
+    "title": "[IEEE 1800] §11.3.1 — real operands of % and %= are accepted and a floating-point remainder is computed",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/770"
+  },
+  {
+    "number": 771,
+    "state": "OPEN",
+    "title": "[IEEE 1800] §11.3.1 — real operands of ~, <<= and &= crash the compiler",
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/issues/771"
+  }
+]

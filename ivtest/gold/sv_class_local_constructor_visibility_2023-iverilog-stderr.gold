@@ -1,0 +1,2 @@
+ivltests/sv_class_local_constructor_visibility_2023.v:16: error: Local constructor of class `K` is not accessible in this context.
+1 error(s) during elaboration.

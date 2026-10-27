@@ -1,0 +1,4 @@
+input/s2_parameterized_static_assign.sv:7: internal error: cannot synthesize expression: <null>
+input/s2_parameterized_static_assign.sv:7: error: Unable to synthesize port 0 of call to f.
+input/s2_parameterized_static_assign.sv:7: internal error: Failed to synthesize expression: s2_parameterized_static_assign._ivl_0.f(<null>, x[3:0])
+3 error(s) during elaboration.

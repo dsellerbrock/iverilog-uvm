@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_17_f.sv:1: error: a value of type 0 cannot be used in a vector context (further occurrences of this type are not reported).
+error: Code generation had 2 error(s).

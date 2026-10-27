@@ -1,0 +1,3 @@
+K2 FAIL 5
+K2 FAIL 25
+input/K2_standard_a3.sv:7: $finish called at 40 (1ns)

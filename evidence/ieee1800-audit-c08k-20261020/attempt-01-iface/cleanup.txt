@@ -1,0 +1,1 @@
+After copying the source snapshots, toolchain hashes, compiler version, timestamps, result tables, full command logs and Slurm stdout, job 3492 was no longer queued or running. Removed only /home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface (83,364 bytes). Shared toolchain inputs were left untouched.

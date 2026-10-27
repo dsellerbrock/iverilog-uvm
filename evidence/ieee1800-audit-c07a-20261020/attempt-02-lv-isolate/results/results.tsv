@@ -1,0 +1,13 @@
+edition	case	compile_rc	run_rc	stdout_match
+2017	lv1	2	NA	COMPILE_FAILED
+2017	lv2	0	0	YES
+2017	lv3	0	0	YES
+2017	lv4	0	0	YES
+2017	lv5	2	NA	COMPILE_FAILED
+2017	queue_size	0	0	NO
+2023	lv1	2	NA	COMPILE_FAILED
+2023	lv2	0	0	YES
+2023	lv3	0	0	YES
+2023	lv4	0	0	YES
+2023	lv5	2	NA	COMPILE_FAILED
+2023	queue_size	0	0	NO

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_output_clockvar_variable_drivers_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_output_clockvar_variable_drivers_fail"],
+  "gold": "sv_output_clockvar_variable_drivers_fail"
+}

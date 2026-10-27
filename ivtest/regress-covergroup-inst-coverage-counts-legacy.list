@@ -1,0 +1,2 @@
+sv_covergroup_inst_coverage_counts_2017 normal,-g2017 ivltests gold=sv_covergroup_inst_coverage_counts_2017.gold
+sv_covergroup_inst_coverage_counts_2023 normal,-g2023 ivltests gold=sv_covergroup_inst_coverage_counts_2023.gold

@@ -1,0 +1,5 @@
+--- /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/expected.txt	2026-10-20 14:37:45.915642080 -0600
++++ /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/results/logs/g2023.stdout.log	2026-10-20 14:37:47.110295950 -0600
+@@ -1 +1,2 @@
+ DPI BASIC TEST: PASS (6/6)
++/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/dpi_basic_test.sv:24: $finish called at 0 (1s)

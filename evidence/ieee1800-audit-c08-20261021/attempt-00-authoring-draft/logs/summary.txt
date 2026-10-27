@@ -1,0 +1,20 @@
+
+=== p08_12_shallow_s1_base (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+=== p08_12_shallow_s2_derived (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+=== p08_12_shallow_s3_base_handle (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+=== p08_12_shallow_s4_members (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+=== p08_12_shallow_s5_access (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+=== p08_12_shallow_s6_parameterized (-g2012; closest supported mode; per-test timeout 60s) ===
+exit=
+
+outputs=/tmp/a3-c08-shallow-1792580420

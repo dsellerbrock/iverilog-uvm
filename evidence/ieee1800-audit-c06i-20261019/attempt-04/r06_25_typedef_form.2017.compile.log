@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_25_typedef_form.sv:2: syntax error
+tests/1800_audit/c06/r06_25_typedef_form.sv:2: error: Syntax error in typedef clause.

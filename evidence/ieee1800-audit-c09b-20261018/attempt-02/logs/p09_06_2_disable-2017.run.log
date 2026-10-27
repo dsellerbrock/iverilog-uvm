@@ -1,0 +1,13 @@
+PASS 9.6.2.self_disable_skips_rest
+PASS 9.6.2.forward_goto_style
+PASS 9.6.2.disable_task_from_inside
+PASS 9.6.2.task_continues_when_not_disabled
+PASS 9.6.2.disable_acts_as_continue_and_break
+PASS 9.6.2.disable_idle_block_is_noop
+PASS 9.6.2.disable_task_all_activations
+PASS 9.6.2.disable_in_fork_terminates_join
+PASS 9.6.2.monostable_set
+PASS 9.6.2.monostable_retrigger_extends
+PASS 9.6.2.monostable_expires
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt02/input/p09_06_2_disable.sv:43: $finish called at 352 (1s)

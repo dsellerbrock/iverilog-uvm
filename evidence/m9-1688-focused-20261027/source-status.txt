@@ -1,0 +1,3 @@
+## HEAD (no branch)
+?? BASE_SHA
+?? build.log

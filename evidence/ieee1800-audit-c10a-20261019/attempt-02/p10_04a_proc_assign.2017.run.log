@@ -1,0 +1,2 @@
+RESULT pass=9 fail=0
+tests/1800_audit/c10/p10_04a_proc_assign.sv:31: $finish called at 20 (1s)

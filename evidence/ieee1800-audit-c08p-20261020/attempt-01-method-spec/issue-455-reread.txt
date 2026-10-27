@@ -1,0 +1,37 @@
+#455 [CLOSED] [IEEE 1800] §8 — Implement method override specifiers
+## Gap
+
+The 2023 survey records method :extends/:initial/:final override specifiers as unsupported. Parse, elaborate, and validate each specifier against the inherited method relationship; retain strict edition behavior.
+
+## Acceptance
+
+- Verify and cite the exact applicable IEEE 1800 subclause(s); compare 2017 and 2023 wording where relevant and preserve edition-specific acceptance/rejection.
+- Add self-authored minimal positive, negative, and boundary regressions; register applicable cases in both the legacy and JSON runners.
+- Run focused legacy and JSON tests plus neighboring cases, then update the conformance matrix with the tested boundary and evidence.
+- Any PR for this issue must target `main` and must not merge until required CI checks pass on that exact PR head.
+
+## Scope
+
+IEEE language/runtime support only. Do not patch OpenTitan or Caliptra application sources as a substitute for compiler behavior.
+
+Source: [current conformance record](https://github.com/dsellerbrock/iverilog-uvm/blob/main/docs/conformance/ieee1800_2023_delta.md).
+
+COMMENTS:
+Verified fixed on current main `7f35ca38c86723ab40e6ebfe9fd77259827e23f9`; the Icarus and VVP binary SHA256 values are `4d802c652934339585cbaa4a34dd99ef319a74a6bf02bdfea99581b57f65b201` and `ad8849fb8584834982b45bf295f0fa65a2bd7172248e884cd4cd8776a08c3550`.
+
+IEEE 1800-2023 §8.20's method override specifiers are accepted in 2023 mode and rejected in 2017 mode. Reproducer command:
+
+```sh
+iverilog -g2023 -s test -o /tmp/override.vvp ivtest/ivltests/sv_method_override_specifiers_2023.v
+vvp /tmp/override.vvp
+```
+
+It exits 0 and prints:
+
+```text
+derived task
+PASSED
+```
+
+The same source under `-g2017` is rejected with `method override specifiers requires IEEE1800-2023`. The 10 registered invalid-boundary cases reject in 2023 mode, and the existing positive/negative cluster is already registered in both legacy and JSON T1 lists. Slurm job 1130 ran all 12 sources in both editions; result table and logs are preserved in A3's `issue455-method-override` evidence directory. Closing as completed.
+

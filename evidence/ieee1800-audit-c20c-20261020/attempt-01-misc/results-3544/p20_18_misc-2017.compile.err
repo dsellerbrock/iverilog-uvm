@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-misc-20261020-01/source/p20_18_misc.sv:5: error: the $stacktrace system task or function requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-misc-20261020-01/source/p20_18_misc.sv:6: error: the $stacktrace system task or function requires IEEE1800-2023; compile with -g2023 (or -glatest).
+2 error(s) during elaboration.

@@ -1,0 +1,4 @@
+p31_tchk.sv:5: Timing violation: $setup check in p31_tchk.u at time 10
+p31_tchk.sv:6: Timing violation: $hold check in p31_tchk.u at time 11
+p31_tchk.sv:7: Timing violation: $width check in p31_tchk.u at time 22
+N 3 1

@@ -1,0 +1,5 @@
+SUB2 p1=3 bits=32
+SUB2 p1=1 bits=16
+SUB3 A=10 B=11 C=7
+INFO const_auto=8 (expect 8)
+RESULT pass=5 fail=0

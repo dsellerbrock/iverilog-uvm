@@ -1,3 +1,5 @@
+// Expected compile errors: every force/release target below is a part-select of a variable,
+// which IEEE 1800-2023 10.6.2 prohibits. Legal net part-select forces: sv_packed_subfield_release.
 module sv_force_partial_live_overlap;
   logic [15:0] value;
   logic [7:0] older_source;

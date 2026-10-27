@@ -1,0 +1,4 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_missing.sv:2: error: `zz` has not been imported from p1.

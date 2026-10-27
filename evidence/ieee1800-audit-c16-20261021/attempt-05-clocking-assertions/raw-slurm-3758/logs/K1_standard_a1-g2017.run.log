@@ -1,0 +1,2 @@
+K1 FAIL 15
+input/K1_standard_a1.sv:7: $finish called at 40 (1ns)

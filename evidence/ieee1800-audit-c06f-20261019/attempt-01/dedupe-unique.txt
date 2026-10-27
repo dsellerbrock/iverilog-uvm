@@ -1,0 +1,23 @@
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+30	CLOSED	Phase 59: UVM port-imp virtual dispatch (seq_item_port.try_next_item)		2026-04-30T22:59:47Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+477	CLOSED	[IEEE 1800] §§13.5.2/6.22.2 — Reject non-equivalent ref actual types		2026-10-13T06:27:28Z
+483	CLOSED	[IEEE 1800] §13.5.2 — Allow const-ref forwarding to const-ref formals		2026-10-15T03:25:21Z
+485	OPEN	[IEEE 1800] §§7.6/7.8 — Validate variable-size associative pattern values transactionally		2026-10-08T15:24:54Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+544	CLOSED	[IEEE 1800] §7.4 — Accept multidimensional fixed arrays as open-array actuals	enhancement	2026-10-12T19:31:52Z
+611	OPEN	[IEEE 1800] §8.5 — Accept class-scoped type parameter as cast type (C#(3)::T'(x))	1800-audit	2026-10-17T18:51:24Z
+616	OPEN	[IEEE 1800] §8.12 — Shallow copy through base handle of derived object aborts vvp	1800-audit	2026-10-17T18:59:04Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+650	OPEN	[IEEE 1800] §9.4.2 — Built-in array method call (size()) in an event control expression fails to elaborate	1800-audit	2026-10-18T05:13:07Z
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members	from-caliptra-dv	2026-10-20T00:37:55Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+671	OPEN	from-caliptra-dv: dynamic-array slice assignments in class properties	bug, from-caliptra-dv	2026-10-19T17:29:54Z
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+725	OPEN	[IEEE 1800] §16.12.18 — Support typed formal arguments and default values in property declarations	1800-audit	2026-10-19T22:21:21Z
+728	OPEN	[IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays	1800-audit	2026-10-19T22:48:15Z
+743	OPEN	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:24:01Z
+745	CLOSED	[IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning	1800-audit	2026-10-20T04:26:37Z

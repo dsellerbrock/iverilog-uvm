@@ -1,0 +1,4 @@
+503	CLOSED	[IEEE 1800] §7.4.6 — Preserve wide unsigned indices on fixed string-array reads
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)

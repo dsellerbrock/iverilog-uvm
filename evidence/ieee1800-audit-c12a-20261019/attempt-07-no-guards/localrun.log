@@ -1,0 +1,24 @@
+g2017 compile rc=2
+tests/1800_audit/c12/p12_05c_no_guards.sv:22: syntax error
+tests/1800_audit/c12/p12_05c_no_guards.sv:22: error: Malformed statement
+g2023 compile rc=2
+tests/1800_audit/c12/p12_05c_no_guards.sv:22: syntax error
+tests/1800_audit/c12/p12_05c_no_guards.sv:22: error: Malformed statement
+        1.31 real         0.18 user         0.10 sys
+            17170432  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               12016  page reclaims
+                 154  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  18  voluntary context switches
+                 554  involuntary context switches
+            66629900  instructions retired
+            32260805  cycles elapsed
+             2408928  peak memory footprint

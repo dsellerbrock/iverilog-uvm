@@ -1,0 +1,2 @@
+input/I3_interconnect_procedural_expression.sv:3: error: Interconnect net `n' may only be referenced in a net port connection.
+1 error(s) during elaboration.

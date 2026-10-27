@@ -1,0 +1,23 @@
+probe.sv:24: error: expression not valid as argument to inout port: 6'd42
+probe.sv:24: error: Inout port expression must support continuous assignment.
+probe.sv:24:      : Port 1 (x) of mh3 is connected to 6'd42
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             7012352  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2590  page reclaims
+                  15  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   7  voluntary context switches
+                  56  involuntary context switches
+            56691646  instructions retired
+            16928324  cycles elapsed
+             2327008  peak memory footprint
+exit_code=1

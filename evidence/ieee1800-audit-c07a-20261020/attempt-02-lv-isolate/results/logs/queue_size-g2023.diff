@@ -1,0 +1,10 @@
+--- /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/input/expected/full.txt	2026-10-20 11:16:26.510364255 -0600
++++ /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07a-20261020-02/results/logs/queue_size-g2023.stdout.log	2026-10-20 11:16:28.145547418 -0600
+@@ -15,6 +15,6 @@
+ P1 15 5
+ P2 60 4
+ P3 1 2 6
+-P4 0 0
++P4 0 x
+ B1 4 4
+ C1 5 7 1

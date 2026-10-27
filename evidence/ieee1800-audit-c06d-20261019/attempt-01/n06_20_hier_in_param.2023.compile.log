@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_hier_in_param.sv:1: error: A hierarchical reference (`m.A') is not allowed in a constant expression (a hierarchical parameter is accepted only under -gcommercial-unsafe).
+1 error(s) during elaboration.

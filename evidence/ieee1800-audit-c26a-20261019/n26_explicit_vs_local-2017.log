@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2: error: 'c' has already been declared in this scope.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_explicit_vs_local.sv:2:      : It was declared here as a variable.

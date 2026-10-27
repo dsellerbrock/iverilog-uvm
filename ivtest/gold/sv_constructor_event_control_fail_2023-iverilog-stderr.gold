@@ -1,0 +1,3 @@
+ivltests/sv_constructor_event_control_fail.v:5: error: functions cannot have event statements.
+ivltests/sv_constructor_event_control_fail.v:5: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.

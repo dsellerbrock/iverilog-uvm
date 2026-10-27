@@ -1,0 +1,5 @@
+edition	case	compile_rc	run_rc	result
+2017	procedural	2	NA	COMPILE_REJECTED
+2017	static_control	0	0	PASS
+2023	procedural	2	NA	COMPILE_REJECTED
+2023	static_control	0	0	PASS

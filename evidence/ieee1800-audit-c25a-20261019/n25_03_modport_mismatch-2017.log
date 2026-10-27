@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_modport_mismatch.sv:9: error: Interface port `p' of module `m' and its actual have incompatible interface definitions or modport selections (IEEE 1800-2017/2023 25.3/25.5).
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08l-20261020-iface-sub/input/n08_26_sub_m4_new_interface_handle.sv:7: error: Can not create object of virtual class `PutImp`.
+Elaboration failed

@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_real_concat.sv:1: error: Concatenation operand can not be real: r
+1 error(s) during elaboration.

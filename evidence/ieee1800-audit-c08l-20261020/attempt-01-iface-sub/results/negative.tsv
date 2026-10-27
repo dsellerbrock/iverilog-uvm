@@ -1,0 +1,13 @@
+edition	probe	compile_rc	expected	compile_sec	compile_kib
+2017	n08_26_sub_m1_type_not_inherited	1	expected-nonzero	0.01	12052
+2017	n08_26_sub_m2_implements_type_parameter	1	expected-nonzero	0.14	12096
+2017	n08_26_sub_m3_forward_interface_typedef	1	expected-nonzero	0.01	12104
+2017	n08_26_sub_m4_new_interface_handle	1	expected-nonzero	0.01	12048
+2017	n08_26_sub_m5_inherited_nonvirtual	1	expected-nonzero	0.01	12096
+2017	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12048
+2023	n08_26_sub_m1_type_not_inherited	1	expected-nonzero	0.01	12052
+2023	n08_26_sub_m2_implements_type_parameter	1	expected-nonzero	0.01	12052
+2023	n08_26_sub_m3_forward_interface_typedef	1	expected-nonzero	0.01	12104
+2023	n08_26_sub_m4_new_interface_handle	1	expected-nonzero	0.01	12100
+2023	n08_26_sub_m5_inherited_nonvirtual	1	expected-nonzero	0.01	12100
+2023	n08_26_sub_m6_nested_interface_class	1	expected-nonzero	0.01	12060

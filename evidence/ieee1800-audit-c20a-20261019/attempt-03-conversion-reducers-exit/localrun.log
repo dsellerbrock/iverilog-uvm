@@ -1,0 +1,450 @@
+== p20_03b_time_conv g2017 compile rc=2
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:14: warning: Unable to bind wire/reg/memory `LP' in `p20a' (compile-progress: unresolved reference).
+2 error(s) during elaboration.
+        0.04 real         0.01 user         0.01 sys
+             5849088  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1574  page reclaims
+                 262  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   9  voluntary context switches
+                 249  involuntary context switches
+            20083417  instructions retired
+             9654712  cycles elapsed
+             1245544  peak memory footprint
+== r20_05_k_c1 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4489216  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1745  page reclaims
+                  14  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                 113  involuntary context switches
+            19448815  instructions retired
+             7718530  cycles elapsed
+             1245544  peak memory footprint
+== r20_05_k_c2 g2017 compile rc=0
+r20_05_k_c2 g2017 run rc=0
+WARNING: tests/1800_audit/c20/r20_05_k_c2.sv:1: missing argument for $display<%0f>.
+c2 7 <%0f>
+        0.01 real         0.00 user         0.00 sys
+             5177344  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 605  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   2  voluntary context switches
+                  32  involuntary context switches
+            85194914  instructions retired
+            25584023  cycles elapsed
+             2670976  peak memory footprint
+== r20_05_k_c3 g2017 compile rc=0
+r20_05_k_c3 g2017 run rc=134
+sorry: Format 4 not implemented for getting real values.
+Assertion failed: (0), function vpip_real_get_value, file vpi_priv.cc, line 1032.
+time: command terminated abnormally
+        0.05 real         0.00 user         0.00 sys
+             5046272  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 560  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  36  involuntary context switches
+            72947019  instructions retired
+            25714156  cycles elapsed
+             2605464  peak memory footprint
+== r20_05_k_c4 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+1 error(s) during elaboration.
+        0.05 real         0.01 user         0.01 sys
+             4620288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1752  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  11  voluntary context switches
+                  77  involuntary context switches
+            19214786  instructions retired
+             9706309  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c5 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+1 error(s) during elaboration.
+        0.17 real         0.01 user         0.01 sys
+             4587520  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1749  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                 175  involuntary context switches
+            19374382  instructions retired
+            10006055  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c6 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4489216  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1744  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                 287  involuntary context switches
+            20407663  instructions retired
+            10024781  cycles elapsed
+             1245544  peak memory footprint
+== r20_05_k_c7 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+1 error(s) during elaboration.
+        0.09 real         0.01 user         0.01 sys
+             4489216  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1745  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                  51  involuntary context switches
+            19123680  instructions retired
+            10354847  cycles elapsed
+             1261928  peak memory footprint
+== r20_02_exit g2017 compile rc=0
+r20_02_exit g2017 run rc=0
+EX0
+        0.01 real         0.00 user         0.00 sys
+             5111808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 612  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  71  involuntary context switches
+            78876989  instructions retired
+            21293355  cycles elapsed
+             2670976  peak memory footprint
+== r20_02_exit_in_program g2017 compile rc=0
+r20_02_exit_in_program g2017 run rc=0
+        0.01 real         0.00 user         0.00 sys
+             5095424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 616  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  29  involuntary context switches
+            79151414  instructions retired
+            26904864  cycles elapsed
+             2670976  peak memory footprint
+== p20_03b_time_conv g2023 compile rc=2
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:6: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: warning: Unable to bind wire/reg/memory `pp' in `p20a' (compile-progress: unresolved reference).
+tests/1800_audit/c20/p20_03b_time_conv.sv:7: error: Unable to elaborate (or evaluate) delay expression.
+tests/1800_audit/c20/p20_03b_time_conv.sv:14: warning: Unable to bind wire/reg/memory `LP' in `p20a' (compile-progress: unresolved reference).
+2 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             5816320  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1829  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                  85  involuntary context switches
+            19987355  instructions retired
+            10519197  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c1 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+1 error(s) during elaboration.
+        0.02 real         0.01 user         0.01 sys
+             4489216  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1741  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   7  voluntary context switches
+                  32  involuntary context switches
+            19480141  instructions retired
+            10136354  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c2 g2023 compile rc=0
+r20_05_k_c2 g2023 run rc=0
+WARNING: tests/1800_audit/c20/r20_05_k_c2.sv:1: missing argument for $display<%0f>.
+c2 7 <%0f>
+        0.01 real         0.00 user         0.00 sys
+             5193728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 618  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  21  involuntary context switches
+            78107137  instructions retired
+            20650248  cycles elapsed
+             2687360  peak memory footprint
+== r20_05_k_c3 g2023 compile rc=0
+r20_05_k_c3 g2023 run rc=134
+sorry: Format 4 not implemented for getting real values.
+Assertion failed: (0), function vpip_real_get_value, file vpi_priv.cc, line 1032.
+time: command terminated abnormally
+        0.05 real         0.00 user         0.00 sys
+             5013504  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 556  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  26  involuntary context switches
+            72786408  instructions retired
+            25690084  cycles elapsed
+             2572696  peak memory footprint
+== r20_05_k_c4 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4571136  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1752  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   8  voluntary context switches
+                  69  involuntary context switches
+            19362313  instructions retired
+             8838082  cycles elapsed
+             1245544  peak memory footprint
+== r20_05_k_c5 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+1 error(s) during elaboration.
+        0.15 real         0.01 user         0.01 sys
+             4603904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1759  page reclaims
+                  17  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   6  voluntary context switches
+                  63  involuntary context switches
+            19037448  instructions retired
+            10692479  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c6 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+1 error(s) during elaboration.
+        0.03 real         0.01 user         0.01 sys
+             4538368  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1746  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  50  involuntary context switches
+            18998493  instructions retired
+             9525527  cycles elapsed
+             1261928  peak memory footprint
+== r20_05_k_c7 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+1 error(s) during elaboration.
+        0.06 real         0.01 user         0.01 sys
+             4505600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1743  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   3  voluntary context switches
+                  92  involuntary context switches
+            20703009  instructions retired
+            10550132  cycles elapsed
+             1245544  peak memory footprint
+== r20_02_exit g2023 compile rc=0
+r20_02_exit g2023 run rc=0
+EX0
+        0.02 real         0.00 user         0.00 sys
+             5128192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 616  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  12  involuntary context switches
+            77713866  instructions retired
+            26816698  cycles elapsed
+             2687360  peak memory footprint
+== r20_02_exit_in_program g2023 compile rc=0
+r20_02_exit_in_program g2023 run rc=0
+        0.01 real         0.00 user         0.00 sys
+             5095424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 614  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  51  involuntary context switches
+            78504245  instructions retired
+            27887480  cycles elapsed
+             2670976  peak memory footprint
+        2.95 real         0.67 user         1.00 sys
+            18530304  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               99519  page reclaims
+                1138  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  45  signals received
+                 662  voluntary context switches
+                5337  involuntary context switches
+           204106082  instructions retired
+           122101486  cycles elapsed
+             2556384  peak memory footprint

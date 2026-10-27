@@ -1,0 +1,19 @@
+Q aa_low=0 exp 2
+        0.01 real         0.00 user         0.00 sys
+             6602752  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 699  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                   6  involuntary context switches
+            78397729  instructions retired
+            26075069  cycles elapsed
+             3785088  peak memory footprint

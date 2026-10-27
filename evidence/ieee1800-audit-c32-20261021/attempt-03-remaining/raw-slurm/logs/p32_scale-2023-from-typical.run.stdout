@@ -1,0 +1,5 @@
+SDF WARNING: p32_scale.sv:13: $sdf_annotate currently only uses the first two argument.
+Y 1 0
+Y 12 1
+Y 35 0
+p32_scale.sv:16: $finish called at 60 (1ns)

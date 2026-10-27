@@ -1,0 +1,4 @@
+input/s1_plain_static_assign.sv:7: internal error: cannot synthesize expression: <null>
+input/s1_plain_static_assign.sv:7: error: Unable to synthesize port 0 of call to f.
+input/s1_plain_static_assign.sv:7: internal error: Failed to synthesize expression: s1_plain_static_assign.C.f(<null>, x)
+3 error(s) during elaboration.

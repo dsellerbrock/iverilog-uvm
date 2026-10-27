@@ -1,0 +1,5 @@
+R1 1
+R2 1
+F1 0
+F2 0
+p32_order.sv:19: $finish called at 28500 (1ps)

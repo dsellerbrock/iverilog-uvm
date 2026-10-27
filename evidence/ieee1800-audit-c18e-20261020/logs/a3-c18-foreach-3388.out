@@ -1,0 +1,8 @@
+edition	probe	compile_rc	run_rc
+2017	p18_05_foreach	0	0
+2023	p18_05_foreach	0	0
+edition	probe	compile_rc	first_diagnostic
+2017	neg_n18_foreach_samename	0	
+2017	neg_n18_foreach_toomany	0	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-foreach-20261020-1/input/neg_n18_foreach_toomany.sv:1: warning: Constraint item in 'c' of class C is not representable in the constraint solver; randomize() of this class will fail.
+2023	neg_n18_foreach_samename	0	
+2023	neg_n18_foreach_toomany	0	/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-foreach-20261020-1/input/neg_n18_foreach_toomany.sv:1: warning: Constraint item in 'c' of class C is not representable in the constraint solver; randomize() of this class will fail.

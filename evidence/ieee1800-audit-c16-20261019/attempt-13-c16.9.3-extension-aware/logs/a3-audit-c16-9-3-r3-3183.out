@@ -1,0 +1,71 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+e5458e314693c5bb1ec17ba11129f1128ca3904643b350570a1a6a59827be172  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv
+982dc8934031b6c545678d491f253287296a74f4632821c62bacec3a61b3d3bf  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sampled_preponed.sv
+a4276fd03afd3019d5e3d5c4c0795d46bfa5996e239c0af6d09dbb0902f724c6  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_assert_multiclock_sampled_values.v
+a52039d94235c115e9910ca6b3595b6f4a373e8a9647af6c8469849f00e95e52  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_clocking_input_unsupported.v
+1ca6c1ca495c644b8ec5bc6697f837a079bf390e74d2758a0f8d356fba3ec7f2  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_default_clocking.v
+1f62b7076a30ef267d057356db4e12c242afc407790dff693842424dbb815189  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_explicit_clock.v
+4c241378e90a1fa28193530592e705125b870f1f0fbe0a7160b562aa6c8528e0  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_preponed_writer_first.v
+705d90dd999583dc3b6b9ef6b22ff72e54e420b746fdea0cce877565920f7b92  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_procedural.v
+=== sv_sampled_value_procedural -g2017 ===
+PASS: sv_sampled_value_procedural -g2017
+PASSED
+=== sv_sampled_value_default_clocking -g2017 ===
+PASS: sv_sampled_value_default_clocking -g2017
+PASSED
+=== sv_sampled_value_explicit_clock -g2017 ===
+PASS: sv_sampled_value_explicit_clock -g2017
+PASSED
+=== sv_sampled_value_preponed_writer_first -g2017 ===
+PASS: sv_sampled_value_preponed_writer_first -g2017
+PASSED
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_preponed_writer_first.v:70: $finish called at 36 (1s)
+=== sv_assert_multiclock_sampled_values -g2017 ===
+PASS: sv_assert_multiclock_sampled_values -g2017
+PASSED
+=== sampled_preponed -g2017 ===
+PASS: sampled_preponed -g2017
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+procedural live: 11 (expect 11)
+sampled: good=7 bad=0 (expect 7/0)
+=== diagnostic sv_sampled_value_clocking_input_unsupported -g2017 ===
+compile_exit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_clocking_input_unsupported.v:14: sorry: procedural sampled-value expression has 1 operand(s) that cannot be lowered with the required IEEE 1800-2017 16.5.1 sampling/lifetime rules.
+=== diagnostic n16_09_03_missing_clock -g2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv:4: warning: this sampled value function has no clocking event to sample on (IEEE 1800-2017 16.9.3): it is not inside a concurrent assertion, not inside an edge-triggered always block, and the module declares no default clocking. It falls back to the unsampled value -- $past returns the current value and $rose/$fell return 0.
+run_exit=0
+NO_CLOCK_PAST=00000000000000000000000000000001
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv:5: $finish called at 0 (1s)
+=== sv_sampled_value_procedural -g2023 ===
+PASS: sv_sampled_value_procedural -g2023
+PASSED
+=== sv_sampled_value_default_clocking -g2023 ===
+PASS: sv_sampled_value_default_clocking -g2023
+PASSED
+=== sv_sampled_value_explicit_clock -g2023 ===
+PASS: sv_sampled_value_explicit_clock -g2023
+PASSED
+=== sv_sampled_value_preponed_writer_first -g2023 ===
+PASS: sv_sampled_value_preponed_writer_first -g2023
+PASSED
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_preponed_writer_first.v:70: $finish called at 36 (1s)
+=== sv_assert_multiclock_sampled_values -g2023 ===
+PASS: sv_assert_multiclock_sampled_values -g2023
+PASSED
+=== sampled_preponed -g2023 ===
+PASS: sampled_preponed -g2023
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+procedural live: 11 (expect 11)
+sampled: good=7 bad=0 (expect 7/0)
+=== diagnostic sv_sampled_value_clocking_input_unsupported -g2023 ===
+compile_exit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/sv_sampled_value_clocking_input_unsupported.v:14: sorry: procedural sampled-value expression has 1 operand(s) that cannot be lowered with the required IEEE 1800-2017 16.5.1 sampling/lifetime rules.
+=== diagnostic n16_09_03_missing_clock -g2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv:4: warning: this sampled value function has no clocking event to sample on (IEEE 1800-2017 16.9.3): it is not inside a concurrent assertion, not inside an edge-triggered always block, and the module declares no default clocking. It falls back to the unsampled value -- $past returns the current value and $rose/$fell return 0.
+run_exit=0
+NO_CLOCK_PAST=00000000000000000000000000000001
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a04/input/n16_09_03_missing_clock.sv:5: $finish called at 0 (1s)

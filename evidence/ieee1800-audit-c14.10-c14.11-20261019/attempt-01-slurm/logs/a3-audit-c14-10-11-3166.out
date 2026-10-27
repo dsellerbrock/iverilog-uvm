@@ -1,0 +1,21 @@
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+PASS: p14_10_clocking_event -g2017
+PASS: p14_11_cycle_delay -g2017
+FAIL run expected pass: p14_11_zero_cycle_delay_bare -g2017
+PASS: p14_11_zero_cycle_delay_after_event -g2017
+OBSERVED: p14_11_zero_cycle_delay_expr -g2017 accepted; runtime did not pass zero-delay suspension
+REJECTED: n14_11_no_default_clocking -g2017 (exit 1)
+REJECTED: n14_11_intra_assignment_delay -g2017 (exit 2)
+PASS: p14_10_clocking_event -g2023
+PASS: p14_11_cycle_delay -g2023
+FAIL run expected pass: p14_11_zero_cycle_delay_bare -g2023
+PASS: p14_11_zero_cycle_delay_after_event -g2023
+FAIL run expected pass: p14_11_zero_cycle_delay_expr -g2023
+REJECTED: n14_11_no_default_clocking -g2023 (exit 1)
+REJECTED: n14_11_intra_assignment_delay -g2023 (exit 2)

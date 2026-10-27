@@ -1,0 +1,95 @@
+job_id=3187
+host=DAN-DESKTOP
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T15:13:17-06:00
+07771a3c9a4536a1d1734a6e7eb5bb8274fd9365340488778c94a8f21121ee1c  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv
+ed7de1b1a336a6e6d1dcfd1dc3a9bb4e08cfcb5ee4ddc29edf7804145427a96e  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_past_gclk_procedural.sv
+32efaebdb61e83fbf280e54a137878394839915e124136b02fecc47b8d6b945b  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_future_gclk_procedural.sv
+292815a00d97f4699a8d3c584b240c9c81fe096495a31a9688625b773b6a7896  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_nested_future_gclk.sv
+029ee75a08155244b9c422409ea07a8613cfa10588f65da9de89956fb6476a68  /home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_no_global_clock.sv
+f958f85546420cdaf3c67d73e7c377e63a55a3df9c4dca6de16955e81000b818  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/iverilog
+b0e2b7f230be80efe2e04b28ad5a688c46f93eaad692d34bfe27895a61983be6  /home/dsell/toolchains/iverilog-a3-audit-c16-9-4-c31cbf1b-f958f855-b0e2b7f2/bin/vvp
+compile_exit=0
+run_exit=2
+
+=== p16_09_04_future_gclk-2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/p16_09_04_future_gclk-2017.vvp: Program not runnable, 2 errors.
+run_exit=2
+compile_exit=0
+run_exit=1
+
+=== p16_09_04_past_gclk_procedural-2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_past_gclk_procedural.sv:16: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/p16_09_04_past_gclk_procedural-2017.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=1
+
+=== n16_09_04_no_global_clock-2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_no_global_clock.sv:7: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_no_global_clock-2017.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=1
+
+=== n16_09_04_future_gclk_procedural-2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_future_gclk_procedural.sv:9: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_future_gclk_procedural-2017.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=2
+
+=== n16_09_04_nested_future_gclk-2017 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_nested_future_gclk.sv:7: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_nested_future_gclk.sv:7: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_nested_future_gclk-2017.vvp: Program not runnable, 2 errors.
+run_exit=2
+compile_exit=0
+run_exit=2
+
+=== p16_09_04_future_gclk-2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/p16_09_04_future_gclk-2023.vvp: Program not runnable, 2 errors.
+run_exit=2
+compile_exit=0
+run_exit=1
+
+=== p16_09_04_past_gclk_procedural-2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_past_gclk_procedural.sv:16: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/p16_09_04_past_gclk_procedural-2023.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=1
+
+=== n16_09_04_no_global_clock-2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_no_global_clock.sv:7: Error: System task/function $past_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_no_global_clock-2023.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=1
+
+=== n16_09_04_future_gclk_procedural-2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_future_gclk_procedural.sv:9: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_future_gclk_procedural-2023.vvp: Program not runnable, 1 errors.
+run_exit=1
+compile_exit=0
+run_exit=2
+
+=== n16_09_04_nested_future_gclk-2023 ===
+compile_exit=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_nested_future_gclk.sv:7: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/neg/n16_09_04_nested_future_gclk.sv:7: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/n16_09_04_nested_future_gclk-2023.vvp: Program not runnable, 2 errors.
+run_exit=2

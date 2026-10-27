@@ -1,0 +1,9 @@
+Goal: distinguish no time-zero concurrent assertion attempt from incorrect default sampled value.
+Source checkout HEAD: df794e5829b207d89cbbef9f0948ebb8f7f3d416.
+Slurm host: DAN-DESKTOP; 10 CPUs idle, 10 active at submission check.
+Remote run dir: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c16-t0-20261021-attempt-04.
+Slurm job: 3753.
+Resources: 1 CPU, 1 GiB, 00:05:00; 2 source files x both editions.
+Compiler: Icarus 13.0 devel (cc25756d1), /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb.
+Timeout: GNU timeout --signal=TERM --kill-after=5s 30s per compile and run.
+Flags: pinned -B; -g2017/-g2023/-gassertions.

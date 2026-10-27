@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=a3-c19-optargs
+#SBATCH --partition=verilog
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=1G
+#SBATCH --time=00:10:00
+#SBATCH --output=logs/job-%j.out
+set -euo pipefail
+RUN_DIR="$(pwd)"
+IVL=/home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+VVP=/home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+TIMEOUT="$RUN_DIR/input/run_with_timeout.py"
+OUT="$RUN_DIR/results"
+mkdir -p "$OUT/logs"
+"$IVL" -V > "$OUT/iverilog-version.txt" 2>&1
+sha256sum "$IVL" "$VVP" "$RUN_DIR/input"/*.sv "$TIMEOUT" > "$OUT/SHA256SUMS"
+printf 'edition\tprobe\tcompile_rc\trun_rc\n' > "$OUT/results.tsv"
+for edition in 2017 2023; do
+  for name in p19_07_option_args p19_11_3_type_cov_r2; do
+    src="$RUN_DIR/input/$name.sv"
+    image="$OUT/$name-g$edition.vvp"
+    clog="$OUT/logs/$name-g$edition.compile.log"
+    rlog="$OUT/logs/$name-g$edition.run.log"
+    if python3 "$TIMEOUT" 30 -- "$IVL" -g"$edition" -o "$image" "$src" > "$clog" 2>&1; then compile_rc=0; else compile_rc=$?; fi
+    run_rc=NA
+    if [ "$compile_rc" -eq 0 ]; then
+      if python3 "$TIMEOUT" 30 -- "$VVP" "$image" > "$rlog" 2>&1; then run_rc=0; else run_rc=$?; fi
+    fi
+    printf '%s\t%s\t%s\t%s\n' "$edition" "$name" "$compile_rc" "$run_rc" >> "$OUT/results.tsv"
+  done
+done
+cat "$OUT/results.tsv"
+for log in "$OUT"/logs/*.log; do printf '\n===== %s =====\n' "$(basename "$log")"; cat "$log"; done

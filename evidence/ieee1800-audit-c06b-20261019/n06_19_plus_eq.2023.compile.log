@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_19_plus_eq.sv:4: error: This assignment requires an explicit cast.
+Elaboration failed

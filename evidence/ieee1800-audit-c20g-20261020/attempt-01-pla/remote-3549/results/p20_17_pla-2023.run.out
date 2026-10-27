@@ -1,0 +1,2 @@
+SORRY: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-pla-20261020-01/source/p20_17_pla.sv:7: task $async$and$array() is not currently implemented.
+SORRY: /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c20-pla-20261020-01/source/p20_17_pla.sv:8: task $async$or$array() is not currently implemented.

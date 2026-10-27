@@ -19,11 +19,14 @@
 
 # include  "compile.h"
 # include  "enum_type.h"
+# include  "vpi_priv.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
 # include  <iostream>
 # include  <cassert>
+# include  <cstdlib>
+# include  <cstring>
 
 using namespace std;
 
@@ -129,8 +132,12 @@ void enumconst_s::vpi_get_value(p_vpi_value val)
 {
       if (val4.size() > 0)
 	    vpip_vec4_get_value(val4, val4.size(), false, val);
-      else
+      else if (val->format == vpiIntVal || val->format == vpiObjTypeVal ||
+               val->format == vpiVectorVal || val->format == vpiSuppressVal)
 	    vpip_vec2_get_value(val2, val2.size(), false, val);
+      else  /* The string formats exist only for 4-state vectors. */
+	    vpip_vec4_get_value(vector2_to_vector4(val2, val2.size()),
+	                        val2.size(), false, val);
 }
 
 
@@ -197,3 +204,163 @@ void enum_delete(vpiHandle item)
       delete obj;
 }
 #endif
+
+/*
+ * Typespecs that .vartype attaches to a signal (vpiTypespec), so VPI
+ * applications such as waveform dumpers see enum and packed struct/union
+ * types. A plain vector member has a vpiLogicTypespec or vpiBitTypespec.
+ */
+struct __vpiVectorTypespec : public __vpiHandle {
+      __vpiVectorTypespec(int code, int left, int right)
+      : code_(code), left_(left), right_(right) { }
+      int get_type_code(void) const override { return code_; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize: return abs(left_ - right_) + 1;
+		case vpiLeftRange: return left_;
+		case vpiRightRange: return right_;
+		default: return 0;
+	    }
+      }
+    private:
+      int code_, left_, right_;
+};
+
+struct __vpiTypespecMember : public __vpiHandle {
+      int get_type_code(void) const override { return vpiTypespecMember; }
+      int vpi_get(int code) override
+      { return code == vpiSize ? (int)width : 0; }
+      char* vpi_get_str(int code) override
+      { return code == vpiName ? name : 0; }
+      vpiHandle vpi_handle(int code) override
+      { return code == vpiTypespec ? typespec : 0; }
+
+      char*name = 0;
+      unsigned width = 0;
+      vpiHandle typespec = 0;
+};
+
+struct __vpiStructTypespec : public __vpiHandle {
+      explicit __vpiStructTypespec(int code) : code_(code) { }
+      int get_type_code(void) const override { return code_; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize: return width;
+		case vpiPacked: return 1;
+		default: return 0;
+	    }
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiTypespecMember || members.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>
+		  (calloc(members.size(), sizeof(vpiHandle)));
+	    for (size_t idx = 0 ; idx < members.size() ; idx += 1)
+		  args[idx] = members[idx];
+	    return vpip_make_iterator(members.size(), args, true);
+      }
+
+      unsigned width = 0;
+      std::vector<__vpiTypespecMember*> members;
+    private:
+      int code_;
+};
+
+/* Parse one type of a .vartype string (see tgt-vvp emit_signal_vartypes).
+ * Return 0 and set *missing when an enum label is not defined yet. */
+static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
+{
+      char*end;
+      switch (*cp) {
+	  case 'V':
+	  case 'B': {
+		int code = *cp == 'V' ? vpiLogicTypespec : vpiBitTypespec;
+		long left = strtol(cp+1, &end, 10);
+		if (end == cp+1 || *end != ':') return 0;
+		cp = end + 1;
+		long right = strtol(cp, &end, 10);
+		if (end == cp) return 0;
+		cp = end;
+		width = labs(left - right) + 1;
+		return new __vpiVectorTypespec(code, left, right);
+	  }
+	  case 'E': {
+		width = strtoul(cp+1, &end, 10);
+		if (end == cp+1 || *end != ':') return 0;
+		cp = end + 1;
+		size_t len = strcspn(cp, ",}");
+		std::string label(cp, len);
+		cp += len;
+		vpiHandle enum_type = vvp_lookup_handle(label.c_str());
+		if (!enum_type) missing = true;
+		return enum_type;
+	  }
+	  case 'S':
+	  case 'U': {
+		bool is_union = *cp == 'U';
+		if (cp[1] != '{') return 0;
+		cp += 2;
+		__vpiStructTypespec*spec = new __vpiStructTypespec(
+		      is_union ? vpiUnionTypespec : vpiStructTypespec);
+		while (*cp && *cp != '}') {
+		      __vpiTypespecMember*member = new __vpiTypespecMember;
+		      size_t len = strcspn(cp, "=");
+		      if (cp[len] != '=') return 0;
+		      member->name = static_cast<char*>(malloc(len + 1));
+		      memcpy(member->name, cp, len);
+		      member->name[len] = 0;
+		      cp += len + 1;
+		      member->typespec = parse_vartype(cp, member->width, missing);
+		      if (!member->typespec) return 0;
+		      spec->members.push_back(member);
+		      if (is_union) {
+			    if (member->width > spec->width)
+				  spec->width = member->width;
+		      } else {
+			    spec->width += member->width;
+		      }
+		      if (*cp == ',') cp += 1;
+		}
+		if (*cp != '}' || spec->members.empty()) return 0;
+		cp += 1;
+		width = spec->width;
+		return spec;
+	  }
+	  default:
+	    return 0;
+      }
+}
+
+class vartype_resolv_t : public resolv_list_s {
+    public:
+      vartype_resolv_t(char*label, char*text)
+      : resolv_list_s(label), text_(text) { }
+      ~vartype_resolv_t() override { delete[] text_; }
+
+      bool resolve(bool message_flag) override
+      {
+	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
+	    const char*cp = text_;
+	    unsigned width = 0;
+	    bool missing = false;
+	    vpiHandle spec = sig ? parse_vartype(cp, width, missing) : 0;
+	    if ((!sig || missing) && !message_flag) return false;
+	    if (!sig || !spec || *cp || width != sig->width()) {
+		  yyerror("invalid .vartype metadata");
+		  compile_errors += 1;
+		  return true;
+	    }
+	    sig->typespec = spec;
+	    return true;
+      }
+
+    private:
+      char*text_;
+};
+
+void compile_vartype(char*label, char*text)
+{
+      resolv_submit(new vartype_resolv_t(label, text));
+}

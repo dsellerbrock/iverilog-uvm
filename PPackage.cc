@@ -19,6 +19,7 @@
  */
 
 # include  "PPackage.h"
+# include  "PTask.h"
 
 PPackage::PPackage(perm_string name, LexicalScope*parent)
 : PScopeExtra(name, parent)
@@ -27,4 +28,6 @@ PPackage::PPackage(perm_string name, LexicalScope*parent)
 
 PPackage::~PPackage()
 {
+      for (auto it = lets.begin(); it != lets.end(); ++it)
+	    delete it->second;
 }

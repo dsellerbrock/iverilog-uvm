@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-order-static-20261020-r2/input/p18_05_solve_real.sv:1: error: property 'a' of class C is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+1 error(s) during elaboration.

@@ -1,0 +1,1 @@
+Slurm job 3485 raw outputs, timestamps, hashes and logs copied; its timed-out simulations were not treated as semantic failures. Removed the completed owned run directory after evidence capture (38,099 bytes).

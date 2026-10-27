@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-14-20261019-01/input/p18_14_stability.sv:29: error: srandom is not a method of class process.
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-14-20261019-01/input/p18_14_stability.sv:34: error: srandom is not a method of class process.
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-14-20261019-01/input/p18_14_stability.sv:12: error: srandom is not a method of class process.
+3 error(s) during elaboration.

@@ -1,0 +1,10 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:26: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:28: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:30: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:32: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:34: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:35: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:37: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:39: error: the $timeunit and $timeprecision system functions requires IEEE1800-2023; compile with -g2023 (or -glatest).
+14 error(s) during elaboration.
+EXPECTED COMPILE REJECTION under -g2017

@@ -1,0 +1,15 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib	expected
+2017	p18_05_2_specifiers	3	NA	Command	exited with non-zero status 3	NA	NA	run
+2017	n18_05_2_s1_initial_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s2_extends_missing	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s3_both_specifiers	6	NA	Command	exited with non-zero status 6	NA	NA	reject
+2017	n18_05_2_s4_final_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2017	n18_05_2_s5_final_mismatch	2	NA	Command	exited with non-zero status 2	NA	NA	reject
+2017	p18_05_3_inside	0	0	0.01	12100	7.14	40864	run
+2023	p18_05_2_specifiers	0	0	0.01	11988	0.17	40280	run
+2023	n18_05_2_s1_initial_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s2_extends_missing	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s3_both_specifiers	6	NA	Command	exited with non-zero status 6	NA	NA	reject
+2023	n18_05_2_s4_final_override	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	n18_05_2_s5_final_mismatch	1	NA	Command	exited with non-zero status 1	NA	NA	reject
+2023	p18_05_3_inside	0	0	0.01	12052	7.14	40704	run

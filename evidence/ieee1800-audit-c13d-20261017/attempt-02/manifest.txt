@@ -1,0 +1,11 @@
+IEEE 1800 clause 13.3 direction-default follow-up, c13d attempt 02.
+Host: DAN-DESKTOP (Slurm partition verilog), 1 CPU, 1 GiB, 10 minutes.
+Toolchain: protected Icarus build from 9b5fad2afb4104caa816b257d5bccc40f01b8c66.
+Probe: tests/1800_audit/c13/p13_03_tasks.sv, both -g2017 and -g2023.
+Question: omitted task argument type defaults to 1-bit logic; values 3 and 4
+therefore assign as 1 and 0 to output int arguments.
+Per-test timeout: compile 60 seconds; simulation 30 seconds; KILL 2 seconds after TERM.
+Source SHA-256: fb5eef541b9477078089c8ff54ac7e0eb7d860b807d165e63278b8a62f0e6d90
+Script SHA-256: 15336f4d9a97cbe1a492ed9be81fd44d7876cc06c2a5d980880c4bfcb9dfe096
+
+Slurm job 2306 completed: ExitCode=0:0, elapsed 00:00:00.

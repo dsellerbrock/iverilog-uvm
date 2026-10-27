@@ -1,0 +1,1 @@
+tests/1800_audit/c06/p06_16c_methods.sv:30: warning: Index expressions on this property type used as compile-progress fallback.

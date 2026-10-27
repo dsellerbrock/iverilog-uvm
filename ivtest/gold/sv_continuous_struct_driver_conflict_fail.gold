@@ -1,0 +1,4 @@
+./ivltests/sv_continuous_struct_driver_conflict_fail.v:5: error: Variable 'duplicate' cannot have multiple continuous drivers.
+./ivltests/sv_continuous_struct_driver_conflict_fail.v:6: error: Variable 'proc_after' cannot have continuous and procedural drivers on the same value.
+./ivltests/sv_continuous_struct_driver_conflict_fail.v:9: error: Variable 'proc_before' cannot have continuous and procedural drivers on the same value.
+3 error(s) during elaboration.

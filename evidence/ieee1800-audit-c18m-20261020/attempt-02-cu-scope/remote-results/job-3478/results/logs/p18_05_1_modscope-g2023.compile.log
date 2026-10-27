@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:3: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: error: Invalid module item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18m-20261020-cu-scope/input/p18_05_1_modscope.sv:5: error: Invalid module item.

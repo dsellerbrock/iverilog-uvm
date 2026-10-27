@@ -1,0 +1,25 @@
+compiler: Icarus Verilog version 13.0 (devel) ()
+compiler sha256: 4f3fbe94d8cb08d55e37e831a67f85289806acdfebf6bf2f393ac572c9b36d8d
+vvp sha256: 9cec8fe710d7aa9d1c056658d3a8c2bb0f54a239a96edfaad48ffe871282d208
+=== -g2023 compile ===
+=== -g2023 run ===
+try_get(-1) returned 0
+        0.17 real         0.01 user         0.00 sys
+             6766592  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1601  page reclaims
+                  10  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  26  involuntary context switches
+           147823289  instructions retired
+            51518637  cycles elapsed
+             3850624  peak memory footprint
+localrun_exit=0

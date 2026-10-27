@@ -56,6 +56,7 @@ struct vvp_z3_plan_item_s {
       bool class_ir;
       std::string ir;
       std::vector<size_t> capture_slots;
+      bool ordered;   /* outcome depends on an earlier priority set */
 };
 struct vvp_z3_plan_call_s { size_t object; size_t slot; };
 struct vvp_z3_plan_deferred_elements_s {

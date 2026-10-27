@@ -1,0 +1,13 @@
+Job 2560 on DAN-DESKTOP used the pinned 9b5fad2a toolchain.
+iverilog SHA-256: 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288
+vvp SHA-256: c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a
+
+Both -g2017 and -g2023 compiled and ran p09_04_5_repeat_z.sv successfully
+(compile_rc=0, run_rc=0). Both printed `INFO repeat_z_timeout: still waiting after
+1000 units` and finished at time 1000. The repeat remained blocked on the event
+control instead of acting as if the Z count were zero. This confirms the
+targeted 2023 §9.4.5 gap; the 2017 behavior is informational only.
+
+The harness completed with HARNESS_STATUS=0. Slurm accounting is disabled on
+DAN-DESKTOP, so elapsed time and peak RSS were not available. Raw stdout/stderr
+are preserved in remote-logs/.

@@ -1,0 +1,2 @@
+ivltests/sv_scope_randomize_null_fail.v:2: error: null is not allowed in a scope randomize() call (IEEE 1800-2017/2023 18.7).
+Elaboration failed

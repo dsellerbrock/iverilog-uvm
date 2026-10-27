@@ -1,0 +1,7 @@
+host=DAN-DESKTOP
+main_commit=cae035642e056644274a01e98d4422ce286685b4
+stage_commit=627dbe15cd33566050a1e737e3c9b89c76a0c8db
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+4e0b5a29efe8ac232f79bfc27a0191f90646e691869de7f402629530858e24cf  /home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261019-4-r2/source/local-install/bin/iverilog
+063a534df66409628c2f858e9a9646c0917608074957f77c490114021be4d414  /home/dsell/slurm-runs/iverilog-uvm/A3/t2-batch-20261019-4-r2/source/local-install/bin/vvp

@@ -1,0 +1,26 @@
+FAIL t3
+FAIL w797
+INFO empty: a b
+000000ff
+00000000000000000000000000000101
+00000000010
+INFO nowrite
+RESULT pass=13 fail=2
+        0.07 real         0.02 user         0.02 sys
+             6684672  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3185  page reclaims
+                 242  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  22  voluntary context switches
+                 185  involuntary context switches
+            32554012  instructions retired
+            16184064  cycles elapsed
+             1507712  peak memory footprint

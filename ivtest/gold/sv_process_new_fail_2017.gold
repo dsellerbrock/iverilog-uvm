@@ -1,0 +1,2 @@
+./ivltests/sv_process_new_fail_2017.v:4: error: Users cannot create objects of type `process`.
+Elaboration failed

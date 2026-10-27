@@ -1,0 +1,318 @@
+[
+  {
+    "test": "virtual-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/virtual.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_09a_virtual.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.074,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "virtual-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/virtual.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.025,
+    "stdout": "NULL_INIT\nEQ_OK\nGRANT3 at 5\nREQ2 1 REQ1 x\nADDR 5a\nP16 beef\nSWITCH 1\nCLK 0\nDONE\n",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_modport_hidden_member-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_modport_hidden_member.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_hidden_member.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.025,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_hidden_member.sv:7: error: cannot access 'I' through modport 'mp' of interface 'E' \u2014 it is not listed in that modport (IEEE 1800-2017 25.5).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_modport_to_nomodport-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_modport_to_nomodport.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_to_nomodport.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.035,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_to_nomodport.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_null_deref-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_null_deref.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_null_deref.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_null_deref-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_null_deref.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "SURVIVED\n",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_param_mismatch-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_param_mismatch.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_param_mismatch.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_param_mismatch.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).\nElaboration failed\n"
+  },
+  {
+    "test": "n25_09_virtual_continuous-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_continuous.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_continuous.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.037,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_continuous-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_continuous.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_port-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_port.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_port.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.037,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_port.sv:2: error: virtual interface variable `v' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_virtual_sensitivity-2017-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2017",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_sensitivity.2017.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_sensitivity.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_sensitivity-2017-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_sensitivity.2017.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "virtual-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "top",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/virtual.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/p25_09a_virtual.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "virtual-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/virtual.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.013,
+    "stdout": "NULL_INIT\nEQ_OK\nGRANT3 at 5\nREQ2 1 REQ1 x\nADDR 5a\nP16 beef\nSWITCH 1\nCLK 0\nDONE\n",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_modport_hidden_member-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_modport_hidden_member.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_hidden_member.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.023,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_hidden_member.sv:7: error: cannot access 'I' through modport 'mp' of interface 'E' \u2014 it is not listed in that modport (IEEE 1800-2017 25.5).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_modport_to_nomodport-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_modport_to_nomodport.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_to_nomodport.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.032,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_modport_to_nomodport.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_null_deref-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_null_deref.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_null_deref.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.044,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_null_deref-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_null_deref.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "SURVIVED\n",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_param_mismatch-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_param_mismatch.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_param_mismatch.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.041,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_param_mismatch.sv:6: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).\nElaboration failed\n"
+  },
+  {
+    "test": "n25_09_virtual_continuous-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_continuous.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_continuous.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.028,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_continuous-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_continuous.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_port-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_port.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_port.sv"
+    ],
+    "exit": 1,
+    "seconds": 0.026,
+    "stdout": "",
+    "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_port.sv:2: error: virtual interface variable `v' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).\n1 error(s) during elaboration.\n"
+  },
+  {
+    "test": "n25_09_virtual_sensitivity-2023-compile",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog",
+      "-g2023",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_sensitivity.2023.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_09_virtual_sensitivity.sv"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "test": "n25_09_virtual_sensitivity-2023-run",
+    "argv": [
+      "/tmp/a3-t2-batch-2026-10-19-6-local-r6/source/vvp/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c25c-20261019/n25_09_virtual_sensitivity.2023.vvp"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stdout": "",
+    "stderr": ""
+  }
+]

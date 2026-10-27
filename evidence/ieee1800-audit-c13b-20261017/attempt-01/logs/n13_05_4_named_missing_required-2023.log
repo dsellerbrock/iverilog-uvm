@@ -1,0 +1,3 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Missing/empty argument 1 ('a') in call to function h: the formal has no default value (IEEE 1800-2017 13.5.3).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Enable of unknown task ``h''.
+Elaboration failed

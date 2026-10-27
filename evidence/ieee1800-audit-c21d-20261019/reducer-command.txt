@@ -1,0 +1,5 @@
+Each edition uses localrun 180 and the pinned batch compiler from the evidence directory.
+- Compile r21d_assoc_readmem.sv with -g2017/-g2023.
+- Compile r21d_assoc_writemem.sv with -g2017/-g2023.
+- Compile r21e_plusarg_overlap.sv and simulate with +TEST=5 +TESTNAME=t1, +TESTNAME=t1 +TEST=5, and +TESTNAME=t1.
+Raw compiler and runtime logs are under attempt-02-reducers/.

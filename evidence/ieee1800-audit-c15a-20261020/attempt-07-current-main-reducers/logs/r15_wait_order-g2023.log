@@ -1,0 +1,2 @@
+RESULT result=1
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c15a-20261020/attempt-07-current-main-reducers/input/r15_wait_order.sv:6: $finish called at 3 (1s)

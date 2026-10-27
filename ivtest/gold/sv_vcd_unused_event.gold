@@ -1,0 +1,3 @@
+VCD info: dumpfile sv_vcd_unused_event.vcd opened for output.
+PASS
+./ivltests/sv_vcd_unused_event.v:27: $finish called at 1 (1s)

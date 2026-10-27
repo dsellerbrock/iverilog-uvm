@@ -1,0 +1,1 @@
+ivltests/sv_assert_cycle_delay_reversed_fail.v:5: error: invalid SVA cycle-delay range [3:1]; bounds must be nonnegative and the upper bound must be greater than or equal to the lower bound (IEEE 1800-2017/2023 16.7).

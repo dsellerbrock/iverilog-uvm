@@ -1,0 +1,8 @@
+--- -g2017 compile_rc=0 run_rc=0 ---
+EVCD info: dumpports file p21.evcd opened for output.
+input/p21_evcd.sv:20: $finish called at 5 (1s)
+ 37 392 scratch/2017/p21.evcd
+--- -g2023 compile_rc=0 run_rc=0 ---
+EVCD info: dumpports file p21.evcd opened for output.
+input/p21_evcd.sv:20: $finish called at 5 (1s)
+ 37 392 scratch/2023/p21.evcd

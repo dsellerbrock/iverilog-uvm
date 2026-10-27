@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_14_few_bits.sv:1: error: streaming concatenation target requires 96 bits, but the source stream provides only 23 (IEEE 1800-2017 11.4.14.3).
+Elaboration failed

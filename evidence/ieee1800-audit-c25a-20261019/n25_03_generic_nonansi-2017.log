@@ -1,0 +1,6 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:3: error: interface not closed by endinterface.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c25/neg/n25_03_generic_nonansi.sv:4: syntax error
+I give up.

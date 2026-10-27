@@ -1,0 +1,2 @@
+IVL=/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/iverilog
+VVP=/home/dsell/toolchains/iverilog-a3-main-82023726-679/bin/vvp

@@ -1,0 +1,1 @@
+tests/1800_audit/c06/neg/n06_10_gen_scope.sv:1: warning: Unable to bind wire/reg/memory `w' in `m' (compile-progress: unresolved reference).

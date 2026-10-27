@@ -1,0 +1,2 @@
+./ivltests/sv_net_alias_repeat_neg.v:4: error: Net alias connects the same nets more than once.
+1 error(s) during elaboration.

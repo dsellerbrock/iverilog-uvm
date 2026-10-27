@@ -1,0 +1,3 @@
+Assertion failed: (0), function draw_stmt_assign_real_opcode, file stmt_assign.c, line 2743.
+sh: line 1: 24547 Done                    /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivlpp -L -g2023 -F"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg21896acc7" -f"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg1896acc7" -p"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli1896acc7"
+     24548 Abort trap: 6           | /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/ivl -C"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh1896acc7" -C"/tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/lib/ivl/vvp.conf" -- -

@@ -1,0 +1,2 @@
+./ivltests/sv_defparam_cross_generate_block_fail_2023.v:11: error: defparam in generate block `sv_defparam_cross_generate_block_fail.genblk[0]` cannot target parameter `P` in `sv_defparam_cross_generate_block_fail.genblk[1].u`, which is in another instance of the same generate block (IEEE 1800-2017/2023 23.10.1).
+1 error(s) during elaboration.

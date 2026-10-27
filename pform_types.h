@@ -228,7 +228,7 @@ class data_type_t : public PNamedItem {
 
 struct typedef_t : public PNamedItem {
       explicit typedef_t(perm_string n)
-      : basic_type(ANY), unresolved_reported(false), name(n) { };
+      : basic_type(ANY), unresolved_reported(false), basic_type_checked(false), name(n) { };
 	// M11: the pform is process-lifetime and data_type_t objects
 	// are freely shared (comma declarations, typedef aliases, base
 	// types), so exit-time teardown must NOT delete through this
@@ -251,6 +251,8 @@ struct typedef_t : public PNamedItem {
 
       bool set_basic_type(basic_type bt);
       enum basic_type get_basic_type() const { return basic_type; }
+      bool has_checked_basic_type() const { return basic_type_checked; }
+      void mark_basic_type_checked() { basic_type_checked = true; }
 
       // A forward typedef that never receives its definition can be reached
       // from several elaboration paths (and from every specialization of a
@@ -264,6 +266,7 @@ struct typedef_t : public PNamedItem {
 protected:
       enum basic_type basic_type;
       bool unresolved_reported;
+      bool basic_type_checked;
       std::unique_ptr<data_type_t> data_type;
 public:
       perm_string name;
@@ -282,13 +285,14 @@ struct typeref_t : public data_type_t {
       std::ostream& debug_dump(std::ostream&out) const override;
 
       inline typedef_t* typedef_ref() const { return type; }
+      inline void set_typedef_ref(typedef_t*t) const { type = t; }
       inline PScope* scope_ref() const { return scope; }
       inline const parmvalue_t* parameter_values() const { return overrides; }
       inline void set_parameter_values(parmvalue_t*o) { overrides = o; }
 
 private:
       PScope *scope;
-      typedef_t *type;
+      mutable typedef_t *type;
       parmvalue_t* overrides;
 };
 
@@ -302,8 +306,10 @@ private:
    alias and aggregate-shape handling for the selected member. */
 struct class_scoped_typeref_t : public typeref_t {
       class_scoped_typeref_t(typedef_t*member, PScope*fallback_scope,
-                             data_type_t*qualifier)
-      : typeref_t(member, fallback_scope), qualifier_(qualifier) { }
+                             data_type_t*qualifier,
+                             perm_string deferred_member = perm_string())
+      : typeref_t(member, fallback_scope), qualifier_(qualifier),
+        deferred_member_(deferred_member), deferred_reported_(false) { }
 
       NetScope* find_scope(Design*des, NetScope*scope) const override;
       std::ostream& debug_dump(std::ostream&out) const override;
@@ -312,6 +318,8 @@ struct class_scoped_typeref_t : public typeref_t {
 
 private:
       std::unique_ptr<data_type_t> qualifier_;
+      perm_string deferred_member_;
+      mutable bool deferred_reported_;
 };
 
 /*
@@ -769,6 +777,9 @@ struct class_type_t : public data_type_t {
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
+	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
+	    // storage; stable across covergroup extensions.
+	    int option_slot = -1;
 	    const PClass* decl_class = nullptr;
 	    bool inherited_cross_only = false;
 	    bool declared_by_extension = false;
@@ -817,6 +828,9 @@ struct class_type_t : public data_type_t {
 		  bool matches_all = false;
 	    };
 	    perm_string label;                 // cross label (or auto)
+	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
+	    // storage; stable across covergroup extensions.
+	    int option_slot = -1;
 	    const PClass* decl_class = nullptr;
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
 	    std::vector<PExpr*> cp_exprs;       // implicit variable expressions
@@ -830,6 +844,7 @@ struct class_type_t : public data_type_t {
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
 	    bool is_extension = false;
+	    int option_slot_count = 0;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.
 	    std::vector<perm_string> ctor_formals;
@@ -852,6 +867,7 @@ struct class_type_t : public data_type_t {
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)
 	    std::map<perm_string, PExpr*> options;
+	    std::map<perm_string, PExpr*> extension_options;
       };
       std::vector<pform_covergroup_t*> covergroups;
 

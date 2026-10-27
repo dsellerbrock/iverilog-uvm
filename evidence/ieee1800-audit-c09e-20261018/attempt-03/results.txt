@@ -1,0 +1,17 @@
+§9.4.2 c09e corrected and split probes (attempt 03)
+Host: DAN-DESKTOP; Slurm job 2551. Scheduler result: FAILED / ExitCode 1:0 / RunTime 1 second; harness fails when a positive assertion or compile fails. This is test evidence, not infrastructure loss. Requested 1 CPU / 2 GiB / 30 minutes; no completed-step RSS retained.
+Toolchain: main 9b5fad2; Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a. Each compile has a 60-second timeout and each simulation a 30-second timeout; TERM then KILL after 5 seconds.
+
+Both -g2017 and -g2023:
+- Corrected p09_04_2_implicit_star.sv: all seven checks pass, DONE fails=0. This validates the tested implicit-event list, including Example 3's event-control-only exclusion and RHS sensitivity, plus the indexed-LHS and function-argument cases. The only change from the lead's exact replacement was the existing `INFO` line in the object probe; implicit_star matches the corrected source.
+- p09_04_2_objects.sv: `@p` handle-change check passes. The member-event check fails with `member_events=1 member_time=15`: changing the old object `old.status` after `p=q` triggers `@(p.status)`. It should retarget to q and trigger at time 20 when `q.status` changes.
+- p09_04_2_method_darray_real.sv and `_int.sv`: both fail compilation with `System function $ivl_queue_method$size not defined in system table or SFT file(s)` / `Failed to synthesize event expression`.
+- p09_04_2_method_queue.sv: same compile failure for queue `.size()`.
+- p09_04_2_method_relational.sv: same compile failure for `da.size() > 0`.
+- p09_04_2_method_user.sv: non-virtual user method event passes (`hit=1`).
+
+The lead classified built-in aggregate-method event controls as gap #650 and confirmed the separate object-member retargeting gap as #651 after duplicate searches. The `@*`, non-singular-event rejection, and non-virtual user-method cases are supported for the tested subset.
+
+Raw output, stderr, per-test logs, input hashes, controller state, exact script, and source snapshot are in this attempt directory.
+
+After local input hashes and all logs were verified, the remote input copies, compiled outputs, script, and temporary archives were deleted; remote logs remain. Cleanup freed 118,784 bytes (116 KiB).

@@ -1,0 +1,10 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "p32_multi")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "d1")
+    (INSTANCE)
+    (DELAY (ABSOLUTE (IOPATH a y (7) (9))))
+  )
+)

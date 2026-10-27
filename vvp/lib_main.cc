@@ -56,6 +56,11 @@ extern "C" const char*optarg;
 bool verbose_flag = false;
 static int vvp_return_value = 0;
 static int vvp_used = 0;
+static string covgrp_db_name;
+static set<string> covgrp_db_failed_loads;
+#if defined(HAVE_SYS_RESOURCE_H)
+static struct rusage finish_start_usage;
+#endif
 
 void vvp_set_stop_is_finish(bool flag, int exit_code)
 {
@@ -79,6 +84,52 @@ void vvp_set_verbose_flag(bool flag)
 void vpip_set_return_value(int value)
 {
       vvp_return_value = value;
+}
+
+int vpip_covgrp_db(int op, const char*name)
+{
+      string path = name ? name : "";
+      if (op == VPIP_COVGRP_DB_SET_NAME) {
+	    if (path.empty()) {
+		  fprintf(stderr, "ERROR: $set_coverage_db_name: empty database name\n");
+		  vpip_set_return_value(1);
+		  return 1;
+	    }
+	    covgrp_db_name = path;
+	    return 0;
+      }
+      if (op == VPIP_COVGRP_DB_LOAD) {
+	    string err;
+	    bool missing = false;
+	    if (class_type::covgrp_db_load(path, err, missing)) return 0;
+	    fprintf(stderr, "ERROR: $load_coverage_db: %s: %s\n",
+		    path.c_str(), err.c_str());
+	    if (!missing) covgrp_db_failed_loads.insert(path);
+	    vpip_set_return_value(1);
+	    return 1;
+      }
+      fprintf(stderr, "ERROR: coverage database: invalid operation %d\n", op);
+      vpip_set_return_value(1);
+      return 1;
+}
+
+static void covgrp_db_save_at_end()
+{
+      if (covgrp_db_name.empty()) return;
+      if (covgrp_db_failed_loads.find(covgrp_db_name)
+	  != covgrp_db_failed_loads.end()) {
+	    fprintf(stderr,
+		    "ERROR: $set_coverage_db_name: not overwriting %s: an earlier $load_coverage_db of it failed\n",
+		    covgrp_db_name.c_str());
+	    vpip_set_return_value(1);
+	    return;
+      }
+      string err;
+      if (!class_type::covgrp_db_save(covgrp_db_name, err)) {
+	    fprintf(stderr, "ERROR: $set_coverage_db_name: cannot save %s: %s\n",
+		    covgrp_db_name.c_str(), err.c_str());
+	    vpip_set_return_value(1);
+      }
 }
 
 static char log_buffer[4096];
@@ -133,12 +184,24 @@ static void print_rusage(struct rusage *a, struct rusage *b)
 	      a->ru_ixrss/1024.0 );
 }
 
+extern "C" void vpip_print_finish_stats(void)
+{
+      struct rusage finish_usage;
+      my_getrusage(&finish_usage);
+      print_rusage(&finish_usage, &finish_start_usage);
+}
+
 #else // ! defined(HAVE_SYS_RESOURCE_H)
 
 // Provide dummies
 struct rusage { int x; };
 inline static void my_getrusage(struct rusage *) { }
 inline static void print_rusage(struct rusage *, struct rusage *){};
+
+extern "C" void vpip_print_finish_stats(void)
+{
+      vpi_mcd_printf(1, " ... CPU and memory statistics unavailable\n");
+}
 
 #endif // ! defined(HAVE_SYS_RESOURCE_H)
 
@@ -399,8 +462,12 @@ int vvp_run(const char *design_path)
 	    vpi_mcd_printf(1, " ... %8lu scopes\n",   count_vpi_scopes);
       }
 
+      my_getrusage(cycles+1);
+#if defined(HAVE_SYS_RESOURCE_H)
+      finish_start_usage = cycles[1];
+#endif
+
       if (verbose_flag) {
-	    my_getrusage(cycles+1);
 	    print_rusage(cycles+1, cycles+0);
 	    vpi_mcd_printf(1, "Running ...\n");
       }
@@ -424,6 +491,8 @@ int vvp_run(const char *design_path)
 		  }
 	    }
       }
+
+      covgrp_db_save_at_end();
 
       if (verbose_flag) {
 	    my_getrusage(cycles+2);

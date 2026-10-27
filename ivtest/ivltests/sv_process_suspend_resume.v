@@ -6,8 +6,8 @@
 //  1. suspend() freezes a running worker (a periodic counter stops advancing)
 //     and status() reports SUSPENDED (=3).
 //  2. resume() lets it continue (counter advances again).
-//  3. An event delivered to a worker WHILE it is suspended is deferred: the
-//     worker does not wake until resume(), then it runs.
+//  3. An event delivered to a worker WHILE it is suspended is not replayed
+//     after resume(); the worker wakes on the next event occurrence.
 //  4. kill() after resume reports KILLED (=4); status() of a finished worker
 //     reports FINISHED (=0).
 //  5. resume() of a non-suspended process and a second suspend() of an
@@ -61,16 +61,20 @@ module sv_process_suspend_resume;
       end
     end
 
-    // Event fires while the waiter is suspended -> deferred until resume.
+    // An event while suspended is missed; resume() re-arms the event wait.
     waiter.suspend();
     expect_eq("waiter suspended status", waiter.status(), SUSPENDED);
     ->ev;                                  // delivered while suspended
     #1;
     expect_eq("woke deferred while suspended", woke, 0);
     expect_eq("waiter still suspended", waiter.status(), SUSPENDED);
-    waiter.resume();                       // deferred wake now fires
+    waiter.resume();
     #1;
-    expect_eq("woke after resume", woke, 1);
+    expect_eq("event not replayed after resume", woke, 0);
+    expect_eq("waiter waiting again", waiter.status(), WAITING);
+    ->ev;                                  // next occurrence satisfies the wait
+    #1;
+    expect_eq("woke on next event", woke, 1);
     expect_eq("waiter finished", waiter.status(), FINISHED);
 
     // resume() of a process that is not suspended is a no-op.

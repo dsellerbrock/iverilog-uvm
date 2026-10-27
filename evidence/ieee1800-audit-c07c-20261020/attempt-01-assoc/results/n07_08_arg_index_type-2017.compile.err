@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-assoc-20261020-01/source/n07_08_arg_index_type.sv:4: error: associative-array value has an index type that is not assignment-compatible with the context.
+1 error(s) during elaboration.

@@ -1,0 +1,29 @@
+JobId=3163 JobName=a3-audit-c14-6-7
+   UserId=dsell(1000) GroupId=dsell(1000) MCS_label=N/A
+   Priority=1 Nice=0 Account=(null) QOS=(null)
+   JobState=COMPLETED Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:03:09 TimeLimit=01:00:00 TimeMin=N/A
+   SubmitTime=2026-10-19T13:10:59 EligibleTime=2026-10-19T13:10:59
+   AccrueTime=2026-10-19T13:10:59
+   StartTime=2026-10-19T13:10:59 EndTime=2026-10-19T13:14:08 Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-10-19T13:10:59 Scheduler=Backfill
+   Partition=verilog AllocNode:Sid=localhost:2392713
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=DAN-DESKTOP
+   BatchHost=DAN-DESKTOP
+   NumNodes=1 NumCPUs=2 NumTasks=1 CPUs/Task=2 ReqB:S:C:T=0:0:*:*
+   ReqTRES=cpu=2,mem=3G,node=1,billing=2
+   AllocTRES=cpu=2,mem=3G,node=1,billing=2
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=2 MinMemoryNode=3G MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null)
+   Command=/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.6-14.7-20261019-01/run.sbatch
+   SubmitLine=sbatch run.sbatch
+   WorkDir=/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.6-14.7-20261019-01
+   StdErr=
+   StdIn=/dev/null
+   StdOut=/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c14.6-14.7-20261019-01/logs/a3-audit-c14-6-7-3163.out
+   TresPerTask=cpu=2
+

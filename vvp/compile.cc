@@ -332,6 +332,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%covgrp/get_inst_coverage/ref", of_COVGRP_GET_INST_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_coverage", of_COVGRP_ITEM_GET_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_inst_coverage", of_COVGRP_ITEM_GET_INST_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/options/init", of_COVGRP_OPTIONS_INIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -353,6 +354,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%defer/cancel/process",of_DEFER_CANCEL_PROCESS,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
       { "%defer/enqueue",of_DEFER_ENQUEUE,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/enqueue/key",of_DEFER_ENQUEUE_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%defer/enqueue/taskkey",of_DEFER_ENQUEUE_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final",of_DEFER_FINAL,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/final/key",of_DEFER_FINAL_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/final/taskkey",of_DEFER_FINAL_TASK_KEY,1,{OA_NUMBER,OA_NONE,OA_NONE} },
@@ -390,6 +392,16 @@ static const struct opcode_table_s opcode_table[] = {
       { "%evctl/c",of_EVCTLC, 0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%evctl/i",of_EVCTLI, 2,  {OA_FUNC_PTR, OA_BIT1,     OA_NONE} },
       { "%evctl/s",of_EVCTLS, 2,  {OA_FUNC_PTR, OA_BIT1,     OA_NONE} },
+      { "%evctl/sync", of_EVCTL_SYNC, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%evctl/vif/anyedge",of_EVCTLVIF_ANYEDGE,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/anyedge/i",of_EVCTLVIF_ANYEDGE_I,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/anyedge/s",of_EVCTLVIF_ANYEDGE_S,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/negedge",of_EVCTLVIF_NEGEDGE,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/negedge/i",of_EVCTLVIF_NEGEDGE_I,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/negedge/s",of_EVCTLVIF_NEGEDGE_S,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/posedge",of_EVCTLVIF_POSEDGE,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/posedge/i",of_EVCTLVIF_POSEDGE_I,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%evctl/vif/posedge/s",of_EVCTLVIF_POSEDGE_S,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%event",    of_EVENT,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%event/expr/load/o",of_EVENT_EXPR_LOAD_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%event/expr/load/v",of_EVENT_EXPR_LOAD_VEC4,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
@@ -470,6 +482,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%load/obja",  of_LOAD_OBJA, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%load/preponed", of_LOAD_PREPONED, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/preponed/av", of_LOAD_PREPONED_AV, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
+      { "%load/preponed/obj", of_LOAD_PREPONED_OBJ, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/preponed/real", of_LOAD_PREPONED_REAL, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/qo/obj", of_LOAD_QO_OBJ,   0, {OA_NONE,     OA_NONE, OA_NONE} },
       { "%load/qo/r",   of_LOAD_QO_R,     0, {OA_NONE,     OA_NONE, OA_NONE} },
@@ -533,6 +546,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%process/self", of_PROCESS_SELF, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/status",of_PROCESS_STATUS,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/suspend",of_PROCESS_SUSPEND,0,{OA_NONE, OA_NONE, OA_NONE} },
+      { "%process/suspend/2023",of_PROCESS_SUSPEND_2023,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%prop/arr/dar",of_PROP_ARR_DAR,1,{OA_NUMBER, OA_NONE, OA_NONE} },
       { "%prop/const/init",of_PROP_CONST_INIT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%prop/index/check",of_PROP_INDEX_CHECK,1,{OA_STRING,OA_NONE,OA_NONE} },
@@ -637,6 +651,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/el",of_REF_BIND_EL,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%ref/bind/el/el/o",of_REF_BIND_EL_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%ref/bind/el/o",of_REF_BIND_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/pr",of_REF_BIND_PR,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
       { "%ref/bind/w",of_REF_BIND_W,  2,{OA_ARR_PTR, OA_FUNC_PTR2,OA_NONE} },
@@ -826,6 +842,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/str",  of_UNBOX_STR, 0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
       { "%vif/fatal", of_VIF_FATAL, 0,{OA_NONE,     OA_NONE,    OA_NONE} },
+      { "%vif/nullcheck", of_VIF_NULLCHECK, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%vif/tickchg",of_VIF_TICKCHG,1,{OA_NUMBER, OA_NONE,    OA_NONE} },
       { "%wait",   of_WAIT,   1,  {OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%wait/arr",of_WAIT_ARR,2,{OA_NUMBER,  OA_BIT1,     OA_NONE} },
@@ -3255,7 +3272,8 @@ void compile_vpi_call(char*label, char*name,
                       long file_idx, long lineno,
                       unsigned argc, vpiHandle*argv,
 		      unsigned vec4_stack, unsigned real_stack,
-		      unsigned string_stack, unsigned object_stack)
+		      unsigned string_stack, unsigned object_stack,
+		      bool defer_observed)
 {
       if (label)
 	    compile_codelabel(label);
@@ -3271,6 +3289,7 @@ void compile_vpi_call(char*label, char*name,
                                          argc, argv, vec4_stack, real_stack,
                                          string_stack, object_stack,
 					 file_idx, lineno);
+      code->bit_idx[0] = defer_observed ? 1 : 0;
       if (code->handle == 0)
 	    compile_errors += 1;
 

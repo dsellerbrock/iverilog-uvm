@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_real_bitand.sv:1: error: & operator may not have REAL operands.
+1 error(s) during elaboration.

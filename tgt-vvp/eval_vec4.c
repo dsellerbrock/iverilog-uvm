@@ -447,6 +447,20 @@ static void draw_binary_vec4_compare(ivl_expr_t expr)
 	    return;
       }
 
+	/* Unpacked structs live on the object stack and compare by member value. */
+      if (vvp_expr_is_unpacked_struct(le)
+	  && vvp_expr_is_unpacked_struct(re)) {
+	    char op = ivl_expr_opcode(expr);
+	    draw_eval_object(le);
+	    draw_eval_object(re);
+	    fprintf(vvp_out, "    %%cmp/obj;\n");
+	    unsigned flag = (op == 'E' || op == 'N') ? 6 : 4;
+	    if (op == 'n' || op == 'N')
+		  fprintf(vvp_out, "    %%flag_inv %u;\n", flag);
+	    fprintf(vvp_out, "    %%flag_get/vec4 %u;\n", flag);
+	    return;
+      }
+
       if ((ivl_expr_value(le)==IVL_VT_CLASS)
 	  && (ivl_expr_value(re)==IVL_VT_CLASS)) {
 	    draw_binary_vec4_compare_class(expr);

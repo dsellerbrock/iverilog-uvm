@@ -1,0 +1,14 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+894e1403361b6cfbea579aa6d4ed3e67263b845f748ae1e9ec29cb84d0645a3a  /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.9.3-20261019-a05/input/p16_09_03_sampled_procedural.sv
+=== -g2017 ===
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+GAP: $sampled changed within the time step: before=0 after=00000000000000000000000000000001
+GAP: $sampled changed within the time step: before=1 after=00000000000000000000000000000000
+RESULT: failures=2 checks=2
+=== -g2023 ===
+SVA warning: $sampled outside a property expression returns the live value at call time, not the Observed-region sample (compile-progress approximation).
+GAP: $sampled changed within the time step: before=0 after=00000000000000000000000000000001
+GAP: $sampled changed within the time step: before=1 after=00000000000000000000000000000000
+RESULT: failures=2 checks=2

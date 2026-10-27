@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $rising_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/input/p16_09_04_future_gclk.sv:10: Error: System task/function $future_gclk() is not defined by any module.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-9.4-20261019-17/results/p16_09_04_future_gclk-2017.vvp: Program not runnable, 2 errors.
+run_exit=2

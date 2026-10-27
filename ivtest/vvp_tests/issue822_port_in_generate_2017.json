@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue822_port_in_generate.sv",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue822_port_in_generate"
+}

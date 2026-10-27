@@ -538,7 +538,16 @@ static void elaborate_scope_enumeration(Design*des, NetScope*scope,
 	    if (cur->parm) {
 		    // There is an explicit value. elaborate/evaluate
 		    // the value and assign it to the enumeration name.
-		  NetExpr*val = elab_and_eval(des, scope, cur->parm, -1);
+		  /* IEEE 1800-2017/2023 6.19 evaluates enum values in the
+		     context of a cast to the enum base type. In particular, an
+		     unbased unsized fill literal must expand to the complete enum
+		     width before it is stored as the enumerator value. */
+		  int value_width = -1;
+		  if (const PENumber*num = dynamic_cast<const PENumber*>(cur->parm)) {
+			if (num->value().is_single())
+			      value_width = enum_width;
+		  }
+		  NetExpr*val = elab_and_eval(des, scope, cur->parm, value_width);
 		  const NetEConst*val_const = dynamic_cast<NetEConst*> (val);
 		  if (val_const == 0) {
 			cerr << use_enum->get_fileline()
@@ -4437,6 +4446,40 @@ static void validate_class_type_parameter_restrictions_(
       }
 }
 
+static void validate_module_type_parameter_restrictions_(
+	Design*des, const Module*module, NetScope*module_scope)
+{
+      for (std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+		   module->parameters.begin()
+	   ; param != module->parameters.end(); ++param) {
+	    if (!param->second || !param->second->type_flag)
+		  continue;
+
+	    PScope::typedef_map_t::const_iterator declared =
+		  module->typedefs.find(param->first);
+	    if (declared == module->typedefs.end() || !declared->second)
+		  continue;
+	    const type_parameter_t*type_parameter = dynamic_cast<const type_parameter_t*>(
+		  declared->second->get_data_type());
+	    if (!type_parameter
+		|| type_parameter->restriction == type_parameter_restriction_t::NONE)
+		  continue;
+
+	    ivl_type_t actual_type = 0;
+	    module_scope->get_parameter(des, param->first, actual_type);
+	    if (!actual_type || type_parameter_matches_restriction_(
+		  actual_type, type_parameter->restriction))
+		  continue;
+
+	    cerr << param->second->get_fileline()
+		 << ": error: Type argument for module type parameter `"
+		 << param->first << "' does not satisfy the `type "
+		 << type_parameter_restriction_name_(type_parameter->restriction)
+		 << "' restriction." << endl;
+	    des->errors += 1;
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -5385,6 +5428,10 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
       scope->add_typedefs(&typedefs);
       scope->add_nettypes(des, &nettypes);
 
+      for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+		 ; lt != lets.end() ; ++ lt)
+	    scope->add_let(lt->first, lt->second);
+
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
@@ -5407,6 +5454,26 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
+	// IEEE 1800-2017/2023 25.5 requires simple modport ports to name
+	// signals declared by this interface, not names found in an enclosing
+	// lexical scope or implicit nets.
+      if (is_interface) {
+	    for (std::map<perm_string,PModport*>::const_iterator mp = modports.begin()
+		       ; mp != modports.end() ; ++ mp) {
+		  if (!mp->second) continue;
+		  for (std::map<perm_string,PModport::simple_port_t>::const_iterator
+			     sp = mp->second->simple_ports.begin()
+			     ; sp != mp->second->simple_ports.end() ; ++ sp) {
+			if (sp->second.second == nullptr && wires.count(sp->first) == 0) {
+			      cerr << get_fileline() << ": error: Modport port '"
+				   << sp->first << "' is not declared in interface '"
+				   << mod_name() << "'." << endl;
+			      des->errors += 1;
+			}
+		  }
+	    }
+      }
+
 	// M12: record modport names on interface scopes for VPI —
 	// M12-6 adds each modport's port list with VPI direction
 	// codes (ref ports map to vpiNoDirection).
@@ -5433,6 +5500,11 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    }
       }
 
+	// Compilation-unit lets are visible in each design element in that
+	// compilation unit; local lets take precedence over them.
+	for (std::map<perm_string,PLet*>::const_iterator lt = unit_lets.begin()
+	     ; lt != unit_lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
 	// M13: make let declarations visible to expression elaboration.
       for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
 		 ; lt != lets.end() ; ++ lt)
@@ -5466,6 +5538,10 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	// containing scope and meant for me.
 
       replace_scope_parameters(des, scope, *this, replacements);
+
+	// Type parameter overrides are now installed. Check restricted types
+	// before elaborating declarations that use those parameters.
+      validate_module_type_parameter_restrictions_(des, this, scope);
 
       elaborate_scope_enumerations(des, scope, enum_sets);
 
@@ -5871,16 +5947,20 @@ bool PGenerate::generate_scope_condit_(Design*des, NetScope*container, bool else
 
 bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 {
-      NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
-      NetEConst*case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
-      if (case_value_co == 0) {
+      bool type_case = type_operator_reference(loop_test) != 0;
+      NetEConst*case_value_co = 0;
+      if (!type_case) {
+	    NetExpr*case_value_ex = elab_and_eval(des, container, loop_test, -1, true);
+	    case_value_co = dynamic_cast<NetEConst*>(case_value_ex);
+      }
+      if (!type_case && case_value_co == 0) {
 	    cerr << get_fileline() << ": error: Cannot evaluate genvar case"
 		 << " expression: " << *loop_test << endl;
 	    des->errors += 1;
 	    return false;
       }
 
-      if (debug_scopes)
+      if (debug_scopes && !type_case)
 	    cerr << get_fileline() << ": debug: Generate case "
 		 << "switch value=" << case_value_co->value() << endl;
 
@@ -5901,6 +5981,27 @@ bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 
 	    bool match_flag = false;
 	    for (unsigned idx = 0 ; idx < item->item_test.size() && !match_flag ; idx +=1 ) {
+	      if (type_case) {
+		    if (!type_operator_reference(item->item_test[idx])) {
+			  cerr << item->item_test[idx]->get_fileline()
+			       << ": error: A type() generate case expression "
+			       << "requires type() case item expressions (IEEE "
+			       << "1800-2017 6.23)." << endl;
+			  des->errors += 1;
+			  delete case_value_co;
+			  return false;
+		    }
+
+		    if (!elaborate_type_operator_match(des, container, loop_test,
+						       item->item_test[idx],
+						       *item->item_test[idx],
+						       match_flag)) {
+			  delete case_value_co;
+			  return false;
+		    }
+		    continue;
+	      }
+
 		  NetExpr*item_value_ex = elab_and_eval(des, container,
                                                         item->item_test[idx],
                                                         -1, true);
@@ -6320,11 +6421,20 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // so the mapping into the replace list is much easier.
 	    if (parms_) {
 		  ivl_assert(*this, overrides_ == 0);
+		  set<perm_string> assigned_parameters;
 		  for (unsigned jdx = 0 ;  jdx < nparms_ ;  jdx += 1) {
 		          // No expression means that the parameter is not
 		          // replaced.
-			if (parms_[jdx].parm)
+			if (parms_[jdx].parm) {
+			      if (!assigned_parameters.insert(parms_[jdx].name).second) {
+				    des->errors += 1;
+				    cerr << parms_[jdx].parm->get_fileline()
+				         << ": error: Parameter `" << parms_[jdx].name
+				         << "' is assigned more than once in this instance."
+				         << endl;
+			      }
 			      replace[parms_[jdx].name] = parms_[jdx].parm;
+			}
 		  }
 
 	    }
@@ -6359,6 +6469,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 {
       NetEvent*ev = new NetEvent(name_);
+      ev->set_declared_event();
       ev->lexical_pos(lexical_pos_);
       ev->lifetime_override(lifetime_override_);
       ev->set_line(*this);
@@ -6394,6 +6505,25 @@ void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::FUNC);
+
+      // The function return variable is implicit, but a declaration in the
+      // function body with the same name is still a duplicate object (IEEE
+      // 1800-2017/2023 13.4.1). Diagnose it before the implicit return signal
+      // is added to the scope and replaces the declaration during elaboration.
+      const PNamedItem*return_name = nullptr;
+      map<perm_string,PWire*>::const_iterator wire = wires.find(scope->basename());
+      if (wire != wires.end()) return_name = wire->second;
+      map<perm_string,param_expr_t*>::const_iterator param =
+	    parameters.find(scope->basename());
+      if (!return_name && param != parameters.end()) return_name = param->second;
+      map<perm_string,PEvent*>::const_iterator event = events.find(scope->basename());
+      if (!return_name && event != events.end()) return_name = event->second;
+      if (return_name) {
+	    cerr << return_name->get_fileline() << ": error: Object `"
+		 << scope->basename() << "' has the same name as the function."
+		 << endl;
+	    des->errors += 1;
+      }
 
         // Save a reference to the pform representation of the function
         // in case we need to perform early elaboration.

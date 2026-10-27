@@ -1015,7 +1015,8 @@ TU [munpf]
 `begin_keywords { BEGIN(PPBEGIN_KEYWORDS); }
 
 <PPBEGIN_KEYWORDS>\"[a-zA-Z0-9 -\.]*\" {
-      keyword_mask_stack.push_front(lexor_keyword_mask);
+      int previous_keyword_mask = lexor_keyword_mask;
+      bool recognized = true;
 
       char*word = yytext+1;
       char*tail = strchr(word, '"');
@@ -1055,6 +1056,25 @@ TU [munpf]
 		                |GN_KEYWORDS_1800_2005
 		                |GN_KEYWORDS_1800_2009
 		                |GN_KEYWORDS_1800_2012;
+	  } else if (strcmp(word,"1800-2017") == 0) {
+	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
+				        |GN_KEYWORDS_1364_2001
+				        |GN_KEYWORDS_1364_2001_CONFIG
+				        |GN_KEYWORDS_1364_2005
+				        |GN_KEYWORDS_1800_2005
+				        |GN_KEYWORDS_1800_2009
+				        |GN_KEYWORDS_1800_2012
+				        |GN_KEYWORDS_1800_2017;
+	  } else if (strcmp(word,"1800-2023") == 0) {
+	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
+				        |GN_KEYWORDS_1364_2001
+				        |GN_KEYWORDS_1364_2001_CONFIG
+				        |GN_KEYWORDS_1364_2005
+				        |GN_KEYWORDS_1800_2005
+				        |GN_KEYWORDS_1800_2009
+				        |GN_KEYWORDS_1800_2012
+				        |GN_KEYWORDS_1800_2017
+				        |GN_KEYWORDS_1800_2023;
       } else if (strcmp(word,"VAMS-2.3") == 0) {
 	    lexor_keyword_mask = GN_KEYWORDS_1364_1995
 		                |GN_KEYWORDS_1364_2001
@@ -1062,9 +1082,13 @@ TU [munpf]
 		                |GN_KEYWORDS_1364_2005
 		                |GN_KEYWORDS_VAMS_2_3;
       } else {
-	    fprintf(stderr, "%s:%d: Ignoring unknown keywords string: %s\n",
-		    yylloc.text, yylloc.first_line, word);
+	VLerror(yylloc, "error: Unrecognized `begin_keywords version specifier: %s",
+		word);
+	lexor_keyword_mask = previous_keyword_mask;
+	recognized = false;
       }
+      if (recognized)
+	    keyword_mask_stack.push_front(previous_keyword_mask);
       BEGIN(0);
  }
 
@@ -1088,6 +1112,15 @@ TU [munpf]
       } else {
 	    VLwarn(yylloc, "warning: Mismatched `end_keywords directive");
       }
+ }
+
+  /* IEEE 1800-2023 requires each begin_keywords directive to be paired
+     with an end_keywords directive. Earlier editions permit an unmatched
+     begin_keywords, so only diagnose this at EOF in 2023 mode. */
+<INITIAL><<EOF>> {
+      if (generation_flag >= GN_VER2023 && !keyword_mask_stack.empty())
+	    VLerror(yylloc, "error: Unmatched `begin_keywords directive.");
+      yyterminate();
  }
 
   /* Notice and handle the `default_nettype directive. */

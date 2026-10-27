@@ -1,0 +1,126 @@
+host=DAN-DESKTOP
+start=2026-10-17T23:15:42-06:00
+job_id=2551
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+
+=== -g2017 p09_04_2_implicit_star.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.2.star_includes_all_operands_and_function_args
+PASS 9.4.2.2.star_index_and_rhs_not_lvalue_base
+PASS 9.4.2.2.star_excludes_ids_only_in_event_expr
+PASS 9.4.2.2.star_wakes_once_on_rhs_id
+PASS 9.4.2.2.star_inner_event_pending_kid_unchanged
+PASS 9.4.2.2.inner_event_then_assign
+PASS 9.4.2.2.nk_unchanged_after_inner_event
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_implicit_star.sv:27: $finish called at 15 (1s)
+RESULT 2017_p09_04_2_implicit_star compile_rc=0 run_rc=0
+
+=== -g2017 p09_04_2_objects.sv ===
+compile_rc=0
+run_rc=0
+INFO handle_events=1 member_events=1 member_time=15
+PASS 9.4.2.handle_change_is_event
+FAIL 9.4.2.member_event_retargets_to_new_object
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_objects.sv:20: $finish called at 21 (1s)
+RESULT 2017_p09_04_2_objects compile_rc=0 run_rc=0
+
+=== -g2017 p09_04_2_method_darray_real.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_real.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_real.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2017_p09_04_2_method_darray_real compile_rc=1 run_rc=NA
+
+=== -g2017 p09_04_2_method_darray_int.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_int.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_int.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2017_p09_04_2_method_darray_int compile_rc=1 run_rc=NA
+
+=== -g2017 p09_04_2_method_queue.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_queue.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_queue.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2017_p09_04_2_method_queue compile_rc=1 run_rc=NA
+
+=== -g2017 p09_04_2_method_user.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.nonvirtual_method_event hit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_user.sv:5: $finish called at 6 (1s)
+RESULT 2017_p09_04_2_method_user compile_rc=0 run_rc=0
+
+=== -g2017 p09_04_2_method_relational.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_relational.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_relational.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2017_p09_04_2_method_relational compile_rc=1 run_rc=NA
+
+=== -g2023 p09_04_2_implicit_star.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.2.star_includes_all_operands_and_function_args
+PASS 9.4.2.2.star_index_and_rhs_not_lvalue_base
+PASS 9.4.2.2.star_excludes_ids_only_in_event_expr
+PASS 9.4.2.2.star_wakes_once_on_rhs_id
+PASS 9.4.2.2.star_inner_event_pending_kid_unchanged
+PASS 9.4.2.2.inner_event_then_assign
+PASS 9.4.2.2.nk_unchanged_after_inner_event
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_implicit_star.sv:27: $finish called at 15 (1s)
+RESULT 2023_p09_04_2_implicit_star compile_rc=0 run_rc=0
+
+=== -g2023 p09_04_2_objects.sv ===
+compile_rc=0
+run_rc=0
+INFO handle_events=1 member_events=1 member_time=15
+PASS 9.4.2.handle_change_is_event
+FAIL 9.4.2.member_event_retargets_to_new_object
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_objects.sv:20: $finish called at 21 (1s)
+RESULT 2023_p09_04_2_objects compile_rc=0 run_rc=0
+
+=== -g2023 p09_04_2_method_darray_real.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_real.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_real.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2023_p09_04_2_method_darray_real compile_rc=1 run_rc=NA
+
+=== -g2023 p09_04_2_method_darray_int.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_int.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_darray_int.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2023_p09_04_2_method_darray_int compile_rc=1 run_rc=NA
+
+=== -g2023 p09_04_2_method_queue.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_queue.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_queue.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2023_p09_04_2_method_queue compile_rc=1 run_rc=NA
+
+=== -g2023 p09_04_2_method_user.sv ===
+compile_rc=0
+run_rc=0
+PASS 9.4.2.nonvirtual_method_event hit=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_user.sv:5: $finish called at 6 (1s)
+RESULT 2023_p09_04_2_method_user compile_rc=0 run_rc=0
+
+=== -g2023 p09_04_2_method_relational.sv ===
+compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_relational.sv:2: error: System function $ivl_queue_method$size not defined in system table or SFT file(s).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03/inputs/p09_04_2_method_relational.sv:2: warning: Failed to synthesize event expression (compile-progress: event skipped).
+1 error(s) during elaboration.
+RESULT 2023_p09_04_2_method_relational compile_rc=1 run_rc=NA
+
+DONE status=1

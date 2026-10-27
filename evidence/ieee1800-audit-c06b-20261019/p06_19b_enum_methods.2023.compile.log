@@ -1,0 +1,5 @@
+tests/1800_audit/c06/p06_19b_enum_methods.sv:32: error: Object p06_19b_enum_methods.c has no method "name.len(...)".
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `next' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:36: warning: Enum method `first' on class-property enum not yet supported (compile-progress: expression dropped).
+tests/1800_audit/c06/p06_19b_enum_methods.sv:40: error: Variable q['sd0] does not have a field named: next.
+2 error(s) during elaboration.

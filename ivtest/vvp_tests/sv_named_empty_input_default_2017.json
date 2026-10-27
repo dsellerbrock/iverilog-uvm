@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_named_empty_input_default.v",
+    "iverilog-args": ["-g2017", "-s", "sv_named_empty_input_default"],
+    "gold": "sv_named_empty_input_default"
+}

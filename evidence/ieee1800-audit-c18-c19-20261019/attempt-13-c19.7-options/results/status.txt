@@ -1,0 +1,8 @@
+positive-common-coverage-options-2017-compile=FAIL(1)
+positive-common-coverage-options-2023-compile=FAIL(1)
+positive-2023-coverage-options-2023-compile=FAIL(1)
+expected-rejection-2023-coverage-options-2017=PASS(exit=1)
+expected-rejection-duplicate-option-2017=PASS(exit=1)
+expected-rejection-duplicate-option-2023=PASS(exit=1)
+expected-rejection-invalid-type-option-2017=PASS(exit=1)
+expected-rejection-invalid-type-option-2023=PASS(exit=1)

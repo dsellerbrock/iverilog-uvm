@@ -1,0 +1,117 @@
+Toolchain: Icarus Verilog version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Bundled UVM: Accellera:1800.2:UVM:2020.3.1
+Icarus Verilog Preprocessor version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1999-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+Icarus Verilog Parser/Elaborator version 13.0 (devel) (cc25756d1)
+
+Copyright (c) 1998-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+ FLAGS DLL vvp.tgt
+vvp.tgt: Icarus Verilog VVP Code Generator 13.0 (devel) (cc25756d1)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+218796e8e4fe0587816e8e8e4fa43b2088807368c9f776f4797fc431a55fcd3d  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivl
+07d3adc5c29c525db009829290dc418b04425a08ee17ea5305ab08b19889c8f2  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl/ivlpp
+0de4bcd3e76446fd5b6b313f6b8dbdd5c9eadfbfb740daa87c6f5a36507bc879  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/k11_02_ka.sv
+c46498c9045a4fc3e72b7bf40e82c630db8f3f4dadd13b53bec7852e4befebfe  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qa.sv
+3f2cd1ab44c698583d83410b196204ad30354eaa62068c4df29f855bd94b49e9  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qk.sv
+9c1072730c0def4746360d736b6f722e1fef30ba4a2da99a58b9f11848c99574  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qs.sv
+fe3768dab275a6b55334a33538fb9d745fd9934150d860fade2f9320060fe07e  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qx.sv
+k11_02_ka-2017 compile_rc=0
+k11_02_ka-2017 run_rc=0
+K 5 6 6
+E 1 1 1 1
+Y 2 7
+q11_02_qa-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qa.sv:5: sorry: a conditional with whole unpacked array operands is only supported when the condition is a constant.
+1 error(s) during elaboration.
+q11_02_qs-2017 compile_rc=0
+q11_02_qs-2017 run_rc=0
+QS 3
+q11_02_qx-2017 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qx.sv:5: sorry: a conditional with whole unpacked array operands is only supported when the condition is a constant.
+1 error(s) during elaboration.
+q11_02_qk-2017 compile_rc=0
+q11_02_qk-2017 run_rc=0
+QK 2
+k11_02_ka-2023 compile_rc=0
+k11_02_ka-2023 run_rc=0
+K 5 6 6
+E 1 1 1 1
+Y 2 7
+q11_02_qa-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qa.sv:5: sorry: a conditional with whole unpacked array operands is only supported when the condition is a constant.
+1 error(s) during elaboration.
+q11_02_qs-2023 compile_rc=0
+q11_02_qs-2023 run_rc=0
+QS 3
+q11_02_qx-2023 compile_rc=1
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c11-aggr-cond-20261020-02/source/q11_02_qx.sv:5: sorry: a conditional with whole unpacked array operands is only supported when the condition is a constant.
+1 error(s) during elaboration.
+q11_02_qk-2023 compile_rc=0
+q11_02_qk-2023 run_rc=0
+QK 2

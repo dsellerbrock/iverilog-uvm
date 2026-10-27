@@ -1,0 +1,2 @@
+tests/1800_audit/c06/r06_16_diag_B.sv:7: warning: Index expressions on this property type used as compile-progress fallback.
+tests/1800_audit/c06/r06_16_diag_B.sv:8: warning: Index expressions on this property type used as compile-progress fallback.

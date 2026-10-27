@@ -1,0 +1,95 @@
+{
+  "candidate_patch_sha256": "d732f301ae0abcb05dd5a3093d40f9ae40460fa0e104572a414892afcfef5db0",
+  "cpu_affinity": "single CPU via pin_one_cpu() in one-CPU Slurm job 3798",
+  "failed_valgrind_attempts": [
+    {
+      "log": "waveform_fst-02-candidate-attempt1.valgrind.log",
+      "reason": "Valgrind reported SIGSEGV"
+    },
+    {
+      "log": "waveform_fst-02-reference-attempt1.valgrind.log",
+      "reason": "Valgrind reported SIGSEGV"
+    },
+    {
+      "log": "waveform_fst-03-reference-attempt1.valgrind.log",
+      "reason": "Valgrind reported SIGSEGV"
+    },
+    {
+      "log": "waveform_fst-03-reference-attempt2.valgrind.log",
+      "reason": "Valgrind reported SIGSEGV"
+    },
+    {
+      "log": "waveform_fst-03-reference-attempt3.valgrind.log",
+      "reason": "Valgrind reported SIGSEGV"
+    }
+  ],
+  "instruction_counts": {
+    "candidate": [
+      14478747556,
+      14478747554
+    ],
+    "reference": [
+      14480747165,
+      14480747213
+    ]
+  },
+  "instruction_medians": {
+    "candidate": 14478747555,
+    "reference": 14480747189
+  },
+  "instruction_spread_pct": {
+    "candidate": 1.3813349479315512e-08,
+    "reference": 3.314746081366727e-07
+  },
+  "measurement_base": "10f3a0a2509d0852c2556cb6622fb0025121fb2d",
+  "runs_and_retries": [
+    {
+      "candidate": {
+        "artifacts": {
+          "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+          "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+        },
+        "attempt": 1,
+        "callgrind_instructions": 14478747556,
+        "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+      },
+      "identical": true,
+      "reference": {
+        "artifacts": {
+          "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+          "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+        },
+        "attempt": 1,
+        "callgrind_instructions": 14480747165,
+        "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+      },
+      "run": 1,
+      "status": "ok"
+    },
+    {
+      "candidate": {
+        "artifacts": {
+          "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+          "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+        },
+        "attempt": 2,
+        "callgrind_instructions": 14478747554,
+        "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+      },
+      "identical": true,
+      "reference": {
+        "artifacts": {
+          "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+          "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+        },
+        "attempt": 2,
+        "callgrind_instructions": 14480747213,
+        "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+      },
+      "run": 2,
+      "status": "ok"
+    }
+  ],
+  "speedup": 1.0001381082163636,
+  "successful_pairs": 2
+}

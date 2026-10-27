@@ -1,0 +1,35 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c parse.cc -o parse.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c lexor.cc -o lexor.o
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c tables.cc -o tables.o
+mv tables.d dep/tables.d
+g++ -I. -I.. -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp -I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/.. -I/opt/homebrew/opt/libffi/include -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-1800-audit-c06j-20261020-build/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc -o vvp_z3.o
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/vvp/vvp_z3.cc:35:12: fatal error: 'z3.h' file not found
+   35 | # include  <z3.h>
+      |            ^~~~~~
+1 error generated.
+make[1]: *** [vvp_z3.o] Error 1
+make[1]: *** Waiting for unfinished jobs....
+mv lexor.d dep/lexor.d
+mv parse.d dep/parse.d
+make: *** [all] Error 2
+        1.92 real         3.28 user         0.37 sys
+           157810688  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               42720  page reclaims
+                 793  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   8  signals received
+                 235  voluntary context switches
+                2271  involuntary context switches
+            14686975  instructions retired
+             8827605  cycles elapsed
+             1524096  peak memory footprint

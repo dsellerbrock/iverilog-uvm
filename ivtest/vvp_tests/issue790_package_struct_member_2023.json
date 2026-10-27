@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "issue790_package_struct_member_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "issue790_package_struct_member"
+    ],
+    "gold": "issue790_package_struct_member"
+}

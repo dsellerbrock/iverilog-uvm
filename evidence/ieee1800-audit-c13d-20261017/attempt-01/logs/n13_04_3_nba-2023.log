@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13d-20261017/inputs/c13/neg/n13_04_3_nba.sv:3: error: `cf' is not a constant function.
+1 error(s) during elaboration.

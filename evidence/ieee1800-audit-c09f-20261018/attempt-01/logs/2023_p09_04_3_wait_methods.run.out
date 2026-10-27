@@ -1,0 +1,4 @@
+PASS 9.4.3.wait_dynamic_array_size
+FAIL 9.4.3.wait_bits_of_queue
+DONE fails=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-01/inputs/p09_04_3_wait_methods.sv:15: $finish called at 11 (1s)

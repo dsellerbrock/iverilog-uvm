@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to bind wire/reg/memory `abc.triggered' in `top' (compile-progress: unresolved reference).
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-02/inputs/p09_04_4_seq_reducer.sv:8: warning: Unable to elaborate wait condition expression (compile-progress fallback).

@@ -108,12 +108,13 @@ static void show_this_item(struct vcd_info*info)
       s_vpi_value value;
       PLI_INT32 type = vpi_get(vpiType, info->item);
 
-      if (type == vpiRealVar) {
+      if (type == vpiNamedEvent) {
+	    /* Checkpoints do not imply that an event was triggered. */
+	    return;
+      } else if (type == vpiRealVar) {
 	    value.format = vpiRealVal;
 	    vpi_get_value(info->item, &value);
 	    fprintf(dump_file, "r%.16g %s\n", value.value.real, info->ident);
-      } else if (type == vpiNamedEvent) {
-	    fprintf(dump_file, "1%s\n", info->ident);
       } else if (type == vpiParameter && vpi_get(vpiConstType, info->item) == vpiRealConst) {
 
 	    value.format = vpiRealVal;
@@ -175,7 +176,10 @@ static PLI_INT32 variable_cb_2(p_cb_data cause)
       }
 
       do {
-           show_this_item(info);
+	    if (vpi_get(vpiType, info->item) == vpiNamedEvent)
+		  fprintf(dump_file, "1%s\n", info->ident);
+	    else
+                  show_this_item(info);
            info->scheduled = 0;
       } while ((info = info->dmp_next) != 0);
 
@@ -519,6 +523,14 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	 * future development version. */
       item_type = vpi_get(vpiType, item);
       switch (item_type) {
+	  case vpiClassVar:
+	    if (vpi_get(vpiIsStruct, item)) type = "fork";
+	    else {
+		  vpi_printf("VCD warning: $dumpvars: Unsupported argument "
+		             "type (%s).\n", vpi_get_str(vpiType, item));
+		  return;
+	    }
+	    break;
 	  case vpiNamedEvent: type = "event"; break;
 	  case vpiIntVar:
 	  case vpiIntegerVar: type = "integer"; break;
@@ -665,10 +677,22 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 		    type, size, ident, prefix, name);
 
 	      /* Add a range for vectored values. */
-	    if (size > 1 || vpi_get(vpiLeftRange, item) != 0) {
+	    {
+		  int left = vpi_get(vpiLeftRange, item);
+		  int right = vpi_get(vpiRightRange, item);
+		    /* VPI gives only the outer range of a multidimensional packed
+		     * variable. VCD dumps it as one vector, so collapse the range
+		     * to the total width. */
+		  if (size > 0 && left != vpiUndefined && right != vpiUndefined
+		      && abs(left - right) + 1 != (int)size) {
+			left = size - 1;
+			right = 0;
+		  }
+		  if ((size > 1 || left != 0)
+		      && !(left == vpiUndefined && right == vpiUndefined)) {
 		  fprintf(dump_file, " [%i:%i]",
-			  (int)vpi_get(vpiLeftRange, item),
-			  (int)vpi_get(vpiRightRange, item));
+			  left, right);
+		  }
 	    }
 
 	    fprintf(dump_file, " $end\n");
@@ -709,6 +733,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	  case vpiTask:
 	  case vpiNamedBegin:
 	  case vpiNamedFork:
+	  case vpiClassVar:
 
 	    if (depth > 0) {
 		  int i;
@@ -726,11 +751,18 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 		  name = vpi_get_str(vpiName, item);
 		  fprintf(dump_file, "$scope %s %s $end\n", type, name);
 
-		  for (i=0; dumpable_types[i]>0; i++) {
+		  if (item_type == vpiClassVar) {
 			vpiHandle hand;
-			vpiHandle argv = vpi_iterate(dumpable_types[i], item);
-			while (argv && (hand = vpi_scan(argv))) {
+			vpiHandle argv = vpi_iterate(vpiMember, item);
+			while (argv && (hand = vpi_scan(argv)))
 			      scan_item(depth-1, hand, nskip);
+		  } else {
+			for (i=0; dumpable_types[i]>0; i++) {
+			      vpiHandle hand;
+			      vpiHandle argv = vpi_iterate(dumpable_types[i], item);
+			      while (argv && (hand = vpi_scan(argv))) {
+				    scan_item(depth-1, hand, nskip);
+			      }
 			}
 		  }
 
@@ -842,6 +874,8 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	        case vpiRealVar:
 	        case vpiReg:
 	        case vpiTimeVar:
+		case vpiClassVar:
+		    if (!vpi_get(vpiIsStruct, item)) break;
 		    /* Warn if the variables scope (which includes the
 		     * variable) or the variable itself was already
 		     * included. A scope does not automatically include
@@ -883,10 +917,13 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-void sys_vcd_register(void)
+const struct vcd_dump_tasks*sys_vcd_setup(void)
 {
-      s_vpi_systf_data tf_data;
-      vpiHandle res;
+      static const struct vcd_dump_tasks tasks = {
+	    sys_dumpall_calltf, sys_dumpfile_calltf, sys_dumpflush_calltf,
+	    sys_dumplimit_calltf, sys_dumpoff_calltf, sys_dumpon_calltf,
+	    sys_dumpvars_calltf
+      };
       int idx;
       struct t_vpi_vlog_info vlog_info;
 
@@ -899,68 +936,5 @@ void sys_vcd_register(void)
         }
       }
 
-      /* All the compiletf routines are located in vcd_priv.c. */
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpall";
-      tf_data.calltf    = sys_dumpall_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpall";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpfile";
-      tf_data.calltf    = sys_dumpfile_calltf;
-      tf_data.compiletf = sys_one_string_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpfile";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpflush";
-      tf_data.calltf    = sys_dumpflush_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpflush";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumplimit";
-      tf_data.calltf    = sys_dumplimit_calltf;
-      tf_data.compiletf = sys_one_numeric_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumplimit";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpoff";
-      tf_data.calltf    = sys_dumpoff_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpoff";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpon";
-      tf_data.calltf    = sys_dumpon_calltf;
-      tf_data.compiletf = sys_no_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpon";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
-
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$dumpvars";
-      tf_data.calltf    = sys_dumpvars_calltf;
-      tf_data.compiletf = sys_dumpvars_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$dumpvars";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
+      return &tasks;
 }

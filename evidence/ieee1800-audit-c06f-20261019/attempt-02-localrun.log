@@ -1,0 +1,38 @@
+compile -g2017 rc=8
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: error: Cast size expression must be constant and greater than zero.
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:33: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+8 error(s) during elaboration.
+compile -g2023 rc=8
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: sorry: the type() operator is only supported in ==, !=, ===, !==, or case matching (IEEE 1800-2017 6.23); this usage is not implemented.
+tests/1800_audit/c06/r06_23b_no_generate.sv:24: error: Cast size expression must be constant and greater than zero.
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:31: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:32: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+tests/1800_audit/c06/r06_23b_no_generate.sv:33: sorry: type() comparison/case matching of struct/union or array-typed operands is not supported (member/element-wise matching per IEEE 1800-2017 6.22.1 is not modeled for these operand shapes).
+8 error(s) during elaboration.
+        0.56 real         0.10 user         0.06 sys
+            16941056  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                9880  page reclaims
+                 134  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  19  voluntary context switches
+                 319  involuntary context switches
+            65141765  instructions retired
+            27029809  cycles elapsed
+             2376160  peak memory footprint

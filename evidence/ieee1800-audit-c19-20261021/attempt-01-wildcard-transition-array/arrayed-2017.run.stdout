@@ -1,0 +1,2 @@
+observed inst_coverage=100.000000
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c19-20261021/attempt-01-wildcard-transition-array/input/p19_05_04_wildcard_transition_array.sv:16: $finish called at 0 (1s)

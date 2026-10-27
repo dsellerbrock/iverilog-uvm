@@ -1,0 +1,62 @@
+g2017 compile rc=0
+FAIL casex_dyn
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:12: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:13: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: p12c
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:14: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+FAIL match_cond
+RESULT pass=11 fail=2
+W1 unique case no match
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:24: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+W2 priority casez covered
+W3 priority casez uncovered
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:26: value is unhandled for priority or unique case statement
+         Time: 2  Scope: p12c
+W4 unique0 no match
+W5 unique overlap
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:28: multiple case items match for unique or unique0 case statement
+         Time: 4  Scope: p12c
+W6 end
+g2023 compile rc=0
+FAIL casex_dyn
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:12: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:13: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: p12c
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:14: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+FAIL match_cond
+RESULT pass=11 fail=2
+W1 unique case no match
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:24: value is unhandled for priority or unique case statement
+         Time: 0  Scope: p12c
+W2 priority casez covered
+W3 priority casez uncovered
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:26: value is unhandled for priority or unique case statement
+         Time: 2  Scope: p12c
+W4 unique0 no match
+W5 unique overlap
+WARNING: tests/1800_audit/c12/p12_05c_no_guards.sv:28: multiple case items match for unique or unique0 case statement
+         Time: 4  Scope: p12c
+W6 end
+        1.61 real         0.23 user         0.13 sys
+            16760832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               16443  page reclaims
+                 233  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  21  voluntary context switches
+                1091  involuntary context switches
+            71134348  instructions retired
+            38327501  cycles elapsed
+             2376160  peak memory footprint

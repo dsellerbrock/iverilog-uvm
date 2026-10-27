@@ -1,0 +1,18 @@
+Goal: M7 IEEE 1800 audit, paired §14.16.2 and §16.5.1 depth probes
+Source checkout: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Git HEAD at staging: df794e5829b207d89cbbef9f0948ebb8f7f3d416
+Source tree state: worktree contains other untracked evidence directories; only the 19 listed probe sources and this run harness were staged.
+Slurm host: DAN-DESKTOP
+Remote run dir: /home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-audit-c14-c16-20261021-attempt-01
+Slurm job: 3749
+Resources: 1 CPU, 1 GiB, 00:40:00; one sequential harness, based on prior Clause 14 run using the same pinned compiler and 1 GiB request.
+Compiler: Icarus 13.0 devel (cc25756d1), /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb
+Timeout: GNU timeout --signal=TERM --kill-after=5s 30s for every compile and run.
+Flags: -B /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/lib/ivl, -g2017/-g2023; Clause 16 cases also use -gassertions.
+Expected input count: 11 Clause 14 files + 8 Clause 16 files = 19.
+Compiler SHA-256: 1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593
+Runtime SHA-256: e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb
+Harness SHA-256: b2028e560efdac863e8042db5557b6fb27204bbbc5d66577dbeaacf0640c4abf
+Input hashes: SHA256SUMS.input
+First-run completion: Slurm job 3749 completed exit 0 in 1 second (2026-10-21T07:25:32–07:25:33 host time); scheduler record and all raw logs/status/hashes copied locally under raw-slurm-3749/.
+Observed first-run setup limitations: D4 omitted `default clocking`; S3a-c used an unsupported-to-this-compiler pass-action syntax, making sampled-value results inconclusive; S6 property cast failed to parse. Follow-up isolates these and preserves the original inputs/results.

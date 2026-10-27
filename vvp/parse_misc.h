@@ -38,6 +38,9 @@ extern void verify_version(char *ivl_ver, char* commit);
  */
 extern void set_delay_selection(const char* sel);
 
+/* Mark VVP input compiled for a SystemVerilog generation. */
+extern void compile_systemverilog_mode(void);
+
 /*
  * various functions shared by the lexor and the parser.
  */

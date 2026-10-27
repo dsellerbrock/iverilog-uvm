@@ -1,0 +1,5 @@
+edition	probe	compile_rc	run_rc	compile_sec	compile_kib	run_sec	run_kib
+2017	p08_26_sub	0	0	0.02	12076	0.02	12096
+2017	p08_23_scope_type	10	NA	0.02	12060	NA	NA
+2023	p08_26_sub	0	0	0.02	12104	0.01	12028
+2023	p08_23_scope_type	10	NA	0.01	12052	NA	NA

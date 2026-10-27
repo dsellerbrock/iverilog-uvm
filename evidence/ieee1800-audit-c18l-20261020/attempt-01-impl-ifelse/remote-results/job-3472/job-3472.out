@@ -1,0 +1,72 @@
+edition	probe	compile_rc	run_rc
+2017	p18_05_6_impl_ifelse	0	0
+2023	p18_05_6_impl_ifelse	0	0
+2023	p18_05_5_real_pred	0	124
+2017	p18_05_6_n_real_pred_2017	0	0
+2023	p18_05_6_n_real_pred_2017	0	0
+=== p18_05_6_impl_ifelse -g2017 run
+I1 a0=325 bad=0
+I1_BIDIR bad=0
+I2 bad=0
+F1 bad=0
+F1_BIDIR bad=0
+F2 bad=0 m1_free=183
+F3 bad=0
+=== p18_05_6_impl_ifelse -g2017 compile
+=== p18_05_6_n_real_pred_2017 -g2017 run
+Q b=1
+=== p18_05_6_n_real_pred_2017 -g2017 compile
+=== p18_05_6_impl_ifelse -g2023 run
+I1 a0=325 bad=0
+I1_BIDIR bad=0
+I2 bad=0
+F1 bad=0
+F1_BIDIR bad=0
+F2 bad=0 m1_free=183
+F3 bad=0
+=== p18_05_6_impl_ifelse -g2023 compile
+=== p18_05_5_real_pred -g2023 run
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+Timed out after 30.0s: /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/c18l-20261020-impl-ifelse/results/p18_05_5_real_pred-g2023.vvp
+ERROR: global constraint sampling failed: no feasible binary64 value satisfies the finite real interval.
+P1_W05 bad=0
+P1_W0 fail=0
+P1_W0 b0=87 b1=113
+P2_R05 bad=0
+P2_R0 bad=0
+=== p18_05_5_real_pred -g2023 compile
+=== p18_05_6_n_real_pred_2017 -g2023 run
+Q b=1
+=== p18_05_6_n_real_pred_2017 -g2023 compile

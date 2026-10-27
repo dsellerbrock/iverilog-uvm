@@ -1,0 +1,164 @@
+=== c14/d1_variable_last_same_re_nba -g2017 compile ===
+15 nibble=3
+inputs/c14/d1_variable_last_same_re_nba.sv:8: $finish called at 50 (1ns)
+c14	d1_variable_last_same_re_nba	2017	0	0
+=== c14/d1_variable_last_same_re_nba -g2023 compile ===
+15 nibble=3
+inputs/c14/d1_variable_last_same_re_nba.sv:8: $finish called at 50 (1ns)
+c14	d1_variable_last_same_re_nba	2023	0	0
+=== c14/d2_net_last_same_re_nba -g2017 compile ===
+0 nibble=z
+15 nibble=3
+inputs/c14/d2_net_last_same_re_nba.sv:8: $finish called at 50 (1ns)
+c14	d2_net_last_same_re_nba	2017	0	0
+=== c14/d2_net_last_same_re_nba -g2023 compile ===
+0 nibble=z
+15 nibble=3
+inputs/c14/d2_net_last_same_re_nba.sv:8: $finish called at 50 (1ns)
+c14	d2_net_last_same_re_nba	2023	0	0
+=== c14/d3_last_between_events -g2017 compile ===
+15 v=2
+inputs/c14/d3_last_between_events.sv:8: $finish called at 50 (1ns)
+c14	d3_last_between_events	2017	0	0
+=== c14/d3_last_between_events -g2023 compile ===
+15 v=2
+inputs/c14/d3_last_between_events.sv:8: $finish called at 50 (1ns)
+c14	d3_last_between_events	2023	0	0
+=== c14/d4_future_cycle_drives -g2017 compile ===
+inputs/c14/d4_future_cycle_drives.sv:8: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+inputs/c14/d4_future_cycle_drives.sv:11: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+2 error(s) during elaboration.
+c14	d4_future_cycle_drives	2017	2	NA
+=== c14/d4_future_cycle_drives -g2023 compile ===
+inputs/c14/d4_future_cycle_drives.sv:8: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+inputs/c14/d4_future_cycle_drives.sv:11: error: ## cycle delay requires a default clocking block in scope (IEEE 1800-2017 14.11).
+2 error(s) during elaboration.
+c14	d4_future_cycle_drives	2023	2	NA
+=== c14/d5_two_clocking_blocks_one_variable -g2017 compile ===
+5 j=1
+10 j=0
+25 j=1
+inputs/c14/d5_two_clocking_blocks_one_variable.sv:9: $finish called at 50 (1ns)
+c14	d5_two_clocking_blocks_one_variable	2017	0	0
+=== c14/d5_two_clocking_blocks_one_variable -g2023 compile ===
+5 j=1
+10 j=0
+25 j=1
+inputs/c14/d5_two_clocking_blocks_one_variable.sv:9: $finish called at 50 (1ns)
+c14	d5_two_clocking_blocks_one_variable	2023	0	0
+=== c14/d6_edge_clocking_block -g2017 compile ===
+5 k=1
+10 k=0
+15 k=1
+inputs/c14/d6_edge_clocking_block.sv:8: $finish called at 50 (1ns)
+c14	d6_edge_clocking_block	2017	0	0
+=== c14/d6_edge_clocking_block -g2023 compile ===
+5 k=1
+10 k=0
+15 k=1
+inputs/c14/d6_edge_clocking_block.sv:8: $finish called at 50 (1ns)
+c14	d6_edge_clocking_block	2023	0	0
+=== c14/d7_net_multiple_clocking_drivers -g2017 compile ===
+1 w=0
+6 w=1
+16 w=x
+26 w=1
+inputs/c14/d7_net_multiple_clocking_drivers.sv:10: $finish called at 50 (1ns)
+c14	d7_net_multiple_clocking_drivers	2017	0	0
+=== c14/d7_net_multiple_clocking_drivers -g2023 compile ===
+1 w=0
+6 w=1
+16 w=x
+26 w=1
+inputs/c14/d7_net_multiple_clocking_drivers.sv:10: $finish called at 50 (1ns)
+c14	d7_net_multiple_clocking_drivers	2023	0	0
+=== c14/d8_procedural_variable_write_then_clockvar -g2017 compile ===
+7 d=55
+16 check=55
+25 d=aa
+inputs/c14/d8_procedural_variable_write_then_clockvar.sv:8: $finish called at 50 (1ns)
+c14	d8_procedural_variable_write_then_clockvar	2017	0	0
+=== c14/d8_procedural_variable_write_then_clockvar -g2023 compile ===
+7 d=55
+16 check=55
+25 d=aa
+inputs/c14/d8_procedural_variable_write_then_clockvar.sv:8: $finish called at 50 (1ns)
+c14	d8_procedural_variable_write_then_clockvar	2023	0	0
+=== c14/n7a_continuous_assignment_to_clockvar_variable -g2017 compile ===
+c14	n7a_continuous_assignment_to_clockvar_variable	2017	0	NA
+=== c14/n7a_continuous_assignment_to_clockvar_variable -g2023 compile ===
+c14	n7a_continuous_assignment_to_clockvar_variable	2023	0	NA
+=== c14/n7b_primitive_to_clockvar_variable -g2017 compile ===
+c14	n7b_primitive_to_clockvar_variable	2017	0	NA
+=== c14/n7b_primitive_to_clockvar_variable -g2023 compile ===
+c14	n7b_primitive_to_clockvar_variable	2023	0	NA
+=== c14/n7c_procedural_continuous_to_clockvar_variable -g2017 compile ===
+c14	n7c_procedural_continuous_to_clockvar_variable	2017	0	NA
+=== c14/n7c_procedural_continuous_to_clockvar_variable -g2023 compile ===
+c14	n7c_procedural_continuous_to_clockvar_variable	2023	0	NA
+=== c16/s1_nba_preponed_sample -g2017 compile ===
+S1 FAIL 25
+inputs/c16/s1_nba_preponed_sample.sv:6: $finish called at 50 (1ns)
+c16	s1_nba_preponed_sample	2017	0	0
+=== c16/s1_nba_preponed_sample -g2023 compile ===
+S1 FAIL 25
+inputs/c16/s1_nba_preponed_sample.sv:6: $finish called at 50 (1ns)
+c16	s1_nba_preponed_sample	2023	0	0
+=== c16/s2_blocking_preponed_sample -g2017 compile ===
+S2 FAIL 25
+inputs/c16/s2_blocking_preponed_sample.sv:6: $finish called at 50 (1ns)
+c16	s2_blocking_preponed_sample	2017	0	0
+=== c16/s2_blocking_preponed_sample -g2023 compile ===
+S2 FAIL 25
+inputs/c16/s2_blocking_preponed_sample.sv:6: $finish called at 50 (1ns)
+c16	s2_blocking_preponed_sample	2023	0	0
+=== c16/s3a_default_sample_initialized_signal -g2017 compile ===
+inputs/c16/s3a_default_sample_initialized_signal.sv:5: syntax error
+inputs/c16/s3a_default_sample_initialized_signal.sv:5: error: Malformed statement
+c16	s3a_default_sample_initialized_signal	2017	2	NA
+=== c16/s3a_default_sample_initialized_signal -g2023 compile ===
+inputs/c16/s3a_default_sample_initialized_signal.sv:5: syntax error
+inputs/c16/s3a_default_sample_initialized_signal.sv:5: error: Malformed statement
+c16	s3a_default_sample_initialized_signal	2023	2	NA
+=== c16/s3b_default_sample_uninitialized_signal -g2017 compile ===
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: syntax error
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: error: Malformed statement
+c16	s3b_default_sample_uninitialized_signal	2017	2	NA
+=== c16/s3b_default_sample_uninitialized_signal -g2023 compile ===
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: syntax error
+inputs/c16/s3b_default_sample_uninitialized_signal.sv:5: error: Malformed statement
+c16	s3b_default_sample_uninitialized_signal	2023	2	NA
+=== c16/s3c_default_sample_initialized_pass_control -g2017 compile ===
+inputs/c16/s3c_default_sample_initialized_pass_control.sv:5: syntax error
+inputs/c16/s3c_default_sample_initialized_pass_control.sv:5: error: Malformed statement
+c16	s3c_default_sample_initialized_pass_control	2017	2	NA
+=== c16/s3c_default_sample_initialized_pass_control -g2023 compile ===
+inputs/c16/s3c_default_sample_initialized_pass_control.sv:5: syntax error
+inputs/c16/s3c_default_sample_initialized_pass_control.sv:5: error: Malformed statement
+c16	s3c_default_sample_initialized_pass_control	2023	2	NA
+=== c16/s4_assertion_action_after_nba -g2017 compile ===
+S4 x=1
+inputs/c16/s4_assertion_action_after_nba.sv:5: $finish called at 5 (1ns)
+c16	s4_assertion_action_after_nba	2017	0	0
+=== c16/s4_assertion_action_after_nba -g2023 compile ===
+S4 x=1
+inputs/c16/s4_assertion_action_after_nba.sv:5: $finish called at 5 (1ns)
+c16	s4_assertion_action_after_nba	2023	0	0
+=== c16/s5_function_uses_sampled_argument -g2017 compile ===
+S5 FAIL 25
+inputs/c16/s5_function_uses_sampled_argument.sv:7: $finish called at 50 (1ns)
+c16	s5_function_uses_sampled_argument	2017	0	0
+=== c16/s5_function_uses_sampled_argument -g2023 compile ===
+S5 FAIL 25
+inputs/c16/s5_function_uses_sampled_argument.sv:7: $finish called at 50 (1ns)
+c16	s5_function_uses_sampled_argument	2023	0	0
+=== c16/s6_const_cast_uses_current_observed_value -g2017 compile ===
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: syntax error
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: error: Malformed statement
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: error: Error in property_spec of concurrent assertion item.
+c16	s6_const_cast_uses_current_observed_value	2017	3	NA
+=== c16/s6_const_cast_uses_current_observed_value -g2023 compile ===
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: syntax error
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: error: Malformed statement
+inputs/c16/s6_const_cast_uses_current_observed_value.sv:5: error: Error in property_spec of concurrent assertion item.
+c16	s6_const_cast_uses_current_observed_value	2023	3	NA

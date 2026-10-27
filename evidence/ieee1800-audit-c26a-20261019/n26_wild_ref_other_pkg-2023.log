@@ -1,0 +1,5 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_wild_ref_other_pkg.sv:7: error: Enumeration type mismatch in assignment.
+1 error(s) during elaboration.

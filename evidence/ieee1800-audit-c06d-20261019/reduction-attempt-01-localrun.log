@@ -1,0 +1,45 @@
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 10: r1_enum: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 11: r2_param: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 12: r3_struct: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 13: r4_class: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 14: r5_plain: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 15: r6_classok: command not found
+evidence/ieee1800-audit-c06d-20261019/run-p06-20-reduction.sh: line 16: r7_classneg: command not found
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+CHECKOUT: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+COMPILER SOURCE: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+
+r06_20_fwd_* -g2017 rc=1
+tests/1800_audit/c06/r06_20_fwd_*.sv: No such file or directory
+Preprocessor failed with 1 errors.
+
+n06_20_const_handle_reassign -g2017 rc=1
+tests/1800_audit/c06/neg/n06_20_const_handle_reassign.sv:2: error: Assignment to const signal `k` is not allowed.
+Elaboration failed
+
+r06_20_fwd_* -g2023 rc=1
+tests/1800_audit/c06/r06_20_fwd_*.sv: No such file or directory
+Preprocessor failed with 1 errors.
+
+n06_20_const_handle_reassign -g2023 rc=1
+tests/1800_audit/c06/neg/n06_20_const_handle_reassign.sv:2: error: Assignment to const signal `k` is not allowed.
+Elaboration failed
+        0.53 real         0.21 user         0.13 sys
+            16859136  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               23338  page reclaims
+                 245  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   5  signals received
+                  54  voluntary context switches
+                 754  involuntary context switches
+           112433281  instructions retired
+            59398397  cycles elapsed
+             2540000  peak memory footprint

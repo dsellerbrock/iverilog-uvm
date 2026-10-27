@@ -1,0 +1,14 @@
+§9.4 c09e probe reductions (attempt 02)
+Host: DAN-DESKTOP; Slurm job 2550, scheduler state FAILED / ExitCode 1:0 / RunTime 1 second. This is an expected harness failure on assertion and compile failures, not infrastructure loss. Requested resources: 1 CPU / 2 GiB / 10 minutes; sstat retained no completed-step RSS.
+Toolchain: main 9b5fad2; Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a. Per-test timeout: compile 60 s, run 30 s; TERM then KILL after 5 s.
+
+Both -g2017 and -g2023 produced the same results:
+- Reduced p09_04_2_implicit_star.sv: only `star_wakes_on_rhs_id` fails; all other checks pass. This was the variant with the incorrect `nk == 2` expectation and uninitialized `kid`; superseded by the lead's corrected source in the next attempt.
+- Split p09_04_2_objects.sv (exact text supplied by the lead): handle-change check passes; member-event-retargeting check fails. The source does not print `hs`/`ts`, so this result establishes a failed assertion but not which comparison failed; use the corrected exact probe plus diagnostic if still failing.
+- Minimal dynamic-array-size event probe p09_04_2_array_size_event.sv: compile fails at `@(AOR.size())` with `System function $ivl_queue_method$size not defined in system table or SFT file(s)` and `Failed to synthesize event expression`. The same error appears in both editions. The lead expanded and completed the bisect in attempt 03.
+
+Raw logs, per-test compile/run files, exact input hashes, script, controller state, and snapshot metadata are in this directory. Local input copies and logs were checksum-verified before cleanup.
+
+The remote attempt's copied inputs, compiled outputs, script, and temporary archives were deleted after local evidence capture; remote logs remain. Cleanup freed 77,824 bytes (76 KiB).
+
+Attempt 02 is superseded by the corrected and expanded attempt 03. The built-in aggregate-method event-control gap is #650; the object-member retargeting gap was separately confirmed and filed as #651.

@@ -1,0 +1,22 @@
+host=DAN-DESKTOP
+started=2026-10-19T11:19:06-06:00
+compiler_commit=cae035642e056644274a01e98d4422ce286685b4
+Icarus Verilog version 13.0 (devel) (cae03564)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+6f64b9987e04069dde9904cd1f0790d3430e34dbebb7908db159e6ec5290e330  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/iverilog
+979d745f46bf952c86b1f09255e2256a6eec2bbef15b5c11634c8b4c95013309  /home/dsell/toolchains/iverilog-uvm-m18-main-cae035642e056644274a01e98d4422ce286685b4/bin/vvp
+p13_04_3_constfn_default -g2017 COMPILE_PASS
+p13_04_3_constfn_default -g2017 PASS
+n13_04_3_nonconst_default -g2017 REJECTED rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c13-20261019-2/probes/neg/n13_04_3_nonconst_default.sv:10: error: `add_dyn' is not a constant function.
+1 error(s) during elaboration.
+n13_04_3_void_constfn -g2017 ACCEPTED
+p13_05_3_ref_default -g2017 COMPILE_FAIL rc=2
+p13_04_3_constfn_default -g2023 COMPILE_PASS
+p13_04_3_constfn_default -g2023 PASS
+n13_04_3_nonconst_default -g2023 REJECTED rc=1
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c13-20261019-2/probes/neg/n13_04_3_nonconst_default.sv:10: error: `add_dyn' is not a constant function.
+1 error(s) during elaboration.
+n13_04_3_void_constfn -g2023 ACCEPTED
+p13_05_3_ref_default -g2023 COMPILE_FAIL rc=2

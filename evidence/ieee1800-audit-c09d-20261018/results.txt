@@ -1,0 +1,8 @@
+IEEE 1800 §9.7 resume semantics probe (G-F)
+Host: DAN-DESKTOP. Slurm job 2545, requested 1 CPU / 2 GiB / 5 minutes.
+Controller: FAILED, ExitCode 1:0, RunTime 1 second. This is the expected red result from the probe assertion; sstat did not retain completed-step RSS.
+Toolchain: main 9b5fad2. Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a.
+Command: sbatch --parsable a3-m7-c09d.sbatch. Each edition uses a 30-second compile timeout and 30-second run timeout (TERM, then KILL after 5 seconds).
+Probe: tests/1800_audit/c09/p09_07_resume_semantics.sv; both -g2017 and -g2023.
+Both editions: compile_rc=0 and run_rc=0; delay-expired resume and wait-condition resume checks pass. Event during suspension reports edone=0, status=SUSPENDED. One step after resume reports edone=1, status=FINISHED, so resume replayed the event that occurred while suspended; resume_does_not_replay_event fails. The later event check passes because the waiter already ran.
+The 1800-audit lead confirmed this as G-F under §9.7: 2017 p.230 requires a WAITING process to be resensitized on resume; 2023 pp.245–246 explicitly says resume resensitizes it to its event expression. Duplicate searches found no prior issue, and the lead filed [#649](https://github.com/dsellerbrock/iverilog-uvm/issues/649).

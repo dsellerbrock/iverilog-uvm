@@ -4515,3 +4515,391 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   d=0.0` and `edge2 b=50.0 d=50.0`.
 - **Reproducer status:** confirmed.
 - **Triage status:** untriaged; pre-existing sampler limitation, outside #457.
+
+### DD-127 — legal net partial-force overlap analogue is untested
+
+- **Discovered while working:** M9 #769 procedural force/release target validation.
+- **Observation:** The variable partial-force overlap test is now a compile-error
+  test under IEEE 1800-2023 §10.6.2. Constant part-selects of vector nets are
+  legal force/release targets, but a net release returns to the driven value,
+  so the variable test's held-value expectations cannot be reused as-is. The
+  overlap-ownership and wide-source cache behavior for a net analogue remains
+  unverified.
+- **File/function:** `ivtest/ivltests/sv_force_partial_live_overlap.v`;
+  procedural force target validation in `elab_lval.cc`.
+- **Possible clause:** IEEE 1800-2023 §10.6.2.
+- **Evidence:** Slurm 4588 reports seven §10.6.2 diagnostics for the variable
+  part-select targets; no net analogue was probed.
+- **Reproducer status:** separate net-only follow-up not written or run.
+- **Triage status:** follow-up outside #769.
+
+### DD-128 — packed-array index classification under §10.6 is inferred
+
+- **Discovered while working:** M9 #769 procedural continuous assignment and
+  force/release target validation.
+- **Observation:** The §10.6 diagnostics reject a selected packed-array member
+  such as `p[0]`. This treats the packed-array index as a bit-select on a
+  variable; §10.6.1/§10.6.2 prohibit bit-select and part-select variable
+  targets, but do not explicitly discuss this packed-array classification.
+  The same selected-target forms remain accepted in default 1364 mode as a
+  longstanding Icarus extension.
+- **File/function:** `elab_lval.cc`, procedural continuous assignment and
+  force/release lvalue validation.
+- **Possible clause:** IEEE 1800-2017/2023 §§10.6.1–10.6.2.
+- **Evidence:** `evidence/m9-issue769-20261023/assign-2017-iverilog.stderr`,
+  `assign-2023-iverilog.stderr`, `force-2017-iverilog.stderr`, and
+  `force-2023-iverilog.stderr`; default-mode control in
+  `proc_cont_var_select_1364_ext.v`.
+- **Reproducer status:** confirmed in both SV editions and default 1364 mode.
+- **Triage status:** boundary follows the standard's bit-select vocabulary;
+  this is an interpretation, not an explicit packed-array example in §10.6.
+
+### DD-129 — non-implemented mixed-assignment test contains selected force targets
+
+- **Discovered while working:** M9 #769 neighboring-test impact review.
+- **Observation:** `sv_mixed_assign2.v` has a module-level continuous
+  assignment to `v[7:4]` and later force/release statements on variable slices.
+  The module-level assignment is not the procedural `assign` governed by
+  §10.6.1. Its variable part-select force/release forms are prohibited by
+  §10.6.2, but the JSON test is registered as `NI` and does not run.
+- **File/function:** `ivtest/ivltests/sv_mixed_assign2.v` and
+  `ivtest/vvp_tests/sv_mixed_assign2.json`.
+- **Possible clause:** IEEE 1800-2017/2023 §§10.3 and 10.6.2.
+- **Evidence:** Slurm 4610 on exact `origin/main` `5a0094a8255f` and Slurm 4608
+  on the #769 branch both report `Not Implemented`; logs are in
+  `evidence/m9-issue769-20261023/baseline-ni-record/` and
+  `vpi-impact-record/`.
+- **Reproducer status:** no simulation occurs while the case remains NI.
+- **Triage status:** outside #769; retain the NI case unchanged.
+
+### DD-130 — force/release of unpacked-struct array-word member is unsupported
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force u.words[0]` in an unpacked struct fails during VVP
+  code generation with `vvp.tgt sorry: cannot %force/vec4 to the word of a
+  variable array (u[0]).` Adding `release u.words[0]` reports
+  `vvp.tgt sorry: cannot release a word of a non-integral variable array
+  (u[0]).` The force-only probe confirms force itself is unsupported.
+- **File/function:** VVP code generation for force/release l-values of an
+  unpacked-struct member array element.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  l-value; backend implementation remains incomplete.
+- **Evidence:** `evidence/m9-issue769-20261023/unpacked-struct-probe-record/`
+  (Slurm 4614 combined force/release and Slurm 4617 force-only).
+- **Reproducer status:** confirmed under `-g2017` and `-g2023`.
+- **Triage status:** separate backend defect; outside #769.
+
+### DD-131 — force of whole vector member in unpacked struct aborts compiler
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force u.f = 4'h1` in an unpacked struct aborts the
+  compiler with `ivl: vvp_process.c:2545: force_vector_to_lval: Assertion
+  'ivl_lval_width(lval) == ivl_signal_width(lsig)' failed.`
+- **File/function:** VVP code generation for force of a whole vector member in
+  an unpacked struct.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  l-value; backend implementation remains incomplete.
+- **Evidence:** `evidence/m9-issue769-20261023/unpacked-struct-probe-record/`
+  (Slurm 4614, both editions).
+- **Reproducer status:** confirmed under `-g2017` and `-g2023`.
+- **Triage status:** separate compiler defect; outside #769.
+
+### DD-132 — selected class-property assign/force bypasses §10.6 and aborts VVP
+
+- **Discovered while working:** M9 #769 procedural continuous assignment and
+  force/release target validation.
+- **Observation:** `assign c.q[0] = 1'b1; deassign c.q[0];` and
+  `force c.q[0] = 1'b1;` compile with rc=0 under `-g2017` and `-g2023`, but
+  VVP aborts at `of_CASSIGN_VEC4_OFF` (`vthread.cc:15757`) and
+  `of_FORCE_VEC4_OFF` (`vthread.cc:19681`), respectively. IEEE 1800-2017/2023
+  §§10.6.1–10.6.2 prohibit selected variable targets.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_net_class_member_`;
+  class-property l-values bypass the non-class parsed-path guard.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compile rc=0 is acceptance,
+  not a passing result, and runtime aborts are reproduced.
+- **Triage status:** related to active blocker #769; follow-up bug issue draft
+  is pending supervisor filing. Draft: `evidence/m9-issue769-class-probe-20261024/ISSUE_DRAFT_class_property_force_assign.md`.
+
+### DD-133 — whole class-property force aborts VVP target compilation
+
+- **Discovered while working:** M9 #769 procedural force/release target
+  validation.
+- **Observation:** `force c.p = 1;` with `int p` compiles through parsing but
+  aborts in the VVP target with `force_vector_to_lval` at `vvp_process.c:2545`
+  under `-g2017` and `-g2023`. A whole class-property reference is a singular
+  variable reference under IEEE 1800-2023 §10.6.2; it must be supported or
+  diagnosed cleanly, never assert. Whole-property assign has not been probed.
+- **File/function:** class-property force lowering from
+  `PEIdent::elaborate_lval_net_class_member_` into VVP target generation.
+- **Evidence:** `evidence/m9-issue769-class-probe-20261024/`; probe build
+  `f31c698305941900a5eb347fdeaae35d0b0e2cf6`.
+- **Reproducer status:** confirmed in both editions; compiler/target rc=134.
+- **Triage status:** related class-lvalue gap to DD-132 and active blocker #769;
+  follow-up bug issue draft is pending supervisor filing.
+
+### DD-134 — force/release of nested unpacked elements reports a misleading sorry
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** With `logic [3:0] d2[][], q2[$][$], e[][2]`, force/release of
+  whole nested elements such as `d2[0][0]` is rejected by the dynamic-array
+  l-value path with `sorry: assignment to a dynamic-array element bit-select
+  requires a simple vector element.` The target is a whole unpacked element,
+  not a packed bit select; the wording hides an unsupported nested-container
+  force/release path. Plain `d2[0][0] = 4'h1` compiles in both editions.
+- **File/function:** `elab_lval.cc`, dynamic-array l-value lowering around
+  `name_tail.index.size() == 2`.
+- **Possible clause:** IEEE 1800-2017/2023 §10.6.2 permits a singular variable
+  reference as a force target; this is an implementation gap, not a reason to
+  report a §10.6 violation.
+- **Evidence:** `evidence/m9-issue769-dynamic-rank-20261024/`; paired
+  `-g2017`/`-g2023` probes and pinned CE outputs.
+- **Reproducer status:** confirmed. The regression is explicitly named
+  unsupported and expects the current `sorry` output until nested-container
+  force/release support is implemented; the gold must flip when DD-134 is
+  implemented.
+- **Triage status:** separate backend/elaboration follow-up from #769's select
+  guard; the same sorry message also conflates the whole element with a
+  bit-select.
+
+### DD-135 — const-ref actual rank check may undercount nested containers
+
+- **Discovered while working:** M9 #769's unpacked-dimension classification.
+- **Observation:** `addressable_const_ref` counts the signal's declared fixed
+  dimensions plus at most one dynamic dimension before comparing against the
+  actual's index count. A nested dynamic array or a fixed unpacked array inside
+  a dynamic element may therefore be mistaken for a packed selection.
+- **File/function:** `elab_lval.cc`, `PEIdent::elaborate_lval_var_` around
+  `addressable_const_ref` (lines 1084–1094 in this branch).
+- **Possible clause:** IEEE 1800-2017/2023 §13.5.2 (const-ref actuals); source
+  inspection only, clause behavior not yet reprobed.
+- **Evidence:** source inspection on the #769 worktree; no reducer run.
+- **Reproducer status:** unverified; no runtime or compiler failure is claimed.
+- **Triage status:** follow-up candidate; confirm with a nested-array const-ref
+  probe before changing the separate ref-actual path.
+
+### DD-136 — rand argument to a constraint function is evaluated pre-solve
+
+- **Discovered while working:** M9-836 (#836).
+- **Historical observation on main before #836:** A dist subject `id(r)` was
+  accepted, but the call argument read the pre-randomize value of `r`; setting
+  `r` outside the dist set made `randomize()` fail instead of solving `r` into
+  the set.
+- **File/function:** constraint function-call argument lowering in
+  `elaborate.cc`.
+- **Standard interpretation:** IEEE 1800-2017 §18.5.12 / 1800-2023 §18.5.11
+  say, “Functions shall be called before constraints are solved, and their
+  return values shall be treated as state variables,” and “Random variables
+  used as function arguments shall establish an implicit variable ordering or
+  priority.” The function argument orders solving but is not a solver operand
+  of the function result. Sections 18.5.4/18.5.3 require a `dist` expression
+  to contain a rand variable, so the call-only subject `id(r)` is invalid and
+  is rejected by #836. No explicit system-function exemption was found in
+  those bullets; `$countones`, `$onehot`, and `$onehot0` remain symbolic where
+  this compiler lowers them directly to solver operators.
+- **Evidence:** `evidence/m9-issue836-probe-20261024/p836b.sv` and
+  `p836b_results.txt`: in both editions `D=200/200 A=0/0`, with direct
+  subject `r` constrained and `id(r)` failing after `r=5` prefill.
+- **Reproducer status:** confirmed.
+- **Triage status:** resolved by #836 as an invalid call-only `dist` subject;
+  no separate runtime issue remains for this reproducer.
+
+### DD-137 — constrained scope randomization rejects fixed unpacked arrays
+
+- **Discovered while working:** M9-836 (#836).
+- **Observation:** `std::randomize(arr)` with `int arr[2]` and a `with` block
+  constraining `foreach (arr[i]) arr[i] dist {5 := 1};` is explicitly rejected
+  in both editions with: `std::randomize() with constraints on a fixed
+  unpacked array is not yet supported; the call cannot be compiled.`
+  IEEE 1800-2017/2023 §18.12 defines scope randomization over current-scope
+  variables; §18.12.1 says the arguments to the `with` form become random
+  variables. `arr` is a variable identifier, so this is an existing explicit
+  support gap, predating #836 and outside its scope.
+- **Related boundary probe:** `std::randomize(arr[0])` with a `dist` constraint
+  is rejected with `std::randomize() with constraints currently requires each
+  argument to be a simple integral variable.` This probe is recorded as an
+  observed limitation, not as a separate conformance claim.
+- **Reproducer/evidence:** line 4 of
+  `evidence/m9-issue836-probe-20261024/a3-836-std-array.sv` and the paired
+  `a3-836-std-array-{2017,2023}.log`; selected-element boundary probe is in
+  `a3-836-std-array-element.sv` with matching logs.
+- **Related #836 checks:** DD-127 records the separate `id(r)` pre-solve
+  behavior. A runtime probe of an unqualified member in a `rand` unpacked
+  struct returned `randomize()==0` and left the value at 3 in both editions;
+  no additional runtime gap was observed. See
+  `a3-836-unqualified-member.sv` and the paired edition logs in the same
+  evidence directory.
+- **Triage status:** confirmed explicit unsupported behavior; outside M9-836.
+
+### DD-138 — rand class handle with function-result dist subject is unsupported at runtime
+
+- **Discovered while working:** M9-836 (#836).
+- **Observation:** a `rand` class handle in the randomized object plus a
+  constraint on `(x + f()) dist {7 := 1}` compiles in both editions, then
+  emits `ERROR: global constraint sampling failed: joint dist requires a
+  direct canonical scalar or element subject.` The minimal reducer is
+  `evidence/m9-issue836-probe-20261024/runtime-limit-verified-20261024/child_mix_only.sv`;
+  paired compile, stdout and stderr logs are recorded beside it.
+- **Standard interpretation:** IEEE 1800-2017 §18.5.12 / 1800-2023 §18.5.11
+  require function return values to be treated as state variables. The
+  expression still contains random variable `x`, so it meets the `dist`
+  subject requirement in §18.5.4 / §18.5.3; the runtime rejection is a
+  simulator limitation, not an invalid source expression.
+- **Controls:** the same mixed subject randomizes to `x=6` in both editions
+  without the `rand` child handle (`mixed_dist_sampler.sv`). The direct array
+  form with the handle passes (`child_array_only-{2017,2023}.stdout.log`).
+- **Triage status:** confirmed runtime conformance gap outside #836's
+  classification fix. The feature regression keeps the mixed expression
+  compile-only and tests each runtime-supported subject in its own class.
+### DD-139 — other chandle use contexts remain outside #759
+
+- **Discovered while working:** #759 / M9 culprit PR #1064 (2026-10-24).
+- **Observation:** The #759 fix covers blocking and nonblocking procedural
+  assignment from an unselected chandle identifier to a non-chandle variable.
+  Selected or indexed RHS identifiers are deliberately not type-probed and are
+  outside the verified subset.
+  On main `47177e047`, both editions accepted `int i; chandle ch;
+  initial i <= ch;`. Both editions also compiled and ran probes for chandle
+  use in a variable initializer, int function argument/return, event control,
+  continuous assignment, procedural `assign`/`deassign`, and `force`/`release`.
+  The function probes checked compile/run status, not returned values.
+- **File/function:** assignment type checks in `elaborate.cc`; neighboring
+  contexts use separate declaration, call, return, event, continuous-driver,
+  procedural-driver, and force paths.
+- **Possible clause:** IEEE 1800-2017/2023 §6.14 and §6.22.5. Continuous
+  assignments and event controls are separately covered by open issue #763;
+  the compound form `i += ch` is also covered by #763.
+- **Evidence:** `evidence/m9-issue759-chandle-20261024/baseline-edge-probes/`
+  and the original blocking-assignment baseline in
+  `evidence/m9-issue759-chandle-20261024/baseline/`.
+- **Reproducer status:** confirmed on main in both editions; #759's blocking
+  and nonblocking forms are fixed together. Chandle-to-chandle/null NBA
+  assignments compile and run in the same matrix.
+- **Triage status:** adjacent forms are recorded only; do not expand #759.
+  Track initializer, function argument/return, procedural assign, and force
+  separately if they remain actionable after #763.
+### DD-140 — output clockvar variable-driver detection has static-net limits
+
+- **Discovered while working:** M9 issue #909.
+- **Observation:** The strict continuous/procedural-continuous driver check is keyed by elaborated `NetNet` identity. Clockvars skipped by the sample-buffer path for non-vector or unsupported array forms are not registered, and virtual-interface class-property writes do not traverse the same static net path. When a supported output clockvar names a selected slice, the current restriction applies to the whole underlying variable. A hierarchical continuous write from a parent module to an interface member associated with an output clockvar, with no user clocking drive, is rejected once by the existing hidden-writer overlap check, whose generic “continuous and procedural drivers” wording does not cite §14.16.2; the separate force case receives the clause-specific diagnostic. Preserve this diagnostic distinction until the hidden writer can be distinguished safely from real procedural writers without changing virtual-interface overlap behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §14.16.2; whether the selected-slice restriction should be more granular needs a separate interpretation and regression.
+- **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
+- **Triage status:** Known boundary; not part of #909.
+
+### DD-141 — associative `find_index` on struct values aborts code generation
+
+- **Discovered while working:** M9 #854, while qualifying custom iterator-index
+  lookup for struct array items.
+- **Observation:** On unpatched main `5c081171`, an associative array of structs
+  using `find_index(item) with (item.index == 7)` fails in both `-g2017` and
+  `-g2023` during VVP code generation with `unsupported associative find_index
+  runtime type`. This is independent of #854: the probe uses the default index
+  name, not the optional index-name argument. Expected: compile/run succeeds
+  and the result queue contains the key `"key"`. Actual: the compiler exits
+  during code generation before creating a runnable VVP file.
+- **File/function:** `tgt-vvp/eval_object.c`,
+  `draw_assoc_index_locator_expr_()`; `unique_runtime_type_supported_()`
+  rejects the struct iterator type around line 1652.
+- **Possible clause:** IEEE 1800-2023 §7.12.1 (associative locator methods) and
+  §7.12.4 (iterator index querying).
+- **Evidence:** `~/codex-supervisor/evidence/a3-m9-854-lead-probes-20261025/`
+  (manifested Slurm 4840 output, probe source, and script; the same diagnostic
+  also appeared in Slurm 4834).
+- **Reproducer status:** confirmed on main with `A3-m9-854-lead-probes.sv`,
+  module `m9_854_assoc_struct_default_index`. Both commands fail:
+  `iverilog -g2017 -s m9_854_assoc_struct_default_index -o /tmp/assoc.vvp
+  A3-m9-854-lead-probes.sv` and the same command with `-g2023`; source is in
+  the evidence directory above.
+- **Triage status:** separate backend issue; open+closed searches found no
+  direct match. Open #485 covers associative assignment-pattern values, while
+  closed #853 covers struct-valued index keys crashing at runtime; neither
+  covers struct elements in `find_index`. Leave outside #854 and report the
+  minimal reproducer for supervisor issue filing.
+
+### DD-142 — class-to-integral rejection has expression-provenance limits
+
+- **Discovered while working:** M9 #759.
+- **Observation:** The §6.22.5 rejection deliberately relies on a resolved identifier type because `expr_type()` can report a class placeholder for calls, ternaries, and `new` while generic templates or forward class references are still being elaborated. Current function-return and ternary reducers compile with only the existing fallback warning; those forms remain unchecked. Resolved identifier assignments reject, but the width-based class-to-logic fallback in `netmisc.cc` still emits its “substituting 0” warning first.
+- **File/function:** `netmisc.cc`, `elab_and_eval` class-rvalue fallback near line 2057; the scoped rejection is in `elab_expr.cc::elaborate_rval_expr`.
+- **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
+- **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
+
+### DD-143 — assertion function output-argument rejection has a generic diagnostic
+
+- **Discovered while working:** M9 #1183.
+- **Observation:** A function with an output argument used in a concurrent assertion is rejected in both editions before the assertion-purity check, with `Assignment l-value too complex` at the assignment in the function body. IEEE 1800-2023 §16.6 explicitly prohibits output, inout, or ref arguments in functions appearing in assertion expressions, so the rejection is correct; only the diagnostic is generic.
+- **Evidence:** `evidence/m9-1183-function-purity-20261026/t1-first-pass/sv_assert_function_output_arg_fail_{2017,2023}.runner.log`.
+- **Triage status:** Diagnostic clarity only; no additional conformance claim or implementation change in #1183.
+
+### DD-144 — dynamic non-goal coverage options may be clobbered by extension constants
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** The derived-constructor wrapper added for goal/comment inheritance can also expose the same ordering problem for `weight`, `per_instance`, or `get_inst_coverage`: a base constructor may write a dynamic value before the extension's constant value is applied. These options are outside the current goal/comment fix and remain unverified.
+- **File/function:** `elab_expr.cc::elaborate_covgrp_options` and the extension path in `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Tech-lead source review during #689; the analogous dynamic-goal/constant-extension-goal case reproduced in `evidence/slurm-vvpdiag-attempt04/recorded/run-2023.stdout`. No reducer was run for the other option names.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-145 — compound dynamic goal expressions emit a misleading unresolved-name warning
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** A compound covergroup goal expression such as `initial_goal + 1` is probed for constant evaluation in class scope, which emits `Unable to bind ... initial_goal ... (compile-progress: unresolved reference)` before the expression falls back to run-time evaluation. A bare constructor-formal expression does not emit this warning. The corresponding `opt_weight` path uses the same probe pattern; that case is not yet reproduced.
+- **File/function:** `elaborate.cc::opt_goal` and the corresponding `opt_weight` probe.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the warning was captured alongside unrelated test errors.
+- **Reproducer status:** confirmed for `opt_goal`; sketched for `opt_weight`
+- **Triage status:** untriaged; warning cleanup is outside #689.
+
+### DD-146 — extension coverpoints cannot use an inherited sample argument
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** In a 2023 embedded covergroup extension, a derived coverpoint over the inherited `sample()` formal is rejected with a `sorry` saying the expression is unsupported when sampled through a base-class handle. A coverpoint over a derived-class member compiles, so this is a separate inherited-sample resolution limit.
+- **File/function:** Embedded covergroup extension expression binding in `elaborate.cc`.
+- **Possible clause:** IEEE 1800-2023 §19.4.1.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the derived-member control compiled in job 4943.
+- **Reproducer status:** confirmed
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — synthetic constructor chains can silently skip missing base arguments
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** `PChainConstructor::elaborate` returns an empty block when a synthesized `new@` chain has missing base-constructor arguments. That compile-progress fallback can hide a required `super.new()` call instead of reporting the missing arguments.
+- **File/function:** `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2023 §8.7.
+- **Evidence:** source review during #689; the implicit-derived covergroup test now creates a synthesized constructor chain. The missing-argument fallback itself has not yet been reproduced.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — inherited covergroup `at_least` and `weight` slots remain positional
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** Per-instance `at_least` and `weight` properties are still allocated inline in coverpoint/cross order. Replacing inherited items may therefore give base-class handles the wrong option slot, analogous to the goal/comment bug fixed in this PR; this has not been reproduced.
+- **File/function:** `elaborate.cc`, `add_option_props` calls in coverpoint and cross elaboration.
+- **Possible clause:** IEEE 1800-2023 §19.7.1.
+- **Evidence:** Tech-lead source review during the #1688 inherited-slot investigation; no reproducer run.
+- **Reproducer status:** unverified.
+- **Triage status:** logged for a separate follow-up; do not widen #689.
+
+### DD-148 — concurrent assertions do not validate clocking-input sampling events
+
+- **Discovered while working:** #711 (M9 sampled-value functions over clocking inputs).
+- **Observation:** The procedural sampled-value lowering now validates that a
+  clocking input's event is provably the same as the inferred procedural event.
+  The concurrent-assertion path still maps `cb.d` to its raw source without
+  comparing the clocking block event to the assertion event. Its mapped-input
+  selector path also ignores selectors such as `cb.e[1]` when `e` aliases an
+  expression. Do not broaden #711 to change this assertion behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §16.5.1; the event relationship
+  needs a focused interpretation and paired regression before changing it.
+- **Reproducer sketch (not yet run):** declare `clocking cb @(negedge clk);`
+  with `input #1step d`, then evaluate `$rose(cb.d)` in
+  `assert property (@(posedge clk) ...)`. For the selector case, declare
+  `input e = a` and use `$past(cb.e[1])` in an assertion.
+- **File/function:** `pform.cc::sva_wrap_preponed_`, clocking-input branch near
+  the sampled operand rewrite.
+- **Triage status:** discovered debt outside the procedural #711 fix; no
+  conformance claim filed and no assertion reproducer run yet.

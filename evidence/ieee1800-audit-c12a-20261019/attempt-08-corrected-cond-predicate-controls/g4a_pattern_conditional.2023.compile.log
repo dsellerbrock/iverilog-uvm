@@ -1,0 +1,1 @@
+tests/1800_audit/c12/r12_06_g4a_pattern_conditional.sv:7: warning: Unable to bind wire/reg/memory `n' in `r12_06_g4a_pattern_conditional' (compile-progress: unresolved reference).

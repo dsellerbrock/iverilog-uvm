@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_unpacked_struct_ports.v",
+  "iverilog-args": ["-g2017", "-s", "sv_unpacked_struct_ports"],
+  "gold": "sv_unpacked_struct_ports"
+}

@@ -1,0 +1,8 @@
+job_id=3210
+host=DAN-DESKTOP
+source_head=27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+toolchain_source=c31cbf1b52f1a39d5775f276e2340525a444a79e
+started=2026-10-19T16:08:43-06:00
+edition=2017 compile_exit=1 outcome=EXPECTED_REJECTION
+edition=2023 compile_exit=1 outcome=EXPECTED_REJECTION
+finished=2026-10-19T16:08:43-06:00

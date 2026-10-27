@@ -1,0 +1,24 @@
+compile -g2017 rc=0
+run -g2017 rc=0
+DECL c=4 d=4 zbits=32 T=13 bus=13 W=13 calls=0
+compile -g2023 rc=0
+run -g2023 rc=0
+DECL c=4 d=4 zbits=32 T=13 bus=13 W=13 calls=0
+        0.53 real         0.19 user         0.10 sys
+            16891904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               16567  page reclaims
+                 234  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  22  voluntary context switches
+                 469  involuntary context switches
+            73347203  instructions retired
+            38199840  cycles elapsed
+             2408928  peak memory footprint

@@ -950,6 +950,13 @@ extern "C" ivl_lval_t ivl_expr_ref_lval(ivl_expr_t net)
       return net->u_.sfunc_.ref_lval;
 }
 
+extern "C" ivl_lval_t ivl_expr_ref_lval2(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.ref_lval2;
+}
+
 extern "C" ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx)
 {
       assert(net);
@@ -3605,6 +3612,23 @@ extern "C" ivl_statement_t ivl_stmt_case_stmt(ivl_statement_t net, unsigned idx)
       }
 }
 
+extern "C" unsigned ivl_stmt_case_group(ivl_statement_t net, unsigned idx)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    assert(idx < net->u_.case_.ncase);
+	    return net->u_.case_.case_group[idx];
+
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
 extern "C" ivl_expr_t ivl_stmt_cond_expr(ivl_statement_t net)
 {
       assert(net);
@@ -3633,6 +3657,14 @@ extern "C" ivl_expr_t ivl_stmt_cond_expr(ivl_statement_t net)
 	    assert(0);
 	    return 0;
       }
+}
+
+extern "C" unsigned ivl_stmt_is_clocking_drive(ivl_statement_t net)
+{
+      assert(net);
+      return net->type_ == IVL_ST_ASSIGN_NB
+	    && net->u_.assign_.aux_
+	    && net->u_.assign_.aux_->clocking_drive;
 }
 
 extern "C" ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net)
@@ -4466,6 +4498,13 @@ extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
       return "";
 }
 
+extern "C" int ivl_type_constraint_static(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type && idx >= 0
+	    ? class_type->constraint_ir_is_static((size_t)idx) : 0;
+}
+
 extern "C" int ivl_type_constraint_state_calls(ivl_type_t net)
 {
       const netclass_t*type = dynamic_cast<const netclass_t*>(net);
@@ -4818,6 +4857,30 @@ extern "C" int ivl_type_covgrp_per_instance_prop(ivl_type_t net)
       return class_type ? class_type->covgrp_options().per_instance_prop : -1;
 }
 
+extern "C" unsigned ivl_type_covgrp_goal(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().goal : 100;
+}
+
+extern "C" int ivl_type_covgrp_goal_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().goal_prop : -1;
+}
+
+extern "C" const char* ivl_type_covgrp_comment(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().comment.c_str() : "";
+}
+
+extern "C" int ivl_type_covgrp_comment_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().comment_prop : -1;
+}
+
 extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -4841,6 +4904,42 @@ extern "C" const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx)
 	  && (size_t)idx < class_type->covgrp_item_count())
 	    return class_type->covgrp_item((size_t)idx).weight_ir.c_str();
       return "";
+}
+
+extern "C" unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).goal;
+      return 100;
+}
+
+extern "C" int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).goal_prop;
+      return -1;
+}
+
+extern "C" const char* ivl_type_covgrp_item_comment(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).comment.c_str();
+      return "";
+}
+
+extern "C" int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).comment_prop;
+      return -1;
 }
 
 extern "C" int ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx)

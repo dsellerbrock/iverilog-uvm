@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_static_virtual_method_fail_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_static_virtual_method_fail"
+    ],
+    "gold": "sv_static_virtual_method_fail_2023"
+}

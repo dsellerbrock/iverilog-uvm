@@ -1,0 +1,14 @@
+PASS 9.4.5.rhs_sampled_before_delay
+PASS 9.4.5.data_swap
+PASS 9.4.5.event_rhs_sampled_at_encounter
+PASS 9.4.5.data_shift
+PASS 9.4.5.repeat_3
+PASS 9.4.5.repeat_negative
+PASS 9.4.5.repeat_zero
+PASS 9.4.5.repeat_unsigned_13
+PASS 9.4.5.repeat_count_once
+PASS 9.4.5.nba_delay_nonblocking
+PASS 9.4.5.nba_delay_rhs_at_encounter
+PASS 9.4.5.nba_repeat_assigns_encounter_value
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09f-20261018-03/inputs/p09_04_5_intra.sv:28: $finish called at 412 (1s)

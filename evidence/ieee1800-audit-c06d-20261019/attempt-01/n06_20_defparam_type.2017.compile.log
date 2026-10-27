@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_defparam_type.sv:2: error: Cannot override type parameter `T` in `m.u`. It is not allowed to override type parameters using a defparam statement.
+1 error(s) during elaboration.

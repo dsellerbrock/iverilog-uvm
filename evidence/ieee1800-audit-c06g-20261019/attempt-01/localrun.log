@@ -1,0 +1,119 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+CHECKOUT: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+SOURCE: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+
+== p06_17a_event g2017 compile rc=4
+tests/1800_audit/c06/p06_17a_event.sv:6: syntax error
+tests/1800_audit/c06/p06_17a_event.sv:6: error: Syntax error in event variable list.
+tests/1800_audit/c06/p06_17a_event.sv:6: syntax error
+tests/1800_audit/c06/p06_17a_event.sv:6: error: Syntax error in event variable list.
+
+== p06_18a_typedef g2017 compile rc=3
+tests/1800_audit/c06/p06_18a_typedef.sv:11: error: C doesn't name a visible class.
+tests/1800_audit/c06/p06_18a_typedef.sv:14: syntax error
+tests/1800_audit/c06/p06_18a_typedef.sv:14: error: Syntax error in typedef clause.
+n06_18_fwd_incomplete_scope g2017 rc=1
+tests/1800_audit/c06/neg/n06_18_fwd_incomplete_scope.sv:1: error: C doesn't name a visible class.
+n06_18_fwd_nontype g2017 rc=1
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1: error: 'X' has already been declared in this scope.
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1:      : It was declared here as a symbol.
+n06_18_fwd_wrong_kind g2017 rc=0
+n06_18_hier_typedef g2017 rc=2
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: syntax error
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: error: Invalid module instantiation
+n06_18_unresolved_fwd g2017 rc=1
+tests/1800_audit/c06/neg/n06_18_unresolved_fwd.sv:1: error: Forward typedef `S` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.
+
+== p06_17a_event g2023 compile rc=4
+tests/1800_audit/c06/p06_17a_event.sv:6: syntax error
+tests/1800_audit/c06/p06_17a_event.sv:6: error: Syntax error in event variable list.
+tests/1800_audit/c06/p06_17a_event.sv:6: syntax error
+tests/1800_audit/c06/p06_17a_event.sv:6: error: Syntax error in event variable list.
+
+== p06_18a_typedef g2023 compile rc=3
+tests/1800_audit/c06/p06_18a_typedef.sv:11: error: C doesn't name a visible class.
+tests/1800_audit/c06/p06_18a_typedef.sv:14: syntax error
+tests/1800_audit/c06/p06_18a_typedef.sv:14: error: Syntax error in typedef clause.
+n06_18_fwd_incomplete_scope g2023 rc=1
+tests/1800_audit/c06/neg/n06_18_fwd_incomplete_scope.sv:1: error: C doesn't name a visible class.
+n06_18_fwd_nontype g2023 rc=1
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1: error: 'X' has already been declared in this scope.
+tests/1800_audit/c06/neg/n06_18_fwd_nontype.sv:1:      : It was declared here as a symbol.
+n06_18_fwd_wrong_kind g2023 rc=0
+n06_18_hier_typedef g2023 rc=2
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: syntax error
+tests/1800_audit/c06/neg/n06_18_hier_typedef.sv:1: error: Invalid module instantiation
+n06_18_unresolved_fwd g2023 rc=1
+tests/1800_audit/c06/neg/n06_18_unresolved_fwd.sv:1: error: Forward typedef `S` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.
+
+--- dedupe unique results ---
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z
+17	CLOSED	Phase 13: Clocking blocks and program blocks		2026-04-27T18:23:24Z
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns		2026-05-05T15:25:17Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+29	CLOSED	Phase 58: wait()-loop sensitivity through virtual-interface signal chain		2026-04-30T23:00:01Z
+40	CLOSED	Phase 68: SVA — property/sequence operators, procedural concurrent assertions		2026-05-06T03:42:39Z
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns	bug	2026-10-09T21:25:25Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z
+431	CLOSED	[IEEE 1800] §10 — Snapshot runtime-sized concatenation targets for delayed/NBA updates	enhancement	2026-10-15T05:19:11Z
+434	CLOSED	[IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles	enhancement	2026-10-15T05:09:10Z
+439	CLOSED	[IEEE 1800] §15 — Support explicit triggered() calls on event expressions	enhancement	2026-10-14T22:51:59Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z
+440	CLOSED	[IEEE 1800] §15 — Preserve merged-event trigger semantics	enhancement	2026-10-15T03:19:11Z
+441	CLOSED	[IEEE 1800] §15 — Implement wait_order ordering and failure behavior	enhancement	2026-10-16T03:12:31Z
+46	CLOSED	Rebaseline OpenTitan UART performance before optimizing VVP	enhancement	2026-09-25T03:16:53Z
+474	CLOSED	[IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads		2026-10-15T04:26:17Z
+496	CLOSED	[IEEE 1800] §§16.5.1/16.9.3 — Sample procedural `$past` operands in the Preponed region		2026-10-09T11:45:07Z
+499	CLOSED	[IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element		2026-10-09T17:35:01Z
+536	CLOSED	Caliptra firmware throughput on Icarus c339 projects about 11 days for 271 tests	from-caliptra-dv	2026-10-13T23:10:49Z
+539	CLOSED	Packed struct assignment pattern member loses enum value with wider sibling expression	from-caliptra-dv	2026-10-12T17:51:13Z
+596	CLOSED	VVP aborts in vthread_add_event_wait for forked loop-local clock waits	from-caliptra-dv	2026-10-16T20:36:50Z
+613	OPEN	[IEEE 1800] §8.7 — Reject event control inside a class constructor	1800-audit	2026-10-17T18:59:00Z
+624	OPEN	[IEEE 1800] §19.4 — Embedded covergroup event on class member is skipped (compile-progress stub)	1800-audit	2026-10-17T21:23:19Z
+625	OPEN	[IEEE 1800] §19.3 — Block event @@(end task) is a syntax error and crashes ivl (pform.cc:2723)	1800-audit	2026-10-17T21:20:14Z
+635	OPEN	[IEEE 1800] §13.4 — Reject output/inout/ref function calls outside procedural statements	1800-audit	2026-10-17T23:15:56Z
+643	OPEN	[IEEE 1800] §9.6.1 — wait fork also waits for descendants of child processes	1800-audit	2026-10-18T04:55:58Z
+649	OPEN	[IEEE 1800] §9.7 — resume() replays an event that occurred while the process was suspended	1800-audit	2026-10-18T05:08:02Z
+650	OPEN	[IEEE 1800] §9.4.2 — Built-in array method call (size()) in an event control expression fails to elaborate	1800-audit	2026-10-18T05:13:07Z
+651	OPEN	[IEEE 1800] §9.4.2 — @(p.status) does not retarget to the new object after handle p is reassigned	1800-audit	2026-10-18T05:17:08Z
+654	OPEN	[IEEE 1800] §9.4.2.4 — Event control on a sequence instance (@abc, @(abc)) is skipped	1800-audit	2026-10-18T05:39:46Z
+655	OPEN	[IEEE 1800-2023] §9.4.5 — repeat event control with an unknown (X) count waits forever	1800-audit	2026-10-18T05:46:02Z
+661	CLOSED	from-caliptra-dv: wildcard transition bins exit as syntax errors	from-caliptra-dv	2026-10-20T00:04:10Z
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam	from-caliptra-dv	2026-10-19T23:25:28Z
+679	OPEN	[IEEE 1800] default clocking for sampled-value functions in procedural event controls	from-caliptra-dv	2026-10-19T05:33:32Z
+680	OPEN	[IEEE 1800] evaluate non-random function calls in inline constraints	from-caliptra-dv	2026-10-19T05:33:35Z
+699	OPEN	[IEEE 1800] §15.5.5 — Support named event assignment, comparison, and null reclamation	1800-audit	2026-10-19T17:36:53Z
+700	OPEN	[IEEE 1800] §14.3 — Support endclocking matching identifier label	1800-audit	2026-10-19T18:28:25Z
+704	OPEN	[IEEE 1800] §14.11 — Pre-event ##0 cycle delay does not suspend until clocking event	1800-audit	2026-10-19T20:32:44Z
+710	OPEN	[IEEE 1800] §16.9.3 — Reject $past and value change functions when no clocking event can be inferred	1800-audit	2026-10-19T21:00:32Z
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:09:34Z
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+740	OPEN	[IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values	1800-audit	2026-10-20T04:14:42Z
+742	OPEN	[IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error	1800-audit	2026-10-20T04:24:00Z
+744	CLOSED	[IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error	1800-audit	2026-10-20T04:26:34Z
+747	OPEN	[IEEE 1800] §6.24.3 — bit-stream cast to or from a fixed unpacked array is not implemented	1800-audit	2026-10-20T04:32:12Z
+756	OPEN	[IEEE 1800] §6.22.1/§6.23 — type() matching of struct, union and array types is not supported	1800-audit	2026-10-20T04:58:43Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z
+98	CLOSED	UVM phase_hopper_objection never all-drops to the top under concurrent objection traffic (blocks clean run_phase completion)		2026-07-25T17:06:04Z
+        9.59 real         1.25 user         0.83 sys
+            46661632  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              126816  page reclaims
+                 997  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 119  messages sent
+                 119  messages received
+                 342  signals received
+                 417  voluntary context switches
+                9769  involuntary context switches
+           186675181  instructions retired
+           115350353  cycles elapsed
+             2523616  peak memory footprint

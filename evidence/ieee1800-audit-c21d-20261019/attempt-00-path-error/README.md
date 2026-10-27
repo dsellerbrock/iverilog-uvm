@@ -1,0 +1,1 @@
+These command setup attempts did not run the probes: source paths were repo-relative while the shell cwd was the evidence directory, so the compiler reported each source missing. The initial failed paths are preserved in these logs; corrected reducer runs are under attempt-03-reducers. They are not simulator results.

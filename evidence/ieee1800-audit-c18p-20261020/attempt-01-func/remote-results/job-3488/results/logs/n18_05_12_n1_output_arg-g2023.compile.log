@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18p-20261020-func/input/n18_05_12_n1_output_arg.sv:8: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_clockvar_write_syntax_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_clockvar_write_syntax_fail" ],
+    "gold"          : "sv_clockvar_write_syntax_fail"
+}

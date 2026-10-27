@@ -1,0 +1,36 @@
+edition	probe	compile_rc	run_rc	result
+2023	p08_30_weak	4	NA	COMPILE_FAILED
+2023	p08_30_weak_std	4	NA	COMPILE_FAILED
+2017	p08_27_fwd_param	1	NA	COMPILE_FAILED
+2023	p08_27_fwd_param	1	NA	COMPILE_FAILED
+2023	n08_30_weak_int	1	NA	REJECTED
+2017	p08_30_weak	4	NA	REJECTED
+--- n08_30_weak_int-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/n08_30_weak_int.sv:3: error: Unknown module type: weak_reference
+1 error(s) during elaboration.
+*** These modules were missing:
+        weak_reference referenced 1 times.
+***
+--- p08_27_fwd_param-g2017.compile.log
+error: Unable to find the root module "p08_27_fwd_param" in the Verilog source.
+     : Perhaps ``-s p08_27_fwd_param'' is incorrect?
+1 error(s) during elaboration.
+--- p08_27_fwd_param-g2023.compile.log
+error: Unable to find the root module "p08_27_fwd_param" in the Verilog source.
+     : Perhaps ``-s p08_27_fwd_param'' is incorrect?
+1 error(s) during elaboration.
+--- p08_30_weak-g2017.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:4: error: Syntax error in typedef clause.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:5: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:5: error: Syntax error in typedef clause.
+--- p08_30_weak-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:4: error: Syntax error in typedef clause.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:5: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak.sv:5: error: Syntax error in typedef clause.
+--- p08_30_weak_std-g2023.compile.log
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:4: error: Syntax error in typedef clause.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:5: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:5: error: Syntax error in typedef clause.

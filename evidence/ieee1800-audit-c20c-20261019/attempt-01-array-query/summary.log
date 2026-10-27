@@ -1,0 +1,27 @@
+ck calls: 16 (counted from the 16 named ck("...") invocations)
+positive g2017 compile rc=0
+positive g2017 run rc=0
+FAIL dims_type
+FAIL type_arg
+FAIL int_types
+FAIL assoc
+FAIL assoc_empty
+FAIL multi
+RESULT pass=10 fail=6
+n20_07_dyn_dim_2 g2017 compile rc=1
+tests/1800_audit/c20/neg/n20_07_dyn_dim_2.sv:1: error: A reference to a net or variable (`a') is not allowed in a constant expression.
+n20_07_dyn_type g2017 compile rc=0 (unexpected accept)
+n20_07_multi_var_size g2017 compile rc=0 (unexpected accept)
+positive g2023 compile rc=0
+positive g2023 run rc=0
+FAIL dims_type
+FAIL type_arg
+FAIL int_types
+FAIL assoc
+FAIL assoc_empty
+FAIL multi
+RESULT pass=10 fail=6
+n20_07_dyn_dim_2 g2023 compile rc=1
+tests/1800_audit/c20/neg/n20_07_dyn_dim_2.sv:1: error: A reference to a net or variable (`a') is not allowed in a constant expression.
+n20_07_dyn_type g2023 compile rc=0 (unexpected accept)
+n20_07_multi_var_size g2023 compile rc=0 (unexpected accept)

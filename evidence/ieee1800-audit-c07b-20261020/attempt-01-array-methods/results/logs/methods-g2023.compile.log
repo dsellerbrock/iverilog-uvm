@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c07b-20261020-01/input/tests/1800_audit/c07/p07_12_methods.sv:24: error: Array reduction method sum() requires a one-dimensional unpacked array; got 2 unpacked dimensions.
+1 error(s) during elaboration.

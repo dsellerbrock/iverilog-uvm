@@ -1,0 +1,21 @@
+IEEE 1800 clause 13 probe c13d, attempt 01
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08, base HEAD 162be2db341577782a0d4d4828b7c551c0f65e86.
+Toolchain: protected Icarus 13.0 devel built from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66.
+Host: DAN-DESKTOP; Slurm request 1 CPU, 1 GiB, 10 minutes. Compile timeout 60 seconds; simulation timeout 30 seconds, TERM then KILL after 2 seconds.
+Normative scope: IEEE 1800-2017 §§13.3–13.3.2 pp.319–323, §13.4.3 p.327; IEEE 1800-2023 §§13.3–13.3.2 pp.336–339, §13.4.3 pp.345–346.
+Source and script SHA-256:
+f8410ab8ae0b59ea9139ad573ce4a677cef951f01f3a77ebfa53e4e7497fb57d  tests/1800_audit/c13/p13_03_tasks.sv
+1e1165301ef5162a21cab7543de01c950ef60c1af45fb04c5e84dcde0fc73ffe  tests/1800_audit/c13/p13_04_3_constfn.sv
+e33a6a9899a1d9f51d4e6c341220b8f28521ea2418d818bfedb6f72bf659726c  tests/1800_audit/c13/neg/n13_03_1_auto_hier_ref.sv
+458fcce42ce3a856c44940d9ca4aecb882b795e12fefc67efe8b3b227deae931  tests/1800_audit/c13/neg/n13_03_2_auto_nba.sv
+65dfeb96487567899e66b722163a7cc0a189ff95aff5dfaddcffbfa4470ada46  tests/1800_audit/c13/neg/n13_03_2_auto_force.sv
+8ce712bc93fd9aa1f0cfcbe9627c1312c3d3947ec10146b01b97cb68f66393ce  tests/1800_audit/c13/neg/n13_03_2_auto_monitor.sv
+3a43df93c64a0fac407ca97e7e12d3f552e04609cbfddf413a76e9da75fb80e6  tests/1800_audit/c13/neg/n13_04_3_fork.sv
+74530f18d11158967ff641046182d476da2087033b8b8da9d39eaa1cd592f967  tests/1800_audit/c13/neg/n13_04_3_hier_ref.sv
+0f325dfc572021cf5c55481ff933c686a049d78a71924e14349fe1dac76b95cf  tests/1800_audit/c13/neg/n13_04_3_nonlocal_id.sv
+5f42b1ec54ab7492d6dbae271f8bc131a7f6a5fbf027adc321320e6d4abd4d84  tests/1800_audit/c13/neg/n13_04_3_nonconst_sysfn.sv
+22b89f9713e086ddacd87ba53e97d67c35392d9a89fa008de635c475c9e24154  tests/1800_audit/c13/neg/n13_04_3_nba.sv
+e0ca69ceaf6e681034b327eba32ae649e4f861a2e3fa764ef86d55d1d753b80f  a3-m7-c13d.sbatch
+
+Slurm job: 2304.

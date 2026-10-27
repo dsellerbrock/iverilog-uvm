@@ -1,0 +1,22 @@
+INFO: tests/1800_audit/c20/r20_10_c5_scope.sv:1: rt info
+      Time: 0  Scope: top.G.u2
+INFO: tests/1800_audit/c20/r20_10_c5_scope.sv:1: rt info
+      Time: 0  Scope: top.u1
+        0.02 real         0.00 user         0.00 sys
+             5177344  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 617  page reclaims
+                   8  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  25  involuntary context switches
+            78015299  instructions retired
+            23100249  cycles elapsed
+             2687360  peak memory footprint

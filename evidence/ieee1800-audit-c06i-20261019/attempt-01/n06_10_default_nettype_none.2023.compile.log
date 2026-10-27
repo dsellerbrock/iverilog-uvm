@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_10_default_nettype_none.sv:2: error: Net w is not defined in this context.
+1 error(s) during elaboration.

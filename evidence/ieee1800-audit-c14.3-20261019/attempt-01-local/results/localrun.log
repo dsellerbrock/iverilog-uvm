@@ -1,0 +1,19 @@
+source_commit=c31cbf1b52f1a39d5775f276e2340525a444a79e
+       22.28 real         6.37 user        12.48 sys
+           534790144  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              835587  page reclaims
+               25427  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                 146  signals received
+               32084  voluntary context switches
+               33510  involuntary context switches
+            77876356  instructions retired
+            36126956  cycles elapsed
+             2458080  peak memory footprint

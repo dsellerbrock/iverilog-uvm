@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_exit_control.v",
+    "iverilog-args": ["-g2023", "-s", "sv_exit_control"],
+    "gold": "sv_exit_control"
+}

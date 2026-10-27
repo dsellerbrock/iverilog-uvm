@@ -1,0 +1,3 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/ivtest/ivltests/sv_timeunit_functions.svh:46: error: The $timeunit argument must name a module, interface, program, or package scope.
+1 error(s) during elaboration.
+EXPECTED COMPILE REJECTION for non-hierarchical argument

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_clocking_instantiated_default_cycle_delay_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_clocking_instantiated_default_cycle_delay_fail_2023"],
+  "gold": "sv_clocking_instantiated_default_cycle_delay_fail_2023"
+}

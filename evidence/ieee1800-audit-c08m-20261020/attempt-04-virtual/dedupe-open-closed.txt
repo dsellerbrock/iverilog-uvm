@@ -1,0 +1,7 @@
+See `../attempt-02-virtual/dedupe-open-closed.txt` and
+`../attempt-03-virtual/dedupe-open-closed.txt` for all-state GitHub issue
+searches, match lists, and inspected issues. Together they cover virtual
+methods, abstract classes, pure virtual methods, polymorphism, §8.20/§8.21,
+unimplemented/missing pure methods, virtual classes, and abstract-class
+construction. The only nearby closed issue, #455, covers 2023 method override
+specifiers and is unrelated to inherited pure-method implementation.

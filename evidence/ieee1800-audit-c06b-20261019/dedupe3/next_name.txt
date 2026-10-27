@@ -1,0 +1,4 @@
+738	OPEN	[IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load	1800-audit	2026-10-20T04:06:42Z
+739	OPEN	[IEEE 1800] §6.19.5 — bare enum methods (no parentheses) on a class property are dropped and return 32	1800-audit	2026-10-20T04:06:43Z
+11	CLOSED	Phase 7: Enum methods and queue sort/find methods		2026-04-27T04:01:15Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z

@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-08-20261018/input/p18_08_modes.sv:28: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/a3/audit-c18-08-20261018/input/p18_08_modes.sv:29: warning: Static variable initialization requires explicit lifetime in this context.

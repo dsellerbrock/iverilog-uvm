@@ -1,0 +1,1 @@
+The first generator execution stopped before generating or running any probes because its tuple unpacking expected five values from six-field rows. The error was `ValueError: too many values to unpack (expected 5, got 6)`. The generator was corrected to consume the extra declaration field; no simulator test ran during attempt 00.

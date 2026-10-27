@@ -1,0 +1,50 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+ae6f086ca08d048cd79f722acf5259679447a9eaf09dce89169bf81fb700e377  ./p30_specify.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+edition=2017 mode=specify compile_exit=0
+edition=2017 mode=specify run_exit=0
+R1 0
+R2 1
+F1 1
+F2 0
+C1 0
+C2 1
+C3 1
+C4 0
+P1 0
+edition=2017 mode=default compile_exit=0
+edition=2017 mode=default run_exit=0
+R1 1
+R2 1
+F1 0
+F2 0
+C1 1
+C2 1
+C3 0
+C4 0
+P1 0
+edition=2023 mode=specify compile_exit=0
+edition=2023 mode=specify run_exit=0
+R1 0
+R2 1
+F1 1
+F2 0
+C1 0
+C2 1
+C3 1
+C4 0
+P1 0
+edition=2023 mode=default compile_exit=0
+edition=2023 mode=default run_exit=0
+R1 1
+R2 1
+F1 0
+F2 0
+C1 1
+C2 1
+C3 0
+C4 0
+P1 0

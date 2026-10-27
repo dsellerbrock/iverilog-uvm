@@ -1,0 +1,5 @@
+COMPILE PASS
+DATA=a
+DATA=5
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/p06_22d_matching_nettype_alias.sv:16: $finish called at 1 (1s)
+RUN PASS

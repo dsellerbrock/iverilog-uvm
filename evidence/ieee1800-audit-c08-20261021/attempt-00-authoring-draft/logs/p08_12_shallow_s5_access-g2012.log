@@ -1,0 +1,19 @@
+PASS S5 local=4 protected=6
+        0.02 real         0.00 user         0.00 sys
+             5292032  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2809  page reclaims
+                  23  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  48  involuntary context switches
+            15685202  instructions retired
+             6495105  cycles elapsed
+             1507712  peak memory footprint

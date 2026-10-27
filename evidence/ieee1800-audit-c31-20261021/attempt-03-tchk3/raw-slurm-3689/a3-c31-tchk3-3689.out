@@ -1,0 +1,68 @@
+host=DAN-DESKTOP
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+toolchain=/home/dsell/toolchains/iverilog-fb584a25-20261020
+f90b41b884ba5b3036c9df1c542534c3425397ef2397d392285a9d0f5af42089  ./p31_neg.sv
+6753fe1a1dd2cf12ea7544118c2c74ef7877278051aa8f95c5026adc7059e1c9  ./p31_tchk3.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+tchk3 edition=2017 compile_exit=0
+tchk3 edition=2017 run_exit=0
+p31_tchk3.sv:16: Timing violation: $recrem(recovery) check in p31_tchk3 at time 11
+p31_tchk3.sv:16: Timing violation: $recrem(removal) check in p31_tchk3 at time 21
+p31_tchk3.sv:17: Timing violation: $timeskew check in p31_tchk3 at time 43
+p31_tchk3.sv:18: Timing violation: $fullskew check in p31_tchk3 at time 63
+p31_tchk3.sv:19: Timing violation: $fullskew check in p31_tchk3 at time 73
+p31_tchk3.sv:20: Timing violation: $setup check in p31_tchk3 at time 101
+p31_tchk3.sv:21: Timing violation: $setup check in p31_tchk3 at time 130
+p31_tchk3.sv:22: Timing violation: $setup check in p31_tchk3 at time 150
+N 8 0
+negative edition=2017 compile_exit=0 no_extra_option
+negative edition=2017 run_exit=0 no_extra_option
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 11
+A q=0 nc=1
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 44
+B nc=2
+tchk3 edition=2023 compile_exit=0
+tchk3 edition=2023 run_exit=0
+p31_tchk3.sv:16: Timing violation: $recrem(recovery) check in p31_tchk3 at time 11
+p31_tchk3.sv:16: Timing violation: $recrem(removal) check in p31_tchk3 at time 21
+p31_tchk3.sv:17: Timing violation: $timeskew check in p31_tchk3 at time 43
+p31_tchk3.sv:18: Timing violation: $fullskew check in p31_tchk3 at time 63
+p31_tchk3.sv:19: Timing violation: $fullskew check in p31_tchk3 at time 73
+p31_tchk3.sv:20: Timing violation: $setup check in p31_tchk3 at time 101
+p31_tchk3.sv:21: Timing violation: $setup check in p31_tchk3 at time 130
+p31_tchk3.sv:22: Timing violation: $setup check in p31_tchk3 at time 150
+N 8 0
+negative edition=2023 compile_exit=0 no_extra_option
+negative edition=2023 run_exit=0 no_extra_option
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 11
+A q=0 nc=1
+p31_neg.sv:10: Timing violation: $setuphold(hold) check in p31_neg.u at time 44
+B nc=2
+option_probe=iverilog -g2023 -gspecify -gneg_tchk
+negative_option_candidate=compile_exit_255
+Unknown/Unsupported Language generation neg_tchk
+
+Supported generations are:
+    1995    -- IEEE1364-1995
+    2001    -- IEEE1364-2001
+    2005    -- IEEE1364-2005
+    2005-sv -- IEEE1800-2005
+    2009    -- IEEE1800-2009
+    2012    -- IEEE1800-2012
+Other generation flags:
+    assertions | supported-assertions | no-assertions
+    specify | no-specify
+    interconnect | no-interconnect
+    verilog-ams | no-verilog-ams
+    std-include | no-std-include
+    relative-include | no-relative-include
+    xtypes | no-xtypes
+    icarus-misc | no-icarus-misc
+    io-range-error | no-io-range-error
+    strict-ca-eval | no-strict-ca-eval
+    strict-expr-width | no-strict-expr-width
+    shared-loop-index | no-shared-loop-index
+    commercial-unsafe | no-commercial-unsafe

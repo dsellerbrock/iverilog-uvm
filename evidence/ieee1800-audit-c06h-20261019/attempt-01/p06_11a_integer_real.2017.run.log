@@ -1,0 +1,3 @@
+FAIL shortreal
+FAIL realtime_synonym
+RESULT pass=16 fail=2

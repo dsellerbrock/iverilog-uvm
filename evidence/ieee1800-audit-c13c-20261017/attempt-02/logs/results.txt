@@ -1,0 +1,36 @@
+host=DAN-DESKTOP
+2026-10-17T17:04:27-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 60s; run 30s; SIGTERM then SIGKILL after 2s.
+
+=== p13_04_1_fn_scope_hier -g2017 ===
+run_rc=0
+PASS 13.4.1.fn_name_hier_scope (4)
+
+=== p13_04_1_implicit_var_2023 -g2017 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/attempt-02/inputs/c13/p13_04_1_implicit_var_2023.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/attempt-02/inputs/c13/p13_04_1_implicit_var_2023.sv:9: error: Malformed statement
+compile_rc=2
+
+=== p13_04_1_fn_scope_hier -g2023 ===
+run_rc=0
+PASS 13.4.1.fn_name_hier_scope (4)
+
+=== p13_04_1_implicit_var_2023 -g2023 ===
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/attempt-02/inputs/c13/p13_04_1_implicit_var_2023.sv:9: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13c-20261017/attempt-02/inputs/c13/p13_04_1_implicit_var_2023.sv:9: error: Malformed statement
+compile_rc=2
+
+FINAL_STATUS=1

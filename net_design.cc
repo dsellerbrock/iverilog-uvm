@@ -739,6 +739,39 @@ void Design::run_defparams()
 	    (*scope)->run_defparams(this);
 }
 
+void Design::record_defparam_resolution(NetScope*source_scope,
+					const list<hname_t>&path,
+					NetScope*target_scope, PExpr*value)
+{
+      defparam_resolution_t resolution;
+      resolution.source_scope = source_scope;
+      resolution.path = path;
+      resolution.target_scope = target_scope;
+      resolution.value = value;
+      defparam_resolutions_.push_back(resolution);
+}
+
+void Design::check_defparam_resolutions()
+{
+      for (list<defparam_resolution_t>::const_iterator cur =
+		   defparam_resolutions_.begin();
+	   cur != defparam_resolutions_.end(); ++cur) {
+	    NetScope*final_scope = find_scope(cur->source_scope, cur->path);
+	    if (final_scope == cur->target_scope)
+		  continue;
+
+	    cerr << cur->value->get_fileline() << ": error: defparam hierarchical name resolves to a different scope after elaboration (early: "
+		 << scope_path(cur->target_scope) << ", final: ";
+	    if (final_scope)
+		  cerr << scope_path(final_scope);
+	    else
+		  cerr << "not found";
+	    cerr << ")." << endl;
+	    errors += 1;
+      }
+      defparam_resolutions_.clear();
+}
+
 void NetScope::run_defparams(Design*des)
 {
       for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
@@ -771,6 +804,7 @@ void NetScope::run_defparams(Design*des)
 		  continue;
 	    }
 
+	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, perm_name, val, this, true);
       }
 
@@ -806,6 +840,7 @@ void NetScope::run_defparams_later(Design*des)
 		  continue;
 	    }
 
+	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, name, val, this, true);
 
 	      // We'll need to re-evaluate parameters in this scope
@@ -1413,6 +1448,7 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       }
 
       NetExpr *expr;
+      const unsigned errors_before = des->errors;
 
       // Handle assignment patterns as a special case as they need the type to
       // be evaluated correctly.
@@ -1439,6 +1475,24 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    use_type = val_expr->expr_type();
 	    if (use_type == IVL_VT_NO_TYPE)
 		  use_type = expr->expr_type();
+      }
+
+      if (param_type && param_type->base_type() == IVL_VT_CLASS) {
+	    // Reject the recovery NetENull for an incompatible class RHS.
+	    if (dynamic_cast<const NetENull*>(expr)
+		&& val_expr->expr_type() == IVL_VT_CLASS
+		&& des->errors == errors_before) {
+		  cur->second.val = expr;
+		  return;
+	    }
+	    if (des->errors == errors_before) {
+		  cerr << expr->get_fileline() << ": error: "
+		       << "Value is not assignment-compatible with class-typed "
+		       << "parameter `" << cur->first << "`." << endl;
+		  des->errors += 1;
+	    }
+	    delete expr;
+	    return;
       }
 
       if (NetEConst*unbounded = dynamic_cast<NetEConst*>(expr)) {
@@ -2082,6 +2136,10 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
                   evaluate_parameter_real_(des, cur);
                   break;
 
+		case IVL_VT_CLASS:
+		  evaluate_parameter_logic_(des, cur);
+		  break;
+
 		case IVL_VT_STRING:
 		  evaluate_parameter_string_(des, cur);
 		  break;
@@ -2133,6 +2191,9 @@ void NetScope::evaluate_parameters(Design*des)
 
 void Design::residual_defparams()
 {
+	// All generate schemes and delayed instance scopes have now been
+	// elaborated, so a changed lookup is an IEEE 1800 23.10.4.2 error.
+	check_defparam_resolutions();
       for (list<NetScope*>::const_iterator scope = root_scopes_.begin();
 	   scope != root_scopes_.end(); ++ scope )
 	    (*scope)->residual_defparams(this);

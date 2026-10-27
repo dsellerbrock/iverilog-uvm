@@ -886,6 +886,9 @@ void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)
 		 parameter object while all compile-time member uses remain exact. */
 	    ap->expr_scan(this);
 
+      } else if (dynamic_cast<const NetENull*>(etmp)) {
+	    etmp->expr_scan(this);
+
       }
 
       if (expr_ == 0) {

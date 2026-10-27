@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:4: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:4: error: Syntax error in typedef clause.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:5: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08q-20261020-01/input/tests/1800_audit/c08/p08_30_weak_std.sv:5: error: Syntax error in typedef clause.

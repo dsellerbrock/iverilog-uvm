@@ -1,0 +1,1 @@
+tests/1800_audit/c12/neg/n12_07_for_scope_escape.sv:4: warning: Unable to bind wire/reg/memory `i' in `n12_07_for_scope_escape' (compile-progress: unresolved reference).

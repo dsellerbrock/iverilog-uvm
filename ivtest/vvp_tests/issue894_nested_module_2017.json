@@ -1,0 +1,5 @@
+{
+    "type"   : "normal",
+    "source" : "issue894_nested_module.v",
+    "iverilog-args" : [ "-g2017", "-s", "top" ]
+}

@@ -1,0 +1,15 @@
+--- "global constraint"
+840	OPEN	[IEEE 1800-2023] §18.4/§11.4.13 — rand real constrained by an inside value set ({1.0, 2.0, 3.0}) is always infeasible	https://github.com/dsellerbrock/iverilog-uvm/issues/840
+--- "rand object handle constraint"
+--- "sub-object randomize"
+--- "18.5.9"
+832	OPEN	[IEEE 1800] §18.5.10 — solve-before on a non-random variable is accepted silently, and a circular ordering only warns	https://github.com/dsellerbrock/iverilog-uvm/issues/832
+478	CLOSED	[IEEE 1800] §§18.5.9/18.7 — Resolve inline constraint aliases by object identity	https://github.com/dsellerbrock/iverilog-uvm/issues/478
+491	CLOSED	[IEEE 1800] §§18.5.10/18.5.9 — Preserve solve-before targets in fixed-array queues	https://github.com/dsellerbrock/iverilog-uvm/issues/491
+
+Reviewed search hits:
+- #478 is an inline-constraint alias identity case; the proposed probe tests recursive active-random-object selection and ordinary class constraints, so it does not cover this behavior.
+- #491 is a solve-before target-lowering issue for queue elements under fixed-array ranks; unrelated to active child-object selection.
+- #832 is variable-ordering diagnostics; unrelated.
+- #840 is rand-real set membership; unrelated.
+No directly matching global-constraint issue found.

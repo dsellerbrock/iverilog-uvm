@@ -1,0 +1,2 @@
+PASS explicit sequence .triggered
+ivltests/issue1188_explicit_sequence_triggered.v:17: $finish called at 36 (1s)

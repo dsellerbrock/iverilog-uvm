@@ -1,0 +1,2 @@
+tests/1800_audit/c06/neg/n06_20_localparam_override.sv:2: error: Cannot override localparam `L` in `m.u`.
+1 error(s) during elaboration.

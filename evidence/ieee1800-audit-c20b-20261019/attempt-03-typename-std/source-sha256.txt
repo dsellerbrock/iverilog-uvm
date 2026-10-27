@@ -1,0 +1,1 @@
+03c6a6ee5df51fe87bf3714d8788b172fcf4c3c50061a4919170abb1a20d7a72  tests/1800_audit/c20/r20_06_typename_std.sv

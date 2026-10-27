@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-10-20261019-18/input/neg/n19_10_nonexistent_option.sv:8: error: Class cg does not have a property option.
+Elaboration failed

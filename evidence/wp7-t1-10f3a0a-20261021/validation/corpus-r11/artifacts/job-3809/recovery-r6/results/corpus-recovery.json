@@ -1,0 +1,226 @@
+{
+  "measurement_base": "10f3a0a2509d0852c2556cb6622fb0025121fb2d",
+  "rows": [
+    {
+      "candidate_delta_pct": 8.263632444993618e-07,
+      "candidate_ir": 89670010205,
+      "outputs_identical": "yes",
+      "reference_ir": 89670009464,
+      "workload": "behav"
+    },
+    {
+      "candidate_delta_pct": 0.02675015070847664,
+      "candidate_ir": 122149339141,
+      "outputs_identical": "yes",
+      "reference_ir": 122116672747,
+      "workload": "classq"
+    },
+    {
+      "candidate_delta_pct": -0.0005868428762489941,
+      "candidate_ir": 236688883,
+      "outputs_identical": "yes",
+      "reference_ir": 236690272,
+      "workload": "fork_heavy"
+    },
+    {
+      "candidate_delta_pct": 1.8822727376743842e-05,
+      "candidate_ir": 41922731658,
+      "outputs_identical": "yes",
+      "reference_ir": 41922723767,
+      "workload": "gate_strength"
+    },
+    {
+      "candidate_delta_pct": -0.025456178441274346,
+      "candidate_ir": 1506488309,
+      "outputs_identical": "yes",
+      "reference_ir": 1506871901,
+      "workload": "io_text"
+    },
+    {
+      "candidate_delta_pct": 1.1263450616638693e-05,
+      "candidate_ir": 3240570348,
+      "outputs_identical": "yes",
+      "reference_ir": 3240569983,
+      "workload": "large_memory"
+    },
+    {
+      "candidate_delta_pct": 1.1152844958672858e-05,
+      "candidate_ir": 9351874972,
+      "outputs_identical": "yes",
+      "reference_ir": 9351873929,
+      "workload": "multi_clock"
+    },
+    {
+      "candidate_delta_pct": -31.228799714877688,
+      "candidate_ir": 29154097702,
+      "outputs_identical": "yes",
+      "reference_ir": 42392887693,
+      "workload": "randomize_dv_txn"
+    },
+    {
+      "candidate_delta_pct": -55.62235455940524,
+      "candidate_ir": 5782293390,
+      "outputs_identical": "yes",
+      "reference_ir": 13029743540,
+      "workload": "randomize_z3"
+    },
+    {
+      "candidate_delta_pct": -2.426442654579475e-05,
+      "candidate_ir": 113841525346,
+      "outputs_identical": "yes",
+      "reference_ir": 113841552969,
+      "workload": "rtl_alu"
+    },
+    {
+      "candidate_delta_pct": -0.0011819897644649302,
+      "candidate_ir": 224230678813,
+      "outputs_identical": "yes",
+      "reference_ir": 224233329228,
+      "workload": "rtl_pipe"
+    },
+    {
+      "candidate_delta_pct": 0.013994648114667996,
+      "candidate_ir": 73183362761,
+      "outputs_identical": "yes",
+      "reference_ir": 73173122440,
+      "workload": "strings_aa_queue"
+    },
+    {
+      "candidate_delta_pct": -0.08146789099559015,
+      "candidate_ir": 5663319774,
+      "outputs_identical": "yes",
+      "reference_ir": 5667937323,
+      "workload": "uvm_config_factory"
+    },
+    {
+      "candidate_delta_pct": -0.01596890051756006,
+      "candidate_ir": 40821776350,
+      "outputs_identical": "yes",
+      "reference_ir": 40828296180,
+      "workload": "uvm_traffic"
+    },
+    {
+      "candidate_delta_pct": 2.888860040073382e-07,
+      "candidate_ir": 120116585568,
+      "outputs_identical": "yes",
+      "reference_ir": 120116585221,
+      "workload": "vpi_callbacks"
+    },
+    {
+      "candidate_delta_pct": -0.01380891451180366,
+      "candidate_ir": 14478747555,
+      "outputs_identical": "yes",
+      "reference_ir": 14480747189,
+      "workload": "waveform_fst"
+    },
+    {
+      "candidate_delta_pct": -0.027031649947450997,
+      "candidate_ir": 14792082034,
+      "outputs_identical": "yes",
+      "reference_ir": 14796081659,
+      "workload": "waveform_vcd"
+    },
+    {
+      "candidate_delta_pct": 5.2994963528618655e-06,
+      "candidate_ir": 6604401541,
+      "outputs_identical": "yes",
+      "reference_ir": 6604401191,
+      "workload": "wide_vectors"
+    }
+  ],
+  "waveform_fst": {
+    "candidate_patch_sha256": "d732f301ae0abcb05dd5a3093d40f9ae40460fa0e104572a414892afcfef5db0",
+    "cpu_affinity": "single CPU via pin_one_cpu() in one-CPU Slurm job 3798",
+    "failed_valgrind_attempts": [
+      {
+        "log": "waveform_fst-02-candidate-attempt1.valgrind.log",
+        "reason": "Valgrind reported SIGSEGV"
+      },
+      {
+        "log": "waveform_fst-02-reference-attempt1.valgrind.log",
+        "reason": "Valgrind reported SIGSEGV"
+      },
+      {
+        "log": "waveform_fst-03-reference-attempt1.valgrind.log",
+        "reason": "Valgrind reported SIGSEGV"
+      },
+      {
+        "log": "waveform_fst-03-reference-attempt2.valgrind.log",
+        "reason": "Valgrind reported SIGSEGV"
+      },
+      {
+        "log": "waveform_fst-03-reference-attempt3.valgrind.log",
+        "reason": "Valgrind reported SIGSEGV"
+      }
+    ],
+    "instruction_counts": {
+      "candidate": [
+        14478747556,
+        14478747554
+      ],
+      "reference": [
+        14480747165,
+        14480747213
+      ]
+    },
+    "instruction_medians": {
+      "candidate": 14478747555,
+      "reference": 14480747189
+    },
+    "instruction_spread_pct": {
+      "candidate": 1.3813349479315512e-08,
+      "reference": 3.314746081366727e-07
+    },
+    "measurement_base": "10f3a0a2509d0852c2556cb6622fb0025121fb2d",
+    "runs_and_retries": [
+      {
+        "candidate": {
+          "artifacts": {
+            "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+            "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+          },
+          "attempt": 1,
+          "callgrind_instructions": 14478747556,
+          "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+        },
+        "identical": true,
+        "reference": {
+          "artifacts": {
+            "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+            "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+          },
+          "attempt": 1,
+          "callgrind_instructions": 14480747165,
+          "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+        },
+        "run": 1,
+        "status": "ok"
+      },
+      {
+        "candidate": {
+          "artifacts": {
+            "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+            "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+          },
+          "attempt": 2,
+          "callgrind_instructions": 14478747554,
+          "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+        },
+        "identical": true,
+        "reference": {
+          "artifacts": {
+            "stdout.bin": "5a6ce43c79c82cf353bd9ff8a08d0dd13cf2d6dfeaa8d9867bee2af31d034553",
+            "waveform.fst": "61be37d3b98c14c02209864d1c6c4e6acc8efa85c6b5267c665d278cbf4de2ea"
+          },
+          "attempt": 2,
+          "callgrind_instructions": 14480747213,
+          "output_sha256": "96b5609310ed1ce32e57bad1a7e328a181d29d912395558808f6002f831a12f5"
+        },
+        "run": 2,
+        "status": "ok"
+      }
+    ],
+    "speedup": 1.0001381082163636,
+    "successful_pairs": 2
+  }
+}

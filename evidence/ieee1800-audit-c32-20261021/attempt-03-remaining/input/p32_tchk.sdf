@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "p32_tchk")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "p32_check_cell")
+    (INSTANCE u1)
+    (TIMINGCHECK
+      (SETUP d (posedge clk) (5))
+    )
+  )
+)

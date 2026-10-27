@@ -1,0 +1,32 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+59f9b4e33633ded4efae4602087923dd6cf1d12a852e272f9f5edc16a1694f84  ./p24_04_race.sv
+387b69f572769fc116b3b9234d2fb3392e4906ddde009504d76b311685f370f1  ./p24_04_race_mod.sv
+b535bc03062e115f2f9d6310606c091896a7fa442acc9b9c42403c4677a27fcb  ./p24_07_mod_exit.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+race_program edition=2017 compile_exit=0
+race_program edition=2017 run_exit=0
+T 5 q=0
+T 15 q=1
+T 25 q=2
+race_module edition=2017 compile_exit=0
+race_module edition=2017 run_exit=124
+T 5 q=x
+T 15 q=0
+T 25 q=1
+module_exit edition=2017 compile_exit=0
+module_exit edition=2017 run_exit=0
+race_program edition=2023 compile_exit=0
+race_program edition=2023 run_exit=0
+T 5 q=0
+T 15 q=1
+T 25 q=2
+race_module edition=2023 compile_exit=0
+race_module edition=2023 run_exit=124
+T 5 q=x
+T 15 q=0
+T 25 q=1
+module_exit edition=2023 compile_exit=0
+module_exit edition=2023 run_exit=0

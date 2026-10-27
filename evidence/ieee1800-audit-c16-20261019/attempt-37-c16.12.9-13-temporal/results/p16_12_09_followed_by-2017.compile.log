@@ -1,0 +1,7 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:10: error: Syntax error in parameter value assignment list.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:10: error: Error in property_spec of concurrent assertion item.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:13: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:13: error: Syntax error in parameter value assignment list.
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-12-temporal-20261019-37/input/p16_12_09_followed_by.sv:13: error: Error in property_spec of concurrent assertion item.
+compile_exit=6

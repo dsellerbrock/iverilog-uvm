@@ -1,0 +1,52 @@
+29-
+30-       -cfile -ffile
+31:	       These  flags  specify an input file that contains a list of Ver‐
+32-	       ilog source files. This is similar to the command file of  other
+33-	       Verilog	simulators, in that it is a file that contains the file
+--
+83-	       ported by the compiler.
+84-
+85:       -gspecify|-gno-specify
+86:	       Enable or disable (default) specify block support. When enabled,
+87:	       specify	block code is elaborated. When disabled, specify blocks
+88:	       are parsed but ignored. Specify blocks are commonly  not	 needed
+89-	       for RTL simulation, and in fact can hurt performance of the sim‐
+90:	       ulation.	 However,  disabling specify blocks reduces accuracy of
+91-	       full-timing simulations.
+92-
+--
+116-	       The standards requires that a vectored port have matching ranges
+117-	       for  its	 port  declaration as well as any net/register declara‐
+118:	       tion. It was common practice in the past	 to  only  specify  the
+119-	       range  for the net/register declaration and some tools still al‐
+120-	       low this. By default any mismatch is reported as a error.  Using
+--
+158-	       Append directory includedir to list of directories searched  for
+159-	       Verilog	include	 files. The -I switch may be used many times to
+160:	       specify several	directories  to	 search,  the  directories  are
+161-	       searched in the order they appear on the command line.
+162-
+--
+220-       -pflag=value
+221-	       Assign  a  value to a target specific flag. The -p switch may be
+222:	       used as often as necessary to specify all the desired flags. The
+223-	       flags that are used depend on the target that is	 selected,  and
+224-	       are  described  in target specific documentation. Flags that are
+--
+232-
+233-       -s topmodule
+234:	       Specify	the  top level module to elaborate. Icarus Verilog will
+235-	       by default choose modules that are not instantiated in any other
+236-	       modules, but sometimes that is not sufficient,  or  instantiates
+--
+247-
+248-       -ttarget
+249:	       Use this switch to specify the target  output  format.  See  the
+250-	       TARGETS section below for a list of valid output formats.
+251-
+--
+485-
+486-       +libdir+dir
+487:	       This  is	 another way to specify library directories. See the -y
+488-	       flag.
+489-

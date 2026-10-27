@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c07-assoc-20261020-01/source/p07_08_assoc.sv:14: error: An assignment pattern needs a context that gives it a type; there is none here.
+1 error(s) during elaboration.

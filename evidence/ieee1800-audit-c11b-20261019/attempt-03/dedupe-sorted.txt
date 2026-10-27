@@ -1,0 +1,100 @@
+#5 [CLOSED] Phase 3 (in progress): Virtual interface as class member — full support
+#8 [CLOSED] Phase 2 (deferred): constraint_mode() and dist weighted distributions
+#19 [CLOSED] Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns
+#27 [CLOSED] OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed
+#41 [CLOSED] Phase 69: Streaming LHS, packed-struct defaults, array slices
+#42 [CLOSED] Phase 70: Modport task/function ports, interface arrays, implicit modport
+#43 [CLOSED] Phase 71: Process introspection, event races, method chaining, array methods
+#45 [CLOSED] Phase 73: DPI open-array (svdpi.h IEEE 1800-2017 §H.10)
+#97 [CLOSED] ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)
+#98 [CLOSED] UVM phase_hopper_objection never all-drops to the top under concurrent objection traffic (blocks clean run_phase completion)
+#99 [CLOSED] Unpacked-array typedef as a function return type loses its element type (ivl crash)
+#100 [CLOSED] Class-property unpacked array of real/string stores every element to the same slot
+#101 [CLOSED] Copy constructor as a declaration initializer (`C d = new src;`) does not copy
+#102 [CLOSED] Per-iteration `automatic` local captured by join_none fork shares one slot inside a class method
+#103 [CLOSED] `this` is null in a nested detached (join_none) fork body → m7 phase-hopper never all-drops
+#415 [CLOSED] [IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns
+#424 [OPEN] [IEEE 1800] §7 — Preserve locator result types through expression wrappers
+#426 [OPEN] [IEEE 1800] §7 — Support assignment-pattern keys from expressions and remaining types
+#430 [OPEN] [IEEE 1800] §10 — Snapshot unpacked-array function results for NBA updates
+#431 [CLOSED] [IEEE 1800] §10 — Snapshot runtime-sized concatenation targets for delayed/NBA updates
+#434 [CLOSED] [IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles
+#436 [CLOSED] [IEEE 1800] §6 — Resolve selected and generic operands in interconnect concatenations
+#438 [CLOSED] [IEEE 1800] §14 — Support 1D fixed-unpacked variable clockvar outputs
+#442 [OPEN] [IEEE 1800] §16 — Capture deferred assertion action subroutine/ref/fixed-array arguments
+#448 [CLOSED] [IEEE 1800] §19 — Retain constructor and per-instance coverage expressions
+#460 [CLOSED] [IEEE 1800] §22 — Parse parenthesized boolean `ifdef expressions
+#462 [CLOSED] [IEEE 1800] §11 — Implement tolerance range operators
+#471 [CLOSED] [IEEE 1800] §11.5.1 — Keep packed subpart accesses inside the selected element
+#472 [CLOSED] [IEEE 1800] §6.5 — Accept disjoint mixed-driver packed elements
+#474 [CLOSED] [IEEE 1800] §§10.9/6.22 — Elaborate fixed-array parameter assignment patterns and element reads
+#481 [CLOSED] [IEEE 1800] §19.5.4 — Preserve four-state values during coverage bin matching
+#484 [OPEN] [IEEE 1800] §§7.4/7.8 — Support associative arrays with fixed-array elements
+#487 [CLOSED] [IEEE 1800] §12.7.3 — Traverse packed ranks after runtime and omitted array dimensions
+#489 [CLOSED] [IEEE 1800] §18.3 — Diagnose four-state values in constraints
+#490 [CLOSED] [IEEE 1800] §7.12.2 — Apply ordering methods to fixed class-property arrays
+#491 [CLOSED] [IEEE 1800] §§18.5.10/18.5.9 — Preserve solve-before targets in fixed-array queues
+#492 [CLOSED] [IEEE 1800] §§7.6/23.3.3 — Connect unpacked-array output ports to array slices
+#499 [CLOSED] [IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element
+#502 [CLOSED] [IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions
+#505 [CLOSED] [IEEE 1800] §§35.5.6/H.7.8 — Support imported shortreal array arguments
+#506 [CLOSED] [IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals
+#508 [CLOSED] [IEEE 1800] §19.6.1.2 — Implement cross-bin matches thresholds
+#511 [CLOSED] [IEEE 1800] §§19.6.1.3–19.6.1.4 — Support CrossQueueType cross-bin set expressions
+#538 [CLOSED] [Icarus] Unpacked-array equality exceeds VVP flag limit at 506 elements
+#539 [CLOSED] Packed struct assignment pattern member loses enum value with wider sibling expression
+#544 [CLOSED] [IEEE 1800] §7.4 — Accept multidimensional fixed arrays as open-array actuals
+#596 [CLOSED] VVP aborts in vthread_add_event_wait for forked loop-local clock waits
+#610 [OPEN] [IEEE 1800] §§8.7/8.18 — Enforce local constructor visibility at new
+#613 [OPEN] [IEEE 1800] §8.7 — Reject event control inside a class constructor
+#623 [OPEN] [IEEE 1800] §19.5.1 — Support array default bins (bins name[] = default)
+#624 [OPEN] [IEEE 1800] §19.4 — Embedded covergroup event on class member is skipped (compile-progress stub)
+#625 [OPEN] [IEEE 1800] §19.3 — Block event @@(end task) is a syntax error and crashes ivl (pform.cc:2723)
+#634 [OPEN] [IEEE 1800] §13.4.1 — Reject a declaration with the function's own name inside the function
+#635 [OPEN] [IEEE 1800] §13.4 — Reject output/inout/ref function calls outside procedural statements
+#636 [OPEN] [IEEE 1800-2023] §13.4.1 — Support function-call implicit variables (F().member, G().v[11:8])
+#642 [OPEN] [IEEE 1800] §13.8 — Class static method call in a continuous assignment fails with an internal error
+#651 [OPEN] [IEEE 1800] §9.4.2 — @(p.status) does not retarget to the new object after handle p is reassigned
+#652 [OPEN] [IEEE 1800] §20.6.2 — $bits of a dynamically sized queue returns 1 instead of its current bit count
+#655 [OPEN] [IEEE 1800-2023] §9.4.5 — repeat event control with an unknown (X) count waits forever
+#659 [OPEN] [IEEE 1800] §19.4 — Embedded covergroup in a parameterized class: malformed runtime metadata and coverage 0.0
+#664 [CLOSED] from-caliptra-dv: omitted class-method parentheses rejected in string concatenation
+#667 [CLOSED] from-caliptra-dv: wide automatic coverpoint bins fail elaboration
+#671 [OPEN] from-caliptra-dv: dynamic-array slice assignments in class properties
+#674 [OPEN] [IEEE 1800] §14.16.2 — Support unpacked net clockvar outputs
+#675 [OPEN] [IEEE 1800] §18.8 — rand_mode() on whole unpacked structure does not affect all members
+#679 [OPEN] [IEEE 1800] default clocking for sampled-value functions in procedural event controls
+#680 [OPEN] [IEEE 1800] evaluate non-random function calls in inline constraints
+#682 [OPEN] [IEEE 1800] §18.12 — Reject expressions in scope randomize() argument list
+#687 [OPEN] [IEEE 1800] §19.7.1 — Setting instance option on type_option compiles without fatal compiler error
+#698 [OPEN] [IEEE 1800] §13.4.3 — Reject void function invocations inside constant functions
+#701 [OPEN] [IEEE 1800] §14.3 — Reject reading clockvars whose direction is output
+#702 [OPEN] [IEEE 1800] §14.5 — Reject non-lvalue expressions assigned to clocking outputs
+#703 [OPEN] [IEEE 1800] §13.5.3 — Support default values for ref subroutine arguments
+#709 [OPEN] [IEEE 1800] §16.9.3 — Procedural $sampled returns live value instead of Preponed sampled value
+#711 [OPEN] [IEEE 1800] §16.9.3 — Support clocking block inputs in sampled value functions
+#715 [OPEN] [IEEE 1800] §16.10 — Support declaration assignments in assertion variable declarations
+#717 [OPEN] [IEEE 1800] §16.10 — Support attaching sequence_match_items to composite sequence expressions
+#718 [OPEN] [IEEE 1800] §16.10 — Support increment and decrement expressions in sequence_match_items
+#721 [OPEN] [IEEE 1800] §16.12.4/16.12.5 — Support property disjunction (or) and conjunction (and)
+#728 [OPEN] [IEEE 1800] §7.4.3/7.4.6 — Support equality and inequality on multidimensional unpacked arrays
+#734 [OPEN] [IEEE 1800] §6.16.1 — string len() returns 1 for an element of a fixed unpacked string array
+#738 [OPEN] [IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load
+#739 [OPEN] [IEEE 1800] §6.19.5 — bare enum methods (no parentheses) on a class property are dropped and return 32
+#740 [OPEN] [IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values
+#741 [OPEN] [IEEE 1800] §6.24.2 — $cast to a real destination aborts vvp (real_from_vpi_value, Format 9)
+#742 [OPEN] [IEEE 1800] §6.24.2 — task-form $cast with an invalid assignment reports no run-time error
+#743 [OPEN] [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning
+#745 [CLOSED] [IEEE 1800] §6.24.2 — $cast with a non-singular (unpacked array) destination returns 1 without assigning
+#747 [OPEN] [IEEE 1800] §6.24.3 — bit-stream cast to or from a fixed unpacked array is not implemented
+#749 [OPEN] [IEEE 1800] §6.24.3 — bit-stream cast from a struct or string source yields zeros or a wrong size without an error
+#750 [OPEN] [IEEE 1800] §6.24.3 — struct-to-int cast with a size mismatch is accepted instead of a compile-time error
+#754 [OPEN] [IEEE 1800] §6.23 — type() as a cast type (type(expr)'(x)) is not supported
+#755 [OPEN] [IEEE 1800] §6.23 — type() in a generate case expression is not supported
+#756 [OPEN] [IEEE 1800] §6.22.1/§6.23 — type() matching of struct, union and array types is not supported
+#757 [OPEN] [IEEE 1800] §6.22.1(e)/(f) — type() matching ignores packed range direction and packed dimensions
+#758 [OPEN] [IEEE 1800] §6.23 — a hierarchical reference inside type() is accepted
+#765 [OPEN] [IEEE 1800] §6.9.1 — a vector range bound containing x is accepted
+#766 [OPEN] [IEEE 1800] §6.25 — a specialized class-scoped type (C#(T,N)::t) is rejected in variable, typedef and class-property declarations
+#767 [OPEN] [IEEE 1800] §6.10 — a reference to an undeclared identifier compiles with a warning and runs with a blank value
+#769 [OPEN] [IEEE 1800] §10.6.1/§10.6.2 — assign or force with a variable bit-select/part-select target is accepted

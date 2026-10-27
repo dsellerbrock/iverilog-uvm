@@ -1,0 +1,6 @@
+{
+    "__comment"     : "Legal same-instance generate-block defparams and module-scope overrides into generated scopes.",
+    "type"          : "normal",
+    "source"        : "sv_defparam_same_generate_block.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_defparam_same_generate_block" ]
+}

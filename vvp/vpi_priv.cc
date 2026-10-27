@@ -29,6 +29,7 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  <vector>
+# include  <algorithm>
 # include  <cstdio>
 # include  <cstdarg>
 # include  <cstring>
@@ -1074,6 +1075,13 @@ double real_from_vpi_value(s_vpi_value*vp)
 	    result = (double) vp->value.integer;
 	    break;
 
+	  case vpiScalarVal:
+	  case vpiVectorVal:
+	    vec4 = vec4_from_vpi_value(vp, 32);
+	    // A VPI vector carries no signedness; convert it as unsigned.
+	    vector4_to_value(vec4, result, false);
+	    break;
+
 	  case vpiBinStrVal:
 	    vpip_bin_str_to_vec4(vec4, vp->value.str);
 	    if (vp->value.str[0] == '-') is_signed = true;
@@ -1172,13 +1180,33 @@ struct vpip_put_value_event : vvp_gen_event_s {
       vpiHandle handle;
       s_vpi_value value;
       int flags;
+      vvp_time64_t due;
+      bool canceled;
       virtual void run_run() override;
-      ~vpip_put_value_event() override { }
+      ~vpip_put_value_event() override;
 };
+
+static std::vector<vpip_put_value_event*> vpip_pending_put_values;
+
+static void vpip_untrack_put_value(vpip_put_value_event* event)
+{
+      std::vector<vpip_put_value_event*>::iterator found =
+            std::find(vpip_pending_put_values.begin(),
+                      vpip_pending_put_values.end(), event);
+      if (found != vpip_pending_put_values.end())
+            vpip_pending_put_values.erase(found);
+}
+
+vpip_put_value_event::~vpip_put_value_event()
+{
+      vpip_untrack_put_value(this);
+}
 
 void vpip_put_value_event::run_run()
 {
-      handle->vpi_put_value(&value, flags);
+      vpip_untrack_put_value(this);
+      if (!canceled)
+            handle->vpi_put_value(&value, flags);
       switch (value.format) {
 	    /* Free the copied string. */
 	  case vpiBinStrVal:
@@ -1285,6 +1313,8 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 
 	    vpip_put_value_event*put = new vpip_put_value_event;
 	    put->handle = obj;
+            put->due = schedule_simtime() + dly;
+            put->canceled = false;
 	    if (dynamic_cast<__vpiNamedEvent*>(obj)) {
 		  put->value.format = vpiIntVal;
 		  put->value.value.integer = 0;
@@ -1322,6 +1352,18 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 		  break;
 	    }
 	    put->flags = flags;
+            if (flags == vpiInertialDelay || flags == vpiTransportDelay) {
+                  for (std::vector<vpip_put_value_event*>::iterator cur =
+                       vpip_pending_put_values.begin();
+                       cur != vpip_pending_put_values.end(); ++cur) {
+                        vpip_put_value_event* pending = *cur;
+                        if (vpi_compare_objects(pending->handle, obj) &&
+                            (flags == vpiInertialDelay ||
+                             pending->due > put->due))
+                              pending->canceled = true;
+                  }
+            }
+            vpip_pending_put_values.push_back(put);
 	    schedule_generic(put, dly, false, true, true);
 	    return 0;
       }
@@ -2403,5 +2445,9 @@ vpip_routines_s vpi_routines = {
     .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
     .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
     .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
+    .register_immediate_cover   = vpip_register_immediate_cover,
+    .report_immediate_cover    = vpip_report_immediate_cover,
+    .print_finish_stats         = vpip_print_finish_stats,
+    .covgrp_db                  = vpip_covgrp_db,
 };
 #endif

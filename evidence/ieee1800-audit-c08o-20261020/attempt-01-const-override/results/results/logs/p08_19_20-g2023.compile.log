@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:32: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:32: error: Invalid module instantiation
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:41: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:41: error: Malformed statement
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:42: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-audit-c08o-20261020-01/input/tests/1800_audit/c08/p08_19_20.sv:42: error: Malformed statement

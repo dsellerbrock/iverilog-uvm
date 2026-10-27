@@ -1,0 +1,33 @@
+edition	compile_rc	run_rc	stdout_match
+2017	0	0	NO
+2023	0	0	NO
+--- run-g2017.stderr.log
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<real>.
+Warning: pop_back() on empty queue<real>.
+Warning: pop_front() on empty queue<string>.
+Warning: pop_back() on empty queue<string>.
+Warning: pop_front() on empty queue<object>.
+Warning: pop_back() on empty queue<object>.
+--- run-g2023.stderr.log
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[32]>.
+Warning: pop_back() on empty queue<vector[32]>.
+Warning: pop_front() on empty queue<real>.
+Warning: pop_back() on empty queue<real>.
+Warning: pop_front() on empty queue<string>.
+Warning: pop_back() on empty queue<string>.
+Warning: pop_front() on empty queue<object>.
+Warning: pop_back() on empty queue<object>.

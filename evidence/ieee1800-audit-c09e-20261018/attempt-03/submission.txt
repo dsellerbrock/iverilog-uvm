@@ -1,0 +1,7 @@
+Host: DAN-DESKTOP
+Run directory: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03
+Command: cd /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-03 && sbatch --parsable a3-m7-c09e-final.sbatch
+Slurm job ID: 2551
+Resources: 1 CPU, 2 GiB RAM, 30 minutes; same pinned compiler as c09e attempts 01 and 02
+Per-test limits: compile 60 seconds; run 30 seconds; TERM then KILL after 5 seconds
+Probe set follows the lead's corrected §9.4.2.2 test and separate five-file method event bisect.

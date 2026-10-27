@@ -1,0 +1,3 @@
+OOB_INT 0
+FATAL: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c07-invalid-read-20261020-01/input/p07_10_invalid_read.sv:11: out-of-range int queue read must be X
+       Time: 0  Scope: p07_10_invalid_read

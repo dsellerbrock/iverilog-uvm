@@ -1,0 +1,15 @@
+clause	case	edition	compile_rc	run_rc
+c14	d4_future_cycle_drives	2017	0	0
+c14	d4_future_cycle_drives	2023	0	0
+c16	s3a_default_sample_initialized_signal	2017	0	0
+c16	s3a_default_sample_initialized_signal	2023	0	0
+c16	s3b_default_sample_uninitialized_signal	2017	0	0
+c16	s3b_default_sample_uninitialized_signal	2023	0	0
+c16	s3c_default_sample_initialized_pass_control	2017	0	0
+c16	s3c_default_sample_initialized_pass_control	2023	0	0
+c16	s6_const_cast_general_expression_control	2017	2	NA
+c16	s6_const_cast_general_expression_control	2023	2	NA
+c16	s6_const_cast_uses_current_observed_value	2017	3	NA
+c16	s6_const_cast_uses_current_observed_value	2023	3	NA
+c16	s7_concurrent_assert_pass_action_syntax	2017	0	0
+c16	s7_concurrent_assert_pass_action_syntax	2023	0	0

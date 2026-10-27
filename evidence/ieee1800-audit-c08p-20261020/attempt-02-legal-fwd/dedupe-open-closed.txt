@@ -1,0 +1,29 @@
+QUERY: typedef class
+#760 [OPEN] [IEEE 1800] §6.18 — class-scope type selection through a forward-declared class (typedef C::T) is rejected https://github.com/dsellerbrock/iverilog-uvm/issues/760
+#766 [OPEN] [IEEE 1800] §6.25 — a specialized class-scoped type (C#(T,N)::t) is rejected in variable, typedef and class-property declarations https://github.com/dsellerbrock/iverilog-uvm/issues/766
+#762 [OPEN] [IEEE 1800] §6.18 — forward typedef whose definition does not conform to its basic data type is accepted https://github.com/dsellerbrock/iverilog-uvm/issues/762
+#747 [OPEN] [IEEE 1800] §6.24.3 — bit-stream cast to or from a fixed unpacked array is not implemented https://github.com/dsellerbrock/iverilog-uvm/issues/747
+#738 [OPEN] [IEEE 1800] §6.19.5 — enum name()/next() on a fixed unpacked array element fail at vvp load https://github.com/dsellerbrock/iverilog-uvm/issues/738
+#740 [OPEN] [IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values https://github.com/dsellerbrock/iverilog-uvm/issues/740
+#666 [CLOSED] from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam https://github.com/dsellerbrock/iverilog-uvm/issues/666
+#680 [CLOSED] [IEEE 1800] evaluate non-random function calls in inline constraints https://github.com/dsellerbrock/iverilog-uvm/issues/680
+#499 [CLOSED] [IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element https://github.com/dsellerbrock/iverilog-uvm/issues/499
+#434 [CLOSED] [IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles https://github.com/dsellerbrock/iverilog-uvm/issues/434
+#19 [CLOSED] Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns https://github.com/dsellerbrock/iverilog-uvm/issues/19
+
+QUERY: forward class
+#760 [OPEN] [IEEE 1800] §6.18 — class-scope type selection through a forward-declared class (typedef C::T) is rejected https://github.com/dsellerbrock/iverilog-uvm/issues/760
+#751 [OPEN] [IEEE 1800] §6.20.1/§6.20.3 (2023) — forward_type on a module type parameter is a syntax error https://github.com/dsellerbrock/iverilog-uvm/issues/751
+#762 [OPEN] [IEEE 1800] §6.18 — forward typedef whose definition does not conform to its basic data type is accepted https://github.com/dsellerbrock/iverilog-uvm/issues/762
+#500 [CLOSED] [IEEE 1800] §23.7.1 — Diagnose unresolved unindexed hierarchical task calls https://github.com/dsellerbrock/iverilog-uvm/issues/500
+#100 [CLOSED] Class-property unpacked array of real/string stores every element to the same slot https://github.com/dsellerbrock/iverilog-uvm/issues/100
+#47 [CLOSED] Phase 75: Fallback hardening — eliminate remaining warning noise https://github.com/dsellerbrock/iverilog-uvm/issues/47
+#43 [CLOSED] Phase 71: Process introspection, event races, method chaining, array methods https://github.com/dsellerbrock/iverilog-uvm/issues/43
+#19 [CLOSED] Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns https://github.com/dsellerbrock/iverilog-uvm/issues/19
+#30 [CLOSED] Phase 59: UVM port-imp virtual dispatch (seq_item_port.try_next_item) https://github.com/dsellerbrock/iverilog-uvm/issues/30
+
+QUERY: forward typedef parameterized class
+#19 [CLOSED] Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns https://github.com/dsellerbrock/iverilog-uvm/issues/19
+
+QUERY: 8.27
+

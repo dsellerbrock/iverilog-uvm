@@ -1,0 +1,4 @@
+const=1 bits=32
+assert failure time=15 cnt=3
+failures=1
+./ivltests/sv_const_cast.v:21: $finish called at 26 (1s)

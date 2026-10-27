@@ -1,0 +1,108 @@
+host=DAN-DESKTOP
+2026-10-17T16:51:26-06:00
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Icarus Verilog runtime version 13.0 (devel) (9b5fad2af)
+
+Copyright (c) 2001-2026 Stephen Williams (steve@icarus.com)
+
+  This program is free software; you can redistribute it and/or modify
+Per-test timeout: compile 60s; run 30s; SIGTERM then SIGKILL after 2s.
+
+=== p13_05_4_5_named_optional -g2017 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/build/p13_05_4_5_named_optional-2017.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/p13_05_4_5_named_optional.sv
+run: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/build/p13_05_4_5_named_optional-2017.vvp
+PASS 13.5.4.fun(.j(2),.s(yes))
+PASS 13.5.4.fun(.s(yes))
+PASS 13.5.4.fun(,yes)
+PASS 13.5.4.fun(.j(2))
+PASS 13.5.4.fun(.s(yes),.j(2))
+PASS 13.5.4.fun(.s(),.j())
+PASS 13.5.4.fun(2)
+PASS 13.5.4.fun()
+PASS 13.5.4.fun(2,.s(yes))
+PASS 13.5.5.void_fn_no_args_no_parens
+PASS 13.5.5.void_fn_all_defaults_no_parens
+PASS 13.5.5.task_all_defaults_no_parens
+PASS 13.5.5.class_void_method_no_parens
+PASS 13.5.5.class_nonvoid_method_no_parens
+DONE fails=0
+PASS run
+
+=== expect compile rejection: n13_05_4_named_before_positional -g2017 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_before_positional.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_before_positional.sv:3: error: Positional arguments must precede named arguments.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_4_named_missing_required -g2017 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Missing/empty argument 1 ('a') in call to function h: the formal has no default value (IEEE 1800-2017 13.5.3).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Enable of unknown task ``h''.
+Elaboration failed
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_4_named_unknown_formal -g2017 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_unknown_formal.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_unknown_formal.sv:3: error: No argument called `zz`.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_5_nonvoid_fn_no_parens -g2017 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2017 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv:4: warning: Unable to bind wire/reg/memory `g' in `top' (compile-progress: unresolved reference).
+Elaboration failed
+PASS rejected rc=1
+
+=== p13_05_4_5_named_optional -g2023 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -o /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/build/p13_05_4_5_named_optional-2023.vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/p13_05_4_5_named_optional.sv
+run: timeout -k 2s 30s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/build/p13_05_4_5_named_optional-2023.vvp
+PASS 13.5.4.fun(.j(2),.s(yes))
+PASS 13.5.4.fun(.s(yes))
+PASS 13.5.4.fun(,yes)
+PASS 13.5.4.fun(.j(2))
+PASS 13.5.4.fun(.s(yes),.j(2))
+PASS 13.5.4.fun(.s(),.j())
+PASS 13.5.4.fun(2)
+PASS 13.5.4.fun()
+PASS 13.5.4.fun(2,.s(yes))
+PASS 13.5.5.void_fn_no_args_no_parens
+PASS 13.5.5.void_fn_all_defaults_no_parens
+PASS 13.5.5.task_all_defaults_no_parens
+PASS 13.5.5.class_void_method_no_parens
+PASS 13.5.5.class_nonvoid_method_no_parens
+DONE fails=0
+PASS run
+
+=== expect compile rejection: n13_05_4_named_before_positional -g2023 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_before_positional.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_before_positional.sv:3: error: Positional arguments must precede named arguments.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_4_named_missing_required -g2023 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Missing/empty argument 1 ('a') in call to function h: the formal has no default value (IEEE 1800-2017 13.5.3).
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_missing_required.sv:3: error: Enable of unknown task ``h''.
+Elaboration failed
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_4_named_unknown_formal -g2023 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_unknown_formal.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_4_named_unknown_formal.sv:3: error: No argument called `zz`.
+1 error(s) during elaboration.
+PASS rejected rc=1
+
+=== expect compile rejection: n13_05_5_nonvoid_fn_no_parens -g2023 ===
+compile: timeout -k 2s 60s /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog -g2023 -tnull /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13b-20261017/inputs/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv:4: warning: Unable to bind wire/reg/memory `g' in `top' (compile-progress: unresolved reference).
+Elaboration failed
+PASS rejected rc=1
+
+FINAL_STATUS=0

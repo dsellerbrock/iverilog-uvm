@@ -1,0 +1,1 @@
+p32_sdf.sv:8: warning: Omitting $sdf_annotate() since specify blocks and interconnects are being omitted.

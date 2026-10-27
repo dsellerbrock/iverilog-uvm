@@ -1,0 +1,9 @@
+edition	probe	compile_rc	run_rc	expected
+2017	positive	0	0	RESULT pass=16 fail=0
+2017	runtime_mismatch	0	0	no SURVIVED; runtime diagnostic expected
+2017	n15_param_put_int	1	NA	compile reject expected
+2017	n15_param_get_int	1	NA	compile reject expected
+2023	positive	0	0	RESULT pass=16 fail=0
+2023	runtime_mismatch	0	0	no SURVIVED; runtime diagnostic expected
+2023	n15_param_put_int	1	NA	compile reject expected
+2023	n15_param_get_int	1	NA	compile reject expected

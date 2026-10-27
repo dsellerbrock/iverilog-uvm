@@ -1,0 +1,89 @@
+host=DAN-DESKTOP
+2026-10-17T22:39:03-06:00
+slurm_job_id=2535
+toolchain_commit=9b5fad2afb4104caa816b257d5bccc40f01b8c66
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+c6be7c4b5be506eb9e9d04d9c144976115ae3649ad994880256625dafb217137  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/run_with_timeout.py
+55afcb80e3c4e4d125ea6d361c4bca13fdf703d303de1abc7e7f5c65ca6bdfc2  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/p09_06_1_wait_fork.sv
+21675aff7324f0ad0ff57016484948416141076d3a3542b1eba28f868291a1d2  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/p09_06_2_disable.sv
+182fa96dc30bfd6cba27d62f05dfd01cc24e0c4e3091c57dfe99d10db323b57c  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/p09_06_3_disable_fork.sv
+ff3b3cc5d0dab11adbb94edd76d551415a779673205d899f5ce904f038f1e664  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/neg/n09_06_2_disable_function.sv
+=== p09_06_1_wait_fork -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.1.wait_fork_no_children_returns_immediately
+FAIL 9.6.1.wait_fork_all_7_children
+FAIL 9.6.1.wait_fork_excludes_descendants
+PASS 9.6.1.descendants_still_ran
+DONE fails=2
+=== p09_06_2_disable -g2017 ===
+compile_rc=0
+run_rc=124
+Timed out after 30.0s: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/build/p09_06_2_disable-2017.vvp
+PASS 9.6.2.self_disable_skips_rest
+PASS 9.6.2.forward_goto_style
+PASS 9.6.2.disable_task_from_inside
+PASS 9.6.2.task_continues_when_not_disabled
+PASS 9.6.2.disable_acts_as_continue_and_break
+PASS 9.6.2.disable_idle_block_is_noop
+PASS 9.6.2.disable_task_all_activations
+PASS 9.6.2.disable_in_fork_terminates_join
+PASS 9.6.2.monostable_set
+PASS 9.6.2.monostable_retrigger_extends
+PASS 9.6.2.monostable_expires
+DONE fails=0
+=== p09_06_3_disable_fork -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.3.join_any_then_disable_fork
+PASS 9.6.3.outstanding_killed
+PASS 9.6.3.kills_descendants_of_terminated_child
+PASS 9.6.3.only_own_children_killed
+PASS 9.6.2.disable_by_name_kills_foreign_fork
+DONE fails=0
+=== n09_06_2_disable_function -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/neg/n09_06_2_disable_function.sv:3: error: Cannot disable functions.
+Elaboration failed
+=== p09_06_1_wait_fork -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.1.wait_fork_no_children_returns_immediately
+FAIL 9.6.1.wait_fork_all_7_children
+FAIL 9.6.1.wait_fork_excludes_descendants
+PASS 9.6.1.descendants_still_ran
+DONE fails=2
+=== p09_06_2_disable -g2023 ===
+compile_rc=0
+run_rc=124
+Timed out after 30.0s: /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/build/p09_06_2_disable-2023.vvp
+PASS 9.6.2.self_disable_skips_rest
+PASS 9.6.2.forward_goto_style
+PASS 9.6.2.disable_task_from_inside
+PASS 9.6.2.task_continues_when_not_disabled
+PASS 9.6.2.disable_acts_as_continue_and_break
+PASS 9.6.2.disable_idle_block_is_noop
+PASS 9.6.2.disable_task_all_activations
+PASS 9.6.2.disable_in_fork_terminates_join
+PASS 9.6.2.monostable_set
+PASS 9.6.2.monostable_retrigger_extends
+PASS 9.6.2.monostable_expires
+DONE fails=0
+=== p09_06_3_disable_fork -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.6.3.join_any_then_disable_fork
+PASS 9.6.3.outstanding_killed
+PASS 9.6.3.kills_descendants_of_terminated_child
+PASS 9.6.3.only_own_children_killed
+PASS 9.6.2.disable_by_name_kills_foreign_fork
+DONE fails=0
+=== n09_06_2_disable_function -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09b-20261018-attempt01/input/neg/n09_06_2_disable_function.sv:3: error: Cannot disable functions.
+Elaboration failed
+FINAL_STATUS=1

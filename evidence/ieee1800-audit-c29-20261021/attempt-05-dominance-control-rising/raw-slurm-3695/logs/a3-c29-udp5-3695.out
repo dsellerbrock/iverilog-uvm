@@ -1,0 +1,17 @@
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+--- p29_more -g2017 ---
+I1 x 1
+I2 1 1
+D1 0 0
+DOM 0 EDGE x
+--- expected.txt	2026-10-21 03:34:41.055274606 -0600
++++ results/p29_more-2017.out	2026-10-21 03:35:07.341187035 -0600
+@@ -1,4 +1,4 @@
+ I1 x 1
+ I2 1 1
+ D1 0 0
+-DOM 0 EDGE 1
++DOM 0 EDGE x

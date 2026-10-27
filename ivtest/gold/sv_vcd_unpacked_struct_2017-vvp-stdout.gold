@@ -1,0 +1,26 @@
+$version
+	Icarus Verilog
+$end
+$timescale
+	1s
+$end
+$scope module sv_vcd_unpacked_struct_2017 $end
+$scope fork payload $end
+$var integer 32 ! x $end
+$var reg 2 " y $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+$end
+#0
+$dumpvars
+b0 "
+b0 !
+$end
+#1
+b11 !
+b10 "
+VCD info: dumpfile sv_vcd_unpacked_struct.vcd opened for output.
+./ivltests/sv_vcd_unpacked_struct_body.vh:17: $finish called at 3 (1s)

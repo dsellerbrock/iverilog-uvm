@@ -1,0 +1,4 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-firstmatch-20261019-26/input/p16_09_08_first_match_match_item.sv:10: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-firstmatch-20261019-26/input/p16_09_08_first_match_match_item.sv:10: error: Malformed statement
+/home/dsell/slurm-runs/iverilog-uvm/A3/c16-firstmatch-20261019-26/input/p16_09_08_first_match_match_item.sv:9: error: Error in property_spec of concurrent assertion item.
+compile_exit=3

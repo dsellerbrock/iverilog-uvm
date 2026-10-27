@@ -1,0 +1,8 @@
+PASS 9.4.2.1.or_either
+PASS 9.4.2.1.comma_is_or
+PASS 9.4.2.1.edge_list_with_comma
+PASS 9.4.2.1.mixed_or_and_comma
+PASS 9.4.2.3.iff_false_blocks_and_enable_alone_no_event
+PASS 9.4.2.3.iff_has_precedence_over_or
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_2_or_iff.sv:26: $finish called at 19 (1s)

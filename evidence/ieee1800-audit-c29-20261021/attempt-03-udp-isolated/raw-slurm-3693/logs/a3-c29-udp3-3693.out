@@ -1,0 +1,28 @@
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+COMPILED p29_more -g2017
+I1 x 1
+I2 1 1
+D1 0 0
+DOM 0
+OUTPUT_MATCH p29_more -g2017
+COMPILED p29_more -g2023
+I1 x 1
+I2 1 1
+D1 0 0
+DOM 0
+OUTPUT_MATCH p29_more -g2023
+tests/p29_instance_array.sv:15: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+OBSERVED_COMPILE_REJECTION p29_instance_array -g2017 exit=1
+tests/p29_instance_array.sv:15: sorry: UDPs with a range (ua [1:0]) are not supported.
+1 error(s) during elaboration.
+OBSERVED_COMPILE_REJECTION p29_instance_array -g2023 exit=1
+THREE_DELAY_REJECTED -g2017 exit=1
+tests/n29_delay3.sv:13: error: UDPs take at most two delay arguments.
+1 error(s) during elaboration.
+THREE_DELAY_REJECTED -g2023 exit=1
+tests/n29_delay3.sv:13: error: UDPs take at most two delay arguments.
+1 error(s) during elaboration.

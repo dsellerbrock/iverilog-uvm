@@ -1,0 +1,10 @@
+Purpose: Clause 35 probe of packed-vector and fixed unpacked-array DPI C ABI.
+Standard: IEEE 1800-2017/2023 §§35.5.5, 35.5.6; Annex H.
+Local source checkout: branch m7-1800-audit-c08, HEAD 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e.
+Current origin/main: fb584a251dd4cc91e56a75be662ccd5ee05c64e9.
+The four existing test sources are clean and unchanged. No DPI implementation file changed between pinned compiler cc25756d187314742d347267c2a513b3e640a7fb and origin/main.
+Compiler: pinned shared toolchain /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb.
+Slurm jobs: 3594 and corrected rerun 3595; partition verilog; 1 CPU; 1 GiB; 10 minute limit. Prior Clause 35 jobs with the same compiler completed within seconds at 1 CPU/1 GiB.
+Job 3594 selected the wrong top module for the wide-vector source and is a harness failure; the fixed-array test passed in both editions. Job 3595 selects the declared `_top` module and is the valid paired-edition probe.
+Runner: run.sbatch; each compile, link, and simulation command has a 30 second timeout.
+Inputs and their local SHA-256 values are in input-sha256.txt.

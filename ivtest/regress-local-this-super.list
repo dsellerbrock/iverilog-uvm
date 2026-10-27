@@ -1,0 +1,2 @@
+sv_constraint_local_this_super_2017 normal,-g2017,-s,sv_constraint_local_this_super_2017 ivltests gold=sv_constraint_local_this_super.gold
+sv_constraint_local_this_super_2023 normal,-g2023,-s,sv_constraint_local_this_super_2023 ivltests gold=sv_constraint_local_this_super.gold

@@ -1,0 +1,2 @@
+PASS §7.6 whole-array and packed-vector assignment
+/home/dsell/slurm-runs/iverilog-uvm/A3/c07-audit-20261019-08/source/tests/1800_audit/c07/p07_06_array_assignments.sv:27: $finish called at 0 (1s)

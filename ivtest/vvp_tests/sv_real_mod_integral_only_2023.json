@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_real_mod_integral_only.sv",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_real_mod_integral_only_2023"
+}

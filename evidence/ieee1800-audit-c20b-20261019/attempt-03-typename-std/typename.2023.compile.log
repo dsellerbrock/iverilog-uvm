@@ -1,0 +1,20 @@
+tests/1800_audit/c20/r20_06_typename_std.sv:7: syntax error
+tests/1800_audit/c20/r20_06_typename_std.sv:7: error: Error in struct/union member.
+        0.04 real         0.01 user         0.01 sys
+             4325376  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1734  page reclaims
+                  11  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+                  36  involuntary context switches
+            18765137  instructions retired
+             7847463  cycles elapsed
+             1245544  peak memory footprint

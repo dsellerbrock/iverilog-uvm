@@ -32,6 +32,7 @@
 # include  <cinttypes>
 # include  <cctype>
 # include  <cerrno>
+# include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
 # include  <limits>
@@ -1858,6 +1859,29 @@ void class_type::add_constraint(const string&name, const string&ir)
       c.name = name;
       c.ir = ir;
       constraints_.push_back(c);
+      static_constraints_.push_back(false);
+      static_constraint_modes_.push_back(true);
+}
+
+void class_type::set_constraint_static(size_t idx)
+{
+      if (idx < static_constraints_.size()) static_constraints_[idx] = true;
+}
+
+bool class_type::constraint_is_static(size_t idx) const
+{
+      return idx < static_constraints_.size() && static_constraints_[idx];
+}
+
+bool class_type::static_constraint_mode(size_t idx) const
+{
+      return idx < static_constraint_modes_.size() && static_constraint_modes_[idx];
+}
+
+void class_type::set_static_constraint_mode(size_t idx, bool mode) const
+{
+      if (idx < static_constraint_modes_.size())
+	    static_constraint_modes_[idx] = mode;
 }
 
 void class_type::add_constraint_state_call(unsigned constraint,
@@ -2833,10 +2857,12 @@ void compile_class_static_property(unsigned idx, char*storage)
       compile_class->bind_static_property(idx, storage);
 }
 
-void compile_class_constraint(char*name, char*ir)
+void compile_class_constraint(char*name, char*ir, uint64_t is_static)
 {
       assert(compile_class);
       compile_class->add_constraint(string(name), string(ir));
+      if (is_static)
+	    compile_class->set_constraint_static(compile_class->constraint_count() - 1);
       delete[]name;
       delete[]ir;
 }
@@ -3098,6 +3124,19 @@ static bool compile_class_covgrp_property_valid_(uint64_t encoded,
             && !compile_class->property_is_static(prop);
 }
 
+static bool compile_class_covgrp_string_property_valid_(uint64_t encoded)
+{
+      if (encoded == 0) return true;
+      if (encoded > (uint64_t)std::numeric_limits<int>::max() + 1)
+            return false;
+      size_t prop = static_cast<size_t>(encoded - 1);
+      return prop < compile_class->property_count()
+            && compile_class->property_base_type(prop) == "S"
+            && compile_class->property_array_size(prop) == 1
+            && compile_class->property_dimensions(prop).empty()
+            && !compile_class->property_is_static(prop);
+}
+
 void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop)
 {
@@ -3116,6 +3155,24 @@ void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
             options.get_inst_coverage_prop = get_inst_prop ? (int)(get_inst_prop - 1) : -1;
             compile_class->set_covgrp_options(options);
       }
+}
+
+void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
+					uint64_t comment_prop, char*comment)
+{
+      assert(compile_class);
+      if (goal > std::numeric_limits<unsigned>::max()
+	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
+	  || !compile_class_covgrp_string_property_valid_(comment_prop)) {
+	    yyerror("invalid .covgrp_option_values metadata value");
+	    return;
+      }
+      class_type::covgrp_options_t options = compile_class->covgrp_options();
+      options.goal_prop = goal_prop ? (int)(goal_prop - 1) : -1;
+      options.goal = (unsigned)goal;
+      options.comment_prop = comment_prop ? (int)(comment_prop - 1) : -1;
+      options.comment = comment ? comment : "";
+      compile_class->set_covgrp_options(options);
 }
 
 void compile_class_covgrp_per_instance(uint64_t value, uint64_t property)
@@ -3181,6 +3238,25 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 		  bad = true;
       if (bad)
 	    yyerror("invalid .covgrp_item_options metadata value");
+}
+
+void compile_class_covgrp_item_option_values(uint64_t item_idx,
+					     uint64_t goal_prop,
+					     uint64_t goal,
+					     uint64_t comment_prop,
+					     char*comment)
+{
+      assert(compile_class);
+      if (item_idx > std::numeric_limits<size_t>::max()
+	  || goal > std::numeric_limits<unsigned>::max()
+	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
+	  || !compile_class_covgrp_string_property_valid_(comment_prop)
+	  || !compile_class->set_covgrp_item_option_values(
+		static_cast<size_t>(item_idx),
+		goal_prop ? (int)(goal_prop - 1) : -1, (unsigned)goal,
+		comment_prop ? (int)(comment_prop - 1) : -1,
+		comment ? comment : ""))
+	    yyerror("invalid .covgrp_item_option_values metadata value");
 }
 
 void compile_class_covgrp_item_guard(uint64_t item_idx, uint64_t has_guard)
@@ -3770,11 +3846,20 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
       store(covgrp_options_.weight_prop, covgrp_options_.weight);
       store(covgrp_options_.get_inst_coverage_prop, covgrp_options_.get_inst_coverage);
       store(covgrp_options_.per_instance_prop, covgrp_options_.per_instance);
+      store(covgrp_options_.goal_prop, covgrp_options_.goal);
+      if (covgrp_options_.comment_prop >= 0
+	  && (size_t)covgrp_options_.comment_prop < property_count())
+	    obj->set_string((size_t)covgrp_options_.comment_prop,
+		    covgrp_options_.comment);
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
 	    store(item.at_least_prop, item.at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+	    store(item.goal_prop, item.goal);
+	    if (item.comment_prop >= 0
+		&& (size_t)item.comment_prop < property_count())
+		  obj->set_string((size_t)item.comment_prop, item.comment);
       }
 }
 
@@ -3952,7 +4037,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    return 0.0;
       // A declaration alone contributes no bins. Retired instances still
       // belong to the cumulative population, even with zero instance weight.
-      if (covgrp_live_.empty() && !covgrp_has_retired_options_) return 0.0;
+      if (covgrp_live_.empty() && !covgrp_has_retired_options_
+	  && !covgrp_db_loaded_) return 0.0;
       if (!covgrp_options_.merge_instances) {
             size_t item = static_cast<size_t>(selected_item);
 	    long double weights = selected_item >= 0
@@ -3993,7 +4079,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
-	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
+	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6 || k == 7) continue;
 	    if (k == 4 && bin.trans_family != COV_NO_FAMILY) {
 		  if (seen_trans_families.insert(bin.trans_family).second) {
 			uint64_t total = covgrp_trans_family_size(bin.trans_family);
@@ -4148,7 +4234,7 @@ void class_type::covgrp_report(FILE*fd)
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
 			const char*tag = (k == 2 || k == 5) ? "illegal"
-				       : (k == 3 || k == 6) ? "default"
+			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,

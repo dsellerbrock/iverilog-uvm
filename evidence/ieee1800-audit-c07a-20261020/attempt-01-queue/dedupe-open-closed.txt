@@ -1,0 +1,13 @@
+GitHub issue searches against dsellerbrock/iverilog-uvm, explicitly separated by state, each with --limit 100 and JSON number/title/state/url:
+- `gh issue list --state open --search "queue slice"`: []
+- `gh issue list --state closed --search "queue slice"`: []
+- `gh issue list --state open --search "queue insert"`: []
+- `gh issue list --state closed --search "queue insert"`: []
+- `gh issue list --state open --search "bounded queue"`: []
+- `gh issue list --state closed --search "bounded queue"`: []
+- `gh issue list --state open --search "pop_front empty"`: []
+- `gh issue list --state closed --search "pop_front empty"`: []
+- `gh issue list --state open --search "queue invalid index"`: []
+- `gh issue list --state closed --search "queue invalid index"`: []
+- `gh issue list --state open --search "7.10"`: []
+- `gh issue list --state closed --search "7.10"`: []

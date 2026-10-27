@@ -1,0 +1,15 @@
+Repository: dsellerbrock/iverilog-uvm. All searches used `gh issue list
+--state all` on 2026-10-20, so open and closed issues were included.
+
+- `abstract`: no matches.
+- `"unimplemented pure"`: no matches.
+- `"pure method"`: OPEN #845 only; its full issue is interface-class nesting,
+  not inherited pure methods in concrete classes.
+- `"missing pure"`: OPEN #842 only; it concerns duplicate constraints.
+- `"pure virtual method"`: no matches.
+- `"virtual class"`: OPEN #609 (virtual/static constructors), #766 (specialized
+  class-scope types), #642 (static method in continuous assignment), and #842
+  (duplicate constraints); inspected titles are unrelated.
+
+The broader terms and results from attempt 02 are in that attempt's dedupe file.
+The observed `MissingImplementation` acceptance is not covered by any result.

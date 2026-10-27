@@ -76,6 +76,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 
   /* These are some special header/footer keywords. */
 ^":ivl_version" { return K_ivl_version; }
+^":ivl_systemverilog" { return K_ivl_systemverilog; }
 ^":ivl_delay_selection" { return K_ivl_delay_selection; }
 ^":vpi_module" { return K_vpi_module; }
 ^":vpi_time_precision" { return K_vpi_time_precision; }
@@ -176,10 +177,12 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_cross_bin" { return K_COVGRP_CROSS_BIN; }
 ".covgrp_item"  { return K_COVGRP_ITEM; }
 ".covgrp_options" { return K_COVGRP_OPTIONS; }
+".covgrp_option_values" { return K_COVGRP_OPTION_VALUES; }
 ".covgrp_per_instance" { return K_COVGRP_PER_INSTANCE; }
 ".covgrp_type_weight" { return K_COVGRP_TYPE_WEIGHT; }
 ".covgrp_item_type_weight" { return K_COVGRP_ITEM_TYPE_WEIGHT; }
 ".covgrp_item_options" { return K_COVGRP_ITEM_OPTIONS; }
+".covgrp_item_option_values" { return K_COVGRP_ITEM_OPTION_VALUES; }
 ".covgrp_item_guard" { return K_COVGRP_ITEM_GUARD; }
 ".covgrp_parent" { return K_COVGRP_PARENT; }
 ".covgrp_src"   { return K_COVGRP_SRC; }
@@ -249,6 +252,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".part/event"   { return K_PART_EVENT; }
 ".part/pv"      { return K_PART_PV; }
 ".packed_dims"  { return K_PACKED_DIMS; }
+".vartype"  { return K_VARTYPE; }
 ".part/v"       { return K_PART_V; }
 ".part/v.s"     { return K_PART_V_S; }
 ".port"         { return K_PORT; }
@@ -309,6 +313,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 
 "%vpi_call"   { return K_vpi_call; }
 "%vpi_call/w" { return K_vpi_call_w; }
+"%vpi_call/observed" { return K_vpi_call_observed; }
 "%vpi_call/i" { return K_vpi_call_i; }
 "%vpi_func"   { return K_vpi_func; }
 "%vpi_func/r" { return K_vpi_func_r; }

@@ -1,0 +1,16 @@
+PASS 13.5.1.by_value_copy
+PASS 13.5.2.ref_variable
+PASS 13.5.2.ref_change_visible_before_return
+PASS 13.5.2.ref_struct_member
+PASS 13.5.2.ref_unpacked_elem
+PASS 13.5.2.ref_class_property
+PASS 13.5.2.const_ref_read
+PASS 13.5.2.ref_object_handle
+PASS 13.5.3.read(,5)
+PASS 13.5.3.read(2,5)
+PASS 13.5.3.read(,5,)
+PASS 13.5.3.read(,5,7)
+PASS 13.5.3.read(1,5,2)
+PASS 13.5.3.default_evaluated_per_call_a
+PASS 13.5.3.default_evaluated_per_call_b
+DONE fails=0

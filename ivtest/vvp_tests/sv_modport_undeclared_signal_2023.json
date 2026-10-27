@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_modport_undeclared_signal.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_modport_undeclared_signal_2023"
+}

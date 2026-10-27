@@ -19,7 +19,6 @@ module test;
   release_types::access_t [1:0] variable_access;
   logic [15:0] source;
   wire [15:0] bus = source;
-  logic [1:0][7:0] packed_value;
 
   initial begin
     source = 16'h1234;
@@ -28,17 +27,7 @@ module test;
     release bus[7:4];
     #1 if (bus !== 16'h1234) $fatal(1, "constant release value=%h", bus);
 
-    packed_value = 16'h1234;
-    force packed_value[0][3:0] = 4'hf;
-    if (packed_value !== 16'h123f)
-      $fatal(1, "packed array force changed value=%h", packed_value);
-    release packed_value[0][3:0];
-    if (packed_value !== 16'h123f)
-      $fatal(1, "packed array variable release changed value=%h", packed_value);
-    packed_value = '0;
-    if (packed_value !== '0)
-      $fatal(1, "packed array force remained after release");
-
+    // A member select after a packed-array element is not a bit/part-select (10.6.2); variable part-select targets are covered by sv_force_var_select_fail.
     dut.part_access = '0;
     sample[0] = release_types::One;
     force dut.part_access[0].read_lock = sample[0];

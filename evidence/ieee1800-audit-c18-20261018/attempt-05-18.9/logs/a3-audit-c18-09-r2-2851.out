@@ -1,0 +1,51 @@
+DAN-DESKTOP
+Linux DAN-DESKTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 01:12:21 UTC 2026 x86_64 GNU/Linux
+2026-10-18T23:20:38-06:00
+1
+
+=== p18_09-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/p18_09_constraint_mode.sv:15: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+
+=== p18_09-2017.run (timeout 60s) ===
+PASS constraint_mode clause 18.9
+step_exit=0
+
+=== p18_09-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/p18_09_constraint_mode.sv:15: warning: Static variable initialization requires explicit lifetime in this context.
+step_exit=0
+
+=== p18_09-2023.run (timeout 60s) ===
+PASS constraint_mode clause 18.9
+step_exit=0
+
+=== n18_09_nonexistent_constraint-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_nonexistent_constraint.sv:9: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_nonexistent_constraint.sv:10: error: Enable of unknown task ``it.nonexistent_c.constraint_mode''.
+1 error(s) during elaboration.
+step_exit=1
+grep: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/results/n18_09_nonexistent_constraint-2017.compile.compile.log: No such file or directory
+compile failed without a constraint/method diagnostic: n18_09_nonexistent_constraint-2017.compile
+
+=== n18_09_constraint_mode_override-2017.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_constraint_mode_override.sv:4: error: Class method `constraint_mode' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.
+step_exit=1
+grep: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/results/n18_09_constraint_mode_override-2017.compile.compile.log: No such file or directory
+compile failed without a constraint/method diagnostic: n18_09_constraint_mode_override-2017.compile
+
+=== n18_09_nonexistent_constraint-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_nonexistent_constraint.sv:9: warning: Static variable initialization requires explicit lifetime in this context.
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_nonexistent_constraint.sv:10: error: Enable of unknown task ``it.nonexistent_c.constraint_mode''.
+1 error(s) during elaboration.
+step_exit=1
+grep: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/results/n18_09_nonexistent_constraint-2023.compile.compile.log: No such file or directory
+compile failed without a constraint/method diagnostic: n18_09_nonexistent_constraint-2023.compile
+
+=== n18_09_constraint_mode_override-2023.compile (timeout 60s) ===
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/source/tests/1800_audit/c18/neg/n18_09_constraint_mode_override.sv:4: error: Class method `constraint_mode' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.
+step_exit=1
+grep: /home/dsell/slurm-runs/iverilog-uvm/A3/audit-c18-09-20261018-02/results/n18_09_constraint_mode_override-2023.compile.compile.log: No such file or directory
+compile failed without a constraint/method diagnostic: n18_09_constraint_mode_override-2023.compile
+GATE_RESULT=FAIL

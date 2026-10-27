@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_let_scope.v",
+    "iverilog-args": ["-g2023", "-s", "sv_let_scope"],
+    "gold": "sv_let_scope"
+}

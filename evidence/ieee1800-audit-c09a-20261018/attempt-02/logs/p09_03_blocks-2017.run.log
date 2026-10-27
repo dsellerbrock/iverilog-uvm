@@ -1,0 +1,18 @@
+PASS 9.3.1.sequential_order
+PASS 9.3.1.relative_delays_total
+PASS 9.3.2.fork_join_waits_for_all
+PASS 9.3.2.waveform_t50
+PASS 9.3.2.waveform_t100
+PASS 9.3.2.waveform_t150
+PASS 9.3.2.waveform_t200
+PASS 9.3.2.join_any_resumes_at_first
+PASS 9.3.2.join_none_spawned_not_started
+PASS 9.3.2.join_none_runs_after_parent_blocks
+PASS 9.3.2.block_item_init_per_iteration_123
+INFO 9.3.2.m_seen=4 (2023 requires 4; 2017 undetermined)
+PASS 9.3.3.join_of_events_either_order
+PASS 9.3.3.join_of_events_same_time
+PASS 9.3.4.hier_ref_into_named_block
+PASS 9.3.4.block_variables_static
+PASS 9.3.4.matching_end_names_accepted
+DONE fails=0

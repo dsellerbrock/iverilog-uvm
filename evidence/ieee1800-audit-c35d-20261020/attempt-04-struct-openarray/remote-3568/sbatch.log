@@ -1,0 +1,17 @@
+edition	compile_rc	link_rc	run_rc	outcome
+2017	0	0	1	RUNTIME_FAIL
+2023	0	0	1	RUNTIME_FAIL
+--- 2017.compile.log
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-struct-array-20261020-01/input/p35_struct_openarray.sv:6: sorry: DPI import 'c_array_size': open array argument 'values' must have packed bit/logic or real elements; the call is skipped.
+--- 2023.compile.log
+/home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-struct-array-20261020-01/input/p35_struct_openarray.sv:6: sorry: DPI import 'c_array_size': open array argument 'values' must have packed bit/logic or real elements; the call is skipped.
+--- 2017.link.log
+--- 2023.link.log
+--- 2017.stdout.log
+FATAL: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-struct-array-20261020-01/input/p35_struct_openarray.sv:14: wrong structure open-array size
+       Time: 0  Scope: p35_struct_openarray
+--- 2023.stdout.log
+FATAL: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-struct-array-20261020-01/input/p35_struct_openarray.sv:14: wrong structure open-array size
+       Time: 0  Scope: p35_struct_openarray
+--- 2017.stderr.log
+--- 2023.stderr.log

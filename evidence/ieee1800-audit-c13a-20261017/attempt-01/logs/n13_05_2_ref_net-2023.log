@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: 'w' is not a valid l-value for a procedural assignment.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:2:      : 'w' is declared here as a wire.
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c13a-20261017/inputs/c13/neg/n13_05_2_ref_net.sv:4: error: I give up on task port 1 expression: w
+2 error(s) during elaboration.

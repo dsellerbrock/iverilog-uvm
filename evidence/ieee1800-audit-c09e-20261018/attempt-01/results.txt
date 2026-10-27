@@ -1,0 +1,17 @@
+IEEE 1800 §9.4.1 and §9.4.2.1–.3 probe c09e
+Host: DAN-DESKTOP; Slurm job 2549.
+Toolchain: main 9b5fad2; Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a.
+Requested resources: 1 CPU, 2 GiB RAM, 25 minutes; scheduler result FAILED, ExitCode 1:0, RunTime 1 second (probe harness correctly returned nonzero on positive assertion/compile failures; this is test evidence, not infrastructure loss). sstat retained no completed-step RSS.
+Command: sbatch --parsable a3-m7-c09e.sbatch. Per-test timeout: compile 60 seconds and simulation 30 seconds, TERM then KILL after 5 seconds.
+
+Results, identical in -g2017 and -g2023:
+- p09_04_1_delay.sv: compile/run pass; all seven delay checks pass, including X/Z interpreted as zero and negative delay as a time-sized two's-complement unsigned value.
+- p09_04_2_edges.sv: compile/run pass; all seven event-edge checks pass. Counts: posedge 7, negedge 5, edge 12, any-change 14.
+- p09_04_2_or_iff.sv: compile/run pass; all six OR-list, comma-list, and iff-precedence checks pass.
+- p09_04_2_implicit_star.sv: compile/run return 0 but `9.4.2.2.star_wakes_on_rhs_id` fails. The remaining checks pass. Raw output is preserved; the lead must validate whether the probe itself represents the clause before classifying this as a gap.
+- p09_04_2_objects.sv: compile fails at `@(AOR.size())` with `System function $ivl_queue_method$size not defined in system table or SFT file(s)` and `Failed to synthesize event expression`. This requires statement-level reduction before deciding whether it is a gap or a probe/toolchain issue.
+- n09_04_2_nonsingular_event.sv: compilation rejects `@(arr)` in both editions with `Array arr needs an array index here` and `Failed to evaluate event expression 'arr'`. Diagnostic is preserved for lead review against the singular-value requirement.
+
+Raw stdout/stderr, per-test files, exact sbatch script, input hashes, and controller state are in this attempt directory. The initial combined probe was reduced and corrected in attempts 02–03; final §9.4 classification and issue links are recorded in attempt 03 and the status matrix.
+
+After logs and source hashes were verified locally, the remote attempt's input copies, compiled outputs, script, and temporary archives were deleted; remote logs were preserved. Cleanup freed 159,744 bytes (156 KiB).

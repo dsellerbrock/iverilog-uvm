@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-default-20261020-02/source/n10_09_duplicate_array_index.sv:3: error: Assignment pattern has multiple keys for array index 1.
+Elaboration failed

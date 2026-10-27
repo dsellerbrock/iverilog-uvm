@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_udp_instance_array.v",
+    "iverilog-args": ["-g2023", "-s", "sv_udp_instance_array"],
+    "gold": "sv_udp_instance_array"
+}

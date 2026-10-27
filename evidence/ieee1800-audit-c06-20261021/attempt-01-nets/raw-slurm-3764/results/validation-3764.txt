@@ -1,0 +1,14 @@
+T1_wire_tri_resolution -g2017: 16/16 table cells match
+T1_wire_tri_resolution -g2023: 16/16 table cells match
+T2_wand_triand_resolution -g2017: 16/16 table cells match
+T2_wand_triand_resolution -g2023: 16/16 table cells match
+T3_wor_trior_resolution -g2017: 16/16 table cells match
+T3_wor_trior_resolution -g2023: 16/16 table cells match
+T4 -g2017: 16/16 logic and strength cells match
+T4 -g2023: 16/16 logic and strength cells match
+T5_supply_strength: paired output matches 0 Su0 1 Su1
+T6_undriven_wire: paired output matches z
+I1_interconnect_module_ports: paired output matches 1
+T7_uwire_multiple_drivers: paired compile diagnostics match expected rejection
+I2_interconnect_continuous_assignment: paired compile diagnostics match expected rejection
+I3_interconnect_procedural_expression: paired compile diagnostics match expected rejection

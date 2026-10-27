@@ -1,0 +1,10 @@
+Source tree HEAD: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+Source tree worktree was dirty; only the source, expected output, and harness listed in this attempt were staged to Slurm.
+Probe source SHA-256: 54571feb7a444f2097e9177134f25c08cd781dba3ef5dbd0c2f90ce578bc3b5e
+Expected stdout SHA-256: bf4f206891e0495a13507ba48f83b5ec04debe7dce79cdc436afe718874ba224
+Harness SHA-256: 9d4e9d85c40eb502b1332967d8b7aa1ad15edef6d2b615bfaae859fdb5b1dd45
+Slurm job: 3562
+Remote source directory: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c07-invalid-read-20261020-02/input/
+Shared toolchain: /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/
+Icarus SHA-256: 1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593
+VVP SHA-256: e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb

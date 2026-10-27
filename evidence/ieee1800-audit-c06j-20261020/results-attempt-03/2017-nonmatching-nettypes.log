@@ -1,0 +1,5 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/n06_22c_nonmatching_nettypes.sv:5: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/n06_22c_nonmatching_nettypes.sv:5: Errors in port declarations.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/n06_22c_nonmatching_nettypes.sv:8: syntax error
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c06/n06_22c_nonmatching_nettypes.sv:8: error: Invalid module item.
+NEGATIVE COMPILE REJECT rc=4

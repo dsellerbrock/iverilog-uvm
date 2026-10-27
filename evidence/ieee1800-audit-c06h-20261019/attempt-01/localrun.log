@@ -1,0 +1,118 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+CHECKOUT: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+SOURCE: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+e74cb1b690dc2ff07c928684df0df302d053bd94ff4a4a30bf8e10adb7da0b1d  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/vvp
+
+== p06_11a_integer_real g2017 compile rc=0
+run rc=0
+FAIL shortreal
+FAIL realtime_synonym
+RESULT pass=16 fail=2
+
+== p06_14a_void_chandle g2017 compile rc=4
+tests/1800_audit/c06/p06_14a_void_chandle.sv:21: syntax error
+tests/1800_audit/c06/p06_14a_void_chandle.sv:21: error: Syntax error in task arguments.
+tests/1800_audit/c06/p06_14a_void_chandle.sv:22: syntax error
+tests/1800_audit/c06/p06_14a_void_chandle.sv:22: error: Syntax error in task arguments.
+n06_12_bitselect_real g2017 rc=1
+tests/1800_audit/c06/neg/n06_12_bitselect_real.sv:1: error: can not select part of real: r
+Elaboration failed
+n06_12_posedge_real g2017 rc=1
+tests/1800_audit/c06/neg/n06_12_posedge_real.sv:1: error: 'posedge' cannot be used with real expressions 'r'.
+1 error(s) during elaboration.
+n06_12_real_index g2017 rc=1
+tests/1800_audit/c06/neg/n06_12_real_index.sv:1: error: Index expression for v[+r] cannot be a real value.
+Elaboration failed
+n06_13_void_value g2017 rc=1
+tests/1800_audit/c06/neg/n06_13_void_value.sv:1: error: void function `f` can not be called in an expression.
+Elaboration failed
+n06_14_assign_int g2017 rc=0
+n06_14_cont_assign g2017 rc=0
+n06_14_expr g2017 rc=0
+n06_14_packed g2017 rc=0
+n06_14_port g2017 rc=0
+n06_14_sensitivity g2017 rc=0
+n06_14_untagged_union g2017 rc=0
+
+== p06_11a_integer_real g2023 compile rc=0
+run rc=0
+FAIL shortreal
+FAIL realtime_synonym
+RESULT pass=16 fail=2
+
+== p06_14a_void_chandle g2023 compile rc=4
+tests/1800_audit/c06/p06_14a_void_chandle.sv:21: syntax error
+tests/1800_audit/c06/p06_14a_void_chandle.sv:21: error: Syntax error in task arguments.
+tests/1800_audit/c06/p06_14a_void_chandle.sv:22: syntax error
+tests/1800_audit/c06/p06_14a_void_chandle.sv:22: error: Syntax error in task arguments.
+n06_12_bitselect_real g2023 rc=1
+tests/1800_audit/c06/neg/n06_12_bitselect_real.sv:1: error: can not select part of real: r
+Elaboration failed
+n06_12_posedge_real g2023 rc=1
+tests/1800_audit/c06/neg/n06_12_posedge_real.sv:1: error: 'posedge' cannot be used with real expressions 'r'.
+1 error(s) during elaboration.
+n06_12_real_index g2023 rc=1
+tests/1800_audit/c06/neg/n06_12_real_index.sv:1: error: Index expression for v[+r] cannot be a real value.
+Elaboration failed
+n06_13_void_value g2023 rc=1
+tests/1800_audit/c06/neg/n06_13_void_value.sv:1: error: void function `f` can not be called in an expression.
+Elaboration failed
+n06_14_assign_int g2023 rc=0
+n06_14_cont_assign g2023 rc=0
+n06_14_expr g2023 rc=0
+n06_14_packed g2023 rc=0
+n06_14_port g2023 rc=0
+n06_14_sensitivity g2023 rc=0
+n06_14_untagged_union g2023 rc=0
+
+--- dedupe unique results ---
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot		2026-07-21T03:12:27Z
+13	CLOSED	Phase 9: DPI completeness — tasks, output/inout args, chandle, open arrays		2026-05-05T15:24:44Z
+157	CLOSED	UVM regex DPI: reject null input before strlen in uvm_re_comp	bug	2026-09-25T03:16:54Z
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed		2026-05-05T15:25:29Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+43	CLOSED	Phase 71: Process introspection, event races, method chaining, array methods		2026-07-28T14:57:09Z
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax		2026-07-28T18:13:59Z
+469	CLOSED	[IEEE 1800] §§6.11.2/11.5.1 — Preserve two-state packed-select results		2026-10-15T03:25:17Z
+497	CLOSED	[IEEE 1800] §§8.23/26.3 — Allow package-qualified static class calls in expressions		2026-10-14T01:37:11Z
+499	CLOSED	[IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element		2026-10-09T17:35:01Z
+500	CLOSED	[IEEE 1800] §23.7.1 — Diagnose unresolved unindexed hierarchical task calls		2026-10-09T09:37:55Z
+502	CLOSED	[IEEE 1800] §§7.4.6/11.4.2 — Update fixed-array elements for increment expressions		2026-10-09T07:47:17Z
+505	CLOSED	[IEEE 1800] §§35.5.6/H.7.8 — Support imported shortreal array arguments		2026-10-09T14:18:13Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z
+510	CLOSED	[IEEE 1800-2023] §19.5.1 — Implement real-valued coverpoint bins		2026-10-09T14:17:59Z
+545	CLOSED	[Icarus] Caliptra clock generator is rejected without a timescale	from-caliptra-dv	2026-10-16T15:38:25Z
+632	OPEN	[IEEE 1800] §13.5.2 — Reject ref arguments in static-lifetime subroutines	1800-audit	2026-10-17T22:46:19Z
+641	CLOSED	Icarus rejects out-of-class extern function with implicit return type	bug, from-caliptra-dv	2026-10-19T17:02:46Z
+663	OPEN	from-caliptra-dv: inherited type parameters lose transfer members	from-caliptra-dv	2026-10-20T00:37:55Z
+664	CLOSED	from-caliptra-dv: omitted class-method parentheses rejected in string concatenation	from-caliptra-dv	2026-10-19T17:03:13Z
+682	OPEN	[IEEE 1800] §18.12 — Reject expressions in scope randomize() argument list	1800-audit	2026-10-19T05:37:31Z
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch	1800-audit	2026-10-19T16:02:17Z
+698	OPEN	[IEEE 1800] §13.4.3 — Reject void function invocations inside constant functions	1800-audit	2026-10-19T17:21:14Z
+719	OPEN	[IEEE 1800] §16.11 — Support sequence match-item subroutine calls with arguments and local variables	1800-audit	2026-10-19T21:50:26Z
+733	OPEN	[IEEE 1800] §6.16 — integral value assigned to a string without a cast is accepted	1800-audit	2026-10-20T03:58:32Z
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:09:34Z
+740	OPEN	[IEEE 1800] §6.19.5 — chained bare enum method (c.name.len, c.next.name) falls back with a warning and returns wrong values	1800-audit	2026-10-20T04:14:42Z
+741	OPEN	[IEEE 1800] §6.24.2 — $cast to a real destination aborts vvp (real_from_vpi_value, Format 9)	1800-audit	2026-10-20T04:21:44Z
+759	OPEN	[IEEE 1800] §6.22.5/§6.14 — assignment of a chandle to an int is accepted	1800-audit	2026-10-20T05:01:59Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)		2026-07-21T16:21:35Z
+       13.82 real         2.00 user         1.22 sys
+            46891008  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              204122  page reclaims
+                1825  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 144  messages sent
+                 135  messages received
+                 390  signals received
+                 548  voluntary context switches
+               12910  involuntary context switches
+           269064261  instructions retired
+           170703428  cycles elapsed
+             2572768  peak memory footprint

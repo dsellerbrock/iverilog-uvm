@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10-patterns-20261020-01/source/n10_09_duplicate_member_key.sv:4: error: Assignment pattern has multiple keys for member 'a'.
+Elaboration failed

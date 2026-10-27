@@ -1,0 +1,174 @@
+origin_main=10f3a0a2509d0852c2556cb6622fb0025121fb2d
+
+--- vpi/sdf_parse.y: CELL and timing_spec grammar ---
+   247	cell_list
+   248	  : cell_list cell
+   249	  | cell
+   250	  ;
+   251	
+   252	cell
+   253	  : '(' K_CELL celltype cell_instance
+   254	      { sdf_select_instance($3, $4, @4.first_line); /* find the instance in the design */}
+   255	    timing_spec_list_opt
+   256	    ')'
+   257	      { free($3);
+   258		if ($4) free($4);
+   259	      }
+   260	  | '(' K_CELL error ')'
+   261	      { vpi_printf("SDF ERROR: %s:%d: Syntax error in CELL\n",
+   262			   sdf_parse_path, @2.first_line); }
+   263	  ;
+   264	
+   265	celltype
+   266	  : '(' K_CELLTYPE QSTRING ')'
+   267	      { $$ = $3; }
+   268	  ;
+   269	
+   270	cell_instance
+   271	  : '(' K_INSTANCE hierarchical_identifier ')'
+   272	      { $$ = $3; }
+   273	  | '(' K_INSTANCE ')'
+   274	      { $$ = strdup(""); }
+   275	  | '(' K_INSTANCE '*' ')'
+   276	      { $$ = 0; }
+   277	  | '(' K_INSTANCE error ')'
+   278	      { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed INSTANCE argument\n",
+   279			   sdf_parse_path, @2.first_line);
+   280		    $$ = strdup(""); }
+   281	  ;
+   282	
+   283	timing_spec_list_opt
+   284	  : /* Empty */
+   285	  | timing_spec_list_opt timing_spec
+   286	  ;
+   287	
+   288	timing_spec
+   289	  : '(' K_DELAY deltype_list ')'
+   290	  | '(' K_DELAY error ')'
+   291	      { vpi_printf("SDF ERROR: %s:%d: Syntax error in CELL DELAY SPEC\n",
+   292		           sdf_parse_path, @2.first_line); }
+   293	  | '(' K_TIMINGCHECK tchk_def_list ')'
+   294	      { vpi_printf("SDF WARNING: %s:%d: TIMINGCHECK not supported.\n",
+   295		           sdf_parse_path, @2.first_line); }
+   296	  | '(' K_TIMINGCHECK error ')'
+   297	      { vpi_printf("SDF ERROR: %s:%d: Syntax error in TIMINGCHECK SPEC\n",
+   298		           sdf_parse_path, @2.first_line); }
+   299	  ;
+
+--- vpi/sdf_lexor.lex: SDF keywords ---
+   128	static struct {
+   129	      const char*name;
+   130	      int code;
+   131	} keywords[] = {
+   132	      { "ABSOLUTE",     K_ABSOLUTE },
+   133	      { "CELL",         K_CELL },
+   134	      { "CELLTYPE",     K_CELLTYPE },
+   135	      { "DATE",         K_DATE },
+   136	      { "COND",         K_COND },
+   137	      { "CONDELSE",     K_CONDELSE },
+   138	      { "DELAY",        K_DELAY },
+   139	      { "DELAYFILE",    K_DELAYFILE },
+   140	      { "DESIGN",       K_DESIGN },
+   141	      { "DIVIDER",      K_DIVIDER },
+   142	      { "HOLD",         K_HOLD },
+   143	      { "INCREMENT",    K_INCREMENT },
+   144	      { "INTERCONNECT", K_INTERCONNECT },
+   145	      { "INSTANCE",     K_INSTANCE },
+   146	      { "IOPATH",       K_IOPATH },
+   147	      { "PATHPULSE",    K_PATHPULSE },
+   148	      { "PATHPULSEPERCENT", K_PATHPULSEPERCENT },
+   149	      { "PERIOD",       K_PERIOD },
+   150	      { "PROCESS",      K_PROCESS },
+   151	      { "PROGRAM",      K_PROGRAM },
+   152	      { "RECREM",       K_RECREM },
+   153	      { "RECOVERY",     K_RECOVERY },
+   154	      { "REMOVAL",      K_REMOVAL },
+   155	      { "SDFVERSION",   K_SDFVERSION },
+   156	      { "SETUP",        K_SETUP },
+   157	      { "SETUPHOLD",    K_SETUPHOLD },
+   158	      { "TEMPERATURE",  K_TEMPERATURE },
+   159	      { "TIMESCALE",    K_TIMESCALE },
+   160	      { "TIMINGCHECK",  K_TIMINGCHECK },
+   161	      { "VENDOR",       K_VENDOR },
+   162	      { "VERSION",      K_VERSION },
+   163	      { "VOLTAGE",      K_VOLTAGE },
+   164	      { "WIDTH",        K_WIDTH },
+   165	      { 0, IDENTIFIER }
+   166	};
+
+--- vpi/sys_sdf.c: instance resolution ---
+    34	  /* Scope of the $sdf_annotate call. Annotation starts here. */
+    35	static vpiHandle sdf_scope;
+    36	static vpiHandle sdf_callh = 0;
+    37	  /* The cell in process. */
+    38	static vpiHandle sdf_cur_cell;
+    39	static char* sdf_fname = NULL;
+    40	
+    41	static vpiHandle find_scope(vpiHandle scope, const char*name)
+    42	{
+    43	      vpiHandle idx = vpi_iterate(vpiModule, scope);
+    44		/* If this scope has no modules then it can't have the one we
+    45		 * are looking for so just return 0. */
+    46	      if (idx == 0) return 0;
+    47	
+    48	      vpiHandle cur;
+    49	      while ( (cur = vpi_scan(idx)) ) {
+    50	
+    51		    if ( strcmp(name, vpi_get_str(vpiName,cur)) == 0) {
+    52			  vpi_free_object(idx);
+    53			  return cur;
+    54		    }
+    55	      }
+    56	
+    57	      return 0;
+    58	}
+    59	
+    60	void sdf_warn_file_line(const int sdf_lineno)
+    61	{
+    62	      vpi_printf("SDF WARNING: %s:%d: loaded from %s:%d: ",
+    63	                 sdf_fname, sdf_lineno,
+    64	                 vpi_get_str(vpiFile, sdf_callh),
+    65	                 (int)vpi_get(vpiLineNo, sdf_callh));
+    66	}
+    67	
+    68	/*
+    69	 * These functions are called by the SDF parser during parsing to
+    70	 * handling items discovered in the parse.
+    71	 */
+    72	
+    73	void sdf_select_instance(const char*celltype, const char*cellinst, const int sdf_lineno)
+    74	{
+    75	      char buffer[128];
+    76	
+    77		/* Test for wildcard character */
+    78	      if (cellinst == NULL) {
+    79		    if (sdf_flag_warning) {
+    80			  vpi_printf("SDF WARNING: %s:%d: sorry: "
+    81			             "Wildcard cell instance specification (*) currently not supported.\n",
+    82			             sdf_fname, sdf_lineno);
+    83		    }
+    84		    sdf_cur_cell = 0;
+    85		    return;
+    86	      }
+    87	
+    88		/* First follow the hierarchical parts of the cellinst name to
+    89		   get to the cell that I'm looking for. */
+    90	      vpiHandle scope = sdf_scope;
+    91	      const char*src = cellinst;
+    92	      const char*dp;
+    93	      while ( (dp=strchr(src, '.')) ) {
+    94		    unsigned len = dp - src;
+    95		    assert(dp >= src);
+    96		    assert(len < sizeof buffer);
+    97		    strncpy(buffer, src, len);
+    98		    buffer[len] = 0;
+    99	
+   100		    vpiHandle tmp_scope = find_scope(scope, buffer);
+   101		    if (tmp_scope == 0) {
+   102			  vpi_printf("SDF ERROR: %s:%d: Cannot find %s in scope %s.\n",
+   103			             sdf_fname, sdf_lineno, buffer, vpi_get_str(vpiFullName, scope));
+   104			  break;
+   105		    }
+   106		    assert(tmp_scope);
+   107		    scope = tmp_scope;
+   108	

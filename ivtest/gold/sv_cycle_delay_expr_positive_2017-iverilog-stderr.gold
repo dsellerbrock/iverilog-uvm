@@ -1,0 +1,2 @@
+ivltests/sv_cycle_delay_expr_positive.v:8: error: expression-valued ## cycle delay must evaluate to a positive integer (IEEE 1800-2017 14.11).
+1 error(s) during elaboration.

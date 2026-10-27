@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_05_part_reversed.sv:1: error: part select v[0:3] is out of order.
+1 error(s) during elaboration.

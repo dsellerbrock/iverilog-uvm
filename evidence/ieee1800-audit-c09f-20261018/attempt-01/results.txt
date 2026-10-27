@@ -1,0 +1,14 @@
+§9.4.3–§9.4.4 and §9.4.2.4 probes (attempt 01)
+Host: DAN-DESKTOP; Slurm job 2552. Scheduler result: COMPLETED / ExitCode 0:0 / RunTime 1 second. Requested 1 CPU / 2 GiB / 30 minutes. Accounting storage is disabled, so MaxRSS is unavailable. Each compile had a 60-second timeout and each simulation a 30-second timeout; TERM then KILL after 5 seconds.
+Toolchain: main 9b5fad2; Icarus SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a. Results match in -g2017 and -g2023.
+
+§9.4.3 wait:
+- p09_04_3_wait.sv compiled and passed all six checks in both editions: wait blocks until true, immediate true-on-entry, constant true has no delay, X is not true, a later operand change reevaluates the expression, and wait is level-sensitive.
+- p09_04_3_wait_methods.sv: `wait (AOR.size() > 0)` compiled and woke at t=5 after dynamic-array allocation in both editions. The queue check failed: the compiler warned `$bits(stream) > 60` is constant false and that the wait blocks permanently. This queue check is a flawed probe, not a gap; a corrected test is needed before classifying queue-related wait behavior.
+
+§9.4.4 and §9.4.2.4 sequences:
+- The positive sequence-triggered probe compiled with unresolved-reference warnings for `abc.triggered`; vvp ran at time 0 and the end-point/true-in-time-step checks failed, while false-after-time-advance passed. This does not provide a valid sequence result; classify as inconclusive pending §16 sequence support.
+- The `@abc` and `@(abc)` sequence event probe compiled with unresolved-reference / event-expression-skipped warnings; both timing checks failed. Inconclusive pending §16 sequence support.
+- The automatic sequence argument negative was rejected in both editions, but for a syntax error at the sequence declaration, followed by “No function named `s`”; it did not reach the expected automatic-variable rule. Inconclusive.
+
+Raw Slurm output is in results.raw.txt and logs/a3-m7-c09f-01-2552.out; per-test compiler/run logs and compiled images are retained in logs/ and out/.

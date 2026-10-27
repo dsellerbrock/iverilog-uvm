@@ -1,0 +1,21 @@
+626	OPEN	[IEEE 1800] §19.8 — set_inst_name() does not set the instance name
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch
+680	OPEN	[IEEE 1800] evaluate non-random function calls in inline constraints
+664	CLOSED	from-caliptra-dv: omitted class-method parentheses rejected in string concatenation
+459	CLOSED	[IEEE 1800] §20 — Add the $stacktrace string-function form
+670	OPEN	from-caliptra-dv: classify trailing empty $psprintf argument
+503	CLOSED	[IEEE 1800] §7.4.6 — Preserve wide unsigned indices on fixed string-array reads
+480	CLOSED	[IEEE 1800] §§20.18.1/20.17.1 — Reject excess `$system` arguments
+415	CLOSED	[IEEE 1800] §§10.9.1/13.4.1 — Accept array-return values in nested assignment patterns
+666	CLOSED	from-caliptra-dv: parameterized UVM transfer $cast fails with class localparam
+667	CLOSED	from-caliptra-dv: wide automatic coverpoint bins fail elaboration
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot
+157	CLOSED	UVM regex DPI: reject null input before strlen in uvm_re_comp
+44	CLOSED	Phase 72: Parser 'sorry' cleanup — clocking, let, bind, misc syntax
+47	CLOSED	Phase 75: Fallback hardening — eliminate remaining warning noise
+99	CLOSED	Unpacked-array typedef as a function return type loses its element type (ivl crash)
+13	CLOSED	Phase 9: DPI completeness — tasks, output/inout args, chandle, open arrays
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns
+16	CLOSED	Phase 12: SVA Part 1 — immediate assertions and simple concurrent properties
+8	CLOSED	Phase 2 (deferred): constraint_mode() and dist weighted distributions

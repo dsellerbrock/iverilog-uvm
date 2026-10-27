@@ -1,0 +1,29 @@
+host=Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+date_utc=2026-10-20 17:36:46 UTC
+source_revision=cc25756d187314742d347267c2a513b3e640a7fb
+f020677e0a56b162ec47e3f830da8861431762cfea9cc9734cacfa9496a61f6f  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a1_class_assoc_keys.sv
+a3befd9f16c64ee612f3631eb60f1a0100a8c8717af7d482bc5b6efac85f5682  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a2_derived_assoc_key.sv
+e183b43b26ebf281b5e7133c3d06eebc0e46e33db0cd3bccd85e9e9827154af4  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a3_null_assoc_key.sv
+a46de8317414e34d66362c2a61a2e7a5f35cb40154230de52909e68958ae1660  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a4_struct_assoc_key.sv
+5ac65d23a545144f26e1977d993eb4f0011f22f425657df11d854f117a1b50f3  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a5_assoc_array_assignment.sv
+62a466edcf9ac8350ab7d9f0d17ebedc5f9af8b19bcc4ad5735ebc07c7bd97d5  /tmp/a3-c07-assoc-cc257.iWmrrp/source/a6_assoc_array_args.sv
+build_rc=127
+evidence/ieee1800-audit-c07c-20261020/attempt-03-assoc-split/run-local.sh: line 18: ./configure: No such file or directory
+        8.72 real         1.53 user         6.44 sys
+           632963072  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               25400  page reclaims
+               17962  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   4  signals received
+               51407  voluntary context switches
+               22410  involuntary context switches
+            40744297  instructions retired
+            21749064  cycles elapsed
+             1819008  peak memory footprint

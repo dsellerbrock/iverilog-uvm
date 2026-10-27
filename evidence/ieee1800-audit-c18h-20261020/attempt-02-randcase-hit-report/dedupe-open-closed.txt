@@ -1,0 +1,11 @@
+Repository: dsellerbrock/iverilog-uvm
+Search command: gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url
+Timing: after Slurm job 3399 completed, before audit-lead classification or any issue filing.
+
+Query: randcase
+Output: []
+
+Query: random weighted case
+Output: []
+
+Open and closed issue search returned no matches for either query.

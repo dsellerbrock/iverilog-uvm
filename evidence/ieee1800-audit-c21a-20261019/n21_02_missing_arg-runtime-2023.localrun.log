@@ -1,0 +1,22 @@
+compile_exit=0
+WARNING: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/neg/n21_02_missing_arg.sv:1: missing argument for $display<%d>.
+<%d>
+simulation_exit=0
+        0.04 real         0.02 user         0.02 sys
+             5128192  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                3564  page reclaims
+                  26  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   7  voluntary context switches
+                 110  involuntary context switches
+            35029333  instructions retired
+            18200346  cycles elapsed
+             1589632  peak memory footprint

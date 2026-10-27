@@ -304,6 +304,8 @@ NetESFunc* NetESFunc::dup_expr() const
       }
       if (ref_output())
 	    tmp->set_ref_output(ref_output()->dup_lval());
+      if (ref_output2())
+	    tmp->set_ref_output2(ref_output2()->dup_lval());
 
       tmp->set_line(*this);
       return tmp;

@@ -1,0 +1,48 @@
+Tool: Icarus Verilog version 13.0 (devel) (cc25756d1)
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivlpp -V"
+Unable to get version from "/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/ivl -V -C"/tmp/ivrlh121bff40" -C"/home/dsell/slurm-runs/iverilog-uvm/a5-perf/m3-current-main-profile-cc25756-20261020/install/lib/ivl/vvp.conf""
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+9429a976938657d3980eaeef29e684a259e4dac9a1ff06e6928f70945acd7599  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10f-ext-20261020-01/source/p10_07_08.sv
+b0ce62f3a09545f6067919d4bbb60c2160db18f99721f28d37d224f31dd582af  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10f-ext-20261020-01/source/p10_08_cast_ctx.sv
+c763b165ba897e7145d531b1b8ddb8f9b183f1222c1f570baf2be55a60caad1d  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c10f-ext-20261020-01/source/p10_08_cast_ctx_k0.sv
+p10_07_08-2017 compile_rc=0
+p10_07_08-2017 run_rc=0
+T1 5
+T2 0a
+T3 fe
+T4 0e
+T5 0f
+T6 ff 66
+C1 5 6
+C2 7
+C3 3 4
+p10_08_cast_ctx-2017 compile_rc=0
+p10_08_cast_ctx-2017 run_rc=0
+K0 3 4
+K1 5 6
+K2 7 8
+K3 -1
+p10_08_cast_ctx_k0-2017 compile_rc=0
+p10_08_cast_ctx_k0-2017 run_rc=0
+K0 3 4
+p10_07_08-2023 compile_rc=0
+p10_07_08-2023 run_rc=0
+T1 5
+T2 0a
+T3 fe
+T4 0e
+T5 0f
+T6 ff 66
+C1 5 6
+C2 7
+C3 3 4
+p10_08_cast_ctx-2023 compile_rc=0
+p10_08_cast_ctx-2023 run_rc=0
+K0 3 4
+K1 5 6
+K2 7 8
+K3 -1
+p10_08_cast_ctx_k0-2023 compile_rc=0
+p10_08_cast_ctx_k0-2023 run_rc=0
+K0 3 4

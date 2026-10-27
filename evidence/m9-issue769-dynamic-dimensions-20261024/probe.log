@@ -1,0 +1,32 @@
+commit=f31c698305941900a5eb347fdeaae35d0b0e2cf6
+compiler=Icarus Verilog version 13.0 (devel) ()
+whole_nested -g2017 compile rc=1
+/tmp/m9-769-nested-dynamic-20261024/whole_nested.sv:3: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+Elaboration failed
+bit_nested -g2017 compile rc=1
+/tmp/m9-769-nested-dynamic-20261024/bit_nested.sv:3: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+Elaboration failed
+whole_nested -g2023 compile rc=1
+/tmp/m9-769-nested-dynamic-20261024/whole_nested.sv:3: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+Elaboration failed
+bit_nested -g2023 compile rc=1
+/tmp/m9-769-nested-dynamic-20261024/bit_nested.sv:3: error: force/release target shall not be a bit-select or part-select of a variable (IEEE 1800-2017/2023 10.6.2).
+Elaboration failed
+        0.32 real         0.09 user         0.07 sys
+             8814592  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               12347  page reclaims
+                 105  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  29  voluntary context switches
+                 471  involuntary context switches
+            30605232  instructions retired
+            19595229  cycles elapsed
+             1589632  peak memory footprint

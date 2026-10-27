@@ -443,6 +443,8 @@ struct __vpiSignal : public __vpiHandle {
       unsigned value_base = 0;
       unsigned value_width = 0;
       vpiHandle packed_parent = nullptr;
+	/* The enum or packed struct/union type (.vartype), or null. */
+      vpiHandle typespec = nullptr;
 
     public:
       union { // The scope or parent array that contains me.

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1164_interface_concat_lvalue_2017.v",
+    "iverilog-args": ["-g2017", "-s", "test"],
+    "gold": "issue1164_interface_concat_lvalue"
+}

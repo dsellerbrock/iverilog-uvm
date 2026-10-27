@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_continuous_struct_variable_2023.v",
+    "iverilog-args": ["-g2023", "-s", "sv_continuous_struct_variable"],
+    "gold": "sv_continuous_struct_variable"
+}

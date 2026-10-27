@@ -1,0 +1,25 @@
+ERROR: tests/1800_audit/c20/r20_11_c4_noarg.sv:1:
+       During elaboration  Scope: m
+WARNING: tests/1800_audit/c20/r20_11_c4_noarg.sv:1:
+         During elaboration  Scope: m
+INFO: tests/1800_audit/c20/r20_11_c4_noarg.sv:1:
+      During elaboration  Scope: m
+1 error(s) during elaboration.
+        0.02 real         0.00 user         0.01 sys
+             4374528  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1737  page reclaims
+                  13  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                  64  involuntary context switches
+            18721764  instructions retired
+             6720769  cycles elapsed
+             1245544  peak memory footprint

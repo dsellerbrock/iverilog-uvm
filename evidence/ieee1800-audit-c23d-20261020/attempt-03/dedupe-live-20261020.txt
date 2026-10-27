@@ -1,0 +1,13 @@
+Open+closed all-repository GitHub issue searches in dsellerbrock/iverilog-uvm,
+checked 2026-10-20:
+
+Search: extern module
+Results: #824 (§25.7.4 extern forkjoin task declarations), #841 and #842
+(§18.5.1 external constraint blocks), #823 (§25.7.3 modport task export), and
+#641 (out-of-class extern function return type). All are unrelated to §23.5
+module declarations.
+
+Search: 23.5
+Result: []
+
+No existing §23.5 extern-module issue found.

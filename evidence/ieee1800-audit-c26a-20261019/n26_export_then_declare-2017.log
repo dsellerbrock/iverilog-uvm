@@ -1,0 +1,4 @@
+STDOUT:
+
+STDERR:
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c26/neg/n26_export_then_declare.sv:2: error: 'x' has already been imported into this scope from package 'p1'.

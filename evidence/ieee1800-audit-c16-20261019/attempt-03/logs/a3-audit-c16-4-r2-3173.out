@@ -1,0 +1,55 @@
+source_sha=6604c23e197980b69a5b6b69864ff8ef8d05eba3
+iverilog_sha256=f8c0376ed73753c3327b1d7f5d4d647820836799064d965be7e1a8fbb9403ccd
+vvp_sha256=53ad297f5370175e0df8af51c5947b7b34c723cf258617febf716cf82168249b
+=== p16_04_observed_system_action -g2017 ===
+STABLE_FAIL
+PASSED
+PASS: stable observed action fires and transient glitch is flushed
+=== p16_04_final_deferred -g2017 ===
+ACTIVE_REGION_DONE
+FINAL_ASSERT_PASS
+FINAL_ASSERT_FAIL
+FINAL_COVER_PASS
+PASSED
+PASS: final actions run after Active and before the next time step
+=== p16_04_module_level_system_action -g2017 ===
+MODULE_ITEM_FAIL
+PASSED
+PASS: module-level deferred item executes
+=== p16_04_final_user_task_action -g2017 ===
+ACTIVE_REGION_DONE
+FINAL_TASK_ACTION
+PASSED
+PASS: final actions run after Active and before the next time step
+=== n16_04_nonzero_delay -g2017 (must reject) ===
+PASS: rejected n16_04_nonzero_delay -g2017 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_nonzero_delay.sv:2: error: Delay value must be zero for deferred assertion.
+=== n16_04_block_action -g2017 (must reject) ===
+PASS: rejected n16_04_block_action -g2017 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_block_action.sv:2: error: The fail action of a deferred immediate assertion must be a single subroutine call or a null statement (IEEE 1800-2017 16.4).
+=== p16_04_observed_system_action -g2023 ===
+STABLE_FAIL
+PASSED
+PASS: stable observed action fires and transient glitch is flushed
+=== p16_04_final_deferred -g2023 ===
+ACTIVE_REGION_DONE
+FINAL_ASSERT_PASS
+FINAL_ASSERT_FAIL
+FINAL_COVER_PASS
+PASSED
+PASS: final actions run after Active and before the next time step
+=== p16_04_module_level_system_action -g2023 ===
+MODULE_ITEM_FAIL
+PASSED
+PASS: module-level deferred item executes
+=== p16_04_final_user_task_action -g2023 ===
+ACTIVE_REGION_DONE
+FINAL_TASK_ACTION
+PASSED
+PASS: final actions run after Active and before the next time step
+=== n16_04_nonzero_delay -g2023 (must reject) ===
+PASS: rejected n16_04_nonzero_delay -g2023 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_nonzero_delay.sv:2: error: Delay value must be zero for deferred assertion.
+=== n16_04_block_action -g2023 (must reject) ===
+PASS: rejected n16_04_block_action -g2023 (exit 1)
+/home/dsell/slurm-runs/iverilog-uvm/A3/ieee1800-c16.4-20261019-a02/input/neg/n16_04_block_action.sv:2: error: The fail action of a deferred immediate assertion must be a single subroutine call or a null statement (IEEE 1800-2017 16.4).

@@ -1,0 +1,2 @@
+ivltests/sv_module_ref_port_unconnected_fail.v:5: error: Reference port `x' of module `ref_port_child' cannot be left unconnected (IEEE 1800-2017/2023 23.3.3.2).
+1 error(s) during elaboration.

@@ -1,0 +1,2 @@
+#770 [OPEN] [IEEE 1800] §11.3.1 — real operands of % and %= are accepted and a floating-point remainder is computed
+#771 [OPEN] [IEEE 1800] §11.3.1 — real operands of ~, <<= and &= crash the compiler

@@ -1,0 +1,3 @@
+Assertion failed: (ivl_lval_width(lval) == ivl_signal_width(lsig)), function force_vector_to_lval, file vvp_process.c, line 2545.
+sh: line 1: 98921 Done                    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivlpp -L -g2023 -F"/tmp/m9-769-class-probe-20261024/ivrlg263183831" -f"/tmp/m9-769-class-probe-20261024/ivrlg63183831" -p"/tmp/m9-769-class-probe-20261024/ivrli63183831"
+     98922 Abort trap: 6           | /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/ivl -C"/tmp/m9-769-class-probe-20261024/ivrlh63183831" -C"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-issue769-followup-20261024/local-install/lib/ivl/vvp.conf" -- -

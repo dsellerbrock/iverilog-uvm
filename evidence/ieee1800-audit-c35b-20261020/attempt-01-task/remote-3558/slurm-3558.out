@@ -1,0 +1,20 @@
+--- -g2017 ---
+compile rc: 0
+iverilog: note: wrote DPI export C stubs to p35_task.out.dpiexport.c (compile it into your DPI object).
+link rc: 0
+run rc: 0
+A1 9
+T1 5
+T2 1 16
+F1 1
+negative rc: 0
+--- -g2023 ---
+compile rc: 0
+iverilog: note: wrote DPI export C stubs to p35_task.out.dpiexport.c (compile it into your DPI object).
+link rc: 0
+run rc: 0
+A1 9
+T1 5
+T2 1 16
+F1 1
+negative rc: 0

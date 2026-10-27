@@ -1,0 +1,6 @@
+Host: DAN-DESKTOP
+Slurm job ID: 2552
+Resources: 1 CPU, 2 GiB RAM, 30 minutes
+Toolchain: pinned main 9b5fad2 at /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Compiles: 60-second per test timeout; simulations: 30-second per test timeout; TERM then KILL after 5 seconds.
+Probe set: §9.4.3 wait, §9.4.3 wait with §9.4.2 method expressions, §9.4.4 sequence.triggered wait, §9.4.2.4 sequence event controls, and the §9.4.2.4 automatic sequence argument negative.

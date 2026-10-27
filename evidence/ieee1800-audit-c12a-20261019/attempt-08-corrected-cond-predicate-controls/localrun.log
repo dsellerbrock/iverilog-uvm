@@ -1,0 +1,36 @@
+g2017 g4a_pattern_conditional compile rc=0
+g2017 g4a_pattern_conditional runtime/expectation failure
+g4a hit=0
+g2023 g4a_pattern_conditional compile rc=0
+g2023 g4a_pattern_conditional runtime/expectation failure
+g4a hit=0
+g2017 g4b_guarded_pattern_conditional compile rc=2
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: syntax error
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: error: Malformed statement
+g2023 g4b_guarded_pattern_conditional compile rc=2
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: syntax error
+tests/1800_audit/c12/r12_06_g4b_guarded_pattern_conditional.sv:7: error: Malformed statement
+g2017 g4c_guarded_expression_conditional compile rc=2
+tests/1800_audit/c12/r12_06_g4c_guarded_expression_conditional.sv:5: syntax error
+tests/1800_audit/c12/r12_06_g4c_guarded_expression_conditional.sv:5: error: Malformed statement
+g2023 g4c_guarded_expression_conditional compile rc=2
+tests/1800_audit/c12/r12_06_g4c_guarded_expression_conditional.sv:5: syntax error
+tests/1800_audit/c12/r12_06_g4c_guarded_expression_conditional.sv:5: error: Malformed statement
+        3.16 real         0.42 user         0.29 sys
+            16941056  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               33164  page reclaims
+                 651  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   2  signals received
+                  63  voluntary context switches
+                2888  involuntary context switches
+            89280998  instructions retired
+            56871277  cycles elapsed
+             2474464  peak memory footprint

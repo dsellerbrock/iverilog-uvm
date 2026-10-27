@@ -103,7 +103,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
-%token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
+%token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_OPTION_VALUES K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_OPTION_VALUES K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
@@ -116,7 +116,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
-%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS
+%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -129,9 +129,9 @@ static bool is_force_release_opcode(const char* name)
 %token K_VAR K_VAR_COBJECT K_VAR_DARRAY
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
-%token K_vpi_call K_vpi_call_w K_vpi_call_i
+%token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
-%token K_ivl_version K_ivl_delay_selection
+%token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
 %token K_vpi_source_location
 %token K_export_dpi
@@ -185,6 +185,8 @@ header_line
 		{ verify_version($2, NULL); }
 	| K_ivl_version T_STRING T_STRING ';'
 		{ verify_version($2, $3); }
+	| K_ivl_systemverilog ';'
+		{ compile_systemverilog_mode(); }
 	| K_ivl_delay_selection T_STRING ';'
 		{ set_delay_selection($2); }
 	| K_vpi_module T_STRING ';'
@@ -232,6 +234,11 @@ statement
 	   of argument-net labels. */
 	: K_PACKED_DIMS T_SYMBOL ',' T_STRING ';'
 		{ compile_packed_dims($2, $4); }
+
+	/* The enum or packed struct/union type of a signal, for VPI
+	   (vpiTypespec). Operands: signal label and type string. */
+	| K_VARTYPE T_SYMBOL ',' T_STRING ';'
+		{ compile_vartype($2, $4); }
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
@@ -854,6 +861,11 @@ statement
       { compile_vpi_call($1, $5, false, true, $3, $4,
 			 $6.argc, $6.argv, $8, $9, $10, $11); }
 
+  | label_opt K_vpi_call_observed T_NUMBER T_NUMBER T_STRING
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+      { compile_vpi_call($1, $5, false, true, $3, $4,
+			 $6.argc, $6.argv, $8, $9, $10, $11, true); }
+
   /* This version allows a function to be called as a task and does not
    * print a message. */
   | label_opt K_vpi_call_i T_NUMBER T_NUMBER T_STRING
@@ -1273,8 +1285,10 @@ class_property
       { compile_class_interface($2); }
   | K_STATIC_PROP T_NUMBER T_SYMBOL
       { compile_class_static_property($2, $3); }
+  | K_CONSTRAINT_DEF T_STRING T_STRING T_NUMBER
+	      { compile_class_constraint($2, $3, $4); }
   | K_CONSTRAINT_DEF T_STRING T_STRING
-      { compile_class_constraint($2, $3); }
+	      { compile_class_constraint($2, $3, 0); }
   | K_CONSTRAINT_DEP T_NUMBER T_NUMBER T_NUMBER
 	{ compile_class_constraint_dep($2, $3, $4); }
   | K_CONSTRAINT_CALL T_NUMBER T_STRING T_STRING T_NUMBER T_NUMBER
@@ -1320,6 +1334,8 @@ class_property
       { compile_class_covgrp_item($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_OPTIONS T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_options($2, $3, $4, $5, $6); }
+  | K_COVGRP_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_STRING
+      { compile_class_covgrp_option_values($2, $3, $4, $5); }
   | K_COVGRP_PER_INSTANCE T_NUMBER T_NUMBER
       { compile_class_covgrp_per_instance($2, $3); }
   | K_COVGRP_TYPE_WEIGHT T_NUMBER
@@ -1328,6 +1344,8 @@ class_property
       { compile_class_covgrp_item_type_weight($2, $3); }
   | K_COVGRP_ITEM_OPTIONS T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item_options($2, $3, $4); }
+  | K_COVGRP_ITEM_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING
+      { compile_class_covgrp_item_option_values($2, $3, $4, $5, $6); }
   | K_COVGRP_ITEM_GUARD T_NUMBER T_NUMBER
       { compile_class_covgrp_item_guard($2, $3); }
   | K_COVGRP_PARENT T_NUMBER

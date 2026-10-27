@@ -1,0 +1,2 @@
+C1 FAIL 15
+input/C1_sequence_clock.sv:8: $finish called at 60 (1ns)

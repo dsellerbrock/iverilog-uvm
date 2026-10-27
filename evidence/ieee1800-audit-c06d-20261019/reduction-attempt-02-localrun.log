@@ -1,0 +1,78 @@
+HOST: Darwin MacBook-Air.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142 arm64
+CHECKOUT: 27f53df2400f309a7b0d8e5ed5fc7ff9b0e0566e
+COMPILER SOURCE: b9441bafbdb0b6b7413c09e0381845e69481391b
+7ce507279ef15cb404b9ce70ba47902c4264daebffaf1b340bfb351adcc9c2b0  /tmp/a3-t2-batch-2026-10-19-6-local-r6/local-install/bin/iverilog
+
+r06_20_fwd_r1_enum -g2017 rc=2
+tests/1800_audit/c06/r06_20_fwd_r1_enum.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r2_param -g2017 rc=2
+tests/1800_audit/c06/r06_20_fwd_r2_param.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r3_struct -g2017 rc=2
+tests/1800_audit/c06/r06_20_fwd_r3_struct.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r4_class -g2017 rc=2
+tests/1800_audit/c06/r06_20_fwd_r4_class.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r5_plain -g2017 rc=0
+
+r06_20_fwd_r6_classok -g2017 rc=1
+tests/1800_audit/c06/r06_20_fwd_r6_classok.sv:2: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+
+r06_20_fwd_r7_classneg -g2017 rc=1
+tests/1800_audit/c06/r06_20_fwd_r7_classneg.sv:2: error: restricted type parameters requires IEEE1800-2023; compile with -g2023 (or -glatest).
+
+n06_20_const_handle_reassign -g2017 rc=1
+tests/1800_audit/c06/neg/n06_20_const_handle_reassign.sv:2: error: Assignment to const signal `k` is not allowed.
+Elaboration failed
+
+r06_20_fwd_r1_enum -g2023 rc=2
+tests/1800_audit/c06/r06_20_fwd_r1_enum.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r2_param -g2023 rc=2
+tests/1800_audit/c06/r06_20_fwd_r2_param.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r3_struct -g2023 rc=2
+tests/1800_audit/c06/r06_20_fwd_r3_struct.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r4_class -g2023 rc=2
+tests/1800_audit/c06/r06_20_fwd_r4_class.sv:2: syntax error
+I give up.
+
+r06_20_fwd_r5_plain -g2023 rc=0
+
+r06_20_fwd_r6_classok -g2023 rc=0
+
+r06_20_fwd_r7_classneg -g2023 rc=1
+tests/1800_audit/c06/r06_20_fwd_r7_classneg.sv:2: error: Type argument for class type parameter `E' does not satisfy the `type enum' restriction.
+1 error(s) during elaboration.
+
+n06_20_const_handle_reassign -g2023 rc=1
+tests/1800_audit/c06/neg/n06_20_const_handle_reassign.sv:2: error: Assignment to const signal `k` is not allowed.
+Elaboration failed
+        2.30 real         0.81 user         0.56 sys
+            16924672  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               78476  page reclaims
+                 893  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                  16  signals received
+                 138  voluntary context switches
+                2732  involuntary context switches
+           168358335  instructions retired
+           115244052  cycles elapsed
+             2540000  peak memory footprint

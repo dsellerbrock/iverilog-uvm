@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "array_query_dynamic_type_err.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "array_query_dynamic_type_err"
+}

@@ -1,0 +1,43 @@
+probe	edition	compile_rc	run_rc
+rhs_chandle_to_int	2017	1	NA
+rhs_chandle_to_int	2023	1	NA
+rhs_chandle_to_bits	2017	1	NA
+rhs_chandle_to_bits	2023	1	NA
+rhs_chandle_to_longint	2017	1	NA
+rhs_chandle_to_longint	2023	1	NA
+rhs_chandle_to_real	2017	1	NA
+rhs_chandle_to_real	2023	1	NA
+rhs_chandle_to_string	2017	1	NA
+rhs_chandle_to_string	2023	1	NA
+rhs_chandle_class_property	2017	1	NA
+rhs_chandle_class_property	2023	1	NA
+rhs_chandle_class_method	2017	2	NA
+rhs_chandle_class_method	2023	2	NA
+compound_chandle_to_int	2017	0	0
+compound_chandle_to_int	2023	0	0
+valid_chandle_assignments	2017	0	0
+valid_chandle_assignments	2023	0	0
+valid_chandle_array_element	2017	0	0
+valid_chandle_array_element	2023	0	0
+valid_chandle_function	2017	0	0
+valid_chandle_function	2023	0	0
+valid_chandle_equality	2017	0	0
+valid_chandle_equality	2023	0	0
+valid_integral_assignment	2017	0	0
+valid_integral_assignment	2023	0	0
+legacy	ipsdownsel_real_idx	0
+legacy	ipsupsel_real_idx	0
+legacy	partsel_real_idx	0
+legacy	sv_class_static_fixed_array_container_element_read_fail	0
+legacy	sv_packed_part_select_variable_bound_fail	0
+legacy	sv_vif_array_runtime_index	0
+legacy	sv_vif_instance_runtime_index_extension	0
+legacy	sv_vif_instance_runtime_index_extension_2023	0
+json	sv_chandle_assignment_incompatible_fail_2017	0
+json	sv_chandle_assignment_incompatible_fail_2023	0
+json	sv_chandle_nb_assignment_incompatible_fail_2017	0
+json	sv_chandle_nb_assignment_incompatible_fail_2023	0
+json	sv_class_static_fixed_array_container_element_read_fail	0
+json	sv_packed_part_select_variable_bound_fail	0
+json	sv_vif_instance_runtime_index_extension	0
+json	sv_vif_instance_runtime_index_extension_2023	0

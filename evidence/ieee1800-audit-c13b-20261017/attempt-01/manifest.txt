@@ -1,0 +1,22 @@
+IEEE 1800 clause 13 probe c13b
+Worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm
+Branch: m7-1800-audit-c08
+Committed base: 162be2db341577782a0d4d4828b7c551c0f65e86 (c13a probes/evidence/matrix)
+Working tree at staging: c13b test sources plus c13a citation correction (#633, 2017 example p.333).
+Toolchain: protected shared Icarus built from source 9b5fad2afb4104caa816b257d5bccc40f01b8c66; iverilog SHA-256 6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288; vvp SHA-256 c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a.
+Host: DAN-DESKTOP (Slurm); requested 1 CPU, 1 GiB, 10 minutes. Per compile timeout 60 s and per simulation 30 s, TERM then KILL after 2 s.
+Normative unit: 2017 §§13.5.4–13.5.5 pp.333–334; 2023 §§13.5.4–13.5.5 p.351. Same rules in both editions. Parentheses omission rule also uses Syntax 13-1 footnote 37 (2017 p.330) / footnote 42 (2023 p.347).
+ M evidence/ieee1800-audit-c13a-20261017/README.md
+ M evidence/ieee1800-audit-c13a-20261017/attempt-02/README.md
+ M evidence/ieee1800-audit-c13a-20261017/attempt-02/manifest.txt
+?? evidence/ieee1800-audit-c13b-20261017/
+?? tests/1800_audit/c13/neg/n13_05_4_named_before_positional.sv
+?? tests/1800_audit/c13/neg/n13_05_4_named_missing_required.sv
+?? tests/1800_audit/c13/neg/n13_05_4_named_unknown_formal.sv
+?? tests/1800_audit/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv
+?? tests/1800_audit/c13/p13_05_4_5_named_optional.sv
+e7619e5cf0237d07746245a4242fd581340f661392e86c8480e00a787a17ba6b  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/p13_05_4_5_named_optional.sv
+d95579004f084f5c12ec2fa3ea966d9ed1d7e3d335fd87279fa5b967e4efc72c  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_4_named_before_positional.sv
+9b2fc9d075bd33b81bceb3dd6d1f19b6db48c45c8b17da6987aa06281daf547e  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_4_named_missing_required.sv
+af1336a588f5e5d2f6c484ac0093b52b9566ac19cf66824ad8a3921c51fab5db  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_4_named_unknown_formal.sv
+d8fa7f0627c96f370e4542aa20a3abd9112ce4992a7eedb04f054775bd99c983  /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c13/neg/n13_05_5_nonvoid_fn_no_parens.sv

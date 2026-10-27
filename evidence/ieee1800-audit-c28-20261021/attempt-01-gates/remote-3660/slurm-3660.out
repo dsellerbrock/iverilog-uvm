@@ -1,0 +1,20 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+3bc4ef6b8763534e2d50610ac2addb9757d547ec34c1a9cc158b1df5285b0734  ./p28_gates.sv
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+edition=2017 compile_exit=0
+edition=2017 run_exit=0
+G x 0 StH 0 1 x Pu1
+D1 12 0
+D2 14 1
+D3 25 1
+D4 27 0
+edition=2023 compile_exit=0
+edition=2023 run_exit=0
+G x 0 StH 0 1 x Pu1
+D1 12 0
+D2 14 1
+D3 25 1
+D4 27 0

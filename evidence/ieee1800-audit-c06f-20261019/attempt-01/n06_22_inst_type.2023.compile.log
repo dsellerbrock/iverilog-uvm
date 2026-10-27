@@ -1,0 +1,4 @@
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1: error: the type of the variable 's2.v5' doesn't match the context type.
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : variable type=11netstruct_t
+tests/1800_audit/c06/neg/n06_22_inst_type.sv:1:      : context type=11netstruct_t
+Elaboration failed

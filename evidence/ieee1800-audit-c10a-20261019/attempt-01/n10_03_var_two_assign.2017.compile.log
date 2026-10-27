@@ -1,0 +1,2 @@
+tests/1800_audit/c10/neg/n10_03_var_two_assign.sv:1: error: Variable 'v' cannot have multiple drivers.
+1 error(s) during elaboration.

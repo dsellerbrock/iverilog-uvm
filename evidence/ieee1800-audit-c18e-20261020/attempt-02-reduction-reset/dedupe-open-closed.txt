@@ -1,0 +1,17 @@
+Repository: dsellerbrock/iverilog-uvm
+Search mode: `gh issue list --repo dsellerbrock/iverilog-uvm --state all --search QUERY --limit 100 --json number,title,state,url`
+
+Queries and results:
+
+- `"same identifier as the array"`: #783 OPEN, §12.7.3 procedural foreach loop-variable rules, including too many variables and same-name-as-array.
+- `"loop variable" "foreach" array`: #783 OPEN; #487 CLOSED, packed ranks after runtime/omitted array dimensions (different behavior).
+- `"more loop variables"`: no result.
+- `"foreach" "dimensions" constraint`: no result.
+- `"same name" "foreach" constraint`: no result.
+
+Reviewed full bodies for #783 and #487 with `gh issue view ... --json number,title,state,body,comments,url`. #783's three cited probes are procedural `foreach`; its normative claims match the two constraint-foreach errors tested here, but whether it covers constraint context is left to the audit lead. #487 is unrelated.
+
+Lead-file verification and post-file duplicate search:
+
+- Verified #830 OPEN and read its complete body. It records both failures, the exact edition clause references, observed outcomes, and explains why procedural #783 does not cover constraint-context elaboration.
+- Repeated open+closed searches for `constraint foreach`, `iterative constraint`, `"foreach constraint"`, `"foreach" "same identifier" constraint`, and `"loop variables" "constraint"`. After filing, each matched only #830; before filing the earlier broader queries found no constraint-context issue.

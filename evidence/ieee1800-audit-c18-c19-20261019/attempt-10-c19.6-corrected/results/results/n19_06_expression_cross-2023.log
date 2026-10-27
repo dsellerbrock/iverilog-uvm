@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-6-corrected-20261019/input/neg/n19_06_expression_cross.sv:6: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c19-6-corrected-20261019/input/neg/n19_06_expression_cross.sv:6: sorry: unsupported covergroup item was ignored (functional coverage for it is not collected).

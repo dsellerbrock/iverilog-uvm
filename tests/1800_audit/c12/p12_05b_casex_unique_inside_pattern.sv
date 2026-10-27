@@ -1,0 +1,29 @@
+typedef union tagged {void Invalid; int Valid;} VInt;
+module p12b;
+int p=0,f=0; task automatic ck(input string i,input bit c); if(c)p++; else begin f++;$display("FAIL %s",i); end endtask
+int hit,cnt=0,nv; logic [7:0] ir,r,mask; logic [2:0] st,enc; bit [2:0] a; VInt v;
+function int ev(int x); cnt++; return x; endfunction
+initial begin
+ir=8'b1xz00000; casez (ir) 8'b1???????: hit=1; default: hit=0; endcase ck("casez1",hit==1);
+ir=8'b0100zzzz; casez (ir) 8'b1???????: hit=1; 8'b01??????: hit=2; default: hit=0; endcase ck("casez2",hit==2);
+ir=8'b1x000000; casez (ir) 8'b10000000: hit=1; default: hit=0; endcase ck("casez_x_not_dc",hit==0);
+r=8'b01100110; mask=8'bx0x0x0x0; casex (r^mask) 8'b001100xx: hit=1; 8'b1100xx00: hit=2; 8'b00xx0011: hit=3; 8'bxx010100: hit=4; default: hit=0; endcase ck("casex_dyn",hit==2);
+enc=3'b010; hit=9; case (1) enc[2]: hit=2; enc[1]: hit=1; enc[0]: hit=0; default: hit=-1; endcase ck("case_const",hit==1);
+a=3; hit=0; unique case (a) 0,1: hit=1; 2: hit=2; 4: hit=4; endcase
+a=1; unique case (a) 0,1: hit=1; 1: hit=7; endcase ck("unique_first",hit==1);
+a=5; priority casez (a) 3'b00?: hit=1; 3'b0??: hit=2; endcase
+a=3; unique0 case (a) 0,1: hit=1; endcase
+cnt=0; unique case (ev(2)) 1: hit=1; 2: hit=2; default: hit=0; endcase ck("unique_once",cnt==1);
+st=3'b101; case (st) inside 1,3: hit=1; 3'b0?0,[4:7]: hit=2; default: hit=0; endcase ck("inside1",hit==2);
+st=3'b0x0; case (st) inside 3'b0?0: hit=2; default: hit=0; endcase ck("inside_wild",hit==2);
+st=3'bx00; case (st) inside 3'b0?0: hit=2; default: hit=0; endcase ck("inside_left_x",hit==0);
+v=tagged Valid(5); hit=0; case (v) matches tagged Invalid: hit=1; tagged Valid .n: hit=n; endcase ck("match_case",hit==5);
+v=tagged Invalid; case (v) matches tagged Invalid: hit=1; tagged Valid .n: hit=n; endcase ck("match_inv",hit==1);
+nv=(v matches tagged Valid .n) ? n : -1; ck("match_cond",nv==5);
+$display("RESULT pass=%0d fail=%0d",p,f);
+a=3; $display("W1 unique case no match"); unique case (a) 0,1: ; 2: ; 4: ; endcase
+#1 $display("W2 priority casez covered"); a=3; priority casez (a) 3'b00?: ; 3'b0??: ; endcase
+#1 $display("W3 priority casez uncovered"); a=5; priority casez (a) 3'b00?: ; 3'b0??: ; endcase
+#1 $display("W4 unique0 no match"); a=3; unique0 case (a) 0,1: ; endcase
+#1 $display("W5 unique overlap"); a=1; unique case (a) 0,1: ; 1: ; endcase
+#1 $display("W6 end"); end endmodule

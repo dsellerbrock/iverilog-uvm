@@ -1,0 +1,111 @@
+host=DAN-DESKTOP
+2026-10-17T22:35:36-06:00
+slurm_job_id=2534
+toolchain_commit=9b5fad2afb4104caa816b257d5bccc40f01b8c66
+toolchain=/home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install
+Icarus Verilog version 13.0 (devel) (9b5fad2af)
+
+6cd9749cb1e981820f64fdc737ae458bf6c46e3fcad8927afaf92649ee9a3288  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/iverilog
+c2474d2a745aa7d896885202314a5244ee26af56a32dda59a6c8fbd3ba362e3a  /home/dsell/toolchains/iverilog-uvm-9b5fad2afb4104caa816b257d5bccc40f01b8c66/install/bin/vvp
+c99e94b9182ceb12f542c344a0cccd05987d2347914d56e9c8152957db04335f  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/p09_03_2_ref_init_legal.sv
+34e10cd8c085855e713b4416594518be38226eaeb79ba1f4d3c7c378d790da28  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/p09_03_2_ref_static_fork_2023.sv
+7a54311d3806408dc18dd4ea05fde5e6f200e3b70948675393d557ea166f38b4  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/p09_03_blocks.sv
+5215a4a4be2ef685f6f10fa508b8dda33aeb0e6984790afa31244785283a4ee5  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_any.sv
+d1a0aff5aaf207bae71cedcaf81bbad08693c82ff84278165aa1a014b67d33dd  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_none.sv
+c6aa2bf6cb4ff92e957f724f8310df3d5791d303afaf149b0356570883870f25  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_return_in_fork.sv
+431d216651ddf315c823935a1594a0ca52c52baf6b90356b64db40995e86bae6  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_end_name_mismatch.sv
+83e179f11f95035132ff85667df015be722784cf8c41cddce007973c3bcd433d  /home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_join_name_mismatch.sv
+=== p09_03_blocks -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.3.1.sequential_order
+PASS 9.3.1.relative_delays_total
+PASS 9.3.2.fork_join_waits_for_all
+PASS 9.3.2.waveform_t50
+PASS 9.3.2.waveform_t100
+PASS 9.3.2.waveform_t150
+PASS 9.3.2.waveform_t200
+PASS 9.3.2.join_any_resumes_at_first
+PASS 9.3.2.join_none_spawned_not_started
+PASS 9.3.2.join_none_runs_after_parent_blocks
+PASS 9.3.2.block_item_init_per_iteration_123
+INFO 9.3.2.m_seen=4 (2023 requires 4; 2017 undetermined)
+PASS 9.3.3.join_of_events_either_order
+PASS 9.3.3.join_of_events_same_time
+PASS 9.3.4.hier_ref_into_named_block
+PASS 9.3.4.block_variables_static
+PASS 9.3.4.matching_end_names_accepted
+DONE fails=0
+=== p09_03_2_ref_init_legal -g2017 ===
+compile_rc=0
+run_rc=0
+PASS 9.3.2.ref_arg_in_fork_block_item_init got=7
+=== p09_03_2_ref_static_fork_2023 -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/p09_03_2_ref_static_fork_2023.sv:3: error: ref static task/function arguments requires IEEE1800-2023; compile with -g2023 (or -glatest).
+=== n09_03_2_return_in_fork -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_return_in_fork.sv:2: error: Return statement is not allowed within fork-join block.
+1 error(s) during elaboration.
+=== n09_03_2_ref_arg_in_join_none -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_none.sv:2: error: ref formal `x' shall not be referenced within fork...join_any or fork...join_none except in a fork block-item initializer value expression (IEEE 1800-2017/2023 9.3.2).
+1 error(s) during elaboration.
+=== n09_03_2_ref_arg_in_join_any -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_any.sv:2: error: ref formal `x' shall not be referenced within fork...join_any or fork...join_none except in a fork block-item initializer value expression (IEEE 1800-2017/2023 9.3.2).
+1 error(s) during elaboration.
+=== n09_03_4_end_name_mismatch -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_end_name_mismatch.sv:2: error: block end label `b` doesn't match block name `a`.
+=== n09_03_4_join_name_mismatch -g2017 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_join_name_mismatch.sv:2: error: fork end label `b` doesn't match fork name `a`.
+=== p09_03_blocks -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.3.1.sequential_order
+PASS 9.3.1.relative_delays_total
+PASS 9.3.2.fork_join_waits_for_all
+PASS 9.3.2.waveform_t50
+PASS 9.3.2.waveform_t100
+PASS 9.3.2.waveform_t150
+PASS 9.3.2.waveform_t200
+PASS 9.3.2.join_any_resumes_at_first
+PASS 9.3.2.join_none_spawned_not_started
+PASS 9.3.2.join_none_runs_after_parent_blocks
+PASS 9.3.2.block_item_init_per_iteration_123
+INFO 9.3.2.m_seen=4 (2023 requires 4; 2017 undetermined)
+PASS 9.3.3.join_of_events_either_order
+PASS 9.3.3.join_of_events_same_time
+PASS 9.3.4.hier_ref_into_named_block
+PASS 9.3.4.block_variables_static
+PASS 9.3.4.matching_end_names_accepted
+DONE fails=0
+=== p09_03_2_ref_init_legal -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.3.2.ref_arg_in_fork_block_item_init got=7
+=== p09_03_2_ref_static_fork_2023 -g2023 ===
+compile_rc=0
+run_rc=0
+PASS 9.3.2.ref_static_in_fork_none s=5
+=== n09_03_2_return_in_fork -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_return_in_fork.sv:2: error: Return statement is not allowed within fork-join block.
+1 error(s) during elaboration.
+=== n09_03_2_ref_arg_in_join_none -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_none.sv:2: error: ref formal `x' shall not be referenced within fork...join_any or fork...join_none except in a fork block-item initializer value expression (IEEE 1800-2017/2023 9.3.2).
+1 error(s) during elaboration.
+=== n09_03_2_ref_arg_in_join_any -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_2_ref_arg_in_join_any.sv:2: error: ref formal `x' shall not be referenced within fork...join_any or fork...join_none except in a fork block-item initializer value expression (IEEE 1800-2017/2023 9.3.2).
+1 error(s) during elaboration.
+=== n09_03_4_end_name_mismatch -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_end_name_mismatch.sv:2: error: block end label `b` doesn't match block name `a`.
+=== n09_03_4_join_name_mismatch -g2023 expected-reject ===
+compile_rc=1 (expected nonzero)
+/home/dsell/slurm-runs/iverilog-uvm/a3/ieee1800-c09a-20261018-attempt03/input/neg/n09_03_4_join_name_mismatch.sv:2: error: fork end label `b` doesn't match fork name `a`.
+FINAL_STATUS=0

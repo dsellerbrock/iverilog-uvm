@@ -1,0 +1,2 @@
+RESULT pass=5 fail=0
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/evidence/ieee1800-audit-c15a-20261020/attempt-06-current-main-events-semaphore/input/p15_03a_semaphore.sv:17: $finish called at 30 (1s)

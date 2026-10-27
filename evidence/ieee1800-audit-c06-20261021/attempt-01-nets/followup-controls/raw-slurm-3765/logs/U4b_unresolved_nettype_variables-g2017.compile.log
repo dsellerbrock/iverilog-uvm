@@ -1,0 +1,2 @@
+input/U4b_unresolved_nettype_variables.sv:11: error: Net `n' with user-defined nettype `wT' cannot have multiple drivers because it has no resolution function.
+1 error(s) during elaboration.

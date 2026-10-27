@@ -1,0 +1,2 @@
+Assertion failed: (idx < array_size_), function get_string, file class_type.cc, line 1261.
+A len member=8 static=4 struct=8 local=3

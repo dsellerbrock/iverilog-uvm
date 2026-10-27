@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_end_label.v:9: $finish called at 0 (1s)

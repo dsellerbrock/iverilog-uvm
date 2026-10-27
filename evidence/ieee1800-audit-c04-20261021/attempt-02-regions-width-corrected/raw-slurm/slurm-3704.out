@@ -1,0 +1,19 @@
+HOST=DAN-DESKTOP
+TOOLCHAIN_SOURCE_COMMIT=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+COMPILE_OK p04_regions -g2017
+RUN_OK p04_regions -g2017
+R1 act b=0
+R2 inact b=0
+R4 react b=1
+R5 post b=1 c=2 d=0
+EXPECTED_OUTPUT_MATCH -g2017
+COMPILE_OK p04_regions -g2023
+RUN_OK p04_regions -g2023
+R1 act b=0
+R2 inact b=0
+R4 react b=1
+R5 post b=1 c=2 d=0
+EXPECTED_OUTPUT_MATCH -g2023
+FINAL_STATUS=0

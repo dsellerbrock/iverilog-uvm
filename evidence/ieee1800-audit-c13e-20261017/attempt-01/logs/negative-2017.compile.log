@@ -1,0 +1,2 @@
+tests/1800_audit/c13/neg/n13_08_virtual_parameterized_new.sv:8: error: Can not create object of virtual class `C`.
+Elaboration failed

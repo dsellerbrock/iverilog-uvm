@@ -1,0 +1,2 @@
+sv_nba_dynamic_array_element_fail_2017 CE,-g2017,-s,sv_nba_dynamic_array_element_fail_2017 ivltests gold=sv_nba_dynamic_array_element_fail_2017.gold
+sv_nba_dynamic_array_element_fail_2023 CE,-g2023,-s,sv_nba_dynamic_array_element_fail_2023 ivltests gold=sv_nba_dynamic_array_element_fail_2023.gold

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_observed_task0.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_deferred_observed_task0"
+}

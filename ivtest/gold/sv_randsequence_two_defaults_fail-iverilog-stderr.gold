@@ -1,0 +1,1 @@
+ivltests/sv_randsequence_two_defaults_fail.v:7: error: Multiple default items in one randsequence case production.

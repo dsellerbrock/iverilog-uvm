@@ -1,0 +1,58 @@
+== p20_03b_time_conv g2017 compile rc=0
+p20_03b_time_conv g2017 run rc=0
+TF [32.00000 ns]
+TF2 [30.00000 ns]
+TF3 [ 32000.00 ps]
+Time scale of (p20a) is 10ns / 1ns
+Time scale of (p20a) is 10ns / 1ns
+RESULT pass=13 fail=0
+== r20_05_k_c1 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+== r20_05_k_c2 g2017 compile rc=0
+r20_05_k_c2 g2017 run rc=0
+c2 7
+== r20_05_k_c3 g2017 compile rc=0
+r20_05_k_c3 g2017 run rc=0
+c3 3.0
+== r20_05_k_c4 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+== r20_05_k_c5 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+== r20_05_k_c6 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+== r20_05_k_c7 g2017 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+== r20_02_exit_in_program g2017 compile rc=0
+r20_02_exit_in_program g2017 run rc=0
+== r20_02_exit g2017 compile rc=0
+r20_02_exit g2017 run rc=0
+EX0
+== p20_03b_time_conv g2023 compile rc=0
+p20_03b_time_conv g2023 run rc=0
+TF [32.00000 ns]
+TF2 [30.00000 ns]
+TF3 [ 32000.00 ps]
+Time scale of (p20a) is 10ns / 1ns
+Time scale of (p20a) is 10ns / 1ns
+RESULT pass=13 fail=0
+== r20_05_k_c1 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c1.sv:1: error: Unable to evaluate real parameter PR value: $bitstoreal(64'b0100000000000000000000000000000000000000000000000000000000000000)
+== r20_05_k_c2 g2023 compile rc=0
+r20_05_k_c2 g2023 run rc=0
+c2 7
+== r20_05_k_c3 g2023 compile rc=0
+r20_05_k_c3 g2023 run rc=0
+c3 3.0
+== r20_05_k_c4 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c4.sv:1: error: Unable to evaluate parameter RB value: $realtobits(1.50000)
+== r20_05_k_c5 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c5.sv:1: error: Unable to evaluate parameter SB value: $shortrealtobits(1.50000)
+== r20_05_k_c6 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c6.sv:1: error: Unable to evaluate real parameter SR value: $bitstoshortreal(32'b00111111110000000000000000000000)
+== r20_05_k_c7 g2023 compile rc=1
+tests/1800_audit/c20/r20_05_k_c7.sv:1: error: Unable to evaluate real parameter R2 value: $bitstoreal($realtobits(2.50000))
+== r20_02_exit_in_program g2023 compile rc=0
+r20_02_exit_in_program g2023 run rc=0
+== r20_02_exit g2023 compile rc=0
+r20_02_exit g2023 run rc=0
+EX0

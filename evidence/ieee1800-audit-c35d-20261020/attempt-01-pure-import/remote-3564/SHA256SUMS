@@ -1,0 +1,6 @@
+1088dd266d4715d5a99d4eb5f7ae7a128449744927bae1971b37278872613593  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/iverilog
+e66837952db8927f4ef69007b4290c07e23f30f9258facae416da98c95715bbb  /home/dsell/toolchains/iverilog-uvm-a3-audit-cc25756d187314742d347267c2a513b3e640a7fb/bin/vvp
+b5f1b773a7c733738352000c92a077dc5852a1a2fc6d836b1e411be1e9ec5f88  /usr/bin/gcc
+eb578890f42a7c4cb862772c5b649f028d0a3f53433647499d3eef1dff380b55  /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/dpi_basic_test.sv
+fe0d7bb4c150550eac78b601287d99f13b613afa1fa9679b6c2b4eb56b1de9a8  /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/dpi_basic_test.c
+05ecf9431ddabc7f6aeee25561d643bc88ec089e2d09f2607f65ecfa33f1a61f  /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-pure-import-20261020-01/input/expected.txt

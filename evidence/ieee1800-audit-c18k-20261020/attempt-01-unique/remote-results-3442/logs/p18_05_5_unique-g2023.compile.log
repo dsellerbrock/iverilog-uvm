@@ -1,0 +1,1 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18k-unique-20261020-03/input/p18_05_5_unique.sv:7: warning: Constraint item in 'u' of class U1 is not representable in the constraint solver; randomize() of this class will fail.

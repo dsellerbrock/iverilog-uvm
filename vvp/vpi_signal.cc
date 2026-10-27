@@ -686,6 +686,9 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 
 	  case vpiModule:
 	    return vpip_module(vpip_scope(rfp));
+
+	  case vpiTypespec:
+	    return rfp->typespec;
       }
 
       return 0;

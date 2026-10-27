@@ -1,0 +1,2 @@
+input/Q7_delay_star_weak.sv:8: $finish called at 80 (1ns)
+SVA: unbounded ##[m:$] obligation still pending at end of simulation

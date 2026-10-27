@@ -1,0 +1,2 @@
+sv_class_type_param_cast_2017 normal,-g2017,-s,test ivltests gold=sv_class_type_param_cast.gold
+sv_class_type_param_cast_2023 normal,-g2023,-s,test ivltests gold=sv_class_type_param_cast.gold

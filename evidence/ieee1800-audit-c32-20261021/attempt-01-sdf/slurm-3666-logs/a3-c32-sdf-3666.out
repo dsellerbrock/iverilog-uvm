@@ -1,0 +1,13 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+e311f556c605d4850607070fc39e9d675255d003a443a760948c7b725a7a8931  ./p32_sdf.sv
+20de21e06fa94c7b3d2c535f0ee8fa6c8c1d6d7a2be14f01326b6a10c9eda40b  ./p32.sdf
+9760f8c1ab8ad03d64761b257db74ff07603a15c4d44d2bcdba75073f006911c  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/iverilog
+7fa3224c44e69b555fa86c1e3e048fa2709780276c6417ff8b7a7f0d63241c02  /home/dsell/toolchains/iverilog-fb584a25-20261020/bin/vvp
+e5dfe17c43e749b72fe54762590edef6908c110bbb6f81ca14185c78f65c7575  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivl
+d477aab348a1b6b6b9ac8fbcd4954234fc12f9e0d18717f44a415eedc64d23c9  /home/dsell/toolchains/iverilog-fb584a25-20261020/lib/ivl/ivlpp
+edition=2017 mode=specify compile_exit=0
+edition=2017 mode=specify run_exit=0
+edition=2023 mode=specify compile_exit=0
+edition=2023 mode=specify run_exit=0
+edition=2023 mode=default compile_exit=0
+edition=2023 mode=default run_exit=0

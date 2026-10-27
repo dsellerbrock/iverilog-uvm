@@ -1,0 +1,2 @@
+ivltests/sv_case_inside_multiple_default_fail.v:3: error: Multiple default items in case statement are not allowed (IEEE 1800-2017/2023 12.5).
+Elaboration failed

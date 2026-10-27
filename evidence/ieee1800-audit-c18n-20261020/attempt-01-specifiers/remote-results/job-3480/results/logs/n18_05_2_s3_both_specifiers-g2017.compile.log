@@ -1,0 +1,6 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:2: syntax error
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: error: Invalid class item.
+/home/dsell/slurm-runs/iverilog-uvm/a3/c18n-20261020-specifiers/input/n18_05_2_s3_both_specifiers.sv:3: syntax error
+I give up.

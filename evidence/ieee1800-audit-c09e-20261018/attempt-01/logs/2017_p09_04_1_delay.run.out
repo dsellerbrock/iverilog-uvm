@@ -1,0 +1,9 @@
+PASS 9.4.1.delay_10
+PASS 9.4.1.delay_parameter
+PASS 9.4.1.delay_expression
+PASS 9.4.1.delay_variable
+PASS 9.4.1.x_delay_is_zero
+PASS 9.4.1.z_delay_is_zero
+PASS 9.4.1.negative_delay_is_huge_unsigned
+DONE fails=0
+/home/dsell/slurm-runs/iverilog-uvm/A3/audit-c09e-20261018-01/inputs/p09_04_1_delay.sv:19: $finish called at 1018 (1s)

@@ -1,0 +1,1 @@
+tests/1800_audit/c12/r12_06_h1.sv:2: warning: Unable to bind wire/reg/memory `n' in `m' (compile-progress: unresolved reference).

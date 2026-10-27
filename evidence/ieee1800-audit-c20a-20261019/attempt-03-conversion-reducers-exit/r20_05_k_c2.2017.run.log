@@ -1,0 +1,20 @@
+WARNING: tests/1800_audit/c20/r20_05_k_c2.sv:1: missing argument for $display<%0f>.
+c2 7 <%0f>
+        0.01 real         0.00 user         0.00 sys
+             5177344  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 605  page reclaims
+                  19  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   2  voluntary context switches
+                  32  involuntary context switches
+            85194914  instructions retired
+            25584023  cycles elapsed
+             2670976  peak memory footprint

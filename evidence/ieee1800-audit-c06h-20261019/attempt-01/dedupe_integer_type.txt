@@ -1,0 +1,7 @@
+695	OPEN	[IEEE 1800] §15.4.6/15.4.8 — Mailbox try_get() and try_peek() do not return negative integer on type mismatch	1800-audit	2026-10-19T16:02:17Z
+737	OPEN	[IEEE 1800] §6.19 — enum constant value 'x does not expand to all base-type bits	1800-audit	2026-10-20T04:09:34Z
+469	CLOSED	[IEEE 1800] §§6.11.2/11.5.1 — Preserve two-state packed-select results		2026-10-15T03:25:17Z
+414	CLOSED	[IEEE 1800] §11 — Guard each dimension of runtime packed selects	bug	2026-10-08T20:33:20Z
+499	CLOSED	[IEEE 1800] §§7.4/11.5.1 — Index packed bits after an unpacked struct-member element		2026-10-09T17:35:01Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z
+97	CLOSED	ivl crash: store to a property of an unpacked-array-of-class element (arr[i].prop = expr)		2026-07-21T16:52:44Z

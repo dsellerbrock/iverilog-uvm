@@ -1,0 +1,5 @@
+667	CLOSED	from-caliptra-dv: wide automatic coverpoint bins fail elaboration
+100	CLOSED	Class-property unpacked array of real/string stores every element to the same slot
+47	CLOSED	Phase 75: Fallback hardening — eliminate remaining warning noise
+27	CLOSED	OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed
+19	CLOSED	Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns

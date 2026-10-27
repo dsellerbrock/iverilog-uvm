@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "sv_vcd_packed_range.v",
+    "gold" : "sv_vcd_packed_range",
+    "iverilog-args" : [ "-g2023" ]
+}

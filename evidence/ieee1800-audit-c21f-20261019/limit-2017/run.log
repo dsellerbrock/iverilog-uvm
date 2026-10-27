@@ -1,0 +1,22 @@
+VCD info: dumpfile limit.vcd opened for output.
+WARNING: Dump file limit (300 bytes) exceeded.
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm/tests/1800_audit/c21/r21v_limit.sv:1: $finish called at 200 (1s)
+        0.06 real         0.01 user         0.00 sys
+             6651904  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1323  page reclaims
+                   9  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                  18  involuntary context switches
+           136101862  instructions retired
+            50817929  cycles elapsed
+             3916160  peak memory footprint
+exit_code=0

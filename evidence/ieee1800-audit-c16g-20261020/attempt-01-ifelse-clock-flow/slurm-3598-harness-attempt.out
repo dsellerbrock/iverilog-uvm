@@ -1,0 +1,6 @@
+source_head=fb584a251dd4cc91e56a75be662ccd5ee05c64e9
+edition_flag=-g2012 (the toolchain does not implement -g2017/-g2023)
+f7e8d67996fdc2af956bb742f0887335feb389b2a72b6650677dfc63132cd6cb  /home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c16g-20261020-001/p16_13_4_ifelse_clock_flow.sv
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c16g-20261020-001/p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c16g-20261020-001/p16_13_4_ifelse_clock_flow.sv:16: sorry: `if' is supported only with a boolean branch (no sequence or nested property); the assertion is dropped.
+/home/dsell/slurm-runs/iverilog-uvm/a3/a3-m7-c16g-20261020-001/p16_13_4_ifelse_clock_flow.sv:22: sorry: named property `mult_p8' uses a form that supports only one instantiation; this additional assertion is dropped.

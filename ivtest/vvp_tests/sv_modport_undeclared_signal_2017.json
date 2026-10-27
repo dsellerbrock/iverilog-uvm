@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_modport_undeclared_signal.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_modport_undeclared_signal_2017"
+}

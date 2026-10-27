@@ -1,0 +1,493 @@
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ivlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vhdlpp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C vpi all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-null all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-stub all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vvp all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vhdl all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-vlog95 all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-pcb all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-blif all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C tgt-sizer all &&  /Applications/Xcode.app/Contents/Developer/usr/bin/make -C driver all &&  true
+make[1]: Nothing to be done for `all'.
+make[1]: Nothing to be done for `all'.
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vvp_z3.cc -o vvp_z3.o
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c event.cc -o event.o
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c logic.cc -o logic.o
+mv logic.d dep/logic.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c delay.cc -o delay.o
+vvp_z3.cc:11502:6: warning: misleading indentation; statement is not part of the previous 'for' [-Wmisleading-indentation]
+ 11502 |             for (const auto&sv : builder.size_vars) {
+       |             ^
+vvp_z3.cc:11496:7: note: previous statement is here
+ 11496 |       for (const auto&pv : builder.prop_vars)
+       |       ^
+vvp_z3.cc:14732:21: warning: declaration shadows a local variable [-Wshadow]
+ 14732 |                   if (vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer),
+       |                                   ^
+vvp_z3.cc:14674:18: note: previous declaration is here
+ 14674 |             vvp_cobject*owner = cobj_struct_prop(builder.object(mv.outer), builder.local_index(mv.outer));
+       |                         ^
+mv delay.d dep/delay.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c words.cc -o words.o
+mv words.d dep/words.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c island_tran.cc -o island_tran.o
+mv event.d dep/event.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_modules.cc -o vpi_modules.o
+mv island_tran.d dep/island_tran.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_bit.cc -o vpi_bit.o
+mv vpi_modules.d dep/vpi_modules.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_callback.cc -o vpi_callback.o
+mv vpi_bit.d dep/vpi_bit.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_cobject.cc -o vpi_cobject.o
+mv vpi_callback.d dep/vpi_callback.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_const.cc -o vpi_const.o
+mv vpi_const.d dep/vpi_const.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_darray.cc -o vpi_darray.o
+mv vpi_cobject.d dep/vpi_cobject.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_event.cc -o vpi_event.o
+mv vpi_darray.d dep/vpi_darray.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_iter.cc -o vpi_iter.o
+mv vpi_event.d dep/vpi_event.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_mcd.cc -o vpi_mcd.o
+mv vpi_iter.d dep/vpi_iter.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_priv.cc -o vpi_priv.o
+mv vpi_mcd.d dep/vpi_mcd.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_scope.cc -o vpi_scope.o
+vpi_priv.cc:89:20: warning: declaration shadows a local variable [-Wshadow]
+   89 |             unsigned long word = abits & mask;
+      |                           ^
+vpi_priv.cc:51:21: note: previous declaration is here
+   51 |       unsigned long word;
+      |                     ^
+vpi_scope.cc:852:11: warning: private field 'idx_' is not used [-Wunused-private-field]
+  852 |       int idx_;
+      |           ^
+1 warning generated.
+mv vpi_priv.d dep/vpi_priv.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_real.cc -o vpi_real.o
+1 warning generated.
+mv vpi_scope.d dep/vpi_scope.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_signal.cc -o vpi_signal.o
+mv vpi_real.d dep/vpi_real.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_string.cc -o vpi_string.o
+mv vpi_string.d dep/vpi_string.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_tasks.cc -o vpi_tasks.o
+mv vpi_signal.d dep/vpi_signal.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_time.cc -o vpi_time.o
+mv vpi_time.d dep/vpi_time.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpi_vthr_vector.cc -o vpi_vthr_vector.o
+mv vpi_tasks.d dep/vpi_tasks.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpip_bin.cc -o vpip_bin.o
+mv vpip_bin.d dep/vpip_bin.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpip_hex.cc -o vpip_hex.o
+mv vpi_vthr_vector.d dep/vpi_vthr_vector.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpip_oct.cc -o vpip_oct.o
+mv vpip_hex.d dep/vpip_hex.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpip_to_dec.cc -o vpip_to_dec.o
+mv vpip_oct.d dep/vpip_oct.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vpip_format.cc -o vpip_format.o
+mv vpip_format.d dep/vpip_format.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vvp_vpi.cc -o vvp_vpi.o
+mv vpip_to_dec.d dep/vpip_to_dec.d
+mv vvp_vpi.d dep/vvp_vpi.d
+g++ -I. -I..  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"'  -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c main.cc -o main.o
+../version.exe `head -1 vvp.man.in`'\n' > vvp.man
+tail -n +2 vvp.man.in >> vvp.man
+mv main.d dep/main.d
+2 warnings generated.
+mv vvp_z3.d dep/vvp_z3.d
+g++ -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vvp main.o lib_main.o parse.o parse_misc.o lexor.o arith.o array_common.o array.o bufif.o compile.o concat.o dff.o class_type.o enum_type.o extend.o file_line.o latch.o npmos.o part.o permaheap.o reduce.o resolv.o sfunc.o stop.o substitute.o symbols.o ufunc.o codes.o vthread.o schedule.o statistics.o tables.o udp.o vvp_island.o vvp_net.o vvp_net_sig.o vvp_perf_stats.o vvp_object.o vvp_assoc.o vvp_cobject.o vvp_darray.o vvp_dpi.o vvp_mailbox.o vvp_vinterface.o vvp_z3.o event.o logic.o delay.o words.o island_tran.o vpi_modules.o vpi_bit.o vpi_callback.o vpi_cobject.o vpi_const.o vpi_darray.o vpi_event.o vpi_iter.o vpi_mcd.o vpi_priv.o vpi_scope.o vpi_real.o vpi_signal.o vpi_string.o vpi_tasks.o vpi_time.o vpi_vthr_vector.o vpip_bin.o vpip_hex.o vpip_oct.o vpip_to_dec.o vpip_format.o vvp_vpi.o -lbz2 -lz -lpthread -lreadline -ltermcap   -lz3 -lffi -ldl
+mkdir dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -c libvpi.c
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_table.c -o sys_table.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_convert.c -o sys_convert.o
+rm -f libvpi.a
+ar cqv libvpi.a libvpi.o
+mv sys_table.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_countdrivers.c -o sys_countdrivers.o
+mv sys_convert.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_coverage.c -o sys_coverage.o
+q - libvpi.o
+ranlib libvpi.a
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_darray.c -o sys_darray.o
+mv sys_countdrivers.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_deposit.c -o sys_deposit.o
+mv sys_darray.d dep
+mv sys_coverage.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_display.c -o sys_display.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_fileio.c -o sys_fileio.o
+mv sys_deposit.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_finish.c -o sys_finish.o
+mv sys_finish.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_icarus.c -o sys_icarus.o
+mv sys_fileio.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_plusargs.c -o sys_plusargs.o
+mv sys_icarus.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_queue.c -o sys_queue.o
+mv sys_plusargs.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_random.c -o sys_random.o
+mv sys_queue.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_random_mti.c -o sys_random_mti.o
+mv sys_display.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_readmem.c -o sys_readmem.o
+mv sys_random.d dep
+flex -t sys_readmem_lex.lex > sys_readmem_lex.c
+mv sys_random_mti.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_scanf.c -o sys_scanf.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_sva.c -o sys_sva.o
+mv sys_readmem.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_sdf.c -o sys_sdf.o
+mv sys_sva.d dep
+mv sys_sdf.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_time.c -o sys_time.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_vcd.c -o sys_vcd.o
+mv sys_time.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_vcdoff.c -o sys_vcdoff.o
+mv sys_vcd.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_dumpports.c -o sys_dumpports.o
+mv sys_vcdoff.d dep
+mv sys_scanf.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vcd_priv.c -o vcd_priv.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c mt19937int.c -o mt19937int.o
+mv mt19937int.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_priv.c -o sys_priv.o
+mv vcd_priv.d dep
+bison --verbose -t -p sdf -d -o sdf_parse.c sdf_parse.y
+mv sys_priv.d dep
+flex -t sdf_lexor.lex > sdf_lexor.c
+mv sys_dumpports.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c stringheap.c -o stringheap.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vams_simparam.c -o vams_simparam.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c table_mod.c -o table_mod.o
+mv stringheap.d dep
+bison --verbose -t -p tblmod -d -o table_mod_parse.c table_mod_parse.y
+mv vams_simparam.d dep
+flex -t table_mod_lexor.lex > table_mod_lexor.c
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_lxt.c -o sys_lxt.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c lxt_write.c -o lxt_write.o
+mv table_mod.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_lxt2.c -o sys_lxt2.o
+mv sys_lxt.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c lxt2_write.c -o lxt2_write.o
+mv sys_lxt2.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -DFST_WRITER_PARALLEL -DHAVE_LIBPTHREAD -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_fst.c -o sys_fst.o
+mv sys_fst.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -DFST_WRITER_PARALLEL -DHAVE_LIBPTHREAD -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c fstapi.c -o fstapi.o
+mv lxt_write.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c fastlz.c -o fastlz.o
+fstapi.c:511:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  511 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+fstapi.c:541:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  541 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+fstapi.c:572:23: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  572 |     unsigned char buf[chk_len_max];
+      |                       ^~~~~~~~~~~
+mv lxt2_write.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c lz4.c -o lz4.o
+mv fastlz.d dep
+g++ -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vcd_priv2.cc -o vcd_priv2.o
+mv vcd_priv2.d dep
+g++ -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c sys_sv_class.cc -o sys_sv_class.o
+3 warnings generated.
+mv fstapi.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c va_math.c -o va_math.o
+mv va_math.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_clog2.c -o sys_clog2.o
+mv sys_clog2.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2005_math.c -o v2005_math.o
+mv sys_sv_class.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2009_table.c -o v2009_table.o
+mv v2009_table.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2009_array.c -o v2009_array.o
+mv v2005_math.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2009_bitvec.c -o v2009_bitvec.o
+v2009_array.c:67:27: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+   67 |       vpiHandle argv, arg[MAX_ARGC];
+      |                           ^~~~~~~~
+v2009_array.c:68:26: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+   68 |       PLI_INT32 arg_type[MAX_ARGC];
+      |                          ^~~~~~~~
+v2009_array.c:159:35: warning: unused parameter 'name' [-Wunused-parameter]
+  159 | static void high_array(const char*name, vpiHandle callh, vpiHandle arg)
+      |                                   ^
+v2009_array.c:248:34: warning: unused parameter 'name' [-Wunused-parameter]
+  248 | static void low_array(const char*name, vpiHandle callh, vpiHandle arg)
+      |                                  ^
+4 warnings generated.
+mv v2009_array.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2009_enum.c -o v2009_enum.o
+mv v2009_bitvec.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c v2009_string.c -o v2009_string.o
+mv v2009_enum.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vhdl_table.c -o vhdl_table.o
+mv v2009_string.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vhdl_textio.c -o vhdl_textio.o
+vhdl_textio.c:236:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  236 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+vhdl_textio.c:495:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  495 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+vhdl_textio.c:852:14: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+  852 |     char buf[STRING_BUF_SIZE];
+      |              ^~~~~~~~~~~~~~~
+mv vhdl_table.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vpi_debug.c -o vpi_debug.o
+3 warnings generated.
+mv vhdl_textio.d dep
+mv vpi_debug.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sys_readmem_lex.c -o sys_readmem_lex.o
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sdf_parse.c -o sdf_parse.o
+mv lz4.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c sdf_lexor.c -o sdf_lexor.o
+mv sdf_parse.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c table_mod_parse.c -o table_mod_parse.o
+mv sdf_lexor.d dep
+gcc -std=gnu23 -I. -I..   -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c table_mod_lexor.c -o table_mod_lexor.o
+mv sys_readmem_lex.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o va_math.vpi va_math.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o v2005_math.vpi sys_clog2.o v2005_math.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi 
+mv table_mod_parse.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o v2009.vpi v2009_table.o v2009_array.o v2009_bitvec.o v2009_enum.o v2009_string.o sys_priv.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vhdl_sys.vpi vhdl_table.o sys_priv.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+mv table_mod_lexor.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vhdl_textio.vpi vhdl_textio.o sys_priv.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -o vpi_debug.vpi vpi_debug.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+g++ -bundle -undefined dynamic_lookup -flat_namespace -o system.vpi sys_table.o sys_convert.o sys_countdrivers.o sys_coverage.o sys_darray.o sys_deposit.o sys_display.o sys_fileio.o sys_finish.o sys_icarus.o sys_plusargs.o sys_queue.o sys_random.o sys_random_mti.o sys_readmem.o sys_readmem_lex.o sys_scanf.o sys_sva.o sys_sdf.o sys_time.o sys_vcd.o sys_vcdoff.o sys_dumpports.o vcd_priv.o mt19937int.o sys_priv.o sdf_parse.o sdf_lexor.o stringheap.o vams_simparam.o table_mod.o table_mod_parse.o table_mod_lexor.o sys_lxt.o lxt_write.o sys_lxt2.o lxt2_write.o sys_fst.o fstapi.o fastlz.o lz4.o vcd_priv2.o sys_sv_class.o -L. -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -lvpi -lbz2 -lz -lpthread -lreadline -ltermcap 
+mkdir dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c null.c -o null.o
+mv null.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o null.tgt null.o 
+mkdir dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c stub.c -o stub.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c classes.c -o classes.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c constant.c -o constant.o
+stub.c:1427:15: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+ 1427 |       switch (ivl_signal_port(net)) {
+      |               ^~~~~~~~~~~~~~~~~~~~
+stub.c:1427:15: note: add missing switch cases
+ 1427 |       switch (ivl_signal_port(net)) {
+      |               ^
+mv classes.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c enumerate.c -o enumerate.o
+mv constant.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c expression.c -o expression.o
+mv enumerate.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c statement.c -o statement.o
+mv expression.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c switches.c -o switches.o
+mv statement.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c types.c -o types.o
+mv switches.d dep
+1 warning generated.
+mv stub.d dep
+mv types.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o stub.tgt stub.o classes.o constant.o enumerate.o expression.o statement.o switches.o types.o 
+mkdir dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vvp.c -o vvp.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_class.c -o draw_class.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_delay.c -o draw_delay.o
+vvp.c:785:13: warning: unused function 'segfault_handler' [-Wunused-function]
+  785 | static void segfault_handler(int sig)
+      |             ^~~~~~~~~~~~~~~~
+mv draw_delay.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_enum.c -o draw_enum.o
+mv draw_class.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_mux.c -o draw_mux.o
+mv draw_enum.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_net_input.c -o draw_net_input.o
+1 warning generated.
+mv vvp.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_substitute.c -o draw_substitute.o
+mv draw_mux.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_switch.c -o draw_switch.o
+mv draw_substitute.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_ufunc.c -o draw_ufunc.o
+mv draw_switch.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c draw_vpi.c -o draw_vpi.o
+mv draw_net_input.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_condit.c -o eval_condit.o
+mv eval_condit.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_expr.c -o eval_expr.o
+mv draw_vpi.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_object.c -o eval_object.o
+mv draw_ufunc.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_real.c -o eval_real.o
+mv eval_expr.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_string.c -o eval_string.o
+eval_object.c:3413:49: warning: '/*' within block comment [-Wcomment]
+ 3413 |              * used as the max-size bound for %store/qb/* (0 = unbounded). */
+      |                                                        ^
+eval_object.c:3434:14: warning: declaration shadows a local variable [-Wshadow]
+ 3434 |                   unsigned kind;
+      |                            ^
+eval_object.c:3284:17: note: previous declaration is here
+ 3284 |             const char*kind = name + 28;
+      |                        ^
+mv eval_string.d dep
+mv eval_real.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c eval_vec4.c -o eval_vec4.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c modpath.c -o modpath.o
+eval_vec4.c:1322:61: warning: '/*' within block comment [-Wcomment]
+ 1322 |                * numeric queue index reads garbage; emit %aa/load/v/* with
+      |                                                                    ^
+mv modpath.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c stmt_assign.c -o stmt_assign.o
+2 warnings generated.
+mv eval_object.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vvp_process.c -o vvp_process.o
+vvp_process.c:6605:57: warning: '/*' within block comment [-Wcomment]
+ 6605 |             /* Iterator-type dispatch: pick the right %load/dar/* +
+      |                                                                ^
+vvp_process.c:6606:15: warning: '/*' within block comment [-Wcomment]
+ 6606 |                %store/* pair to fetch q[idx] into iter.
+      |                      ^
+1 warning generated.
+mv eval_vec4.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vvp_proc_loops.c -o vvp_proc_loops.o
+mv vvp_proc_loops.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vvp_scope.c -o vvp_scope.o
+mv stmt_assign.d dep
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-main-c41e-c15a-20261020-01/install/bin/vvp' | cat ./vvp.conf.in - > vvp.conf
+echo 'flag:VVP_EXECUTABLE=/tmp/a3-main-c41e-c15a-20261020-01/install/bin/vvp' | cat ./vvp-s.conf.in - > vvp-s.conf
+mv vvp_scope.d dep
+2 warnings generated.
+mv vvp_process.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vvp.tgt vvp.o draw_class.o draw_delay.o draw_enum.o draw_mux.o draw_net_input.o draw_substitute.o draw_switch.o draw_ufunc.o draw_vpi.o eval_condit.o eval_expr.o eval_object.o eval_real.o eval_string.o eval_vec4.o modpath.o stmt_assign.o vvp_process.o vvp_proc_loops.o vvp_scope.o 
+mkdir dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vhdl.cc -o vhdl.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c state.cc -o state.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vhdl_element.cc -o vhdl_element.o
+mv vhdl_element.d dep
+mv vhdl.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vhdl_type.cc -o vhdl_type.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c vhdl_syntax.cc -o vhdl_syntax.o
+mv state.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c scope.cc -o scope.o
+mv vhdl_type.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c process.cc -o process.o
+mv scope.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c stmt.cc -o stmt.o
+mv process.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c expr.cc -o expr.o
+mv vhdl_syntax.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm.cc -o lpm.o
+mv lpm.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c support.cc -o support.o
+mv expr.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c cast.cc -o cast.o
+mv stmt.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c logic.cc -o logic.o
+mv cast.d dep
+mv support.d dep
+mv logic.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vhdl.tgt vhdl.o state.o vhdl_element.o vhdl_type.o vhdl_syntax.o scope.o process.o stmt.o expr.o lpm.o support.o cast.o logic.o 
+mkdir dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c vlog95.c -o vlog95.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c event.c -o event.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c expr.c -o expr.o
+mv event.d dep
+mv vlog95.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c logic_lpm.c -o logic_lpm.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c misc.c -o misc.o
+mv expr.d dep
+logic_lpm.c:2670:13: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+ 2670 |                   switch (ivl_signal_port(sig)) {
+      |                           ^~~~~~~~~~~~~~~~~~~~
+logic_lpm.c:2670:13: note: add missing switch cases
+ 2670 |                   switch (ivl_signal_port(sig)) {
+      |                           ^
+ 2671 |                       case IVL_SIP_INPUT:  fprintf(stderr, " input"); break;
+ 2672 |                       case IVL_SIP_OUTPUT: fprintf(stderr, " output"); break;
+ 2673 |                       case IVL_SIP_INOUT:  fprintf(stderr, " inout"); break;
+ 2674 |                       case IVL_SIP_NONE: break;
+ 2675 |                   }
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c numbers.c -o numbers.o
+mv misc.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c scope.c -o scope.o
+mv numbers.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c stmt.c -o stmt.o
+1 warning generated.
+mv logic_lpm.d dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c udp.c -o udp.o
+mv scope.d dep
+mv udp.d dep
+mv stmt.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o vlog95.tgt vlog95.o event.o expr.o logic_lpm.o misc.o numbers.o scope.o stmt.o udp.o -lm 
+mkdir dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c pcb.cc -o pcb.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c scope.cc -o scope.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c show_netlist.cc -o show_netlist.o
+mv pcb.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c show_pcb.cc -o show_pcb.o
+mv show_netlist.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c footprint.cc -o footprint.o
+mv scope.d dep
+bison --verbose -t -p fp --defines=fp.h -o fp.cc fp.y
+flex -s -ofp_lex.cc ./fp.lex
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c fp.cc -o fp.o
+mv show_pcb.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c fp_lex.cc -o fp_lex.o
+mv footprint.d dep
+fp.cc:1007:9: warning: variable 'fpnerrs' set but not used [-Wunused-but-set-variable]
+ 1007 |     int yynerrs = 0;
+      |         ^
+fp.cc:72:25: note: expanded from macro 'yynerrs'
+   72 | #define yynerrs         fpnerrs
+      |                         ^
+mv fp_lex.d dep
+1 warning generated.
+mv fp.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o pcb.tgt pcb.o scope.o show_netlist.o show_pcb.o footprint.o fp.o fp_lex.o 
+mkdir dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c blif.cc -o blif.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c constants.cc -o constants.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c logic_gate.cc -o logic_gate.o
+blif.cc:180:14: warning: enumeration value 'IVL_SIP_REF' not handled in switch [-Wswitch]
+  180 |             switch (dir) {
+      |                     ^~~
+blif.cc:180:14: note: add missing switch cases
+  180 |             switch (dir) {
+      |                     ^
+mv constants.d dep
+mv logic_gate.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm.cc -o lpm.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_add.cc -o lpm_add.o
+1 warning generated.
+mv blif.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_cmp_eq.cc -o lpm_cmp_eq.o
+mv lpm.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_cmp_gt.cc -o lpm_cmp_gt.o
+mv lpm_add.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_ff.cc -o lpm_ff.o
+mv lpm_cmp_eq.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_mux.cc -o lpm_mux.o
+mv lpm_ff.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_part_vp.cc -o lpm_part_vp.o
+mv lpm_cmp_gt.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_re_logic.cc -o lpm_re_logic.o
+mv lpm_mux.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_shift.cc -o lpm_shift.o
+mv lpm_part_vp.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c lpm_sign_ext.cc -o lpm_sign_ext.o
+mv lpm_re_logic.d dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c nex_data.cc -o nex_data.o
+mv lpm_shift.d dep
+mv lpm_sign_ext.d dep
+mv nex_data.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o blif.tgt blif.o constants.o logic_gate.o lpm.o lpm_add.o lpm_cmp_eq.o lpm_cmp_gt.o lpm_ff.o lpm_mux.o lpm_part_vp.o lpm_re_logic.o lpm_shift.o lpm_sign_ext.o nex_data.o 
+mkdir dep
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c sizer.cc -o sizer.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c scan_lpms.cc -o scan_lpms.o
+g++ -I. -I..  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -g -O2 -std=c++11 -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include -MD -c scan_logs.cc -o scan_logs.o
+mv scan_logs.d dep
+mv scan_lpms.d dep
+mv sizer.d dep
+g++ -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib -o sizer.tgt sizer.o scan_lpms.o scan_logs.o 
+mkdir dep
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c -DIVL_ROOT='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib/ivl"' -DIVL_SUFFIX='""' -DIVL_INC='"/tmp/a3-main-c41e-c15a-20261020-01/install/include"' -DIVL_LIB='"/tmp/a3-main-c41e-c15a-20261020-01/install/lib"' -DDLLIB='"-ldl"' -DIVL_UVM_VERSION='"Accellera UVM (not installed)"' -DIVL_INCLUDE_INSTALL_DIR="\"\"" ./main.c
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c substit.c -o substit.o
+flex -s -t cflexor.lex > cflexor.c
+bison --verbose -t -p cf -d -o cfparse.c cfparse.y
+mv substit.d dep
+../version.exe `head -1 iverilog.man.in`'\n' > iverilog.man
+tail -n +2 iverilog.man.in >> iverilog.man
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cflexor.c -o cflexor.o
+gcc -std=gnu23 -I. -I..  -DHAVE_CONFIG_H -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c cfparse.c -o cfparse.o
+mv main.d dep
+mv cfparse.d dep
+mv cflexor.d dep
+gcc -std=gnu23 -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib main.o substit.o cflexor.o cfparse.o -o iverilog 

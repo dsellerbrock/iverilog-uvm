@@ -1,0 +1,4 @@
+741	OPEN	[IEEE 1800] §6.24.2 — $cast to a real destination aborts vvp (real_from_vpi_value, Format 9)	1800-audit	2026-10-20T04:21:44Z
+505	CLOSED	[IEEE 1800] §§35.5.6/H.7.8 — Support imported shortreal array arguments		2026-10-09T14:18:13Z
+510	CLOSED	[IEEE 1800-2023] §19.5.1 — Implement real-valued coverpoint bins		2026-10-09T14:17:59Z
+506	CLOSED	[IEEE 1800] §§35.7–35.8/H.7.8 — Support fixed-size unpacked export formals		2026-10-09T14:18:14Z

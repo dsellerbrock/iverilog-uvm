@@ -1,0 +1,2 @@
+W2 wait fork returned at 20
+input/w2_called_task_child.sv:12: $finish called at 20000 (1ps)

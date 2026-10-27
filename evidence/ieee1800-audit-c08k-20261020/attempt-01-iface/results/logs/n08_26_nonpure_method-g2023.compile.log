@@ -1,0 +1,2 @@
+/home/dsell/slurm-runs/iverilog-uvm/a3/c08k-20261020-iface/input/n08_26_nonpure_method.sv:2: error: Function `f' in an interface class must be a pure virtual method.
+1 error(s) during elaboration.

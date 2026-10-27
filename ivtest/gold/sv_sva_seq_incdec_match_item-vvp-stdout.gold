@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_sva_seq_incdec_match_item.v:30: $finish called at 40 (1s)

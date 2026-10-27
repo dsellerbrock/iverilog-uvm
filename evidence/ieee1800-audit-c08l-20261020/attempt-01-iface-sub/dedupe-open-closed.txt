@@ -1,0 +1,10 @@
+--- implements type parameter (all states)
+[]
+--- interface class cast (all states)
+[{"number":27,"state":"CLOSED","title":"OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/27"}]
+--- interface class typedef (all states)
+[{"number":434,"state":"CLOSED","title":"[IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/434"},{"number":19,"state":"CLOSED","title":"Phase 15: Language edge cases — $unit, type params, interfaces, structs, bind, patterns","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/19"}]
+--- method name conflict (all states)
+[]
+--- interface class new (all states)
+[{"number":671,"state":"OPEN","title":"from-caliptra-dv: dynamic-array slice assignments in class properties","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/671"},{"number":533,"state":"CLOSED","title":"[SystemVerilog] Parse package-qualified parameterized class handles in interfaces","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/533"},{"number":434,"state":"CLOSED","title":"[IEEE 1800] §13 — Preserve automatic aggregate values containing captured handles","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/434"},{"number":27,"state":"CLOSED","title":"OpenTitan UART DV: VVP generates (0 errors), runtime stubs needed","url":"https://github.com/dsellerbrock/iverilog-uvm/issues/27"}]

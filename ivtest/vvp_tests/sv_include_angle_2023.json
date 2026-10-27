@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_include_angle.v",
+    "iverilog-args": ["-g2023", "-I./ivltests/include-angle", "-s", "sv_include_angle"],
+    "gold": "sv_include_angle"
+}

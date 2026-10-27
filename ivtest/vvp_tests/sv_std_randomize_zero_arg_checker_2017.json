@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_std_randomize_zero_arg_checker.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_std_randomize_zero_arg_checker"],
+  "gold": "sv_std_randomize_zero_arg_checker"
+}

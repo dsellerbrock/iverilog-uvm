@@ -1,0 +1,6 @@
+tests/1800_audit/c06/p06_24c_bitstream.sv:17: sorry: bit-stream cast to `11netstruct_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+tests/1800_audit/c06/p06_24c_bitstream.sv:22: sorry: bit-stream cast to `11netstruct_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+tests/1800_audit/c06/p06_24c_bitstream.sv:24: sorry: bit-stream cast to `11netuarray_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+tests/1800_audit/c06/p06_24c_bitstream.sv:25: error: Array ba needs an array index here.
+tests/1800_audit/c06/p06_24c_bitstream.sv:28: sorry: bit-stream cast to `string' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
+5 error(s) during elaboration.

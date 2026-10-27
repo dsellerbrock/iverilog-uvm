@@ -1,0 +1,5 @@
+all_18_outputs_byte_identical=yes
+workloads=18
+randomize_z3_callgrind_speedup=2.253387x
+randomize_dv_txn_callgrind_speedup=1.454097x
+other_workloads_over_2pct=0

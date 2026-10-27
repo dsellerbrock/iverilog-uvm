@@ -1,0 +1,12 @@
+RESULT pass=11 fail=0
+V1 unique no match
+WARNING: tests/1800_audit/c12/p12_04a_if_case.sv:18: no condition matches for priority or unique if statement
+         Time: 0  Scope: p12a
+V2 priority covered
+c
+V3 unique0 no match
+V4 unique overlap
+WARNING: tests/1800_audit/c12/p12_04a_if_case.sv:21: multiple conditions match for unique or unique0 if statement
+         Time: 3  Scope: p12a
+first
+V5 end

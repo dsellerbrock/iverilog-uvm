@@ -1,0 +1,3 @@
+input/d3_output_variable_default.sv:3: sorry: Default arguments for subroutine output or inout ports are not yet supported.
+input/d3_output_variable_default.sv:4: error: Missing argument 1 ('o') of call to task (an omitted output is accepted only under -gcommercial-unsafe).
+2 error(s) during elaboration.

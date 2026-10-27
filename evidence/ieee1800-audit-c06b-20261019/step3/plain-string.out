@@ -1,0 +1,28 @@
+== -g2017 compile_rc=0
+run_rc=0
+INFO plain_len=5
+INFO plain_upper=GREEN
+INFO plain_len_bare=5
+== -g2023 compile_rc=0
+run_rc=0
+INFO plain_len=5
+INFO plain_upper=GREEN
+INFO plain_len_bare=5
+        0.54 real         0.19 user         0.09 sys
+            16859136  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               16089  page reclaims
+                 210  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  20  voluntary context switches
+                 404  involuntary context switches
+            70021657  instructions retired
+            30852578  cycles elapsed
+             2376160  peak memory footprint

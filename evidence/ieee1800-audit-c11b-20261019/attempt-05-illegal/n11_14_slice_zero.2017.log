@@ -1,0 +1,2 @@
+tests/1800_audit/c11/neg/n11_14_slice_zero.sv:1: error: slice size of streaming concatenation must be a positive constant integral expression (IEEE 1800-2017 11.4.14.1).
+Elaboration failed

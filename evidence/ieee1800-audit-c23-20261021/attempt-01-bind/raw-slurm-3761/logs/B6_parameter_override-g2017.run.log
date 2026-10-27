@@ -1,0 +1,7 @@
+top.u2.m W=7 v=05 t=5
+top.u1.m W=7 v=03 t=5
+top.u2.m W=7 v=05 t=15
+top.u1.m W=7 v=0f t=15
+top.u2.m W=7 v=05 t=25
+top.u1.m W=7 v=0f t=25
+input/B6_parameter_override.sv:16: $finish called at 30 (1ns)

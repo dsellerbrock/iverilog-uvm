@@ -1,0 +1,2 @@
+FATAL: /home/dsell/slurm-runs/iverilog/a3/m7-a3-c35-struct-array-20261020-01/input/p35_struct_openarray.sv:14: wrong structure open-array size
+       Time: 0  Scope: p35_struct_openarray

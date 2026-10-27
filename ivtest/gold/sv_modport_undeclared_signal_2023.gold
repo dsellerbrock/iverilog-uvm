@@ -1,0 +1,2 @@
+./ivltests/sv_modport_undeclared_signal_2023.v:1: error: Modport port 'missing' is not declared in interface 'modport_undeclared_if'.
+1 error(s) during elaboration.
