@@ -39,6 +39,7 @@ class PTask;
 class PWire;
 class Statement;
 class PCallTask;
+class PLet;
 
 class Design;
 class NetScope;
@@ -148,6 +149,10 @@ class LexicalScope {
       std::map<perm_string,param_expr_t*>parameters;
       std::list<perm_string> parameter_order;
       bool has_parameter_port_list;
+
+	/* Let expressions are local to the lexical scope where they are
+	   declared and are expanded during expression elaboration. */
+      std::map<perm_string,PLet*> lets;
 
 	// Defined types in the scope.
       typedef std::map<perm_string,typedef_t*> typedef_map_t;

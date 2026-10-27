@@ -795,7 +795,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 12;
+static const PLI_UINT32 vpip_routines_version = 13;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -856,6 +856,10 @@ typedef struct {
     PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
     void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
                                                    PLI_INT32);
+    void        (*register_immediate_cover)(PLI_INT32, const char*,
+                                             const char*, PLI_INT32,
+                                             vpiHandle);
+    void        (*report_immediate_cover)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*print_finish_stats)(void);
 } vpip_routines_s;
 
