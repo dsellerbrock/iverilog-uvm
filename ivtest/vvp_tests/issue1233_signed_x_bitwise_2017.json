@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1233_signed_x_bitwise.v",
+  "iverilog-args": [ "-g2017", "-s", "main" ],
+  "gold": "issue1233_signed_x_bitwise"
+}
