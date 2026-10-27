@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1693_assert_function_signal_arg.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1693_assert_function_signal_arg"
+}
