@@ -675,6 +675,9 @@ void draw_class_in_scope(ivl_type_t classtype)
 	      /* Property indexes are emitted biased by +1 (0 = none)
 		 because the vvp lexer only accepts unsigned numbers. */
 	    int pprop = ivl_type_covgrp_parent_prop(classtype);
+	    int owner_prop = ivl_type_covgrp_owner_prop(classtype);
+	    if (owner_prop >= 0)
+		  fprintf(vvp_out, " .covgrp_owner %d\n", owner_prop);
 	    if (pprop >= 0) {
 		  fprintf(vvp_out, " .covgrp_parent %d\n", pprop);
 		  int ncp = ivl_type_covgrp_ncoverpoints(classtype);
