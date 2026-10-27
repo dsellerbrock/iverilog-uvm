@@ -52,7 +52,6 @@ class PPackage : public PScopeExtra, public LineInfo {
       };
 
       std::vector<export_t> exports;
-      std::map<perm_string,PLet*> lets;
 };
 
 #endif /* IVL_PPackage_H */
