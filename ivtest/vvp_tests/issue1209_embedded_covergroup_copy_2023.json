@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1209_embedded_covergroup_copy.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue1209_embedded_covergroup_copy"
+}

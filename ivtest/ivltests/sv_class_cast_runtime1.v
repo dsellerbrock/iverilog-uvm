@@ -40,13 +40,13 @@ module test;
     end
 
     base_h = null;
-    if (!$cast(left_h, base_h)) begin
-      $display("FAIL cast null");
+    if ($cast(left_h, base_h)) begin
+      $display("FAIL cast typed null downcast succeeded");
       $finish(1);
     end
 
-    if (left_h != null) begin
-      $display("FAIL null did not propagate");
+    if (left_h != left_src) begin
+      $display("FAIL failed null cast changed destination");
       $finish(1);
     end
 

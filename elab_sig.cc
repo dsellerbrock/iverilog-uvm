@@ -1476,6 +1476,51 @@ static bool interface_method_signatures_match_(const NetScope*left,
       return true;
 }
 
+static bool interface_method_defaults_match_(const NetScope*prototype,
+					     const NetScope*implementation)
+{
+      const NetBaseDef*prototype_def = interface_method_def_(prototype);
+      const NetBaseDef*implementation_def =
+		interface_method_def_(implementation);
+      if (!(prototype_def && implementation_def))
+	    return false;
+
+      unsigned first = prototype_def->port_count()
+		&& prototype_def->port(0)
+		&& prototype_def->port(0)->name() == perm_string::literal("@")
+		? 1 : 0;
+      for (unsigned idx = first; idx < prototype_def->port_count(); idx += 1) {
+	    const NetExpr*expected = prototype_def->port_defe(idx);
+	    const NetExpr*actual = implementation_def->port_defe(idx);
+	    // An implementation can omit a default supplied by the interface.
+	    if (!expected || !actual)
+		  continue;
+	    std::unique_ptr<NetExpr> expected_value(expected->dup_expr()->eval_tree());
+	    std::unique_ptr<NetExpr> actual_value(actual->dup_expr()->eval_tree());
+	    if (!expected_value || !actual_value)
+		  return false;
+	    const NetECReal*expected_real =
+		  dynamic_cast<const NetECReal*>(expected_value.get());
+	    const NetECReal*actual_real =
+		  dynamic_cast<const NetECReal*>(actual_value.get());
+	    if (expected_real || actual_real) {
+		  if (!(expected_real && actual_real)
+		      || expected_real->value().as_double()
+			 != actual_real->value().as_double())
+			return false;
+		  continue;
+	    }
+	    const NetEConst*expected_const =
+		  dynamic_cast<const NetEConst*>(expected_value.get());
+	    const NetEConst*actual_const =
+		  dynamic_cast<const NetEConst*>(actual_value.get());
+	    if (!(expected_const && actual_const)
+		|| (expected_const->value() == actual_const->value()) != verinum::V1)
+		  return false;
+      }
+      return true;
+}
+
 static bool interface_method_has_body_(const NetScope*method)
 {
       if (!method)
@@ -1677,6 +1722,14 @@ static void validate_interface_class_relations_(Design*des,
 		       << "' does not match its interface-class prototype." << endl;
 		  des->errors += 1;
 		  continue;
+	    }
+	    if (implementation
+		&& !interface_method_defaults_match_(methods[0], implementation)) {
+		  cerr << pclass->get_fileline() << ": error: Default argument value for method `"
+		       << cur.first << "' in class `" << use_class->get_name()
+		       << "' does not match its interface-class prototype (IEEE 1800-2017/2023 8.26.8)."
+		       << endl;
+		  des->errors += 1;
 	    }
 
 	    if (!use_class->is_virtual()
@@ -3628,6 +3681,10 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      nval->set_line(*ports_->at(idx).defe);
 				      tmp_def = nval;
 				} else if (formal_type) {
+				      // IEEE 1800-2017/2023 8.26.8 requires defaults on
+				      // interface-class methods to be constant expressions.
+				      bool interface_method_default = method_of()
+					    && method_of()->interface_class;
 				      /* IEEE 1800-2017 13.5.3: a default argument is an
 				       * assignment-like context supplied by its formal. Use the
 				       * ordinary r-value contextualizer here: integral formals
@@ -3647,10 +3704,15 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      pform_procedural_expr_context = true;
 				      pform_default_argument_context = true;
 				      pform_default_argument_requires_procedural_context = false;
+				      bool old_need_const_func = scope->need_const_func();
+				      if (interface_method_default)
+					    scope->need_const_func(true);
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
-					    scope->need_const_func());
+					    scope->need_const_func()
+					    || interface_method_default);
+				      scope->need_const_func(old_need_const_func);
 				      if (tmp_def
 					  && pform_default_argument_requires_procedural_context)
 					    tmp_def->mark_requires_procedural_context();
