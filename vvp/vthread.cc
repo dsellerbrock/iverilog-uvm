@@ -9796,6 +9796,30 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned k = defn->covgrp_bin(recs[0]).kind & 7;
 	    if (k != 2) continue;
 	    if (!item_enabled(defn->covgrp_bin(recs[0]).item_idx)) continue;
+	    if (defn->covgrp_bin(recs[0]).kind & 1024) {
+		  const class_type::cov_bin_t&first = defn->covgrp_bin(recs[0]);
+		  unsigned cp = first.cp_idx;
+		  if (cp >= ncp || !cp_sampled[cp]) continue;
+		  bool enabled = true;
+		  std::vector<const class_type::cov_bin_t*> records;
+		  for (size_t bi : recs) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			if (!bin_enabled(bin.guard_idx)) enabled = false;
+			records.push_back(&bin);
+		  }
+		  if (!enabled) continue;
+		  std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+			  (uint64_t)kv.first << 32, records, cp_vals[cp],
+			  &wide_vals[cp]);
+		  if (!completed.empty()) {
+			std::cerr << "ERROR: covergroup illegal transition bin matched"
+				  << " (prop_idx=" << covgrp_diag_prop_idx_(defn, kv.first)
+				  << ")" << std::endl;
+			covgrp_bump_count_(cobj, kv.first);
+			cp_suppressed[cp] = true;
+		  }
+		  continue;
+	    }
 	      // tuples OR; records in one tuple AND.
 	    std::map<unsigned, bool> tuple_ok;
 	    for (size_t bi : recs) {
@@ -9827,6 +9851,25 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			      if (bin.cp_idx < ncp)
 				    cp_suppressed[bin.cp_idx] = true;
 			}
+	    }
+      }
+
+	// Constructor-dependent illegal transition programs use the same
+	// matcher as ordinary transition bins, but report before normal routing.
+      for (auto&entry : dyn_trans_states) {
+	    const covgrp_dyn_trans_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    if (cp >= ncp || !cp_sampled[cp]) continue;
+	    std::vector<const class_type::cov_bin_t*> records;
+	    for (const auto&rec : state.records) records.push_back(&rec);
+	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+		  (UINT64_C(1) << 63) | ((uint64_t)entry.first << 16),
+		  records, cp_vals[cp], &wide_vals[cp]);
+	    if (!completed.empty() && bin_enabled(state.meta->guard_idx)) {
+		  std::cerr << "ERROR: covergroup illegal transition bin matched"
+			    << " (family=" << entry.first << ")" << std::endl;
+		  cp_suppressed[cp] = true;
 	    }
       }
 
@@ -10021,7 +10064,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// but keep instance-local endpoints and canonical type-bin identities.
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
-	    if (!state.valid || !state.meta || state.records.empty()) continue;
+	    if (!state.valid || !state.meta || state.records.empty()
+		|| (state.meta->kind & 1024)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp]) continue;
 	    std::vector<const class_type::cov_bin_t*> records;
@@ -10398,7 +10442,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 	    const auto&dyn_trans_states = cobj->cov_dyn_trans_states();
 	    for (auto&entry : dyn_trans_states) {
 		  const covgrp_dyn_trans_state_t&state = entry.second;
-		  if (!state.valid || !state.meta) continue;
+		  if (!state.valid || !state.meta || (state.meta->kind & 1024)) continue;
 		  long double logical = state.meta->array_size == 0
 			? state.type_bins.size() : 1;
 		  item_dyn_total[state.meta->item_idx] += logical;
@@ -13527,6 +13571,18 @@ bool of_AND(vthread_t thr, vvp_code_t)
 	    right.set_vec(0, valb);
 	    vala = left;
 	    valb = right;
+      }
+      vala &= valb;
+      return true;
+}
+
+bool of_AND_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz()) {
+	    vala = vvp_vector4_t(vala.size(), BIT4_X);
+	    return true;
       }
       vala &= valb;
       return true;
@@ -28126,7 +28182,17 @@ static vvp_vector4_t coerce_container_vector_(
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
-      size_t size = thr->words[cp->bit_idx[0]].w_int;
+      int64_t signed_size = thr->words[cp->bit_idx[0]].w_int;
+      if (signed_size < 0) {
+	    cerr << thr->get_fileline()
+		 << "runtime error: dynamic array new size " << signed_size
+		 << " is negative (IEEE 1800 7.5.1)." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
+      }
+      size_t size = static_cast<size_t>(signed_size);
       vvp_object_t obj = make_darray_for_enc_(text, size);
       if (obj.test_nil()) {
             cerr << get_fileline()
@@ -34186,12 +34252,13 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %test/class <class>
+ * %test/class <class>, <source-class>
  *
  * Is the object on top of the object stack assignment-compatible with
  * <class> (IEEE 1800-2017 6.24.2 / 8.16)? That is: is its DYNAMIC type
  * that class or a class derived from it? Sets flag 4, leaving the object
- * in place. `null` is compatible with everything.
+ * in place. The source-class operand is its declared type, or the target
+ * type for the literal null (which has no declared type).
  *
  * This is the check $cast owes its caller. The code generator used to
  * emit an unconditional store and an unconditional 1 for a $cast whose
@@ -34203,11 +34270,13 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
 bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 {
       const class_type*want = dynamic_cast<const class_type*> (cp->handle);
+      const class_type*source = dynamic_cast<const class_type*>(
+	    reinterpret_cast<vpiHandle>(cp->cptr2));
       vvp_object_t&obj = thr->peek_object();
 
       bool ok = false;
       if (obj.test_nil()) {
-	    ok = true;
+	    ok = source && source->assignment_compatible_with(want);
       } else if (want) {
 	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
 	      /* The object's dynamic class may reach WANT through either its

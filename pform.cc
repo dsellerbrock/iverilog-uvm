@@ -6592,48 +6592,18 @@ void pform_make_let(const struct vlltype&loc,
                     PExpr*expr)
 {
       LexicalScope*scope =  pform_peek_scope();
-      Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
-
-      if (mod == 0) {
-	    PPackage*package = dynamic_cast<PPackage*>(scope);
-	    if (package) {
-		  if (package->lets.count(name)) {
-			cerr << loc.get_fileline() << ": error: duplicate let declaration `"
-			     << name << "' in package `" << package->pscope_name() << "'." << endl;
-			error_count += 1;
-			delete expr;
-			return;
-		  }
-		  PLet*res = new PLet(name, scope, ports, expr);
-		  FILE_NAME(res, loc);
-		  package->lets[name] = res;
-		  return;
-	    }
-      }
-
-	// let declarations are supported directly in module/interface
-	// scope (the overwhelmingly common placement). Lets nested in
-	// generate blocks or other scopes are a recorded corner.
-      if (mod == 0 || pform_cur_generate != 0
-	  || scope != static_cast<LexicalScope*>(mod)) {
-	    cerr << loc.get_fileline() << ": sorry: let declaration `"
-		 << name << "' outside direct module/interface scope is "
-		 << "not supported yet; the let is dropped." << endl;
-	    error_count += 1;
-	    if (ports) {
-		  for (list<PLet::let_port_t*>::iterator cur = ports->begin()
-			     ; cur != ports->end() ; ++cur)
-			delete *cur;
-		  delete ports;
-	    }
-	    delete expr;
-	    return;
-      }
-
-      if (mod->lets.count(name)) {
-	    cerr << loc.get_fileline() << ": error: duplicate let "
-		 << "declaration `" << name << "' in module `"
-		 << mod->mod_name() << "'." << endl;
+	if (scope->lets.count(name)) {
+	      PPackage*package = dynamic_cast<PPackage*>(scope);
+	      Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
+	      if (package)
+		    cerr << loc.get_fileline() << ": error: duplicate let declaration `"
+			 << name << "' in package `" << package->pscope_name() << "'." << endl;
+	      else if (mod && scope == static_cast<LexicalScope*>(mod))
+		    cerr << loc.get_fileline() << ": error: duplicate let declaration `"
+			 << name << "' in module `" << mod->mod_name() << "'." << endl;
+	      else
+		    cerr << loc.get_fileline() << ": error: duplicate let declaration `"
+			 << name << "' in this scope." << endl;
 	    error_count += 1;
 	    delete expr;
 	    return;
@@ -6641,7 +6611,7 @@ void pform_make_let(const struct vlltype&loc,
 
       PLet*res = new PLet(name, scope, ports, expr);
       FILE_NAME(res, loc);
-      mod->lets[name] = res;
+	scope->lets[name] = res;
 }
 
 PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
@@ -7478,6 +7448,16 @@ void pform_start_clocking_block(const struct vlltype&loc,
       ivl_assert(loc, scope);
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
+
+	/* IEEE 1800-2017 14.14: global clocking declarations are not
+	   allowed in generate blocks. */
+      if (is_global && pform_error_in_generate(loc,
+						       "global clocking declaration")) {
+	    pform_cur_clocking_is_global = false;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
 
       if (is_default && !scope->default_clocking.nil()) {
 	    cerr << loc << ": error: multiple default clocking declarations "
@@ -8514,6 +8494,7 @@ struct sva_param_prop_t {
 };
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
+static std::set<const PGenerate*> sva_default_disable_scopes;
 
 /* Sampled calls in a DECLARATION acquire their clock only when the named
    property/sequence is instantiated. They must not remain in the generic
@@ -8759,8 +8740,15 @@ Statement* pform_sva_sequence_event(const struct vlltype&loc,
       return result;
 }
 
-void pform_sva_set_default_disable(PExpr*expr)
+void pform_sva_set_default_disable(const struct vlltype&loc, PExpr*expr)
 {
+      if (!sva_default_disable_scopes.insert(pform_cur_generate).second) {
+	    cerr << loc << ": error: More than one default disable iff declaration "
+		 << "in the same scope." << endl;
+	    error_count += 1;
+	    delete expr;
+	    return;
+      }
       sva_default_disable = expr;
 }
 
@@ -9442,6 +9430,7 @@ void pform_sva_module_done(void)
       sva_property_shaped_sequences.clear();
       sva_param_sequences.clear();
       sva_param_properties.clear();
+      sva_default_disable_scopes.clear();
       delete sva_default_disable;
       sva_default_disable = nullptr;
 }
@@ -17876,6 +17865,22 @@ sva_property_t* pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain)
       return p;
 }
 
+/* A clocked sequence operand in a property combinator retains its clock on
+   the property shell until the combinator can verify and propagate it. */
+sva_property_t* pform_sva_clocked_leaf_prop(const struct vlltype&loc,
+					    PEventStatement*clk,
+					    std::vector<sva_seq_step_t>*chain)
+{
+      sva_property_t*p = pform_sva_leaf_prop(chain);
+      if (!p) {
+	    delete clk;
+	    return nullptr;
+      }
+      p->clk_evt = clk;
+      (void)loc;
+      return p;
+}
+
 /* Take the tree out of a combinator-operand property, normalizing a
    chain-bearing property (legacy fixed-intersect result) to a leaf.
    Consumes the property shell (clk/disable/antecedent are always null
@@ -17905,7 +17910,31 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 				    sva_property_t*a, sva_property_t*b)
 {
-      (void)loc;
+      PEventStatement*clk = nullptr;
+      if (a && b && a->clk_evt && b->clk_evt) {
+	    ostringstream left, right;
+	    a->clk_evt->dump_inline(left);
+	    b->clk_evt->dump_inline(right);
+	    if (left.str() != right.str()) {
+		  cerr << loc << ": error: property operands have incompatible "
+		       << "semantic leading clocks (IEEE 1800-2017/2023 16.16.1)."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(a);
+		  pform_sva_destroy_property(b);
+		  return nullptr;
+	    }
+	    clk = a->clk_evt;
+	    a->clk_evt = nullptr;
+	    delete b->clk_evt;
+	    b->clk_evt = nullptr;
+	      } else if (a && a->clk_evt) {
+	    clk = a->clk_evt;
+	    a->clk_evt = nullptr;
+	      } else if (b && b->clk_evt) {
+	    clk = b->clk_evt;
+	    b->clk_evt = nullptr;
+      }
       sva_stree_t*ta = sva_prop_take_tree_(a);
       sva_stree_t*tb = sva_prop_take_tree_(b);
       if (!ta || !tb) {
@@ -17920,6 +17949,7 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
       sva_property_t*p = new sva_property_t;
       p->tree = t;
       p->op_type = 0;
+      p->clk_evt = clk;
       return p;
 }
 
@@ -18597,6 +18627,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       bool negated = (prop->op_type == 3);
       bool cover = (kind == 2);
+      bool sequence_cover = cover && prop->sequence_cover;
       bool implication = (prop->op_type == 1 || prop->op_type == 2);
       bool forbidden = implication && prop->forbidden_consequent;
 	/* A cover of the logical dual needs a first-class recursive-property
@@ -19604,10 +19635,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					       (negated || forbidden) ? r_f : r_p,
 					      sva_bit_(loc, 1)));
 	    }
-	    if (!endpoint_fanout) {
+	    if (!endpoint_fanout && !(cover && sequence_cover)) {
 		  clear_slot(k, acc_v);
 		  if (track_ob)
 			acc_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+	    } else if (!endpoint_fanout && sequence_cover) {
+		  /* A sequence-cover attempt remains live after a match while any
+		     later endpoint is still possible. Retire only its accepting
+		     state; the other NFA paths can produce further matches. */
+		  for (unsigned j = 0; j < N; ++j)
+			acc_v.push_back(sva_assign_(loc, s[k][j],
+			      j == nfa.accept ? sva_bit_(loc, 0)
+					      : sva_id_(loc, nx[j])));
+		  std::vector<Statement*> retire;
+		  clear_slot(k, retire);
+		  acc_v.push_back(sva_if_(loc, sva_not_(loc, alive),
+					  sva_block_(loc, retire), nullptr));
 	    }
 
 	    if (track_ob) {
@@ -28001,6 +28044,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Negated properties (op 3) and plain sequences (op 0) attempt
 	   every cycle. */
       bool negated = (prop->op_type == 3);
+      bool sequence_cover = kind == 2 && prop->sequence_cover;
       bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
@@ -28489,7 +28533,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			FILE_NAME(report, loc);
 			sat.push_back(report);
 		  }
-		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+		  if (!sequence_cover)
+			sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
 	    std::vector<Statement*> miss;
 	    if (kind != 2 && !negated) {
@@ -28567,7 +28612,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
 	    }
-	    sat.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    sat.push_back(sva_assign_(loc, r_pend,
+		  sequence_cover ? (PExpr*)elig
+				 : (PExpr*)sva_bit_(loc, 0)));
 	    std::vector<Statement*> miss;
 	    PEBLogic*acc = new PEBLogic('o', sva_id_(loc, r_pend),
 					sva_id_(loc, r_mat));

@@ -1,0 +1,2 @@
+ivltests/issue1217_interface_default_value_fail_2017.v:5: error: Default argument value for method `f' in class `Bad' does not match its interface-class prototype (IEEE 1800-2017/2023 8.26.8).
+1 error(s) during elaboration.
