@@ -28155,7 +28155,17 @@ static vvp_vector4_t coerce_container_vector_(
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
-      size_t size = thr->words[cp->bit_idx[0]].w_int;
+      int64_t signed_size = thr->words[cp->bit_idx[0]].w_int;
+      if (signed_size < 0) {
+	    cerr << thr->get_fileline()
+		 << "runtime error: dynamic array new size " << signed_size
+		 << " is negative (IEEE 1800 7.5.1)." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
+      }
+      size_t size = static_cast<size_t>(signed_size);
       vvp_object_t obj = make_darray_for_enc_(text, size);
       if (obj.test_nil()) {
             cerr << get_fileline()
