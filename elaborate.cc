@@ -18502,6 +18502,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 								       class_type->get_name()))
 			class_type = visible_class;
 	    }
+	    if (class_type->is_interface_class()
+		&& (method_name == perm_string::literal("rand_mode")
+		    || method_name == perm_string::literal("constraint_mode"))) {
+		  cerr << get_fileline() << ": error: " << method_name
+		       << "() is not allowed on an interface class handle"
+		       << " (IEEE 1800-2017/2023 8.26.9)." << endl;
+		  des->errors += 1;
+		  delete obj_expr;
+		  return 0;
+	    }
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
