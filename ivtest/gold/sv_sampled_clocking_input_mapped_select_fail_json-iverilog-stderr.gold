@@ -1,0 +1,1 @@
+ivltests/sv_sampled_clocking_input_mapped_select_fail.v:9: sorry: selected mapped clocking-block input `cb.mapped' is not supported in a procedural sampled-value function (IEEE 1800-2017/2023 16.9.3).

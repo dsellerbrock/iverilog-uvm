@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_sampled_clocking_input_mapped_select_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_sampled_clocking_input_mapped_select_fail_json"
+}
