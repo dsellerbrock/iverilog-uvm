@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_case_matches_parenthesized.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "sv_case_matches_parenthesized"
+}
