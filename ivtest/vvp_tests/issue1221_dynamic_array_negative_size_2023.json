@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue1221_dynamic_array_negative_size.v",
+  "iverilog-args": ["-g2023", "-s", "issue1221_dynamic_array_negative_size"],
+  "gold": "issue1221_dynamic_array_negative_size_2023"
+}
