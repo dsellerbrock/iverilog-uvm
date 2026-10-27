@@ -5,8 +5,7 @@ ROOT=$(pwd)
 OUT="$ROOT/evidence/issue905-declaration-scope/attempt-09-current-main/results"
 PREFIX="$ROOT/local-install"
 mkdir -p "$OUT/logs"
-printf 'head=%s\n' "$(git rev-parse HEAD)" > "$OUT/metadata.txt"
-printf 'host=Slurm DAN-DESKTOP\ncpus=3\nmem=8G\n' >> "$OUT/metadata.txt"
+printf 'source_commit=recorded by slurm-run\nhost=Slurm DAN-DESKTOP\ncpus=3\nmem=8G\n' > "$OUT/metadata.txt"
 
 autoconf || exit 2
 ./configure --enable-libveriuser --prefix="$PREFIX" > "$OUT/configure.log" 2>&1 || { tail -100 "$OUT/configure.log"; exit 2; }
@@ -39,6 +38,19 @@ def select(master, wanted, target):
         raise SystemExit(f"missing tests in {master}: {sorted(missing)}")
     target.write_text("\n".join(found[name] for name in sorted(wanted)) + "\n")
 
+def select_json_files(wanted, target):
+    rows = []
+    missing = []
+    for name in sorted(wanted):
+        path = ivtest / "vvp_tests" / f"{name}.json"
+        if path.is_file():
+            rows.append(f"{name} vvp_tests/{path.name}")
+        else:
+            missing.append(name)
+    if missing:
+        raise SystemExit(f"missing JSON files: {missing}")
+    target.write_text("\n".join(rows) + "\n")
+
 t0 = {
     "sv_default_argument_declaration_scope",
     "sv_default_argument_declaration_scope_2023",
@@ -70,7 +82,7 @@ select(ivtest / "regress-sv.list", names(root / "ci/smoke-tests.txt"), out / "sm
 select(ivtest / "regress-sv.list", t0, out / "t0-legacy.list")
 select(ivtest / "regress-vvp.list", t0, out / "t0-json.list")
 select(ivtest / "regress-sv.list", t1_legacy, out / "t1-legacy.list")
-select(ivtest / "regress-vvp.list", t1_json, out / "t1-json.list")
+select_json_files(t1_json, out / "t1-json.list")
 PY
 rc=$?
 [ "$rc" -eq 0 ] || exit "$rc"
