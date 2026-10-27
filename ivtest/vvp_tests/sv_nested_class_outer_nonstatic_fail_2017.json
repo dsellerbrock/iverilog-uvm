@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_nested_class_outer_nonstatic_fail.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_nested_class_outer_nonstatic_fail_2017"
+}
