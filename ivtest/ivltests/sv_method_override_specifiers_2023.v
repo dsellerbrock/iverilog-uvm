@@ -58,11 +58,11 @@ endfunction
 
 interface class method_override_api;
   pure virtual function int value();
-  pure virtual function :initial int initial_value();
+  pure virtual function int initial_value();
 endclass
 
 interface class method_override_extended_api extends method_override_api;
-  pure virtual function :extends int value();
+  pure virtual function int value();
 endclass
 
 class method_override_api_impl implements method_override_extended_api;
