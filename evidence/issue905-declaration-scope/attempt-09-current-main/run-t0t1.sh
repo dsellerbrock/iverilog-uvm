@@ -92,7 +92,7 @@ run_manifest() {
     local kind=$1 manifest=$2 label=$3 row name logfile rc
     while IFS= read -r row; do
         [ -n "$row" ] || continue
-        name=${row%% *}
+        name=${row%%[[:space:]]*}
         logfile="$OUT/logs/$label-$name.log"
         printf '%s\n' "$row" > "$OUT/one.list"
         printf '%s ' "$label/$name"
