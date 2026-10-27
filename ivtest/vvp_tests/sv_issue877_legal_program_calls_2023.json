@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_issue877_legal_program_calls_2023.v",
+  "iverilog-args": ["-g2023"]
+}
