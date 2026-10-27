@@ -1,0 +1,2 @@
+ivltests/issue1212_local_subclass_access.v:7: error: Local property value is not accessible in this context. (scope=$unit.Derived.get)
+1 error(s) during elaboration.
