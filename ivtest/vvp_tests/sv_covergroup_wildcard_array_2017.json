@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_covergroup_wildcard_array.v",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["wildcard_array_coverage=100.0"]
+}
