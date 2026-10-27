@@ -284,7 +284,7 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 	    body_lines += 1;
       };
 
-      for (const class_type*ct : covgrp_registry_) {
+      for (const class_type*ct : covgrp_registry()) {
 	    if (!ct->covgrp_options_.merge_instances) {
 		  err = "covergroup " + ct->dispatch_prefix_
 			+ " uses merge_instances=0; cumulative database save unsupported";
@@ -568,7 +568,7 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
       map<const class_type*,
 	  map<unsigned, map<pair<unsigned,unsigned>, const cov_cross_term_t*>>>
 	    cross_terms;
-      for (const class_type*ct : covgrp_registry_)
+      for (const class_type*ct : covgrp_registry())
 	    for (const cov_cross_term_t&term : ct->covgrp_cross_terms_)
 		  cross_terms[ct][term.family][make_pair(term.dim, term.term_idx)] = &term;
       auto find_cross_term = [&cross_terms](const class_type*ct,
@@ -616,7 +616,7 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			return false;
 		  }
 		  const class_type*ct = 0;
-		  for (const class_type*candidate : covgrp_registry_)
+		  for (const class_type*candidate : covgrp_registry())
 			if (candidate->dispatch_prefix_ == prefix) {
 			      ct = candidate;
 			      break;
