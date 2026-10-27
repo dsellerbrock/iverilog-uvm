@@ -1,0 +1,2 @@
+property=1 sequence=2
+./ivltests/issue1193_cover_sequence_multiplicity.v:19: $finish called at 16 (1s)
