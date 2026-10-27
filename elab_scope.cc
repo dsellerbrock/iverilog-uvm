@@ -6111,6 +6111,10 @@ void PGenerate::elaborate_subscope_(Design*des, NetScope*scope)
       scope->add_typedefs(&typedefs);
       scope->add_nettypes(des, &nettypes);
 
+	for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+	     ; lt != lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
+
 	// Add the genvars to this scope.
       typedef map<perm_string,LineInfo*>::const_iterator genvar_it_t;
       for (genvar_it_t cur = genvars.begin(); cur != genvars.end(); ++ cur ) {
@@ -6506,6 +6510,10 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::FUNC);
 
+	for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+	     ; lt != lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
+
       // The function return variable is implicit, but a declaration in the
       // function body with the same name is still a duplicate object (IEEE
       // 1800-2017/2023 13.4.1). Diagnose it before the implicit return signal
@@ -6561,6 +6569,10 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 void PTask::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::TASK);
+
+	for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+	     ; lt != lets.end() ; ++ lt)
+	      scope->add_let(lt->first, lt->second);
 
       scope->set_task_pform(this);
 
@@ -6665,6 +6677,9 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 		&& wires.empty() && events.empty())
 		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
+	    for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+		 ; lt != lets.end() ; ++ lt)
+		  my_scope->add_let(lt->first, lt->second);
 	    my_scope->add_typedefs(&typedefs);
 	    my_scope->add_nettypes(des, &nettypes);
 
