@@ -1,0 +1,2 @@
+ivltests/issue1216_interface_method_default_fail_2017.v:2: error: $urandom is not a built-in function, so cannot be used in a constant function.
+1 error(s) during elaboration.
