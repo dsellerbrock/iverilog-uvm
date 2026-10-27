@@ -1890,6 +1890,11 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 	    }
 }
 
+void draw_store_vec4_lval(ivl_lval_t lval)
+{
+      store_vec4_to_one_lval(lval);
+}
+
 static void store_vec4_to_lval(ivl_statement_t net)
 {
       for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
