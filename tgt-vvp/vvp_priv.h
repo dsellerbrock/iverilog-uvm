@@ -935,6 +935,7 @@ extern void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
  * %mbx/get or %mbx/peek and consumes the returned value through
  * %ref/store/mbx. */
 extern int draw_capture_lval_ref(ivl_lval_t lval);
+extern void draw_store_vec4_lval(ivl_lval_t lval);
 
 /* Runtime queue mutation operands are exact 64-bit element counts. Zero is
  * the static spelling for unbounded, while a live declaration carrier keeps
