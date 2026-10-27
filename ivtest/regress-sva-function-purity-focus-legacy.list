@@ -1,0 +1,4 @@
+sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
+sv_assert_function_sample_pure normal,-g2017,-gassertions ivltests gold=sv_assert_function_sample_pure.gold
+sv_assert_function_nested_side_effect_fail CE,-g2017,-gassertions ivltests gold=sv_assert_function_nested_side_effect_fail.gold
+sv_assert_function_static_return_read_fail CE,-g2017,-gassertions ivltests gold=sv_assert_function_static_return_read_fail.gold
