@@ -43529,50 +43529,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   cgdef->coverpoints.size(), std::make_pair(-1, -1));
             std::vector<std::pair<int,int>> cross_goal_comment_props(
                   cgdef->crosses.size(), std::make_pair(-1, -1));
-            // Keep option slots in declaration-class order. That preserves
-            // each inherited prefix across multiple covergroup extensions,
-            // although coverpoints and crosses are stored in separate lists.
-            std::vector<const PClass*> item_option_class_order;
-            for (const netclass_t*owner = this; owner; owner = owner->get_super()) {
-                  const NetScope*owner_scope = owner->class_scope();
-                  const PClass*owner_pclass = owner_scope
-                        ? owner_scope->class_pform() : nullptr;
-                  if (owner_pclass
-                      && std::find(item_option_class_order.begin(),
-                                   item_option_class_order.end(),
-                                   owner_pclass) == item_option_class_order.end())
-                        item_option_class_order.push_back(owner_pclass);
-            }
-            std::reverse(item_option_class_order.begin(),
-                        item_option_class_order.end());
-            auto current_class = std::find(item_option_class_order.begin(),
-                                           item_option_class_order.end(), pclass);
-            if (current_class != item_option_class_order.end())
-                  item_option_class_order.erase(current_class);
-            item_option_class_order.push_back(pclass);
-            for (const PClass*owner_pclass : item_option_class_order) {
-                  for (size_t idx = 0; idx < cgdef->coverpoints.size(); ++idx) {
-                        const auto&cp = cgdef->coverpoints[idx];
-                        if (cp.decl_class == owner_pclass)
-                              cp_goal_comment_props[idx] = add_item_goal_comment_props(
-                                    "__covgrp_item_cp_" + std::to_string(idx));
-                  }
-                  for (size_t idx = 0; idx < cgdef->crosses.size(); ++idx) {
-                        const auto&cross = cgdef->crosses[idx];
-                        if (cross.decl_class == owner_pclass)
-                              cross_goal_comment_props[idx] = add_item_goal_comment_props(
-                                    "__covgrp_item_cross_" + std::to_string(idx));
-                  }
-            }
+            std::vector<std::pair<int,int>> option_slots(
+                  cgdef->option_slot_count);
+            for (size_t slot = 0; slot < option_slots.size(); ++slot)
+                  option_slots[slot] = add_item_goal_comment_props(
+                        "__covgrp_item_slot_" + std::to_string(slot));
             for (size_t idx = 0; idx < cgdef->coverpoints.size(); ++idx) {
-                  if (cp_goal_comment_props[idx].first < 0)
-                        cp_goal_comment_props[idx] = add_item_goal_comment_props(
-                              "__covgrp_item_cp_" + std::to_string(idx));
+                  int slot = cgdef->coverpoints[idx].option_slot;
+                  ivl_assert(*pclass, slot >= 0
+                        && static_cast<size_t>(slot) < option_slots.size());
+                  cp_goal_comment_props[idx] = option_slots[slot];
             }
             for (size_t idx = 0; idx < cgdef->crosses.size(); ++idx) {
-                  if (cross_goal_comment_props[idx].first < 0)
-                        cross_goal_comment_props[idx] = add_item_goal_comment_props(
-                              "__covgrp_item_cross_" + std::to_string(idx));
+                  int slot = cgdef->crosses[idx].option_slot;
+                  ivl_assert(*pclass, slot >= 0
+                        && static_cast<size_t>(slot) < option_slots.size());
+                  cross_goal_comment_props[idx] = option_slots[slot];
             }
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
