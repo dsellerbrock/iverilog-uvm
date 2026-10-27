@@ -52,6 +52,7 @@ vpip_mcd_rawwrite
 vpip_register_immediate_cover
 vpip_report_immediate_cover
 vpip_set_return_value
+vpip_covgrp_db
 vpip_systf_call_returns_string
 vpip_is_system_verilog_mode
 svDimensions

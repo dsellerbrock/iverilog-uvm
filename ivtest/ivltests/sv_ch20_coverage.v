@@ -1,6 +1,6 @@
 // IEEE 1800-2017 20.14 and 40.3. Icarus does not instrument code
-// coverage, so supported queries report the standard SV_COV_NOCOV status;
-// unsupported state/database operations report their loud boundary.
+// coverage, so coverage-control queries report the standard SV_COV_NOCOV status.
+// Functional-coverage persistence is covered by valid paired §19.9 tests.
 module DUT;
 endmodule
 
@@ -64,8 +64,6 @@ module test;
           $coverage_save(`SV_COV_FSM_STATE, "snapshot"),
           `SV_COV_NOCOV);
 
-    $set_coverage_db_name("functional.db");
-    $load_coverage_db("functional.db");
     functional_coverage = $get_coverage();
     if (functional_coverage < 0.0 || functional_coverage > 100.0) begin
       errors += 1;

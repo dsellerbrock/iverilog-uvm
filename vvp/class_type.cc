@@ -32,6 +32,7 @@
 # include  <cinttypes>
 # include  <cctype>
 # include  <cerrno>
+# include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
 # include  <limits>
@@ -4036,7 +4037,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    return 0.0;
       // A declaration alone contributes no bins. Retired instances still
       // belong to the cumulative population, even with zero instance weight.
-      if (covgrp_live_.empty() && !covgrp_has_retired_options_) return 0.0;
+      if (covgrp_live_.empty() && !covgrp_has_retired_options_
+	  && !covgrp_db_loaded_) return 0.0;
       if (!covgrp_options_.merge_instances) {
             size_t item = static_cast<size_t>(selected_item);
 	    long double weights = selected_item >= 0

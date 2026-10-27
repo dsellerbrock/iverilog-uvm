@@ -2448,5 +2448,6 @@ vpip_routines_s vpi_routines = {
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
     .print_finish_stats         = vpip_print_finish_stats,
+    .covgrp_db                  = vpip_covgrp_db,
 };
 #endif

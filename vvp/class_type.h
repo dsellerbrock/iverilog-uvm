@@ -553,6 +553,9 @@ class class_type : public __vpiHandle {
       static const std::vector<const class_type*>& covgrp_registry();
       static void covgrp_register(const class_type*ct);
       static void covgrp_report(FILE*fd);
+      static bool covgrp_db_save(const std::string&path, std::string&err);
+      static bool covgrp_db_load(const std::string&path, std::string&err,
+                                 bool&missing);
 
 	// M11-3: all live covergroup instances are registered for cumulative
 	// option semantics. For event-driven class-embedded covergroups, the
@@ -602,6 +605,7 @@ class class_type : public __vpiHandle {
       std::vector<cov_cross_bin_t> covgrp_cross_bins_;
       std::vector<cov_item_t> covgrp_items_;
       mutable std::vector<uint32_t> type_counts_;
+      mutable bool covgrp_db_loaded_ = false;
       mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>
 	    covgrp_dyn_type_counts_;
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
@@ -634,6 +638,7 @@ class class_type : public __vpiHandle {
 
       unsigned covgrp_decl_weight_(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_cumulative_at_least_(size_t idx) const;
+      std::string covgrp_fingerprint_() const;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);
