@@ -1793,14 +1793,11 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      const netclass_t*property_owner = class_type;
-      while (property_owner->get_super()
-	     && static_cast<size_t>(pidx)
-		  < property_owner->get_super()->get_properties())
-	    property_owner = property_owner->get_super();
-      if (qual.test_local() && !property_owner->test_scope_is_method(scope)) {
+      if ((qual.test_local() || qual.test_protected())
+          && !class_type->test_scope_can_access_property(scope, (size_t)pidx)) {
 	    cerr << li->get_fileline() << ": error: "
-		 << "Local property " << class_type->get_prop_name(pidx)
+		 << (qual.test_local() ? "Local" : "Protected") << " property "
+		 << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;

@@ -159,6 +159,11 @@ class netclass_t : public ivl_type_s {
 	// "local" and "protected".
       bool test_scope_is_method(const NetScope*scope) const;
 
+      // Test whether a lexical class method may access a property declared
+      // by this class or one of its superclasses.
+      bool test_scope_can_access_property(const NetScope*scope,
+                                         size_t property) const;
+
       void elaborate_sig(Design*des, PClass*pclass);
       void elaborate(Design*des, PClass*pclass);
       void elaborate_constraints(Design*des, PClass*pclass);

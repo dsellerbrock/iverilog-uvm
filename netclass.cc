@@ -969,6 +969,22 @@ bool netclass_t::test_scope_is_method(const NetScope*scope) const
 	    return true;
 }
 
+bool netclass_t::test_scope_can_access_property(const NetScope*scope,
+                                               size_t property) const
+{
+      property_qualifier_t qual = get_prop_qual(property);
+      if (!qual.test_local() && !qual.test_protected())
+            return true;
+
+      const netclass_t*owner = get_prop_declaring_class(property);
+      const NetScope*class_scope = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*access = class_scope ? class_scope->class_def() : nullptr;
+      for (; access; access = qual.test_protected() ? access->get_super() : nullptr)
+            if (access == owner)
+                  return true;
+      return false;
+}
+
 const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
 					 ivl_type_t &par_type) const
 {

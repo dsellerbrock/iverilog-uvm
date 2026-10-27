@@ -3871,9 +3871,12 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  next_modport = owner_class->get_prop_interface_modport(pidx);
 
 		  property_qualifier_t qual = owner_class->get_prop_qual(pidx);
-		  if (qual.test_local() && ! owner_class->test_scope_is_method(scope)) {
+		  if ((qual.test_local() || qual.test_protected())
+		      && !owner_class->test_scope_can_access_property(scope,
+								     (size_t)pidx)) {
 			cerr << get_fileline() << ": error: "
-			     << "Local property " << owner_class->get_prop_name(pidx)
+			     << (qual.test_local() ? "Local" : "Protected") << " property "
+			     << owner_class->get_prop_name(pidx)
 			     << " is not accessible (l-value) in this context."
 			     << " (scope=" << scope_path(scope) << ")" << endl;
 			des->errors += 1;
