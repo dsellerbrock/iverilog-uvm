@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue1216_interface_method_default_fail_2023.v","iverilog-args":["-g2023","-s","top"],"gold":"issue1216_interface_method_default_fail_2023"}
