@@ -1,0 +1,12 @@
+M9 #905 current-main T0/T1 validation
+Slurm job: 5096
+Slurm staged tree: adcb4f3936b5
+Source branch: agent/a3-m7-issue905-default-arg-scope-20261021
+Command: ./evidence/issue905-declaration-scope/attempt-09-current-main/run-t0t1.sh
+Result: PASS (exit 0)
+T0: smoke 56/56; issue legacy 4/4; issue JSON 4/4
+T1: related legacy 20/20; related JSON 18/18
+Timeout: 120 seconds per test
+Resources: 3 CPUs, 8 GiB requested; peak RSS 1,757,640 KiB
+Elapsed: 2:44.26
+Remote run directory was removed after fetching results.
