@@ -1,0 +1,1 @@
+ivltests/sv_sampled_clocking_input_skew_zero_fail.v:9: sorry: clocking-block input `cb.d' in a procedural sampled-value function must use #1step input skew (IEEE 1800-2017/2023 16.5.1).

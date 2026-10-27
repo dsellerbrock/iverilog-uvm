@@ -1,5 +1,18 @@
 # Current evidence and work
 
+## IEEE 1800 §16.9.3 — issue #711 procedural clocking inputs
+
+Procedural sampled-value calls can now capture a clocking-block input through
+its raw source when its single simple `#1step` clocking event is provably the
+same as the inferred procedural event. The paired 2017/2023 focus passes 17/17
+legacy and 22/22 JSON cases; T0 smoke passes 56/56 legacy, 145/145 VPI, and
+152/152 negative tests. Conditional or mismatched events, numeric input skew,
+mapped alias selections, and event shapes that cannot be proven equal fail
+closed. Concurrent-assertion rewriting is unchanged. Full legacy+JSON remains
+for the T2 batch. The local logs and SHA256 manifest are at
+`evidence/m9-group3/issue711-final-r3-evidence-20261027/`; see the
+[blocker record](BLOCKERS.md#ieee-1800-sampled-clocking-inputs-issue-711-locally-validated-t2-pending).
+
 ## SV-Tests gap baseline — 2026-10-13
 
 The initial replay of pinned corpus `c4229f3` returned 603/1,027 on the system
