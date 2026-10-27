@@ -783,6 +783,31 @@ suspended_m4: |
 
 active:
   features:
+    m9_issue1183:
+      id: "M9-1183"
+      owner: "A3 (IEEE 1800 features)"
+      github_issue: "#1183 (follow-up to merged regression PR #1647)"
+      culprit_pr: "#1647 (swarm/L2-1183)"
+      branch: "agent/a3-m9-1183-purity-20261026"
+      baseline: "origin/main 02ff25587ad369ea333c61fee650a7e33c4fdeca"
+      status: "in_progress"
+      phase: "T0_T1_PASSED; SLURM_EVIDENCE_RECORDED; PR_PENDING"
+      goal: "Preserve pure read-only sampled-value function calls in concurrent assertions while rejecting side-effecting function call chains."
+      standards: "IEEE 1800-2017/2023 §16.6; internal sampling follows §14.13 and §16.5.1."
+      failing_reproducer: "tests/sva_nfa/named_antecedent_parameter_consequent_repeat.sv fails under both -g2017 and -g2023; current main reports boolean_function as impure."
+      current_behavior: "Purity analysis sees the compiler-generated $ivl_clocking_sample call as an unsupported system function and rejects an otherwise pure sampled-value expression."
+      expected_semantics: "Permit this exact read-only internal sampling call after recursively validating its operands; preserve rejection of writes, stateful static functions, and unsupported calls."
+      root_cause_hypothesis: "The exact-name pure-system-function whitelist omitted $ivl_clocking_sample, which represents a read-only Preponed operand sample."
+      suspected_symbols: "constraint_pure_expr_() and pure_system_functions in elaborate.cc."
+      allowed_scope: "Exact $ivl_clocking_sample whitelist entry; paired 2017/2023 assertion purity regressions; focused runner registration; M9 evidence and blocker notes."
+      forbidden_scope: "No broad system-function prefix whitelist, no unrelated diagnostic ordering changes, no output-argument test, no CI workflow edits, and no weakening of side-effect checks."
+      dependencies: "Branch-local autotools build with Z3 and libffi; legacy and JSON regression runners."
+      completion_requirements: "Named-consequent reproducer passes both editions; positive sampled pure functions pass; nested and stateful side effects remain rejected; T0/T1/T2 and Fast Linux pass before batch merge."
+      acceptance: "Exact-head patch fixes both existing current-main failures and the paired tests preserve recursive purity checks in both editions."
+      evidence: "evidence/m9-1183-function-purity-20261026/recorded-t0-t1/ (Slurm job 4910; smoke, 4 legacy, 8 JSON, 2 named-consequent tests passed)."
+      discovery_policy: "Record unrelated output-argument diagnostic behavior in DISCOVERED_DEBT.md; do not expand this fix to change diagnostic order."
+      next_action: "Review, commit, and publish the fix; require exact-head Fast Linux; batch with ready M9 PRs after refreshing ci-state.md."
+      stop_after_completion: true
     m9_issue836:
       id: "M9-836"
       owner: "A3 (IEEE 1800 features)"

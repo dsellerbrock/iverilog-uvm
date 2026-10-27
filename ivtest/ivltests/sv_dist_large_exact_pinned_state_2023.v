@@ -1,3 +1,4 @@
+`define DIST_2023
 class pinned_state_item;
   rand bit [9:0] value;
   rand bit [9:0] bound;
@@ -22,8 +23,13 @@ module test;
       if (item.value > 399) $fatal(1, "pinned bound ignored: %0d", item.value);
       if (item.value <= 300) low++; else high++;
     end
+`ifdef DIST_2023
     if (low < 7 || low > 65)
-      $fatal(1, "pinned-state exact item ratio failed");
+      $fatal(1, "2023 pinned-state exact item ratio failed");
+`else
+    if (low < 55 || low > 95)
+      $fatal(1, "2017 pinned-state per-value ratio failed");
+`endif
     $display("PASSED");
   end
 endmodule

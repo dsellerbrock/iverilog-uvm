@@ -351,14 +351,24 @@ static PLI_INT32 coverage_db_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 static PLI_INT32 coverage_db_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle arg;
+      s_vpi_value value;
+      int op;
 
       assert(callh);
-      if (strcmp((const char*)name, "$set_coverage_db_name") == 0)
-            coverage_runtime_warning(callh, (const char*)name,
-                 "cannot select a functional-coverage database because that backend is unavailable");
-      else
-            coverage_runtime_warning(callh, (const char*)name,
-                 "cannot load a functional-coverage database because that backend is unavailable");
+      op = strcmp((const char*)name, "$set_coverage_db_name") == 0
+            ? VPIP_COVGRP_DB_SET_NAME : VPIP_COVGRP_DB_LOAD;
+      argv = vpi_iterate(vpiArgument, callh);
+      arg = argv ? vpi_scan(argv) : 0;
+      if (!arg) {
+            vpip_covgrp_db(op, 0);
+            return 0;
+      }
+      memset(&value, 0, sizeof value);
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      vpip_covgrp_db(op, value.value.str);
       return 0;
 }
 

@@ -644,6 +644,13 @@ void draw_class_in_scope(ivl_type_t classtype)
             ivl_type_covgrp_per_instance(classtype),
             ivl_type_covgrp_per_instance_prop(classtype) + 1);
       }
+      if (ivl_type_covgrp_goal_prop(classtype) >= 0
+	  || ivl_type_covgrp_comment_prop(classtype) >= 0)
+	    fprintf(vvp_out, " .covgrp_option_values %d %u %d \"%s\"\n",
+		  ivl_type_covgrp_goal_prop(classtype) + 1,
+		  ivl_type_covgrp_goal(classtype),
+		  ivl_type_covgrp_comment_prop(classtype) + 1,
+		  vvp_mangle_name(ivl_type_covgrp_comment(classtype)));
       fprintf(vvp_out, " .covgrp_type_weight %u\n",
             ivl_type_covgrp_type_weight(classtype));
 	    int ni = ivl_type_covgrp_items(classtype);
@@ -666,6 +673,13 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  fprintf(vvp_out, " .covgrp_item_options %u %d %d\n", idx,
 			  ivl_type_covgrp_item_at_least_prop(classtype, idx) + 1,
 			  ivl_type_covgrp_item_weight_prop(classtype, idx) + 1);
+          fprintf(vvp_out,
+                  " .covgrp_item_option_values %u %d %u %d \"%s\"\n", idx,
+                  ivl_type_covgrp_item_goal_prop(classtype, idx) + 1,
+                  ivl_type_covgrp_item_goal(classtype, idx),
+                  ivl_type_covgrp_item_comment_prop(classtype, idx) + 1,
+                  vvp_mangle_name(
+                        ivl_type_covgrp_item_comment(classtype, idx)));
 	  fprintf(vvp_out, " .covgrp_item_guard %u %u\n", idx,
 		  ivl_type_covgrp_item_has_guard(classtype, idx));
 	    }
