@@ -2549,6 +2549,18 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
       if (property_is_static(pid))
 	    return;
 
+	// IEEE 1800-2017/2023 8.12: an embedded covergroup's object
+	// handle is set to null in the shallow copy. Its declared type is the
+	// synthesized covergroup class with an enclosing-object parent slot.
+	const class_type*declared_type = property_declared_class_type(pid);
+	if (declared_type && declared_type->is_covergroup()
+	    && declared_type->covgrp_parent_prop() >= 0) {
+	    vvp_object_t null_handle;
+	    for (size_t idx = 0 ; idx < property_array_size(pid) ; idx += 1)
+		  properties_[pid].type->set_object(dst_buf, null_handle, idx);
+	    return;
+	}
+
       properties_[pid].type->copy(dst_buf, src_buf);
 }
 
