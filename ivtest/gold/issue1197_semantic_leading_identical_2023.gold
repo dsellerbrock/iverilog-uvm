@@ -1,0 +1,2 @@
+identical_clocks=accepted
+./ivltests/issue1197_semantic_leading_identical.sv:11: $finish called at 1 (1s)
