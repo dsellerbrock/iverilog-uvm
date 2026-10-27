@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1217_interface_default_value_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1217_interface_default_value_fail_2023"],
+  "gold": "issue1217_interface_default_value_fail_2023"
+}
