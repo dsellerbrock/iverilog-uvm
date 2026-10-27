@@ -3628,6 +3628,10 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      nval->set_line(*ports_->at(idx).defe);
 				      tmp_def = nval;
 				} else if (formal_type) {
+				      // IEEE 1800-2017/2023 8.26.8 requires defaults on
+				      // interface-class methods to be constant expressions.
+				      bool interface_method_default = method_of()
+					    && method_of()->interface_class;
 				      /* IEEE 1800-2017 13.5.3: a default argument is an
 				       * assignment-like context supplied by its formal. Use the
 				       * ordinary r-value contextualizer here: integral formals
@@ -3647,10 +3651,15 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      pform_procedural_expr_context = true;
 				      pform_default_argument_context = true;
 				      pform_default_argument_requires_procedural_context = false;
+				      bool old_need_const_func = scope->need_const_func();
+				      if (interface_method_default)
+					    scope->need_const_func(true);
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
-					    scope->need_const_func());
+					    scope->need_const_func()
+					    || interface_method_default);
+				      scope->need_const_func(old_need_const_func);
 				      if (tmp_def
 					  && pform_default_argument_requires_procedural_context)
 					    tmp_def->mark_requires_procedural_context();
