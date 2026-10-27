@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue1231_unpacked_stream_array.sv",
+    "iverilog-args" : [ "-g2017", "-s", "issue1231_unpacked_stream_array" ],
+    "gold" : "issue1231_unpacked_stream_array"
+}

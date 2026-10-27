@@ -7948,16 +7948,21 @@ static NetExpr* stream_uarray_concat_(const LineInfo*li,
 
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
-      stream_uarray_op_info_t s_info;
-      int s_have = inner_ ? stream_uarray_operand_(des, scope, inner_,
-							    s_info, true) : 0;
-      if (s_have < 0) {
-	    expr_width_ = 0;
-      } else if (s_have > 0) {
-	    expr_width_ = (unsigned)s_info.elem_type->packed_width()
-		  * s_info.elem_count;
-      } else {
-	    expr_width_ = inner_->test_width(des, scope, mode);
+      std::vector<PExpr*> ops;
+      collect_operands_(ops);
+      expr_width_ = 0;
+      for (PExpr*op : ops) {
+	    stream_uarray_op_info_t s_info;
+	    int s_have = stream_uarray_operand_(des, scope, op, s_info, true);
+	    if (s_have < 0) {
+		  expr_width_ = 0;
+		  break;
+	    }
+	    if (s_have > 0)
+		  expr_width_ += (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+	    else
+		  expr_width_ += op->test_width(des, scope, mode);
       }
       expr_type_  = IVL_VT_LOGIC;
       signed_flag_ = false;
@@ -8274,6 +8279,9 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       bool invalid_operand = false;
       for (size_t idx = 0; idx < stream_ops.size(); idx += 1) {
 	    PExpr*op = stream_ops[idx];
+	    stream_uarray_op_info_t s_info;
+	    if (stream_uarray_operand_(des, scope, op, s_info, true) > 0)
+		  continue;
 	    width_mode_t op_mode = SIZED;
 	    op->test_width(des, scope, op_mode);
 	    if (op->expr_type() == IVL_VT_REAL) {
@@ -8288,28 +8296,45 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       if (invalid_operand) return nullptr;
 
       width_mode_t m = SIZED;
-      unsigned w;
-      NetExpr*body;
-      {
+      unsigned w = 0;
+      std::vector<NetExpr*> parts;
+      for (PExpr*op : stream_ops) {
 	    stream_uarray_op_info_t s_info;
-	    int s_have = stream_uarray_operand_(des, scope, inner_,
-							 s_info);
-	    if (s_have < 0)
+	    int s_have = stream_uarray_operand_(des, scope, op, s_info);
+	    if (s_have < 0) {
+		  for (NetExpr*part : parts) delete part;
 		  return nullptr;
-	    if (s_have > 0) {
-		  w = (unsigned)s_info.elem_type->packed_width()
-			* s_info.elem_count;
-		  body = stream_uarray_concat_(this, s_info);
-	    } else {
-		  w = inner_->test_width(des, scope, m);
-		  if (w == 0) {
-			cerr << get_fileline() << ": error: streaming concatenation "
-			      "requires a known-width inner expression." << endl;
-			des->errors += 1;
-			return nullptr;
-		  }
-		  body = inner_->elaborate_expr(des, scope, w, flags);
 	    }
+	    unsigned ow;
+	    NetExpr*part;
+	    if (s_have > 0) {
+		  ow = (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+		  part = stream_uarray_concat_(this, s_info);
+	    } else {
+		  ow = op->test_width(des, scope, m);
+		  part = ow ? op->elaborate_expr(des, scope, ow, flags) : nullptr;
+	    }
+	    if (!ow || !part) {
+		  for (NetExpr*old : parts) delete old;
+		  delete part;
+		  cerr << get_fileline() << ": error: streaming concatenation "
+		       "requires a known-width inner expression." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    w += ow;
+	    parts.push_back(part);
+      }
+      NetExpr*body;
+      if (parts.size() == 1) body = parts.front();
+      else {
+	    NetEConcat*cat = new NetEConcat((unsigned)parts.size(), 1,
+					    IVL_VT_LOGIC);
+	    cat->set_line(*this);
+	    for (size_t idx = 0; idx < parts.size(); idx += 1)
+		  cat->set((unsigned)idx, parts[idx]);
+	    body = cat;
       }
       unsigned slice = resolve_slice_(des, scope);
       if (slice == 0) {
@@ -8343,20 +8368,7 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
 
       width_mode_t m = SIZED;
-      unsigned w;
-      {
-	    stream_uarray_op_info_t s_info;
-	    int s_have = stream_uarray_operand_(des, scope, inner_,
-							 s_info);
-	    if (s_have < 0)
-		  return nullptr;
-	    if (s_have > 0) {
-		  w = (unsigned)s_info.elem_type->packed_width()
-			* s_info.elem_count;
-	    } else {
-		  w = inner_->test_width(des, scope, m);
-	    }
-      }
+      unsigned w = const_cast<PEStreaming*>(this)->test_width(des, scope, m);
       if (w == 0) {
             cerr << get_fileline() << ": error: streaming concatenation "
                   "requires a known-width inner expression." << endl;
