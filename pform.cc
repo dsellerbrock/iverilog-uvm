@@ -8514,6 +8514,7 @@ struct sva_param_prop_t {
 };
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
+static std::set<const PGenerate*> sva_default_disable_scopes;
 
 /* Sampled calls in a DECLARATION acquire their clock only when the named
    property/sequence is instantiated. They must not remain in the generic
@@ -8759,8 +8760,15 @@ Statement* pform_sva_sequence_event(const struct vlltype&loc,
       return result;
 }
 
-void pform_sva_set_default_disable(PExpr*expr)
+void pform_sva_set_default_disable(const struct vlltype&loc, PExpr*expr)
 {
+      if (!sva_default_disable_scopes.insert(pform_cur_generate).second) {
+	    cerr << loc << ": error: More than one default disable iff declaration "
+		 << "in the same scope." << endl;
+	    error_count += 1;
+	    delete expr;
+	    return;
+      }
       sva_default_disable = expr;
 }
 
@@ -9442,6 +9450,7 @@ void pform_sva_module_done(void)
       sva_property_shaped_sequences.clear();
       sva_param_sequences.clear();
       sva_param_properties.clear();
+      sva_default_disable_scopes.clear();
       delete sva_default_disable;
       sva_default_disable = nullptr;
 }
