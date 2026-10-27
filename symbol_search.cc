@@ -538,10 +538,26 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      ? const_cast<netclass_t*>(clsnet)->ensure_property_decl(des, path_tail.name)
 			      : -1;
 			if (pidx >= 0) {
+			      /* A nested class has lexical access to static members of its
+			       * containing class, but there is no implicit outer `this'
+			       * (IEEE 1800-2017/2023 8.23). Static properties were found as
+			       * class-scope signals above. Do not resolve a non-static
+			       * containing-class property against the nested class's `this'. */
+			      NetScope *scope_method = find_method_containing_scope(*li, start_scope);
+			      NetNet *method_handle = scope_method
+				    ? find_implicit_this_handle(des, scope_method) : nullptr;
+			      const netclass_t *this_class = method_handle
+				    ? dynamic_cast<const netclass_t*>(method_handle->net_type()) : nullptr;
+			      if (this_class && this_class != clsnet
+				  && !clsnet->get_prop_qual(pidx).test_static()) {
+				    cerr << li->get_fileline() << ": error: Nested class cannot access non-static containing-class property `"
+					 << path_tail.name << "' without an explicit object handle (IEEE 1800-2017/2023 8.23)." << endl;
+				    des->errors += 1;
+				    return false;
+			      }
 			      // This is a class property being accessed in a
 				      // class method. Return `this` for the net and the
 				      // property name for the path tail.
-			      NetScope *scope_method = find_method_containing_scope(*li, start_scope);
 			      if (scope_method) {
 			      res->net = find_implicit_this_handle(des, scope_method);
 			      // SV compile-progress: if property found in class

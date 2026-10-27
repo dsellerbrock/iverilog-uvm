@@ -1,0 +1,5 @@
+ivltests/sv_nested_class_outer_nonstatic_fail.v:5: error: Nested class cannot access non-static containing-class property `outerProp' without an explicit object handle (IEEE 1800-2017/2023 8.23).
+ivltests/sv_nested_class_outer_nonstatic_fail.v:5: error: Nested class cannot access non-static containing-class property `outerProp' without an explicit object handle (IEEE 1800-2017/2023 8.23).
+ivltests/sv_nested_class_outer_nonstatic_fail.v:5: warning: Could not find variable ``outerProp'' in ``$unit.outer_c.inner_c.innerMethod'' (compile-progress: assignment ignored).
+ivltests/sv_nested_class_outer_nonstatic_fail.v:5: error: Unable to elaborate statement in function innerMethod.
+3 error(s) during elaboration.
