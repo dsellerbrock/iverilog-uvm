@@ -7479,6 +7479,16 @@ void pform_start_clocking_block(const struct vlltype&loc,
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
 
+	/* IEEE 1800-2017 14.14: global clocking declarations are not
+	   allowed in generate blocks. */
+      if (is_global && pform_error_in_generate(loc,
+						       "global clocking declaration")) {
+	    pform_cur_clocking_is_global = false;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
+
       if (is_default && !scope->default_clocking.nil()) {
 	    cerr << loc << ": error: multiple default clocking declarations "
 		 << "in `" << scope->mod_name() << "' (IEEE 1800-2017 14.12 "
