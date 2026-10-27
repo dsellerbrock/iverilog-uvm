@@ -44196,13 +44196,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
-				      if (base_kind != 0) {
-					    cerr << "sorry: covergroup '" << cgdef->name
-						 << "': ignore/illegal transition bins are "
-						 << "not supported; bin '" << bin.name
-						 << "' is dropped." << endl;
-					    continue;
-				      }
+				      if (base_kind == 1) continue;
 				      // shortcut: wildcard transition bins need literal patterns and
 				      // cannot be arrayed; add set indexing when a case needs it.
 				      if (bin.wildcard && bin.arrayed) {
@@ -44407,6 +44401,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    pieces.push_back(std::move(terms));
 					    bool pieces_changed = false;
 					    for (auto&ignored : ignored_trans) {
+						  if (base_kind == 2) break;
 						  std::vector<std::vector<trans_term_t>> next_pieces;
 						  for (auto&piece : pieces) {
 							bool plain = true;
@@ -44495,13 +44490,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    "c:" + std::to_string(r.second) + ":" + tag));
 						  }
 						  for (auto&r : term.ir_ranges)
-							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							      4u | (base_kind == 2 ? 1024u : 0u),
 							      family, bin.arrayed ? 0 : ~(uint64_t)0,
 							      bin.name.str(), r.first, r.second,
 							      cp_value_width, cp_value_signed, bin_guard,
 							      sq, st, term.repeat, term.min, term.max);
 					    }
-					    has_value_bins = true;
+					    if (base_kind == 0) has_value_bins = true;
 					    continue;
 				      }
 				      if (bin.arrayed && family_total > array_transition_limit) {
@@ -44524,7 +44520,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  for (auto&r : term.ranges) {
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
-							      4u | (bin.wildcard ? 8u : 0u),
+							      (base_kind == 2 ? 2u | 1024u : 4u)
+								    | (bin.wildcard ? 8u : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
@@ -44535,6 +44532,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 					    }
 				      }
+				      if (base_kind == 2) continue;
 				      if (bin.arrayed) {
 					    for (uint64_t logical = 0;
 						 logical < (uint64_t)family_total; logical++) {
