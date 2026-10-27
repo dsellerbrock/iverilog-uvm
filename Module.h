@@ -200,9 +200,6 @@ class Module : public PScopeExtra, public PNamedItem {
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;
 
-	/* let declarations (IEEE 1800-2017 11.13), expanded by
-	   substitution at elaboration. */
-      std::map<perm_string,PLet*> lets;
       std::map<perm_string,PLet*> unit_lets;
 
 	// The mod_name() is the name of the module type.

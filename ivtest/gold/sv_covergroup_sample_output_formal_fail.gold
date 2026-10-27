@@ -1,0 +1,1 @@
+./ivltests/sv_covergroup_sample_output_formal_fail.v:2: error: Covergroup sample formal 'x' cannot have output direction (IEEE 1800 19.8.1).

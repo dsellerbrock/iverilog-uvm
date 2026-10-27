@@ -1,0 +1,2 @@
+illegal_transition_seen
+ivltests/issue1201_illegal_transition_bins.v:16: $finish called at 0 (1s)

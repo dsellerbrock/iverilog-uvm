@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_interface_class_mode_fail.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "sv_interface_class_mode_fail_2023"
+}
