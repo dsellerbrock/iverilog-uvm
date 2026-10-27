@@ -315,8 +315,40 @@ static void cov_capture_ctor_ports_(
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
 static stack<PBlock*> current_block_stack;
+static std::set<PBlock*> procedural_block_scopes;
+static std::set<PBlock*> procedural_blocks_with_statements;
 static stack<const PExpr*> current_case_match_subjects;
 static stack<PBlock*> current_pattern_blocks;
+
+/* Some declarations are routed through statement_item because the existing
+   block-item/statement grammar conflict resolves in that direction. Keep
+   track of executable statements per procedural block so those declaration
+   forms can still enforce IEEE 1800-2017/2023 6.21. */
+static void pform_note_procedural_statement(void)
+{
+      if (current_block_stack.empty()) return;
+      PBlock*block = current_block_stack.top();
+      if (procedural_block_scopes.count(block))
+	    procedural_blocks_with_statements.insert(block);
+}
+
+static void pform_check_statement_var_order(const struct vlltype&loc)
+{
+      if (current_block_stack.empty()) return;
+      PBlock*block = current_block_stack.top();
+      if (procedural_blocks_with_statements.count(block))
+	    yyerror(loc, "error: Variable declarations must precede statements in a procedural block (IEEE 1800-2017/2023 6.21).");
+}
+
+static void pform_make_statement_var(const struct vlltype&loc,
+				     std::list<decl_assignment_t*>*assign_list,
+				     data_type_t*data_type,
+				     std::list<named_pexpr_t>*attr = 0,
+				     bool is_const = false)
+{
+      pform_check_statement_var_order(loc);
+      pform_make_var(loc, assign_list, data_type, attr, is_const);
+}
 
 /* A virtual-interface name used only as a class type-parameter default may
    remain unresolved until an actual specialization selects and uses it. Mark
@@ -1501,6 +1533,7 @@ static procedural_block_scope_t* pform_start_procedural_block(
       scope->block_stack_depth = current_block_stack.size();
       scope->label = label;
       scope->block = pform_push_block_scope(loc, label, kind);
+      procedural_block_scopes.insert(scope->block);
       current_block_stack.push(scope->block);
       scope->active = true;
       return scope;
@@ -1509,6 +1542,10 @@ static procedural_block_scope_t* pform_start_procedural_block(
 static void pform_destroy_procedural_block(procedural_block_scope_t*scope)
 {
       if (!scope) return;
+      if (scope->block) {
+	    procedural_block_scopes.erase(scope->block);
+	    procedural_blocks_with_statements.erase(scope->block);
+      }
       pform_unwind_parser_block_scope(scope);
       pform_delete_abandoned_parser_block(scope);
       delete[] scope->label;
@@ -1523,6 +1560,8 @@ static PBlock* pform_finish_procedural_block(procedural_block_scope_t*scope)
       assert(current_block_stack.top() == scope->block);
       pform_unwind_parser_block_scope(scope);
       PBlock*block = scope->block;
+      procedural_block_scopes.erase(block);
+      procedural_blocks_with_statements.erase(block);
       scope->block = nullptr;
       return block;
 }
@@ -18921,19 +18960,19 @@ statement_item /* This is roughly statement_item in the LRM */
   | K_const TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*tmp = new typeref_t($2.type);
 	FILE_NAME(tmp, @2);
-	pform_make_var(@2, $3, tmp, nullptr, true);
+	pform_make_statement_var(@2, $3, tmp, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED;
 	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$2.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+      { if ($2) pform_make_statement_var(@2, $3, $2, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	$$ = nullptr;
       }
   | data_type list_of_variable_decl_assignments ';'
-      { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
+      { if ($1) pform_make_statement_var(@1, $2, $1, nullptr, false);
 	$$ = nullptr;
       }
 
@@ -18958,12 +18997,12 @@ statement_item /* This is roughly statement_item in the LRM */
      appearing after some other declaration or statement needed this
      alternative. Mirrors the two non-const rules just above. */
   | K_const variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
-      { if ($3) pform_make_var(@3, $4, $3, nullptr, true);
+      { if ($3) pform_make_statement_var(@3, $4, $3, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	$$ = nullptr;
       }
   | K_const data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, true);
+      { if ($2) pform_make_statement_var(@2, $3, $2, nullptr, true);
 	$$ = nullptr;
       }
 
@@ -19004,7 +19043,7 @@ statement_item /* This is roughly statement_item in the LRM */
      leaves it without a rule because data_type does not derive K_reg
      (ivtest constfunc8). Mirror the block_item_decl extension rule. */
   | K_reg data_type list_of_variable_decl_assignments ';'
-      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+      { if ($2) pform_make_statement_var(@2, $3, $2, nullptr, false);
 	$$ = nullptr;
       }
 
@@ -19034,7 +19073,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($2.type);
 	FILE_NAME(dtype, @2);
-	pform_make_var(@2, $3, dtype, nullptr, false);
+	pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	$$ = nullptr;
@@ -19042,14 +19081,14 @@ statement_item /* This is roughly statement_item in the LRM */
   | TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($1.type);
 	FILE_NAME(dtype, @1);
-	pform_make_var(@1, $2, dtype, nullptr, false);
+	pform_make_statement_var(@1, $2, dtype, nullptr, false);
 	delete[] $1.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($2.type, 0, $3);
 	FILE_NAME(dtype, @2);
-	pform_make_var(@2, $4, dtype, nullptr, false);
+	pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	$$ = nullptr;
@@ -19057,7 +19096,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($1.type, 0, $2);
 	FILE_NAME(dtype, @1);
-	pform_make_var(@1, $3, dtype, nullptr, false);
+	pform_make_statement_var(@1, $3, dtype, nullptr, false);
 	delete[] $1.text;
 	$$ = nullptr;
       }
@@ -19072,7 +19111,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $2, $4);
 	      FILE_NAME(dtype, @3);
-	      pform_make_var(@3, $5, dtype, nullptr, false);
+	      pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $3;
@@ -19089,7 +19128,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $1, $3);
 	      FILE_NAME(dtype, @2);
-	      pform_make_var(@2, $4, dtype, nullptr, false);
+	      pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	}
 	delete[] $2;
 	$$ = nullptr;
@@ -19098,7 +19137,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { lex_in_package_scope(0);
 	typeref_t*dtype = new typeref_t($3.type, $2, $4);
 	FILE_NAME(dtype, @3);
-	pform_make_var(@3, $5, dtype, nullptr, false);
+	pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $3.text;
 	$$ = nullptr;
@@ -19107,13 +19146,13 @@ statement_item /* This is roughly statement_item in the LRM */
       { lex_in_package_scope(0);
 	typeref_t*dtype = new typeref_t($2.type, $1, $3);
 	FILE_NAME(dtype, @2);
-	pform_make_var(@2, $4, dtype, nullptr, false);
+	pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	delete[] $2.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
       { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4);
-	if (dtype) pform_make_var(@2, $5, dtype, nullptr, false);
+	if (dtype) pform_make_statement_var(@2, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	delete[] $4;
@@ -19121,14 +19160,14 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
       { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3);
-	if (dtype) pform_make_var(@1, $4, dtype, nullptr, false);
+	if (dtype) pform_make_statement_var(@1, $4, dtype, nullptr, false);
 	delete[] $1.text;
 	delete[] $3;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
-	if (dtype) pform_make_var(@2, $5, dtype, nullptr, false);
+	if (dtype) pform_make_statement_var(@2, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	delete[] $4.text;
@@ -19136,7 +19175,7 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3.text);
-	if (dtype) pform_make_var(@1, $4, dtype, nullptr, false);
+	if (dtype) pform_make_statement_var(@1, $4, dtype, nullptr, false);
 	delete[] $1.text;
 	delete[] $3.text;
 	$$ = nullptr;
@@ -19146,7 +19185,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type);
 	      FILE_NAME(dtype, @2);
-	      pform_make_var(@2, $3, dtype, nullptr, false);
+	      pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	} else {
 	      yyerror(@2, "error: %s doesn't name a type.", $2);
 	}
@@ -19159,7 +19198,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type);
 	      FILE_NAME(dtype, @1);
-	      pform_make_var(@1, $2, dtype, nullptr, false);
+	      pform_make_statement_var(@1, $2, dtype, nullptr, false);
 	} else {
 	      yyerror(@1, "error: %s doesn't name a type.", $1);
 	}
@@ -19175,7 +19214,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | variable_lifetime_opt IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($4.type);
 	FILE_NAME(dtype, @4);
-	pform_make_var(@4, $5, dtype, nullptr, false);
+	pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2;
 	delete[] $4.text;
@@ -19184,7 +19223,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($3.type);
 	FILE_NAME(dtype, @3);
-	pform_make_var(@3, $4, dtype, nullptr, false);
+	pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	delete[] $1;
 	delete[] $3.text;
 	$$ = nullptr;
@@ -19200,7 +19239,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $1);
 	      FILE_NAME(dtype, @2);
-	      pform_make_var(@2, $3, dtype, nullptr, false);
+	      pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	}
 	delete[] $2;
 	$$ = nullptr;
@@ -19209,7 +19248,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { lex_in_package_scope(0);
 	typeref_t*dtype = new typeref_t($2.type, $1);
 	FILE_NAME(dtype, @2);
-	pform_make_var(@2, $3, dtype, nullptr, false);
+	pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	delete[] $2.text;
 	$$ = nullptr;
       }
@@ -19222,7 +19261,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $1);
 	      FILE_NAME(dtype, @3);
-	      pform_make_var(@3, $4, dtype, nullptr, false);
+	      pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	}
 	delete[] $3;
 	$$ = nullptr;
@@ -19239,7 +19278,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $2);
 	      FILE_NAME(dtype, @4);
-	      pform_make_var(@4, $5, dtype, nullptr, false);
+	      pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4;
@@ -19248,7 +19287,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($4.type, $2);
 	FILE_NAME(dtype, @4);
-	pform_make_var(@4, $5, dtype, nullptr, false);
+	pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4.text;
 	$$ = nullptr;
@@ -19256,7 +19295,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($3.type, $1);
 	FILE_NAME(dtype, @3);
-	pform_make_var(@3, $4, dtype, nullptr, false);
+	pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	delete[] $3.text;
 	$$ = nullptr;
       }
@@ -19269,7 +19308,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $2, $5);
 	      FILE_NAME(dtype, @4);
-	      pform_make_var(@4, $6, dtype, nullptr, false);
+	      pform_make_statement_var(@4, $6, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4;
@@ -19284,7 +19323,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	if (type) {
 	      typeref_t*dtype = new typeref_t(type, $1, $4);
 	      FILE_NAME(dtype, @3);
-	      pform_make_var(@3, $5, dtype, nullptr, false);
+	      pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	}
 	delete[] $3;
 	$$ = nullptr;
@@ -19292,7 +19331,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($4.type, $2, $5);
 	FILE_NAME(dtype, @4);
-	pform_make_var(@4, $6, dtype, nullptr, false);
+	pform_make_statement_var(@4, $6, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4.text;
 	$$ = nullptr;
@@ -19300,7 +19339,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($3.type, $1, $4);
 	FILE_NAME(dtype, @3);
-	pform_make_var(@3, $5, dtype, nullptr, false);
+	pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	delete[] $3.text;
 	$$ = nullptr;
       }
@@ -20726,12 +20765,18 @@ parallel_statement_or_null_list_opt
 
 parallel_statement_or_null_list
   : parallel_statement_or_null_list parallel_statement_or_null
-      { if ($2) $1->push_back($2);
+	{ if ($2) {
+	      $1->push_back($2);
+	      pform_note_procedural_statement();
+	}
 	$$ = $1;
       }
   | parallel_statement_or_null
       { $$ = new std::vector<Statement*>;
-	if ($1) $$->push_back($1);
+	if ($1) {
+	      $$->push_back($1);
+	      pform_note_procedural_statement();
+	}
       }
   ;
 
@@ -20754,7 +20799,10 @@ statement_or_null_list_opt
 statement_or_null_list
   : statement_or_null_list statement_or_null
       { std::vector<Statement*>*tmp = $1;
-	if ($2) tmp->push_back($2);
+	if ($2) {
+	      tmp->push_back($2);
+	      pform_note_procedural_statement();
+	}
 	$$ = tmp;
       }
   /* Imports update lexical lookup while parsing and emit no statement.
@@ -20775,7 +20823,10 @@ statement_or_null_list
       }
   | statement_or_null
       { std::vector<Statement*>*tmp = new std::vector<Statement*>(0);
-	if ($1) tmp->push_back($1);
+	if ($1) {
+	      tmp->push_back($1);
+	      pform_note_procedural_statement();
+	}
 	$$ = tmp;
       }
   | package_import_declaration
