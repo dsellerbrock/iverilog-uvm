@@ -1,0 +1,4 @@
+sv_default_argument_declaration_scope normal,-g2017,-s,sv_default_argument_declaration_scope ivltests
+sv_default_argument_declaration_scope_2023 normal,-g2023,-Iivltests,-s,sv_default_argument_declaration_scope ivltests
+sv_default_argument_declaration_scope_missing CE,-g2017,-s,sv_default_argument_declaration_scope_missing ivltests
+sv_default_argument_declaration_scope_missing_2023 CE,-g2023,-s,sv_default_argument_declaration_scope_missing ivltests

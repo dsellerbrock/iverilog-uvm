@@ -1,0 +1,74 @@
+=== stage-source ===
+stage-source: PASS
+=== autoconf ===
+autoconf: PASS
+=== configure ===
+configure: PASS
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+=== build ===
+build: PASS
+ranlib libveriuser.a
+mkdir dep
+gcc -std=gnu23 -I. -I.. -I/tmp/a3-issue905-local-a139.csib2Q/source/cadpli -I/tmp/a3-issue905-local-a139.csib2Q/source/cadpli/.. -I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include  -DHAVE_CONFIG_H -fPIC -Wall -Wextra -Wshadow -Wstrict-prototypes  -g -O2 -MD -c /tmp/a3-issue905-local-a139.csib2Q/source/cadpli/cadpli.c
+mv cadpli.d dep
+gcc -std=gnu23 -bundle -undefined dynamic_lookup -flat_namespace -Wl,-all_load -L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib  -o cadpli.vpl cadpli.o ../libveriuser/libveriuser.o -L../vpi -lvpi
+=== install ===
+install: PASS
+	    "/tmp/a3-issue905-local-a139.csib2Q/install/lib/ivl/include" \
+	    "/tmp/a3-issue905-local-a139.csib2Q/install/share/man/man1" \
+	    "/tmp/a3-issue905-local-a139.csib2Q/install"
+note: uvm-core submodule not checked out; skipping UVM install.
+      run 'git submodule update --init' to enable 'iverilog -uvm'.
+missing test entries in regress-vvp.list: ['sv_class_method_default1', 'sv_class_method_default2']
+=== T1-related-legacy ===
+T1-related-legacy: FAIL (exit 3)
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                 sv_automatic_boolean_default_chain: Passed.
+            sv_automatic_boolean_default_chain_2023: Passed.
+               sv_automatic_integral_default_events: Passed.
+          sv_automatic_integral_default_events_2023: Passed.
+            sv_automatic_integral_default_recursive: Passed.
+       sv_automatic_integral_default_recursive_2023: Passed.
+                       sv_class_constructor_default: Passed.
+                           sv_class_method_default1: Passed.
+                           sv_class_method_default2: Passed.
+                sv_class_parenless_defaulted_method: Passed.
+           sv_class_parenless_defaulted_method_2023: Passed.
+     sv_constraint_function_named_default_arguments: Passed.
+sv_constraint_function_named_default_arguments_2023: Passed.
+              sv_default_argument_declaration_scope: Passed.
+         sv_default_argument_declaration_scope_2023: ==> Failed - running iverilog.
+      sv_default_argument_declaration_scope_missing: Passed - CE.
+ sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+                         sv_default_formal_contexts: Passed.
+                    sv_method_default_argument_this: ==> Failed - running iverilog.
+               sv_method_default_argument_this_2023: ==> Failed - running iverilog.
+============================================================================
+Test results:
+  Total=20, Passed=17, Failed=3, Not Implemented=0, Expected Fail=0
+evidence/issue905-declaration-scope/attempt-07-local-a139-native-deps/run.sh: line 83: /tmp/a3-issue905-local-a139.csib2Q/issue905-t1-json.list: No such file or directory
+T1-related-json: FAIL
+T1_STATUS=1
+      134.45 real       299.76 user        35.13 sys
+          1357201408  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             5512229  page reclaims
+              136627  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                1144  signals received
+               88623  voluntary context switches
+              383034  involuntary context switches
+           107064866  instructions retired
+            54321392  cycles elapsed
+             2589152  peak memory footprint

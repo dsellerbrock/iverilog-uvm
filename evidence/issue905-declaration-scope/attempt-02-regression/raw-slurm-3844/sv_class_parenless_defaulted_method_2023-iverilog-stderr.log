@@ -1,0 +1,12 @@
+ivltests/sv_class_parenless_defaulted_method.v:32: warning: Unable to bind wire/reg/memory `value' in `$unit.base' (compile-progress: unresolved reference).
+ivltests/sv_class_parenless_defaulted_method.v:32: error: Unable to evaluate value as a port default expression.
+ivltests/sv_class_parenless_defaulted_method.v:23: warning: Unable to bind wire/reg/memory `current_state' in `$unit.score' (compile-progress: unresolved reference).
+ivltests/sv_class_parenless_defaulted_method.v:23: error: Unable to evaluate current_state as a port default expression.
+ivltests/sv_class_parenless_defaulted_method.v:10: error: Class method `get_current_max_version' requires argument `state'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_defaulted_method.v:15: error: Class method `get_current_max_version' requires argument `state'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_defaulted_method.v:16: error: Missing/empty argument 1 ('state') in call to function get_current_max_version: the formal has no default value (IEEE 1800-2017 13.5.3).
+ivltests/sv_class_parenless_defaulted_method.v:39: error: Class method `inherited_default' requires argument `v'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_defaulted_method.v:46: error: Class method `get_current_max_version' requires argument `state'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_defaulted_method.v:68: error: Class method `get_current_max_version' requires argument `state'; parentheses may be omitted only when every argument has a default (IEEE 1800-2017/2023 13.5.5).
+ivltests/sv_class_parenless_defaulted_method.v:70: error: Missing/empty argument 1 ('state') in call to function h.sb.get_current_max_version: the formal has no default value (IEEE 1800-2017 13.5.3).
+9 error(s) during elaboration.

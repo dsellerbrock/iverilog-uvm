@@ -1,0 +1,4 @@
+commit=a139d2eb3b7ac16530578ce3cf47a1b28576b906
+build_dir=/tmp/a3-issue905-local-a139.YkfgHp
+source_dir=/tmp/a3-issue905-local-a139.YkfgHp/source
+host=macOS localrun; threads=3; memory_budget~7GiB

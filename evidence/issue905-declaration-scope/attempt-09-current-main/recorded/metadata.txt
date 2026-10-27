@@ -1,0 +1,4 @@
+source_commit=recorded by slurm-run
+host=Slurm DAN-DESKTOP
+cpus=3
+mem=8G

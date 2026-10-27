@@ -1,0 +1,32 @@
+=== sv_default_argument_declaration_scope ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope: exit=1
+=== sv_default_argument_declaration_scope_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope_2023: exit=1
+=== sv_default_argument_declaration_scope_missing ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing: exit=0
+=== sv_default_argument_declaration_scope_missing_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing_2023: exit=0

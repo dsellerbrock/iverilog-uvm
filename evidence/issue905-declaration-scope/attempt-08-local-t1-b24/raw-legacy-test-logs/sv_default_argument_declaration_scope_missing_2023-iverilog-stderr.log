@@ -1,0 +1,4 @@
+ivltests/sv_default_argument_declaration_scope_missing.v:3: warning: Unable to bind wire/reg/memory `a' in `sv_default_argument_declaration_scope_missing.f' (compile-progress: unresolved reference).
+ivltests/sv_default_argument_declaration_scope_missing.v:3: error: Unable to evaluate (a)+('sd1) as a port default expression.
+ivltests/sv_default_argument_declaration_scope_missing.v:7: error: Missing/empty argument 2 ('b') in call to function f: the formal has no default value (IEEE 1800-2017 13.5.3).
+2 error(s) during elaboration.

@@ -1,0 +1,8 @@
+96960dc9ce727d766096dd24fe35ebf081a94336c07f6f6343531a2d17e16fbf  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/README.md
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/autoconf.log
+dc118dce1efa4a8b2b9779a0aca0bb70b7629361320375231a97538229644dc4  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/build.log
+635a366036339aac6ad0611659146df69e0fab96c5f84656998c893389a37bda  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/configure.log
+0984b9ce868e8e56d07f25697659ac85c2f139e15e125060df9aea8396189e3f  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/localrun.out
+e627bd016afa444cbfe339a4bbf3597533319b78c9759ed766a7aa4df1991cd1  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/metadata.txt
+f2df12f1d4f5c70431e2585b77f86fdfbea26deabf11d25a26cb049baaf6d138  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/run.sh
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evidence/issue905-declaration-scope/attempt-06-local-a139-libffi/stage-source.log

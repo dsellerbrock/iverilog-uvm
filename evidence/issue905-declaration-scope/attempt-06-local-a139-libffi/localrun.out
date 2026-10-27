@@ -1,0 +1,76 @@
+=== stage-source ===
+stage-source: PASS
+=== autoconf ===
+autoconf: PASS
+=== configure ===
+configure: PASS
+config.status: creating vpi/vpi_config.h
+config.status: creating libveriuser/config.h
+config.status: creating tgt-vvp/vvp_config.h
+config.status: creating tgt-vhdl/vhdl_config.h
+config.status: creating tgt-pcb/pcb_config.h
+=== build ===
+build: FAIL (exit 2)
+ 2406 | static vpiPortInfo* lookup_scope_port_by_index_(__vpiScope*scope, unsigned index)
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vthread.cc:12344:13: warning: unused function 'context_on_stacked_chain_' [-Wunused-function]
+ 12344 | static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
+       |             ^~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vthread.cc:28790:13: warning: unused function 'get_from_process_obj' [-Wunused-function]
+ 28790 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, double&val)
+       |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vthread.cc:28796:13: warning: unused function 'get_from_process_obj' [-Wunused-function]
+ 28796 | static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, string&val)
+       |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_net_sig.cc:2514:37: warning: unused function 'signal_object_aa_slot_from_raw' [-Wunused-function]
+ 2514 | static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*raw)
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mv vvp_net.d dep/vvp_net.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_perf_stats.cc -o vvp_perf_stats.o
+mv vvp_perf_stats.d dep/vvp_perf_stats.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_object.cc -o vvp_object.o
+mv vvp_object.d dep/vvp_object.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_assoc.cc -o vvp_assoc.o
+1 warning generated.
+mv vvp_net_sig.d dep/vvp_net_sig.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_cobject.cc -o vvp_cobject.o
+mv vvp_assoc.d dep/vvp_assoc.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_darray.cc -o vvp_darray.o
+mv vvp_cobject.d dep/vvp_cobject.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_dpi.cc -o vvp_dpi.o
+mv vvp_dpi.d dep/vvp_dpi.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_mailbox.cc -o vvp_mailbox.o
+mv vvp_mailbox.d dep/vvp_mailbox.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_vinterface.cc -o vvp_vinterface.o
+mv vvp_darray.d dep/vvp_darray.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_z3.cc -o vvp_z3.o
+mv vvp_vinterface.d dep/vvp_vinterface.d
+g++ -I. -I.. -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp -I/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/.. -I/opt/homebrew/opt/libffi/include  -DHAVE_CONFIG_H -DICARUS_VPI_CONST=const -DUSE_LIBFFI=1 -DIVL_SUFFIX='""' -DMODULE_DIR1='"/tmp/a3-issue905-local-a139.YkfgHp/install/lib/ivl"'  -Wall -Wextra -Wshadow   -g -O2 -std=c++11 -MD -c /tmp/a3-issue905-local-a139.YkfgHp/source/vvp/event.cc -o event.o
+/tmp/a3-issue905-local-a139.YkfgHp/source/vvp/vvp_z3.cc:35:12: fatal error: 'z3.h' file not found
+   35 | # include  <z3.h>
+      |            ^~~~~~
+1 error generated.
+make[1]: *** [vvp_z3.o] Error 1
+make[1]: *** Waiting for unfinished jobs....
+mv event.d dep/event.d
+11 warnings generated.
+mv vthread.d dep/vthread.d
+make: *** [all] Error 2
+       72.20 real       168.83 user        14.26 sys
+          1363984384  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             3742047  page reclaims
+               52088  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                 607  signals received
+               61735  voluntary context switches
+              138863  involuntary context switches
+            77146048  instructions retired
+            28915930  cycles elapsed
+             2441696  peak memory footprint

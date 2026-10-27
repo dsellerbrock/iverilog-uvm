@@ -1,0 +1,25 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                 sv_automatic_boolean_default_chain: Passed.
+            sv_automatic_boolean_default_chain_2023: Passed.
+               sv_automatic_integral_default_events: Passed.
+          sv_automatic_integral_default_events_2023: Passed.
+            sv_automatic_integral_default_recursive: Passed.
+       sv_automatic_integral_default_recursive_2023: Passed.
+                       sv_class_constructor_default: Passed.
+                           sv_class_method_default1: Passed.
+                           sv_class_method_default2: Passed.
+                sv_class_parenless_defaulted_method: ==> Failed - running iverilog.
+           sv_class_parenless_defaulted_method_2023: ==> Failed - running iverilog.
+     sv_constraint_function_named_default_arguments: Passed.
+sv_constraint_function_named_default_arguments_2023: Passed.
+              sv_default_argument_declaration_scope: ==> Failed - running iverilog.
+         sv_default_argument_declaration_scope_2023: ==> Failed - running iverilog.
+      sv_default_argument_declaration_scope_missing: ==> Failed - CE (core dump).
+ sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+                         sv_default_formal_contexts: Passed.
+                    sv_method_default_argument_this: ==> Failed - running iverilog.
+               sv_method_default_argument_this_2023: ==> Failed - running iverilog.
+============================================================================
+Test results:
+  Total=20, Passed=13, Failed=7, Not Implemented=0, Expected Fail=0

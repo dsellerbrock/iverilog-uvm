@@ -1,0 +1,15 @@
+=== declaration scope positive -g2017 ===
+compile_rc=0
+FATAL: sv_default_argument_declaration_scope.v:15: function default resolved outside declaration scope
+       Time: 0  Scope: sv_default_argument_declaration_scope
+vvp_rc=1
+=== declaration scope missing enclosing name -g2017 ===
+compile_rc=0 (expected nonzero after fix)
+=== declaration scope positive -g2023 ===
+compile_rc=0
+FATAL: sv_default_argument_declaration_scope.v:15: function default resolved outside declaration scope
+       Time: 0  Scope: sv_default_argument_declaration_scope
+vvp_rc=1
+=== declaration scope missing enclosing name -g2023 ===
+compile_rc=0 (expected nonzero after fix)
+baseline repro complete

@@ -1,0 +1,144 @@
+=== sv_automatic_boolean_default_chain ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_boolean_default_chain: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_boolean_default_chain: exit=0
+=== sv_automatic_boolean_default_chain_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_boolean_default_chain_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_boolean_default_chain_2023: exit=0
+=== sv_automatic_integral_default_events ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_integral_default_events: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_integral_default_events: exit=0
+=== sv_automatic_integral_default_events_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_integral_default_events_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_integral_default_events_2023: exit=0
+=== sv_automatic_integral_default_recursive ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_integral_default_recursive: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_integral_default_recursive: exit=0
+=== sv_automatic_integral_default_recursive_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_automatic_integral_default_recursive_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_automatic_integral_default_recursive_2023: exit=0
+=== sv_class_method_noarg_string_concat_2017 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2017: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_class_method_noarg_string_concat_2017: exit=0
+=== sv_class_method_noarg_string_concat_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_class_method_noarg_string_concat_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_class_method_noarg_string_concat_2023: exit=0
+=== sv_class_parenless_defaulted_method ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_class_parenless_defaulted_method: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_class_parenless_defaulted_method: exit=1
+=== sv_class_parenless_defaulted_method_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_class_parenless_defaulted_method_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_class_parenless_defaulted_method_2023: exit=1
+=== sv_constraint_function_named_default_arguments ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_constraint_function_named_default_arguments: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_constraint_function_named_default_arguments: exit=0
+=== sv_constraint_function_named_default_arguments_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_constraint_function_named_default_arguments_2023: Passed.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_constraint_function_named_default_arguments_2023: exit=0
+=== sv_default_argument_declaration_scope ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope: exit=1
+=== sv_default_argument_declaration_scope_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_default_argument_declaration_scope_2023: exit=1
+=== sv_default_argument_declaration_scope_missing ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing: exit=0
+=== sv_default_argument_declaration_scope_missing_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_default_argument_declaration_scope_missing_2023: Passed - CE.
+============================================================================
+Test results: Ran 1, Failed 0.
+sv_default_argument_declaration_scope_missing_2023: exit=0
+=== sv_method_default_argument_this ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_method_default_argument_this: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_method_default_argument_this: exit=1
+=== sv_method_default_argument_this_2023 ===
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): issue905-one-json.list
+----------------------------------------------------------------------------
+sv_method_default_argument_this_2023: Failed - Compile failed.
+============================================================================
+Test results: Ran 1, Failed 1.
+sv_method_default_argument_this_2023: exit=1

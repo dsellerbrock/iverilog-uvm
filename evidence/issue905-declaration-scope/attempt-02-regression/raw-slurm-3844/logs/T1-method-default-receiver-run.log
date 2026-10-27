@@ -1,0 +1,9 @@
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261021-1815/source/tests/method_default_argument_this_test.sv:28: 
+       Time: 0  Scope: method_default_argument_this_test.$unm_blk_1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261021-1815/source/tests/method_default_argument_this_test.sv:29: 
+       Time: 0  Scope: method_default_argument_this_test.$unm_blk_1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261021-1815/source/tests/method_default_argument_this_test.sv:30: 
+       Time: 0  Scope: method_default_argument_this_test.$unm_blk_1
+ERROR: /home/dsell/slurm-runs/iverilog-uvm/A3/issue905-t0-t1-20261021-1815/source/tests/method_default_argument_this_test.sv:31: 
+       Time: 0  Scope: method_default_argument_this_test.$unm_blk_1
+PASS method default argument this

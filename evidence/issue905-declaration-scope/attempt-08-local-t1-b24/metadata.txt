@@ -1,0 +1,5 @@
+head=b24b06d67
+compiler_source_commit=a139d2eb3b7ac16530578ce3cf47a1b28576b906
+host=macOS localrun; reused existing local build; memory budget~7GiB
+testroot=/tmp/a3-issue905-t1-b24.tUhdUi/testroot
+build_dir=/tmp/a3-issue905-local-a139.csib2Q
