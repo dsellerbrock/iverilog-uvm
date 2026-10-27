@@ -11314,7 +11314,9 @@ case_inside_items
      coercion and constant-expression checking happen in the matched leaf's
      context. */
 match_pattern
-  : '.' IDENTIFIER
+  : '(' match_pattern ')'
+      { $$ = $2; }
+  | '.' IDENTIFIER
       { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::VARIABLE);
 	tmp->name(lex_strings.make($2));
 	FILE_NAME(tmp, @1);
