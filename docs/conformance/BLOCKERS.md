@@ -4577,3 +4577,12 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Validation:** A fresh local Mac build passes the focused gate: legacy 14/14 and JSON/VVP 14/14. T0 smoke, full T1, and pinned UVM validation remain pending.
 - **Boundary:** Function-return, ternary, and `new` expression values assigned to integral targets still take the compile-progress fallback and are not rejected by this change. The fallback warning preceding resolved-identifier errors is tracked in [DD-142](DISCOVERED_DEBT.md#dd-142--class-to-integral-rejection-has-expression-provenance-limits).
 - **Evidence:** [#759 narrowed-guard focused verification](../../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [prior reducer record](../../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
+
+### IEEE-1800-COVERGROUP-EXTENSION-GOAL-COMMENT — issue #689 (T0/T1 green; T2 pending)
+
+- **State:** Implemented in [PR #1688](https://github.com/dsellerbrock/iverilog-uvm/pull/1688), commit `0fe5f78f64220507a436225ab2e5c4f69e66de5f`. The tested source tree is `10b021b1789688682cd1a5fd0391cbb6229b0676`; the commit has the same tree.
+- **Requirement:** IEEE 1800-2017/2023 §§19.7 and 19.10 cover instance-specific coverage options and covergroup inheritance.
+- **Implementation:** Preserve inherited group/item `goal` and `comment` slots across derived covergroup extensions, including synthesized derived constructors; keep internal option slots out of coverage-bin diagnostic indices.
+- **Validation:** Slurm 4950 passed the direct -g2023 reducer (`PASSED`), issue-focused T0 legacy/JSON 8/8 each, smoke, and T1 legacy/JSON 310/310 each. Full T2, exact-head Fast Linux, and the batch Windows lanes remain pending. See [attempt-16-correction evidence](../../evidence/m9-issue689-goal-comment-20261025/attempt-16-correction/).
+- **Limits:** Dynamic extension option expressions run after `super.new()` returns; the base constructor cannot observe those later values. The three-level slot layout is tested, but deeper layouts are not proven. Dynamic-base/constant-extension overrides for `weight`, `per_instance`, and `get_inst_coverage`, inherited sample-argument coverpoints, and missing-base-argument diagnostics remain separate debt (DD-143–DD-146).
+- **Next:** Complete the T2 batch gate and exact-head Fast Linux plus Windows CI before merge.

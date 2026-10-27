@@ -744,6 +744,10 @@ extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t guardsrc = 0);
 extern void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop);
+extern void compile_class_covgrp_option_values(uint64_t goal_prop,
+					       uint64_t goal,
+					       uint64_t comment_prop,
+					       char*comment);
 extern void compile_class_covgrp_per_instance(uint64_t value,
       uint64_t property);
 extern void compile_class_covgrp_type_weight(uint64_t weight);
@@ -751,6 +755,11 @@ extern void compile_class_covgrp_item_type_weight(uint64_t item_idx, uint64_t we
 extern void compile_class_covgrp_item_options(uint64_t item_idx,
 					      uint64_t at_least_prop,
 					      uint64_t weight_prop);
+extern void compile_class_covgrp_item_option_values(uint64_t item_idx,
+						    uint64_t goal_prop,
+						    uint64_t goal,
+						    uint64_t comment_prop,
+						    char*comment);
 extern void compile_class_covgrp_item_guard(uint64_t item_idx,
 					    uint64_t has_guard);
 extern void compile_class_covgrp_parent(uint64_t prop);

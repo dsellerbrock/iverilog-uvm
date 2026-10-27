@@ -1,0 +1,2 @@
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-m9-issue689-correction-20261026/tests/1800_audit/c19/p19_04_1_extends_2023.sv:9: sorry: covergroup 'g1' extension coverpoint 'cb': an expression that depends on an inherited sample argument or cannot be serialized is not supported when sampled through a base-class handle (IEEE 1800-2023 19.4.1).
+1 error(s) during elaboration.
