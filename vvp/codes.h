@@ -147,6 +147,7 @@ extern bool of_COPYOUT_ENTER(vthread_t thr, vvp_code_t code);
 extern bool of_COPYOUT_LEAVE(vthread_t thr, vvp_code_t code);
 extern bool of_ALLOC(vthread_t thr, vvp_code_t code);
 extern bool of_AND(vthread_t thr, vvp_code_t code);
+extern bool of_AND_S(vthread_t thr, vvp_code_t code);
 extern bool of_ANDR(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_OBJ_DARRAY(vthread_t thr, vvp_code_t code);

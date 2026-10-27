@@ -208,9 +208,14 @@ static void draw_binary_vec4_bitwise(ivl_expr_t expr)
       draw_eval_vec4(ivl_expr_oper1(expr));
       draw_eval_vec4(ivl_expr_oper2(expr));
 
+      /* IEEE 1800-2017 11.8.4: a nonlogical operation on a signed
+       * operand containing X/Z produces an all-X result. */
+      const char *sx = ivl_expr_signed(ivl_expr_oper1(expr))
+          || ivl_expr_signed(ivl_expr_oper2(expr)) ? "/s" : "";
+
       switch (ivl_expr_opcode(expr)) {
 	  case '&':
-	    fprintf(vvp_out, "    %%and;\n");
+	    fprintf(vvp_out, "    %%and%s;\n", sx);
 	    break;
 	  case '|':
 	    fprintf(vvp_out, "    %%or;\n");
