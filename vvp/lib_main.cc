@@ -56,6 +56,8 @@ extern "C" const char*optarg;
 bool verbose_flag = false;
 static int vvp_return_value = 0;
 static int vvp_used = 0;
+static string covgrp_db_name;
+static set<string> covgrp_db_failed_loads;
 #if defined(HAVE_SYS_RESOURCE_H)
 static struct rusage finish_start_usage;
 #endif
@@ -82,6 +84,52 @@ void vvp_set_verbose_flag(bool flag)
 void vpip_set_return_value(int value)
 {
       vvp_return_value = value;
+}
+
+int vpip_covgrp_db(int op, const char*name)
+{
+      string path = name ? name : "";
+      if (op == VPIP_COVGRP_DB_SET_NAME) {
+	    if (path.empty()) {
+		  fprintf(stderr, "ERROR: $set_coverage_db_name: empty database name\n");
+		  vpip_set_return_value(1);
+		  return 1;
+	    }
+	    covgrp_db_name = path;
+	    return 0;
+      }
+      if (op == VPIP_COVGRP_DB_LOAD) {
+	    string err;
+	    bool missing = false;
+	    if (class_type::covgrp_db_load(path, err, missing)) return 0;
+	    fprintf(stderr, "ERROR: $load_coverage_db: %s: %s\n",
+		    path.c_str(), err.c_str());
+	    if (!missing) covgrp_db_failed_loads.insert(path);
+	    vpip_set_return_value(1);
+	    return 1;
+      }
+      fprintf(stderr, "ERROR: coverage database: invalid operation %d\n", op);
+      vpip_set_return_value(1);
+      return 1;
+}
+
+static void covgrp_db_save_at_end()
+{
+      if (covgrp_db_name.empty()) return;
+      if (covgrp_db_failed_loads.find(covgrp_db_name)
+	  != covgrp_db_failed_loads.end()) {
+	    fprintf(stderr,
+		    "ERROR: $set_coverage_db_name: not overwriting %s: an earlier $load_coverage_db of it failed\n",
+		    covgrp_db_name.c_str());
+	    vpip_set_return_value(1);
+	    return;
+      }
+      string err;
+      if (!class_type::covgrp_db_save(covgrp_db_name, err)) {
+	    fprintf(stderr, "ERROR: $set_coverage_db_name: cannot save %s: %s\n",
+		    covgrp_db_name.c_str(), err.c_str());
+	    vpip_set_return_value(1);
+      }
 }
 
 static char log_buffer[4096];
@@ -443,6 +491,8 @@ int vvp_run(const char *design_path)
 		  }
 	    }
       }
+
+      covgrp_db_save_at_end();
 
       if (verbose_flag) {
 	    my_getrusage(cycles+2);

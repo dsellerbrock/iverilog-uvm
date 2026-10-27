@@ -9415,8 +9415,23 @@ static size_t covgrp_cp_count_(const class_type*defn)
 // Keep the synthetic per_instance slot out of stable bin-property diagnostics.
 static unsigned covgrp_diag_prop_idx_(const class_type*defn, unsigned prop)
 {
-      int per_instance = defn->covgrp_options().per_instance_prop;
-      return per_instance >= 0 && (size_t)per_instance < prop ? prop - 1 : prop;
+      const class_type::covgrp_options_t&options = defn->covgrp_options();
+      unsigned hidden = 0;
+      if (options.per_instance_prop >= 0
+	  && (size_t)options.per_instance_prop < prop) ++hidden;
+      if (options.goal_prop >= 0 && (size_t)options.goal_prop < prop) ++hidden;
+      if (options.comment_prop >= 0
+	  && (size_t)options.comment_prop < prop) ++hidden;
+      // Inherited item goal/comment slots precede the bins so base and
+      // extension covergroups use the same property indexes.
+      for (unsigned idx = 0; idx < prop && idx < defn->property_count(); ++idx) {
+	    const std::string&name = defn->property_name(idx);
+	    if (name.compare(0, 14, "__covgrp_item_") == 0
+		&& (name.find("_option_goal") != std::string::npos
+		    || name.find("_option_comment") != std::string::npos))
+		  ++hidden;
+      }
+      return prop - hidden;
 }
 
 static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)

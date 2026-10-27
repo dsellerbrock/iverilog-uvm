@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_dist_excluded_range_weight_2023.v",
+    "iverilog-args": ["-g2023", "-DEXPECT_2023", "-s", "sv_dist_excluded_range_weight"],
+    "gold": "sv_dist_excluded_range_weight"
+}

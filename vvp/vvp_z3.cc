@@ -1192,6 +1192,7 @@ struct Z3Builder {
             bool requires_large_exact;
             bool state_weights;
             bool weight_state_refs = false;
+	    bool legacy_range_weights = false;
 	    bool disableable;
 	    bool real_subject = false;
 	    bool real_points_supported = false;
@@ -6274,10 +6275,16 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 		  saw_branch = true;
 		  bool range_weight_per_value = false;
+		  bool legacy_range_weight = false;
 		  par.skip_ws();
 		  if (par.peek() == ':') {
 			string mode = par.read_token();
-			if (mode == ":=")
+			if (mode == ":=17") {
+			      range_weight_per_value = true;
+			      legacy_range_weight = true;
+			} else if (mode == ":/17") {
+			      legacy_range_weight = true;
+			} else if (mode == ":=")
 			      range_weight_per_value = true;
 			else if (mode != ":/") {
 			      static bool warned_mode = false;
@@ -6289,6 +6296,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    warned_mode = true;
 			      }
 			}
+			dspec.legacy_range_weights = dspec.legacy_range_weights
+			      || legacy_range_weight;
 		  }
 		  uint64_t weight64 = 1;
 		  bool weight_overflow = false;
@@ -7829,7 +7838,8 @@ class state_foreach_expander_t {
                   } else if (out.text.compare(0, 2, "s:") != 0
                              && out.text.compare(0, 2, "e:") != 0
 			     && out.text.compare(0, 2, "a:") != 0
-                             && out.text != ":=" && out.text != ":/") return false;
+                             && out.text != ":=" && out.text != ":/"
+                             && out.text != ":=17" && out.text != ":/17") return false;
                   return true;
             }
             parser.consume();
@@ -9538,6 +9548,13 @@ struct dist_wide_uint_t {
 	    r.trim();
 	    return r;
       }
+	static dist_wide_uint_t mul_u64(const dist_wide_uint_t&a, uint64_t m)
+	{
+	      dist_wide_uint_t low = mul_small(a, (uint32_t)m);
+	      dist_wide_uint_t high = mul_small(a, (uint32_t)(m >> 32));
+	      if (!high.limb.empty()) high.limb.insert(high.limb.begin(), 0);
+	      return add(low, high);
+	}
 	static dist_wide_uint_t shift_right_one(const dist_wide_uint_t&a)
 	{
 	      dist_wide_uint_t r;
@@ -9587,6 +9604,53 @@ struct dist_wide_uint_t {
 	    return Z3_mk_bv_numeral(ctx, width, bits.get());
       }
 };
+
+struct z3_legacy_dist_item_t {
+      uint64_t specified_weight;
+      uint64_t feasible_count;
+      uint64_t declared_span;
+      bool is_range;
+      bool range_weight_per_value;
+};
+
+/* Return true when exclusions or an overflowing := aggregate require exact
+ * legacy weights. Scale every item by the product of all :/ range spans so
+ * each per-value share is exact without narrowing the ticket to uint64_t. */
+static bool z3_legacy_dist_weights(
+      const vector<z3_legacy_dist_item_t>&items,
+      vector<dist_wide_uint_t>&weights)
+{
+      vector<size_t> divide_ranges;
+      bool needs_reweight = false;
+      for (size_t i = 0; i < items.size(); ++i) {
+	    const auto&item = items[i];
+	    if (item.is_range && item.feasible_count < item.declared_span)
+		  needs_reweight = true;
+	    if (item.is_range && item.range_weight_per_value
+		&& item.specified_weight
+		      > UINT64_MAX / item.declared_span)
+		  needs_reweight = true;
+	    if (item.is_range && !item.range_weight_per_value)
+		  divide_ranges.push_back(i);
+      }
+      if (!needs_reweight) return false;
+
+      weights.clear();
+      weights.reserve(items.size());
+      for (size_t i = 0; i < items.size(); ++i) {
+	    const auto&item = items[i];
+	    dist_wide_uint_t mass = dist_wide_uint_t::mul_u64(
+		  dist_wide_uint_t::from_u64(item.specified_weight),
+		  item.feasible_count);
+	    for (size_t range : divide_ranges) {
+		  if (range == i) continue;
+		  mass = dist_wide_uint_t::mul_u64(mass,
+			items[range].declared_span);
+	    }
+	    weights.push_back(std::move(mass));
+      }
+      return true;
+}
 
 /* Evaluate a formula over one bit-vector constant at given values, through a
  * reusable model rather than building a substituted copy per value.
@@ -10155,6 +10219,11 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                interval/coupled paths give up. See rejection_draw below. */
             std::function<bool()> rejection_draw;
             bool rejection_tried = false;
+            const bool has_legacy_range_weight = spec.legacy_range_weights
+                  && any_of(spec.branches.begin(), spec.branches.end(),
+                        [](const Z3Builder::DistBranch&br) {
+                              return br.is_range;
+                        });
             auto unsupported = [&]() -> bool {
                   if (rejection_draw && !rejection_tried) {
                         rejection_tried = true;
@@ -10234,6 +10303,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         const Z3Builder::DistBranch* branch;
                         uint64_t first;
                         uint64_t last;
+                        uint64_t sample_first;
+                        uint64_t declared_span;
                         uint64_t weight;
                   };
                   vector<DrawItem> draws;
@@ -10250,6 +10321,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                               span = br.hi - br.lo + 1;
                               if (!span) return false;
                         }
+                        uint64_t sample_first = first;
+                        uint64_t declared_span = span;
                         uint64_t weight = (uint64_t)br.weight;
                         if (br.range_weight_per_value) {
                               if (span > UINT64_MAX / weight) return false;
@@ -10259,7 +10332,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                               : (((uint64_t)1 << physical_width) - 1);
                         if (last > image_hi) last = image_hi;
                         if (first > last) continue;
-                        draws.push_back({&br, first, last, weight});
+                        draws.push_back({&br, first, last, sample_first,
+                                         declared_span, weight});
                   }
                   auto range_feasible = [&](const DrawItem&item) -> Z3_lbool {
                         Z3_sort sort = Z3_mk_bv_sort(ctx,
@@ -10279,6 +10353,7 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         return Z3_solver_check_assumptions(ctx, base, 1, &range);
                   };
                   static const unsigned DRAW_TRIALS = 256;
+                  unsigned legacy_rejected_trials = 0;
                   while (!draws.empty()) {
                         uint64_t total = 0;
                         for (const auto&item : draws) {
@@ -10298,11 +10373,22 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                               draws.erase(draws.begin() + idx);
                               continue;
                         }
-                        uint64_t span = item.last - item.first + 1;
-                        for (unsigned trial = 0; trial < DRAW_TRIALS; ++trial) {
-                              uint64_t coordinate = span == 1 ? item.first
-                                    : item.first + (span ? rng.uniform_u64(span)
-                                                         : rng.uniform_u64(UINT64_MAX));
+                        uint64_t sample_first = has_legacy_range_weight
+                              ? item.sample_first : item.first;
+                        uint64_t span = has_legacy_range_weight
+                              ? item.declared_span
+                              : item.last - item.first + 1;
+                        unsigned item_trials = has_legacy_range_weight
+                              ? 1 : DRAW_TRIALS;
+                        for (unsigned trial = 0; trial < item_trials; ++trial) {
+                              uint64_t coordinate = span == 1 ? sample_first
+                                    : sample_first + (span ? rng.uniform_u64(span)
+                                                           : rng.uniform_u64(UINT64_MAX));
+                              uint64_t image_hi = physical_width == 64
+                                    ? UINT64_MAX
+                                    : (((uint64_t)1 << physical_width) - 1);
+                              if (has_legacy_range_weight
+                                  && coordinate > image_hi) continue;
                               Z3_ast pin = candidate_pin(coordinate,
                                     item.branch->value_width, false);
                               Z3_lbool feasible = Z3_solver_check_assumptions(
@@ -10313,6 +10399,11 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                               Z3_optimize_assert(ctx, opt, pin);
                               chosen = coordinate;
                               return true;
+                        }
+                        if (has_legacy_range_weight) {
+                              if (++legacy_rejected_trials >= DRAW_TRIALS)
+                                    return false;
+                              continue;
                         }
                         return false;
                   }
@@ -10434,6 +10525,7 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                                               fast_weight});
                         fast_weight_bound += fast_weight;
                   }
+                  if (has_legacy_range_weight) fast_eligible = false;
                   if (fast_eligible && !fast_items.empty()
                       && fast_weight_bound) {
                         while (!fast_items.empty()) {
@@ -10532,7 +10624,11 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
             struct ExactInterval { uint64_t lo, hi; };
             struct ExactItem {
                   uint64_t aggregate_weight;
+                  uint64_t specified_weight;
+                  uint64_t declared_span;
                   uint64_t feasible_count;
+                  bool is_range;
+                  bool range_weight_per_value;
                   unsigned value_width;
                   bool comparison_signed;
                   vector<ExactInterval> intervals;
@@ -10558,12 +10654,22 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         declared_span = br.hi - br.lo + 1;
                         if (declared_span == 0) return finish(unsupported());
                   }
-                  ExactItem item = {(uint64_t)br.weight, 0,
-                                    br.value_width, br.comparison_signed, {}};
-                  if (br.range_weight_per_value) {
-                        if (declared_span > UINT64_MAX / item.aggregate_weight)
-                              return finish(unsupported());
-                        item.aggregate_weight *= declared_span;
+                  ExactItem item = {};
+                  item.aggregate_weight = (uint64_t)br.weight;
+                  item.specified_weight = (uint64_t)br.weight;
+                  item.declared_span = declared_span;
+                  item.is_range = br.is_range;
+                  item.range_weight_per_value = br.range_weight_per_value;
+                  item.value_width = br.value_width;
+                  item.comparison_signed = br.comparison_signed;
+                  if (br.range_weight_per_value && item.aggregate_weight) {
+                        if (declared_span
+                            > UINT64_MAX / item.aggregate_weight) {
+                              if (!spec.legacy_range_weights)
+                                    return finish(unsupported());
+                        } else {
+                              item.aggregate_weight *= declared_span;
+                        }
                   }
 
                   uint64_t first = br.lo;
@@ -10681,24 +10787,57 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
             }
             if (items.empty()) return finish(false);
 
-            uint64_t total_weight = 0;
-            for (const auto&item : items) {
-                  if (total_weight > UINT64_MAX - item.aggregate_weight)
-                        return finish(unsupported());
-                  total_weight += item.aggregate_weight;
+            vector<dist_wide_uint_t> weights;
+            bool legacy_reweight = false;
+            if (spec.legacy_range_weights) {
+                  vector<z3_legacy_dist_item_t> legacy_items;
+                  legacy_items.reserve(items.size());
+                  for (const auto&item : items)
+                        legacy_items.push_back({item.specified_weight,
+                              item.feasible_count, item.declared_span,
+                              item.is_range, item.range_weight_per_value});
+                  legacy_reweight = z3_legacy_dist_weights(legacy_items,
+                                                           weights);
             }
-            if (!total_weight) return finish(false);
-            if (validate_only) return finish(true);
+            size_t selected_index = items.size() - 1;
+            if (legacy_reweight) {
+                  dist_wide_uint_t total_weight;
+                  for (const auto&weight : weights)
+                        total_weight = dist_wide_uint_t::add(total_weight,
+                                                             weight);
+                  if (total_weight.zero()) return finish(false);
+                  if (validate_only) return finish(true);
 
-            uint64_t item_ticket = rng.uniform_u64(total_weight);
-            const ExactItem*selected = &items.back();
-            for (const auto&item : items) {
-                  if (item_ticket < item.aggregate_weight) {
-                        selected = &item;
-                        break;
+                  dist_wide_uint_t item_ticket =
+                        dist_wide_uint_t::uniform_below(rng, total_weight);
+                  for (size_t i = 0; i < items.size(); ++i) {
+                        if (dist_wide_uint_t::cmp(item_ticket, weights[i]) < 0) {
+                              selected_index = i;
+                              break;
+                        }
+                        item_ticket = dist_wide_uint_t::sub(item_ticket,
+                                                            weights[i]);
                   }
-                  item_ticket -= item.aggregate_weight;
+            } else {
+                  uint64_t total_weight = 0;
+                  for (const auto&item : items) {
+                        if (total_weight > UINT64_MAX - item.aggregate_weight)
+                              return finish(unsupported());
+                        total_weight += item.aggregate_weight;
+                  }
+                  if (!total_weight) return finish(false);
+                  if (validate_only) return finish(true);
+
+                  uint64_t item_ticket = rng.uniform_u64(total_weight);
+                  for (size_t i = 0; i < items.size(); ++i) {
+                        if (item_ticket < items[i].aggregate_weight) {
+                              selected_index = i;
+                              break;
+                        }
+                        item_ticket -= items[i].aggregate_weight;
+                  }
             }
+            const ExactItem*selected = &items[selected_index];
             uint64_t value_ticket = selected->feasible_count == 1
                   ? 0 : rng.uniform_u64(selected->feasible_count);
             uint64_t coordinate = selected->intervals.back().hi;
@@ -10725,6 +10864,10 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 
       struct FeasibleItem {
 	    uint64_t aggregate_weight;
+	    uint64_t specified_weight;
+	    uint64_t declared_span;
+	    bool is_range;
+	    bool range_weight_per_value;
 	    unsigned value_width;
 	    bool comparison_signed;
 	    vector<uint64_t> values;
@@ -10752,10 +10895,19 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 
 	    FeasibleItem item;
 	    item.aggregate_weight = (uint64_t)br.weight;
+	    item.specified_weight = (uint64_t)br.weight;
+	    item.declared_span = span;
+	    item.is_range = br.is_range;
+	    item.range_weight_per_value = br.range_weight_per_value;
 	    item.value_width = br.value_width;
 	    item.comparison_signed = br.comparison_signed;
-	    if (br.is_range && br.range_weight_per_value)
-		  item.aggregate_weight *= span;
+	    if (br.is_range && br.range_weight_per_value) {
+		  if (!spec.legacy_range_weights)
+			item.aggregate_weight *= span;
+		  else if (item.aggregate_weight
+			   && span <= UINT64_MAX / item.aggregate_weight)
+			item.aggregate_weight *= span;
+	    }
 
 	    uint64_t first = br.lo;
 	    uint64_t last = br.is_range ? br.hi : br.lo;
@@ -10794,51 +10946,96 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
       }
       if (items.empty()) return false;
 
-      uint64_t total = 0;
-	for (const auto& item : items) {
-	    if (item.aggregate_weight > UINT64_MAX - total) {
-		  static bool warned_total_overflow = false;
-		  if (!warned_total_overflow) {
-			fprintf(stderr, "Warning: dist aggregate item weights exceed "
-				"the runtime uint64 representation; using the "
-				"weighted-soft fallback (further similar warnings "
-				"suppressed).\n");
-			warned_total_overflow = true;
-		  }
-                  if (indeterminate) *indeterminate = true;
-		  return false;
-	    }
-	    total += item.aggregate_weight;
-	}
-	if (total == 0) return false;
-      if (capture) {
-            capture->weighted = true;
-            capture->total_weight = total;
-            capture->items.clear();
-            for (const auto&item : items) {
-                  z3_t1_weighted_item_t saved;
-                  saved.weight = item.aggregate_weight;
-                  saved.values = item.values;
-                  capture->items.push_back(std::move(saved));
-            }
+      vector<dist_wide_uint_t> weights;
+      bool legacy_reweight = false;
+      if (spec.legacy_range_weights) {
+            vector<z3_legacy_dist_item_t> legacy_items;
+            legacy_items.reserve(items.size());
+            for (const auto&item : items)
+                  legacy_items.push_back({item.specified_weight,
+                        (uint64_t)item.values.size(), item.declared_span,
+                        item.is_range, item.range_weight_per_value});
+            legacy_reweight = z3_legacy_dist_weights(legacy_items, weights);
       }
-      if (validate_only) return true;
-      uint64_t ticket = rng.uniform_u64(total);
       size_t item_idx = items.size() - 1;
-      for (size_t i = 0 ; i < items.size() ; i += 1) {
-	    if (ticket < items[i].aggregate_weight) {
-		  item_idx = i;
-		  break;
-	    }
-	    ticket -= items[i].aggregate_weight;
+      if (legacy_reweight) {
+            dist_wide_uint_t total = {};
+            for (const auto&weight : weights)
+                  total = dist_wide_uint_t::add(total, weight);
+            if (total.zero()) return false;
+            if (capture) {
+                  const dist_wide_uint_t max_weight =
+                        dist_wide_uint_t::from_u64(UINT64_MAX);
+                  bool cacheable = dist_wide_uint_t::cmp(total, max_weight) <= 0;
+                  for (const auto&weight : weights)
+                        cacheable = cacheable
+                              && dist_wide_uint_t::cmp(weight, max_weight) <= 0;
+                  capture->weighted = cacheable;
+                  capture->total_weight = cacheable ? total.low64() : 0;
+                  capture->items.clear();
+                  if (cacheable)
+                        for (size_t i = 0; i < items.size(); ++i) {
+                              z3_t1_weighted_item_t saved;
+                              saved.weight = weights[i].low64();
+                              saved.values = items[i].values;
+                              capture->items.push_back(std::move(saved));
+                        }
+            }
+            if (validate_only) return true;
+            dist_wide_uint_t ticket = dist_wide_uint_t::uniform_below(rng, total);
+            for (size_t i = 0; i < items.size(); ++i) {
+                  if (dist_wide_uint_t::cmp(ticket, weights[i]) < 0) {
+                        item_idx = i;
+                        break;
+                  }
+                  ticket = dist_wide_uint_t::sub(ticket, weights[i]);
+            }
+      } else {
+            uint64_t total = 0;
+            for (const auto&item : items) {
+                  if (item.aggregate_weight > UINT64_MAX - total) {
+                        static bool warned_total_overflow = false;
+                        if (!warned_total_overflow) {
+                              fprintf(stderr, "Warning: dist aggregate item weights exceed "
+                                      "the runtime uint64 representation; using the "
+                                      "weighted-soft fallback (further similar warnings "
+                                      "suppressed).\n");
+                              warned_total_overflow = true;
+                        }
+                        if (indeterminate) *indeterminate = true;
+                        return false;
+                  }
+                  total += item.aggregate_weight;
+            }
+            if (!total) return false;
+            if (capture) {
+                  capture->weighted = true;
+                  capture->total_weight = total;
+                  capture->items.clear();
+                  for (const auto&item : items) {
+                        z3_t1_weighted_item_t saved;
+                        saved.weight = item.aggregate_weight;
+                        saved.values = item.values;
+                        capture->items.push_back(std::move(saved));
+                  }
+            }
+            if (validate_only) return true;
+            uint64_t ticket = rng.uniform_u64(total);
+            for (size_t i = 0; i < items.size(); ++i) {
+                  if (ticket < items[i].aggregate_weight) {
+                        item_idx = i;
+                        break;
+                  }
+                  ticket -= items[i].aggregate_weight;
+            }
       }
 
       const FeasibleItem& item = items[item_idx];
       size_t value_idx = item.values.size() == 1
-	    ? 0 : rng.uniform_index(item.values.size());
+            ? 0 : rng.uniform_index(item.values.size());
       uint64_t v = item.values[value_idx];
       Z3_ast eq = candidate_pin(v, item.value_width,
-				item.comparison_signed);
+                              item.comparison_signed);
       Z3_solver_assert(ctx, base, eq);
       Z3_optimize_assert(ctx, opt, eq);
       chosen = v;

@@ -1,8 +1,7 @@
 // Exact large-range dist-item regression candidate.
 // Common checks exercise IEEE 1800-2017 18.5.4 / 2023 18.5.3.
-// The := exclusion mass check is enabled only for 2023: its text expressly
-// preserves the original range size after exclusions; 2017 is recorded as
-// ambiguous in the accompanying assessment.
+// Exclusions remove the unavailable per-value weight in 2017. IEEE 1800-2023
+// instead retains the full source-range weight after exclusions.
 class signed_slash_item;
   rand bit signed [11:0] value;
   rand bit unrelated;
@@ -62,11 +61,19 @@ module test;
         failures++;
       end
     end
-    // p(low)=1/4; the documented 128-draw band has a <1e-8 total false-rejection contribution.
+`ifdef DIST_2023
+    // 2023 retains each range's full :/ mass: p(low)=1/4.
     if (slash_low < 7 || slash_low > 65) begin
-      $display("EXACT_REQUIRED_FAIL slash :/ item ratio 1:3");
+      $display("EXACT_REQUIRED_FAIL 2023 slash :/ item ratio 1:3");
       failures++;
     end
+`else
+    // 2017 assigns each value 1/201 in the first range; only -500 remains.
+    if (slash_low > 3) begin
+      $display("EXACT_REQUIRED_FAIL 2017 slash :/ per-value weight");
+      failures++;
+    end
+`endif
 
     per_value = new;
     per_value.srandom(32'h600d_2023);
@@ -86,6 +93,11 @@ module test;
       failures++;
     end
 `else
+    // 2017 leaves one value with weight 1 versus 100 feasible values of weight 1.
+    if (per_value_first > 7) begin
+      $display("EXACT_REQUIRED_FAIL 2017 := per-value weight");
+      failures++;
+    end
 `endif
 
     overlap = new;
