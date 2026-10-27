@@ -10506,6 +10506,13 @@ block_item_decl
 
   | parameter_declaration
 
+  /* IEEE 1800-2017 11.12: lets are declarations in sequential and
+     parallel blocks and in subroutines, which share this grammar rule. */
+  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
+      { perm_string tmp2 = lex_strings.make($2);
+        pform_make_let(@1, tmp2, $3, $5);
+      }
+
   /* Blocks can have type declarations. */
 
   | type_declaration
@@ -16238,11 +16245,6 @@ module_item
 	if ($1) delete $1;
 	if ($3) delete $3;
 	yyerrok;
-      }
-
-  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
-      { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
       }
 
   /* Maybe this is a discipline declaration? If so, then the lexor
