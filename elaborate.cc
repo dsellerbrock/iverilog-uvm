@@ -8654,6 +8654,14 @@ static bool assignment_rval_is_constant_(const PExpr*source,
 {
       if (dynamic_cast<const NetEConst*>(result)) return true;
       if (dynamic_cast<const NetECReal*>(result)) return true;
+      if (const NetEArrayPattern*pattern =
+		    dynamic_cast<const NetEArrayPattern*>(result)) {
+	    for (size_t idx = 0 ; idx < pattern->item_size() ; idx += 1) {
+		  if (!assignment_rval_is_constant_(0, pattern->item(idx)))
+			return false;
+	    }
+	    return true;
+      }
       return dynamic_cast<const PENull*>(source)
             && dynamic_cast<const NetENull*>(result);
 }
