@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1235_let_nested_scopes_2017.v:42: $finish called at 1 (1s)
