@@ -1,0 +1,1 @@
+ivltests/sv_default_disable_duplicate_fail.v:4: error: More than one default disable iff declaration in the same scope.
