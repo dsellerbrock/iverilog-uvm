@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1226_proc_decl_order.v",
+  "iverilog-args": ["-g2017", "-s", "declaration_after_statement"],
+  "gold": "issue1226_proc_decl_order_2017"
+}

@@ -1,0 +1,2 @@
+PASS parenthesized pattern
+ivltests/sv_case_matches_parenthesized.v:16: $finish called at 0 (1s)

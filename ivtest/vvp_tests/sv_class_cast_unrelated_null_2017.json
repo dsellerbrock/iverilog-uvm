@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_class_cast_unrelated_null.sv",
+    "gold"   : "sv_class_cast_unrelated_null",
+    "iverilog-args" : [ "-g2017" ]
+}

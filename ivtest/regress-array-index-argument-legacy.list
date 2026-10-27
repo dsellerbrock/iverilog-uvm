@@ -1,2 +1,6 @@
 sv_array_index_argument_2023 normal,-g2023,-ssv_array_index_argument,-I./ivltests ivltests
 sv_array_index_argument_2017_fail CE,-g2017,-ssv_array_index_argument,-I./ivltests ivltests
+sv_array_index_argument_struct_2023 normal,-g2023,-ssv_array_index_argument_struct,-I./ivltests ivltests
+sv_array_index_argument_struct_2017 CE,-g2017,-ssv_array_index_argument_struct,-I./ivltests ivltests
+sv_array_index_argument_struct_nested_fail_2023 CE,-g2023,-ssv_array_index_argument_struct_nested_fail_2023,-I./ivltests ivltests
+sv_array_index_argument_struct_outside_fail_2023 CE,-g2023,-ssv_array_index_argument_struct_outside_fail_2023,-I./ivltests ivltests
