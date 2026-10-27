@@ -952,7 +952,7 @@ vvp_cobject::~vvp_cobject()
       inst_events_.clear();
 }
 
-bool vvp_cobject::union_member_read_ok_(size_t pid) const
+bool vvp_cobject::union_member_access_ok_(size_t pid) const
 {
       if (!defn_->is_tagged_union_type()
 	  || union_active_member_ == (int)pid)
@@ -970,6 +970,16 @@ bool vvp_cobject::union_member_read_ok_(size_t pid) const
       return false;
 }
 
+void vvp_cobject::activate_union_member(size_t pid)
+{
+      assert(defn_->is_tagged_union_type());
+      assert(pid < defn_->property_count());
+      if (union_active_member_ != (int)pid) {
+	    union_active_member_ = (int)pid;
+	    touch();
+      }
+}
+
 vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
 {
       std::map<uint32_t, vvp_net_t*>::iterator it = inst_events_.find(slot);
@@ -984,6 +994,8 @@ vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
 
 void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
+      if (!union_member_access_ok_(pid))
+	    return;
       if (defn_->is_union_type() && union_vec4_ && idx == 0
 	  && defn_->property_array_size(pid) == 1
 	  && defn_->property_vec4_width(pid)) {
@@ -1043,7 +1055,7 @@ void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 
 void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 {
-      if (!union_member_read_ok_(pid)) {
+      if (!union_member_access_ok_(pid)) {
 	    unsigned width = defn_->property_vec4_width(pid);
 	    val = vvp_vector4_t(width ? width : 1, BIT4_X);
 	    return;
@@ -1087,6 +1099,8 @@ void vvp_cobject::set_ref_binding(size_t pid, const vvp_object_t&binding)
 
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
+      if (!union_member_access_ok_(pid))
+	    return;
       double old = defn_->get_real(properties_, pid, idx);
       int old_active = union_active_member_;
       defn_->set_real(properties_, pid, val, idx);
@@ -1103,13 +1117,15 @@ void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 
 double vvp_cobject::get_real(size_t pid, size_t idx)
 {
-      if (!union_member_read_ok_(pid))
+      if (!union_member_access_ok_(pid))
 	    return 0.0;
       return defn_->get_real(properties_, pid, idx);
 }
 
 void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
 {
+      if (!union_member_access_ok_(pid))
+	    return;
       string old = defn_->get_string(properties_, pid, idx);
       int old_active = union_active_member_;
       defn_->set_string(properties_, pid, val, idx);
@@ -1126,13 +1142,15 @@ void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
 
 string vvp_cobject::get_string(size_t pid, size_t idx)
 {
-      if (!union_member_read_ok_(pid))
+      if (!union_member_access_ok_(pid))
 	    return string();
       return defn_->get_string(properties_, pid, idx);
 }
 
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
+      if (!union_member_access_ok_(pid))
+	    return;
       vvp_object_t old;
       defn_->get_object(properties_, pid, old, idx);
       int old_active = union_active_member_;
@@ -1182,7 +1200,7 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
 {
-      if (!union_member_read_ok_(pid)) {
+      if (!union_member_access_ok_(pid)) {
 	    val = vvp_object_t();
 	    return;
       }
