@@ -669,6 +669,7 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       int select_is_queue = 0;
       unsigned lab_fail, lab_done;
       int depth_on_fail;
+      char src_type_buf[64];
 
       if (!(dest && src))
             return 0;
@@ -794,8 +795,17 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       }
 
       draw_eval_object(src);
-      fprintf(vvp_out, "    %%test/class C%p; $cast: 6.24.2 type check\n",
-              dest_type);
+      ivl_type_t src_type = ivl_expr_net_type(src);
+      if (!src_type && ivl_expr_type(src) == IVL_EX_SIGNAL)
+            src_type = ivl_signal_net_type(ivl_expr_signal(src));
+      if (src_type && ivl_type_base(src_type) == IVL_VT_CLASS)
+            draw_class_in_scope(src_type);
+      if (src_type && ivl_type_base(src_type) == IVL_VT_CLASS)
+            snprintf(src_type_buf, sizeof src_type_buf, "C%p", src_type);
+      else
+            snprintf(src_type_buf, sizeof src_type_buf, "C%p", dest_type);
+      fprintf(vvp_out, "    %%test/class C%p, %s; $cast: 6.24.2 type check\n",
+              dest_type, src_type_buf);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
               thread_count, lab_fail);
 
