@@ -5724,23 +5724,27 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
 
       /* Reuse procedural-assignment validation for consts, nets and other
          read-valid but write-invalid names before exporting the expression
-         side effect. The bounded backend below currently accepts only the
-         resulting scalar signal shape. */
+         side effect. */
       NetAssign_*lval = left_->elaborate_lval(des, scope, false, false);
       if (!lval)
             return nullptr;
-      delete lval;
 
       NetExpr*lp = left_->elaborate_expr(des, scope, l_width, flags);
-      if (!lp)
+      if (!lp) {
+            delete lval;
             return nullptr;
+      }
 
       NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
-      if (!lsig || lsig->word_index()) {
+      const bool concat_lvalue = lval->more != 0
+	    || dynamic_cast<NetEConcat*>(lp) != 0;
+      if ((!concat_lvalue && (!lsig || lsig->word_index()))
+          || (concat_lvalue && op_ != '=')) {
             cerr << get_fileline() << ": sorry: Assignment expressions "
                  << "currently require a scalar variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5749,6 +5753,7 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
                  << "currently require an integral variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5756,26 +5761,30 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*rp = right_->elaborate_expr(des, scope, l_width, flags);
       if (!rp) {
             delete lp;
+            delete lval;
             return nullptr;
       }
       rp = cast_to_width(rp, l_width, signed_flag_, *this);
 
-      NetNet*target = lsig->sig();
       /* The ordinary l-value used for validation above is temporary;
 	 without this permanent note, `x = (member = 1)' can evade the
 	 continuous/procedural-driver check. An already reserved continuous
 	 driver is the opposite elaboration order of the same conflict. */
-      if (target->coerced_to_uwire()
-	  && target->test_part_driven(target->vector_width()-1, 0, 0)) {
-	cerr << get_fileline() << ": error: Variable '" << target->name()
-	     << "' cannot have continuous and procedural drivers on the"
-	     << " same bits." << endl;
-	des->errors += 1;
-	delete lp;
-	delete rp;
-	return nullptr;
+      for (NetAssign_*cur = lval; cur; cur = cur->more) {
+	NetNet*target = cur->sig();
+	if (target && target->coerced_to_uwire()
+	    && target->test_part_driven(target->vector_width()-1, 0, 0)) {
+	  cerr << get_fileline() << ": error: Variable '" << target->name()
+	       << "' cannot have continuous and procedural drivers on the"
+	       << " same bits." << endl;
+	  des->errors += 1;
+	  delete lp;
+	  delete rp;
+	  delete lval;
+	  return nullptr;
+	}
+	if (target) target->note_assignment_expression_write();
       }
-      target->note_assignment_expression_write();
 
       string name = "$ivl_assign_expr$";
       name += op_;
@@ -5784,6 +5793,10 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       fun->set_line(*this);
       fun->parm(0, lp);
       fun->parm(1, rp);
+      if (concat_lvalue)
+	fun->set_ref_output(lval);
+      else
+	delete lval;
 
       return cast_to_width(fun, expr_wid, signed_flag_, *this);
 }
