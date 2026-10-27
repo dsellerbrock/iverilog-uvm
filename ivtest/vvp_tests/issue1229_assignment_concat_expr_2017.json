@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1229_assignment_concat_expr.v",
+  "iverilog-args": ["-g2017", "-s", "issue1229_assignment_concat_expr"],
+  "gold": "issue1229_assignment_concat_expr"
+}
