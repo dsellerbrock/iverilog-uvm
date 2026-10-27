@@ -41447,6 +41447,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      w = we;
 			}
 			string mode = r.weight_is_divided ? ":/" : ":=";
+			if (generation_flag < GN_VER2023 && r.is_range) mode += "17";
 			result += " (b " + mode + " " + w + " " + range_ir + ")";
 		  } else {
 			result += " " + range_ir;
