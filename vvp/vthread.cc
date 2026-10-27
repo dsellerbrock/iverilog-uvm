@@ -13561,6 +13561,18 @@ bool of_AND(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_AND_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz()) {
+	    vala = vvp_vector4_t(vala.size(), BIT4_X);
+	    return true;
+      }
+      vala &= valb;
+      return true;
+}
+
 /*
  * This function must ALWAYS be called with the val set to the right
  * size, and initialized with BIT4_0 bits. Certain optimizations rely
