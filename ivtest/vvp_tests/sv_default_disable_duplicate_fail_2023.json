@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_default_disable_duplicate_fail.v",
+  "iverilog-args": ["-g2023", "-s", "sv_default_disable_duplicate_fail"],
+  "gold": "sv_default_disable_duplicate_fail"
+}
