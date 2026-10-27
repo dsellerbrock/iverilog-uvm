@@ -9796,6 +9796,30 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned k = defn->covgrp_bin(recs[0]).kind & 7;
 	    if (k != 2) continue;
 	    if (!item_enabled(defn->covgrp_bin(recs[0]).item_idx)) continue;
+	    if (defn->covgrp_bin(recs[0]).kind & 1024) {
+		  const class_type::cov_bin_t&first = defn->covgrp_bin(recs[0]);
+		  unsigned cp = first.cp_idx;
+		  if (cp >= ncp || !cp_sampled[cp]) continue;
+		  bool enabled = true;
+		  std::vector<const class_type::cov_bin_t*> records;
+		  for (size_t bi : recs) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			if (!bin_enabled(bin.guard_idx)) enabled = false;
+			records.push_back(&bin);
+		  }
+		  if (!enabled) continue;
+		  std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+			  (uint64_t)kv.first << 32, records, cp_vals[cp],
+			  &wide_vals[cp]);
+		  if (!completed.empty()) {
+			std::cerr << "ERROR: covergroup illegal transition bin matched"
+				  << " (prop_idx=" << covgrp_diag_prop_idx_(defn, kv.first)
+				  << ")" << std::endl;
+			covgrp_bump_count_(cobj, kv.first);
+			cp_suppressed[cp] = true;
+		  }
+		  continue;
+	    }
 	      // tuples OR; records in one tuple AND.
 	    std::map<unsigned, bool> tuple_ok;
 	    for (size_t bi : recs) {
@@ -9827,6 +9851,25 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			      if (bin.cp_idx < ncp)
 				    cp_suppressed[bin.cp_idx] = true;
 			}
+	    }
+      }
+
+	// Constructor-dependent illegal transition programs use the same
+	// matcher as ordinary transition bins, but report before normal routing.
+      for (auto&entry : dyn_trans_states) {
+	    const covgrp_dyn_trans_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    if (cp >= ncp || !cp_sampled[cp]) continue;
+	    std::vector<const class_type::cov_bin_t*> records;
+	    for (const auto&rec : state.records) records.push_back(&rec);
+	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+		  (UINT64_C(1) << 63) | ((uint64_t)entry.first << 16),
+		  records, cp_vals[cp], &wide_vals[cp]);
+	    if (!completed.empty() && bin_enabled(state.meta->guard_idx)) {
+		  std::cerr << "ERROR: covergroup illegal transition bin matched"
+			    << " (family=" << entry.first << ")" << std::endl;
+		  cp_suppressed[cp] = true;
 	    }
       }
 
@@ -10021,7 +10064,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// but keep instance-local endpoints and canonical type-bin identities.
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
-	    if (!state.valid || !state.meta || state.records.empty()) continue;
+	    if (!state.valid || !state.meta || state.records.empty()
+		|| (state.meta->kind & 1024)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp]) continue;
 	    std::vector<const class_type::cov_bin_t*> records;
@@ -10398,7 +10442,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 	    const auto&dyn_trans_states = cobj->cov_dyn_trans_states();
 	    for (auto&entry : dyn_trans_states) {
 		  const covgrp_dyn_trans_state_t&state = entry.second;
-		  if (!state.valid || !state.meta) continue;
+		  if (!state.valid || !state.meta || (state.meta->kind & 1024)) continue;
 		  long double logical = state.meta->array_size == 0
 			? state.type_bins.size() : 1;
 		  item_dyn_total[state.meta->item_idx] += logical;
