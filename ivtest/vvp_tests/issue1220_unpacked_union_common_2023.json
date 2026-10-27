@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1220_unpacked_union_common.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1220_unpacked_union_common"
+}

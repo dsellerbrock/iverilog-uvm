@@ -1186,7 +1186,29 @@ void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
 	    val = vvp_object_t();
 	    return;
       }
-      return defn_->get_object(properties_, pid, val, idx);
+      defn_->get_object(properties_, pid, val, idx);
+      if (!defn_->is_union_type() || defn_->is_tagged_union_type()
+	  || idx != 0 || union_active_member_ < 0
+	  || union_active_member_ == (int)pid
+	  || (size_t)union_active_member_ >= defn_->property_count())
+	    return;
+
+      const class_type*target_type = defn_->property_declared_class_type(pid);
+      const class_type*source_type = defn_->property_declared_class_type(
+	    (size_t)union_active_member_);
+      if (!target_type || !source_type || !target_type->is_struct_type()
+	  || target_type->is_union_type() || !source_type->is_struct_type()
+	  || source_type->is_union_type())
+	    return;
+
+      vvp_cobject*target = val.peek<vvp_cobject>();
+      vvp_object_t source_value;
+      defn_->get_object(properties_, (size_t)union_active_member_,
+			 source_value, 0);
+      vvp_cobject*source = source_value.peek<vvp_cobject>();
+      if (target && source)
+	    target->get_defn()->copy_common_initial_sequence(
+		  target->properties_, source->get_defn(), source->properties_);
 }
 
 bool vvp_cobject::claim_instance_constant_assignment(size_t pid, bool&report)

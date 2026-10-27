@@ -2553,6 +2553,44 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
       properties_[pid].type->copy(dst_buf, src_buf);
 }
 
+unsigned class_type::copy_common_initial_sequence(inst_t dst,
+			const class_type*src_type, inst_t src) const
+{
+      if (!src_type || !is_struct_type_ || is_union_type_
+	  || !src_type->is_struct_type_ || src_type->is_union_type_)
+	    return 0;
+
+      unsigned copied = 0;
+      size_t count = properties_.size() < src_type->properties_.size()
+	    ? properties_.size() : src_type->properties_.size();
+      for (size_t pid = 0; pid < count; ++pid) {
+	    const prop_t&target = properties_[pid];
+	    const prop_t&source = src_type->properties_[pid];
+	    if (target.base_type != source.base_type
+		|| target.array_size != source.array_size
+		|| target.dimensions != source.dimensions
+		|| target.declared_class_type != source.declared_class_type)
+		  break;
+	    for (size_t idx = 0; idx < target.array_size; ++idx) {
+		  if (property_vec4_width(pid)) {
+			vvp_vector4_t value;
+			src_type->get_vec4(src, pid, value, idx);
+			set_vec4(dst, pid, value, idx);
+		  } else if (target.base_type == "r") {
+			set_real(dst, pid, src_type->get_real(src, pid, idx), idx);
+		  } else if (target.base_type == "S") {
+			set_string(dst, pid, src_type->get_string(src, pid, idx), idx);
+		  } else {
+			vvp_object_t value;
+			src_type->get_object(src, pid, value, idx);
+			set_object(dst, pid, value, idx);
+		  }
+	    }
+	    ++copied;
+      }
+      return copied;
+}
+
 int class_type::get_type_code(void) const
 {
       return vpiClassDefn;

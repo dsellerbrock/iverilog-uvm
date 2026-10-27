@@ -213,6 +213,8 @@ class class_type : public __vpiHandle {
       void get_object(inst_t inst, size_t pid, vvp_object_t&val, size_t idx) const;
 
       void copy_property(inst_t dst, size_t idx, inst_t src) const;
+      unsigned copy_common_initial_sequence(inst_t dst,
+			const class_type*src_type, inst_t src) const;
 
     public: // VPI related methods
       int get_type_code(void) const override;
