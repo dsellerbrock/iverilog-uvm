@@ -18184,6 +18184,8 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
 					 unsigned flags) const
 {
+	      if (!validate_program_subroutine_call(des, *this, scope, dscope))
+	    return nullptr;
 
       if (! check_call_matches_definition_(des, dscope))
 	    return 0;

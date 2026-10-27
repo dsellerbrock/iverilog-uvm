@@ -17207,6 +17207,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	   A static task with explicit automatic locals still needs its
 	   %alloc/call/%free wrapper. */
       if ((parm_count == 0) && !subroutine_needs_call_frame_(task)) {
+	    if (!validate_program_subroutine_call(des, *this, scope, task))
+		  return nullptr;
 	      // Check if a task call is allowed in this context.
 	    test_task_calls_ok_(des, scope);
 
@@ -19524,6 +19526,46 @@ bool PCallTask::test_task_calls_ok_(Design*des, const NetScope*scope) const
       return true;
 }
 
+static const NetScope* enclosing_design_element_(const NetScope*scope)
+{
+      for (; scope; scope = scope->parent()) {
+	    if (scope->type() == NetScope::PACKAGE
+		|| scope->type() == NetScope::CLASS)
+		  return nullptr;
+	    if (scope->type() == NetScope::MODULE)
+		  return scope->is_unit() ? nullptr : scope;
+      }
+      return nullptr;
+}
+
+bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
+				      const NetScope*caller,
+				      const NetScope*callee)
+{
+      if (!caller || !callee)
+	    return true;
+
+	/* Class method calls have their own receiver and dispatch rules. Keep
+	 * them outside this design-element restriction pending separate clause
+	 * analysis. */
+      if (caller->get_class_scope() || callee->get_class_scope())
+	    return true;
+
+      const NetScope*caller_design = enclosing_design_element_(caller);
+      const NetScope*callee_design = enclosing_design_element_(callee);
+      if (!caller_design || !callee_design
+	  || !callee_design->program_block()
+	  || caller_design->program_block())
+	    return true;
+
+      cerr << loc.get_fileline()
+	   << ": error: Calling program subroutines from within design "
+	      "modules is illegal and shall result in an error "
+	      "(IEEE 1800-2017/2023 24.5)." << endl;
+      des->errors += 1;
+      return false;
+}
+
 NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
 {
 	// Generate a function call version of this task call.
@@ -19598,6 +19640,9 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 					     NetFuncDef*def) const
 {
       NetScope*dscope = def->scope();
+
+      if (!validate_program_subroutine_call(des, *this, scope, dscope))
+	    return nullptr;
 
 	/* A void function cannot be part of the constant-function subset, and
 	 * statement-form calls do not pass through PECallFunction's constant-call
@@ -20282,6 +20327,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
 {
+	      if (!validate_program_subroutine_call(des, *this, scope, task))
+	    return nullptr;
+
 	      const NetBaseDef*def = 0;
 		      if (task->type() == NetScope::TASK) {
 			    def = task->task_def();

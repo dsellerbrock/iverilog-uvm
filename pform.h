@@ -66,6 +66,12 @@ class PPackage;
 struct vlltype;
 struct lgate;
 
+/* Check the IEEE 1800 restriction on calls from design modules to program
+ * subroutines after the caller and callee scopes have been resolved. */
+extern bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
+					     const NetScope*caller,
+					     const NetScope*callee);
+
 /*
  * The min:typ:max expression s selected at parse time using the
  * enumeration. When the compiler makes a choice, it also prints a
