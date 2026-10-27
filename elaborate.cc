@@ -34691,6 +34691,8 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 		  "$sqrt", "$tan", "$tanh", "$typename", "$unsigned",
 		  "$ivl_array_query$size", "$ivl_assoc_method$exists",
 		  "$ivl_assoc_method$num", "$ivl_checked_property_index",
+		  // Read-only Preponed operand sample (§14.13, §16.5.1); validate operands recursively below.
+		  "$ivl_clocking_sample",
 		  "$ivl_class_method$constraint_mode_get",
 		  "$ivl_class_method$get_randstate", "$ivl_class_method$rand_mode_get",
 		  "$ivl_class_method$rand_mode_get_assoc",
@@ -41486,6 +41488,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      w = we;
 			}
 			string mode = r.weight_is_divided ? ":/" : ":=";
+			if (generation_flag < GN_VER2023 && r.is_range) mode += "17";
 			result += " (b " + mode + " " + w + " " + range_ir + ")";
 		  } else {
 			result += " " + range_ir;

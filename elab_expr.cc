@@ -4307,6 +4307,24 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 6.16: "a[0] = b; // invalid, requires a cast".
+	 * A string character (type byte) is not assignment-compatible with a
+	 * non-literal string-typed expression. String literals keep their
+	 * 5.9/6.16 integral conversion, so exclude PEString. The wider
+	 * packed-vector case is deliberately not decided here. */
+      if (gn_system_verilog()
+	  && (lv_net_type == &netvector_t::atom2s8
+	      || lv_net_type == &netvector_t::atom2u8)
+	  && expr->expr_type() == IVL_VT_STRING
+	  && !dynamic_cast<const PEString*>(expr)) {
+	    cerr << expr->get_fileline() << ": error: A string-typed expression "
+		 << "cannot be assigned to a byte or string character without an "
+		 << "explicit cast (IEEE 1800-2017/2023 6.16)." << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+	  }
+
 	/* Class handles are type-incompatible with integral types (IEEE 1800
 	 * 6.22.5). The type is on the PExpr from test_width before netmisc's
 	 * compile-progress fallback replaces the r-value. Use it only for an

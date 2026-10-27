@@ -1,0 +1,2 @@
+./ivltests/sv_assert_function_nested_side_effect_fail.v:16: error: Function `wrapper' used in a concurrent assertion expression does not meet the IEEE 1800-2017/2023 16.6 requirements: writes static or external state.
+1 error(s) during elaboration.
