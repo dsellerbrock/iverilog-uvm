@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1212_local_subclass_access.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue1212_local_subclass_access"
+}
