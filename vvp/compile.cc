@@ -234,6 +234,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%alloc",  of_ALLOC,  1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
       { "%and",    of_AND,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%and/r",  of_ANDR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+      { "%and/s",  of_AND_S,  0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%append/qo/obj", of_APPEND_QO_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%append/qo/obj/darray", of_APPEND_QO_OBJ_DARRAY, 1,
 	{OA_CONTAINER_STRING, OA_NONE, OA_NONE} },
