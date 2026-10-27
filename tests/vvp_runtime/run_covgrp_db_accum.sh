@@ -18,7 +18,7 @@ cd "$repo_dir"
 failures=0
 
 run_vvp() {
-    python3 "$script_dir/test_timeout.py" "${IVL_TEST_TIMEOUT:-120}" "$vvp" "$@"
+    python3 "$repo_dir/scripts/run_with_timeout.py" "${IVL_TEST_TIMEOUT:-120}" -- "$vvp" "$@"
 }
 
 run_ok() {
