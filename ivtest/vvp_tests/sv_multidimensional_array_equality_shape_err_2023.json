@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_multidimensional_array_equality_shape_err_2023.v",
+    "iverilog-args": ["-g2023", "-Iivltests", "-s", "sv_multidimensional_array_equality_shape_err"],
+    "gold": "sv_multidimensional_array_equality_shape_err"
+}
