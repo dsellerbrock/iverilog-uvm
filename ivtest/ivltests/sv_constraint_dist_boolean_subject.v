@@ -325,8 +325,9 @@ class dist_range_default_weight;
   constraint value_c { value dist {[0:15], 16 := 1}; }
 endclass
 
-// A := range retains its aggregate full-range weight even when another
-// constraint leaves only one member feasible.
+// This smoke test runs in -g2012: after pruning, the sole feasible range
+// value retains its per-value weight under IEEE 1800-2017 18.5.4. The paired
+// -g2017/-g2023 exclusion regression checks the newer retained-range rule.
 class dist_range_pruned;
   rand bit [4:0] value;
   constraint domain_c { value >= 15; }
@@ -931,8 +932,9 @@ module main;
       else
         $fatal(1, "pruned := range escaped feasible domain");
     end
-    if (pruned_range < 80 || pruned_scalar != 96 - pruned_range)
-      $fatal(1, "pruned := range lost full aggregate: range=%0d scalar=%0d",
+    if (pruned_range < 30 || pruned_range > 66 ||
+        pruned_scalar != 96 - pruned_range)
+      $fatal(1, "2017 pruned := per-value ratio: range=%0d scalar=%0d",
              pruned_range, pruned_scalar);
 
     overlap_item = new;
@@ -998,9 +1000,9 @@ module main;
       else
         $fatal(1, "pruned signed range escaped feasible domain");
     end
-    if (signed_pruned_range < 70 ||
+    if (signed_pruned_range < 30 || signed_pruned_range > 66 ||
         signed_pruned_scalar != 96 - signed_pruned_range)
-      $fatal(1, "pruned signed range lost full aggregate: range=%0d scalar=%0d",
+      $fatal(1, "2017 pruned signed per-value ratio: range=%0d scalar=%0d",
              signed_pruned_range, signed_pruned_scalar);
 
     signed_open_item = new;
