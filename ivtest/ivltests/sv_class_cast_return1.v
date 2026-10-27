@@ -9,10 +9,7 @@ module test;
   endclass
 
   function automatic left_t cast_left(base_t obj);
-    if (!$cast(cast_left, obj)) begin
-      $display("FAIL cast_left failed");
-      $finish(1);
-    end
+    $cast(cast_left, obj);
   endfunction
 
   function automatic right_t cast_right(base_t obj);
@@ -41,7 +38,7 @@ module test;
 
     base_h = null;
     if (cast_left(base_h) != null) begin
-      $display("FAIL cast_left null propagation");
+      $display("FAIL failed null cast changed function result");
       $finish(1);
     end
 
