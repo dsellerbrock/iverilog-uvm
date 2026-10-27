@@ -1,0 +1,3 @@
+ivltests/sv_string_expr_to_integral_fail.v:6: error: A string-typed expression cannot be assigned to a byte or string character without an explicit cast (IEEE 1800-2017/2023 6.16).
+ivltests/sv_string_expr_to_integral_fail.v:9: error: A string-typed expression cannot be assigned to a byte or string character without an explicit cast (IEEE 1800-2017/2023 6.16).
+Elaboration failed
