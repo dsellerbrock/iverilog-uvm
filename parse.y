@@ -65,6 +65,21 @@ static perm_string pform_coverpoint_implicit_name_(PExpr*expr)
 	  return perm_string::literal("cp");
 }
 
+/* IEEE 1800-2023 8.3 note 25 limits dynamic method override specifiers to
+ * methods declared in non-interface classes. */
+static void pform_check_method_override_interface_class_(const struct vlltype&loc)
+{
+	  for (LexicalScope* scope = pform_peek_scope(); scope;
+	       scope = scope->parent_scope()) {
+		PClass* class_scope = dynamic_cast<PClass*>(scope);
+		if (!class_scope)
+		      continue;
+		if (class_scope->type && class_scope->type->interface_class)
+		      yyerror(loc, "error: Method override specifiers are not allowed in an interface class (IEEE 1800-2023 8.3).");
+		break;
+	  }
+}
+
 /* Port declaration lists use this structure for context. */
 static struct {
       NetNet::Type port_net_type;
@@ -6678,11 +6693,19 @@ lifetime_opt /* IEEE1800-2005: A.2.1.3 */
   ;
 
 method_function_keyword
-  : K_function dynamic_override_specifiers { $$ = $2; }
+  : K_function dynamic_override_specifiers
+      {
+	pform_check_method_override_interface_class_(@2);
+	$$ = $2;
+      }
   ;
 
 method_task_keyword
-  : K_task dynamic_override_specifiers { $$ = $2; }
+  : K_task dynamic_override_specifiers
+      {
+	pform_check_method_override_interface_class_(@2);
+	$$ = $2;
+      }
   ;
 
 class_item_method_function_keyword
