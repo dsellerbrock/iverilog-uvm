@@ -1,0 +1,1 @@
+ivltests/issue1207_duplicate_random_qualifier_2023.v:2: error: a class property declaration may contain only one random qualifier (IEEE 1800-2017 8.3).
