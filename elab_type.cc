@@ -2430,14 +2430,28 @@ static bool struct_member_default_is_constant_(const PExpr*source,
 {
       if (dynamic_cast<const NetEConst*>(result)) return true;
       if (dynamic_cast<const NetECReal*>(result)) return true;
+      if (const NetEArrayPattern*pattern =
+                dynamic_cast<const NetEArrayPattern*>(result)) {
+            for (size_t idx = 0; idx < pattern->item_size(); ++idx) {
+                  const NetExpr*item = pattern->item(idx);
+                  if (!dynamic_cast<const NetEConst*>(item) &&
+                      !dynamic_cast<const NetECReal*>(item) &&
+                      !dynamic_cast<const NetEArrayPattern*>(item))
+                        return false;
+                  if (dynamic_cast<const NetEArrayPattern*>(item) &&
+                      !struct_member_default_is_constant_(source, item))
+                        return false;
+            }
+            return true;
+      }
       return dynamic_cast<const PENull*>(source)
 	    && dynamic_cast<const NetENull*>(result);
 }
 
 static const char* unsupported_struct_member_default_shape_(ivl_type_t type)
 {
-      if (dynamic_cast<const netuarray_t*>(type))
-	    return "fixed-size unpacked array";
+      // IEEE 1800-2017/2023 7.2.2 permits constant defaults on unpacked
+      // structure members, including fixed-size unpacked arrays.
 
       if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type))
 	    return queue->assoc_compat() ? "associative array" : "queue";

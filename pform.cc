@@ -5977,7 +5977,8 @@ pform_append_struct_member_defaults_(const vlltype&li,
                         pform_struct_variable_shape_(member_info, mname);
 
                   if (PExpr*default_expr = mname->expr.get()) {
-                        if (member_shape != PFORM_STRUCT_DEFAULT_SCALAR) {
+                        if (member_shape != PFORM_STRUCT_DEFAULT_SCALAR &&
+                            member_shape != PFORM_STRUCT_DEFAULT_FIXED_ARRAY) {
                               cerr << li.get_fileline()
                                    << ": sorry: unpacked-struct default "
                                       "member initializers are not yet "
