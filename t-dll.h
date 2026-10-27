@@ -448,6 +448,8 @@ struct ivl_expr_s {
 		  unsigned char *vif_parm_default;
 		  ivl_lval_t ref_lval;
 	      ivl_lval_t ref_lval2;
+	      ivl_lval_t *ref_lvals;
+	      unsigned ref_lval_count;
 	    } sfunc_;
 
 	    struct {

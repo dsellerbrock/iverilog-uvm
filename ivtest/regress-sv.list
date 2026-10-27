@@ -6070,3 +6070,7 @@ issue1194_always_assertion_2017 normal,-g2017,-s,issue1194_always_assertion ivlt
 issue1194_always_assertion_2023 normal,-g2023,-s,issue1194_always_assertion ivltests gold=issue1194_always_assertion.gold
 issue1207_duplicate_random_qualifier_2017 CE,-g2017 ivltests
 issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
+
+# IEEE 1800-2017/2023 assignment expressions with concatenation l-values
+issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
+issue1229_assignment_concat_expr_2023 normal,-g2023,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
