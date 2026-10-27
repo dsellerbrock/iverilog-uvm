@@ -4836,3 +4836,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** source review during #689; the implicit-derived covergroup test now creates a synthesized constructor chain. The missing-argument fallback itself has not yet been reproduced.
 - **Reproducer status:** sketched
 - **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — inherited covergroup `at_least` and `weight` slots remain positional
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** Per-instance `at_least` and `weight` properties are still allocated inline in coverpoint/cross order. Replacing inherited items may therefore give base-class handles the wrong option slot, analogous to the goal/comment bug fixed in this PR; this has not been reproduced.
+- **File/function:** `elaborate.cc`, `add_option_props` calls in coverpoint and cross elaboration.
+- **Possible clause:** IEEE 1800-2023 §19.7.1.
+- **Evidence:** Tech-lead source review during the #1688 inherited-slot investigation; no reproducer run.
+- **Reproducer status:** unverified.
+- **Triage status:** logged for a separate follow-up; do not widen #689.

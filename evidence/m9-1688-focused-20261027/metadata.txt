@@ -1,0 +1,6 @@
+Host: macOS Apple Silicon, Darwin 27.0.0
+Compiler: Icarus Verilog 13.0 (devel), built from PR base d8392fd67aab1f83446264bb7f2ecf17d459d52a plus the stable option-slot edits.
+Focused current source run: localrun 1800 bash /tmp/a3-m9-1688-focused-20261027.sh; all 10 legacy and all 10 JSON covergroup option tests passed, including the new implicit-coverpoint and replacement cases. Total 3.10 s; peak RSS 21,839,872 bytes.
+Issue T0/smoke run: localrun 3600 bash /tmp/a3-m9-1688-t0-20261027.sh; status 0, 10 legacy + 10 JSON issue-focused tests and ci/run-smoke.sh passed. Total 131.64 s; peak RSS 166,658,048 bytes. The two added test files were listed; the implicit scenarios were added afterward and are covered by the focused current source run.
+Audit fixture command: python3 scripts/run_with_timeout.py 120 -- <local-install>/bin/iverilog -g2023 -s top -o /tmp/a3-m9-1688-focused-20261027/p19_04_1_extends_2023.vvp tests/1800_audit/c19/p19_04_1_extends_2023.sv
+Audit result: expected compile failure from the existing DD-145 limitation at line 9: inherited sample argument `bb` cannot be serialized for a derived coverpoint sampled through a base-class handle. This is separate from option-slot storage.
