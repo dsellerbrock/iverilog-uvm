@@ -247,6 +247,20 @@ NetEConst* NetEBBits::eval_arguments_(const NetExpr*l, const NetExpr*r) const
       const NetEConst*rc = dynamic_cast<const NetEConst*>(r);
       if (lc == 0 || rc == 0) return 0;
 
+	/* IEEE 1800-2017 11.8.4: a bitwise operation involving a signed
+	 * X/Z value produces an all-X result, even when the other operand
+	 * would otherwise mask the unknown bits. */
+      if ((op() == '&')
+	  && ((lc->value().has_sign() && !lc->value().is_defined())
+	      || (rc->value().has_sign() && !rc->value().is_defined()))) {
+	    verinum res (verinum::Vx, expr_width());
+	    res.has_sign(has_sign());
+	    NetEConst*tmp = new NetEConst(res);
+	    ivl_assert(*this, tmp);
+	    eval_debug(this, tmp, false);
+	    return tmp;
+      }
+
 	/* Notice the special case where one of the operands is 0 and
 	   this is a bitwise &. If this happens, then the result is
 	   known to be 0. */
