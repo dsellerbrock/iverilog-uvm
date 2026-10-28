@@ -23,6 +23,7 @@
 # include  "symbols.h"
 # include  "statistics.h"
 # include  "schedule.h"
+# include  "vthread.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <map>
@@ -37,6 +38,10 @@
 # include  <cstdlib>
 # include  <cassert>
 # include  "ivl_alloc.h"
+
+#ifndef vpiProcess
+# define vpiProcess 99
+#endif
 
 using namespace std;
 
@@ -337,6 +342,22 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       return vpip_make_iterator(mcnt, args, true);
 }
 
+class __vpiProcess : public __vpiHandle {
+    public:
+      explicit __vpiProcess(__vpiScope*scope) : scope_(scope) { }
+      int get_type_code(void) const override { return vpiProcess; }
+
+      char* vpi_get_str(int code) override
+      {
+            if (code == vpiFullName)
+                  return scope_->vpi_get_str(vpiFullName);
+            return __vpiHandle::vpi_get_str(code);
+      }
+
+    private:
+      __vpiScope*scope_;
+};
+
 /*
  * This function implements the vpi_iterate method for vpiModule and
  * similar objects. The vpi_iterate allows the user to iterate over
@@ -347,6 +368,19 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
+
+      if (code == vpiProcess) {
+            if (ref->threads.empty()) return 0;
+
+            vpiHandle*args = static_cast<vpiHandle*>(
+                  calloc(ref->threads.size(), sizeof(vpiHandle)));
+            unsigned idx = 0;
+            for (set<vthread_t>::const_iterator cur = ref->threads.begin();
+                 cur != ref->threads.end(); ++cur)
+                  args[idx++] = new __vpiProcess(ref);
+
+            return vpip_make_iterator(idx, args, true);
+      }
 
       return make_subset_iterator_(code, ref->intern);
 }
