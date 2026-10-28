@@ -334,6 +334,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1
+#define vpiOpType         39 /* operation subtype */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiName           2
 #define vpiFullName       3
@@ -385,6 +386,7 @@ typedef struct t_vpi_delay  {
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
 #define vpiConstType 40
+#define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
 #   define vpiDecConst    1
 #   define vpiRealConst   2
