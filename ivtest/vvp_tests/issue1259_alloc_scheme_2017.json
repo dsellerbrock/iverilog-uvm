@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1259_alloc_scheme.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1259_alloc_scheme_2017"],
+  "vpi-sources": ["vpi/issue1259_alloc_scheme.c"],
+  "output-contains": ["PASSED"]
+}
