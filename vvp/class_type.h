@@ -588,6 +588,15 @@ class class_type : public __vpiHandle {
       { return covgrp_live_; }
 
     private:
+      struct covgrp_population_t {
+            unsigned __int128 weight = 0;
+            long double weighted = 0;
+            std::vector<unsigned __int128> item_weight;
+            std::vector<long double> item_weighted;
+            std::vector<bool> item_has_bins;
+            std::vector<unsigned> item_at_least;
+            bool has_options = false;
+      };
       struct covgrp_instance_snapshot_t {
             uint64_t id = 0;
             double coverage = 0.0;
@@ -599,6 +608,8 @@ class class_type : public __vpiHandle {
       covgrp_instance_snapshot_t covgrp_snapshot_(class vvp_cobject*obj,
                                                    uint64_t id,
                                                    double coverage) const;
+      void covgrp_accumulate_instance_(covgrp_population_t&population,
+                                       class vvp_cobject*obj) const;
       std::vector<cov_bin_t> covgrp_bins_;
 	std::vector<bool> covgrp_real_cps_;
       std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
@@ -627,17 +638,11 @@ class class_type : public __vpiHandle {
       covgrp_options_t covgrp_options_;
       unsigned covgrp_type_weight_ = 1;
       bool covgrp_options_present_ = false;
-      mutable long double covgrp_retired_weight_ = 0, covgrp_retired_weighted_ = 0;
-      mutable std::vector<long double> covgrp_retired_item_weight_;
-      mutable std::vector<long double> covgrp_retired_item_weighted_;
-      mutable std::vector<bool> covgrp_retired_item_has_bins_;
+      mutable covgrp_population_t covgrp_retired_population_;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
       mutable std::map<const class vvp_cobject*, uint64_t> covgrp_instance_ids_;
       mutable uint64_t covgrp_next_instance_id_ = 0;
       mutable std::vector<covgrp_instance_snapshot_t> covgrp_retired_instances_;
-      mutable std::vector<unsigned> covgrp_retired_at_least_;
-      mutable bool covgrp_has_retired_options_ = false;
-
       unsigned covgrp_decl_weight_(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_cumulative_at_least_(size_t idx) const;
       std::string covgrp_fingerprint_() const;

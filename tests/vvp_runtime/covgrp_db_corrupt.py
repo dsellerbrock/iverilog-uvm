@@ -83,6 +83,67 @@ def malformed(records, case):
     elif case == "trans-count-overflow":
         index, fields = find_record(records, "trans")
         records[index] = " ".join(fields[:-1] + [str(UINT32_MAX + 1)])
+    elif case == "duplicate-pop":
+        index, _ = find_record(records, "pop")
+        records.insert(index + 1, records[index])
+    elif case == "missing-pop":
+        index, _ = find_record(records, "pop")
+        records.pop(index)
+    elif case == "pop-nan":
+        index, fields = find_record(records, "pop")
+        fields[2] = "nan"
+        records[index] = " ".join(fields)
+    elif case == "pop-infinity":
+        index, fields = find_record(records, "pop")
+        fields[2] = "inf"
+        records[index] = " ".join(fields)
+    elif case == "pop-negative":
+        index, fields = find_record(records, "pop")
+        fields[2] = "-1"
+        records[index] = " ".join(fields)
+    elif case == "pop-over-100":
+        index, fields = find_record(records, "pop")
+        fields[2] = str(int(fields[1]) * 100 + 1)
+        records[index] = " ".join(fields)
+    elif case == "pop-zero-weight-positive":
+        index, fields = find_record(records, "pop")
+        fields[1] = "0"
+        fields[2] = "1e-30"
+        records[index] = " ".join(fields)
+    elif case == "pop-item-zero-weight-positive":
+        index, fields = find_record(records, "pop")
+        fields[5] = "0"
+        fields[6] = "1e-30"
+        records[index] = " ".join(fields)
+    elif case == "pop-fractional-weight":
+        index, fields = find_record(records, "pop")
+        fields[1] = "1.5"
+        records[index] = " ".join(fields)
+    elif case == "pop-vector-length":
+        index, fields = find_record(records, "pop")
+        fields[3] = str(int(fields[3]) + 1)
+        records[index] = " ".join(fields)
+    elif case == "pop-item-over-100":
+        index, fields = find_record(records, "pop")
+        fields[6] = str(int(fields[5]) * 100 + 1)
+        records[index] = " ".join(fields)
+    elif case == "pop-invalid-bin-flag":
+        index, fields = find_record(records, "pop")
+        fields[7] = "2"
+        records[index] = " ".join(fields)
+    elif case == "pop-invalid-at-least":
+        index, fields = find_record(records, "pop")
+        fields[8] = str(UINT32_MAX + 1)
+        records[index] = " ".join(fields)
+    elif case == "legacy-v1":
+        if records[0] != "IVL_COVDB 2":
+            raise ValueError("legacy conversion requires a version 2 database")
+        records[0] = "IVL_COVDB 1"
+        records[:] = [line for line in records if not line.startswith("pop ")]
+    elif case == "merge-mismatch":
+        index, fields = find_record(records, "type")
+        fields[4] = "1" if fields[4] == "0" else "0"
+        records[index] = " ".join(fields)
     else:
         raise ValueError(f"unknown mutation case: {case}")
 
@@ -100,7 +161,11 @@ def main():
     input_path, output_path, case = sys.argv[1:]
     with open(input_path, encoding="ascii") as source:
         lines = source.read().splitlines()
-    if len(lines) < 3 or lines[0] != "IVL_COVDB 1" or not lines[-1].startswith("END "):
+    if (
+        len(lines) < 3
+        or lines[0] not in ("IVL_COVDB 1", "IVL_COVDB 2")
+        or not lines[-1].startswith("END ")
+    ):
         raise SystemExit("invalid seed database")
     records = lines[:-1]
     malformed(records, case)
