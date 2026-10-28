@@ -3285,6 +3285,19 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    break;
       case IVL_SCT_FORK:
 	    type = mixed_lifetime_scope ? "fork.ctx" : "fork";
+	    for (idx = 0; idx < ivl_scope_attr_cnt(net); idx += 1) {
+	          ivl_attribute_t attr = ivl_scope_attr_val(net, idx);
+	          if (strcmp(attr->key, "_ivl_vpi_join_type") == 0
+	              && attr->type == IVL_ATT_NUM) {
+	                if (attr->val.num >= 1 && attr->val.num <= 3) {
+	                      static char fork_type[32];
+	                      snprintf(fork_type, sizeof fork_type, "fork%s.join%ld",
+	                               mixed_lifetime_scope ? ".ctx" : "",
+	                               attr->val.num - 1);
+	                      type = fork_type;
+	                }
+	          }
+	    }
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;

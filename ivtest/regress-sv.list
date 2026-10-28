@@ -13,6 +13,7 @@
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1239_global_clocking_generate_2017 CE,-g2017,-s,issue1239_global_clocking_generate ivltests
+issue1249_pure_dpi_formals CE,-g2017,-s,test ivltests
 issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_generate ivltests
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
@@ -6108,3 +6109,7 @@ issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
 # IEEE 1800-2017/2023 assignment expressions with concatenation l-values
 issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
 issue1229_assignment_concat_expr_2023 normal,-g2023,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
+issue1236_let_forward_fail_2017 CE,-g2017,-sissue1236_let_forward_fail_2017 ivltests gold=issue1236_let_forward_fail_2017.gold
+issue1236_let_forward_fail_2023 CE,-g2023,-sissue1236_let_forward_fail_2023 ivltests gold=issue1236_let_forward_fail_2023.gold
+issue1224_udnt_default_2017 normal,-g2017,-s,test ivltests gold=issue1224_udnt_default.gold
+issue1224_udnt_default_2023 normal,-g2023,-s,test ivltests gold=issue1224_udnt_default.gold
