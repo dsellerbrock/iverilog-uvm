@@ -9657,6 +9657,13 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    cp->set_line(*e);
 	    return cp;
       }
+	/* `$` must survive the structural clone used to substitute named
+	   sequence actuals; its meaning is determined by the formal's use. */
+      if (dynamic_cast<PEUnbounded*>(e)) {
+	    PEUnbounded*cp = new PEUnbounded();
+	    cp->set_line(*e);
+	    return cp;
+      }
 	/* A real literal is as constant as an integer one; without this the
 	   whole guard fell back to a live read for something as ordinary as
 	   `r > 1.0'. */
@@ -11419,9 +11426,37 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		? sva_clone_subst_((*decl.body)[k].rep_hi_expr, &subst) : nullptr;
 	    bool calls_ok = sva_clone_match_calls_(
 		  (*decl.body)[k].match_calls, st.match_calls, &subst);
+	    bool delay_range_resolved = false;
+	    /* IEEE 1800-2017/2023 16.8 permits `$` as an untyped actual when its
+	       substituted reference is a delay upper bound. Resolve formal-backed
+	       range expressions here, where the actual (including PEUnbounded) is
+	       known. */
+	    if (st.delay_lo_expr && st.delay_hi_expr
+		&& st.delay_lo == -5 && st.delay_hi == -5) {
+	      long lo = 0, hi = 0;
+	      if (pform_sva_const_long(st.delay_lo_expr, lo)
+		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = lo;
+		st.delay_hi = -1;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)
+			 && lo >= 0 && hi >= lo) {
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = lo;
+		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      }
+	    }
 	    if (!st.expr || ((*decl.body)[k].lv_rhs && !st.lv_rhs)
-		|| ((*decl.body)[k].delay_lo_expr && !st.delay_lo_expr)
-		|| ((*decl.body)[k].delay_hi_expr && !st.delay_hi_expr)
+		|| (!delay_range_resolved
+		    && (((*decl.body)[k].delay_lo_expr && !st.delay_lo_expr)
+			|| ((*decl.body)[k].delay_hi_expr && !st.delay_hi_expr)))
 		|| ((*decl.body)[k].rep_lo_expr && !st.rep_lo_expr)
 		|| ((*decl.body)[k].rep_hi_expr && !st.rep_hi_expr)
 		|| !calls_ok) {
@@ -12742,13 +12777,20 @@ void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
             } else if (step.delay_lo >= 0) {
                   step.delay_lo += lo;
                   step.delay_hi += hi;
-            } else if (step.delay_lo != -3) {
-                  step.delay_lo = -2;
-                  step.delay_hi = -2;
+	      } else if (step.delay_lo != -3) {
+	    step.delay_lo = -2;
+	    step.delay_hi = -2;
             }
       } else if (step.delay_lo != -3) {
-            step.delay_lo = -2;
-            step.delay_hi = -2;
+            /* Preserve unresolved bounds until named-sequence formals have
+               been substituted. In particular, `$` may become the legal
+               unbounded upper bound of a cycle_delay_const_range_expression
+               (IEEE 1800-2017/2023 16.8). */
+            step.delay_lo = -5;
+            step.delay_hi = -5;
+            step.delay_lo_expr = lo_expr;
+            step.delay_hi_expr = hi_expr;
+            return;
       }
       delete lo_expr;
       delete hi_expr;
