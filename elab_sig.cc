@@ -3735,13 +3735,16 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				   << " as a port default expression." << endl;
 			      des->errors += 1;
 			}
-		  } else if (tmp->port_type() == NetNet::PREF) {
+		  } else if (tmp->port_type() == NetNet::POUTPUT
+			     || tmp->port_type() == NetNet::PINOUT
+			     || tmp->port_type() == NetNet::PREF) {
 			/* A ref default is an lvalue, not a value to copy into the
-			 * formal. Keep its parse form on the subroutine declaration;
-			 * the call site binds it in this declaration scope. */
+			 * formal. Output and inout defaults are actual l-values too.
+			 * Keep their parse forms on the declaration so each call can
+			 * resolve them in this scope. */
 		  } else {
 			cerr << get_fileline() << ": sorry: Default arguments "
-			        "for subroutine output or inout ports are not "
+			        "for this subroutine port direction are not "
 			        "yet supported." << endl;
 			des->errors += 1;
 		  }
