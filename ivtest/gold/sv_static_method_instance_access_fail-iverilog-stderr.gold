@@ -1,0 +1,5 @@
+ivltests/sv_static_method_instance_access_fail.v:10: error: Access to non-static class member `value' from a static method is illegal.
+ivltests/sv_static_method_instance_access_fail.v:13: error: Call to non-static class method `instance_method' from a static method is illegal.
+ivltests/sv_static_method_instance_access_fail.v:7: error: Access to non-static class member `value' from a static method is illegal.
+ivltests/sv_static_method_instance_access_fail.v:16: error: Access to `this' from a static method is illegal.
+4 error(s) during elaboration.

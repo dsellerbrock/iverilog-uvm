@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1250_deprecated_dpi_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "test" ],
+    "gold"           : "issue1250_deprecated_dpi_2017"
+}

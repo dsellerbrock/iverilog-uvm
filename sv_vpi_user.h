@@ -184,6 +184,10 @@ typedef struct t_vpi_attempt_info {
 
 /********* generic object properties ***********/
 #define vpiNullConst         11
+#define vpiAllocScheme      658
+# define vpiAutomaticScheme   1
+# define vpiDynamicScheme     2
+# define vpiOtherScheme       3
 
 /********* task/function properties **********/
 #define vpiOtherFunc          6

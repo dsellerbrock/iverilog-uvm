@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1273_vpi_port_scalar_vector.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1273_port_scalar_vector_2017"],
+  "vpi-sources": ["vpi/issue1273_port_scalar_vector.c"],
+  "output-contains": ["PASSED"]
+}

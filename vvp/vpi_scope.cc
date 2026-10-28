@@ -255,6 +255,11 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
       assert(rfp);
 
       switch (code) {
+	  case vpiIndex:
+	    if (rfp->get_type_code() == vpiModule &&
+	        rfp->has_module_array_index_)
+		  return &rfp->module_array_index_;
+	    return 0;
 
 	  case vpiScope:
 	    return rfp->scope;
@@ -357,11 +362,27 @@ __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 {
       name_ = vpip_name_string(nam);
       tname_ = vpip_name_string(tnam? tnam : "");
+      has_module_array_index_ = false;
+      const char *open = strrchr(name_, '[');
+      if (open && open[1] != 0) {
+	    char *end;
+	    long index = strtol(open + 1, &end, 10);
+	    if (end != open + 1 && end[0] == ']' && end[1] == 0 &&
+	        index >= INT_MIN && index <= INT_MAX) {
+		  module_array_index_.set_value(index);
+		  has_module_array_index_ = true;
+	    }
+      }
 }
 
 int __vpiScope::vpi_get(int code)
 {
       switch (code) {
+	  case vpiIndex:
+	    if (get_type_code() == vpiModule && has_module_array_index_)
+		  return module_array_index_.get_value();
+	    return vpiUndefined;
+
 	  case vpiCellInstance:
 	    return is_cell? 1 : 0;
 
@@ -385,6 +406,9 @@ int __vpiScope::vpi_get(int code)
 
 	  case vpiJoinType:
 	    return join_type;
+
+	  case vpiAccessType:
+	    return access_type;
       }
 
       return vpiUndefined;
@@ -414,8 +438,34 @@ class vpiScopeModule  : public __vpiScope {
 class vpiScopeProgram  : public __vpiScope {
     public:
       inline vpiScopeProgram(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
+      : __vpiScope(nam,tnam,false), index_(vpiUndefined), index_handle_(0)
+      {
+            const char* open = strrchr(nam, '[');
+            if (open && nam[strlen(nam) - 1] == ']') {
+                  char* end;
+                  errno = 0;
+                  long value = strtol(open + 1, &end, 10);
+                  if (errno == 0 && end == nam + strlen(nam) - 1 &&
+                      value >= INT_MIN && value <= INT_MAX) {
+                        index_ = value;
+                        index_handle_ = new __vpiDecConst(index_);
+                  }
+            }
+      }
       int get_type_code(void) const override { return vpiProgram; }
+      int vpi_get(int code) override
+      {
+            if (code == vpiIndex) return index_;
+            return __vpiScope::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiIndex) return index_handle_;
+            return __vpiScope::vpi_handle(code);
+      }
+    private:
+      int index_;
+      vpiHandle index_handle_;
 };
 
 struct vpiScopePackage  : public __vpiScope {
@@ -477,8 +527,39 @@ struct vpiScopeClass  : public __vpiScope {
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
 struct vpiScopeInterface  : public __vpiScope {
       inline vpiScopeInterface(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
+      : __vpiScope(nam,tnam,false), index_(0), has_index_(false)
+      {
+	    /* Interface array elements are emitted with their elaborated index
+	       appended to the scope name (for example, "bus[3]"). */
+	    const char*open = strrchr(nam, '[');
+	    if (open && nam[strlen(nam)-1] == ']') {
+		  char*end;
+		  errno = 0;
+		  long value = strtol(open + 1, &end, 10);
+		  if (!errno && end == nam + strlen(nam) - 1 &&
+		      value >= INT_MIN && value <= INT_MAX) {
+			index_.set_value((int)value);
+			has_index_ = true;
+		  }
+	    }
+      }
       int get_type_code(void) const override { return vpiInterface; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiIndex && has_index_)
+		  return index_.get_value();
+	    return __vpiScope::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiIndex && has_index_)
+		  return &index_;
+	    return __vpiScope::vpi_handle(code);
+      }
+
+    private:
+      __vpiDecConst index_;
+      bool has_index_;
 };
 
 /* M12: a modport declaration of an interface. M12-6 adds the port
@@ -1168,10 +1249,16 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
                    long def_file_idx, long def_lineno, long is_cell)
 {
       int join_type = vpiUndefined;
+      int access_type = vpiUndefined;
       char*join = strstr(type, ".join");
       if (join && join[5] >= '0' && join[5] <= '2') {
 	    join_type = join[5] - '0';
 	    memmove(join, join + 6, strlen(join + 6) + 1);
+      }
+      char*access = strstr(type, ".acc");
+      if (access && access[4] >= '1' && access[4] <= '4') {
+	    access_type = access[4] - '0';
+	    memmove(access, access + 5, strlen(access + 5) + 1);
       }
       count_vpi_scopes += 1;
       char vec_type;
@@ -1286,6 +1373,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
       scope->join_type = join_type;
+      scope->access_type = access_type;
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;
@@ -1486,6 +1574,10 @@ int vpiPortInfo::vpi_get(int code)
           return index_;
         case vpiSize :
           return width_;
+        case vpiScalar :
+          return width_ == 1;
+        case vpiVector :
+          return width_ > 1;
         default :
           return vpiUndefined;
       }

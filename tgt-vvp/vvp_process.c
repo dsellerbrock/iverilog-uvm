@@ -8625,6 +8625,17 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    unsigned pwid = ivl_signal_width(port);
 	    int is_out = (ivl_signal_port(port) != IVL_SIP_INPUT);
 	    char letter = 0;
+	    if (ptype == IVL_VT_CLASS) {
+		  fprintf(stderr, "%s:%u: error: DPI import '%s': argument "
+			  "'%s' has a class type, which is not permitted for "
+			  "DPI formals (IEEE 1800-2017/2023 35.5.6).\n",
+			  ivl_scope_def_file(scope),
+			  ivl_scope_def_lineno(scope),
+			  c_name, ivl_signal_basename(port));
+		  unsupported = 1;
+		  vvp_errors += 1;
+		  break;
+	    }
 
 	    if (ivl_signal_dimensions(port) > 0) {
 	    /* Fixed unpacked arrays use the Annex H direct C-pointer ABI.

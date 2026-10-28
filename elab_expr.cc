@@ -3957,6 +3957,33 @@ static void report_nonclass_typedef_class_scope_(Design*des,
       des->errors += 1;
 }
 
+static bool scope_in_static_class_method_(NetScope*scope)
+{
+      for (NetScope*cur = scope; cur; cur = cur->parent()) {
+	    const PTaskFunc*method = cur->func_pform();
+	    if (!method) method = cur->task_pform();
+	    if (!method) continue;
+	    return method->method_qualifiers().test_static();
+      }
+      return false;
+}
+
+static bool reject_static_method_this_(Design*des, NetScope*scope,
+				       const PEIdent*ident)
+{
+      const pform_scoped_name_t&path = ident->path();
+      if (path.package || path.name.size() != 1
+	  || peek_head_name(path) != perm_string::literal(THIS_TOKEN)
+	  || !scope_in_static_class_method_(scope))
+	    return false;
+
+      cerr << ident->get_fileline()
+	   << ": error: Access to `this' from a static method is illegal."
+	   << endl;
+      des->errors += 1;
+      return true;
+}
+
 static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const pform_scoped_name_t&path,
 						   const parmvalue_t*leading_type_args = 0,
@@ -4083,14 +4110,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 			      implicit_this = true;
 			      break;
 			}
-		  for (NetScope*cur = scope; implicit_this && cur; cur = cur->parent()) {
-			  const PTaskFunc*caller_def = cur->func_pform();
-			  if (!caller_def) caller_def = cur->task_pform();
-			  if (!caller_def) continue;
-			  if (caller_def->method_qualifiers().test_static())
-				implicit_this = false;
-			  break;
-		  }
+		  if (implicit_this && scope_in_static_class_method_(scope))
+			implicit_this = false;
 		  if (implicit_this && !find_implicit_this_handle(des, scope))
 			implicit_this = false;
 		  if (!implicit_this) {
@@ -6237,12 +6258,12 @@ static bool fixed_uarray_element_types_equivalent_(ivl_type_t left,
 		&& right->type_equivalent(left));
 }
 
-/* Fixed unpacked arrays and slices compare element-by-element (7.4.1,
-   7.4.3). The generic PEIdent r-value path deliberately rejects aggregate
-   array values, so lower equality directly to word reads. Canonical memory
-   words run in increasing numeric-index order; if the selected ranges have
-   opposite directions, reverse the right word order to preserve the
-   language's left-to-right element pairing. */
+/* Fixed unpacked arrays and slices compare element-by-element (IEEE
+   1800-2017 7.4.3 and 1800-2023 7.4.6). The generic PEIdent r-value path
+   deliberately rejects aggregate array values, so lower equality directly
+   to word reads. Canonical memory words are row-major; when operand bounds
+   run in opposite directions, mirror the right position independently in
+   each dimension. */
 static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 					       const PEBComp*pexpr,
 					       unsigned flags,
@@ -6269,30 +6290,51 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return true;
       }
-      if (left.count != right.count
+      netranges_t left_dims = left.signal->unpacked_dims();
+      netranges_t right_dims = right.signal->unpacked_dims();
+      if (!left.whole) {
+	    left_dims.clear();
+	    left_dims.push_back(left.selected_range);
+      }
+      if (!right.whole) {
+	    right_dims.clear();
+	    right_dims.push_back(right.selected_range);
+      }
+      bool same_shape = left_dims.size() == right_dims.size();
+      for (size_t dim = 0; same_shape && dim < left_dims.size(); dim += 1)
+	    same_shape = left_dims[dim].width() == right_dims[dim].width();
+      if (!same_shape || left.count != right.count
 	  || !fixed_uarray_element_types_equivalent_(
 		left.element_type, right.element_type)) {
 	    cerr << pexpr->get_fileline() << ": error: fixed unpacked array "
-		 << "comparison requires equal element counts and equivalent "
+		 << "comparison requires compatible array shapes and equivalent "
 		 << "element types." << endl;
 	    des->errors += 1;
 	    return true;
       }
 
-      bool left_ascending = left.selected_range.get_msb()
-	    < left.selected_range.get_lsb();
-      bool right_ascending = right.selected_range.get_msb()
-	    < right.selected_range.get_lsb();
-      bool reverse_right = left_ascending != right_ascending;
       unsigned count = static_cast<unsigned>(left.count);
       bool equal_op = op == 'e' || op == 'E' || op == 'w';
       vector<NetExpr*> terms;
       terms.reserve(count);
       for (unsigned k = 0 ; k < count ; k += 1) {
 	    long left_word = left.canonical_base + static_cast<long>(k);
-	    long right_off = reverse_right
-		  ? static_cast<long>(count - 1 - k)
-		  : static_cast<long>(k);
+	    long right_off = 0;
+	    long remaining = static_cast<long>(k);
+	    long stride = static_cast<long>(count);
+	    for (size_t dim = 0; dim < left_dims.size(); dim += 1) {
+		  long width = static_cast<long>(left_dims[dim].width());
+		  stride /= width;
+		  long position = remaining / stride;
+		  remaining %= stride;
+		  bool left_ascending = left_dims[dim].get_msb()
+			< left_dims[dim].get_lsb();
+		  bool right_ascending = right_dims[dim].get_msb()
+			< right_dims[dim].get_lsb();
+		  if (left_ascending != right_ascending)
+			position = width - 1 - position;
+		  right_off = right_off * width + position;
+	    }
 	    long right_word = right.canonical_base + right_off;
 	    NetExpr*lidx = make_const_val_s(left_word);
 	    NetExpr*ridx = make_const_val_s(right_word);
@@ -8353,6 +8395,48 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       unsigned w;
       NetExpr*body;
       {
+	    std::vector<PExpr*> ops;
+	    collect_operands_(ops);
+	    if (ops.size() > 1) {
+	      std::vector<NetExpr*> parts;
+	      w = 0;
+	      for (size_t idx = 0; idx < ops.size(); idx += 1) {
+		stream_uarray_op_info_t info;
+		int have = stream_uarray_operand_(des, scope, ops[idx], info);
+		if (have < 0) {
+		  for (size_t j = 0; j < parts.size(); j += 1) delete parts[j];
+		  return nullptr;
+		}
+		NetExpr*part = nullptr;
+		unsigned pw = 0;
+		if (have > 0) {
+		  pw = (unsigned)info.elem_type->packed_width() * info.elem_count;
+		  part = stream_uarray_concat_(ops[idx], info);
+		} else {
+		  pw = ops[idx]->test_width(des, scope, m);
+		  if (pw) part = ops[idx]->elaborate_expr(des, scope, pw, flags);
+		}
+		if (!part || pw == 0 || pw > UINT_MAX - w) {
+		  delete part;
+		  for (size_t j = 0; j < parts.size(); j += 1) delete parts[j];
+		  if (pw > UINT_MAX - w) {
+		    cerr << get_fileline() << ": error: streaming concatenation width exceeds the supported limit." << endl;
+		    des->errors += 1;
+		  }
+		  return nullptr;
+		}
+		w += pw;
+		parts.push_back(part);
+	      }
+	      if (parts.size() == 1) body = parts[0];
+	      else {
+		NetEConcat*cat = new NetEConcat(parts.size(), 1, IVL_VT_LOGIC);
+		cat->set_line(*this);
+		for (size_t idx = 0; idx < parts.size(); idx += 1)
+		  cat->set(idx, parts[idx]);
+		body = cat;
+	      }
+	    } else {
 	    stream_uarray_op_info_t s_info;
 	    int s_have = stream_uarray_operand_(des, scope, inner_,
 							 s_info);
@@ -8378,6 +8462,7 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  }
 		  body = inner_->elaborate_expr(des, scope, w, flags);
 		  }
+	    }
 	    }
       }
       unsigned slice = resolve_slice_(des, scope);
@@ -8414,6 +8499,25 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
       width_mode_t m = SIZED;
       unsigned w;
       {
+	    std::vector<PExpr*> ops;
+	    collect_operands_(ops);
+	    if (ops.size() > 1) {
+	      w = 0;
+	      for (size_t idx = 0; idx < ops.size(); idx += 1) {
+		stream_uarray_op_info_t info;
+		int have = stream_uarray_operand_(des, scope, ops[idx], info);
+		if (have < 0) return nullptr;
+		unsigned pw = have > 0
+		  ? (unsigned)info.elem_type->packed_width() * info.elem_count
+		  : ops[idx]->test_width(des, scope, m);
+		if (!pw || pw > UINT_MAX - w) {
+		  cerr << get_fileline() << ": error: streaming concatenation requires a known, supported width." << endl;
+		  des->errors += 1;
+		  return nullptr;
+		}
+		w += pw;
+	      }
+	    } else {
 	    stream_uarray_op_info_t s_info;
 	    int s_have = stream_uarray_operand_(des, scope, inner_,
 							 s_info);
@@ -8428,6 +8532,7 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 		  if (!stream_whole_struct_operand_(des, scope, inner_, struct_net,
 						    struct_type, w))
 			w = inner_->test_width(des, scope, m);
+	    }
 	    }
       }
       if (w == 0) {
@@ -12360,6 +12465,50 @@ static bool assertion_nonstatic_class_property_(const NetEProperty*prop)
 	    && !class_type->get_prop_qual(prop->property_idx()).test_static();
 }
 
+/* Return the bit-stream width of a fixed-size data type. Dynamic members
+   make the width depend on a value and are deliberately rejected here. */
+static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
+{
+      if (!type) return false;
+
+      if (type->packed()) {
+	    long packed_width = type->packed_width();
+	    if (packed_width <= 0) return false;
+	    width = static_cast<uint64_t>(packed_width);
+	    return true;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    uint64_t element_width = 0;
+	    if (!fixed_bitstream_width_(array->element_type(), element_width))
+		  return false;
+	    unsigned long count = netrange_width(array->static_dimensions(), 1);
+	    if (count == 0 || element_width > UINT64_MAX / count) return false;
+	    width = element_width * count;
+	    return true;
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    uint64_t total_width = 0;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  uint64_t member_width = 0;
+		  if (!fixed_bitstream_width_(member.net_type, member_width))
+			return false;
+		  if (record->union_flag()) {
+			if (member_width > total_width) total_width = member_width;
+		  } else {
+			if (member_width > UINT64_MAX - total_width) return false;
+			total_width += member_width;
+		  }
+	    }
+	    if (total_width == 0) return false;
+	    width = total_width;
+	    return true;
+      }
+
+      return false;
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -12818,6 +12967,58 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		       << " Use $bits() instead." << endl;
 
 	    PExpr *expr = parms_[0].parm;
+
+	    /* IEEE 1800-2017/2023 20.6.2: $bits of a dynamically sized
+	       expression is a runtime value (zero when empty), not the
+	       expression's placeholder elaboration width. */
+	    if (name == "$bits" && expr->expr_type() == IVL_VT_QUEUE) {
+		  if (flags & NEED_CONST) {
+			cerr << get_fileline() << ": error: $bits of a dynamically sized "
+			     << "expression is not an elaboration-time constant. "
+			     << "(IEEE 1800-2017/2023 20.6.2)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  if (dynamic_cast<const PECallFunction*>(expr)) {
+			cerr << get_fileline() << ": error: $bits shall not enclose a "
+			     << "function that returns a dynamically sized data type. "
+			     << "(IEEE 1800-2017/2023 20.6.2)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+
+		  NetExpr*queue_expr = expr->elaborate_expr(des, scope, 0u, 0u);
+		  if (!queue_expr) return nullptr;
+		  const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(
+			queue_expr->net_type());
+		  uint64_t element_width = 0;
+		  if (!queue_type || queue_type->assoc_compat()
+		      || !fixed_bitstream_width_(queue_type->element_type(),
+					 element_width)) {
+			cerr << get_fileline() << ": sorry: $bits of this queue type "
+			     << "with variable-sized elements is not yet implemented."
+			     << endl;
+			des->errors += 1;
+			delete queue_expr;
+			return nullptr;
+		  }
+
+		  NetESFunc*size_expr = new NetESFunc("$ivl_queue_method$size",
+						      &netvector_t::atom2s32, 1);
+		  size_expr->set_line(*this);
+		  size_expr->parm(0, queue_expr);
+
+		  NetEConst*element_width_expr = new NetEConst(
+			verinum(element_width, integer_width));
+		  element_width_expr->set_line(*this);
+		  element_width_expr->cast_signed(true);
+
+		  NetEBMult*result = new NetEBMult('*', size_expr,
+					   element_width_expr,
+					   integer_width, true);
+		  result->set_line(*this);
+		  return cast_to_width_(result, expr_wid);
+	    }
 
 	    uint64_t use_width = 0;
 	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
@@ -16702,6 +16903,15 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
+      if (!qual.test_static() && sr.net
+	  && sr.net->name() == perm_string::literal(THIS_TOKEN)
+	  && scope_in_static_class_method_(scope)) {
+	    cerr << get_fileline() << ": error: Access to non-static class member `"
+		 << class_type->get_prop_name(pidx)
+		 << "' from a static method is illegal." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       if (qual.test_local()
 	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
@@ -18146,6 +18356,15 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
            const NetScope *c_scope = scope->get_class_scope();
            if (c_scope && (c_scope == dscope->get_class_scope())) {
 		 if (scope_method_uses_implicit_this(des, dscope)) {
+		       const PTaskFunc*callee = dscope->func_pform();
+		       if (callee && !callee->method_qualifiers().test_static()
+			   && scope_in_static_class_method_(scope)) {
+			     cerr << get_fileline() << ": error: Call to non-static class method `"
+				  << peek_tail_name(path_)
+				  << "' from a static method is illegal." << endl;
+			     des->errors += 1;
+			     return nullptr;
+		       }
 				 if (debug_elaborate) {
 			       cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 				    << "Found a class method calling another method." << endl;
@@ -24019,6 +24238,8 @@ static bool reject_left_last_in_fixed_unpacked_prefix_(
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
+	  if (reject_static_method_this_(des, scope, this))
+	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
@@ -25068,6 +25289,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+	  if (reject_static_method_this_(des, scope, this))
+	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {

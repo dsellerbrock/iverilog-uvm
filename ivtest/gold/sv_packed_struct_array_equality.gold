@@ -1,0 +1,4 @@
+packed struct/vector equal: eq=1 ceq=1
+packed struct/vector mismatch: eq=0
+packed struct/vector X: eq=x ceq=1
+2-state packed struct/vector: eq=1

@@ -10,10 +10,15 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
+issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
+
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1239_global_clocking_generate_2017 CE,-g2017,-s,issue1239_global_clocking_generate ivltests
 issue1249_pure_dpi_formals CE,-g2017,-s,test ivltests
+issue1250_deprecated_dpi_2017 CO,-g2017,-s,test ivltests
+issue1250_deprecated_dpi_2023 CO,-g2023,-s,test ivltests
 issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_generate ivltests
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
@@ -41,6 +46,8 @@ sv_modport_expression_concat_2023 normal,-g2023 ivltests gold=sv_modport_express
 # The <testname> is the verilog file name minus an extension.
 sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_arg_fail_2017.gold
 sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
+issue1253_invalid_dpi_linkage_2017 CE,-g2017,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2017.gold
+issue1253_invalid_dpi_linkage_2023 CE,-g2023,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2023.gold
 issue1226_proc_decl_order CE,-g2017,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2017.gold
 issue1226_proc_decl_order_2023 CE,-g2023,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2023.gold
 sv_checker_always_ff_blocking_fail_2017 CE,-g2017,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2017.gold
@@ -6109,7 +6116,23 @@ issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
 # IEEE 1800-2017/2023 assignment expressions with concatenation l-values
 issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
 issue1229_assignment_concat_expr_2023 normal,-g2023,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
+
+sv_multidimensional_array_equality normal,-g2017,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold
+sv_multidimensional_array_equality_2023 normal,-g2023,-s,sv_multidimensional_array_equality ivltests gold=sv_multidimensional_array_equality.gold
+sv_multidimensional_array_equality_shape_err CE,-g2017,-s,sv_multidimensional_array_equality_shape_err ivltests gold=sv_multidimensional_array_equality_shape_err.gold
+sv_multidimensional_array_equality_shape_err_2023 CE,-g2023,-Iivltests,-s,sv_multidimensional_array_equality_shape_err ivltests gold=sv_multidimensional_array_equality_shape_err_2023.gold
+sv_packed_struct_array_equality normal,-g2017,-s,sv_packed_struct_array_equality ivltests gold=sv_packed_struct_array_equality.gold
+sv_packed_struct_array_equality_2023 normal,-g2023,-s,sv_packed_struct_array_equality_2023 ivltests gold=sv_packed_struct_array_equality.gold
+sv_uarray_equality_untyped_pattern_fail CE,-g2017,-s,sv_uarray_equality_untyped_pattern_fail ivltests gold=sv_uarray_equality_untyped_pattern_fail.gold
+sv_uarray_equality_untyped_pattern_fail_2023 CE,-g2023,-s,sv_uarray_equality_untyped_pattern_fail_2023 ivltests gold=sv_uarray_equality_untyped_pattern_fail_2023.gold
+sv_bits_dynamic_queue	normal,-g2017		ivltests gold=sv_bits_dynamic_queue.gold
+sv_bits_dynamic_queue_2023	normal,-g2023		ivltests gold=sv_bits_dynamic_queue.gold
 issue1236_let_forward_fail_2017 CE,-g2017,-sissue1236_let_forward_fail_2017 ivltests gold=issue1236_let_forward_fail_2017.gold
 issue1236_let_forward_fail_2023 CE,-g2023,-sissue1236_let_forward_fail_2023 ivltests gold=issue1236_let_forward_fail_2023.gold
 issue1224_udnt_default_2017 normal,-g2017,-s,test ivltests gold=issue1224_udnt_default.gold
 issue1224_udnt_default_2023 normal,-g2023,-s,test ivltests gold=issue1224_udnt_default.gold
+issue1252_dpi_class_arg_2017 CE,-g2017,-s,issue1252_dpi_class_arg ivltests
+issue1252_dpi_class_arg_2023 CE,-g2023,-s,issue1252_dpi_class_arg ivltests
+# IEEE 1800-2017/2023 §31.7 X on nondeterministic timing-check conditions
+issue1245_timing_condition_x_2017 normal,-g2017,-gspecify ivltests gold=issue1245_timing_condition_x_2017.gold
+issue1245_timing_condition_x_2023 normal,-g2023,-gspecify ivltests gold=issue1245_timing_condition_x_2023.gold

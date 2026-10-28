@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1244_edge_path.sv",
+    "iverilog-args": ["-g2017", "-gspecify", "-s", "issue1244_edge_path"],
+    "gold": "issue1244_edge_path"
+}

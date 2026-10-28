@@ -86,6 +86,20 @@ static void pform_check_pure_dpi_function_(const struct vlltype&loc,
 		yyerror(loc, "error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).");
 }
 
+/* IEEE 1800-2017/2023 35.5.4 requires a diagnostic for the deprecated
+ * DPI spec string and specifies the compatibility information it contains. */
+static void pform_check_deprecated_dpi_spec_(const struct vlltype&loc,
+					     const char*spec)
+{
+	  if (spec && strcmp(spec, "DPI") == 0) {
+		cerr << loc << ": warning: \"DPI\" is deprecated and should be replaced "
+			  "with \"DPI-C\". Use of the \"DPI-C\" string may require "
+			  "changes in the DPI application's C code. (IEEE 1800-2017/2023 35.5.4)."
+		     << endl;
+		warn_count += 1;
+	  }
+}
+
 /* IEEE 1800-2023 8.3 note 25 limits dynamic method override specifiers to
  * methods declared in non-interface classes. */
 static void pform_check_method_override_interface_class_(const struct vlltype&loc)
@@ -98,6 +112,29 @@ static void pform_check_method_override_interface_class_(const struct vlltype&lo
 		if (class_scope->type && class_scope->type->interface_class)
 		      yyerror(loc, "error: Method override specifiers are not allowed in an interface class (IEEE 1800-2023 8.3).");
 		break;
+	  }
+}
+
+/* IEEE 1800-2017/2023 35.5.4 requires each DPI import linkage name,
+ * including the default SystemVerilog name, to be a C identifier. */
+static void pform_check_dpi_import_c_identifier_(const struct vlltype&loc,
+						 const char*name)
+{
+	  if (!name || !((*name >= 'A' && *name <= 'Z')
+			 || (*name >= 'a' && *name <= 'z') || *name == '_')) {
+		yyerror(loc, "error: DPI import linkage identifier '%s' does not "
+			"conform to C identifier syntax (IEEE 1800-2017/2023 35.5.4).",
+			name ? name : "");
+		return;
+	  }
+	  for (const char*ch = name + 1; *ch; ++ch) {
+		if (!((*ch >= 'A' && *ch <= 'Z') || (*ch >= 'a' && *ch <= 'z')
+		      || (*ch >= '0' && *ch <= '9') || *ch == '_')) {
+		      yyerror(loc, "error: DPI import linkage identifier '%s' does not "
+			      "conform to C identifier syntax (IEEE 1800-2017/2023 35.5.4).",
+			      name);
+		      return;
+		}
 	  }
 }
 
@@ -2543,7 +2580,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <flag>    import_export
 %type <flag>    dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
-%type <flag>    udp_reg_opt edge_operator
+%type <flag>    udp_reg_opt
+%type <int_val> edge_operator
 %type <int_val> dynamic_override_specifiers
 %type <int_val> constraint_override_specifiers constraint_override_specifiers_opt
 %type <int_val> method_function_keyword method_task_keyword
@@ -8038,11 +8076,13 @@ dpi_import_export_declaration
   : K_import STRING dpi_function_import_property_opt K_function
     data_type_or_implicit_or_void function_identifier
       { assert(current_function == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	pform_check_dpi_import_c_identifier_(@6, $6);
 	current_function->set_dpi_import($6);
 	pform_check_pure_dpi_function_(@4, $3, $5, $8);
 	pform_pop_scope();
@@ -8053,11 +8093,13 @@ dpi_import_export_declaration
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_function
     data_type_or_implicit_or_void function_identifier
       { assert(current_function == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($10);
 	current_function->set_return($7);
+	pform_check_dpi_import_c_identifier_(@4, $4);
 	current_function->set_dpi_import($4);
 	pform_check_pure_dpi_function_(@6, $4, $7, $10);
 	pform_pop_scope();
@@ -8068,12 +8110,14 @@ dpi_import_export_declaration
       }
   | K_import STRING dpi_function_import_property_opt K_task IDENTIFIER
       { assert(current_task == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	if ($3) yyerror(@4, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	pform_check_dpi_import_c_identifier_(@5, $5);
 	current_task->set_dpi_import($5);
 	pform_pop_scope();
 	current_task = 0;
@@ -8082,12 +8126,14 @@ dpi_import_export_declaration
       }
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_task IDENTIFIER
       { assert(current_task == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	if ($3) yyerror(@6, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($9);
+	pform_check_dpi_import_c_identifier_(@4, $4);
 	current_task->set_dpi_import($4);
 	pform_pop_scope();
 	current_task = 0;
@@ -17940,6 +17986,10 @@ specify_item
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
+	for (perm_string name : *$2) {
+	      if (pform_specify_path_output_previously_declared(name))
+		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
+	}
 	/* Pulse-filtering control, not a timing check -- the old
 	   message named the wrong construct. It is accepted and
 	   ignored, so say which one is being ignored. */
@@ -17952,6 +18002,10 @@ specify_item
       }
   | K_pulsestyle_ondetect specify_path_identifiers ';'
       {
+	for (perm_string name : *$2) {
+	      if (pform_specify_path_output_previously_declared(name))
+		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
+	}
 	/* Pulse-filtering control, not a timing check -- the old
 	   message named the wrong construct. It is accepted and
 	   ignored, so say which one is being ignored. */
@@ -18010,8 +18064,9 @@ specify_edge_path_decl
   ;
 
 edge_operator
-  : K_posedge { $$ = true; }
-  | K_negedge { $$ = false; }
+  : K_posedge { $$ = 1; }
+  | K_negedge { $$ = -1; }
+  | K_edge { $$ = 0; }
   ;
 
 specify_edge_path
@@ -18022,8 +18077,7 @@ specify_edge_path
       }
   | '(' edge_operator specify_path_identifiers spec_polarity
     K_EG '(' specify_path_identifiers polarity_operator expression ')' ')'
-      { int edge_flag = $2? 1 : -1;
-	$$ = pform_make_specify_edge_path(@1, edge_flag, $3, $4, false, $7, $9);
+      { $$ = pform_make_specify_edge_path(@1, $2, $3, $4, false, $7, $9);
       }
   | '('               specify_path_identifiers spec_polarity
     K_SG  '(' specify_path_identifiers polarity_operator expression ')' ')'
@@ -18032,8 +18086,7 @@ specify_edge_path
       }
   | '(' edge_operator specify_path_identifiers spec_polarity
     K_SG '(' specify_path_identifiers polarity_operator expression ')' ')'
-      { int edge_flag = $2? 1 : -1;
-	$$ = pform_make_specify_edge_path(@1, edge_flag, $3, $4, true, $7, $9);
+      { $$ = pform_make_specify_edge_path(@1, $2, $3, $4, true, $7, $9);
       }
   ;
 

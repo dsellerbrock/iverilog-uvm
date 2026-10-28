@@ -6678,11 +6678,65 @@ extern PSpecPath* pform_assign_path_delay(PSpecPath*path, list<PExpr*>*del)
 }
 
 
+static bool specify_paths_overlap(const PSpecPath*left,
+				  const PSpecPath*right)
+{
+      for (unsigned li = 0 ; li < left->src.size() ; li += 1) {
+	    for (unsigned ri = 0 ; ri < right->src.size() ; ri += 1) {
+		  if (left->src[li] != right->src[ri]) continue;
+		  for (unsigned ld = 0 ; ld < left->dst.size() ; ld += 1) {
+			for (unsigned rd = 0 ; rd < right->dst.size() ; rd += 1) {
+			      if (left->dst[ld] != right->dst[rd]) continue;
+			      if ((!left->full_flag_ && li != ld) ||
+				  (!right->full_flag_ && ri != rd)) continue;
+			      return true;
+			}
+		  }
+	    }
+      }
+      return false;
+}
+
 extern void pform_module_specify_path(PSpecPath*obj)
 {
       if (obj == 0)
 	    return;
+
+	/* IEEE 1800-2017/2023 30.4.4.4 prohibits an ifnone path and an
+	   unconditional simple path for the same module path. */
+      if (!obj->data_source_expression) {
+	    for (list<PSpecPath*>::const_iterator cur =
+		       pform_cur_module.front()->specify_paths.begin()
+		 ; cur != pform_cur_module.front()->specify_paths.end() ; ++cur) {
+		  const PSpecPath*prev = *cur;
+		  if (prev->data_source_expression) continue;
+		  bool ifnone_pair = (obj->conditional && !obj->condition &&
+				      !prev->conditional);
+		  bool reverse_pair = (prev->conditional && !prev->condition &&
+				       !obj->conditional);
+		  if ((ifnone_pair || reverse_pair) &&
+		      specify_paths_overlap(obj, prev)) {
+			cerr << obj->get_fileline() << ": error: An ifnone path and an unconditional "
+			        "simple path cannot be specified for the same module "
+			        "path (IEEE 1800 30.4.4.4)." << endl;
+			error_count += 1;
+			break;
+		  }
+	    }
+      }
       pform_cur_module.front()->specify_paths.push_back(obj);
+}
+
+extern bool pform_specify_path_output_previously_declared(perm_string name)
+{
+      if (pform_cur_module.empty())
+	    return false;
+
+      for (const PSpecPath*path : pform_cur_module.front()->specify_paths) {
+	    if (std::find(path->dst.begin(), path->dst.end(), name) != path->dst.end())
+		  return true;
+      }
+      return false;
 }
 
 /*
@@ -12548,6 +12602,26 @@ static PExpr* tc_real_(const struct vlltype&loc, double v)
       return num;
 }
 
+/* IEEE 1800-2017/2023 31.7 enables a timing check when a nondeterministic
+   comparison in its condition evaluates to X. */
+static PExpr* tc_condition_(const struct vlltype&loc, PExpr*condition)
+{
+      PEBComp*comparison = dynamic_cast<PEBComp*>(condition);
+      if (comparison == nullptr
+          || (comparison->get_op() != 'e' && comparison->get_op() != 'n'))
+	    return condition;
+
+      PExpr*known_true = new PEBComp('E', condition,
+	    new PENumber(new verinum(verinum::V1, 1)));
+      FILE_NAME(known_true, loc);
+      PExpr*unknown = new PEBComp('E', sva_clone_expr_(condition),
+	    new PENumber(new verinum(verinum::Vx, 1)));
+      FILE_NAME(unknown, loc);
+      PEBLogic*enabled = new PEBLogic('o', known_true, unknown);
+      FILE_NAME(enabled, loc);
+      return enabled;
+}
+
 static PEIdent* tc_name_id_(const struct vlltype&loc, const pform_name_t&name)
 {
       PEIdent*id = new PEIdent(name, loc.lexical_pos);
@@ -12666,6 +12740,7 @@ static void tc_always_at_(const struct vlltype&loc,
 			error_count += 1;
 			return;
 		  }
+		  cond = tc_condition_(loc, cond);
 		  match = new PEBLogic('a', match, cond);
 	    }
 
@@ -12714,6 +12789,7 @@ static void tc_always_at_(const struct vlltype&loc,
 		  error_count += 1;
 		  return;
 	    }
+	    cond = tc_condition_(loc, cond);
 	    PCondit*c = new PCondit(cond, body, nullptr);
 	    FILE_NAME(c, loc);
 	    body = c;

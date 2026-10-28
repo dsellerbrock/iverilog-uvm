@@ -1,0 +1,2 @@
+ivltests/issue1252_dpi_class_arg.v:6: error: DPI import 'c_class': argument 'value' has a class type, which is not permitted for DPI formals (IEEE 1800-2017/2023 35.5.6).
+error: Code generation had 1 error(s).

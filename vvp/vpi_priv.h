@@ -309,6 +309,9 @@ class __vpiScope : public __vpiHandle {
       __vpiScopedTime scoped_time;
       struct __vpiScopedSTime scoped_stime;
       struct __vpiScopedRealtime scoped_realtime;
+	/* Module-array element index, when this scope is an array member. */
+      bool has_module_array_index_;
+      __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
 	/* Set of types */
@@ -325,6 +328,7 @@ class __vpiScope : public __vpiHandle {
       signed int time_units :8;
       signed int time_precision :8;
       int join_type = vpiUndefined;
+      int access_type = vpiUndefined;
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);

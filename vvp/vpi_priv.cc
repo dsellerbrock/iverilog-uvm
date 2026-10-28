@@ -536,6 +536,11 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
       if (ref == 0)
 	    return vpip_get_global(property);
 
+	  // No objects are currently represented as protected by the simulator.
+	  // vpiIsProtected is defined for every object, so return FALSE before
+	  // dispatching to type-specific property handlers.
+	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
+
       if (property == vpiType) {
 	    int type = ref->get_type_code();
 	    if (type == vpiAssertion) {
@@ -2313,6 +2318,103 @@ extern "C" PLI_INT32 vpi_control(PLI_INT32 operation, ...)
       int r = vpi_sim_vcontrol(operation, ap);
       va_end(ap);
       return r;
+}
+
+/* Annex L compatibility entry points for the 2017 and 2023 header modes.
+ * Those modes both select the IEEE 1800-2012 API. */
+extern "C" PLI_INT32 vpi_compare_objects_1800v2012(vpiHandle obj1,
+                                                     vpiHandle obj2)
+{
+      return vpi_compare_objects(obj1, obj2);
+}
+
+extern "C" PLI_INT32 vpi_control_1800v2012(PLI_INT32 operation, ...)
+{
+      va_list ap;
+      va_start(ap, operation);
+      int r = vpi_sim_vcontrol(operation, ap);
+      va_end(ap);
+      return r;
+}
+
+extern "C" PLI_INT32 vpi_get_1800v2012(PLI_INT32 property, vpiHandle ref)
+{
+      return vpi_get(property, ref);
+}
+
+extern "C" char* vpi_get_str_1800v2012(PLI_INT32 property, vpiHandle ref)
+{
+      return vpi_get_str(property, ref);
+}
+
+extern "C" void vpi_get_value_1800v2012(vpiHandle expr, p_vpi_value value)
+{
+      vpi_get_value(expr, value);
+}
+
+extern "C" vpiHandle vpi_handle_1800v2012(PLI_INT32 type, vpiHandle ref)
+{
+      return vpi_handle(type, ref);
+}
+
+extern "C" vpiHandle vpi_handle_by_index_1800v2012(vpiHandle ref,
+                                                     PLI_INT32 idx)
+{
+      return vpi_handle_by_index(ref, idx);
+}
+
+extern "C" vpiHandle vpi_handle_by_multi_index(vpiHandle ref,
+                                                 PLI_INT32 num_index,
+                                                 PLI_INT32 *index_array)
+{
+      if (num_index < 0 || (num_index && !index_array)) return 0;
+      for (PLI_INT32 idx = 0; idx < num_index; idx++) {
+            ref = vpi_handle_by_index(ref, index_array[idx]);
+            if (!ref) return 0;
+      }
+      return ref;
+}
+
+extern "C" vpiHandle vpi_handle_by_multi_index_1800v2012(
+      vpiHandle ref, PLI_INT32 num_index, PLI_INT32 *index_array)
+{
+      return vpi_handle_by_multi_index(ref, num_index, index_array);
+}
+
+extern "C" vpiHandle vpi_handle_by_name_1800v2012(const char* name,
+                                                    vpiHandle scope)
+{
+      return vpi_handle_by_name(name, scope);
+}
+
+extern "C" vpiHandle vpi_handle_multi_1800v2012(PLI_INT32 type,
+                                                 vpiHandle ref1,
+                                                 vpiHandle ref2)
+{
+      return vpi_handle_multi(type, ref1, ref2);
+}
+
+extern "C" vpiHandle vpi_iterate_1800v2012(PLI_INT32 type, vpiHandle ref)
+{
+      return vpi_iterate(type, ref);
+}
+
+extern "C" vpiHandle vpi_put_value_1800v2012(vpiHandle obj,
+                                               p_vpi_value value,
+                                               p_vpi_time when,
+                                               PLI_INT32 flags)
+{
+      return vpi_put_value(obj, value, when, flags);
+}
+
+extern "C" vpiHandle vpi_register_cb_1800v2012(p_cb_data data)
+{
+      return vpi_register_cb(data);
+}
+
+extern "C" vpiHandle vpi_scan_1800v2012(vpiHandle iter)
+{
+      return vpi_scan(iter);
 }
 
 /*
