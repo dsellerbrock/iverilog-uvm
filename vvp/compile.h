@@ -624,7 +624,8 @@ extern void compile_var_darray(char*label, char*name, unsigned size,
 			       char*container_type = 0);
 extern void compile_var_cobject(char*label, char*name, char*type,
 				int lifetime_flag,
-				bool virtual_interface = false);
+				bool virtual_interface = false,
+				bool virtual_interface_modport = false);
 extern void compile_var_queue(char*label, char*name, unsigned size,
 			      char*type, int lifetime_flag,
 			      bool element_signed = false,

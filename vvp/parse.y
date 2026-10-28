@@ -126,7 +126,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
 %token K_UDP K_UDP_C K_UDP_S
-%token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_DARRAY
+%token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_VIF_MODPORT K_VAR_DARRAY
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
 %token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
@@ -1113,6 +1113,10 @@ statement
       { (void)$3; compile_var_cobject($1, $5, 0, $4, true); }
   | T_LABEL K_VAR_VIF local_flag storage_flag T_STRING ',' T_SYMBOL ';'
       { (void)$3; compile_var_cobject($1, $5, $7, $4, true); }
+  | T_LABEL K_VAR_VIF_MODPORT local_flag storage_flag T_STRING ';'
+      { (void)$3; compile_var_cobject($1, $5, 0, $4, true, true); }
+  | T_LABEL K_VAR_VIF_MODPORT local_flag storage_flag T_STRING ',' T_SYMBOL ';'
+      { (void)$3; compile_var_cobject($1, $5, $7, $4, true, true); }
 
   /* Net statements are similar to .var statements, except that they
      declare nets, and they have an input list. */

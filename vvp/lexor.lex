@@ -294,6 +294,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".var"          { return K_VAR; }
 ".var/cobj"     { return K_VAR_COBJECT; }
 ".var/vif"      { return K_VAR_VIF; }
+".var/vif/mp"   { return K_VAR_VIF_MODPORT; }
 ".var/darray"   { return K_VAR_DARRAY; }
 ".var/queue"    { return K_VAR_QUEUE; }
 ".var/real"     { return K_VAR_R; }

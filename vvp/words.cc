@@ -448,7 +448,8 @@ void compile_var_queue(char*label, char*name, unsigned size,
 }
 
 void compile_var_cobject(char*label, char*name, char*type, int lifetime_flag,
-                         bool virtual_interface)
+                         bool virtual_interface,
+                         bool virtual_interface_modport)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -488,7 +489,8 @@ void compile_var_cobject(char*label, char*name, char*type, int lifetime_flag,
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_cobject_var(name, net, use_auto,
-                                            virtual_interface);
+                                            virtual_interface,
+                                            virtual_interface_modport);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
