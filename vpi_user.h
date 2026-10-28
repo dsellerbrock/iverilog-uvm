@@ -565,6 +565,7 @@ typedef struct t_cb_data {
 #endif
 
 extern vpiHandle vpi_register_cb(p_cb_data data);
+extern void vpi_get_cb_info(vpiHandle object, p_cb_data cb_data_p);
 extern PLI_INT32 vpi_remove_cb(vpiHandle ref);
 
 /*

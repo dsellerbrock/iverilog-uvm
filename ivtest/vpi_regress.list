@@ -71,6 +71,8 @@ msys2:pr723		NI			pr723.c			pr723.log
 
 issue1254_vpi_header_2017 normal,-g2017 issue1254_vpi_header_2017.c issue1254_vpi_header_2017.gold
 issue1254_vpi_header_2023 normal,-g2023 issue1254_vpi_header_2023.c issue1254_vpi_header_2023.gold
+issue1336_vpi_get_cb_info_2017 normal,-g2017 issue1336_vpi_get_cb_info.c issue1336_vpi_get_cb_info_2017.gold
+issue1336_vpi_get_cb_info_2023 normal,-g2023 issue1336_vpi_get_cb_info.c issue1336_vpi_get_cb_info_2023.gold
 
 br_gh59			normal			br_gh59.c		br_gh59.gold
 br_gh73a		normal			force.c			br_gh73a.gold
