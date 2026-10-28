@@ -80,6 +80,29 @@ static void pform_check_method_override_interface_class_(const struct vlltype&lo
 	  }
 }
 
+/* IEEE 1800-2017/2023 35.5.4 requires each DPI import linkage name,
+ * including the default SystemVerilog name, to be a C identifier. */
+static void pform_check_dpi_import_c_identifier_(const struct vlltype&loc,
+						 const char*name)
+{
+	  if (!name || !((*name >= 'A' && *name <= 'Z')
+			 || (*name >= 'a' && *name <= 'z') || *name == '_')) {
+		yyerror(loc, "error: DPI import linkage identifier '%s' does not "
+			"conform to C identifier syntax (IEEE 1800-2017/2023 35.5.4).",
+			name ? name : "");
+		return;
+	  }
+	  for (const char*ch = name + 1; *ch; ++ch) {
+		if (!((*ch >= 'A' && *ch <= 'Z') || (*ch >= 'a' && *ch <= 'z')
+		      || (*ch >= '0' && *ch <= '9') || *ch == '_')) {
+		      yyerror(loc, "error: DPI import linkage identifier '%s' does not "
+			      "conform to C identifier syntax (IEEE 1800-2017/2023 35.5.4).",
+			      name);
+		      return;
+		}
+	  }
+}
+
 /* Port declaration lists use this structure for context. */
 static struct {
       NetNet::Type port_net_type;
@@ -8022,6 +8045,7 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	pform_check_dpi_import_c_identifier_(@6, $6);
 	current_function->set_dpi_import($6);
 	pform_pop_scope();
 	current_function = 0;
@@ -8036,6 +8060,7 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_function->set_ports($10);
 	current_function->set_return($7);
+	pform_check_dpi_import_c_identifier_(@4, $4);
 	current_function->set_dpi_import($4);
 	pform_pop_scope();
 	current_function = 0;
@@ -8051,6 +8076,7 @@ dpi_import_export_declaration
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	pform_check_dpi_import_c_identifier_(@5, $5);
 	current_task->set_dpi_import($5);
 	pform_pop_scope();
 	current_task = 0;
@@ -8065,6 +8091,7 @@ dpi_import_export_declaration
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($9);
+	pform_check_dpi_import_c_identifier_(@4, $4);
 	current_task->set_dpi_import($4);
 	pform_pop_scope();
 	current_task = 0;
