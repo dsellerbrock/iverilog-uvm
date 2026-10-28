@@ -374,14 +374,20 @@ extern void vpip_report_deferred_assertion_reset_callbacks(
 class vpiScopeFunction  : public __vpiScope {
     public:
       inline vpiScopeFunction(const char*nam, const char*tnam,
-			      bool auto_flag, int func_type, unsigned func_wid, vvp_bit4_t func_init_val)
-      : __vpiScope(nam,tnam, auto_flag), func_type_(func_type), func_wid_(func_wid), func_init_val_(func_init_val)
+			      bool auto_flag, int func_type, unsigned func_wid, vvp_bit4_t func_init_val,
+			      bool is_void = false)
+	      : __vpiScope(nam,tnam, auto_flag), func_type_(func_type), func_wid_(func_wid),
+		func_init_val_(func_init_val), is_void_(is_void)
       { }
 
       int get_type_code(void) const override { return vpiFunction; }
       int vpi_get(int code) override
       {
 	    switch (code) {
+		case vpiSize:
+		  if (is_void_) return 0;
+		  if (func_wid_ != 0) return (int)func_wid_;
+		  return vpiUndefined;
 		case vpiFuncType:
 		  return func_type_;
 		default:
@@ -397,6 +403,7 @@ class vpiScopeFunction  : public __vpiScope {
       int func_type_;
       unsigned func_wid_;
       vvp_bit4_t func_init_val_;
+      bool is_void_;
 };
 
 extern __vpiScope* vpip_peek_current_scope(void);

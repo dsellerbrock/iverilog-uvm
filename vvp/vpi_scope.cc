@@ -1451,9 +1451,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       } else if (strcmp(type,"autofunction.str") == 0) {
 	    scope = new vpiScopeFunction(name, tname, true, vpiOtherFunc, 0, BIT4_0);
       } else if (strcmp(type,"function.void") == 0) {
-	    scope = new vpiScopeFunction(name, tname, false, vpiOtherFunc, 0, BIT4_0);
+	    scope = new vpiScopeFunction(name, tname, false, vpiOtherFunc, 0, BIT4_0, true);
       } else if (strcmp(type,"autofunction.void") == 0) {
-	    scope = new vpiScopeFunction(name, tname, true, vpiOtherFunc, 0, BIT4_0);
+	    scope = new vpiScopeFunction(name, tname, true, vpiOtherFunc, 0, BIT4_0, true);
       } else if (strcmp(type,"task") == 0) {
 	    scope = new vpiScopeTask(name, tname);
       } else if (strcmp(type,"task.ctx") == 0) {
