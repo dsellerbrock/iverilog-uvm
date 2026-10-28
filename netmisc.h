@@ -78,6 +78,7 @@ struct symbol_search_results {
 	    eve = 0;
 	    decl_after_use = 0;
 	    scope_index_error = false;
+	    genvar_outside_loop = false;
       }
 
       inline bool is_scope() const {
@@ -125,6 +126,9 @@ struct symbol_search_results {
         // was not a constant expression. Callers must not replace that
         // specific diagnostic with a generic unresolved-name warning.
       bool scope_index_error;
+
+        // A declared genvar was referenced where no loop-generate index is active.
+      bool genvar_outside_loop;
 
         // Store bread crumbs of the search here. The path_tail is the parts
         // of the original path that were not found, or are after an object
