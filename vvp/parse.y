@@ -101,7 +101,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
-%token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
+%token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_VIF K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
 %token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_OPTION_VALUES K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_OPTION_VALUES K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
@@ -126,7 +126,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
 %token K_UDP K_UDP_C K_UDP_S
-%token K_VAR K_VAR_COBJECT K_VAR_DARRAY
+%token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_DARRAY
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
 %token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
@@ -303,6 +303,9 @@ statement
 
         | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ';'
                 { compile_object_array($1, $4, $6, $7, $3); }
+
+        | T_LABEL K_ARRAY_VIF storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+                { compile_object_array($1, $4, $6, $7, $3, 0, 0, true); }
 
         | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ',' T_SYMBOL ';'
                 { compile_object_array($1, $4, $6, $7, $3, $9); }
@@ -1094,6 +1097,8 @@ statement
 
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
       { compile_var_cobject($1, $4, 0, $3); }
+  | T_LABEL K_VAR_VIF storage_flag T_STRING ',' T_SYMBOL ';'
+      { compile_var_cobject($1, $4, $6, $3, true); }
   | T_LABEL K_VAR_COBJECT local_flag storage_flag T_STRING ';'
       { (void)$3; compile_var_cobject($1, $5, 0, $4); }
 

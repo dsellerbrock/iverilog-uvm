@@ -252,6 +252,16 @@ struct __vpiArrayVthrA : public __vpiHandle {
       }
 };
 
+int __vpiArrayWord::as_word_t::get_type_code(void) const
+{
+      const __vpiArrayWord*word = array_var_word_from_handle(
+	    const_cast<__vpiArrayWord::as_word_t*>(this));
+      const __vpiArray*array = word
+	    ? dynamic_cast<const __vpiArray*>(word->get_parent()) : 0;
+      return array && array->virtual_interface
+	    ? vpiVirtualInterfaceVar : vpiMemoryWord;
+}
+
 
 struct __vpiArrayVthrAPV : public __vpiHandle {
       int get_type_code(void) const override { return vpiPartSelect; }
@@ -1766,6 +1776,7 @@ vpiHandle vpip_make_array(const char*label, const char*name,
       obj->value_owner_ = obj;
       obj->value_views_.push_back(obj);
       obj->value_kind = __vpiArray::ARRAY_VALUE_NONE;
+      obj->virtual_interface = false;
       obj->automatic_storage = false;
 
 	// Initialize (clear) the read-ports list.
@@ -2033,7 +2044,7 @@ void compile_string_array(char*label, char*name, int last, int first,
 
 void compile_object_array(char*label, char*name, int last, int first,
 			  int storage_flag, char*element_type,
-			  char*container_type)
+			  char*container_type, bool virtual_interface)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
@@ -2041,6 +2052,7 @@ void compile_object_array(char*label, char*name, int last, int first,
 
       arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
       arr->value_kind = __vpiArray::ARRAY_VALUE_OBJECT;
+      arr->virtual_interface = virtual_interface;
 
 	/* Make the words. */
       arr->vals = fixed_array_storage_(new vvp_darray_object(arr->get_size()),

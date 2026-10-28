@@ -70,7 +70,7 @@ struct __vpiArrayIndex : public __vpiHandle {
  */
 struct __vpiArrayWord {
       struct as_word_t : public __vpiHandle {
-	    int get_type_code(void) const override { return vpiMemoryWord; }
+	    int get_type_code(void) const override;
 	    int vpi_get(int code) override;
 	    char*vpi_get_str(int code) override;
 	    void vpi_get_value(p_vpi_value vp) override;

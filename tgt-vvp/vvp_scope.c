@@ -928,7 +928,10 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_NO_TYPE:
-	    datatype_flag = "/obj";
+	    datatype_flag = ivl_signal_port(sig) == IVL_SIP_NONE
+		  && ivl_signal_net_type(sig)
+		  && ivl_type_is_interface(ivl_signal_net_type(sig))
+		  ? "/vif" : "/obj";
 	    vector_dims = 0;
 	    break;
 	  case IVL_VT_DARRAY:
@@ -1114,7 +1117,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    if (var_type && ivl_type_base(var_type) == IVL_VT_CLASS) {
 		  draw_class_in_scope(var_type);
-		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\", TC%p;%s\n", sig,
+		  fprintf(vvp_out, "v%p_0 .var%s %s\"%s\", TC%p;%s\n", sig,
+			  ivl_signal_port(sig) == IVL_SIP_NONE
+			  && ivl_type_is_interface(var_type) ? "/vif" : "/cobj",
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  var_type,

@@ -201,13 +201,14 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 }
 
 __vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
-                                 bool automatic_storage)
+				 bool automatic_storage, bool virtual_interface)
 : __vpiBaseVar(sc, na, ne, automatic_storage)
+, virtual_interface_(virtual_interface)
 {
 }
 
 int __vpiCobjectVar::get_type_code(void) const
-{ return vpiClassVar; }
+{ return virtual_interface_ ? vpiVirtualInterfaceVar : vpiClassVar; }
 
 int __vpiCobjectVar::vpi_get(int code)
 {
@@ -1417,13 +1418,14 @@ vpiHandle __vpiCobjectVar::member_by_name(const char*name)
 }
 
 vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
-                                bool automatic_storage)
+				bool automatic_storage, bool virtual_interface)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
       __vpiCobjectVar*obj = new __vpiCobjectVar(scope, use_name, net,
-                                                automatic_storage);
+							      automatic_storage,
+							      virtual_interface);
 
       return obj;
 }

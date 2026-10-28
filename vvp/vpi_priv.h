@@ -924,7 +924,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
             ARRAY_VALUE_OBJECT
       };
 
-      int get_type_code(void) const override { return vpiMemory; }
+      int get_type_code(void) const override
+	{ return virtual_interface ? vpiArrayVar : vpiMemory; }
       unsigned get_size() const override { return array_count; }
       vpiHandle get_left_range() override { assert(nets == 0); return &msb; }
       vpiHandle get_right_range() override { assert(nets == 0); return &lsb; }
@@ -1060,6 +1061,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// independent of the lexical scope for explicit static/automatic
 	// declarations (IEEE 1800-2023 6.21).
       value_kind_t value_kind;
+      bool virtual_interface = false;
       bool automatic_storage;
 	// For a static unpacked array whose element is an object-backed
 	// unpacked struct, this is the element's class definition. Elements
@@ -1177,7 +1179,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
     public:
       __vpiCobjectVar(__vpiScope*scope, const char*name, vvp_net_t*net,
-                      bool automatic_storage);
+		      bool automatic_storage, bool virtual_interface = false);
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
@@ -1185,6 +1187,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+	  bool virtual_interface_;
 	// M12: iterate the live object's members (vpiMember).
       vpiHandle vpi_iterate(int code) override;
 	// M12: find one member handle by property name (used by
@@ -1209,7 +1212,8 @@ class __vpiCobjectVar : public __vpiBaseVar {
 };
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
-                                       bool automatic_storage);
+                                       bool automatic_storage,
+                                       bool virtual_interface = false);
 
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */

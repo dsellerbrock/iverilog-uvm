@@ -309,6 +309,7 @@ static int compare_types(int code, int type)
 	      // M12: SystemVerilog variable objects are variables too.
 	      type == vpiStringVar   ||
 	      type == vpiClassVar    ||
+	      type == vpiVirtualInterfaceVar ||
 	      type == vpiArrayVar))
 	    return 1;
 
@@ -347,6 +348,30 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
+
+	/* A virtual-interface array contributes one VPI object per declared
+	 * element. Keep the array declaration in vpiVariables, while exposing
+	 * its words through the dedicated virtual-interface iterator. */
+      if (code == vpiVirtualInterfaceVar) {
+	    vector<vpiHandle> items;
+	    for (unsigned idx = 0; idx < ref->intern.size(); idx += 1) {
+		  vpiHandle item = ref->intern[idx];
+		  if (item->get_type_code() == vpiVirtualInterfaceVar) {
+			items.push_back(item);
+			continue;
+		  }
+		  __vpiArray*array = dynamic_cast<__vpiArray*>(item);
+		  if (!array || !array->virtual_interface)
+			continue;
+		  for (unsigned word = 0; word < array->get_size(); word += 1)
+			items.push_back(array->get_iter_index(0, word));
+	    }
+	    if (items.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(calloc(items.size(), sizeof(vpiHandle)));
+	    for (unsigned idx = 0; idx < items.size(); idx += 1)
+		  args[idx] = items[idx];
+	    return vpip_make_iterator(items.size(), args, true);
+      }
 
       return make_subset_iterator_(code, ref->intern);
 }
