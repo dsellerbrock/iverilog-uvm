@@ -2663,6 +2663,48 @@ extern "C" ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx)
       return (*net->aux_->enumerations_)[idx];
 }
 
+extern "C" unsigned ivl_scope_nettypes(ivl_scope_t net)
+{
+      assert(net && net->net_);
+      return net->net_->local_nettypes().size();
+}
+
+extern "C" ivl_nettype_t ivl_scope_nettype(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      const std::map<perm_string,NetNetType*>&types = net->net_->local_nettypes();
+      assert(idx < types.size());
+      std::map<perm_string,NetNetType*>::const_iterator cur = types.begin();
+      std::advance(cur, idx);
+      return reinterpret_cast<ivl_nettype_t>(cur->second);
+}
+
+extern "C" const char* ivl_nettype_name(ivl_nettype_t nettype)
+{
+      assert(nettype);
+      const NetNetType*type = reinterpret_cast<const NetNetType*>(nettype);
+      return type->name().str();
+}
+
+extern "C" const char* ivl_nettype_alias(ivl_nettype_t nettype)
+{
+      assert(nettype);
+      const NetNetType*type = reinterpret_cast<const NetNetType*>(nettype);
+      return type->alias_name().nil() ? 0 : type->alias_name().str();
+}
+
+extern "C" const char* ivl_nettype_with(ivl_nettype_t nettype)
+{
+      assert(nettype);
+      const NetNetType*type = reinterpret_cast<const NetNetType*>(nettype);
+      if (!type->has_declared_resolution_function())
+            return 0;
+      const NetFuncDef*func = type->resolution_function();
+      if (!func)
+            return 0;
+      return func->scope()->basename().str();
+}
+
 extern "C" unsigned ivl_scope_events(ivl_scope_t net)
 {
       assert(net);

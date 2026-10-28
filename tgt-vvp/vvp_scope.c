@@ -3411,6 +3411,18 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
+	   37.23). Keep aliases and resolution-function names for runtime queries. */
+      for (idx = 0; idx < ivl_scope_nettypes(net); idx += 1) {
+	    ivl_nettype_t nettype = ivl_scope_nettype(net, idx);
+	    const char*alias = ivl_nettype_alias(nettype);
+	    const char*with = ivl_nettype_with(nettype);
+	    fprintf(vvp_out, " .nettype_decl \"%s\" \"%s\" \"%s\";\n",
+		    vvp_mangle_name(ivl_nettype_name(nettype)),
+		    alias ? vvp_mangle_name(alias) : "",
+		    with ? vvp_mangle_name(with) : "");
+      }
+
 	/* M12: modport declarations of an interface, for VPI —
 	   M12-6 appends each port as "name" direction pairs. */
       if (ivl_scope_is_interface(net)) {

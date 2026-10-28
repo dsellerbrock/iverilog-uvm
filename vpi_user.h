@@ -288,6 +288,7 @@ typedef struct t_vpi_delay  {
 #define vpiNamedFork   35
 #define vpiNet         36
 #define vpiNetBit      37
+#define vpiNettypeDecl 523
 #define vpiParameter   41
 #define vpiPartSelect  42
 #define vpiPathTerm    43
@@ -353,6 +354,8 @@ typedef struct t_vpi_delay  {
 #   define vpiNoDirection 5
 
 #define vpiNetType       22
+#define vpiNetTypedefAlias 705
+#define vpiWith           715
 #   define vpiWire         1
 #   define vpiWand         2
 #   define vpiWor          3

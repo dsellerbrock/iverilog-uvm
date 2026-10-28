@@ -397,6 +397,56 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       return make_subset_iterator_(code, ref->intern);
 }
 
+class __vpiNettypeDecl : public __vpiHandle {
+    public:
+      __vpiNettypeDecl(__vpiScope*scope, const char*name,
+                       const char*alias, const char*with)
+      : scope_(scope), name_(vpip_name_string(name)),
+        alias_(vpip_name_string(alias)), with_(vpip_name_string(with)) { }
+      int get_type_code(void) const override { return vpiNettypeDecl; }
+      char* vpi_get_str(int code) override
+      {
+            if (code == vpiName) return const_cast<char*>(name_);
+            return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiNetTypedefAlias && alias_ && *alias_) {
+                  for (size_t idx = 0; idx < scope_->intern.size(); ++idx) {
+                        vpiHandle item = scope_->intern[idx];
+                        if (item->get_type_code() == vpiNettypeDecl
+                            && strcmp(item->vpi_get_str(vpiName), alias_) == 0)
+                              return item;
+                  }
+            }
+            if (code == vpiWith && with_ && *with_) {
+                  std::string path = scope_->vpi_get_str(vpiFullName);
+                  if (!path.empty()) path += ".";
+                  path += with_;
+                  return vpi_handle_by_name(
+                        reinterpret_cast<PLI_BYTE8*>(const_cast<char*>(path.c_str())),
+                        0);
+            }
+            return __vpiHandle::vpi_handle(code);
+      }
+    private:
+      __vpiScope*scope_;
+      const char*name_;
+      const char*alias_;
+      const char*with_;
+};
+
+void compile_nettype_decl(char*name, char*alias, char*with)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope);
+      __vpiNettypeDecl*obj = new __vpiNettypeDecl(scope, name, alias, with);
+      vpip_attach_to_current_scope(obj);
+      delete[] name;
+      delete[] alias;
+      delete[] with;
+}
+
 
 __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 : is_automatic_(auto_flag)
