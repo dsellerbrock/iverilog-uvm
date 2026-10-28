@@ -1,0 +1,2 @@
+ivltests/issue1243_pulsestyle_order_2023.v:5: error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).
+ivltests/issue1243_pulsestyle_order_2023.v:5: warning: `pulsestyle_ondetect' is accepted but has no effect; pulse filtering is not modelled, so cancelled and short pulses propagate as usual.

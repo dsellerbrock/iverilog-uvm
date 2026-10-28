@@ -5776,3 +5776,6 @@ issue1265_vpi_join_type_2023 vvp_tests/issue1265_vpi_join_type_2023.json
 # IEEE 1800-2017/2023 §35.5.6 forbids class types in DPI formals
 issue1252_dpi_class_arg_2017 vvp_tests/issue1252_dpi_class_arg_2017.json
 issue1252_dpi_class_arg_2023 vvp_tests/issue1252_dpi_class_arg_2023.json
+# IEEE 1800-2017/2023 §30.7.4.1 pulse style declaration ordering
+issue1243_pulsestyle_order_2017 vvp_tests/issue1243_pulsestyle_order_2017.json
+issue1243_pulsestyle_order_2023 vvp_tests/issue1243_pulsestyle_order_2023.json
