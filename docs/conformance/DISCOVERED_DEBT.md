@@ -4934,7 +4934,21 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   reads are x/x even with explicit assignment. The minimal no-default repro and
   paired logs are under `evidence/m9-issue857-t0-20261028/baseline-main/`.
 - **Reproducer status:** Confirmed on both #857 and clean current main.
-- **Triage status:** Separate from #857; do not widen the #857 fix. Targeted issue
-  searches found #499 (packed bit select after an indexed unpacked struct-member
-  element) and #1469 (2-state conversion on packed-struct reads), but neither
-  describes this reproducer.
+- **Triage status:** Open, not in scope of #857. No exact duplicate found; #499
+  may share a root cause but covers an indexed unpacked struct-member followed
+  by a packed bit select, not this scalar nested-member path. #1469, #539 and
+  #1219 describe different symptoms. Supervisor triage is pending.
+
+### DD-151 — packed-array members may need recursive structure-default handling
+
+- **Discovered while working:** M9 issue #857.
+- **Observation:** `elaborate_expr_default_` recurses through structures and
+  fixed unpacked arrays, but not packed-array member types. IEEE 1800-2023
+  §10.9.2 says defaults apply to unmatched array members according to the array
+  pattern rules. No packed-array reducer was run, so this remains a source-review
+  suspicion, not a confirmed conformance gap.
+- **File/function:** `elab_expr.cc::PEAssignPattern::elaborate_expr_default_`.
+- **Evidence:** Source review only; no probe or output evidence.
+- **Reproducer status:** Not probed.
+- **Triage status:** Unverified and out of scope of #857; probe before opening an
+  issue or widening the fix.

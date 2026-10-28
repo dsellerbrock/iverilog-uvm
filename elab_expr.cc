@@ -5419,6 +5419,8 @@ NetExpr* PEAssignPattern::elaborate_expr_default_(Design *des, NetScope *scope,
 	  if (const netuarray_t*array =
 		    dynamic_cast<const netuarray_t*>(member_type)) {
 		const netranges_t&dims = array->static_dimensions();
+		/* shortcut: only fixed unpacked arrays recurse here; add other array
+		   kinds when a focused reproducer establishes their pattern rules. */
 		if (!dims.empty()) {
 		      std::function<NetExpr*(unsigned, ivl_type_t)> fill_array =
 			    [&](unsigned dim, ivl_type_t leaf) -> NetExpr* {
