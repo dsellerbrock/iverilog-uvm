@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1324_vpi_delay_constants.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1324_vpi_delay_constants_2017"],
+  "vpi-sources": ["vpi/issue1324_vpi_delay_constants.c"],
+  "output-contains": ["PASSED"]
+}
