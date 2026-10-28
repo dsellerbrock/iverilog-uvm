@@ -2797,6 +2797,27 @@ extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
       return net->is_dpi_import ? 1 : 0;
 }
 
+extern "C" int ivl_scope_dpi_pure(ivl_scope_t net)
+{
+      assert(net);
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->dpi_pure : 0;
+}
+
+extern "C" int ivl_scope_dpi_context(ivl_scope_t net)
+{
+      assert(net);
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->dpi_context : 0;
+}
+
+extern "C" const char*ivl_scope_dpi_spec(ivl_scope_t net)
+{
+      assert(net);
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->dpi_spec : 0;
+}
+
 extern "C" int ivl_scope_is_virtual_method(ivl_scope_t net)
 {
       assert(net);

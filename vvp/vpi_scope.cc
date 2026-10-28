@@ -409,6 +409,12 @@ int __vpiScope::vpi_get(int code)
 
 	  case vpiAccessType:
 	    return access_type;
+	  case vpiDPIPure:
+	    return dpi_pure;
+	  case vpiDPIContext:
+	    return dpi_context;
+	  case vpiDPICStr:
+	    return dpi_cstr;
       }
 
       return vpiUndefined;
@@ -416,7 +422,11 @@ int __vpiScope::vpi_get(int code)
 
 
 char*__vpiScope::vpi_get_str(int code)
-{ return scope_get_str(code, this); }
+{
+      if (code == vpiDPICIdentifier)
+	    return const_cast<char*>(dpi_identifier);
+      return scope_get_str(code, this);
+}
 
 vpiHandle __vpiScope::vpi_handle(int code)
 { return scope_get_handle(code, this); }
@@ -1250,6 +1260,20 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 {
       int join_type = vpiUndefined;
       int access_type = vpiUndefined;
+      char*dpi = strstr(type, ".dpi");
+      int dpi_pure = 0, dpi_context = 0, dpi_cstr = vpiUndefined;
+      const char*dpi_identifier = 0;
+      if (dpi) {
+	    if (dpi[4] >= '0' && dpi[4] <= '1'
+	        && dpi[5] >= '0' && dpi[5] <= '1'
+	        && (dpi[6] == '1' || dpi[6] == '2') && dpi[7] == '_') {
+		  dpi_pure = dpi[4] - '0';
+		  dpi_context = dpi[5] - '0';
+		  dpi_cstr = dpi[6] - '0';
+		  dpi_identifier = vpip_name_string(dpi + 8);
+	    }
+	    *dpi = 0;
+      }
       char*join = strstr(type, ".join");
       if (join && join[5] >= '0' && join[5] <= '2') {
 	    join_type = join[5] - '0';
@@ -1374,6 +1398,10 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope->set_owns_automatic_context();
       scope->join_type = join_type;
       scope->access_type = access_type;
+      scope->dpi_pure = dpi_pure;
+      scope->dpi_context = dpi_context;
+      scope->dpi_cstr = dpi_cstr;
+      scope->dpi_identifier = dpi_identifier;
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

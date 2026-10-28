@@ -3248,6 +3248,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
       char access_suffix[8] = "";
+      const char*dpi_c_name = 0;
+      int dpi_cstr = 0;
 
       suffix[0] = 0;
 
@@ -3356,8 +3358,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	       && ivl_scope_is_interface(ivl_scope_parent(net)))
 	    strcpy(access_suffix, ".acc2");
 
-	  fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix, access_suffix,
+      if (ivl_scope_is_dpi_import(net) || ivl_scope_is_dpi_export(net)) {
+	    const char*spec = ivl_scope_dpi_spec(net);
+	    dpi_c_name = ivl_scope_is_dpi_import(net)
+		 ? ivl_scope_dpi_c_name(net) : ivl_scope_dpi_export_c_name(net);
+	    dpi_cstr = spec && strcmp(spec, "DPI-C") == 0 ? 2 : 1;
+      }
+
+	  fprintf(vvp_out, "S_%p .scope %s%s%s%s",
+	      net, prefix, type, suffix, access_suffix);
+      if (dpi_c_name) {
+	    fprintf(vvp_out, ".dpi%d%d%d_%s", ivl_scope_dpi_pure(net),
+		    ivl_scope_dpi_context(net), dpi_cstr, dpi_c_name);
+      }
+	  fprintf(vvp_out, ", \"%s\" \"%s\" %u %u",
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),

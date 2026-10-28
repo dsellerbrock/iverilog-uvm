@@ -881,6 +881,9 @@ struct ivl_scope_proc_s {
       } u_;
       const char*dpi_c_name;
       const char*dpi_export_c_name;
+      const char*dpi_spec;
+      unsigned dpi_pure : 1;
+      unsigned dpi_context : 1;
       unsigned ports;
 };
 

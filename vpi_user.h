@@ -390,6 +390,12 @@ typedef struct t_vpi_delay  {
 #   define vpiSizedFunc   4
 #   define vpiSizedSignedFunc 5
 #define vpiAccessType 604
+#define vpiDPIPure 665
+#define vpiDPIContext 666
+#define vpiDPICStr 667
+#define vpiDPICIdentifier 668
+#define vpiDPI 1
+#define vpiDPIC 2
 #   define vpiForkJoinAcc 1
 #   define vpiExternAcc   2
 #   define vpiDPIExportAcc 3

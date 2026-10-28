@@ -943,11 +943,16 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
                   scope->is_dpi_import = true;
                   scope->ensure_proc_()->dpi_c_name =
 			pfunc->dpi_c_name().c_str();
+                  scope->ensure_proc_()->dpi_spec = pfunc->dpi_spec().c_str();
+                  scope->ensure_proc_()->dpi_pure = pfunc->dpi_pure();
+                  scope->ensure_proc_()->dpi_context = pfunc->dpi_context();
             }
             if (pfunc->is_dpi_export()) {
                   scope->is_dpi_export = true;
                   scope->ensure_proc_()->dpi_export_c_name =
 			pfunc->dpi_export_c_name().c_str();
+                  scope->ensure_proc_()->dpi_spec =
+			pfunc->dpi_export_spec().c_str();
             }
       }
 }
@@ -3609,11 +3614,16 @@ void dll_target::scope(const NetScope*net)
 				  scop->is_dpi_import = true;
 				  scop->ensure_proc_()->dpi_c_name =
 					ptask->dpi_c_name().c_str();
+				  scop->ensure_proc_()->dpi_spec = ptask->dpi_spec().c_str();
+				  scop->ensure_proc_()->dpi_pure = ptask->dpi_pure();
+				  scop->ensure_proc_()->dpi_context = ptask->dpi_context();
 			    }
 			    if (ptask->is_dpi_export()) {
 				  scop->is_dpi_export = true;
 				  scop->ensure_proc_()->dpi_export_c_name =
 					ptask->dpi_export_c_name().c_str();
+				  scop->ensure_proc_()->dpi_spec =
+					ptask->dpi_export_spec().c_str();
 			    }
 		      }
 		      break;
