@@ -1,0 +1,2 @@
+ivltests/issue1353_based_literal_leading_underscore.v:3: syntax error
+ivltests/issue1353_based_literal_leading_underscore.v:3: error: Malformed statement

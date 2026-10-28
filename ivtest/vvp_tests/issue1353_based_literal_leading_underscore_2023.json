@@ -1,0 +1,6 @@
+{
+    "type" : "CE",
+    "source" : "issue1353_based_literal_leading_underscore.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "issue1353_based_literal_leading_underscore"
+}
