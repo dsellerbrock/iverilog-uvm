@@ -277,6 +277,7 @@ typedef struct t_vpi_delay  {
 #define vpiConstant     7
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiFor         15
+#define vpiForever     17 /* forever statement */
 #define vpiFunction    20
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
