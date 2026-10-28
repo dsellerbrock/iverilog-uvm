@@ -5500,6 +5500,8 @@ sv_covergroup_item_method_modes normal,-g2017 ivltests gold=sv_covergroup_item_m
 sv_covergroup_item_method_modes_2023 normal,-g2023 ivltests gold=sv_covergroup_item_method_modes.gold
 sv_covergroup_nested_item_method_fail CE,-g2017 ivltests gold=sv_covergroup_nested_item_method_fail.gold
 sv_covergroup_nested_item_method_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_nested_item_method_fail.gold
+sv_covergroup_parameterized_class_2017 normal,-g2017 ivltests gold=sv_covergroup_parameterized_class.gold
+sv_covergroup_parameterized_class_2023 normal,-g2023 ivltests gold=sv_covergroup_parameterized_class.gold
 
 # Fixed-array indexed rand queue sizes and explicit unsupported boundaries.
 sv_constraint_fixed_queue_leaf_size normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_leaf_size.gold
