@@ -381,6 +381,7 @@ typedef struct t_vpi_delay  {
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
 #define vpiConstType 40
+#define vpiIsModPort 669
 #   define vpiDecConst    1
 #   define vpiRealConst   2
 #   define vpiBinaryConst 3

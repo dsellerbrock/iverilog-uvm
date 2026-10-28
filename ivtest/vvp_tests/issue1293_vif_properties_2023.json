@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1293_vif_properties.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1293_vif_properties"],
+  "vpi-sources": ["vpi/issue1293_vif_properties.c"],
+  "output-contains": ["ISSUE1293_VIF_PROPERTIES_PASS", "PASSED"]
+}

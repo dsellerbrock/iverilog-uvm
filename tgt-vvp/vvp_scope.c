@@ -1144,10 +1144,13 @@ static void draw_reg_in_scope(ivl_signal_t sig)
       } else if (ivl_signal_data_type(sig) == IVL_VT_CLASS
 	         || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE) {
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
+	    const char*var_kind = ivl_type_is_interface(var_type)
+		  ? (ivl_signal_attr(sig, "ivl_modport") ? "vif/mp" : "vif")
+		  : "cobj";
 	    if (var_type && ivl_type_base(var_type) == IVL_VT_CLASS) {
 		  draw_class_in_scope(var_type);
 		  fprintf(vvp_out, "v%p_0 .var/%s %s\"%s\", TC%p;%s\n", sig,
-		      ivl_type_is_interface(var_type) ? "vif" : "cobj",
+		      var_kind,
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  var_type,
@@ -1162,7 +1165,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			  ivl_signal_local(sig)? " Local signal" : "");
 	    } else {
 		  fprintf(vvp_out, "v%p_0 .var/%s %s\"%s\";%s\n", sig,
-		      ivl_type_is_interface(var_type) ? "vif" : "cobj",
+		      var_kind,
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  ivl_signal_local(sig)? " Local signal" : "");

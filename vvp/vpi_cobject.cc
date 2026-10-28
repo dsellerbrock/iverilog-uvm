@@ -202,9 +202,11 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 
 __vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
                                  bool automatic_storage,
-                                 bool virtual_interface)
+                                 bool virtual_interface,
+                                 bool virtual_interface_modport)
 : __vpiBaseVar(sc, na, ne, automatic_storage)
 , virtual_interface_(virtual_interface)
+, virtual_interface_modport_(virtual_interface_modport)
 {
 }
 
@@ -214,6 +216,8 @@ int __vpiCobjectVar::get_type_code(void) const
 int __vpiCobjectVar::vpi_get(int code)
 {
       switch (code) {
+	case vpiIsModPort:
+	    return virtual_interface_modport_ ? 1 : 0;
 	case vpiIsStruct: {
 	      vvp_fun_signal_object*fun = get_object_fun_(this);
 	      const class_type*defn = get_declared_class_type_(fun);
@@ -328,6 +332,13 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
       vvp_fun_signal_object*fun = get_object_fun_(this);
 
       switch (code) {
+	  case vpiExpr: {
+		if (!virtual_interface_ || !fun)
+		      return 0;
+		vvp_object_t obj = fun->peek_object();
+		vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+		return vif ? vif->vif_scope() : 0;
+	  }
           case vpiClassTypespec:
             return get_declared_class_type_(fun);
 
@@ -1420,14 +1431,16 @@ vpiHandle __vpiCobjectVar::member_by_name(const char*name)
 
 vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
                                 bool automatic_storage,
-                                bool virtual_interface)
+                                bool virtual_interface,
+                                bool virtual_interface_modport)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
       __vpiCobjectVar*obj = new __vpiCobjectVar(scope, use_name, net,
                                                 automatic_storage,
-                                                virtual_interface);
+                                                virtual_interface,
+                                                virtual_interface_modport);
 
       return obj;
 }
