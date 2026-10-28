@@ -754,6 +754,8 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
       t_vpi_value val;
 
       switch (code) {
+	  case vpiArrayMember:
+	    return 1;
 	  case vpiLineNo:
 	    return 0; // Not implemented for now!
 

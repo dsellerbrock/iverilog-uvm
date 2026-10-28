@@ -55,6 +55,7 @@ EXTERN_C_START
 #define vpiIODecl           604
 #define vpiCovergroup       605
 #define vpiArrayType        606
+#define vpiArrayMember      607
 #define   vpiStaticArray      1
 #define   vpiDynamicArray     2
 #define   vpiAssocArray       3
@@ -87,6 +88,7 @@ EXTERN_C_START
 #define vpiCoverWeight      664
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
+#define vpiPackedArrayMember 655
 /* Icarus extension: true when a vpiClassVar or member has a declared
  * unpacked struct type. */
 #define vpiIsStruct         667

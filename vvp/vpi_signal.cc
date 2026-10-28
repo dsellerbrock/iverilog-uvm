@@ -560,6 +560,23 @@ static int signal_get(int code, vpiHandle ref)
 	  case vpiArray:
 	    return rfp->is_netarray != 0;
 
+	  case vpiArrayMember:
+	    return rfp->is_netarray != 0;
+
+	  case vpiPackedArrayMember:
+	    if (rfp->get_type_code() != vpiNet &&
+		rfp->get_type_code() != vpiNetBit)
+		  return 0;
+	    if (rfp->packed_depth > 0 &&
+		rfp->packed_depth < rfp->packed_ranges.size())
+		  return 1;
+	    if (rfp->typespec) {
+		  int type = vpi_get(vpiType, rfp->typespec);
+		  return type == vpiStructTypespec || type == vpiUnionTypespec ||
+		         type == vpiEnumTypespec;
+	    }
+	    return 0;
+
 	  case vpiIndex: // This only works while we have a single index.
 	    if (rfp->is_netarray) {
 		  s_vpi_value vp;
