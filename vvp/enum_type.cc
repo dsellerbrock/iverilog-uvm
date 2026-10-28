@@ -347,12 +347,37 @@ class vartype_resolv_t : public resolv_list_s {
 	    bool missing = false;
 	    vpiHandle spec = sig ? parse_vartype(cp, width, missing) : 0;
 	    if ((!sig || missing) && !message_flag) return false;
-	    if (!sig || !spec || *cp || width != sig->width()) {
+	    bool valid_width = sig && width == sig->width();
+	    unsigned packed_depth = 0;
+	    if (sig && spec && width < sig->width()
+	        && sig->packed_ranges.empty() && !message_flag)
+		  return false;
+	    if (sig && spec && width && width < sig->width()
+	        && dynamic_cast<__vpiStructTypespec*>(spec)
+	        && !sig->packed_ranges.empty()) {
+		  uint64_t array_width = sig->width() / width;
+		  if (sig->width() % width == 0) {
+			uint64_t product = 1;
+			for (const auto&range : sig->packed_ranges) {
+			      uint64_t count = static_cast<uint64_t>(
+				    range.left >= range.right
+				    ? int64_t(range.left) - range.right
+				    : int64_t(range.right) - range.left) + 1;
+			      if (product > array_width / count) break;
+			      product *= count;
+			      packed_depth += 1;
+			      if (product == array_width) break;
+			}
+			valid_width = product == array_width;
+		  }
+	    }
+	    if (!sig || !spec || *cp || !valid_width) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
 	    }
 	    sig->typespec = spec;
+	    sig->packed_type_depth = packed_depth;
 	    return true;
       }
 

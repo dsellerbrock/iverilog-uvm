@@ -654,6 +654,10 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 
 	  case vpiNet:
 	  case vpiReg:
+	  case vpiStructVar:
+	  case vpiUnionVar:
+	  case vpiEnumVar:
+	  case vpiPackedArrayVar:
 	  case vpiIntegerVar:
 	  case vpiBitVar:
 	  case vpiByteVar:

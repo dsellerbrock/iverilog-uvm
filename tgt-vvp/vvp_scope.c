@@ -612,10 +612,14 @@ static const char *storage_flag_str(ivl_signal_t sig)
       }
 }
 
+static int type_has_vartype_(ivl_type_t type);
+
 static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
 {
       unsigned dims = ivl_signal_packed_dimensions(sig);
-      if (dims < 2)
+      if (dims < 2 && !(dims > 0 && ivl_signal_dimensions(sig) == 0
+                        && ivl_type_element(ivl_signal_net_type(sig)) != 0
+                        && type_has_vartype_(ivl_signal_net_type(sig))))
             return;
       fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
       for (unsigned idx = 0; idx < dims; idx += 1) {
@@ -643,7 +647,15 @@ static unsigned nvartype_notes = 0;
 
 static int type_has_vartype_(ivl_type_t type)
 {
-      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+      if (!type) return 0;
+      if (ivl_type_enum(type) || ivl_type_properties(type) > 0) return 1;
+      if (ivl_type_packed_dimensions(type) > 0) {
+	    ivl_type_t element = ivl_type_element(type);
+	    return element && (ivl_type_properties(element) > 0
+		  || (ivl_type_packed_dimensions(element) > 0
+		      && type_has_vartype_(element)));
+      }
+      return 0;
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -681,6 +693,12 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       char tmp[64];
       ivl_enumtype_t enumtype = ivl_type_enum(type);
       int nmembers = ivl_type_properties(type);
+
+      if (!enumtype && nmembers == 0 && ivl_type_packed_dimensions(type) > 0) {
+	    ivl_type_t element = ivl_type_element(type);
+	    if (element && type_has_vartype_(element))
+		  return vartype_spec_(buf, element);
+      }
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -742,7 +760,11 @@ void emit_signal_vartypes(void)
 	    ivl_signal_t sig = vartype_notes[idx].sig;
 	    buf.len = 0;
 	    vartype_put_(&buf, "");
-	    if (vartype_spec_(&buf, ivl_signal_net_type(sig)) == ivl_signal_width(sig))
+	    unsigned type_width = vartype_spec_(&buf, ivl_signal_net_type(sig));
+	    if (type_width && (type_width == ivl_signal_width(sig)
+	        || (type_has_vartype_(ivl_signal_net_type(sig))
+            && ivl_signal_packed_dimensions(sig) > 0
+            && type_width < ivl_signal_width(sig))))
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }

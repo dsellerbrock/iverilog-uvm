@@ -486,6 +486,10 @@ static value_callback* make_force_release(p_cb_data data)
 		break;
 	  }
 	  case vpiReg:
+	  case vpiStructVar:
+	  case vpiUnionVar:
+	  case vpiEnumVar:
+	  case vpiPackedArrayVar:
 	  case vpiNet:
 	  case vpiIntegerVar:
 	  case vpiBitVar:
@@ -590,6 +594,10 @@ static value_callback* make_value_change(p_cb_data data)
 	 switch (target->get_type_code()) {
 
 	  case vpiReg:
+	  case vpiStructVar:
+	  case vpiUnionVar:
+	  case vpiEnumVar:
+	  case vpiPackedArrayVar:
 	  case vpiNet:
 	  case vpiIntegerVar:
 	  case vpiBitVar:

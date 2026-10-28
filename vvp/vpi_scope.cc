@@ -98,6 +98,10 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  break;
 		case vpiNet:
 		case vpiReg:
+		case vpiStructVar:
+		case vpiUnionVar:
+		case vpiEnumVar:
+		case vpiPackedArrayVar:
 		case vpiIntegerVar:
 		case vpiLongIntVar:
 		case vpiShortIntVar:

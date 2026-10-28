@@ -66,8 +66,17 @@ EXTERN_C_START
 #define vpiLogicVar         vpiReg
 #define vpiClassVar         615
 #define vpiStringVar        616
+#define vpiStructVar        618
+#define vpiUnionVar         619
 #define vpiBitVar           620
 #define vpiArrayVar         vpiRegArray
+#define vpiEnumVar          622
+#define vpiPackedArrayVar   623
+
+/* Packed aggregate array iteration (IEEE 1800 Annex M). */
+#define vpiElement          743
+#define vpiStructUnionMember 615
+#define vpiPackedArrayMember 655
 
 /* M12-7: covergroup drill-down (Icarus extension — IEEE 1800 defines
  * no covergroup VPI object model; UCIS covers interchange). On a

@@ -444,6 +444,7 @@ struct __vpiSignal : public __vpiHandle {
       std::vector<packed_range_t> packed_ranges;
       std::vector<vpiHandle> packed_children;
       unsigned packed_depth = 0;
+      unsigned packed_type_depth = 0;
       unsigned value_base = 0;
       unsigned value_width = 0;
       vpiHandle packed_parent = nullptr;
