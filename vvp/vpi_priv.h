@@ -466,6 +466,9 @@ struct __vpiSignal : public __vpiHandle {
       unsigned value_base = 0;
       unsigned value_width = 0;
       vpiHandle packed_parent = nullptr;
+      __vpiSignal* packed_view_parent = nullptr;
+      __vpiDecConst packed_index;
+      bool has_packed_index = false;
 	/* The enum or packed struct/union type (.vartype), or null. */
       vpiHandle typespec = nullptr;
 
@@ -528,6 +531,7 @@ struct __vpiBit {
 	    void vpi_get_value(p_vpi_value val);
 	    vpiHandle vpi_put_value(p_vpi_value val, int flags);
 	    vpiHandle vpi_handle(int code);
+	vpiHandle vpi_iterate(int code);
       } as_bit;
 
       vpiHandle index;

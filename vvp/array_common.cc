@@ -184,10 +184,10 @@ void __vpiArrayWord::as_index_t::vpi_get_value(p_vpi_value vp)
 {
       struct __vpiArrayWord*obj = array_var_index_from_handle(this);
       assert(obj);
-      unsigned index = obj->get_index();
+      struct __vpiArrayBase*parent = obj->get_parent();
 
       assert(vp->format == vpiIntVal);
-      vp->value.integer = index;
+      vp->value.integer = parent->get_word_declared_index(obj->get_index());
 }
 
 struct __vpiArrayWord*array_var_word_from_handle(vpiHandle ref)

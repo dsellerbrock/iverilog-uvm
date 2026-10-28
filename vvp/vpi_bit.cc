@@ -156,16 +156,32 @@ static vpiHandle bit_get_handle(int code, vpiHandle ref)
     return 0;
 }
 
-/*
 static vpiHandle bit_iterate(int code, vpiHandle ref)
 {
       struct __vpiBit*rfp = bit_from_handle(ref);
       assert(rfp);
-      (void) code;
+      if (code != vpiIndex) return 0;
 
-      return 0;
+      struct __vpiSignal*root = rfp->get_parent();
+      unsigned count = 1;
+      for (__vpiSignal*cur = root; cur && cur->has_packed_index;
+           cur = cur->packed_view_parent) {
+	    count += 1;
+	    root = cur->packed_view_parent;
+      }
+      if (root->is_netarray) count += 1;
+
+      vpiHandle*args = new vpiHandle[count];
+      unsigned idx = 0;
+      args[idx++] = rfp->index;
+      for (__vpiSignal*cur = rfp->get_parent();
+	   cur && cur->has_packed_index; cur = cur->packed_view_parent)
+	    args[idx++] = &cur->packed_index;
+      if (root->is_netarray) args[idx] = root->id.index;
+      return vpip_make_iterator(count, args, true);
 }
 
+/*
 static vpiHandle bit_index(int idx, vpiHandle ref)
 {
       struct __vpiBit*rfp = bit_from_handle(ref);
@@ -226,8 +242,8 @@ vpiHandle __vpiBit::as_bit_t::vpi_handle(int code)
 { return bit_get_handle(code, this); }
 
 // FIXME: How are delayed put values handled?
-//vpiHandle __vpiBit::as_bit_t::vpi_iterate(int code) // FIXME: Is this needed?
-//{ return bit_iterate(code, this); }
+vpiHandle __vpiBit::as_bit_t::vpi_iterate(int code)
+{ return bit_iterate(code, this); }
 
 //vpiHandle __vpiBit::as_bit_t::vpi_index(int idx) // FIXME: Is this needed?
 //{ return bit_index(idx, this); }

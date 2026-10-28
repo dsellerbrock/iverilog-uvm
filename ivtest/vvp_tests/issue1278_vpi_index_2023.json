@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1278_vpi_index.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1278_vpi_index_2023"],
+  "vpi-sources": ["vpi/issue1278_vpi_index.c"],
+  "output-contains": ["ISSUE1278_VPI_INDEX_PASS"]
+}
