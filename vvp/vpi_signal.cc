@@ -595,6 +595,10 @@ static int signal_get(int code, vpiHandle ref)
                   return vpi_get(vpiAutomatic, rfp->within.parent);
             return rfp->automatic_storage ? 1 : 0;
 
+          case vpiConstantSelect:
+            return !rfp->automatic_storage && !rfp->is_netarray &&
+                   !rfp->packed_parent;
+
           case vpiAllocScheme:
             return rfp->automatic_storage ? vpiAutomaticScheme
                                           : vpiOtherScheme;
