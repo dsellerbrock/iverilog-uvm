@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "issue1253_invalid_dpi_linkage_2023.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "issue1253_invalid_dpi_linkage_2023"
+}
