@@ -279,6 +279,8 @@ typedef struct t_vpi_delay  {
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
 #define vpiFunction    20
+#define vpiIf          22 /* if statement */
+#define vpiIfElse      23 /* if-else statement */
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
 #define vpiIterator    27
@@ -342,6 +344,9 @@ typedef struct t_vpi_delay  {
 
 /* PROPERTIES */
 #define vpiUndefined   (-1)
+#define vpiQualifier   650
+#define vpiUniqueQualifier    1
+#define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
