@@ -414,8 +414,34 @@ class vpiScopeModule  : public __vpiScope {
 class vpiScopeProgram  : public __vpiScope {
     public:
       inline vpiScopeProgram(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
+      : __vpiScope(nam,tnam,false), index_(vpiUndefined), index_handle_(0)
+      {
+            const char* open = strrchr(nam, '[');
+            if (open && nam[strlen(nam) - 1] == ']') {
+                  char* end;
+                  errno = 0;
+                  long value = strtol(open + 1, &end, 10);
+                  if (errno == 0 && end == nam + strlen(nam) - 1 &&
+                      value >= INT_MIN && value <= INT_MAX) {
+                        index_ = value;
+                        index_handle_ = new __vpiDecConst(index_);
+                  }
+            }
+      }
       int get_type_code(void) const override { return vpiProgram; }
+      int vpi_get(int code) override
+      {
+            if (code == vpiIndex) return index_;
+            return __vpiScope::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiIndex) return index_handle_;
+            return __vpiScope::vpi_handle(code);
+      }
+    private:
+      int index_;
+      vpiHandle index_handle_;
 };
 
 struct vpiScopePackage  : public __vpiScope {
