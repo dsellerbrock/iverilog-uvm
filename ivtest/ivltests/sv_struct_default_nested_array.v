@@ -1,4 +1,4 @@
-// IEEE 1800-2017/2023 10.9.2: structure defaults descend into arrays.
+// IEEE 1800-2017/2023 10.9.2: structure defaults descend into aggregates.
 module test;
   typedef struct { int x; int y[2]; } T;
   typedef struct { T child; } Outer;
@@ -12,6 +12,7 @@ module test;
   Outer outer;
   Matrix matrix;
   Packed top_packed;
+  Packed packed_copy;
   PackedOuter packed_outer;
   Inner source;
   SameTypeOuter same_type;
@@ -29,8 +30,9 @@ module test;
     top_packed = '{default:5};
     $display("top-packed %0d %0d", top_packed.a, top_packed.b);
     packed_outer = '{default:5};
-    $display("packed %0d %0d", packed_outer.value.a,
-             packed_outer.value.b);
+    $display("packed bits %b", packed_outer.value);
+    packed_copy = packed_outer.value;
+    $display("packed fields %0d %0d", packed_copy.a, packed_copy.b);
     source = '{default:9};
     same_type = '{default:source};
     $display("same %0d %0d", same_type.value.values[0],
