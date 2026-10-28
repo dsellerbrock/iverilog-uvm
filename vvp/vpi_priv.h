@@ -404,6 +404,8 @@ class vpiScopeFunction  : public __vpiScope {
 	    switch (code) {
 		case vpiFuncType:
 		  return func_type_;
+		case vpiSize:
+		  return return_var_.vpi_get(vpiSize);
 		default:
 		  return __vpiScope::vpi_get(code);
 	    }
