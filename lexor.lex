@@ -763,7 +763,7 @@ TU [munpf]
       return SYSTEM_IDENTIFIER; }
 
 
-\'[sS]?[dD][ \t]*_*[0-9][0-9_]* {
+\'[sS]?[dD][ \t]*[0-9][0-9_]* {
       yylval.number = make_unsized_dec(yytext);
       return BASED_NUMBER;
 }
@@ -771,15 +771,15 @@ TU [munpf]
       yylval.number = make_undef_highz_dec(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[bB][ \t]*_*[0-1xzXZ?][0-1xzXZ?_]* {
+\'[sS]?[bB][ \t]*[0-1xzXZ?][0-1xzXZ?_]* {
       yylval.number = make_unsized_binary(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[oO][ \t]*_*[0-7xzXZ?][0-7xzXZ?_]* {
+\'[sS]?[oO][ \t]*[0-7xzXZ?][0-7xzXZ?_]* {
       yylval.number = make_unsized_octal(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[hH][ \t]*_*[0-9a-fA-FxzXZ?][0-9a-fA-FxzXZ?_]* {
+\'[sS]?[hH][ \t]*[0-9a-fA-FxzXZ?][0-9a-fA-FxzXZ?_]* {
       yylval.number = make_unsized_hex(yytext);
       return BASED_NUMBER;
 }
