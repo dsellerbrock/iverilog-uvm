@@ -333,6 +333,10 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1
+#define vpiAlwaysType   624
+#define vpiAlwaysComb     2
+#define vpiAlwaysFF       3
+#define vpiAlwaysLatch    4
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
