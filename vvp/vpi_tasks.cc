@@ -158,11 +158,12 @@ struct sysfunc_def : public systask_def {
 
 struct sysfunc_real : public sysfunc_def {
       void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
+      void vpi_get_value(p_vpi_value val) override { vpip_real_get_value(return_value_, val); }
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline double return_value() const { return return_value_; }
 
     private:
-      double return_value_;
+      double return_value_ = 0.0;
 };
 
 vpiHandle sysfunc_real::vpi_put_value(p_vpi_value vp, int)
@@ -184,6 +185,7 @@ vpiHandle sysfunc_real::vpi_put_value(p_vpi_value vp, int)
 
 struct sysfunc_str : public sysfunc_def {
       void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
+      void vpi_get_value(p_vpi_value val) override { vpip_string_get_value(return_value_, val); }
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline const std::string& return_value() const { return return_value_; };
@@ -229,6 +231,8 @@ class sysfunc_vec4 : public sysfunc_def {
     public:
       explicit inline sysfunc_vec4(unsigned wid): return_value_(wid, BIT4_X) { }
       void push_return(vthread_t thr) const override { vthread_push(thr, return_value()); }
+      void vpi_get_value(p_vpi_value val) override
+      { vpip_vec4_get_value(return_value_, return_value_.size(), true, val); }
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline const vvp_vector4_t& return_value() const { return return_value_; }
@@ -396,12 +400,15 @@ vpiHandle sysfunc_vec4::vpi_put_value(p_vpi_value vp, int)
 }
 
 struct sysfunc_4net : public sysfunc_def {
-      explicit inline sysfunc_4net(unsigned wid) : vwid_(wid) { }
+      explicit inline sysfunc_4net(unsigned wid) : vwid_(wid), return_value_(wid, BIT4_X) { }
+      void vpi_get_value(p_vpi_value val) override
+      { vpip_vec4_get_value(return_value_, vwid_, true, val); }
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 
     private:
       unsigned vwid_;
+      vvp_vector4_t return_value_;
 };
 
 // support getting vpiSize for a system function call
@@ -518,12 +525,17 @@ vpiHandle sysfunc_4net::vpi_put_value(p_vpi_value vp, int)
 	    assert(0);
       }
 
+      return_value_ = val;
       fnet->send_vec4(val, vthread_get_wt_context());
       return 0;
 }
 
 struct sysfunc_rnet : public sysfunc_def {
+      void vpi_get_value(p_vpi_value val) override { vpip_real_get_value(return_value_, val); }
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+    private:
+      double return_value_ = 0.0;
 };
 
 vpiHandle sysfunc_rnet::vpi_put_value(p_vpi_value vp, int)
@@ -544,6 +556,7 @@ vpiHandle sysfunc_rnet::vpi_put_value(p_vpi_value vp, int)
       }
 
       fnet->send_real(value, vthread_get_wt_context());
+      return_value_ = value;
 
       return 0;
 }
