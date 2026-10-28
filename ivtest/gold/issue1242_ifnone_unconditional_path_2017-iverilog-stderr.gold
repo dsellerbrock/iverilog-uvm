@@ -1,0 +1,1 @@
+ivltests/issue1242_ifnone_unconditional_path.v:6: error: An ifnone path and an unconditional simple path cannot be specified for the same module path (IEEE 1800 30.4.4.4).

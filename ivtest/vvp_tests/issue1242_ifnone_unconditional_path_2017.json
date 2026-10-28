@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1242_ifnone_unconditional_path.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue1242_ifnone_unconditional_path"],
+  "gold": "issue1242_ifnone_unconditional_path_2017"
+}
