@@ -4931,8 +4931,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Slurm job #5307 on `aceef434` and job #5311 on clean current
   main `aad4e4dc0d0b`; both -g2017 and -g2023. The whole value is
   `010100000101`, direct top-level field reads are 5/5, while wrapped field
-  reads are x/x even with explicit assignment. The minimal no-default repro and
-  paired logs are under `evidence/m9-issue857-t0-20261028/baseline-main/`.
+  reads are x/x even with explicit assignment. Branch controls are under
+  `evidence/m9-issue857-t0-20261028/controls3/`; the minimal no-default repro
+  and baseline logs are under `evidence/m9-issue857-t0-20261028/baseline-main/`.
 - **Reproducer status:** Confirmed on both #857 and clean current main.
 - **Triage status:** Open, not in scope of #857. No exact duplicate found; #499
   may share a root cause but covers an indexed unpacked struct-member followed
