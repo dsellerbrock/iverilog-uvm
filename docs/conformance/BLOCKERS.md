@@ -4,12 +4,12 @@ The live IEEE issue inventory and selection/CI rules are in the [conformance ind
 
 ### IEEE-1800-SPECIFY-INTERFACE-TERMINALS — issue #825
 
-- **State:** A supported subset is implemented on `agent/a3-m9-issue825-20261028`; PR and batch T2 qualification are pending.
-- **Requirement:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3 permit interface signals to be simple specify-path terminals, subject to interface/modport direction; `ref` ports are excluded.
+- **State:** A supported subset is implemented on `agent/a3-m9-issue825-20261028`; [PR #1840](https://github.com/dsellerbrock/iverilog-uvm/pull/1840) is open and batch T2 qualification is pending.
+- **Requirement:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3 permit interface signals to be simple specify-path terminals, subject to interface/modport direction; `ref` ports are excluded by the standard; implementation rejection is not separately tested.
 - **Cause and scope:** Specify-path elaboration retained only bare port terminals. It now resolves one vectorable member of a scalar interface port after hierarchy binding and checks the direction exposed by the port's modport. Typed and generic interface formals and forwarded interface ports are covered.
-- **Limits:** Interface arrays, named-expression modport members, unpacked/nonvectorable members, select syntax, data-source terminals, and timing behavior are not implemented here. The no-modport case is tested, but its path direction is not claimed as conforming pending review of §25.3.2. An unbound root interface port currently drops the path.
+- **Limits:** Interface arrays, named-expression modport members, unpacked/nonvectorable members, select syntax, data-source terminals, and timing behavior are not implemented here. A local interface instance used as `inst.member` is rejected as not an interface port and is not claimed here. The no-modport case is tested, but its path direction is not claimed as conforming: §25.3.2 states default ref/inout access for interface variables/nets, and its mapping to §25.6 path direction remains unqualified. An unbound root interface port currently drops the path.
 - **Validation:** Slurm job 5272 passed T0 (56/56 smoke, 155/155 VPI); job 5273 passed typed/generic and forwarding probes in both editions; job 5276 passed the final focused set (43 legacy and 65 JSON, zero failures). See [implementation evidence](../evidence/m9-issue825-20261028/README.md).
-- **Next:** Open the exact-head PR, require Fast Linux, then include it in a T2 batch.
+- **Next:** Wait for exact-head Fast Linux; after it passes, mark the PR ready-for-batch and include it in a T2 batch.
 
 ### IEEE-1800-NESTED-ARRAY-FUNCTION-RETURN — issue #415 (PR #524)
 

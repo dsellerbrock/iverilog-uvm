@@ -1,8 +1,8 @@
 # Issue #825 — interface signals as specify-path terminals
 
-**Standard:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3. The tested subset accepts a simple specify path whose terminal is one vectorable member of a scalar interface port, subject to the direction exposed by that port’s modport. Ref ports are rejected.
+**Standard:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3. The tested subset accepts a simple specify path whose terminal is one vectorable member of a scalar interface port, subject to the direction exposed by that port’s modport. §25.6 excludes ref terminals; their implementation rejection is not separately tested (a modport ref member reaches the generic “no specify-path direction” diagnostic).
 
-**Scope limits:** Interface arrays, named-expression modport members, unpacked or nonvectorable members, select syntax, data-source terminals, and specify timing behavior are not covered. The no-modport test is retained, but its default path direction is not claimed as conforming pending review of §25.3.2. An unbound root interface port currently drops the path.
+**Scope limits:** Interface arrays, named-expression modport members, unpacked or nonvectorable members, select syntax, data-source terminals, and specify timing behavior are not covered. A local interface instance used as `inst.member` is rejected as not an interface port and is not claimed here. The no-modport test is retained, but its path direction is not claimed as conforming: §25.3.2 states default ref/inout access for interface variables/nets, and its mapping to §25.6 path direction remains unqualified. An unbound root interface port currently drops the path.
 
 ## Validation
 
@@ -13,4 +13,4 @@
 
 ## Reproduction context
 
-The candidate toolchain was built at `/home/dsell/toolchains/iverilog-uvm-a3-issue825-43c38efea13a94e7e831e24d2016810b46c19b00` from source snapshot `43c38efea13a94e7e831e24d2016810b46c19b00` (based on main `92c4466063ab8853a90728ec0d92dd3936c815a1`). It reported Icarus Verilog 13.0 devel. `bin/iverilog` SHA-256: `6d5b8f8dabeefff7f8e68a868b978342bdaa9d7f0444f0a74eb50705f6f4e9f3`; `bin/vvp` SHA-256: `6e32297c41e713fa1ad535c5c95ee690eada9114fbc3dfc7d39e681ff42a6ae7`. The final focused test snapshot was reported by the runner as `62d7166ee5c5`.
+The candidate toolchain was built at `/home/dsell/toolchains/iverilog-uvm-a3-issue825-43c38efea13a94e7e831e24d2016810b46c19b00` from source snapshot `43c38efea13a94e7e831e24d2016810b46c19b00` (based on main `92c4466063ab8853a90728ec0d92dd3936c815a1`). It reported Icarus Verilog 13.0 devel. `bin/iverilog` SHA-256: `6d5b8f8dabeefff7f8e68a868b978342bdaa9d7f0444f0a74eb50705f6f4e9f3`; `bin/vvp` SHA-256: `6e32297c41e713fa1ad535c5c95ee690eada9114fbc3dfc7d39e681ff42a6ae7`. The final focused test snapshot was `62d7166ee5c5f255cfc75cadb4ecc6edf7f13a6c`. Since that test snapshot, only documentation/evidence and removal of the temporary `step2/run-focused-tests.sh` have changed; implementation and regression files are unchanged.
