@@ -1,0 +1,19 @@
+#880 final T0/T1 verification
+Slurm job: 5295
+Run tree fingerprint: 5304d35f0bc0
+Result: exit 0; elapsed 3:07.99; peak RSS 1,765,216 KiB
+Resources: 3 CPUs, 5 GiB requested
+Compiler: Icarus 13
+Build: autoconf.sh; configure --prefix=local-install; make -j3; make install
+
+T0:
+- issue880_pathpulse_2017: passed, 1/1
+- issue880_pathpulse_2023: passed, 1/1
+- smoke set: 56/56
+- VPI smoke: 155/155
+- remote run directory removed by slurm-run --clean
+
+T1 selection rationale:
+The graph links vpi/sys_sdf.c to SDF annotation tests and vvp_fun_modpath to specify-path timing tests. Ran all legacy -gspecify/SDF entries selected from regress-vlg.list (40/40), and JSON specify/SDF entries selected from regress-vvp.list (30/30). The two #880 edition tests were already run in T0 and were not duplicated in T1. Every JSON test had a 180-second timeout; legacy/smoke runners applied their per-test timeout policy.
+
+Raw #880 stdout is included from paired Slurm run 5292; final run 5295 reran both paired editions after the only subsequent edit, which corrected spacing in the unmatched-path warning and is not exercised by this fixture. Both raw outputs match the committed golden.
