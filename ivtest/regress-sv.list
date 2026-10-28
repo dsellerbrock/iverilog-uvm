@@ -1920,6 +1920,8 @@ sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
 sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
+sv_type_hier_ref_fail_2017 CE,-g2017,-s,sv_type_hier_ref_fail ivltests gold=sv_type_hier_ref_fail_2017.gold
+sv_type_hier_ref_fail_2023 CE,-g2023,-s,sv_type_hier_ref_fail ivltests gold=sv_type_hier_ref_fail_2023.gold
 sv_type_operator_generate_case normal,-g2017 ivltests gold=sv_type_operator_generate_case.gold
 sv_type_this normal,-g2023 ivltests gold=sv_type_this.gold
 sv_type_this_2017 CE,-g2017 ivltests gold=sv_type_this_2017.gold
@@ -6139,3 +6141,7 @@ issue1252_dpi_class_arg_2023 CE,-g2023,-s,issue1252_dpi_class_arg ivltests
 # IEEE 1800-2017/2023 §31.7 X on nondeterministic timing-check conditions
 issue1245_timing_condition_x_2017 normal,-g2017,-gspecify ivltests gold=issue1245_timing_condition_x_2017.gold
 issue1245_timing_condition_x_2023 normal,-g2023,-gspecify ivltests gold=issue1245_timing_condition_x_2023.gold
+
+# IEEE 1800-2017/2023 §27.4: genvars are not runtime references.
+sv_genvar_reference_outside_loop_fail_2017 CE,-g2017,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2017.gold
+sv_genvar_reference_outside_loop_fail_2023 CE,-g2023,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2023.gold

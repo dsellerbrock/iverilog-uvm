@@ -151,6 +151,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".array/2u"     { return K_ARRAY_2U; }
 ".array/i"      { return K_ARRAY_I; }
 ".array/obj"    { return K_ARRAY_OBJ; }
+".array/vif"    { return K_ARRAY_VIF; }
 ".array/real"   { return K_ARRAY_R; }
 ".array/s"      { return K_ARRAY_S; }
 ".array/str"    { return K_ARRAY_STR; }
@@ -188,6 +189,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_src"   { return K_COVGRP_SRC; }
 ".covgrp_src_expr" { return K_COVGRP_SRC_EXPR; }
 ".modport"      { return K_MODPORT; }
+".nettype_decl" { return K_NETTYPE_DECL; }
 ".cmp/eeq"      { return K_CMP_EEQ; }
 ".cmp/eqx"      { return K_CMP_EQX; }
 ".cmp/eqz"      { return K_CMP_EQZ; }
@@ -291,6 +293,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".ufunc/resolv/vec4" { return K_UFUNC_RESOLV_VEC4; }
 ".var"          { return K_VAR; }
 ".var/cobj"     { return K_VAR_COBJECT; }
+".var/vif"      { return K_VAR_VIF; }
 ".var/darray"   { return K_VAR_DARRAY; }
 ".var/queue"    { return K_VAR_QUEUE; }
 ".var/real"     { return K_VAR_R; }

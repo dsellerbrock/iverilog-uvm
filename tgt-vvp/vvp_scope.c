@@ -934,6 +934,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			       ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
       const char *storage_flag = storage_flag_str(sig);
+      const bool virtual_interface =
+	    ivl_type_is_interface(ivl_signal_net_type(sig));
       int vector_dims = 1;
 
       if (ivl_signal_dimensions(sig) > 0)
@@ -956,7 +958,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_NO_TYPE:
-	    datatype_flag = "/obj";
+	    datatype_flag = virtual_interface ? "/vif" : "/obj";
 	    vector_dims = 0;
 	    break;
 	  case IVL_VT_DARRAY:
@@ -1144,7 +1146,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    if (var_type && ivl_type_base(var_type) == IVL_VT_CLASS) {
 		  draw_class_in_scope(var_type);
-		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\", TC%p;%s\n", sig,
+		  fprintf(vvp_out, "v%p_0 .var/%s %s\"%s\", TC%p;%s\n", sig,
+		      ivl_type_is_interface(var_type) ? "vif" : "cobj",
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  var_type,
@@ -1158,7 +1161,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			  var_type,
 			  ivl_signal_local(sig)? " Local signal" : "");
 	    } else {
-		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\";%s\n", sig,
+		  fprintf(vvp_out, "v%p_0 .var/%s %s\"%s\";%s\n", sig,
+		      ivl_type_is_interface(var_type) ? "vif" : "cobj",
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  ivl_signal_local(sig)? " Local signal" : "");
@@ -3410,6 +3414,18 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
+
+	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
+	   37.23). Keep aliases and resolution-function names for runtime queries. */
+      for (idx = 0; idx < ivl_scope_nettypes(net); idx += 1) {
+	    ivl_nettype_t nettype = ivl_scope_nettype(net, idx);
+	    const char*alias = ivl_nettype_alias(nettype);
+	    const char*with = ivl_nettype_with(nettype);
+	    fprintf(vvp_out, " .nettype_decl \"%s\" \"%s\" \"%s\";\n",
+		    vvp_mangle_name(ivl_nettype_name(nettype)),
+		    alias ? vvp_mangle_name(alias) : "",
+		    with ? vvp_mangle_name(with) : "");
+      }
 
 	/* M12: modport declarations of an interface, for VPI —
 	   M12-6 appends each port as "name" direction pairs. */

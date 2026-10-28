@@ -41,7 +41,11 @@
 using namespace std;
 
 NetNetType::NetNetType(const nettype_t*decl, NetScope*scope)
-: pform_type_(decl), declaration_scope_(scope)
+: pform_type_(decl), declaration_scope_(scope),
+  name_(decl ? decl->name() : perm_string()),
+  alias_name_(decl && decl->alias_type() ? decl->alias_type()->name()
+                                         : perm_string()),
+  has_declared_resolution_function_(decl && decl->has_resolution_function())
 {
 }
 

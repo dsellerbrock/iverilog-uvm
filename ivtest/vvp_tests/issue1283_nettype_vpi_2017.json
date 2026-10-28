@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1283_nettype_vpi.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1283_nettype_vpi_2017"],
+  "vpi-sources": ["vpi/issue1283_nettype_vpi.c"],
+  "output-contains": ["PASSED"]
+}

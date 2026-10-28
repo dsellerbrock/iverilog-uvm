@@ -1075,7 +1075,8 @@ vvp_net_t* vvp_net_lookup(const char*label)
 
 		case vpiStringVar:
 		case vpiArrayVar:
-		case vpiClassVar: {
+		case vpiClassVar:
+		case vpiVirtualInterfaceVar: {
 		      const __vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(vpi);
 		      return sig->get_net();
 		}

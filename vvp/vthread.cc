@@ -11536,6 +11536,11 @@ vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
       return previous;
 }
 
+vthread_t vthread_event_wait_next(vthread_t thr)
+{
+      return thr ? thr->wait_next : 0;
+}
+
 static bool event_expr_source_occurrence_(vthread_t thr);
 static void unregister_event_expr_vif_sources_(event_expr_observer_s*observer);
 

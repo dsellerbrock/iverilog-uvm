@@ -474,6 +474,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	  case vpiStringVar:   type = FST_VT_GEN_STRING; break;
 	    /* Class objects are not dumped. */
 	  case vpiClassVar: return;
+	  case vpiVirtualInterfaceVar: return;
 	    /* FST (gtkwave) assumes PARAMETER are bit, so handle other cases */
 	  case vpiParameter:
 	    switch (vpi_get(vpiConstType, item)) {

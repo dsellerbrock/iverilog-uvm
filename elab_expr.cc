@@ -22,6 +22,7 @@
 bool pform_procedural_expr_context = false;
 bool pform_default_argument_context = false;
 bool pform_default_argument_requires_procedural_context = false;
+bool pform_type_operator_context = false;
 # include  <algorithm>
 # include  <utility>
 # include  <typeinfo>
@@ -23447,8 +23448,39 @@ static ivl_type_t resolve_type_packed_select_(
  * never elaborates the identifier into a NetExpr and never touches any
  * index value, so it cannot have side effects.
  */
+static bool report_type_operator_hierarchical_reference_(const PEIdent*ident,
+								 Design*des,
+								 NetScope*scope)
+{
+      const pform_scoped_name_t&path = ident->path();
+      if (!scope || path.package || path.name.size() < 2)
+	    return false;
+
+	// A scope prefix is hierarchical; variable prefixes (including VIFs)
+	// are ordinary member selections. Class/package scopes use scoped names.
+      pform_scoped_name_t first_path;
+      first_path.name.push_back(path.name.front());
+      symbol_search_results first_sr;
+      if (!symbol_search(ident, des, scope, first_path,
+			 ident->lexical_pos(), &first_sr)
+	  || !first_sr.is_scope() || !first_sr.scope
+	  || first_sr.scope->type() == NetScope::CLASS
+	  || first_sr.scope->type() == NetScope::PACKAGE)
+	    return false;
+
+      cerr << ident->get_fileline()
+	   << ": error: A hierarchical reference is not allowed in a type() expression (IEEE 1800 6.23)."
+	   << endl;
+      des->errors += 1;
+      return true;
+}
+
 ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
 {
+      if (pform_type_operator_context
+	  && report_type_operator_hierarchical_reference_(this, des, scope))
+	    return new netvector_t(IVL_VT_LOGIC);
+
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
@@ -23644,6 +23676,14 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  signed_flag_ = mapped_ident.has_sign();
 		  return width;
 	    }
+	  }
+	  if (pform_type_operator_context
+	      && report_type_operator_hierarchical_reference_(this, des, scope)) {
+		expr_type_ = IVL_VT_LOGIC;
+		expr_width_ = 1;
+		min_width_ = 1;
+		signed_flag_ = false;
+		return expr_width_;
 	  }
 	// M13: a bare reference to a let in scope expands by
 	// substitution before any symbol search.
@@ -24282,6 +24322,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (sr.genvar_outside_loop)
+	    return nullptr;
 
       if (sr.scope_index_error)
 	    return 0;
@@ -25372,6 +25415,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// named "c". symbol_search() handles this for us.
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  if (sr.genvar_outside_loop)
+	    return nullptr;
 
 	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
 	  // references to checker variables, including reads in expressions.

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1275_vpi_array_member.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1275_array_member_2017"],
+  "vpi-sources": ["vpi/issue1275_vpi_array_member.c"],
+  "output-contains": ["PASSED"]
+}

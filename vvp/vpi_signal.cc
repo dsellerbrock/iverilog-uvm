@@ -560,6 +560,23 @@ static int signal_get(int code, vpiHandle ref)
 	  case vpiArray:
 	    return rfp->is_netarray != 0;
 
+	  case vpiArrayMember:
+	    return rfp->is_netarray != 0;
+
+	  case vpiPackedArrayMember:
+	    if (rfp->get_type_code() != vpiNet &&
+		rfp->get_type_code() != vpiNetBit)
+		  return 0;
+	    if (rfp->packed_depth > 0 &&
+		rfp->packed_depth < rfp->packed_ranges.size())
+		  return 1;
+	    if (rfp->typespec) {
+		  int type = vpi_get(vpiType, rfp->typespec);
+		  return type == vpiStructTypespec || type == vpiUnionTypespec ||
+		         type == vpiEnumTypespec;
+	    }
+	    return 0;
+
 	  case vpiIndex: // This only works while we have a single index.
 	    if (rfp->is_netarray) {
 		  s_vpi_value vp;
@@ -682,6 +699,7 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 	    return rfp->is_netarray? rfp->within.parent : NULL;
 
 	  case vpiIndex:
+	    if (rfp->has_packed_index) return &rfp->packed_index;
 	    return rfp->is_netarray? rfp->id.index : NULL;
 
 	  case vpiLeftRange:
@@ -725,7 +743,23 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
       }
 
       if (code == vpiIndex) {
-	    return rfp->is_netarray ? rfp->id.index->vpi_iterate(code) : NULL;
+	    unsigned count = 0;
+	    __vpiSignal*root = rfp;
+	    for (__vpiSignal*cur = rfp; cur && cur->has_packed_index;
+	         cur = cur->packed_view_parent) {
+		  count += 1;
+		  root = cur->packed_view_parent;
+	    }
+	    if (root->is_netarray) count += 1;
+	    if (count == 0) return NULL;
+
+	    vpiHandle*args = new vpiHandle[count];
+	    unsigned idx = 0;
+	    for (__vpiSignal*cur = rfp; cur && cur->has_packed_index;
+	         cur = cur->packed_view_parent)
+		  args[idx++] = &cur->packed_index;
+	    if (root->is_netarray) args[idx] = root->id.index;
+	    return vpip_make_iterator(count, args, true);
       }
 
       return 0;
@@ -1298,6 +1332,9 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       obj->packed_depth = next_depth;
       obj->value_base = base;
       obj->value_width = width;
+      obj->packed_view_parent = parent;
+      obj->packed_index = __vpiDecConst(index);
+      obj->has_packed_index = true;
       obj->packed_parent = parent->packed_parent
             ? parent->packed_parent : static_cast<vpiHandle>(parent);
       return obj;

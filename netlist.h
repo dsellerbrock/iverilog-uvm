@@ -736,11 +736,11 @@ struct PortInfo
 };
 
 /*
- * Elaboration-time description of a user-defined nettype.  The parse-tree
- * declaration remains the stable identity (and owns the source type); this
- * object records the exact elaborated declaration scope, canonical alias
- * target, data type, and validated resolution function.  NetScope owns these
- * objects and NetNet only keeps non-owning pointers to them.
+ * Elaboration-time description of a user-defined nettype. The parse-tree
+ * declaration is used while elaborating; the declaration name, alias name,
+ * and resolver-presence flag are copied here for target callbacks after the
+ * parse tree is released. NetScope owns these objects and NetNet only keeps
+ * non-owning pointers to them.
  */
 class NetNetType {
     public:
@@ -755,12 +755,19 @@ class NetNetType {
       const NetFuncDef* resolution_function() const;
       bool has_resolution_function() const;
       bool valid() const { return state_ == VALID; }
+      perm_string name() const { return name_; }
+      perm_string alias_name() const { return alias_name_; }
+      bool has_declared_resolution_function() const
+        { return has_declared_resolution_function_; }
 
     private:
       friend class NetScope;
 
       const nettype_t*pform_type_;
       NetScope*declaration_scope_;
+      perm_string name_;
+      perm_string alias_name_;
+      bool has_declared_resolution_function_;
       ivl_type_t data_type_ = 0;
       NetNetType*canonical_type_ = 0;
       NetFuncDef*resolution_function_ = 0;
@@ -1297,6 +1304,8 @@ class NetScope : public Definitions, public Attrib {
       const NetNetType* find_local_nettype(const nettype_t*type) const;
       NetNetType* elaborate_nettype(Design*des, const nettype_t*type);
       void elaborate_nettypes(Design*des);
+      const std::map<perm_string,NetNetType*>& local_nettypes() const
+        { return nettypes_by_name_; }
 
         /* Search the scope hierarchy for the scope where 'type' was defined. */
       NetScope*find_typedef_scope(const Design*des, const typedef_t*type);

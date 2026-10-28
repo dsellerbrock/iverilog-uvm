@@ -27,6 +27,10 @@
 
 issue1276_vpi_range_2017 normal,-g2017 issue1276_vpi_range.c issue1276_vpi_range_2017.gold
 issue1276_vpi_range_2023 normal,-g2023 issue1276_vpi_range.c issue1276_vpi_range_2023.gold
+issue1287_vpi_waiting_event_2017 normal,-g2017 issue1287_vpi_waiting_event.c issue1287_vpi_waiting_event_2017.log
+issue1287_vpi_waiting_event_2023 normal,-g2023 issue1287_vpi_waiting_event.c issue1287_vpi_waiting_event_2023.log
+issue1278_vpi_index_2017 normal,-g2017 issue1278_vpi_index.c issue1278_vpi_index_2017.gold
+issue1278_vpi_index_2023 normal,-g2023 issue1278_vpi_index.c issue1278_vpi_index_2023.gold
 
 # Icarus returns vpiReg instead of vpiTimeVar.
 vstd:by_name		normal			by_name.c		by_name-std.log

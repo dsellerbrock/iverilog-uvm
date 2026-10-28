@@ -254,6 +254,11 @@ ivl_scope_def_file
 ivl_scope_def_lineno
 ivl_scope_enumerate
 ivl_scope_enumerates
+ivl_scope_nettype
+ivl_scope_nettypes
+ivl_nettype_name
+ivl_nettype_alias
+ivl_nettype_with
 ivl_scope_event
 ivl_scope_events
 ivl_scope_file
