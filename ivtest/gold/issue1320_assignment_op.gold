@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1320_assignment_op.v:13: $finish called at 1 (1s)

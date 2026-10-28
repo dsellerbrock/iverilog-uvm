@@ -333,6 +333,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1
+#define vpiOpType        39
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -347,6 +348,9 @@ typedef struct t_vpi_delay  {
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+
+/* OPERATOR CODES */
+#define vpiAssignmentOp  82
 
 #define vpiDirection 20 /* direction of port: */
 #   define vpiInput 1
