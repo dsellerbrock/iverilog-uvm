@@ -662,6 +662,9 @@ int __vpiArray::vpi_get(int code)
 	  case vpiArrayType:
 	    return vpiStaticArray;
 
+	  case vpiConstantSelect:
+	    return automatic_storage ? 0 : 1;
+
 	  case vpiAutomatic:
 	    return automatic_storage ? 1 : 0;
 
@@ -767,6 +770,11 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
 		  return dynamic->automatic_storage() ? 1 : 0;
 	    return my_parent->get_scope()->is_automatic() ? 1 : 0;
 
+	  case vpiConstantSelect:
+	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
+		  return fixed->automatic_storage ? 0 : 1;
+	    return 0;
+
 #if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 	  case _vpiFromThr:
 	    return _vpiNoThr;
@@ -810,7 +818,7 @@ int __vpiArrayVthrA::vpi_get(int code)
 	  // If address_handle is not zero we definitely have a
 	  // variable.
 	  case vpiConstantSelect:
-	    return address_handle == 0;
+	    return address_handle == 0 && !array->automatic_storage;
 
 	  default:
 	    return 0;

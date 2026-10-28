@@ -595,6 +595,11 @@ static int signal_get(int code, vpiHandle ref)
                   return vpi_get(vpiAutomatic, rfp->within.parent);
             return rfp->automatic_storage ? 1 : 0;
 
+	  case vpiConstantSelect:
+	    if (ref->get_type_code() == vpiNet) return 0;
+	    return rfp->automatic_storage || rfp->packed_parent ||
+	           (rfp->is_netarray && rfp->within.parent) ? 0 : 1;
+
 #ifdef BR916_STOPGAP_FIX
           case _vpiFromThr:
             return _vpiNoThr;
