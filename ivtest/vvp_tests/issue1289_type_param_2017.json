@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1289_type_param.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1289_type_param_2017"],
+  "vpi-sources": ["vpi/issue1289_type_param.c"],
+  "output-contains": ["type parameter T exposes its effective bit typespec"]
+}

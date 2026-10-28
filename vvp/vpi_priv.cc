@@ -564,6 +564,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiPrimitive";
 	  case vpiParameter:
 	    return "vpiParameter";
+	  case vpiTypeParameter:
+	    return "vpiTypeParameter";
 	  case vpiPartSelect:
 	    return "vpiPartSelect";
 	  case vpiIndexedPartSelect:
