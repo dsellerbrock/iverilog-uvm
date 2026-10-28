@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1335_vpi_assign_stmt_constant.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1335_vpi_assign_stmt_constant_2023"],
+  "vpi-sources": ["vpi/issue1335_vpi_assign_stmt_constant.c"],
+  "output-contains": ["PASSED"]
+}

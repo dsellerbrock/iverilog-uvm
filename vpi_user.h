@@ -274,6 +274,7 @@ typedef struct t_vpi_delay  {
 #define vpiHiZ          0x01
 
 /* OBJECT CODES */
+#define vpiAssignStmt    2 /* quasi-continuous assignment */
 #define vpiConstant     7
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
