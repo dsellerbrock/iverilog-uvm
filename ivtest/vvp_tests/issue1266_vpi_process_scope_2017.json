@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1266_vpi_process_scope.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1266_process_scope_2017"],
+  "vpi-sources": ["vpi/issue1266_process_scope.c"],
+  "output-contains": ["PROCESS_COUNT=2", "PASSED"]
+}
