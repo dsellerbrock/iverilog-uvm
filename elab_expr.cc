@@ -24283,6 +24283,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+      if (sr.genvar_outside_loop)
+	    return nullptr;
+
       if (sr.scope_index_error)
 	    return 0;
 
@@ -25372,6 +25375,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// named "c". symbol_search() handles this for us.
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  if (sr.genvar_outside_loop)
+	    return nullptr;
 
 	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
 	  // references to checker variables, including reads in expressions.
