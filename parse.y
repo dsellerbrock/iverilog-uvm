@@ -1279,6 +1279,7 @@ static PBlock* pform_start_foreach_scope(const struct vlltype&loc,
       }
 
       PBlock*block = pform_push_block_scope(loc, block_name, PBlock::BL_SEQ);
+      block->vpi_loop_scope(675);
       current_block_stack.push(block);
       delete[] source_label;
       return block;
@@ -1805,6 +1806,7 @@ static for_variable_scope_t* pform_install_for_variable_declarations(
       assert(scope && scope->active && scope->kind == FOR_INIT_PENDING);
       assert(decls && !decls->empty());
       assert(decls->front().type);
+      scope->block->vpi_loop_scope(15);
 
       /* Retain the first initializer so the deferred control check can still
          see that a declaring header always initializes. */

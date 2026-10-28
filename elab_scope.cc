@@ -6675,6 +6675,9 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // lifetime marker and the backend gives this otherwise-static
 	      // block a context solely for those marked locals.
             my_scope->is_auto(scope->is_auto());
+            if (vpi_loop_scope() != 0)
+                  my_scope->attribute(perm_string::literal("_ivl_vpi_loop_scope"),
+                                      verinum((uint64_t)vpi_loop_scope(), 16));
 	      // Locals need a fresh activation on every block entry, even
 	      // without explicit initializers (IEEE 1800-2017/2023 6.21).
 	      // Sharing the task frame would retain values on loop reentry

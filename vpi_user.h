@@ -284,6 +284,9 @@ typedef struct t_vpi_delay  {
 #define vpiModPath     31
 #define vpiModule      32
 #define vpiNamedBegin  33
+#define vpiFor         15
+#define vpiForeachStmt 675
+#define vpiLocalVarDecls 609
 #define vpiNamedEvent  34
 #define vpiNamedFork   35
 #define vpiNet         36

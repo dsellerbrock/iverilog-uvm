@@ -272,6 +272,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       ~PBlock() override;
 
       BL_TYPE bl_type() const { return bl_type_; }
+      void vpi_loop_scope(int type) { vpi_loop_scope_ = type; }
+      int vpi_loop_scope() const { return vpi_loop_scope_; }
       void deferred_assertion_label_scope()
       { deferred_assertion_label_scope_ = true; }
       void deferred_assertion_process_scope()
@@ -317,6 +319,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
     private:
       friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
+      int vpi_loop_scope_ = 0;
       bool deferred_assertion_label_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;

@@ -76,6 +76,8 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiModule:
 		case vpiGenScope:
 		case vpiNamedBegin:
+		case vpiFor:
+		case vpiForeachStmt:
 		case vpiNamedFork:
 		case vpiClassTypespec:
 		  delete_sub_scopes(lscope);
@@ -200,6 +202,10 @@ static const char* scope_get_type(int code)
             return "vpiTask";
           case vpiNamedBegin:
             return "vpiNamedBegin";
+          case vpiFor:
+            return "vpiFor";
+          case vpiForeachStmt:
+            return "vpiForeachStmt";
           case vpiNamedFork:
             return "vpiNamedFork";
           default:
@@ -288,7 +294,7 @@ static int compare_types(int code, int type)
 	     type == vpiGenScope ||
 	     type == vpiFunction ||
 	     type == vpiTask ||
-	     type == vpiNamedBegin ||
+	     type == vpiNamedBegin || type == vpiFor || type == vpiForeachStmt ||
 	     type == vpiNamedFork ||
 	     type == vpiClassTypespec ||
 	     // M12: interface instances are traversable scopes.
@@ -407,6 +413,9 @@ int __vpiScope::vpi_get(int code)
 	  case vpiJoinType:
 	    return join_type;
 
+          case vpiLocalVarDecls:
+            return get_type_code() == vpiFor ? 1 : vpiUndefined;
+
 	  case vpiAccessType:
 	    return access_type;
       }
@@ -487,16 +496,20 @@ struct vpiScopeTaskAuto  : public __vpiScope {
 };
 
 struct vpiScopeBegin  : public __vpiScope {
-      inline vpiScopeBegin(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
-      int get_type_code(void) const override { return vpiNamedBegin; }
+      int type;
+      inline vpiScopeBegin(const char*nam, const char*tnam, int type_ = vpiNamedBegin)
+      : __vpiScope(nam,tnam,false), type(type_) { }
+      int get_type_code(void) const override { return type; }
 };
 
 class vpiScopeBeginAuto  : public __vpiScope {
     public:
+      int type;
       inline vpiScopeBeginAuto(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,true) {  }
-      int get_type_code(void) const override { return vpiNamedBegin; }
+      : __vpiScope(nam,tnam,true), type(vpiNamedBegin) {  }
+      inline vpiScopeBeginAuto(const char*nam, const char*tnam, int type_)
+      : __vpiScope(nam,tnam,true), type(type_) {  }
+      int get_type_code(void) const override { return type; }
 };
 
 struct vpiScopeGenerate  : public __vpiScope {
@@ -1347,11 +1360,31 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope->set_shares_parent_frame();
       } else if (strcmp(type,"begin") == 0) {
 	    scope = new vpiScopeBegin(name, tname);
+      } else if (strcmp(type,"for") == 0) {
+	    scope = new vpiScopeBegin(name, tname, vpiFor);
+      } else if (strcmp(type,"for.ctx") == 0) {
+	    scope = new vpiScopeBegin(name, tname, vpiFor);
+	    scope->set_owns_automatic_context();
+      } else if (strcmp(type,"foreach") == 0) {
+	    scope = new vpiScopeBegin(name, tname, vpiForeachStmt);
+      } else if (strcmp(type,"foreach.ctx") == 0) {
+	    scope = new vpiScopeBegin(name, tname, vpiForeachStmt);
+	    scope->set_owns_automatic_context();
       } else if (strcmp(type,"begin.ctx") == 0) {
 	    scope = new vpiScopeBegin(name, tname);
 	    scope->set_owns_automatic_context();
       } else if (strcmp(type,"autobegin") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
+      } else if (strcmp(type,"autofor") == 0) {
+	    scope = new vpiScopeBeginAuto(name, tname, vpiFor);
+      } else if (strcmp(type,"autoforeach") == 0) {
+	    scope = new vpiScopeBeginAuto(name, tname, vpiForeachStmt);
+      } else if (strcmp(type,"autofor.shared") == 0) {
+	    scope = new vpiScopeBeginAuto(name, tname, vpiFor);
+	    scope->set_shares_parent_frame();
+      } else if (strcmp(type,"autoforeach.shared") == 0) {
+	    scope = new vpiScopeBeginAuto(name, tname, vpiForeachStmt);
+	    scope->set_shares_parent_frame();
       } else if (strcmp(type,"autobegin.shared") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
 	    scope->set_shares_parent_frame();
