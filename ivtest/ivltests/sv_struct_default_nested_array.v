@@ -11,6 +11,7 @@ module test;
   T t;
   Outer outer;
   Matrix matrix;
+  Packed top_packed;
   PackedOuter packed_outer;
   Inner source;
   SameTypeOuter same_type;
@@ -25,6 +26,8 @@ module test;
     $display("matrix %0d %0d %0d %0d %0d %0d",
              matrix.values[0][0], matrix.values[0][1], matrix.values[0][2],
              matrix.values[1][0], matrix.values[1][1], matrix.values[1][2]);
+    top_packed = '{default:5};
+    $display("top-packed %0d %0d", top_packed.a, top_packed.b);
     packed_outer = '{default:5};
     $display("packed %0d %0d", packed_outer.value.a,
              packed_outer.value.b);
