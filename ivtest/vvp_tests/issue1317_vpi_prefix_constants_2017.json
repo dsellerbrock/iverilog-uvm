@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1317_vpi_prefix_constants.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1317_vpi_prefix_constants_2017"],
+  "vpi-sources": ["vpi/issue1317_vpi_prefix_constants.c"],
+  "output-contains": ["VPI PREFIX CONSTANTS PASS"]
+}
