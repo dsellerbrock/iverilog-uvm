@@ -1,0 +1,7 @@
+ivltests/issue1249_pure_dpi_formals_2023.v:3: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:4: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:5: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:6: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:7: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:12: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).
+ivltests/issue1249_pure_dpi_formals_2023.v:13: error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).

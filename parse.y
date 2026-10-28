@@ -8101,7 +8101,7 @@ dpi_import_export_declaration
 	current_function->set_return($7);
 	pform_check_dpi_import_c_identifier_(@4, $4);
 	current_function->set_dpi_import($4);
-	pform_check_pure_dpi_function_(@6, $4, $7, $10);
+	pform_check_pure_dpi_function_(@6, $3, $7, $10);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
