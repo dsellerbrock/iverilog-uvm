@@ -13548,6 +13548,17 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			PExpr*arg = sva_rewrite_sampled_(loc, parms[0].parm,
 							 inst, hist_idx, pre, post,
 							 init, cur_live);
+			  /* $rose/$fell are value-change functions of the operand's
+			     LSB (16.9.3), not of its truth value. Mask the operand
+			     before capturing it: the one-bit history then contains
+			     the LSB, and the live comparison cannot see other bits.
+			     A bitwise mask also works for scalar operands, for which
+			     an explicit [0] select is illegal. */
+			if (is_rose || is_fell) {
+			      PEBinary*lsb = new PEBinary('&', arg, sva_bit_(loc, 1));
+			      FILE_NAME(lsb, loc);
+			      arg = lsb;
+			}
 			long depth = 1;
 			perm_string deferred_depth;
 			if (is_past && parms.size() > 1 && parms[1].parm) {
