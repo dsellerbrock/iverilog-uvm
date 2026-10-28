@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1254_vpi_compat.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1254_vpi_compat_2017"],
+  "vpi-sources": ["vpi/issue1254_vpi_compat_2017.c"],
+  "output-contains": ["VPI COMPAT 2017 PASS"]
+}
