@@ -1,0 +1,2 @@
+issue1329_vpi_expect_constant_2017 normal,-g2017,-s,top ivltests gold=issue1329_vpi_expect_constant_2017.gold
+issue1329_vpi_expect_constant_2023 normal,-g2023,-s,top ivltests gold=issue1329_vpi_expect_constant_2023.gold

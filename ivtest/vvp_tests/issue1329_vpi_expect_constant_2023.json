@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1329_vpi_expect_constant.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1329_vpi_expect_constant_2023"],
+  "vpi-sources": ["vpi/issue1329_vpi_expect_constant.c"],
+  "output-contains": ["PASSED"]
+}
