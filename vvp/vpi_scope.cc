@@ -527,8 +527,39 @@ struct vpiScopeClass  : public __vpiScope {
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
 struct vpiScopeInterface  : public __vpiScope {
       inline vpiScopeInterface(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
+      : __vpiScope(nam,tnam,false), index_(0), has_index_(false)
+      {
+	    /* Interface array elements are emitted with their elaborated index
+	       appended to the scope name (for example, "bus[3]"). */
+	    const char*open = strrchr(nam, '[');
+	    if (open && nam[strlen(nam)-1] == ']') {
+		  char*end;
+		  errno = 0;
+		  long value = strtol(open + 1, &end, 10);
+		  if (!errno && end == nam + strlen(nam) - 1 &&
+		      value >= INT_MIN && value <= INT_MAX) {
+			index_.set_value((int)value);
+			has_index_ = true;
+		  }
+	    }
+      }
       int get_type_code(void) const override { return vpiInterface; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiIndex && has_index_)
+		  return index_.get_value();
+	    return __vpiScope::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiIndex && has_index_)
+		  return &index_;
+	    return __vpiScope::vpi_handle(code);
+      }
+
+    private:
+      __vpiDecConst index_;
+      bool has_index_;
 };
 
 /* M12: a modport declaration of an interface. M12-6 adds the port
