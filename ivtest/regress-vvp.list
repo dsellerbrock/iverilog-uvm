@@ -5843,3 +5843,5 @@ issue1287_vpi_waiting_event_2023 vvp_tests/issue1287_vpi_waiting_event_2023.json
 # IEEE 1800-2023 §37.23 nettype declaration VPI handles
 issue1283_nettype_vpi_2017 vvp_tests/issue1283_nettype_vpi_2017.json
 issue1283_nettype_vpi_2023 vvp_tests/issue1283_nettype_vpi_2023.json
+issue1270_loop_scope_2017 vvp_tests/issue1270_loop_scope_2017.json
+issue1270_loop_scope_2023 vvp_tests/issue1270_loop_scope_2023.json
