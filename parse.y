@@ -2522,7 +2522,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <flag>    import_export
 %type <flag>    dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
-%type <flag>    udp_reg_opt edge_operator
+%type <flag>    udp_reg_opt
+%type <int_val> edge_operator
 %type <int_val> dynamic_override_specifiers
 %type <int_val> constraint_override_specifiers constraint_override_specifiers_opt
 %type <int_val> method_function_keyword method_task_keyword
@@ -17987,8 +17988,9 @@ specify_edge_path_decl
   ;
 
 edge_operator
-  : K_posedge { $$ = true; }
-  | K_negedge { $$ = false; }
+  : K_posedge { $$ = 1; }
+  | K_negedge { $$ = -1; }
+  | K_edge { $$ = 0; }
   ;
 
 specify_edge_path
@@ -17999,8 +18001,7 @@ specify_edge_path
       }
   | '(' edge_operator specify_path_identifiers spec_polarity
     K_EG '(' specify_path_identifiers polarity_operator expression ')' ')'
-      { int edge_flag = $2? 1 : -1;
-	$$ = pform_make_specify_edge_path(@1, edge_flag, $3, $4, false, $7, $9);
+      { $$ = pform_make_specify_edge_path(@1, $2, $3, $4, false, $7, $9);
       }
   | '('               specify_path_identifiers spec_polarity
     K_SG  '(' specify_path_identifiers polarity_operator expression ')' ')'
@@ -18009,8 +18010,7 @@ specify_edge_path
       }
   | '(' edge_operator specify_path_identifiers spec_polarity
     K_SG '(' specify_path_identifiers polarity_operator expression ')' ')'
-      { int edge_flag = $2? 1 : -1;
-	$$ = pform_make_specify_edge_path(@1, edge_flag, $3, $4, true, $7, $9);
+      { $$ = pform_make_specify_edge_path(@1, $2, $3, $4, true, $7, $9);
       }
   ;
 
