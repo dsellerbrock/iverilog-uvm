@@ -43473,8 +43473,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    unsigned prop_idx = cg_class->get_properties();
 		    unsigned cp_idx  = 0;
 		    unsigned dyn_family = 0;
-		    bool has_parent_set_bins = false;
-		    bool has_parent_range_bins = false;
 				    auto add_unique_cov_property = [&](const std::string&base,
 								     ivl_type_t property_type) -> int {
 					  std::string candidate = base;
@@ -45015,7 +45013,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						   cp_value_supported ? cp_value_width : 64,
 						   cp_value_supported && cp_value_signed,
 						   bin_guard);
-				      if (set_on_parent) has_parent_set_bins = true;
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
 					    d.name = bin.name;
@@ -45338,9 +45335,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      unsigned family = dyn_family++;
 				    for (auto&ir : ir_ranges) {
-					  if (ir.first.find("pp:") != std::string::npos
-					      || ir.second.find("pp:") != std::string::npos)
-						has_parent_range_bins = true;
 					  cg_class->add_covgrp_dyn_bin(
 							cp_idx, cp_idx, kindval, family,
 							dyn_array_size, bin.name.str(),
@@ -47155,9 +47149,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
-	    if (!cg_standalone
-		&& (cgdef->is_extension || has_parent_set_bins
-		    || has_parent_range_bins || !cgdef->sample_events.empty())) {
+	    if (!cg_standalone) {
 				  int parent_prop = add_unique_cov_property(
 					"__covgrp_parent", this);
 				  if (parent_prop >= 0)

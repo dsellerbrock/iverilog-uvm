@@ -2550,7 +2550,57 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
       if (property_is_static(pid))
 	    return;
 
+	// IEEE 1800-2017/2023 8.12: an embedded covergroup's object
+	// handle is set to null in the shallow copy. Its declared type is the
+	// synthesized covergroup class with an enclosing-object parent slot.
+	const class_type*declared_type = property_declared_class_type(pid);
+	if (declared_type && declared_type->is_covergroup()
+	    && declared_type->covgrp_parent_prop() >= 0) {
+	    vvp_object_t null_handle;
+	    for (size_t idx = 0 ; idx < property_array_size(pid) ; idx += 1)
+		  properties_[pid].type->set_object(dst_buf, null_handle, idx);
+	    return;
+	}
+
       properties_[pid].type->copy(dst_buf, src_buf);
+}
+
+unsigned class_type::copy_common_initial_sequence(inst_t dst,
+			const class_type*src_type, inst_t src) const
+{
+      if (!src_type || !is_struct_type_ || is_union_type_
+	  || !src_type->is_struct_type_ || src_type->is_union_type_)
+	    return 0;
+
+      unsigned copied = 0;
+      size_t count = properties_.size() < src_type->properties_.size()
+	    ? properties_.size() : src_type->properties_.size();
+      for (size_t pid = 0; pid < count; ++pid) {
+	    const prop_t&target = properties_[pid];
+	    const prop_t&source = src_type->properties_[pid];
+	    if (target.base_type != source.base_type
+		|| target.array_size != source.array_size
+		|| target.dimensions != source.dimensions
+		|| target.declared_class_type != source.declared_class_type)
+		  break;
+	    for (size_t idx = 0; idx < target.array_size; ++idx) {
+		  if (property_vec4_width(pid)) {
+			vvp_vector4_t value;
+			src_type->get_vec4(src, pid, value, idx);
+			set_vec4(dst, pid, value, idx);
+		  } else if (target.base_type == "r") {
+			set_real(dst, pid, src_type->get_real(src, pid, idx), idx);
+		  } else if (target.base_type == "S") {
+			set_string(dst, pid, src_type->get_string(src, pid, idx), idx);
+		  } else {
+			vvp_object_t value;
+			src_type->get_object(src, pid, value, idx);
+			set_object(dst, pid, value, idx);
+		  }
+	    }
+	    ++copied;
+      }
+      return copied;
 }
 
 int class_type::get_type_code(void) const
