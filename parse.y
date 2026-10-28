@@ -8023,6 +8023,8 @@ dpi_import_export_declaration
       { current_function->set_ports($8);
 	current_function->set_return($5);
 	current_function->set_dpi_import($6);
+	if ($2 && strcmp($2, "DPI") == 0)
+	  yywarn(@1, "warning: \"DPI\" is deprecated and should be replaced with \"DPI-C\"; use of \"DPI-C\" may require changes to the application's C code (IEEE 1800-2017/2023 35.5.4).");
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8037,6 +8039,8 @@ dpi_import_export_declaration
       { current_function->set_ports($10);
 	current_function->set_return($7);
 	current_function->set_dpi_import($4);
+	if ($2 && strcmp($2, "DPI") == 0)
+	  yywarn(@1, "warning: \"DPI\" is deprecated and should be replaced with \"DPI-C\"; use of \"DPI-C\" may require changes to the application's C code (IEEE 1800-2017/2023 35.5.4).");
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8052,6 +8056,8 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	current_task->set_dpi_import($5);
+	if ($2 && strcmp($2, "DPI") == 0)
+	  yywarn(@1, "warning: \"DPI\" is deprecated and should be replaced with \"DPI-C\"; use of \"DPI-C\" may require changes to the application's C code (IEEE 1800-2017/2023 35.5.4).");
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;
@@ -8066,6 +8072,8 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_task->set_ports($9);
 	current_task->set_dpi_import($4);
+	if ($2 && strcmp($2, "DPI") == 0)
+	  yywarn(@1, "warning: \"DPI\" is deprecated and should be replaced with \"DPI-C\"; use of \"DPI-C\" may require changes to the application's C code (IEEE 1800-2017/2023 35.5.4).");
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;

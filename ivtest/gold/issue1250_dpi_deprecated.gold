@@ -1,0 +1,2 @@
+./ivltests/issue1250_dpi_deprecated.v:2: warning: "DPI" is deprecated and should be replaced with "DPI-C"; use of "DPI-C" may require changes to the application's C code (IEEE 1800-2017/2023 35.5.4).
+./ivltests/issue1250_dpi_deprecated.v:3: $finish called at 0 (1s)
