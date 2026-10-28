@@ -12548,6 +12548,26 @@ static PExpr* tc_real_(const struct vlltype&loc, double v)
       return num;
 }
 
+/* IEEE 1800-2017/2023 31.7 enables a timing check when a nondeterministic
+   comparison in its condition evaluates to X. */
+static PExpr* tc_condition_(const struct vlltype&loc, PExpr*condition)
+{
+      PEBComp*comparison = dynamic_cast<PEBComp*>(condition);
+      if (comparison == nullptr
+          || (comparison->get_op() != 'e' && comparison->get_op() != 'n'))
+	    return condition;
+
+      PExpr*known_true = new PEBComp('E', condition,
+	    new PENumber(new verinum(verinum::V1, 1)));
+      FILE_NAME(known_true, loc);
+      PExpr*unknown = new PEBComp('E', sva_clone_expr_(condition),
+	    new PENumber(new verinum(verinum::Vx, 1)));
+      FILE_NAME(unknown, loc);
+      PEBLogic*enabled = new PEBLogic('o', known_true, unknown);
+      FILE_NAME(enabled, loc);
+      return enabled;
+}
+
 static PEIdent* tc_name_id_(const struct vlltype&loc, const pform_name_t&name)
 {
       PEIdent*id = new PEIdent(name, loc.lexical_pos);
@@ -12666,6 +12686,7 @@ static void tc_always_at_(const struct vlltype&loc,
 			error_count += 1;
 			return;
 		  }
+		  cond = tc_condition_(loc, cond);
 		  match = new PEBLogic('a', match, cond);
 	    }
 
@@ -12714,6 +12735,7 @@ static void tc_always_at_(const struct vlltype&loc,
 		  error_count += 1;
 		  return;
 	    }
+	    cond = tc_condition_(loc, cond);
 	    PCondit*c = new PCondit(cond, body, nullptr);
 	    FILE_NAME(c, loc);
 	    body = c;
