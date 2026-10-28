@@ -17917,6 +17917,10 @@ specify_item
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
+	for (perm_string name : *$2) {
+	      if (pform_specify_path_output_previously_declared(name))
+		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
+	}
 	/* Pulse-filtering control, not a timing check -- the old
 	   message named the wrong construct. It is accepted and
 	   ignored, so say which one is being ignored. */
@@ -17929,6 +17933,10 @@ specify_item
       }
   | K_pulsestyle_ondetect specify_path_identifiers ';'
       {
+	for (perm_string name : *$2) {
+	      if (pform_specify_path_output_previously_declared(name))
+		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
+	}
 	/* Pulse-filtering control, not a timing check -- the old
 	   message named the wrong construct. It is accepted and
 	   ignored, so say which one is being ignored. */
