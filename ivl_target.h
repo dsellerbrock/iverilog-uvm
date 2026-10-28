@@ -2083,6 +2083,10 @@ extern unsigned   ivl_scope_classes(ivl_scope_t net);
 extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);
+/* Explicit user typedef declarations owned by this lexical scope. */
+extern unsigned       ivl_scope_typedefs(ivl_scope_t net);
+extern const char*    ivl_scope_typedef_name(ivl_scope_t net, unsigned idx);
+extern ivl_type_t     ivl_scope_typedef_type(ivl_scope_t net, unsigned idx);
 extern unsigned       ivl_scope_nettypes(ivl_scope_t net);
 extern ivl_nettype_t   ivl_scope_nettype(ivl_scope_t net, unsigned idx);
 extern const char*     ivl_nettype_name(ivl_nettype_t nettype);
@@ -2741,6 +2745,9 @@ extern unsigned ivl_type_interface_count(ivl_type_t net);
 extern ivl_type_t ivl_type_interface(ivl_type_t net, unsigned idx);
 /* Return TRUE for the synthetic class carrier of an interface/VIF type. */
 extern int ivl_type_is_interface(ivl_type_t net);
+extern int ivl_type_typedef_vpi_type(ivl_type_t net);
+extern const char* ivl_type_interface_modport(ivl_type_t net);
+extern const char* ivl_type_interface_defname(ivl_type_t net);
 extern const char* ivl_type_method_prefix(ivl_type_t net);
 extern int ivl_type_queue_assoc_compat(ivl_type_t net);
 /* Return the maximum number of elements in a bounded queue, or zero for an

@@ -117,6 +117,20 @@ EXTERN_C_START
 
 /********* One-to-One ***********/
 #define vpiBaseTypespec     703
+/* IEEE 1800 Annex M: VPI iteration over explicitly declared typedefs. */
+#define vpiTypedef          725
+#define vpiIntegerTypespec  635
+#define vpiLongIntTypespec  625
+#define vpiByteTypespec     627
+#define vpiShortIntTypespec 628
+#define vpiIntTypespec      629
+#define vpiStringTypespec   631
+#define vpiChandleTypespec  632
+#define vpiArrayTypespec    642
+#define vpiTimeTypespec     636
+#define vpiRealTypespec     637
+#define vpiInterfaceTypespec 906
+#define vpiIsModPort        669
 
 /********* Many-to-One ***********/
 #define vpiMember           742

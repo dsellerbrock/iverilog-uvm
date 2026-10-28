@@ -10904,7 +10904,7 @@ type_declaration
         if (!type)
               type = make_class_scoped_typeref(@2, @4, $2.text, $4);
         if (type)
-              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+              pform_set_typedef(@5, lex_strings.make($5), type, $6, true);
         delete[]$2.text;
         delete[]$4;
         delete[]$5;
@@ -10916,7 +10916,7 @@ type_declaration
         if (!type)
               type = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
         if (type)
-              pform_set_typedef(@5, lex_strings.make($5), type, $6);
+              pform_set_typedef(@5, lex_strings.make($5), type, $6, true);
         delete[]$2.text;
         delete[]$4.text;
         delete[]$5;
@@ -10931,7 +10931,7 @@ type_declaration
 	      }
 	      pform_declare_nettype(@3, name, $2, nullptr);
 	} else {
-	      pform_set_typedef(@3, name, $2, $4);
+	      pform_set_typedef(@3, name, $2, $4, true);
 	}
 	delete[]$3;
       }
@@ -10965,7 +10965,7 @@ type_declaration
 	            typeref_t*alias = new typeref_t(type->second, interface->second);
 	            FILE_NAME(alias, @4);
 	            perm_string name = lex_strings.make($5);
-	            pform_set_typedef(@5, name, alias, $6);
+	            pform_set_typedef(@5, name, alias, $6, true);
 	      }
 	}
 	delete[] $2;
@@ -11029,7 +11029,7 @@ type_declaration
 	      delete dt;
 	      delete $7;
 	} else {
-	      pform_set_typedef(@6, name, dt, $7);
+	      pform_set_typedef(@6, name, dt, $7, true);
 	}
 	delete[]$6;
       }
@@ -11041,7 +11041,7 @@ type_declaration
 	      typeref_t*tmp = new typeref_t(base);
 	      FILE_NAME(tmp, @2);
 	      perm_string name = lex_strings.make($3);
-	      pform_set_typedef(@3, name, tmp, $4);
+	      pform_set_typedef(@3, name, tmp, $4, true);
 	} else {
 	      yyerror(@2, "error: %s doesn't name a type.", $2);
 	      delete $4;
@@ -11057,7 +11057,7 @@ type_declaration
 	      yyerror(@1, "error: Incomplete nettype declaration.");
 	} else {
 	      perm_string name = lex_strings.make($2);
-	      pform_forward_typedef(@2, name, typedef_t::ANY);
+	      pform_forward_typedef(@2, name, typedef_t::ANY, true);
 	}
 	delete[]$2;
       }
@@ -11066,7 +11066,7 @@ type_declaration
 	      yyerror(@1, "error: Invalid data type in nettype declaration.");
 	} else {
 	      perm_string name = lex_strings.make($3);
-	      pform_forward_typedef(@3, name, $2);
+	      pform_forward_typedef(@3, name, $2, true);
 	}
 	delete[]$3;
       }
@@ -11075,7 +11075,7 @@ type_declaration
 	      yyerror(@1, "error: Invalid data type in nettype declaration.");
 	} else {
 	      perm_string name = lex_strings.make($4);
-	      pform_forward_typedef(@4, name, typedef_t::CLASS);
+	      pform_forward_typedef(@4, name, typedef_t::CLASS, true);
 	}
 	delete[]$4;
       }
@@ -11084,7 +11084,7 @@ type_declaration
 	      yyerror(@1, "error: Invalid data type in nettype declaration.");
 	} else {
 	      perm_string name = lex_strings.make($3);
-	      pform_forward_typedef(@3, name, typedef_t::ENUM);
+	      pform_forward_typedef(@3, name, typedef_t::ENUM, true);
 	}
 	delete[]$3;
       }

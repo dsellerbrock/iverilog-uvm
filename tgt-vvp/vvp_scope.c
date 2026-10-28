@@ -3439,6 +3439,24 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		    with ? vvp_mangle_name(with) : "");
       }
 
+	/* Emit lexical typedef names and the type descriptor that VPI returns
+	   from vpiTypedef iteration. */
+      for (idx = 0; idx < ivl_scope_typedefs(net); idx += 1) {
+	    ivl_type_t typedef_type = ivl_scope_typedef_type(net, idx);
+	    int vpi_type = ivl_type_typedef_vpi_type(typedef_type);
+	    const char*defname = "";
+	    const char*modport = "";
+	    if (ivl_type_is_interface(typedef_type)) {
+		  defname = ivl_type_interface_defname(typedef_type);
+		  if (!defname) defname = ivl_type_name(typedef_type);
+		  modport = ivl_type_interface_modport(typedef_type);
+	    }
+	    fprintf(vvp_out, " .typedef \"%s\" %d \"%s\" \"%s\";\n",
+		    vvp_mangle_name(ivl_scope_typedef_name(net, idx)), vpi_type,
+		    defname ? vvp_mangle_name(defname) : "",
+		    modport ? vvp_mangle_name(modport) : "");
+      }
+
 	/* M12: modport declarations of an interface, for VPI —
 	   M12-6 appends each port as "name" direction pairs. */
       if (ivl_scope_is_interface(net)) {
