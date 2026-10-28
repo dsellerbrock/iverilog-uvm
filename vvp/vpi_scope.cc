@@ -205,6 +205,10 @@ static const char* scope_get_type(int code)
             return "vpiTask";
           case vpiNamedBegin:
             return "vpiNamedBegin";
+          case vpiFor:
+            return "vpiFor";
+          case vpiForeachStmt:
+            return "vpiForeachStmt";
           case vpiNamedFork:
             return "vpiNamedFork";
           default:
@@ -294,6 +298,8 @@ static int compare_types(int code, int type)
 	     type == vpiFunction ||
 	     type == vpiTask ||
 	     type == vpiNamedBegin ||
+	     type == vpiFor ||
+	     type == vpiForeachStmt ||
 	     type == vpiNamedFork ||
 	     type == vpiClassTypespec ||
 	     // M12: interface instances are traversable scopes.
@@ -531,6 +537,25 @@ class vpiScopeBeginAuto  : public __vpiScope {
       inline vpiScopeBeginAuto(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam,true) {  }
       int get_type_code(void) const override { return vpiNamedBegin; }
+};
+
+class vpiScopeLoop : public __vpiScope {
+    public:
+      vpiScopeLoop(const char*nam, const char*tnam, bool auto_flag,
+                   bool shares_parent, int type_code)
+      : __vpiScope(nam, tnam, auto_flag), type_code_(type_code)
+      { if (shares_parent) set_shares_parent_frame(); }
+
+      int get_type_code(void) const override { return type_code_; }
+      int vpi_get(int code) override
+      {
+            if (code == vpiLocalVarDecls)
+                  return type_code_ == vpiFor ? 1 : 0;
+            return __vpiScope::vpi_get(code);
+      }
+
+    private:
+      int type_code_;
 };
 
 struct vpiScopeGenerate  : public __vpiScope {
@@ -1389,6 +1414,28 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       } else if (strcmp(type,"autobegin.shared") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
 	    scope->set_shares_parent_frame();
+      } else if (strcmp(type,"for") == 0 || strcmp(type,"for.ctx") == 0) {
+	    scope = new vpiScopeLoop(name, tname, false, false, vpiFor);
+	    if (strcmp(type,"for.ctx") == 0)
+	          scope->set_owns_automatic_context();
+      } else if (strcmp(type,"autofor") == 0
+	         || strcmp(type,"autofor.ctx") == 0) {
+	    scope = new vpiScopeLoop(name, tname, true, false, vpiFor);
+	    if (strcmp(type,"autofor.ctx") == 0)
+	          scope->set_owns_automatic_context();
+      } else if (strcmp(type,"autofor.shared") == 0) {
+	    scope = new vpiScopeLoop(name, tname, true, true, vpiFor);
+      } else if (strcmp(type,"foreach") == 0 || strcmp(type,"foreach.ctx") == 0) {
+	    scope = new vpiScopeLoop(name, tname, false, false, vpiForeachStmt);
+	    if (strcmp(type,"foreach.ctx") == 0)
+	          scope->set_owns_automatic_context();
+      } else if (strcmp(type,"autoforeach") == 0
+	         || strcmp(type,"autoforeach.ctx") == 0) {
+	    scope = new vpiScopeLoop(name, tname, true, false, vpiForeachStmt);
+	    if (strcmp(type,"autoforeach.ctx") == 0)
+	          scope->set_owns_automatic_context();
+      } else if (strcmp(type,"autoforeach.shared") == 0) {
+	    scope = new vpiScopeLoop(name, tname, true, true, vpiForeachStmt);
       } else if (strcmp(type,"generate") == 0) {
 	    scope = new vpiScopeGenerate(name, tname);
       } else if (strcmp(type,"package") == 0) {

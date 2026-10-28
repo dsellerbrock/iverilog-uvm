@@ -14121,6 +14121,8 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
             return true;
           case vpiNamedBegin:
           case vpiNamedFork:
+          case vpiFor:
+          case vpiForeachStmt:
             return scope->nitem > 0;
           default:
             return false;
@@ -20310,7 +20312,9 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	   %fork. */
       if (!child_is_process
 	  && (cp->scope->get_type_code() == vpiTask
-	      || cp->scope->get_type_code() == vpiNamedBegin))
+	      || cp->scope->get_type_code() == vpiNamedBegin
+	      || cp->scope->get_type_code() == vpiFor
+	      || cp->scope->get_type_code() == vpiForeachStmt))
 	    child->is_fork_v_child = 1;
 
 	/* Keep the logical process tree after vthread_reap reparents detached
@@ -20346,7 +20350,9 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	    { vvp_code_t next_pc = thr->pc;
 	      vthread_t pure_comb_owner = logical_process_thread_(thr);
 	      const bool synchronous_pure_named = !child_is_process
-		    && cp->scope->get_type_code() == vpiNamedBegin
+		    && (cp->scope->get_type_code() == vpiNamedBegin
+			|| cp->scope->get_type_code() == vpiFor
+			|| cp->scope->get_type_code() == vpiForeachStmt)
 		    && !cp->scope->is_automatic()
 		    && pure_comb_owner
 		    && pure_comb_owner->is_pure_comb_process

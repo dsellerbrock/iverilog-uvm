@@ -274,6 +274,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       BL_TYPE bl_type() const { return bl_type_; }
       void deferred_assertion_label_scope()
       { deferred_assertion_label_scope_ = true; }
+      void vpi_for_scope() { vpi_for_scope_ = true; }
+      void vpi_foreach_scope() { vpi_foreach_scope_ = true; }
+      bool is_vpi_for_scope() const { return vpi_for_scope_; }
+      bool is_vpi_foreach_scope() const { return vpi_foreach_scope_; }
       void deferred_assertion_process_scope()
       { deferred_assertion_process_scope_ = true; }
       void concurrent_assertion_only()
@@ -318,6 +322,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
       bool deferred_assertion_label_scope_ = false;
+      bool vpi_for_scope_ = false;
+      bool vpi_foreach_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;

@@ -3317,6 +3317,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	   scope and expects no %alloc/%free for it. */
       case IVL_SCT_BEGIN:
 	    type = mixed_lifetime_scope ? "begin.ctx" : "begin";
+	    for (idx = 0; idx < ivl_scope_attr_cnt(net); idx += 1) {
+		  ivl_attribute_t attr = ivl_scope_attr_val(net, idx);
+		  if (attr->type != IVL_ATT_NUM || attr->val.num != 1)
+			continue;
+		  if (strcmp(attr->key, "_ivl_vpi_for_scope") == 0)
+			type = mixed_lifetime_scope ? "for.ctx" : "for";
+		  else if (strcmp(attr->key, "_ivl_vpi_foreach_scope") == 0)
+			type = mixed_lifetime_scope ? "foreach.ctx" : "foreach";
+	    }
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;

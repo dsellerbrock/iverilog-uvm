@@ -1279,6 +1279,7 @@ static PBlock* pform_start_foreach_scope(const struct vlltype&loc,
       }
 
       PBlock*block = pform_push_block_scope(loc, block_name, PBlock::BL_SEQ);
+      block->vpi_foreach_scope();
       current_block_stack.push(block);
       delete[] source_label;
       return block;
@@ -1994,6 +1995,7 @@ static PBlock* pform_finish_for_variable_declarations(
 
       pform_unwind_parser_block_scope(scope);
       PBlock*tmp_blk = scope->block;
+      tmp_blk->vpi_for_scope();
       scope->block = nullptr;
       pform_destroy_for_variable_scope(scope);
       vector<Statement*>blk_items(1, tmp_for);

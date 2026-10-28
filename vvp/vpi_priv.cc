@@ -442,6 +442,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 {
       static char buf[32];
       switch (code) {
+	  case vpiFor:
+	    return "vpiFor";
 	  case vpiArrayType:
 	    return "vpiArrayType";
 	  case vpiBitVar:
@@ -456,6 +458,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiEnumTypespec";
 	  case vpiFunction:
 	    return "vpiFunction";
+	  case vpiForeachStmt:
+	    return "vpiForeachStmt";
 	  case vpiGenScope:
 	    return "vpiGenScope";
 	  case vpiIntVar:
@@ -651,6 +655,8 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	  case vpiTask:
 	  case vpiFunction:
 	  case vpiNamedBegin:
+	  case vpiFor:
+	  case vpiForeachStmt:
 	  case vpiNamedFork:
 	  case vpiGenScope:
 	  case vpiClassTypespec:
