@@ -406,6 +406,11 @@ typedef struct t_vpi_delay  {
 #   define vpiDPIImportAcc 4
 #define vpiVisibility 620
 #   define vpiPublicVis 1
+/* IEEE 1800-2017 / 1800-2023 37.63 and Annex M */
+#define vpiAlwaysType 624
+#define vpiAlwaysComb 2
+#define vpiAlwaysFF 3
+#define vpiAlwaysLatch 4
 /* IEEE 1800-2023 37.61 / Annex M */
 #define vpiHasActual  636
 #define vpiPrefix 714
