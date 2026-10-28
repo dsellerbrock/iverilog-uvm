@@ -6125,3 +6125,5 @@ sv_packed_struct_array_equality normal,-g2017,-s,sv_packed_struct_array_equality
 sv_packed_struct_array_equality_2023 normal,-g2023,-s,sv_packed_struct_array_equality_2023 ivltests gold=sv_packed_struct_array_equality.gold
 sv_uarray_equality_untyped_pattern_fail CE,-g2017,-s,sv_uarray_equality_untyped_pattern_fail ivltests gold=sv_uarray_equality_untyped_pattern_fail.gold
 sv_uarray_equality_untyped_pattern_fail_2023 CE,-g2023,-s,sv_uarray_equality_untyped_pattern_fail_2023 ivltests gold=sv_uarray_equality_untyped_pattern_fail_2023.gold
+issue1252_dpi_class_arg_2017 CE,-g2017,-s,issue1252_dpi_class_arg ivltests
+issue1252_dpi_class_arg_2023 CE,-g2023,-s,issue1252_dpi_class_arg ivltests
