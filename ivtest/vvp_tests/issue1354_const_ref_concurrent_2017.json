@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1354_const_ref_concurrent.sv",
+  "iverilog-args": ["-g2017", "-gassertions"],
+  "output-contains": ["PASS const-ref concurrent"]
+}
