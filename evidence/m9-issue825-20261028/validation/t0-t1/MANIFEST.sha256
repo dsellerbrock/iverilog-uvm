@@ -1,0 +1,10 @@
+68bfe1814e21736dbe9aea9fc3bb5c1258133ad399840607f20fa588e424c165  selection.md  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+c26de83abdc9496cd1301470918ec39ecca1cf389ef0ae1c6504da1800d1c431  smoke.status  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+8c579a6af0f433a656c2b94a2bfcd7ce5a4014be26a890615f1b6357f88921e5  status.txt  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+0d057dde0277fc4c50e4ce4d8df199ae8445d9ab9c6b09aed829a042a58ea4b6  legacy.list  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+9dcd0e784df2e659c5eb3109b5e20890f0a3921e8c03317fe320dff74f1c8744  json.list  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+b4dc7982acb062608d44aedd0845e17641dfcf6db079e2cae776f87567fd17f2  legacy.log  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+7edba93502529e40742819afa27c347b9646ffe7ce9c5defa8b2fcdf858178aa  json-results.txt  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+671bb06003c81988ee6a45e92136f4daaf179a01646eb6c6c85f1f115ea927f4  time.txt  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  exit.code  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272
+b200a7229bda3d44e689bf7dd50a1c216cefd4e7100f0639e43f0f29c3420f72  A3-m9-825-t0-t1-full-5272.out  # 2026-10-28 07:36:44 T0 full smoke and T1 interface/specify selection, Slurm job 5272

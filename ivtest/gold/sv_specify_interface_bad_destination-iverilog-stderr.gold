@@ -1,0 +1,2 @@
+ivltests/sv_specify_interface_terminals.v:51: error: Path destination ch.c must be an output or inout port.
+1 error(s) during elaboration.

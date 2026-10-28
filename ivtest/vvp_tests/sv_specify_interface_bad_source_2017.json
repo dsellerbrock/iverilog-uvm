@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_specify_interface_terminals.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "sv_specify_interface_bad_source"],
+  "gold": "sv_specify_interface_bad_source"
+}

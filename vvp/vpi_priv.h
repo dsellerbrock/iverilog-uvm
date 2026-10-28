@@ -1233,7 +1233,8 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
     public:
       __vpiCobjectVar(__vpiScope*scope, const char*name, vvp_net_t*net,
-                      bool automatic_storage, bool virtual_interface = false);
+                      bool automatic_storage, bool virtual_interface = false,
+                      bool virtual_interface_modport = false);
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
@@ -1258,6 +1259,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
     private:
       bool virtual_interface_;
+      bool virtual_interface_modport_;
       unsigned source_file_idx_ = 0;
       unsigned source_lineno_ = 0;
       bool has_source_location_ = false;
@@ -1268,7 +1270,8 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
                                        bool automatic_storage,
-                                       bool virtual_interface = false);
+                                       bool virtual_interface = false,
+                                       bool virtual_interface_modport = false);
 
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */
