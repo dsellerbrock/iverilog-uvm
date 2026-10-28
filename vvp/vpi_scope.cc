@@ -406,6 +406,9 @@ int __vpiScope::vpi_get(int code)
 
 	  case vpiJoinType:
 	    return join_type;
+
+	  case vpiAccessType:
+	    return access_type;
       }
 
       return vpiUndefined;
@@ -1189,10 +1192,16 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
                    long def_file_idx, long def_lineno, long is_cell)
 {
       int join_type = vpiUndefined;
+      int access_type = vpiUndefined;
       char*join = strstr(type, ".join");
       if (join && join[5] >= '0' && join[5] <= '2') {
 	    join_type = join[5] - '0';
 	    memmove(join, join + 6, strlen(join + 6) + 1);
+      }
+      char*access = strstr(type, ".acc");
+      if (access && access[4] >= '1' && access[4] <= '4') {
+	    access_type = access[4] - '0';
+	    memmove(access, access + 5, strlen(access + 5) + 1);
       }
       count_vpi_scopes += 1;
       char vec_type;
@@ -1307,6 +1316,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
       scope->join_type = join_type;
+      scope->access_type = access_type;
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

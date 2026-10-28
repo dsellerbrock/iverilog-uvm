@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+issue1260_vpi_access_type_2017 vvp_tests/issue1260_vpi_access_type_2017.json
+issue1260_vpi_access_type_2023 vvp_tests/issue1260_vpi_access_type_2023.json
 issue1249_pure_dpi_formals_2017 vvp_tests/issue1249_pure_dpi_formals_2017.json
 issue1249_pure_dpi_formals_2023 vvp_tests/issue1249_pure_dpi_formals_2023.json
 issue1242_ifnone_unconditional_path_2017 vvp_tests/issue1242_ifnone_unconditional_path_2017.json
