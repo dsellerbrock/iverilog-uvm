@@ -419,6 +419,7 @@ typedef struct t_vpi_delay  {
 #define vpiConstantSelect 53
 #define vpiSigned         65
 #define vpiLocalParam     70
+#define vpiCondition      71
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */
