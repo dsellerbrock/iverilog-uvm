@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1338_active_time_format.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1338_active_time_format_2017"],
+  "vpi-sources": ["vpi/issue1338_active_time_format.c"],
+  "output-contains": ["ACTIVE TIME FORMAT CONSTANT PASSED", "PASSED"]
+}
