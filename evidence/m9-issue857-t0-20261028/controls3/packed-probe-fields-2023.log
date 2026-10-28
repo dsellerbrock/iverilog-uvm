@@ -1,0 +1,10 @@
+p1 packed 010100000101
+p1 fields x x
+p2 packed 010100000101
+p2 fields x x
+p3 packed 010100000101
+p3 fields x x
+p4 packed 010100000101
+p4 fields x x
+p5 packed 010100000101
+p5 fields 5 5

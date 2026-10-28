@@ -5369,6 +5369,84 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       return neconcat;
 }
 
+NetExpr* PEAssignPattern::elaborate_expr_default_(Design *des, NetScope *scope,
+						  ivl_type_t type, PExpr *value,
+						  bool need_const) const
+{
+	  /* Defaults recurse unless the value already matches the nested member type. */
+	  ivl_type_t value_type = nullptr;
+	  if (value && !dynamic_cast<const PEAssignPattern*>(value)) {
+		NetExpr*value_expr = elab_and_eval(des, scope, value, -1, false);
+		if (value_expr) {
+		      value_type = value_expr->net_type();
+		      delete value_expr;
+		}
+	  }
+
+	  std::function<NetExpr*(ivl_type_t)> fill =
+		[&](ivl_type_t member_type) -> NetExpr* {
+	  if (assignment_pattern_types_equivalent_(member_type, value_type))
+		return elaborate_rval_expr(des, scope, member_type,
+					   value, need_const);
+
+	  if (const netstruct_t*st =
+		    dynamic_cast<const netstruct_t*>(member_type)) {
+		if (!st->union_flag()) {
+		      vector<NetExpr*> items;
+		      for (const auto&member : st->members())
+			    items.push_back(fill(member.net_type));
+		      if (st->packed()) {
+			    for (size_t idx = 0; idx < items.size(); ++idx) {
+				  long width = st->members()[idx].net_type->packed_width();
+				  if (items[idx] && width > 0
+				      && items[idx]->expr_width() != (unsigned)width)
+					items[idx] = cast_to_width(items[idx],
+								   (unsigned)width,
+								   items[idx]->has_sign(), *this);
+			    }
+			    NetEConcat*res = new NetEConcat(items.size(), 1,
+							  st->base_type());
+			    for (size_t idx = 0; idx < items.size(); ++idx)
+				  if (items[idx]) res->set(idx, items[idx]);
+			    return res;
+		      }
+		      NetEArrayPattern*res = new NetEArrayPattern(st, items);
+		      res->set_line(*this);
+		      return res;
+		}
+	  }
+
+	  if (const netuarray_t*array =
+		    dynamic_cast<const netuarray_t*>(member_type)) {
+		const netranges_t&dims = array->static_dimensions();
+		/* shortcut: only fixed unpacked arrays recurse here; add other array
+		   kinds when a focused reproducer establishes their pattern rules. */
+		if (!dims.empty()) {
+		      std::function<NetExpr*(unsigned, ivl_type_t)> fill_array =
+			    [&](unsigned dim, ivl_type_t leaf) -> NetExpr* {
+			      if (dim == dims.size())
+				    return fill(leaf);
+			      const auto&range = dims[dim];
+			      unsigned n = range.width();
+			      vector<NetExpr*> elems(n);
+			      bool up = range.get_msb() < range.get_lsb();
+			      for (unsigned idx = 0; idx < n; ++idx)
+				elems[up ? idx : n - 1 - idx] =
+				      fill_array(dim + 1, leaf);
+			      NetEArrayPattern*res = new NetEArrayPattern(array, elems);
+			      res->set_line(*this);
+			      return res;
+			    };
+		      return fill_array(0, array->element_type());
+		}
+	  }
+
+	  return elaborate_rval_expr(des, scope, member_type, value, need_const);
+	  };
+
+	  return fill(type);
+}
+
 NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 						 const netstruct_t *struct_type,
 						 bool need_const) const
@@ -5467,6 +5545,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 		  }
 
 		  PExpr*src = member_values[idx];
+		  bool default_value = false;
 		  if (!src) {
 			for (const auto&type_entry : type_values)
 			      if (assignment_pattern_types_equivalent_(
@@ -5476,7 +5555,10 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 					  union_active_member = idx;
 			      }
 		  }
-		  if (!src) src = dflt;
+		  if (!src) {
+			src = dflt;
+			default_value = src != nullptr;
+		  }
 		  if (!src) {
 			if (is_union) {
 			      /* Default-construct the unmentioned member to zero
@@ -5498,6 +5580,12 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 			     << "has no value for member '"
 			     << members[idx].name << "'." << endl;
 			des->errors++;
+		  } else if (default_value &&
+			     (dynamic_cast<const netstruct_t*>(members[idx].net_type) ||
+			      dynamic_cast<const netuarray_t*>(members[idx].net_type))) {
+			items[idx] = elaborate_expr_default_(des, scope,
+							     members[idx].net_type,
+							     src, need_const);
 		  } else {
 			items[idx] = elaborate_rval_expr(des, scope,
 							 members[idx].net_type,
