@@ -371,11 +371,31 @@ extern void vpip_report_deferred_assertion_reset_callbacks(
 					       const char*selector,
 					       int levels);
 
+/* Function return values are carried on the function-call stack and do not
+   have a regular signal object in the runtime hierarchy. This handle exposes
+   their declaration metadata through the VPI vpiReturn relation. */
+class __vpiFunctionReturn : public __vpiHandle {
+    public:
+      __vpiFunctionReturn(__vpiScope*scope, int func_type, unsigned width,
+                          bool is_2state);
+      int get_type_code(void) const override { return type_code_; }
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      __vpiScope*scope_;
+      int type_code_;
+      unsigned width_;
+      bool signed_;
+};
+
 class vpiScopeFunction  : public __vpiScope {
     public:
       inline vpiScopeFunction(const char*nam, const char*tnam,
 			      bool auto_flag, int func_type, unsigned func_wid, vvp_bit4_t func_init_val)
-      : __vpiScope(nam,tnam, auto_flag), func_type_(func_type), func_wid_(func_wid), func_init_val_(func_init_val)
+      : __vpiScope(nam,tnam, auto_flag), func_type_(func_type), func_wid_(func_wid), func_init_val_(func_init_val),
+	return_var_(this, func_type, func_wid, func_init_val == BIT4_0)
       { }
 
       int get_type_code(void) const override { return vpiFunction; }
@@ -388,6 +408,11 @@ class vpiScopeFunction  : public __vpiScope {
 		  return __vpiScope::vpi_get(code);
 	    }
       }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == 666) return &return_var_;
+	    return __vpiScope::vpi_handle(code);
+      }
 
     public:
       inline unsigned get_func_width(void) const { return func_wid_; }
@@ -397,6 +422,7 @@ class vpiScopeFunction  : public __vpiScope {
       int func_type_;
       unsigned func_wid_;
       vvp_bit4_t func_init_val_;
+      __vpiFunctionReturn return_var_;
 };
 
 extern __vpiScope* vpip_peek_current_scope(void);
