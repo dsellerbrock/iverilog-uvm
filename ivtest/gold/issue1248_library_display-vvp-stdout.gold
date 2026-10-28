@@ -1,0 +1,2 @@
+CELL=work.issue1248_leaf UPPER=work.issue1248_leaf HIER=issue1248_library_display.u
+ivltests/issue1248_library_display.v:7: $finish called at 1 (1s)

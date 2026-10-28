@@ -716,12 +716,32 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
       }
       break;
 
-    /* This Verilog format specifier is not currently supported!
-     * vpiCell and vpiLibrary need to be implemented first. */
     case 'l':
     case 'L':
-      vpi_printf("WARNING: %s:%d: %%%c currently unsupported %s%s.\n",
-                 info->filename, info->lineno, fmt, info->name, fmtb);
+      if (plus != 0 || prec != -1) {
+        vpi_printf("WARNING: %s:%d: invalid format %s%s.\n",
+                   info->filename, info->lineno, info->name, fmtb);
+      }
+      /* Icarus currently places all module definitions in the default
+       * work library. The definition name is the cell bound to this module
+       * instance. */
+      {
+        vpiHandle module = sys_func_module(info->scope);
+        const char *cell = vpi_get_str(vpiDefName, module);
+        size_t cell_size = strlen(cell) + sizeof("work.");
+        char *binding = malloc(cell_size);
+        snprintf(binding, cell_size, "work.%s", cell);
+
+        if (width == -1) width = 0;
+        size = strlen(binding) + 1;
+        if ((signed)size < (width+1)) size = width+1;
+        if (size > ini_size) result = realloc(result, size*sizeof(char));
+
+        if (ljust == 0) sprintf(result, "%*s", width, binding);
+        else sprintf(result, "%-*s", width, binding);
+        free(binding);
+      }
+      size = strlen(result) + 1;
       break;
 
     case 'm':

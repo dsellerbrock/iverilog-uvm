@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1248_library_display.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue1248_library_display" ],
+    "gold"          : "issue1248_library_display"
+}
