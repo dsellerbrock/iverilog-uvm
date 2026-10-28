@@ -18841,11 +18841,29 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		    // are otherwise elaborated only as r-values below, which used
 		    // to accept an assignment pattern such as
 		    // `fill('{default:9})' and silently discard the copy-out.
+		  PExpr*ref_actual = tmp;
+		    // The concurrent-assertion Preponed rewrite represents a sampled
+		    // variable as $ivl_clocking_sample(variable). A const-ref formal
+		    // still needs the original variable for identity/type/lifetime
+		    // checks; VVP binds the read-only formal to a per-call companion,
+		    // whose input value is evaluated from the sampled expression below.
+		  if (formal->port_type() == NetNet::PREF && formal->get_const()) {
+			const PECallFunction*sample =
+			      dynamic_cast<const PECallFunction*>(tmp);
+			if (sample && !sample->receiver_expr()
+			    && !sample->path().package
+			    && sample->path().name.size() == 1
+			    && peek_tail_name(sample->path().name)
+				 == perm_string::literal("$ivl_clocking_sample")
+			    && sample->get_parms().size() == 1
+			    && sample->get_parms()[0].parm)
+			      ref_actual = sample->get_parms()[0].parm;
+		  }
 		  if (formal->port_type() == NetNet::POUTPUT
 		      || formal->port_type() == NetNet::PINOUT
 		      || formal->port_type() == NetNet::PREF) {
 			unsigned errors_before = des->errors;
-			NetAssign_*lval = tmp->elaborate_lval(
+			NetAssign_*lval = ref_actual->elaborate_lval(
 						   des, scope, false, false,
 						   false, formal->port_type() == NetNet::PREF
 						   && formal->get_const());
