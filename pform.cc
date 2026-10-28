@@ -9817,6 +9817,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
 		  named_pexpr_t a;
 		  a.name = parms[k].name;
+		  a.parm = nullptr;
 		  if (parms[k].parm) {
 			a.parm = sva_clone_subst_(parms[k].parm, subst);
 			if (!a.parm) return nullptr;
@@ -10566,6 +10567,7 @@ static PExpr* sva_preserve_uarray_operand_(
       for (size_t k = 0 ; k < src.size() ; k += 1) {
 	    named_pexpr_t arg;
 	    arg.name = src[k].name;
+	    arg.parm = nullptr;
 	    if (src[k].parm) {
 		  if (k == 0 || k == 1)
 			arg.parm = sva_clone_expr_(src[k].parm);
@@ -11141,6 +11143,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
 		  named_pexpr_t a;
 		  a.name = parms[k].name;
+		  a.parm = nullptr;
 		  if (parms[k].parm) {
 			/* $past's number_of_ticks is a constant context, not a
 			   sampled operand. Wrapping it in $ivl_clocking_sample
