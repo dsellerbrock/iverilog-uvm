@@ -255,6 +255,11 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
       assert(rfp);
 
       switch (code) {
+	  case vpiIndex:
+	    if (rfp->get_type_code() == vpiModule &&
+	        rfp->has_module_array_index_)
+		  return &rfp->module_array_index_;
+	    return 0;
 
 	  case vpiScope:
 	    return rfp->scope;
@@ -357,11 +362,27 @@ __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 {
       name_ = vpip_name_string(nam);
       tname_ = vpip_name_string(tnam? tnam : "");
+      has_module_array_index_ = false;
+      const char *open = strrchr(name_, '[');
+      if (open && open[1] != 0) {
+	    char *end;
+	    long index = strtol(open + 1, &end, 10);
+	    if (end != open + 1 && end[0] == ']' && end[1] == 0 &&
+	        index >= INT_MIN && index <= INT_MAX) {
+		  module_array_index_.set_value(index);
+		  has_module_array_index_ = true;
+	    }
+      }
 }
 
 int __vpiScope::vpi_get(int code)
 {
       switch (code) {
+	  case vpiIndex:
+	    if (get_type_code() == vpiModule && has_module_array_index_)
+		  return module_array_index_.get_value();
+	    return vpiUndefined;
+
 	  case vpiCellInstance:
 	    return is_cell? 1 : 0;
 

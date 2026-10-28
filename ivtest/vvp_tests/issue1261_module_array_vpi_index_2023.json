@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1261_module_array_vpi_index.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1261_module_array_vpi_index"],
+  "vpi-sources": ["vpi/issue1261_module_array_vpi_index.c"],
+  "output-contains": ["PASS: module-array VPI indices are 2, 3, and 4"]
+}
