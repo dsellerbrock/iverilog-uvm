@@ -595,6 +595,10 @@ static int signal_get(int code, vpiHandle ref)
                   return vpi_get(vpiAutomatic, rfp->within.parent);
             return rfp->automatic_storage ? 1 : 0;
 
+          case vpiAllocScheme:
+            return rfp->automatic_storage ? vpiAutomaticScheme
+                                          : vpiOtherScheme;
+
 #ifdef BR916_STOPGAP_FIX
           case _vpiFromThr:
             return _vpiNoThr;
