@@ -573,14 +573,16 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 
 PLI_INT64 vpi_get64(int property, vpiHandle ref)
 {
-	// For now we only support getting the nexus id.
-      if ((ref == 0) || (property != _vpiNexusId)) {
-	    fprintf(vpi_trace, "vpi_get64(%s, %p) is not currently supported.\n",
-		    vpi_property_str(property), ref);
-	    return vpiUndefined;
-      }
+	  if (ref == 0)
+		return vpiUndefined;
+	  if (property != _vpiNexusId && property != vpiObjId) {
+		if (vpi_trace)
+		      fprintf(vpi_trace, "vpi_get64(%s, %p) is not currently supported.\n",
+			      vpi_property_str(property), ref);
+		return vpiUndefined;
+	  }
 
-      int64_t res = ref->vpi_get64(property);
+	  int64_t res = ref->vpi_get64(property);
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_get64(%s, %p) --> %" PRId64 "\n",

@@ -66,6 +66,15 @@ static const char* describe_class_object_(const vvp_object_t&obj)
       return "<object>";
 }
 
+static vvp_cobject* get_class_object_(const vvp_object_t&obj)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) return 0;
+      const class_type*defn = cobj->get_defn();
+      return defn && !defn->is_struct_type() && !defn->is_union_type()
+	    ? cobj : 0;
+}
+
 static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
 {
       return fun ? fun->declared_type() : 0;
@@ -323,6 +332,47 @@ void __vpiCobjectVar::vpi_get_value(p_vpi_value val)
       }
 }
 
+int64_t __vpiCobjectVar::vpi_get64(int code)
+{
+      if (code != vpiObjId || virtual_interface_)
+	    return __vpiBaseVar::vpi_get64(code);
+      vvp_fun_signal_object*fun = get_object_fun_(this);
+      if (!fun) return 0;
+      vvp_object_t obj = fun->peek_object();
+      vvp_cobject*cobj = get_class_object_(obj);
+      return cobj ? (int64_t)cobj->object_id() : 0;
+}
+
+class __vpiClassObject : public __vpiHandle {
+    public:
+      explicit __vpiClassObject(vvp_cobject*object) : object_(object) { }
+
+      int get_type_code(void) const override { return vpiClassObj; }
+
+      int64_t vpi_get64(int code) override
+      {
+	    if (code != vpiObjId || !vvp_object::pointer_is_live(object_))
+		  return __vpiHandle::vpi_get64(code);
+	    return (int64_t)object_->object_id();
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiClassTypespec
+		&& vvp_object::pointer_is_live(object_))
+		  return const_cast<class_type*>(object_->get_defn());
+	    return __vpiHandle::vpi_handle(code);
+      }
+
+    private:
+      vvp_cobject*object_;
+};
+
+static vpiHandle class_object_handle_(vvp_cobject*object)
+{
+      return object ? new __vpiClassObject(object) : 0;
+}
+
 vpiHandle __vpiCobjectVar::vpi_handle(int code)
 {
       vvp_fun_signal_object*fun = get_object_fun_(this);
@@ -336,6 +386,13 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
                   vvp_object_t obj = fun->peek_object();
                   if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                         return const_cast<class_type*>(cobj->get_defn());
+            }
+            return 0;
+
+          case vpiClassObj:
+            if (fun) {
+                  vvp_object_t obj = fun->peek_object();
+                  return class_object_handle_(get_class_object_(obj));
             }
             return 0;
 
@@ -495,6 +552,15 @@ class __vpiClassMember : public __vpiDarrayVar {
 		default:
 		  return vpiUndefined;
 	    }
+      }
+
+      int64_t vpi_get64(int code) override
+      {
+	    if (code != vpiObjId || kind_ != 'o' || is_container_())
+		  return __vpiDarrayVar::vpi_get64(code);
+	    vvp_object_t obj = live_member_value_();
+	    vvp_cobject*cobj = get_class_object_(obj);
+	    return cobj ? (int64_t)cobj->object_id() : 0;
       }
 
       char* vpi_get_str(int code) override
@@ -670,6 +736,13 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       vpiHandle vpi_handle(int code) override
       {
+	    if (code == vpiClassObj)
+		  return class_object_handle_(get_class_object_(live_member_value_()));
+	    if (code == vpiClassTypespec && kind_ == 'o') {
+		  if (vvp_cobject*cobj = member_object_())
+			return const_cast<class_type*>(cobj->get_defn());
+		  return 0;
+	    }
 	    if (is_fixed_array_() || is_container_()) {
 		  if (code == vpiLeftRange)
 			return get_left_range();

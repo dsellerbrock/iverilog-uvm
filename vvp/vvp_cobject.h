@@ -108,6 +108,8 @@ class vvp_cobject : public vvp_object {
       explicit vvp_cobject(const class_type*defn);
       ~vvp_cobject() override;
 
+      uint64_t object_id() const { return object_id_; }
+
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0);
 
@@ -317,6 +319,9 @@ class vvp_cobject : public vvp_object {
 
     private:
       const class_type* defn_;
+	// Stable for the lifetime of this dynamic class object; exposed through
+	// the IEEE vpiObjId property.
+      uint64_t object_id_;
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
       std::map<size_t, vvp_object_t> ref_props_;
