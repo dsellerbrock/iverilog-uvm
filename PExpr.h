@@ -275,6 +275,8 @@ class PExpr : public LineInfo {
 extern bool pform_procedural_expr_context;
 extern bool pform_default_argument_context;
 extern bool pform_default_argument_requires_procedural_context;
+// True while testing the expression operand of a type() operator.
+extern bool pform_type_operator_context;
 
 class PExprProceduralContextGuard {
     public:
@@ -283,6 +285,17 @@ class PExprProceduralContextGuard {
       { pform_procedural_expr_context = enable; }
       ~PExprProceduralContextGuard()
       { pform_procedural_expr_context = old_; }
+    private:
+      bool old_;
+};
+
+class PExprTypeOperatorContextGuard {
+    public:
+      PExprTypeOperatorContextGuard()
+      : old_(pform_type_operator_context)
+      { pform_type_operator_context = true; }
+      ~PExprTypeOperatorContextGuard()
+      { pform_type_operator_context = old_; }
     private:
       bool old_;
 };
