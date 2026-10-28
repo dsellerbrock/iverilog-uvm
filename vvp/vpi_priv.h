@@ -314,6 +314,8 @@ class __vpiScope : public __vpiHandle {
       __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
+	/* Objects made visible in this scope by explicit package imports. */
+      std::vector<class __vpiHandle*> imports;
 	/* Set of types */
       std::map<std::string,class_type*> classes;
         /* Keep an array of items to be automatically allocated */

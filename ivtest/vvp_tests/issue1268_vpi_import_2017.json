@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1268_vpi_import.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1268_vpi_import_2017"],
+  "vpi-sources": ["vpi/issue1268_import.c"],
+  "output-contains": ["PASSED"]
+}

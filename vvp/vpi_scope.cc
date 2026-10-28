@@ -353,6 +353,17 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
 
+      /* IEEE 1800-2017/2023 37.12: imported objects are those actually
+         referenced through an explicit import. */
+      if (code == 726 /* vpiImport, Annex M */) {
+	    if (ref->imports.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>
+		  (calloc(ref->imports.size(), sizeof(vpiHandle)));
+	    for (size_t idx = 0; idx < ref->imports.size(); ++idx)
+		  args[idx] = ref->imports[idx];
+	    return vpip_make_iterator(ref->imports.size(), args, true);
+      }
+
       return make_subset_iterator_(code, ref->intern);
 }
 
@@ -1427,6 +1438,29 @@ void compile_scope_recall(char*symbol)
 	   type punned pointer warning from some gcc compilers. */
       compile_vpi_lookup((vpiHandle*)(void*)&current_scope, symbol);
       assert(current_scope);
+}
+
+void compile_import_decl(char*name, char*package_label)
+{
+      vpiHandle package_handle = 0;
+      compile_vpi_lookup(&package_handle, package_label);
+      assert(package_handle);
+      __vpiScope*package = dynamic_cast<__vpiScope*>(package_handle);
+      assert(package);
+
+      const char*import_name = vpip_name_string(name);
+      for (vpiHandle item : package->intern) {
+	    char*item_name = item->vpi_get_str(vpiName);
+	    if (item_name && strcmp(item_name, import_name) == 0) {
+		  current_scope->imports.push_back(item);
+		  delete[] name;
+		  return;
+	    }
+      }
+
+	/* Some imported types do not have a package-scope VPI object in the
+	   current runtime representation. They cannot be linked into vpiImport. */
+      delete[] name;
 }
 
 /*

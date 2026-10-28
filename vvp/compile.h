@@ -579,6 +579,7 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long def_file_idx, long def_lineno,
                                long is_cell);
 extern void compile_scope_recall(char*sym);
+extern void compile_import_decl(char*name, char*package_label);
 
 /*
  * The parser uses this function to declare a thread. The start_sym is

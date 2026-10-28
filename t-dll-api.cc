@@ -2930,6 +2930,26 @@ extern "C" ivl_scope_t ivl_scope_parent(ivl_scope_t net)
       return net->parent;
 }
 
+extern "C" unsigned ivl_scope_imports(ivl_scope_t net)
+{
+      assert(net && net->net_);
+      return net->net_->used_imports();
+}
+
+extern "C" const char* ivl_scope_import_name(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      perm_string name = net->net_->used_import_name(idx);
+      return name.str();
+}
+
+extern "C" ivl_scope_t ivl_scope_import_package(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      NetScope*package = net->net_->used_import_package(idx);
+      return package ? package->target_scope() : 0;
+}
+
 
 extern "C" unsigned ivl_scope_mod_module_ports(ivl_scope_t net)
 {

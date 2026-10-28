@@ -26,6 +26,14 @@
 # include  <ctype.h>
 # include  "ivl_alloc.h"
 
+struct imported_object_s {
+      ivl_scope_t scope;
+      ivl_scope_t package;
+      const char*name;
+      struct imported_object_s*next;
+};
+static struct imported_object_s*imported_objects = 0;
+
 struct deferred_array_decl_s {
       ivl_signal_t sig;
       unsigned needed : 1;
@@ -3632,6 +3640,19 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+	/* Record referenced explicit imports. They are emitted after all
+	   scopes have been declared so package objects are available to link. */
+      for (idx = 0; idx < ivl_scope_imports(net); idx += 1) {
+	    ivl_scope_t package = ivl_scope_import_package(net, idx);
+	    if (!package) continue;
+	    struct imported_object_s*entry = malloc(sizeof *entry);
+	    entry->scope = net;
+	    entry->package = package;
+	    entry->name = ivl_scope_import_name(net, idx);
+	    entry->next = imported_objects;
+	    imported_objects = entry;
+      }
+
       for (idx = 0 ;  idx < ivl_scope_events(net) ;  idx += 1) {
 	    ivl_event_t event = ivl_scope_event(net, idx);
 	    draw_event_in_scope(event);
@@ -3666,6 +3687,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
       return 0;
+}
+
+void emit_import_directives(void)
+{
+      struct imported_object_s*entry;
+      for (entry = imported_objects; entry; ) {
+	    struct imported_object_s*next = entry->next;
+	    fprintf(vvp_out, "    .scope S_%p;\n", entry->scope);
+	    fprintf(vvp_out, " .import \"%s\", S_%p;\n",
+		    vvp_mangle_name(entry->name), entry->package);
+	    free(entry);
+	    entry = next;
+      }
+      imported_objects = 0;
 }
 
 /*

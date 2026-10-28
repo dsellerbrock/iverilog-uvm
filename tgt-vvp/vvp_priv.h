@@ -98,6 +98,7 @@ extern void emit_td_stub_definitions(void);
    companion C stub file that provides the exported C symbols. */
 extern void note_dpi_export(ivl_scope_t scope);
 extern void emit_dpi_export_directives(void);
+extern void emit_import_directives(void);
 extern void emit_dpi_export_stub_file(const char*vvp_path);
 
 extern int draw_scope(ivl_scope_t scope, ivl_scope_t parent);

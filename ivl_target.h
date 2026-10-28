@@ -2117,6 +2117,11 @@ extern const char*  ivl_scope_basename(ivl_scope_t net);
 extern unsigned     ivl_scope_params(ivl_scope_t net);
 extern ivl_parameter_t ivl_scope_param(ivl_scope_t net, unsigned idx);
 extern ivl_scope_t  ivl_scope_parent(ivl_scope_t net);
+/* Imported package items actually referenced in this scope (IEEE 1800
+   37.12). */
+extern unsigned ivl_scope_imports(ivl_scope_t net);
+extern const char* ivl_scope_import_name(ivl_scope_t net, unsigned idx);
+extern ivl_scope_t ivl_scope_import_package(ivl_scope_t net, unsigned idx);
 
 extern unsigned ivl_scope_mod_module_ports(ivl_scope_t net);
 extern const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx );

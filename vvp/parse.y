@@ -916,6 +916,9 @@ statement
 	|         K_SCOPE T_SYMBOL ';'
 		{ compile_scope_recall($2); }
 
+	|         K_IMPORT T_STRING ',' T_SYMBOL ';'
+		{ compile_import_decl($2, $4); }
+
 
   /* Port information for scopes... currently this is just meta-data for VPI queries */
 

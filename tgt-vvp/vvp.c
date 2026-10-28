@@ -997,6 +997,7 @@ static int finish_design_output(ivl_design_t des, int rc)
 
       emit_deferred_array_decls();
       emit_signal_vartypes();
+      emit_import_directives();
 
         /* Emit no-op TD stubs for referenced labels that were not
            materialized as function/task definitions. */
