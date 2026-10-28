@@ -513,6 +513,12 @@ __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 int __vpiScope::vpi_get(int code)
 {
       switch (code) {
+	  case vpiVisibility:
+	    if ((get_type_code() == vpiFunction || get_type_code() == vpiTask)
+		&& (!scope || scope->get_type_code() != vpiClassTypespec))
+		  return vpiPublicVis;
+	    return vpiUndefined;
+
 	  case vpiIndex:
 	    if (get_type_code() == vpiModule && has_module_array_index_)
 		  return module_array_index_.get_value();
