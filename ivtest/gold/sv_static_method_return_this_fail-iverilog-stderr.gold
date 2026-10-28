@@ -1,0 +1,2 @@
+ivltests/sv_static_method_return_this_fail.v:3: error: Access to `this' from a static method is illegal.
+1 error(s) during elaboration.

@@ -3957,6 +3957,33 @@ static void report_nonclass_typedef_class_scope_(Design*des,
       des->errors += 1;
 }
 
+static bool scope_in_static_class_method_(NetScope*scope)
+{
+      for (NetScope*cur = scope; cur; cur = cur->parent()) {
+	    const PTaskFunc*method = cur->func_pform();
+	    if (!method) method = cur->task_pform();
+	    if (!method) continue;
+	    return method->method_qualifiers().test_static();
+      }
+      return false;
+}
+
+static bool reject_static_method_this_(Design*des, NetScope*scope,
+				       const PEIdent*ident)
+{
+      const pform_scoped_name_t&path = ident->path();
+      if (path.package || path.name.size() != 1
+	  || peek_head_name(path) != perm_string::literal(THIS_TOKEN)
+	  || !scope_in_static_class_method_(scope))
+	    return false;
+
+      cerr << ident->get_fileline()
+	   << ": error: Access to `this' from a static method is illegal."
+	   << endl;
+      des->errors += 1;
+      return true;
+}
+
 static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const pform_scoped_name_t&path,
 						   const parmvalue_t*leading_type_args = 0,
@@ -4083,14 +4110,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 			      implicit_this = true;
 			      break;
 			}
-		  for (NetScope*cur = scope; implicit_this && cur; cur = cur->parent()) {
-			  const PTaskFunc*caller_def = cur->func_pform();
-			  if (!caller_def) caller_def = cur->task_pform();
-			  if (!caller_def) continue;
-			  if (caller_def->method_qualifiers().test_static())
-				implicit_this = false;
-			  break;
-		  }
+		  if (implicit_this && scope_in_static_class_method_(scope))
+			implicit_this = false;
 		  if (implicit_this && !find_implicit_this_handle(des, scope))
 			implicit_this = false;
 		  if (!implicit_this) {
@@ -16819,6 +16840,15 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
+      if (!qual.test_static() && sr.net
+	  && sr.net->name() == perm_string::literal(THIS_TOKEN)
+	  && scope_in_static_class_method_(scope)) {
+	    cerr << get_fileline() << ": error: Access to non-static class member `"
+		 << class_type->get_prop_name(pidx)
+		 << "' from a static method is illegal." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       if (qual.test_local()
 	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
@@ -18263,6 +18293,15 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
            const NetScope *c_scope = scope->get_class_scope();
            if (c_scope && (c_scope == dscope->get_class_scope())) {
 		 if (scope_method_uses_implicit_this(des, dscope)) {
+		       const PTaskFunc*callee = dscope->func_pform();
+		       if (callee && !callee->method_qualifiers().test_static()
+			   && scope_in_static_class_method_(scope)) {
+			     cerr << get_fileline() << ": error: Call to non-static class method `"
+				  << peek_tail_name(path_)
+				  << "' from a static method is illegal." << endl;
+			     des->errors += 1;
+			     return nullptr;
+		       }
 				 if (debug_elaborate) {
 			       cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 				    << "Found a class method calling another method." << endl;
@@ -24136,6 +24175,8 @@ static bool reject_left_last_in_fixed_unpacked_prefix_(
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
+	  if (reject_static_method_this_(des, scope, this))
+	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
@@ -25185,6 +25226,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+	  if (reject_static_method_this_(des, scope, this))
+	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
