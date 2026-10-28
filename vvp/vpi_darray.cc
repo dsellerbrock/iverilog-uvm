@@ -61,12 +61,16 @@ unsigned __vpiDarrayVar::get_size() const
 
 vpiHandle __vpiDarrayVar::get_left_range()
 {
+      if (get_size() == 0 || get_vvp_assoc())
+	    return 0;
       left_range_.set_value(0);
       return &left_range_;
 }
 
 vpiHandle __vpiDarrayVar::get_right_range()
 {
+      if (get_size() == 0 || get_vvp_assoc())
+	    return 0;
       right_range_.set_value(get_size() - 1);
       return &right_range_;
 }

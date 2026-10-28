@@ -1,6 +1,6 @@
 {
     "type"          : "CE",
-    "source"        : "issue1249_pure_dpi_formals.v",
+    "source"        : "issue1249_pure_dpi_formals_2023.v",
     "iverilog-args" : [ "-g2023", "-s", "test" ],
-    "gold"           : "issue1249_pure_dpi_formals"
+    "gold"           : "issue1249_pure_dpi_formals_2023"
 }

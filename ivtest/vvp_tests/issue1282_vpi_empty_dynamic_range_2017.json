@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1282_vpi_empty_dynamic_range.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1282_empty_dynamic_range_2017"],
+  "vpi-sources": ["vpi/issue1282_empty_dynamic_range.c"],
+  "output-contains": ["PASSED"]
+}

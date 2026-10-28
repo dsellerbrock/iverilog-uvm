@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1280_constant_select.v",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1280_constant_select_2023"],
+  "vpi-sources": ["vpi/issue1280_constant_select.c"],
+  "output-contains": ["PASSED"]
+}
