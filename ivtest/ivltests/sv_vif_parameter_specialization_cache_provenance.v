@@ -154,19 +154,10 @@ module sv_vif_parameter_specialization_cache_provenance;
     if ($bits(local8_a.item.payload) != 9
         || $bits(local16.item.payload) != 17)
       $fatal(1, "concrete dependent class specialization control failed");
-    // A class declaration inside each physical interface instance has a
-    // distinct nominal owner even when its evaluated parameters match (6.22).
-    if (type(local8_a.item) == type(local8_b.item))
-      $fatal(1, "physical interface-local class specializations aliased");
-    // These are two expressions through the same declared VIF view. Their
-    // static member type is the canonical rootless declaration carrier; this
-    // intentionally does not compare the distinct nominal C declarations in
-    // physical interface instances local8_a and local8_b (6.22 preamble).
+    // IEEE 1800-2017/2023 6.23 forbids hierarchical references in type()
+    // operands; these comparisons use member selections through VIF variables.
     if (type(local8_vif_a.item) != type(local8_vif_b.item))
       $fatal(1, "identical VIF declaration-view specializations diverged");
-    if (type(local8_a.item) == type(local8_vif_a.item)
-        || type(local8_b.item) == type(local8_vif_b.item))
-      $fatal(1, "physical and rootless VIF declaration owners aliased");
     if ($bits(local8_vif_a.item.payload) != 9)
       $fatal(1, "rootless C#(8+1) payload width was not 9");
     if ($bits(local16_vif.item.payload) != 17)

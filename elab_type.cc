@@ -3046,6 +3046,7 @@ ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    return named_type->elaborate_type(des, scope);
 
       ivl_assert(*this, expr);
+      PExprTypeOperatorContextGuard type_operator_context;
 
 	// A plain (possibly indexed/hierarchical/member-selected)
 	// identifier: resolve its exact declared type without evaluating
