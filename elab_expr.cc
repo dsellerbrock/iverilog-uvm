@@ -8374,6 +8374,48 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       unsigned w;
       NetExpr*body;
       {
+	    std::vector<PExpr*> ops;
+	    collect_operands_(ops);
+	    if (ops.size() > 1) {
+	      std::vector<NetExpr*> parts;
+	      w = 0;
+	      for (size_t idx = 0; idx < ops.size(); idx += 1) {
+		stream_uarray_op_info_t info;
+		int have = stream_uarray_operand_(des, scope, ops[idx], info);
+		if (have < 0) {
+		  for (size_t j = 0; j < parts.size(); j += 1) delete parts[j];
+		  return nullptr;
+		}
+		NetExpr*part = nullptr;
+		unsigned pw = 0;
+		if (have > 0) {
+		  pw = (unsigned)info.elem_type->packed_width() * info.elem_count;
+		  part = stream_uarray_concat_(ops[idx], info);
+		} else {
+		  pw = ops[idx]->test_width(des, scope, m);
+		  if (pw) part = ops[idx]->elaborate_expr(des, scope, pw, flags);
+		}
+		if (!part || pw == 0 || pw > UINT_MAX - w) {
+		  delete part;
+		  for (size_t j = 0; j < parts.size(); j += 1) delete parts[j];
+		  if (pw > UINT_MAX - w) {
+		    cerr << get_fileline() << ": error: streaming concatenation width exceeds the supported limit." << endl;
+		    des->errors += 1;
+		  }
+		  return nullptr;
+		}
+		w += pw;
+		parts.push_back(part);
+	      }
+	      if (parts.size() == 1) body = parts[0];
+	      else {
+		NetEConcat*cat = new NetEConcat(parts.size(), 1, IVL_VT_LOGIC);
+		cat->set_line(*this);
+		for (size_t idx = 0; idx < parts.size(); idx += 1)
+		  cat->set(idx, parts[idx]);
+		body = cat;
+	      }
+	    } else {
 	    stream_uarray_op_info_t s_info;
 	    int s_have = stream_uarray_operand_(des, scope, inner_,
 							 s_info);
@@ -8399,6 +8441,7 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  }
 		  body = inner_->elaborate_expr(des, scope, w, flags);
 		  }
+	    }
 	    }
       }
       unsigned slice = resolve_slice_(des, scope);
@@ -8435,6 +8478,25 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
       width_mode_t m = SIZED;
       unsigned w;
       {
+	    std::vector<PExpr*> ops;
+	    collect_operands_(ops);
+	    if (ops.size() > 1) {
+	      w = 0;
+	      for (size_t idx = 0; idx < ops.size(); idx += 1) {
+		stream_uarray_op_info_t info;
+		int have = stream_uarray_operand_(des, scope, ops[idx], info);
+		if (have < 0) return nullptr;
+		unsigned pw = have > 0
+		  ? (unsigned)info.elem_type->packed_width() * info.elem_count
+		  : ops[idx]->test_width(des, scope, m);
+		if (!pw || pw > UINT_MAX - w) {
+		  cerr << get_fileline() << ": error: streaming concatenation requires a known, supported width." << endl;
+		  des->errors += 1;
+		  return nullptr;
+		}
+		w += pw;
+	      }
+	    } else {
 	    stream_uarray_op_info_t s_info;
 	    int s_have = stream_uarray_operand_(des, scope, inner_,
 							 s_info);
@@ -8449,6 +8511,7 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 		  if (!stream_whole_struct_operand_(des, scope, inner_, struct_net,
 						    struct_type, w))
 			w = inner_->test_width(des, scope, m);
+	    }
 	    }
       }
       if (w == 0) {

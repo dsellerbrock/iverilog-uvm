@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1231_stream_array_then_item_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

@@ -10,6 +10,9 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
+issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
+
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1239_global_clocking_generate_2017 CE,-g2017,-s,issue1239_global_clocking_generate ivltests
