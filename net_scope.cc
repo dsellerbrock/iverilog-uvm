@@ -32,6 +32,7 @@
 # include  "PPackage.h"
 # include  "PTask.h"
 # include  "PWire.h"
+# include  "pform_types.h"
 # include  <cstring>
 # include  <cstdlib>
 # include  <sstream>
@@ -279,9 +280,26 @@ NetScope*NetScope::find_import(const Design*des, perm_string name)
 
 void NetScope::add_typedefs(const map<perm_string,typedef_t*>*typedefs)
 {
-      if (!typedefs->empty())
+	if (!typedefs->empty())
 	    typedefs_ = *typedefs;
       clear_lookup_caches_(true, false);
+}
+
+void NetScope::elaborate_typedef_types(Design*des)
+{
+      for (map<perm_string,typedef_t*>::const_iterator cur = typedefs_.begin();
+	   cur != typedefs_.end(); ++cur) {
+	    typedef_t*decl = cur->second;
+	    if (!decl || !decl->is_explicit_typedef()
+		|| (!decl->get_data_type()
+		    && decl->get_basic_type() == typedef_t::ANY))
+		  continue;
+	    ivl_type_t type = decl->elaborate_type(des, this);
+	    if (type) typedef_types_[cur->first] = type;
+      }
+      for (map<hname_t,NetScope*>::const_iterator cur = children_.begin();
+	   cur != children_.end(); ++cur)
+	    if (cur->second) cur->second->elaborate_typedef_types(des);
 }
 
 void NetScope::class_definitions_changed_()

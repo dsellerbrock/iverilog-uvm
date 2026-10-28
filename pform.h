@@ -787,9 +787,11 @@ extern void pform_make_elab_task(const struct vlltype&li,
 
 extern void pform_set_typedef(const struct vlltype&loc, perm_string name,
 			      data_type_t*data_type,
-			      std::list<pform_range_t>*unp_ranges = nullptr);
+			      std::list<pform_range_t>*unp_ranges = nullptr,
+			      bool explicit_typedef = false);
 extern void pform_forward_typedef(const struct vlltype&loc, perm_string name,
-			      enum typedef_t::basic_type basic_type);
+			      enum typedef_t::basic_type basic_type,
+			      bool explicit_typedef = false);
 
 extern void pform_set_type_referenced(const struct vlltype&loc, const char*name);
 

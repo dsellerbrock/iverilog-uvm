@@ -734,13 +734,56 @@ double vpip_scaled_time_from_handle(vvp_time64_t time, vpiHandle obj)
 	    return (double)time / pow(10.0, -scale);
 }
 
+class __vpiTimeQueue : public __vpiHandle {
+    public:
+      explicit __vpiTimeQueue(vvp_time64_t time) : time_(time) { }
+      int get_type_code(void) const override { return vpiTimeQueue; }
+      vvp_time64_t time(void) const { return time_; }
+    private:
+      vvp_time64_t time_;
+};
+
+class __vpiTimeQueueIterator : public __vpiIterator {
+    public:
+      explicit __vpiTimeQueueIterator(const vector<vvp_time64_t>& times)
+      {
+            for (vector<vvp_time64_t>::const_iterator time = times.begin();
+                 time != times.end(); ++time)
+                  items.push_back(new __vpiTimeQueue(*time));
+            args = items.empty() ? 0 : &items[0];
+            nargs = items.size();
+            next = 0;
+            free_args_flag = false;
+      }
+      ~__vpiTimeQueueIterator() override
+      {
+            for (vector<vpiHandle>::iterator item = items.begin();
+                 item != items.end(); ++item)
+                  delete *item;
+      }
+      free_object_fun_t free_object_fun(void) override;
+      vector<vpiHandle> items;
+};
+
+static int iterator_free_time_queue(vpiHandle ref)
+{
+      delete dynamic_cast<__vpiTimeQueueIterator*>(ref);
+      return 1;
+}
+
+__vpiHandle::free_object_fun_t __vpiTimeQueueIterator::free_object_fun(void)
+{ return &iterator_free_time_queue; }
+
 void vpi_get_time(vpiHandle obj, s_vpi_time*vp)
 {
       vvp_time64_t time;
 
       assert(vp);
 
-      time = schedule_simtime();
+      if (__vpiTimeQueue* queue = dynamic_cast<__vpiTimeQueue*>(obj))
+            time = queue->time();
+      else
+            time = schedule_simtime();
 
       switch (vp->type) {
           case vpiSimTime:
@@ -1467,6 +1510,13 @@ static vpiHandle vpip_make_udp_iterator()
 static vpiHandle vpi_iterate_global(int type)
 {
       switch (type) {
+          case vpiTimeQueue: {
+                vector<vvp_time64_t> times;
+                schedule_get_time_queue(times);
+                if (times.empty()) return 0;
+                return new __vpiTimeQueueIterator(times);
+          }
+
 	  case vpiInstance:
 	    // fallthrough
 	  case vpiModule:

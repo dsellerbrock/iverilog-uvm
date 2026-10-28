@@ -31,6 +31,8 @@
 # include  "netscalar.h"
 # include  "netstruct.h"
 # include  "netvector.h"
+# include  "sv_vpi_user.h"
+# include  "Module.h"
 # include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
@@ -2663,6 +2665,27 @@ extern "C" ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx)
       return (*net->aux_->enumerations_)[idx];
 }
 
+extern "C" unsigned ivl_scope_typedefs(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->typedefs_
+	   ? net->aux_->typedefs_->size() : 0;
+}
+
+extern "C" const char* ivl_scope_typedef_name(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->aux_ && net->aux_->typedefs_);
+      assert(idx < net->aux_->typedefs_->size());
+      return (*net->aux_->typedefs_)[idx].first;
+}
+
+extern "C" ivl_type_t ivl_scope_typedef_type(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->aux_ && net->aux_->typedefs_);
+      assert(idx < net->aux_->typedefs_->size());
+      return (*net->aux_->typedefs_)[idx].second;
+}
+
 extern "C" unsigned ivl_scope_nettypes(ivl_scope_t net)
 {
       assert(net && net->net_);
@@ -4427,6 +4450,54 @@ extern "C" int ivl_type_is_interface(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
       return class_type && class_type->is_interface() ? 1 : 0;
+}
+
+extern "C" int ivl_type_typedef_vpi_type(ivl_type_t net)
+{
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(net))
+	    return class_type->is_interface()
+		  ? vpiInterfaceTypespec : vpiClassTypespec;
+      if (dynamic_cast<const netenum_t*>(net)) return vpiEnumTypespec;
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(net))
+	    return record->union_flag() ? vpiUnionTypespec : vpiStructTypespec;
+      if (net == &netvector_t::atom2s64 || net == &netvector_t::atom2u64)
+	    return vpiLongIntTypespec;
+      if (net == &netvector_t::atom2s32 || net == &netvector_t::atom2u32)
+	    return vpiIntTypespec;
+      if (net == &netvector_t::atom2s16 || net == &netvector_t::atom2u16)
+	    return vpiShortIntTypespec;
+      if (net == &netvector_t::atom2s8 || net == &netvector_t::atom2u8)
+	    return vpiByteTypespec;
+      if (net == &netvector_t::time_signed || net == &netvector_t::time_unsigned)
+	    return vpiTimeTypespec;
+      if (const netvector_t*vector = dynamic_cast<const netvector_t*>(net)) {
+	    if (vector->get_isint()) return vpiIntegerTypespec;
+	    if (ivl_type_base(net) == IVL_VT_BOOL) return vpiBitTypespec;
+	    if (ivl_type_base(net) == IVL_VT_LOGIC) return vpiLogicTypespec;
+	    if (ivl_type_base(net) == IVL_VT_REAL) return vpiRealTypespec;
+      }
+      if (ivl_type_base(net) == IVL_VT_REAL) return vpiRealTypespec;
+      if (ivl_type_base(net) == IVL_VT_STRING) return vpiStringTypespec;
+      if (ivl_type_is_chandle(net)) return vpiChandleTypespec;
+      return vpiArrayTypespec;
+}
+
+extern "C" const char* ivl_type_interface_modport(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (!class_type || !class_type->is_interface()
+	  || class_type->interface_modport().nil())
+	    return 0;
+      return class_type->interface_modport().str();
+}
+
+extern "C" const char* ivl_type_interface_defname(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (!class_type || !class_type->is_interface()
+	  || !class_type->interface_definition())
+	    return 0;
+      return class_type->interface_definition()->mod_name().str();
 }
 
 extern "C" const char* ivl_type_method_prefix(ivl_type_t net)

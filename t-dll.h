@@ -887,6 +887,7 @@ struct ivl_scope_proc_s {
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
+      std::vector<std::pair<const char*, ivl_type_t> >*typedefs_;
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
       ivl_scope_objects_s*objects_;

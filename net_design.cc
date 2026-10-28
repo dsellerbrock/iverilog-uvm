@@ -261,6 +261,17 @@ void Design::release_elaboration_caches()
       constraint_order_diagnostic_sites_.clear();
 }
 
+void Design::elaborate_typedef_types()
+{
+      for (map<perm_string,NetScope*>::iterator cur = packages_.begin();
+	   cur != packages_.end(); ++cur)
+	    cur->second->elaborate_typedef_types(this);
+
+      for (list<NetScope*>::iterator cur = root_scopes_.begin();
+	   cur != root_scopes_.end(); ++cur)
+	    (*cur)->elaborate_typedef_types(this);
+}
+
 void Design::register_nettype_scope(const nettype_t*type, NetScope*scope)
 {
       if (!type || !scope)

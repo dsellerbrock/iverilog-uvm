@@ -32,6 +32,7 @@
 # include  "netqueue.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  "pform_types.h"
 # include  "discipline.h"
 # include  <cstdlib>
 # include  "ivl_assert.h"
@@ -966,6 +967,21 @@ static void scope_add_child_(ivl_scope_t parent, ivl_scope_t child)
       parent->child[parent->child_count_++] = child;
 }
 
+static void scope_add_typedefs_(ivl_scope_t target, const NetScope*scope)
+{
+	const std::map<perm_string,ivl_type_t>&typedefs =
+	      scope->local_typedef_types();
+      if (typedefs.empty()) return;
+      std::vector<std::pair<const char*, ivl_type_t> >*&items =
+	    target->ensure_aux_()->typedefs_;
+      if (!items)
+	    items = new std::vector<std::pair<const char*, ivl_type_t> >();
+	for (std::map<perm_string,ivl_type_t>::const_iterator cur =
+		 typedefs.begin(); cur != typedefs.end(); ++cur) {
+	      items->push_back(std::make_pair(cur->first.str(), cur->second));
+      }
+}
+
 void dll_target::add_root(const NetScope *s)
 {
       ivl_scope_t root_ = new struct ivl_scope_s;
@@ -981,6 +997,7 @@ void dll_target::add_root(const NetScope *s)
       root_->tname_ = root_->name_;
       root_->time_precision = s->time_precision();
       root_->time_units = s->time_unit();
+      scope_add_typedefs_(root_, s);
       if (ivl_attribute_s*attr = fill_in_attributes(s))
 	    root_->ensure_aux_()->attr = attr;
       root_->is_auto = 0;
@@ -3587,6 +3604,8 @@ void dll_target::scope(const NetScope*net)
 	    scop->is_interface = net->is_interface();
 	    scop->is_cell = net->is_cell();
 	    scop->is_virtual_method = net->is_virtual_method();
+
+	    scope_add_typedefs_(scop, net);
 
 	    switch (net->type()) {
 		case NetScope::PACKAGE:

@@ -1374,9 +1374,12 @@ static typedef_t *pform_get_typedef(const struct vlltype&loc, perm_string name)
 }
 
 void pform_forward_typedef(const struct vlltype&loc, perm_string name,
-			   enum typedef_t::basic_type basic_type)
+			   enum typedef_t::basic_type basic_type,
+			   bool explicit_typedef)
 {
       typedef_t *td = pform_get_typedef(loc, name);
+      if (explicit_typedef)
+	    td->mark_explicit_typedef();
 
       if (!td->set_basic_type(basic_type)) {
 	    cout << loc << " error: Incompatible basic type `" << basic_type
@@ -1390,9 +1393,12 @@ void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 
 void pform_set_typedef(const struct vlltype&loc, perm_string name,
 		       data_type_t*data_type,
-		       std::list<pform_range_t>*unp_ranges)
+		       std::list<pform_range_t>*unp_ranges,
+		       bool explicit_typedef)
 {
       typedef_t *td = pform_get_typedef(loc, name);
+      if (explicit_typedef)
+	    td->mark_explicit_typedef();
 
       if(unp_ranges)
 	    data_type = new uarray_type_t(data_type, unp_ranges);

@@ -38,7 +38,7 @@ static int iterator_free_object(vpiHandle ref)
       return 1;
 }
 
-inline __vpiIterator::__vpiIterator()
+__vpiIterator::__vpiIterator()
 { }
 
 int __vpiIterator::get_type_code(void) const

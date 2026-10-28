@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue880_pathpulse.sv",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue880_pathpulse"],
+  "gold": "issue880_pathpulse"
+}

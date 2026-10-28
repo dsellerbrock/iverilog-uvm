@@ -73,6 +73,10 @@ static void delete_sub_scopes(__vpiScope *scope)
 {
       for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
 	    vpiHandle item = (scope->intern)[idx];
+	    if (item->is_typedef_typespec()) {
+		  delete item;
+		  continue;
+	    }
 	    __vpiScope*lscope = static_cast<__vpiScope*>(item);
 	    switch(item->get_type_code()) {
 		case vpiFunction:
@@ -283,13 +287,16 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
 }
 
 /* compares vpiType's considering object classes */
-static int compare_types(int code, int type)
+static int compare_types(int code, int type, bool is_typedef = false)
 {
 	/* NOTE: The Verilog VPI does not for any object support
 	   vpiScope as an iterator parameter, so it is used here as a
 	   means to scan everything in the *current* scope. */
       if (code == vpiScope)
 	    return 1;
+
+      if (code == vpiTypedef)
+	    return is_typedef;
 
       if (code == type)
 	    return 1;
@@ -347,7 +354,8 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       };
 
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code())
+	    if (compare_types(type_code, table[idx]->get_type_code(),
+			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
 		     && is_vif_array_word(table[idx])))
 		  mcnt += 1;
@@ -357,7 +365,8 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 
       args = static_cast<vpiHandle*>(calloc(mcnt, sizeof(vpiHandle)));
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code())
+	    if (compare_types(type_code, table[idx]->get_type_code(),
+			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
 		     && is_vif_array_word(table[idx])))
 		  args[ncnt++] = table[idx];
@@ -439,6 +448,57 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       }
 
       return make_subset_iterator_(code, ref->intern);
+}
+
+class __vpiTypedefTypespec : public __vpiHandle {
+    public:
+      __vpiTypedefTypespec(int type, const char*name, const char*defname,
+			   const char*modport, bool parent = false)
+	      : type_(type), name_(name ? vpip_name_string(name) : 0),
+		defname_(defname ? vpip_name_string(defname) : 0),
+		modport_(modport ? vpip_name_string(modport) : 0),
+		parent_(parent) { }
+      int get_type_code(void) const override { return type_; }
+      bool is_typedef_typespec(void) const override { return true; }
+      int vpi_get(int code) override
+      {
+	    if (type_ == vpiInterfaceTypespec && code == vpiIsModPort)
+		  return modport_ && *modport_;
+	    return __vpiHandle::vpi_get(code);
+      }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName) return parent_ ? 0 : const_cast<char*>(name_);
+	    if (code == vpiDefName && type_ == vpiInterfaceTypespec)
+		  return const_cast<char*>(modport_ && *modport_
+			  ? modport_ : defname_);
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (type_ == vpiInterfaceTypespec && code == vpiParent && modport_
+		&& *modport_ && !parent_)
+		  return new __vpiTypedefTypespec(type_, 0, defname_, 0, true);
+	    return __vpiHandle::vpi_handle(code);
+      }
+    private:
+      int type_;
+      const char*name_;
+      const char*defname_;
+      const char*modport_;
+      bool parent_;
+};
+
+void compile_typedef(char*name, long type, char*defname, char*modport)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope);
+      __vpiTypedefTypespec*obj = new __vpiTypedefTypespec(
+	    static_cast<int>(type), name, defname, modport);
+      vpip_attach_to_current_scope(obj);
+      delete[] name;
+      delete[] defname;
+      delete[] modport;
 }
 
 class __vpiNettypeDecl : public __vpiHandle {
@@ -738,6 +798,16 @@ struct vpiScopeClass  : public __vpiScope {
       inline vpiScopeClass(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam) { }
       int get_type_code(void) const override { return vpiClassTypespec; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiClassDefn && scope) {
+		  std::map<std::string,class_type*>::const_iterator defn =
+			scope->classes.find(scope_name());
+		  if (defn != scope->classes.end())
+			return defn->second;
+	    }
+	    return __vpiScope::vpi_handle(code);
+      }
 };
 
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
