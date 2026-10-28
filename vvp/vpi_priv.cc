@@ -478,12 +478,16 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiMemoryWord";
 	  case vpiModule:
 	    return "vpiModule";
+	  case vpiFor:
+	    return "vpiFor";
 	  case vpiNamedBegin:
 	    return "vpiNamedBegin";
 	  case vpiNamedEvent:
 	    return "vpiNamedEvent";
 	  case vpiNamedFork:
 	    return "vpiNamedFork";
+	  case vpiForeachStmt:
+	    return "vpiForeachStmt";
 	  case vpiPackage:
 	    return "vpiPackage";
 	  case vpiPathTerm:
@@ -647,6 +651,8 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	  case vpiFunction:
 	  case vpiNamedBegin:
 	  case vpiNamedFork:
+	  case vpiFor:
+	  case vpiForeachStmt:
 	  case vpiGenScope:
 	  case vpiClassTypespec:
 	    // All of these are __vpiScope subclasses; cast and return directly.

@@ -316,6 +316,9 @@ typedef struct t_vpi_delay  {
 #define vpiModPathOut    96
 #define vpiVariables   100
 #define vpiExpr        102
+#define vpiFor          15
+#define vpiForeachStmt 675
+#define vpiIntVar      612
 
 /********************** object types added with 1364-2001 *********************/
 
@@ -328,6 +331,7 @@ typedef struct t_vpi_delay  {
 
 /* PROPERTIES */
 #define vpiUndefined   (-1)
+#define vpiLocalVarDecls 609
 #define vpiType           1
 #define vpiName           2
 #define vpiFullName       3

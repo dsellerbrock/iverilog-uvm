@@ -14121,6 +14121,8 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
             return true;
           case vpiNamedBegin:
           case vpiNamedFork:
+	  case vpiFor:
+	  case vpiForeachStmt:
             return scope->nitem > 0;
           default:
             return false;

@@ -278,6 +278,9 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { deferred_assertion_process_scope_ = true; }
       void concurrent_assertion_only()
       { concurrent_assertion_only_ = true; }
+      void set_vpi_loop_scope(bool foreach_scope)
+      { vpi_loop_scope_ = foreach_scope ? 2 : 1; }
+      unsigned vpi_loop_scope() const { return vpi_loop_scope_; }
       bool is_concurrent_assertion_only() const
       { return concurrent_assertion_only_; }
       void randsequence_block(ivl_randsequence_block_t kind)
@@ -320,6 +323,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool deferred_assertion_label_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
+      unsigned vpi_loop_scope_ = 0;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
 };

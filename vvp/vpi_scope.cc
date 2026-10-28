@@ -77,6 +77,8 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiGenScope:
 		case vpiNamedBegin:
 		case vpiNamedFork:
+		case vpiFor:
+		case vpiForeachStmt:
 		case vpiClassTypespec:
 		  delete_sub_scopes(lscope);
 		  vthreads_delete(lscope);
@@ -200,6 +202,10 @@ static const char* scope_get_type(int code)
             return "vpiTask";
           case vpiNamedBegin:
             return "vpiNamedBegin";
+          case vpiFor:
+            return "vpiFor";
+          case vpiForeachStmt:
+            return "vpiForeachStmt";
           case vpiNamedFork:
             return "vpiNamedFork";
           default:
@@ -285,6 +291,8 @@ static int compare_types(int code, int type)
 	     type == vpiTask ||
 	     type == vpiNamedBegin ||
 	     type == vpiNamedFork ||
+	     type == vpiFor ||
+	     type == vpiForeachStmt ||
 	     type == vpiClassTypespec ||
 	     // M12: interface instances are traversable scopes.
 	     type == vpiInterface) )
@@ -362,6 +370,8 @@ __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 int __vpiScope::vpi_get(int code)
 {
       switch (code) {
+	  case vpiLocalVarDecls:
+	    return get_type_code() == vpiFor;
 	  case vpiCellInstance:
 	    return is_cell? 1 : 0;
 
@@ -442,11 +452,35 @@ struct vpiScopeBegin  : public __vpiScope {
       int get_type_code(void) const override { return vpiNamedBegin; }
 };
 
+struct vpiScopeFor : public vpiScopeBegin {
+      inline vpiScopeFor(const char*nam, const char*tnam)
+      : vpiScopeBegin(nam, tnam) { }
+      int get_type_code(void) const override { return vpiFor; }
+};
+
+struct vpiScopeForeach : public vpiScopeBegin {
+      inline vpiScopeForeach(const char*nam, const char*tnam)
+      : vpiScopeBegin(nam, tnam) { }
+      int get_type_code(void) const override { return vpiForeachStmt; }
+};
+
 class vpiScopeBeginAuto  : public __vpiScope {
     public:
       inline vpiScopeBeginAuto(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam,true) {  }
       int get_type_code(void) const override { return vpiNamedBegin; }
+};
+
+struct vpiScopeForAuto : public vpiScopeBeginAuto {
+      inline vpiScopeForAuto(const char*nam, const char*tnam)
+      : vpiScopeBeginAuto(nam, tnam) { }
+      int get_type_code(void) const override { return vpiFor; }
+};
+
+struct vpiScopeForeachAuto : public vpiScopeBeginAuto {
+      inline vpiScopeForeachAuto(const char*nam, const char*tnam)
+      : vpiScopeBeginAuto(nam, tnam) { }
+      int get_type_code(void) const override { return vpiForeachStmt; }
 };
 
 struct vpiScopeGenerate  : public __vpiScope {
@@ -1263,6 +1297,22 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       } else if (strcmp(type,"begin.ctx") == 0) {
 	    scope = new vpiScopeBegin(name, tname);
 	    scope->set_owns_automatic_context();
+	  } else if (strcmp(type,"for") == 0 || strcmp(type,"for.ctx") == 0) {
+	    scope = new vpiScopeFor(name, tname);
+	    if (strcmp(type,"for.ctx") == 0)
+	          scope->set_owns_automatic_context();
+	  } else if (strcmp(type,"autofor") == 0 || strcmp(type,"autofor.shared") == 0) {
+	    scope = new vpiScopeForAuto(name, tname);
+	    if (strcmp(type,"autofor.shared") == 0)
+	          scope->set_shares_parent_frame();
+	  } else if (strcmp(type,"foreach") == 0 || strcmp(type,"foreach.ctx") == 0) {
+	    scope = new vpiScopeForeach(name, tname);
+	    if (strcmp(type,"foreach.ctx") == 0)
+	          scope->set_owns_automatic_context();
+	  } else if (strcmp(type,"autoforeach") == 0 || strcmp(type,"autoforeach.shared") == 0) {
+	    scope = new vpiScopeForeachAuto(name, tname);
+	    if (strcmp(type,"autoforeach.shared") == 0)
+	          scope->set_shares_parent_frame();
       } else if (strcmp(type,"autobegin") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
       } else if (strcmp(type,"autobegin.shared") == 0) {
@@ -1373,6 +1423,8 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
             return true;
           case vpiNamedBegin:
           case vpiNamedFork:
+	  case vpiFor:
+	  case vpiForeachStmt:
               /* The compiler marks automatic begin/fork scopes that are
                  collapsed into the enclosing frame with ".shared" scope
                  types: their statement runs to completion before the

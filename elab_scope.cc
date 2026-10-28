@@ -6662,6 +6662,9 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
                   my_scope->attribute(perm_string::literal("_ivl_vpi_join_type"),
                                      verinum((uint64_t)join_type, 32));
             }
+            if (vpi_loop_scope_ != 0)
+                  my_scope->attribute(perm_string::literal("_ivl_vpi_loop_scope"),
+                                     verinum((uint64_t)vpi_loop_scope_, 2));
 	    if (deferred_assertion_label_scope_)
 		  my_scope->attribute(perm_string::literal("_ivl_deferred_assert_label"),
 				     verinum((uint64_t)1, 1));

@@ -1242,6 +1242,7 @@ static PBlock* pform_start_foreach_scope(const struct vlltype&loc,
       }
 
       PBlock*block = pform_push_block_scope(loc, block_name, PBlock::BL_SEQ);
+      block->set_vpi_loop_scope(true);
       current_block_stack.push(block);
       delete[] source_label;
       return block;
@@ -1773,6 +1774,9 @@ static for_variable_scope_t* pform_install_for_variable_declarations(
          see that a declaring header always initializes. */
       scope->initialization = decls->front().init;
       scope->kind = FOR_INIT_DECLARATION;
+      /* IEEE 1800-2017/2023 37.12 makes the for statement a scope when its
+         initializer declares the loop-control variable. */
+      scope->block->set_vpi_loop_scope(false);
 
       /* A loop that declares exactly one control variable keeps the explicit
          index/initial-value pair that NetForLoop needs to be synthesizable.
