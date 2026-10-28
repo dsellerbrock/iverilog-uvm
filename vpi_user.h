@@ -304,8 +304,10 @@ typedef struct t_vpi_delay  {
 #define vpiTask        59
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
+#define vpiRepeat      51 /* repeat statement */
 #define vpiUdpDefn     66
 #define vpiUserSystf   67
+#define vpiWhile       70 /* while statement */
 #define vpiNetArray   114
 #define vpiRange      115
 #define vpiIndex       78
