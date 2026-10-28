@@ -1,6 +1,6 @@
 # Issue #825 — interface signals as specify-path terminals
 
-**Standard:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3. The tested subset accepts a simple specify path whose terminal is one vectorable member of a scalar interface port, subject to the direction exposed by that port’s modport. §25.6 excludes ref terminals; their implementation rejection is not separately tested (a modport ref member reaches the generic “no specify-path direction” diagnostic).
+**Standard:** IEEE 1800-2017/2023 §25.6 and Annex A A.7.3. The tested subset accepts a simple specify path whose terminal is one vectorable member of a scalar interface port, subject to the direction exposed by that port’s modport. §25.6 excludes ref terminals; a one-off probe (not a registered regression) shows a modport ref member receives `Modport member 'q' has no specify-path direction.` in both editions. See the [probe source](validation/ref-probe/ref-terminal-probe.sv), [transcript](validation/ref-probe/ref-terminal-probe.txt), and [SHA-256 manifest](validation/ref-probe/MANIFEST.sha256).
 
 **Scope limits:** Interface arrays, named-expression modport members, unpacked or nonvectorable members, select syntax, data-source terminals, and specify timing behavior are not covered. A local interface instance used as `inst.member` is rejected as not an interface port and is not claimed here. The no-modport test is retained, but its path direction is not claimed as conforming: §25.3.2 states default ref/inout access for interface variables/nets, and its mapping to §25.6 path direction remains unqualified. An unbound root interface port currently drops the path.
 
@@ -8,6 +8,7 @@
 
 - Slurm job 5272: build and T0; 56/56 smoke tests and 155/155 VPI tests passed, along with the recorded reproducer, negative, and runtime checks. The captured output is in [`validation/t0-t1/`](validation/t0-t1/).
 - Slurm job 5273: typed and generic interface formals plus interface-port forwarding were probed under `-g2017` and `-g2023`; positive forward-chain probes printed `PASSED`, and reversed directions produced the expected errors.
+- The implementation-source diff from job-5272 toolchain snapshot `43c38efea13a94e7e831e24d2016810b46c19b00` to documentation commit `f60edfbf4ab285273bdbaec659724a3c40c545fa` is empty under `git diff --stat 43c38efea13a94e7e831e24d2016810b46c19b00 f60edfbf4ab285273bdbaec659724a3c40c545fa -- '*.cc' '*.h' '*.y' '*.l'`. Job 5276 ran regression snapshot `62d7166ee5c5f255cfc75cadb4ecc6edf7f13a6c` using that same toolchain; implementation and regression files were unchanged from that snapshot through `f60edfbf4ab285273bdbaec659724a3c40c545fa`.
 - Slurm job 5276: final focused suite passed 43 legacy and 65 JSON cases with zero failures. The result is in [`summary.txt`](step2/attempt-9/summary.txt) and [`results.txt`](step2/attempt-9/results.txt); the tested selections are [`legacy.list`](step2/attempt-9/legacy.list) and [`json.list`](step2/attempt-9/json.list).
 - The review bundle and SHA-256 manifest are in [`validation/techlead-review/`](validation/techlead-review/); focused-test lists and the manifest are in [`validation/t0-t1/`](validation/t0-t1/).
 
