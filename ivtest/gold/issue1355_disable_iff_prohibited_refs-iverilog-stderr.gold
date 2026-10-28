@@ -1,0 +1,2 @@
+ivltests/issue1355_disable_iff_prohibited_refs.v:14: error: a `disable iff' condition shall not reference a property-local variable (IEEE 1800-2017 16.6).
+ivltests/issue1355_disable_iff_prohibited_refs.v:15: error: a `disable iff' condition shall not reference the sequence method `matched' (IEEE 1800-2017 16.6).

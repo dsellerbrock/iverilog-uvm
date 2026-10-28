@@ -18491,6 +18491,142 @@ static bool sva_expr_reads_lv_(PExpr*e,
       return true;
 }
 
+/* IEEE 1800-2017/2023 16.6 disallows the sequence method `matched' in a
+   disable condition. Keep this check on the source expression, before
+   endpoint-method lowering rewrites legal sequence-body uses. */
+static bool sva_expr_reads_matched_(PExpr*e)
+{
+      if (!e) return false;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    const pform_name_t&name = id->path().name;
+	    return !id->path().package && name.size() == 2
+		  && name.back().name == perm_string::literal("matched");
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e))
+	    return sva_expr_reads_matched_(un->get_expr());
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e))
+	    return sva_expr_reads_matched_(bin->get_left())
+		  || sva_expr_reads_matched_(bin->get_right());
+      if (PETernary*ter = dynamic_cast<PETernary*>(e))
+	    return sva_expr_reads_matched_(ter->get_cond())
+		  || sva_expr_reads_matched_(ter->get_true())
+		  || sva_expr_reads_matched_(ter->get_false());
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e))
+	    return sva_expr_reads_matched_(cast->cast_size())
+		  || sva_expr_reads_matched_(cast->cast_base());
+      if (PECastType*cast = dynamic_cast<PECastType*>(e))
+	    return sva_expr_reads_matched_(cast->cast_base());
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e))
+	    return sva_expr_reads_matched_(cast->cast_base());
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parts = cat->stream_parms();
+	    for (size_t i = 0 ; i < parts.size() ; i += 1)
+		  if (sva_expr_reads_matched_(parts[i])) return true;
+	    return cat->has_repeat()
+		  && sva_expr_reads_matched_(cat->repeat_expr());
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    if (sva_expr_reads_matched_(inside->get_expr())) return true;
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1)
+		  if (sva_expr_reads_matched_(ranges[i].lo)
+		      || sva_expr_reads_matched_(ranges[i].hi)
+		      || sva_expr_reads_matched_(ranges[i].weight)) return true;
+	    return false;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    const std::vector<named_pexpr_t>&args = cf->get_parms();
+	    for (size_t i = 0 ; i < args.size() ; i += 1)
+		  if (sva_expr_reads_matched_(args[i].parm)) return true;
+	    return false;
+      }
+      return false;
+}
+
+static bool sva_disable_reads_local_(PExpr*e,
+				     const std::map<perm_string,unsigned>&locals)
+{
+      if (!e) return false;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    const pform_name_t&name = id->path().name;
+	    if (!id->path().package && name.size() == 1
+		  && locals.count(name.front().name)) return true;
+	    for (pform_name_t::const_iterator comp = name.begin();
+		 comp != name.end(); ++comp)
+		  for (std::list<index_component_t>::const_iterator idx =
+			     comp->index.begin(); idx != comp->index.end(); ++idx)
+			if (sva_disable_reads_local_(idx->msb, locals)
+			    || (idx->lsb != idx->msb
+				&& sva_disable_reads_local_(idx->lsb, locals)))
+			      return true;
+	    return false;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e))
+	    return sva_disable_reads_local_(un->get_expr(), locals);
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e))
+	    return sva_disable_reads_local_(bin->get_left(), locals)
+		  || sva_disable_reads_local_(bin->get_right(), locals);
+      if (PETernary*ter = dynamic_cast<PETernary*>(e))
+	    return sva_disable_reads_local_(ter->get_cond(), locals)
+		  || sva_disable_reads_local_(ter->get_true(), locals)
+		  || sva_disable_reads_local_(ter->get_false(), locals);
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e))
+	    return sva_disable_reads_local_(cast->cast_size(), locals)
+		  || sva_disable_reads_local_(cast->cast_base(), locals);
+      if (PECastType*cast = dynamic_cast<PECastType*>(e))
+	    return sva_disable_reads_local_(cast->cast_base(), locals);
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e))
+	    return sva_disable_reads_local_(cast->cast_base(), locals);
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parts = cat->stream_parms();
+	    for (size_t i = 0 ; i < parts.size() ; i += 1)
+		  if (sva_disable_reads_local_(parts[i], locals)) return true;
+	    return cat->has_repeat()
+		  && sva_disable_reads_local_(cat->repeat_expr(), locals);
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    if (sva_disable_reads_local_(inside->get_expr(), locals)) return true;
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1)
+		  if (sva_disable_reads_local_(ranges[i].lo, locals)
+		      || sva_disable_reads_local_(ranges[i].hi, locals)
+		      || sva_disable_reads_local_(ranges[i].weight, locals)) return true;
+	    return false;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    const std::vector<named_pexpr_t>&args = cf->get_parms();
+	    for (size_t i = 0 ; i < args.size() ; i += 1)
+		  if (sva_disable_reads_local_(args[i].parm, locals)) return true;
+	    return false;
+      }
+      return false;
+}
+
+static bool sva_validate_disable_condition_(const struct vlltype&loc,
+						   PExpr*expr,
+						   const std::vector<perm_string>&locals)
+{
+      if (!expr) return true;
+      std::map<perm_string,unsigned> local_set;
+      for (size_t i = 0 ; i < locals.size() ; i += 1)
+	    local_set[locals[i]] = 0;
+      if (sva_disable_reads_local_(expr, local_set)) {
+	    cerr << loc << ": error: a `disable iff' condition shall not "
+		 << "reference a property-local variable (IEEE 1800-2017 "
+		 << "16.6)." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      if (sva_expr_reads_matched_(expr)) {
+	    cerr << loc << ": error: a `disable iff' condition shall not "
+		 << "reference the sequence method `matched' (IEEE 1800-2017 "
+		 << "16.6)." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      return true;
+}
+
 /* Dependent local-assignment RHS templates are cloned once per live
    attempt/obligation after their design operands are Preponed-wrapped. Keep
    that admitted expression subset structural and deliberately exclude calls:
@@ -27209,6 +27345,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (dynamic_cast<PNoop*>(pass_stmt)) {
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
+      }
+
+	/* IEEE 1800-2017/2023 16.6 explicitly excludes property locals and
+	   `matched' from disable expressions. Validate after named-property
+	   expansion as well as here, so each check sees the declaration's local
+	   names and the final combined disable condition. */
+      if (prop
+	  && (!sva_validate_disable_condition_(loc, prop->disable_iff_expr,
+					       prop->local_names)
+	      || (!prop->disable_iff_expr
+		  && !sva_validate_disable_condition_(loc, sva_default_disable,
+						      prop->local_names)))) {
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
       }
 
 	/* M9-10: defer a clock-less assertion until its enclosing procedural
