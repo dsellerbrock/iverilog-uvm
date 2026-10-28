@@ -12308,6 +12308,50 @@ static bool assertion_nonstatic_class_property_(const NetEProperty*prop)
 	    && !class_type->get_prop_qual(prop->property_idx()).test_static();
 }
 
+/* Return the bit-stream width of a fixed-size data type. Dynamic members
+   make the width depend on a value and are deliberately rejected here. */
+static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
+{
+      if (!type) return false;
+
+      if (type->packed()) {
+	    long packed_width = type->packed_width();
+	    if (packed_width <= 0) return false;
+	    width = static_cast<uint64_t>(packed_width);
+	    return true;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    uint64_t element_width = 0;
+	    if (!fixed_bitstream_width_(array->element_type(), element_width))
+		  return false;
+	    unsigned long count = netrange_width(array->static_dimensions(), 1);
+	    if (count == 0 || element_width > UINT64_MAX / count) return false;
+	    width = element_width * count;
+	    return true;
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    uint64_t total_width = 0;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  uint64_t member_width = 0;
+		  if (!fixed_bitstream_width_(member.net_type, member_width))
+			return false;
+		  if (record->union_flag()) {
+			if (member_width > total_width) total_width = member_width;
+		  } else {
+			if (member_width > UINT64_MAX - total_width) return false;
+			total_width += member_width;
+		  }
+	    }
+	    if (total_width == 0) return false;
+	    width = total_width;
+	    return true;
+      }
+
+      return false;
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -12766,6 +12810,58 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		       << " Use $bits() instead." << endl;
 
 	    PExpr *expr = parms_[0].parm;
+
+	    /* IEEE 1800-2017/2023 20.6.2: $bits of a dynamically sized
+	       expression is a runtime value (zero when empty), not the
+	       expression's placeholder elaboration width. */
+	    if (name == "$bits" && expr->expr_type() == IVL_VT_QUEUE) {
+		  if (flags & NEED_CONST) {
+			cerr << get_fileline() << ": error: $bits of a dynamically sized "
+			     << "expression is not an elaboration-time constant. "
+			     << "(IEEE 1800-2017/2023 20.6.2)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  if (dynamic_cast<const PECallFunction*>(expr)) {
+			cerr << get_fileline() << ": error: $bits shall not enclose a "
+			     << "function that returns a dynamically sized data type. "
+			     << "(IEEE 1800-2017/2023 20.6.2)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+
+		  NetExpr*queue_expr = expr->elaborate_expr(des, scope, 0u, 0u);
+		  if (!queue_expr) return nullptr;
+		  const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(
+			queue_expr->net_type());
+		  uint64_t element_width = 0;
+		  if (!queue_type || queue_type->assoc_compat()
+		      || !fixed_bitstream_width_(queue_type->element_type(),
+					 element_width)) {
+			cerr << get_fileline() << ": sorry: $bits of this queue type "
+			     << "with variable-sized elements is not yet implemented."
+			     << endl;
+			des->errors += 1;
+			delete queue_expr;
+			return nullptr;
+		  }
+
+		  NetESFunc*size_expr = new NetESFunc("$ivl_queue_method$size",
+						      &netvector_t::atom2s32, 1);
+		  size_expr->set_line(*this);
+		  size_expr->parm(0, queue_expr);
+
+		  NetEConst*element_width_expr = new NetEConst(
+			verinum(element_width, integer_width));
+		  element_width_expr->set_line(*this);
+		  element_width_expr->cast_signed(true);
+
+		  NetEBMult*result = new NetEBMult('*', size_expr,
+					   element_width_expr,
+					   integer_width, true);
+		  result->set_line(*this);
+		  return cast_to_width_(result, expr_wid);
+	    }
 
 	    uint64_t use_width = 0;
 	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
