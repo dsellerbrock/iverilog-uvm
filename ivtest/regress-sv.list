@@ -6128,3 +6128,6 @@ issue1224_udnt_default_2017 normal,-g2017,-s,test ivltests gold=issue1224_udnt_d
 issue1224_udnt_default_2023 normal,-g2023,-s,test ivltests gold=issue1224_udnt_default.gold
 issue1252_dpi_class_arg_2017 CE,-g2017,-s,issue1252_dpi_class_arg ivltests
 issue1252_dpi_class_arg_2023 CE,-g2023,-s,issue1252_dpi_class_arg ivltests
+# IEEE 1800-2017/2023 §31.7 X on nondeterministic timing-check conditions
+issue1245_timing_condition_x_2017 normal,-g2017,-gspecify ivltests gold=issue1245_timing_condition_x_2017.gold
+issue1245_timing_condition_x_2023 normal,-g2023,-gspecify ivltests gold=issue1245_timing_condition_x_2023.gold

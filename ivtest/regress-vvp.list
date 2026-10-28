@@ -5789,3 +5789,6 @@ issue1243_pulsestyle_order_2017 vvp_tests/issue1243_pulsestyle_order_2017.json
 issue1243_pulsestyle_order_2023 vvp_tests/issue1243_pulsestyle_order_2023.json
 issue1244_edge_path_2017 vvp_tests/issue1244_edge_path_2017.json
 issue1244_edge_path_2023 vvp_tests/issue1244_edge_path_2023.json
+# IEEE 1800-2017/2023 §31.7 X on nondeterministic timing-check conditions
+issue1245_timing_condition_x_2017 vvp_tests/issue1245_timing_condition_x_2017.json
+issue1245_timing_condition_x_2023 vvp_tests/issue1245_timing_condition_x_2023.json
