@@ -473,9 +473,27 @@ struct vpiScopeClass  : public __vpiScope {
 
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
 struct vpiScopeInterface  : public __vpiScope {
-      inline vpiScopeInterface(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam,false) { }
+      inline vpiScopeInterface(const char*nam, const char*tnam,
+			       bool is_array_element = false, int array_index = 0)
+      : __vpiScope(nam,tnam,false), array_index_(array_index),
+	    is_array_element_(is_array_element) { }
       int get_type_code(void) const override { return vpiInterface; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiIndex && is_array_element_)
+		  return array_index_.get_value();
+	    return __vpiScope::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiIndex && is_array_element_)
+		  return &array_index_;
+	    return __vpiScope::vpi_handle(code);
+      }
+
+    private:
+      __vpiDecConst array_index_;
+      bool is_array_element_;
 };
 
 /* M12: a modport declaration of an interface. M12-6 adds the port
@@ -1168,6 +1186,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       char vec_type;
       char sign_flag;
       unsigned wid;
+      int array_index;
 
         /* A mixed-lifetime static function uses the ordinary static VPI
            function class, with a separate context-owner bit. Canonicalize
@@ -1267,6 +1286,8 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeClass(name, tname);
       } else if (strcmp(type,"program") == 0) {
 	    scope = new vpiScopeProgram(name, tname);
+      } else if (sscanf(type, "interface.array.%d", &array_index) == 1) {
+	    scope = new vpiScopeInterface(name, tname, true, array_index);
       } else if (strcmp(type,"interface") == 0) {
 	    scope = new vpiScopeInterface(name, tname);
       } else {

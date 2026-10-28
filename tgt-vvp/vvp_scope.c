@@ -3247,8 +3247,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
+      char array_index_suffix[32];
 
       suffix[0] = 0;
+      array_index_suffix[0] = 0;
 
         /* A static subroutine or named block can own a call frame solely for
 	   declarations that carry an explicit automatic lifetime. Keep the
@@ -3330,8 +3332,12 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
-      fprintf(vvp_out, "S_%p .scope %s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix,
+      if (ivl_scope_is_interface(net) && ivl_scope_is_array(net))
+	    snprintf(array_index_suffix, sizeof array_index_suffix,
+		     ".array.%d", ivl_scope_array_index(net));
+
+      fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
+	      net, prefix, type, suffix, array_index_suffix,
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),

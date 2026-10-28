@@ -84,6 +84,7 @@ check_version		normal			check_version.c		check_version.gold
 display_array		normal,-g2009		display_array.c		display_array.gold
 vpi_typespec normal,-g2017 vpi_typespec.c vpi_typespec.gold
 vpi_typespec_2023 normal,-g2023 vpi_typespec.c vpi_typespec_2023.gold
+issue1262_vpi_interface_index normal,-g2017 issue1262_vpi_interface_index.c issue1262_vpi_interface_index.gold
 class_event_lifetime	normal,-g2012		class_event_lifetime.c	class_event_lifetime.gold
 event1			normal			event1.c		event1.log
 event2			normal			event2.c		event2.log
