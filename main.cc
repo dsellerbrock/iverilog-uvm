@@ -1383,6 +1383,10 @@ int main(int argc, char*argv[])
 	    }
       }
 
+	/* Materialize VPI typedef metadata before parse-form declarations and
+	 * interface-type interning state are released. */
+      des->elaborate_typedef_types();
+
 	/* Target emission only consumes the elaborated Net* graph. Release
 	 * behavioral parse trees after every post-elaboration functor and dump,
 	 * but before the target constructs its second representation. */

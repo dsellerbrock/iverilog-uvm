@@ -348,6 +348,7 @@ extern void compile_timescale(long units, long precision);
 extern void compile_modport_decl(char*name);
 extern void compile_modport_port(char*name, uint64_t dir);
 extern void compile_nettype_decl(char*name, char*alias, char*with);
+extern void compile_typedef(char*name, long type, char*defname, char*modport);
 
 extern void compile_vpi_symbol(const char*label, vpiHandle obj);
 extern void compile_vpi_lookup(vpiHandle *objref, char*label);

@@ -1295,8 +1295,11 @@ class NetScope : public Definitions, public Attrib {
       NetScope*find_import(const Design*des, perm_string name);
 
       void add_typedefs(const std::map<perm_string,typedef_t*>*typedefs);
+      void elaborate_typedef_types(Design*des);
       const std::map<perm_string,typedef_t*>& local_typedefs() const
 	{ return typedefs_; }
+      const std::map<perm_string,ivl_type_t>& local_typedef_types() const
+        { return typedef_types_; }
 
       void add_nettypes(Design*des,
                         const LexicalScope::nettype_map_t*nettypes);
@@ -1832,6 +1835,7 @@ class NetScope : public Definitions, public Attrib {
       const std::map<perm_string,PPackage*>*imports_;
 
       std::map<perm_string,typedef_t*>typedefs_;
+      std::map<perm_string,ivl_type_t>typedef_types_;
       std::map<const nettype_t*,std::unique_ptr<NetNetType> >nettypes_;
       std::map<perm_string,NetNetType*>nettypes_by_name_;
       std::map<perm_string,typedef_t*>typedef_search_cache_;
@@ -6501,6 +6505,7 @@ class Design {
 	 * boundary. The Net* design graph and all target-visible metadata remain
 	 * alive. */
       void release_elaboration_caches();
+      void elaborate_typedef_types();
 
 	// This is incremented by elaboration when an error is
 	// detected. It prevents code being emitted.

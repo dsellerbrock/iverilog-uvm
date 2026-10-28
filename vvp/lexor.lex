@@ -190,6 +190,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_src_expr" { return K_COVGRP_SRC_EXPR; }
 ".modport"      { return K_MODPORT; }
 ".nettype_decl" { return K_NETTYPE_DECL; }
+".typedef" { return K_TYPEDEF; }
 ".cmp/eeq"      { return K_CMP_EEQ; }
 ".cmp/eqx"      { return K_CMP_EQX; }
 ".cmp/eqz"      { return K_CMP_EQZ; }

@@ -132,6 +132,7 @@ class __vpiHandle {
       virtual ~__vpiHandle();
 
       virtual int get_type_code(void) const =0;
+      virtual bool is_typedef_typespec(void) const { return false; }
 	// The net that holds this object's value, for the signal-like
 	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
       virtual vvp_net_t*backing_net() { return 0; }

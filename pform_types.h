@@ -253,6 +253,8 @@ struct typedef_t : public PNamedItem {
       enum basic_type get_basic_type() const { return basic_type; }
       bool has_checked_basic_type() const { return basic_type_checked; }
       void mark_basic_type_checked() { basic_type_checked = true; }
+      bool is_explicit_typedef() const { return explicit_typedef; }
+      void mark_explicit_typedef() { explicit_typedef = true; }
 
       // A forward typedef that never receives its definition can be reached
       // from several elaboration paths (and from every specialization of a
@@ -267,6 +269,7 @@ protected:
       enum basic_type basic_type;
       bool unresolved_reported;
       bool basic_type_checked;
+      bool explicit_typedef = false;
       std::unique_ptr<data_type_t> data_type;
 public:
       perm_string name;
