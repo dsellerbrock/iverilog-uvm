@@ -38,6 +38,7 @@
 # include  <cstdlib>
 # include  <cassert>
 # include  "ivl_alloc.h"
+# include  "array_common.h"
 
 #ifndef vpiProcess
 # define vpiProcess 99
@@ -130,6 +131,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  string_delete(item);
 		  break;
 		case vpiClassVar:
+		case vpiVirtualInterfaceVar:
 		  class_delete(item);
 		  break;
 		case vpiArrayVar:
@@ -319,6 +321,7 @@ static int compare_types(int code, int type)
 	      // M12: SystemVerilog variable objects are variables too.
 	      type == vpiStringVar   ||
 	      type == vpiClassVar    ||
+	      type == vpiVirtualInterfaceVar ||
 	      type == vpiArrayVar))
 	    return 1;
 
@@ -330,8 +333,17 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       unsigned mcnt = 0, ncnt = 0;
       vpiHandle*args;
 
+      const auto is_vif_array_word = [](vpiHandle item) {
+	    struct __vpiArrayWord*word = array_var_word_from_handle(item);
+	    if (!word) return false;
+	    __vpiArray*array = dynamic_cast<__vpiArray*>(word->get_parent());
+	    return array && array->is_virtual_interface_array();
+      };
+
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code()))
+	    if (compare_types(type_code, table[idx]->get_type_code())
+		&& !(type_code == vpiVariables
+		     && is_vif_array_word(table[idx])))
 		  mcnt += 1;
 
       if (mcnt == 0)
@@ -339,7 +351,9 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 
       args = static_cast<vpiHandle*>(calloc(mcnt, sizeof(vpiHandle)));
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code()))
+	    if (compare_types(type_code, table[idx]->get_type_code())
+		&& !(type_code == vpiVariables
+		     && is_vif_array_word(table[idx])))
 		  args[ncnt++] = table[idx];
 
       assert(ncnt == mcnt);
@@ -373,6 +387,30 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
+
+      if (code == vpiVirtualInterfaceVar) {
+	    vector<vpiHandle> items;
+	    set<vpiHandle> seen;
+	    for (unsigned idx = 0; idx < ref->intern.size(); idx += 1) {
+		  vpiHandle item = ref->intern[idx];
+		  if (item->get_type_code() == vpiVirtualInterfaceVar) {
+			if (seen.insert(item).second) items.push_back(item);
+			continue;
+		  }
+		  __vpiArray*array = dynamic_cast<__vpiArray*>(item);
+		  if (!array || !array->is_virtual_interface_array()) continue;
+		  vpiHandle iter = vpi_iterate(vpiMemoryWord, array);
+		  vpiHandle word;
+		  while (iter && (word = vpi_scan(iter)))
+			if (seen.insert(word).second) items.push_back(word);
+	    }
+	    if (items.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(
+		  calloc(items.size(), sizeof(vpiHandle)));
+	    for (unsigned idx = 0; idx < items.size(); idx += 1)
+		  args[idx] = items[idx];
+	    return vpip_make_iterator(items.size(), args, true);
+      }
 
       if (code == vpiProcess) {
             if (ref->threads.empty()) return 0;

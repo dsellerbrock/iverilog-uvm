@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1269_vif_iteration.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1269_vif_iteration_2017"],
+  "vpi-sources": ["vpi/issue1269_vif_iteration.c"],
+  "output-contains": ["PASSED"]
+}

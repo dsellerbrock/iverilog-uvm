@@ -2054,7 +2054,7 @@ void compile_string_array(char*label, char*name, int last, int first,
 
 void compile_object_array(char*label, char*name, int last, int first,
 			  int storage_flag, char*element_type,
-			  char*container_type)
+			  char*container_type, bool virtual_interface)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
@@ -2062,6 +2062,7 @@ void compile_object_array(char*label, char*name, int last, int first,
 
       arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
       arr->value_kind = __vpiArray::ARRAY_VALUE_OBJECT;
+      arr->virtual_interface_array_ = virtual_interface;
 
 	/* Make the words. */
       arr->vals = fixed_array_storage_(new vvp_darray_object(arr->get_size()),

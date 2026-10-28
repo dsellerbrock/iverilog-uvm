@@ -929,6 +929,7 @@ void vpi_call_delete(vpiHandle item)
 		  }
 		  break;
 		case vpiClassVar:
+		case vpiVirtualInterfaceVar:
 		  switch (vpi_get(_vpiFromThr, obj->args[arg])) {
 		      case _vpiObj:
 			thread_object_delete(obj->args[arg]);

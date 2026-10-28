@@ -653,6 +653,7 @@ static value_callback* make_value_change(p_cb_data data)
 		 mutation in place is a recorded corner). */
 	  case vpiStringVar:
 	  case vpiClassVar:
+	  case vpiVirtualInterfaceVar:
 	  case vpiArrayVar: {
 		__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(target);
 		vvp_net_t*net = var ? var->get_net() : 0;
