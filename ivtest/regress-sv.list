@@ -6152,3 +6152,7 @@ sv_specify_interface_forward_chain_bad CE,-g2017,-gspecify,-Iivltests,-s,sv_spec
 # IEEE 1800-2017/2023 §27.4: genvars are not runtime references.
 sv_genvar_reference_outside_loop_fail_2017 CE,-g2017,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2017.gold
 sv_genvar_reference_outside_loop_fail_2023 CE,-g2023,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2023.gold
+
+# IEEE 1800-2017/2023 §16.8: sequence actual names must identify formals.
+issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_sequence_2017 ivltests
+issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests

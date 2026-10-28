@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1359_unknown_named_sequence.sv",
+  "iverilog-args": ["-g2023", "-s", "issue1359_unknown_named_sequence"],
+  "gold": "issue1359_unknown_named_sequence_2023"
+}
