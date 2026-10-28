@@ -20890,34 +20890,12 @@ static bool sva_check_first_match_(const struct vlltype&loc,
    the expression, or null: with `failed' set when the sequence exists
    but cannot be lowered (diagnosed here), clear when the name is not a
    declared sequence (caller leaves the reference alone). */
-static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
-				      perm_string seqname, perm_string method,
-				      bool&failed)
+static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
+					   perm_string seqname,
+					   perm_string method,
+					   std::vector<sva_seq_step_t>&body,
+					   bool&failed)
 {
-      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_resolve_(sva_module_sequences, seqname);
-      std::vector<sva_seq_step_t>*body_ptr =
-	    it != sva_module_sequences.end() ? it->second : nullptr;
-      if (!body_ptr) {
-	    /* This issue is the same-clock .triggered case.  A property-shaped
-	       source can be matched across clock domains, which needs distinct
-	       handoff semantics and must not use this single-clock indicator. */
-	    if (method != perm_string::literal("triggered")) return nullptr;
-	    /* Explicitly clocked sequence declarations keep their complete IR in
-	       the property-shaped tables.  A fixed chain there has the same
-	       endpoint expression as the plain sequence representation. */
-	    std::set<sva_scoped_name_t>::iterator tag =
-		  sva_resolve_(sva_property_shaped_sequences, seqname);
-	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
-	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
-		  sva_resolve_(sva_module_properties, seqname);
-	    if (pit == sva_module_properties.end() || !pit->second
-		|| pit->second->tree || !pit->second->seq)
-		  return nullptr;
-	    body_ptr = pit->second->seq;
-      }
-
-      std::vector<sva_seq_step_t>&body = *body_ptr;
       bool ok = !body.empty();
       long L = 0;
       std::vector<long> off (body.size(), 0);
@@ -20957,6 +20935,36 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
       return conj;
 }
 
+static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
+				      perm_string seqname, perm_string method,
+				      bool&failed)
+{
+      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_resolve_(sva_module_sequences, seqname);
+      std::vector<sva_seq_step_t>*body =
+	    it != sva_module_sequences.end() ? it->second : nullptr;
+      if (!body) {
+	    /* This issue is the same-clock .triggered case.  A property-shaped
+	       source can be matched across clock domains, which needs distinct
+	       handoff semantics and must not use this single-clock indicator. */
+	    if (method != perm_string::literal("triggered")) return nullptr;
+	    /* Explicitly clocked sequence declarations keep their complete IR in
+	       the property-shaped tables.  A fixed chain there has the same
+	       endpoint expression as the plain sequence representation. */
+	    std::set<sva_scoped_name_t>::iterator tag =
+		  sva_resolve_(sva_property_shaped_sequences, seqname);
+	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
+	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+		  sva_resolve_(sva_module_properties, seqname);
+	    if (pit == sva_module_properties.end() || !pit->second
+		|| pit->second->tree || !pit->second->seq)
+		  return nullptr;
+	    body = pit->second->seq;
+      }
+      return sva_endpoint_indicator_body_(loc, seqname, method,
+					   *body, failed);
+}
+
 /* Recursively rewrite `seq.triggered'/`seq.matched' references INSIDE
    a step's boolean expression (16.13.6: the endpoint methods are
    ordinary booleans and compose with any operator). The old lowering
@@ -20983,6 +20991,34 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	    delete e;
 	    return ind;
       }
+
+	  /* IEEE 1800-2017/2023 16.9.11 permits triggered on a named sequence
+	     instance with actual arguments. The parser represents the property as
+	     member access on the parameterized sequence call. */
+	  if (PEMemberAccess*member = dynamic_cast<PEMemberAccess*>(e)) {
+	    if (member->member_name() == perm_string::literal("triggered")) {
+	      PECallFunction*instance = dynamic_cast<PECallFunction*>(member->base());
+	      if (instance && !instance->receiver_expr()
+		  && !instance->path().package && instance->path().name.size() == 1) {
+		perm_string seqname = instance->path().name.front().name;
+		std::map<sva_scoped_name_t,sva_param_seq_t>::iterator seq_it =
+		      sva_resolve_(sva_param_sequences, seqname);
+		if (seq_it != sva_param_sequences.end() && seq_it->second.body) {
+		      std::vector<sva_seq_step_t>*body = sva_instantiate_seq_(
+			    loc, seqname, seq_it->second, instance->get_parms());
+		      if (!body) { failed = true; return e; }
+		      sva_splice_sequences_(loc, *body);
+		      PExpr*ind = sva_endpoint_indicator_body_(
+			    loc, seqname, perm_string::literal("triggered"),
+			    *body, failed);
+		      pform_sva_destroy_sequence(body);
+		      if (!ind) return e;
+		      delete e;
+		      return ind;
+		}
+	      }
+	    }
+	  }
 
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    PExpr*sub = sva_rewrite_endpoint_expr_(loc, un->get_expr(), failed);
