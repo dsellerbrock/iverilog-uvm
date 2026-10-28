@@ -1,0 +1,3 @@
+ivltests/sv_specify_interface_terminals.v:79: error: Path destination ch.c must be an output or inout port.
+ivltests/sv_specify_interface_terminals.v:79: error: Path source ch.q must be an input or inout port.
+2 error(s) during elaboration.

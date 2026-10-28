@@ -1,0 +1,2 @@
+2ea9f66d0cb8db7f5af0a593b85e681ecf7dbde5c1cf5bdc2c66d870c257172b  ref-terminal-probe.sv  # 2026-10-28 08:16:09 One-off ref modport terminal compile probe on job-5272 toolchain; both editions rejected with the generic no-direction diagnostic.
+5e4005c4e1d597952ff20e2d0c8392487712e5f21056c7182dc4302a73674f87  ref-terminal-probe.txt  # 2026-10-28 08:16:09 One-off ref modport terminal compile probe on job-5272 toolchain; both editions rejected with the generic no-direction diagnostic.

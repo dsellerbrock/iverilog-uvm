@@ -1,0 +1,7 @@
+Icarus Verilog version 13.0 (devel) ()
+edition=2017 exit=1
+/tmp/a825-ref-probe.Rw3k3K/ref.sv:3: error: Modport member 'q' has no specify-path direction.
+1 error(s) during elaboration.
+edition=2023 exit=1
+/tmp/a825-ref-probe.Rw3k3K/ref.sv:3: error: Modport member 'q' has no specify-path direction.
+1 error(s) during elaboration.

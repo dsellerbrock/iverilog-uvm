@@ -19,8 +19,8 @@
 
 # include  "PSpec.h"
 
-PSpecPath::PSpecPath(const std::list<perm_string> &src_list,
-		     const std::list<perm_string> &dst_list,
+PSpecPath::PSpecPath(const std::list<pform_specify_terminal_t> &src_list,
+		     const std::list<pform_specify_terminal_t> &dst_list,
 		     char polarity, bool full_flag)
 : conditional(false), condition(0), edge(0),
   src(src_list.begin(), src_list.end()), dst(dst_list.begin(), dst_list.end()),

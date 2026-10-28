@@ -62,6 +62,7 @@ class PExpr;
 class PPackage;
 class PSpecPath;
 class PClass;
+struct pform_specify_terminal_t;
 class PPackage;
 struct vlltype;
 struct lgate;
@@ -972,17 +973,20 @@ extern PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
  * Functions related to specify blocks.
  */
 extern PSpecPath*pform_make_specify_path(const struct vlltype&li,
-					 std::list<perm_string>*src, char pol,
-					 bool full_flag, std::list<perm_string>*dst);
+					 std::list<pform_specify_terminal_t>*src, char pol,
+					 bool full_flag,
+					 std::list<pform_specify_terminal_t>*dst);
 extern PSpecPath*pform_make_specify_edge_path(const struct vlltype&li,
 					 int edge_flag, /*posedge==true */
-					 std::list<perm_string>*src, char pol,
-					 bool full_flag, std::list<perm_string>*dst,
+					 std::list<pform_specify_terminal_t>*src, char pol,
+					 bool full_flag,
+					 std::list<pform_specify_terminal_t>*dst,
 					 PExpr*data_source_expression);
 extern PSpecPath*pform_assign_path_delay(PSpecPath*obj, std::list<PExpr*>*delays);
 
 extern void pform_module_specify_path(PSpecPath*obj);
-extern bool pform_specify_path_output_previously_declared(perm_string name);
+extern bool pform_specify_path_output_previously_declared(
+	const pform_specify_terminal_t&terminal);
 
 /*
  * Functions related to timing checks.

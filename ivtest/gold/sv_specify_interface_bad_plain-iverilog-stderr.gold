@@ -1,0 +1,2 @@
+ivltests/sv_specify_interface_terminals.v:67: error: 'a' is not an interface port, so 'a.b' is not a valid path terminal.
+1 error(s) during elaboration.

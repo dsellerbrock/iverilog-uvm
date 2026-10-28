@@ -6635,8 +6635,9 @@ PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
  * Specify paths.
  */
 extern PSpecPath* pform_make_specify_path(const struct vlltype&li,
-					  list<perm_string>*src, char pol,
-					  bool full_flag, list<perm_string>*dst)
+					  list<pform_specify_terminal_t>*src,
+					  char pol, bool full_flag,
+					  list<pform_specify_terminal_t>*dst)
 {
       PSpecPath*path = new PSpecPath(*src, *dst, pol, full_flag);
       FILE_NAME(path, li);
@@ -6649,8 +6650,9 @@ extern PSpecPath* pform_make_specify_path(const struct vlltype&li,
 
 extern PSpecPath*pform_make_specify_edge_path(const struct vlltype&li,
 					 int edge_flag, /*posedge==true */
-					 list<perm_string>*src, char pol,
-					 bool full_flag, list<perm_string>*dst,
+					 list<pform_specify_terminal_t>*src, char pol,
+					 bool full_flag,
+					 list<pform_specify_terminal_t>*dst,
 					 PExpr*data_source_expression)
 {
       PSpecPath*tmp = pform_make_specify_path(li, src, pol, full_flag, dst);
@@ -6727,14 +6729,16 @@ extern void pform_module_specify_path(PSpecPath*obj)
       pform_cur_module.front()->specify_paths.push_back(obj);
 }
 
-extern bool pform_specify_path_output_previously_declared(perm_string name)
+extern bool pform_specify_path_output_previously_declared(
+	const pform_specify_terminal_t&terminal)
 {
       if (pform_cur_module.empty())
 	    return false;
 
       for (const PSpecPath*path : pform_cur_module.front()->specify_paths) {
-	    if (std::find(path->dst.begin(), path->dst.end(), name) != path->dst.end())
-		  return true;
+	    for (const pform_specify_terminal_t&output : path->dst)
+		  if (output == terminal)
+			return true;
       }
       return false;
 }
