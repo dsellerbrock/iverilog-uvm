@@ -1,0 +1,2 @@
+iverilog: note: wrote DPI export C stubs to vsim.dpiexport.c (compile it into your DPI object).
+PASSED

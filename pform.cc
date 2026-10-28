@@ -904,12 +904,14 @@ struct pending_dpi_export_s {
       LexicalScope*scope;
       perm_string sv_name;
       perm_string c_name;
+      std::string language;
       bool is_task;
       std::string loc_str;
 };
 static std::vector<pending_dpi_export_s> pending_dpi_exports_;
 
-void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
+void pform_set_dpi_export(const struct vlltype&loc, const char*language,
+			  const char*c_name,
 			  const char*sv_name, bool is_task)
 {
       PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
@@ -959,6 +961,7 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
 	  pend.scope   = lexical_scope;
       pend.sv_name = lex_strings.make(sv_name);
       pend.c_name  = lex_strings.make(c_name);
+      pend.language = language;
       pend.is_task = is_task;
       pend.loc_str = tmp.str();
       pending_dpi_exports_.push_back(pend);
@@ -1018,7 +1021,7 @@ int pform_resolve_dpi_exports(void)
 		  continue;
 	    }
 
-	    sub->set_dpi_export(cur->c_name.str());
+	    sub->set_dpi_export(cur->language.c_str(), cur->c_name.str());
       }
       pending_dpi_exports_.clear();
       return resolve_errors;

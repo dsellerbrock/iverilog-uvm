@@ -881,6 +881,8 @@ struct ivl_scope_proc_s {
       } u_;
       const char*dpi_c_name;
       const char*dpi_export_c_name;
+      const char*dpi_language;
+      const char*dpi_export_language;
       unsigned ports;
 };
 
@@ -925,6 +927,8 @@ struct ivl_scope_s {
       unsigned func_signed : 1;
       unsigned is_dpi_import : 1;
       unsigned is_dpi_export : 1;
+      unsigned dpi_pure : 1;
+      unsigned dpi_context : 1;
 
       signed int time_precision :8;
       signed int time_units :8;

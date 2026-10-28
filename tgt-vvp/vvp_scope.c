@@ -3244,6 +3244,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
             ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
       int emit_evcd_metadata = dumpports_flag && *dumpports_flag;
       const char *type;
+      char *dpi_suffix = 0;
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
@@ -3343,8 +3344,33 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
-      fprintf(vvp_out, "S_%p .scope %s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix,
+      /* Preserve DPI declaration properties in the scope type token. The
+         runtime strips this private suffix before decoding the ordinary
+         scope kind and retains its fields on the VPI scope handle. */
+      if (ivl_scope_is_dpi_import(net)) {
+	    const char *c_name = ivl_scope_dpi_c_name(net);
+	    if (c_name) {
+		  dpi_suffix = malloc(strlen(c_name) + 64);
+		  assert(dpi_suffix);
+		  snprintf(dpi_suffix, strlen(c_name) + 64,
+			   ".vpi_dpi_%d_%d_%d_%s",
+			   ivl_scope_dpi_qualifier(net),
+			   ivl_scope_dpi_pure(net),
+			   ivl_scope_dpi_context(net), c_name);
+	    }
+      } else if (ivl_scope_is_dpi_export(net)) {
+	    const char *c_name = ivl_scope_dpi_export_c_name(net);
+	    if (c_name) {
+		  dpi_suffix = malloc(strlen(c_name) + 64);
+		  assert(dpi_suffix);
+		  snprintf(dpi_suffix, strlen(c_name) + 64,
+			   ".vpi_dpi_%d_0_0_%s",
+			   ivl_scope_dpi_export_qualifier(net), c_name);
+	    }
+      }
+
+      fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
+	      net, prefix, type, suffix, dpi_suffix ? dpi_suffix : "",
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),
@@ -3358,6 +3384,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
 	    fprintf(vvp_out, ";\n");
       }
+
+      free(dpi_suffix);
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));

@@ -297,6 +297,10 @@ class __vpiScope : public __vpiHandle {
 	// ancestor scope and no %alloc/%free is emitted for it.
       inline bool shares_parent_frame() const { return shares_parent_frame_; }
       inline void set_shares_parent_frame() { shares_parent_frame_ = true; }
+      inline void set_dpi_properties(int qualifier, bool pure, bool context,
+				     const char*identifier)
+	  { dpi_qualifier_ = qualifier; dpi_pure_ = pure; dpi_context_ = context;
+	    dpi_identifier_ = identifier ? identifier : ""; }
 
     public:
       __vpiScope *scope;
@@ -325,6 +329,10 @@ class __vpiScope : public __vpiHandle {
       signed int time_units :8;
       signed int time_precision :8;
       int join_type = vpiUndefined;
+      int dpi_qualifier() const { return dpi_qualifier_; }
+      int dpi_pure() const { return dpi_pure_ ? 1 : 0; }
+      int dpi_context() const { return dpi_context_ ? 1 : 0; }
+      const char*dpi_identifier() const { return dpi_identifier_.c_str(); }
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);
@@ -342,6 +350,10 @@ class __vpiScope : public __vpiHandle {
 	/* automatic begin/fork scopes collapsed into the enclosing
 	   frame (see shares_parent_frame()) */
       bool shares_parent_frame_ = false;
+      int dpi_qualifier_ = 0;
+      bool dpi_pure_ = false;
+      bool dpi_context_ = false;
+      std::string dpi_identifier_;
 };
 
 /* Deferred-report selectors use module/cell hierarchy depth, not the number

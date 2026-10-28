@@ -362,6 +362,15 @@ __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 int __vpiScope::vpi_get(int code)
 {
       switch (code) {
+	  case vpiDPIPure:
+	    return dpi_qualifier_ ? dpi_pure() : vpiUndefined;
+
+	  case vpiDPIContext:
+	    return dpi_qualifier_ ? dpi_context() : vpiUndefined;
+
+	  case vpiDPICStr:
+	    return dpi_qualifier_ ? dpi_qualifier() : vpiUndefined;
+
 	  case vpiCellInstance:
 	    return is_cell? 1 : 0;
 
@@ -392,7 +401,11 @@ int __vpiScope::vpi_get(int code)
 
 
 char*__vpiScope::vpi_get_str(int code)
-{ return scope_get_str(code, this); }
+{
+      if (code == vpiDPICIdentifier && dpi_qualifier_)
+	    return simple_set_rbuf_str(dpi_identifier());
+      return scope_get_str(code, this);
+}
 
 vpiHandle __vpiScope::vpi_handle(int code)
 { return scope_get_handle(code, this); }
@@ -1167,6 +1180,23 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
                    char*parent, long file_idx, long lineno,
                    long def_file_idx, long def_lineno, long is_cell)
 {
+      int dpi_qualifier = 0;
+      int dpi_pure = 0;
+      int dpi_context = 0;
+      const char*dpi_identifier = 0;
+      char*dpi = strstr(type, ".vpi_dpi_");
+      if (dpi) {
+	    *dpi = 0;
+	    char*fields = dpi + strlen(".vpi_dpi_");
+	    int consumed = 0;
+	    if (sscanf(fields, "%d_%d_%d_%n", &dpi_qualifier, &dpi_pure,
+		&dpi_context, &consumed) == 3 && consumed > 0)
+		  dpi_identifier = fields + consumed;
+	    else {
+		  fprintf(stderr, "VVP: malformed DPI scope properties\n");
+		  dpi_qualifier = 0;
+	    }
+      }
       int join_type = vpiUndefined;
       char*join = strstr(type, ".join");
       if (join && join[5] >= '0' && join[5] <= '2') {
@@ -1286,6 +1316,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
       scope->join_type = join_type;
+      if (dpi_qualifier)
+	    scope->set_dpi_properties(dpi_qualifier, dpi_pure,
+				      dpi_context, dpi_identifier);
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

@@ -5763,3 +5763,5 @@ issue1224_udnt_default_2023 vvp_tests/issue1224_udnt_default_2023.json
 # IEEE 1800-2017/2023 VPI vpiJoinType on named fork scopes
 issue1265_vpi_join_type_2017 vvp_tests/issue1265_vpi_join_type_2017.json
 issue1265_vpi_join_type_2023 vvp_tests/issue1265_vpi_join_type_2023.json
+issue1302_dpi_tf_properties_2017 vvp_tests/issue1302_dpi_tf_properties_2017.json
+issue1302_dpi_tf_properties_2023 vvp_tests/issue1302_dpi_tf_properties_2023.json

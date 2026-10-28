@@ -2810,6 +2810,33 @@ extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
       return proc ? proc->dpi_c_name : 0;
 }
 
+extern "C" int ivl_scope_dpi_pure(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_pure ? 1 : 0;
+}
+
+extern "C" int ivl_scope_dpi_context(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_context ? 1 : 0;
+}
+
+static int dpi_language_code_(const char*language)
+{
+      if (!language) return 0;
+      if (strcmp(language, "DPI-C") == 0) return 2;
+      if (strcmp(language, "DPI") == 0) return 1;
+      return 0;
+}
+
+extern "C" int ivl_scope_dpi_qualifier(ivl_scope_t net)
+{
+      assert(net);
+      ivl_scope_proc_s*proc = net->proc_();
+      return dpi_language_code_(proc ? proc->dpi_language : 0);
+}
+
 extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)
 {
       assert(net);
@@ -2821,6 +2848,13 @@ extern "C" const char*ivl_scope_dpi_export_c_name(ivl_scope_t net)
       assert(net);
       ivl_scope_proc_s*proc = net->proc_();
       return proc ? proc->dpi_export_c_name : 0;
+}
+
+extern "C" int ivl_scope_dpi_export_qualifier(ivl_scope_t net)
+{
+      assert(net);
+      ivl_scope_proc_s*proc = net->proc_();
+      return dpi_language_code_(proc ? proc->dpi_export_language : 0);
 }
 
 extern "C" unsigned ivl_scope_is_cell(ivl_scope_t net)
