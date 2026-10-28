@@ -5783,3 +5783,5 @@ issue1252_dpi_class_arg_2023 vvp_tests/issue1252_dpi_class_arg_2023.json
 # IEEE 1800-2017/2023 §30.7.4.1 pulse style declaration ordering
 issue1243_pulsestyle_order_2017 vvp_tests/issue1243_pulsestyle_order_2017.json
 issue1243_pulsestyle_order_2023 vvp_tests/issue1243_pulsestyle_order_2023.json
+sv_bits_dynamic_queue	vvp_tests/sv_bits_dynamic_queue.json
+sv_bits_dynamic_queue_2023	vvp_tests/sv_bits_dynamic_queue_2023.json

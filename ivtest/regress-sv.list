@@ -6127,3 +6127,6 @@ sv_uarray_equality_untyped_pattern_fail CE,-g2017,-s,sv_uarray_equality_untyped_
 sv_uarray_equality_untyped_pattern_fail_2023 CE,-g2023,-s,sv_uarray_equality_untyped_pattern_fail_2023 ivltests gold=sv_uarray_equality_untyped_pattern_fail_2023.gold
 issue1252_dpi_class_arg_2017 CE,-g2017,-s,issue1252_dpi_class_arg ivltests
 issue1252_dpi_class_arg_2023 CE,-g2023,-s,issue1252_dpi_class_arg ivltests
+
+sv_bits_dynamic_queue	normal,-g2017		ivltests gold=sv_bits_dynamic_queue.gold
+sv_bits_dynamic_queue_2023	normal,-g2023		ivltests gold=sv_bits_dynamic_queue.gold
