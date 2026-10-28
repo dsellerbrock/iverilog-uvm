@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1325_vpi_repeat_control.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1325_vpi_repeat_control_2023"],
+  "vpi-sources": ["vpi/issue1325_vpi_repeat_control.c"],
+  "output-contains": ["ISSUE1325_VPI_REPEAT_CONTROL_PASSED", "PASSED"]
+}

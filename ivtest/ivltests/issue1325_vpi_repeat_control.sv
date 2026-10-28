@@ -1,0 +1,6 @@
+module top;
+  initial begin
+    #1;
+    $finish;
+  end
+endmodule

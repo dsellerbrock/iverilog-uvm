@@ -304,6 +304,7 @@ typedef struct t_vpi_delay  {
 #define vpiRealVar     47
 #define vpiReg         48
 #define vpiRegBit      49
+#define vpiRepeatControl 52
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
 #define vpiTask        59
