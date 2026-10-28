@@ -200,6 +200,20 @@ class __vpiDecConst : public __vpiHandle {
       int value;
 };
 
+/* A declared range returned by vpi_iterate(vpiRange, ...). */
+class __vpiRange : public __vpiHandle {
+    public:
+      __vpiRange(int left, int right) : left(left), right(right) { }
+      int get_type_code(void) const override { return vpiRange; }
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      __vpiDecConst left;
+      __vpiDecConst right;
+};
+
+extern vpiHandle vpip_make_range(int left, int right);
+
 /*
  * This represents callback handles. There are some private types that
  * are defined and used in vpi_callback.cc. The __vpiCallback are
@@ -445,6 +459,7 @@ struct __vpiSignal : public __vpiHandle {
             int left;
             int right;
       };
+      std::vector<packed_range_t> declared_packed_ranges;
       std::vector<packed_range_t> packed_ranges;
       std::vector<vpiHandle> packed_children;
       unsigned packed_depth = 0;
@@ -946,7 +961,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
-      inline vpiHandle vpi_iterate(int code) override { return vpi_array_base_iterate(code); }
+      vpiHandle vpi_iterate(int code) override;
       vpiHandle vpi_index(int idx) override;
 
       void set_word(unsigned idx, unsigned off, const vvp_vector4_t&val);
@@ -1080,6 +1095,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       vvp_container_layout_t element_container_layout_;
 
       std::vector<__vpiSignal::packed_range_t> packed_ranges;
+      std::vector<__vpiSignal::packed_range_t> unpacked_ranges;
       std::map<std::string, vpiHandle> packed_views;
 
 private:

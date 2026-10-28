@@ -639,6 +639,27 @@ void __vpiArray::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int)
       set_word(index, 0, val);
 }
 
+vpiHandle __vpiArray::vpi_iterate(int code)
+{
+      if (code == vpiRange) {
+	    unsigned count = unpacked_ranges.empty() ? 1 : unpacked_ranges.size();
+	    vpiHandle*args = new vpiHandle[count];
+	    for (unsigned idx = 0; idx < count; idx += 1) {
+		  int left, right;
+		  if (unpacked_ranges.empty()) {
+			left = swap_addr ? last_addr.get_value() : first_addr.get_value();
+			right = swap_addr ? first_addr.get_value() : last_addr.get_value();
+		  } else {
+			left = unpacked_ranges[idx].left;
+			right = unpacked_ranges[idx].right;
+		  }
+		  args[idx] = vpip_make_range(left, right);
+	    }
+	    return vpip_make_iterator(count, args, true);
+      }
+      return vpi_array_base_iterate(code);
+}
+
 vpiHandle __vpiArray::get_iter_index(struct __vpiArrayIterator*, int idx)
 {
       if (nets) return nets[idx];
