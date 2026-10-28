@@ -30,6 +30,50 @@
 
 using namespace std;
 
+class __vpiTypeParameter : public __vpiHandle {
+    public:
+      __vpiTypeParameter(__vpiScope*scope, const char*name, bool local,
+                         unsigned file_idx, unsigned lineno, vpiHandle typespec)
+      : scope_(scope), name_(strdup(name)), local_(local), file_idx_(file_idx),
+        lineno_(lineno), typespec_(typespec) { }
+      ~__vpiTypeParameter() override { free(name_); }
+      int get_type_code(void) const override { return vpiTypeParameter; }
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiLocalParam: return local_;
+                case vpiLineNo: return lineno_;
+                default: return vpiUndefined;
+            }
+      }
+      char* vpi_get_str(int code) override
+      {
+            if (code == vpiFile) return simple_set_rbuf_str(file_names[file_idx_]);
+            return generic_get_str(code, scope_, name_, nullptr);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            switch (code) {
+                case vpiScope: return scope_;
+                case vpiModule: return vpip_module(scope_);
+                case vpiTypespec: return typespec_;
+                default: return nullptr;
+            }
+      }
+    private:
+      __vpiScope* scope_;
+      char* name_;
+      bool local_;
+      unsigned file_idx_;
+      unsigned lineno_;
+      vpiHandle typespec_;
+};
+
+void vpip_type_parameter_delete(__vpiHandle*item)
+{
+      delete dynamic_cast<__vpiTypeParameter*>(item);
+}
+
 struct enumconst_s : public __vpiHandle {
       enumconst_s();
       int get_type_code(void) const override;
@@ -363,4 +407,46 @@ class vartype_resolv_t : public resolv_list_s {
 void compile_vartype(char*label, char*text)
 {
       resolv_submit(new vartype_resolv_t(label, text));
+}
+
+class typeparam_resolv_t : public resolv_list_s {
+    public:
+      typeparam_resolv_t(char*label, const char*name, char*text, bool local,
+                         long file_idx, long lineno)
+      : resolv_list_s(label), name_(strdup(name)), text_(text), local_(local),
+        file_idx_(file_idx), lineno_(lineno), scope_(vpip_peek_current_scope()) { }
+      ~typeparam_resolv_t() override { free(name_); delete[] text_; }
+      bool resolve(bool message_flag) override
+      {
+            const char*cp = text_;
+            unsigned width = 0;
+            bool missing = false;
+            vpiHandle typespec = parse_vartype(cp, width, missing);
+            if (missing && !message_flag) return false;
+            if (!typespec || *cp) {
+                  yyerror("invalid .param/type metadata");
+                  compile_errors += 1;
+                  return true;
+            }
+            vpiHandle param = new __vpiTypeParameter(scope_, name_, local_,
+                  file_idx_, lineno_, typespec);
+            compile_vpi_symbol(label(), param);
+            vpip_attach_to_scope(scope_, param);
+            return true;
+      }
+    private:
+      char* name_;
+      char* text_;
+      bool local_;
+      unsigned file_idx_;
+      unsigned lineno_;
+      __vpiScope* scope_;
+};
+
+void compile_type_param(char*label, const char*name, char*type,
+                        bool local_flag, long file_idx, long lineno)
+{
+      resolv_submit(new typeparam_resolv_t(label, name, type, local_flag,
+                                           file_idx, lineno));
+      free(const_cast<char*>(name));
 }

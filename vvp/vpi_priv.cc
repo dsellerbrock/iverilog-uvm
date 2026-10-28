@@ -498,6 +498,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiNetBit";
 	  case vpiParameter:
 	    return "vpiParameter";
+	  case vpiTypeParameter:
+	    return "vpiTypeParameter";
 	  case vpiPartSelect:
 	    return "vpiPartSelect";
 	  case vpiRealVar:

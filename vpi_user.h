@@ -327,6 +327,12 @@ typedef struct t_vpi_delay  {
 
 #define vpiGenScope   134
 
+/* SystemVerilog type-parameter and typespec objects (IEEE 1800 Annex K). */
+#define vpiTypespec               605
+#define vpiTypeParameter          609
+#define vpiBitTypespec            640
+#define vpiLogicTypespec          641
+
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1

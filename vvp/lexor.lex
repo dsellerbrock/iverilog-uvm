@@ -248,6 +248,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".param/l"      { return K_PARAM_L; }
 ".param/str"    { return K_PARAM_STR; }
 ".param/real"   { return K_PARAM_REAL; }
+".param/type"   { return K_PARAM_TYPE; }
 ".part"         { return K_PART; }
 ".part/event"   { return K_PART_EVENT; }
 ".part/pv"      { return K_PART_PV; }

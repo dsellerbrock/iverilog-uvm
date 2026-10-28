@@ -808,6 +808,7 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
+            cur_par->type = cur_pit->second.ivl_type;
 
 	    if (cur_pit->second.ivl_type == 0) {
 		  cerr << "?:?: internal error: "

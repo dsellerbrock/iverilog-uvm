@@ -2398,6 +2398,12 @@ extern "C" int ivl_parameter_is_type(ivl_parameter_t net)
       return net->is_type;
 }
 
+extern "C" ivl_type_t ivl_parameter_type(ivl_parameter_t net)
+{
+      assert(net);
+      return net->is_type ? net->type : 0;
+}
+
 extern "C" int ivl_parameter_signed(ivl_parameter_t net)
 {
       assert(net);

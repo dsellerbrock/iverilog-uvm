@@ -830,6 +830,7 @@ struct ivl_nexus_s {
 struct ivl_parameter_s {
       perm_string basename;
       ivl_scope_t scope;
+      ivl_type_t  type;
       ivl_expr_t  value;
       long          msb;
       long          lsb;

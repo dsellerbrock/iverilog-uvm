@@ -114,6 +114,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiParameter:
 		  parameter_delete(item);
 		  break;
+		case vpiTypeParameter:
+		  vpip_type_parameter_delete(item);
+		  break;
 		case vpiRealVar:
 		  real_delete(item);
 		  break;

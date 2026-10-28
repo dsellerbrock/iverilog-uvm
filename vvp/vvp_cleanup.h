@@ -54,6 +54,7 @@ extern void enum_delete(class __vpiHandle *item);
 extern void memory_delete(class __vpiHandle *item);
 extern void named_event_delete(class __vpiHandle *item);
 extern void parameter_delete(class __vpiHandle *item);
+extern void vpip_type_parameter_delete(class __vpiHandle *item);
 extern void signal_delete(class __vpiHandle *item);
 /* Delete a non-owning signal handle without deleting its shared vvp_net_t.
  * EVCD side-probe handles are private views of an existing resolver node. */

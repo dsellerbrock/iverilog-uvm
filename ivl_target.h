@@ -1914,6 +1914,9 @@ extern unsigned    ivl_parameter_width(ivl_parameter_t net);
 extern int         ivl_parameter_signed(ivl_parameter_t net);
 extern int         ivl_parameter_local(ivl_parameter_t net);
 extern int         ivl_parameter_is_type(ivl_parameter_t net);
+/* Return the effective data type of a type parameter, or NULL for a value
+ * parameter. */
+extern ivl_type_t  ivl_parameter_type(ivl_parameter_t net);
 extern const char* ivl_parameter_file(ivl_parameter_t net);
 extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
 

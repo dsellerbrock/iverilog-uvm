@@ -3576,14 +3576,22 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+      struct vartype_buf_s param_type_buf = { 0, 0, 0 };
       for (idx = 0 ;  idx < ivl_scope_params(net) ;  idx += 1) {
 	    ivl_parameter_t par = ivl_scope_param(net, idx);
 
-	      // Skip type parameters for now. Support for type parameters
-	      // should be added together with support for quering types through
-	      // VPI.
-	    if (ivl_parameter_is_type(par))
-		  continue;
+	    if (ivl_parameter_is_type(par)) {
+	      ivl_type_t type = ivl_parameter_type(par);
+	      param_type_buf.len = 0;
+	      vartype_put_(&param_type_buf, "");
+	      if (type && vartype_spec_(&param_type_buf, type))
+		fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, \"%s\";\n",
+			par, vvp_mangle_name(ivl_parameter_basename(par)),
+			ivl_parameter_local(par),
+			ivl_file_table_index(ivl_parameter_file(par)),
+			ivl_parameter_lineno(par), param_type_buf.text);
+	      continue;
+	    }
 
 	    ivl_expr_t pex = ivl_parameter_expr(par);
 	    switch (ivl_expr_type(pex)) {
@@ -3628,6 +3636,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		  break;
 	    }
       }
+      free(param_type_buf.text);
 
       for (idx = 0 ; idx < ivl_scope_classes(net) ; idx += 1) {
 	    ivl_type_t class_type = ivl_scope_class(net,idx);
