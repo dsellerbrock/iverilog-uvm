@@ -334,6 +334,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1
+#define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -405,6 +406,9 @@ typedef struct t_vpi_delay  {
 #   define vpiDPIImportAcc 4
 #define vpiVisibility 620
 #   define vpiPublicVis 1
+/* IEEE 1800-2023 37.61 / Annex M */
+#define vpiHasActual  636
+#define vpiPrefix 714
 #define vpiSysFuncType     vpiFuncType
 #   define vpiSysFuncInt   vpiIntFunc
 #   define vpiSysFuncReal  vpiRealFunc
