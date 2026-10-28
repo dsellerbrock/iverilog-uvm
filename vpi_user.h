@@ -291,6 +291,7 @@ typedef struct t_vpi_delay  {
 #define vpiWait        69
 #define vpiElseStmt    73
 #define vpiForeachStmt 675
+#define vpiDoWhile     670 /* do-while statement */
 #define vpiOrderedWait 671
 #define vpiWaitFork    672
 #define vpiNet         36
@@ -327,7 +328,11 @@ typedef struct t_vpi_delay  {
 #define vpiModPathIn     95
 #define vpiModPathOut    96
 #define vpiVariables   100
+#define vpiLoopVars    737
 #define vpiExpr        102
+
+/* OPERATORS */
+#define vpiNullOp       36 /* null operation */
 
 /********************** object types added with 1364-2001 *********************/
 

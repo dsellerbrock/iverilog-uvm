@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1331_vpi_loop_array_api_constants.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1331_vpi_loop_array_api_constants_2017"],
+  "vpi-sources": ["vpi/issue1331_vpi_loop_array_api_constants.c"],
+  "output-contains": ["VPI LOOP ARRAY API CONSTANTS PASSED"]
+}
