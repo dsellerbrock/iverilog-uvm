@@ -1486,6 +1486,10 @@ int vpiPortInfo::vpi_get(int code)
           return index_;
         case vpiSize :
           return width_;
+        case vpiScalar :
+          return width_ == 1;
+        case vpiVector :
+          return width_ > 1;
         default :
           return vpiUndefined;
       }
