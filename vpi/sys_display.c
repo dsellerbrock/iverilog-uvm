@@ -716,12 +716,42 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
       }
       break;
 
-    /* This Verilog format specifier is not currently supported!
-     * vpiCell and vpiLibrary need to be implemented first. */
     case 'l':
     case 'L':
-      vpi_printf("WARNING: %s:%d: %%%c currently unsupported %s%s.\n",
-                 info->filename, info->lineno, fmt, info->name, fmtb);
+      if (plus != 0 || prec != -1) {
+        vpi_printf("WARNING: %s:%d: invalid format %s%s.\n",
+                   info->filename, info->lineno, info->name, fmtb);
+      }
+      if (width == -1) width = 0;
+
+      {
+        vpiHandle module = info->scope;
+        while (module) {
+          const char *type = vpi_get_str(vpiType, module);
+          if (type && !strcmp(type, "vpiModule")) break;
+          module = vpi_handle(vpiScope, module);
+        }
+        const char *cell = module ? vpi_get_str(vpiDefName, module) : 0;
+        const char *library = "work.";
+        char *binding;
+
+        if (cell) {
+          size_t binding_size = strlen(library) + strlen(cell) + 1;
+          binding = malloc(binding_size);
+          snprintf(binding, binding_size, "%s%s", library, cell);
+        } else {
+          binding = strdup("");
+        }
+
+        size = strlen(binding) + 1;
+        if ((signed)size < (width+1)) size = width+1;
+        if (size > ini_size) result = realloc(result, size*sizeof(char));
+
+        if (ljust == 0) sprintf(result, "%*s", width, binding);
+        else sprintf(result, "%-*s", width, binding);
+        free(binding);
+      }
+      size = strlen(result) + 1;
       break;
 
     case 'm':

@@ -206,11 +206,11 @@ module top;
     $swrite(result, "%-14.3G", rval);
     check_result(result, "1.23E+03      ", "%-14.3G in $swrite failed!");
 
-    // %l is currently unsupported.
+    // %l and %L report the default work library and module definition.
     $swrite(result, "%l");
-    check_result(result, "<%l>", "%l in $swrite failed!");
+    check_result(result, "work.top", "%l in $swrite failed!");
     $swrite(result, "%L");
-    check_result(result, "<%L>", "%L in $swrite failed!");
+    check_result(result, "work.top", "%L in $swrite failed!");
 
     // %m
     $swrite(result, "%m");
