@@ -1262,6 +1262,8 @@ sv_finish_stats_2023 vvp_tests/sv_finish_stats_2023.json
 
 # IEEE 1800-2017 type() case matching and specparam constant-expression boundary
 sv_type_operator_case	vvp_tests/sv_type_operator_case.json
+sv_type_hier_ref_fail_2017 vvp_tests/sv_type_hier_ref_fail_2017.json
+sv_type_hier_ref_fail_2023 vvp_tests/sv_type_hier_ref_fail_2023.json
 sv_type_operator_generate_case_2017	vvp_tests/sv_type_operator_generate_case_2017.json
 sv_type_operator_generate_case_2023	vvp_tests/sv_type_operator_generate_case_2023.json
 sv_type_operator_packed_shape_2017	vvp_tests/sv_type_operator_packed_shape_2017.json
