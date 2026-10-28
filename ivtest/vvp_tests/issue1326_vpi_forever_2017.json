@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1326_vpi_forever.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1326_vpi_forever_2017"],
+  "vpi-sources": ["vpi/issue1326_vpi_forever.c"],
+  "output-contains": ["VPI FOREVER CONSTANT PASSED"]
+}

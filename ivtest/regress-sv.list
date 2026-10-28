@@ -15,6 +15,8 @@ issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue12
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
 issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
+issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
+issue1320_vpi_assignment_op_2023 normal,-g2023 ivltests
 
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
@@ -26,6 +28,8 @@ issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_g
 issue1249_pure_dpi_formals_2023 CE,-g2023,-s,test ivltests
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
+sv_assert_first_match_sequence_combinators normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
+sv_assert_first_match_sequence_combinators_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
 sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
 sv_assert_function_sample_pure normal,-g2017,-gassertions ivltests gold=sv_assert_function_sample_pure.gold
 sv_assert_function_nested_side_effect_fail CE,-g2017,-gassertions ivltests gold=sv_assert_function_nested_side_effect_fail.gold
@@ -6160,3 +6164,7 @@ sv_specify_interface_forward_chain_bad CE,-g2017,-gspecify,-Iivltests,-s,sv_spec
 # IEEE 1800-2017/2023 §27.4: genvars are not runtime references.
 sv_genvar_reference_outside_loop_fail_2017 CE,-g2017,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2017.gold
 sv_genvar_reference_outside_loop_fail_2023 CE,-g2023,-s,sv_genvar_reference_outside_loop_fail ivltests gold=sv_genvar_reference_outside_loop_fail_2023.gold
+
+# IEEE 1800-2017/2023 §16.8: sequence actual names must identify formals.
+issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_sequence_2017 ivltests
+issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests

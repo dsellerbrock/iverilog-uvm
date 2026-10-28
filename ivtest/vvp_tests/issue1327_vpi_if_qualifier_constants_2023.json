@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1327_vpi_if_qualifier_constants.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1327_vpi_if_qualifier_constants_2023"],
+  "vpi-sources": ["vpi/issue1327_vpi_if_qualifier_constants.c"],
+  "output-contains": ["VPI IF QUALIFIER CONSTANTS PASSED", "PASSED"]
+}

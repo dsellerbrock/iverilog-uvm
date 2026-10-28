@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1319_vpi_always_type_constants.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1319_vpi_always_type_constants_2017"],
+  "vpi-sources": ["vpi/issue1319_always_type_constants.c"],
+  "output-contains": ["VPI ALWAYS TYPE CONSTANTS PASSED"]
+}

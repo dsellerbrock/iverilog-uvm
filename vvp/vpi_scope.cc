@@ -1168,6 +1168,20 @@ class __vpiAssertion : public __vpiHandle {
 	    if (reason == cbAssertionStart) attempts_ += 1;
 	    else if (reason == cbAssertionSuccess) successes_ += 1;
 	    if (cbs_.empty()) return;
+	    /* Control and action-state events are not associated with a
+	       particular assertion attempt. IEEE 1800-2017/2023 39.4.2
+	       requires a NULL attempt-info pointer for these reasons. */
+	    bool no_attempt_info = false;
+	    switch (reason) {
+	      case cbAssertionDisable:
+	      case cbAssertionEnable:
+	      case cbAssertionReset:
+	      case cbAssertionKill:
+		  no_attempt_info = true;
+		  break;
+	      default:
+		  break;
+	    }
 	    vvp_time64_t now_raw = schedule_simtime();
 	    s_vpi_time t;
 	    t.type = vpiSimTime;
@@ -1231,7 +1245,7 @@ class __vpiAssertion : public __vpiHandle {
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].reason == reason && cbs_[i].cb)
-			cbs_[i].cb(reason, &t, this, &info,
+		  cbs_[i].cb(reason, &t, this, no_attempt_info ? 0 : &info,
 				   (PLI_BYTE8*)cbs_[i].user_data);
 	    }
       }
