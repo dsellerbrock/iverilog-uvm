@@ -334,6 +334,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiType           1
+#define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4

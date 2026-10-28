@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1318_vpi_blocking.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1318_vpi_blocking_2023"],
+  "vpi-sources": ["vpi/issue1318_vpi_blocking.c"],
+  "output-contains": ["PASSED"]
+}
