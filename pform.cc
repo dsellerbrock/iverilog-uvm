@@ -6727,6 +6727,18 @@ extern void pform_module_specify_path(PSpecPath*obj)
       pform_cur_module.front()->specify_paths.push_back(obj);
 }
 
+extern bool pform_specify_path_output_previously_declared(perm_string name)
+{
+      if (pform_cur_module.empty())
+	    return false;
+
+      for (const PSpecPath*path : pform_cur_module.front()->specify_paths) {
+	    if (std::find(path->dst.begin(), path->dst.end(), name) != path->dst.end())
+		  return true;
+      }
+      return false;
+}
+
 /*
  * Timing checks.
  */

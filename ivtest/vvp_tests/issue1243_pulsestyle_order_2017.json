@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1243_pulsestyle_order_2017.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "bad"],
+  "gold": "issue1243_pulsestyle_order_2017"
+}

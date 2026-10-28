@@ -982,6 +982,7 @@ extern PSpecPath*pform_make_specify_edge_path(const struct vlltype&li,
 extern PSpecPath*pform_assign_path_delay(PSpecPath*obj, std::list<PExpr*>*delays);
 
 extern void pform_module_specify_path(PSpecPath*obj);
+extern bool pform_specify_path_output_previously_declared(perm_string name);
 
 /*
  * Functions related to timing checks.
