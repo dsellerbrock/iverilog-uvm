@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1349_assertion_control_info.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1349_assertion_control_info_2023"],
+  "vpi-sources": ["vpi/issue1349_assertion_control_info.c"],
+  "output-contains": ["control callbacks=4 nonnull_info=0"]
+}
