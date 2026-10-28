@@ -57,6 +57,8 @@ sv_shuffle_thread_stability_2017 vvp_tests/sv_shuffle_thread_stability_2017.json
 sv_shuffle_thread_stability_2023 vvp_tests/sv_shuffle_thread_stability_2023.json
 sv_covergroup_assignment_outside_new_2017	vvp_tests/sv_covergroup_assignment_outside_new_2017.json
 sv_covergroup_assignment_outside_new_2023	vvp_tests/sv_covergroup_assignment_outside_new_2023.json
+issue1254_vpi_compat_2017	vvp_tests/issue1254_vpi_compat_2017.json
+issue1254_vpi_compat_2023	vvp_tests/issue1254_vpi_compat_2023.json
 always4B			vvp_tests/always4B.json
 analog1				vvp_tests/analog1.json
 analog2				vvp_tests/analog2.json
