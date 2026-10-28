@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1307_sysfunc_value.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1307_sysfunc_value_2023"],
+  "vpi-sources": ["vpi/issue1307_sysfunc_value.c"],
+  "output-contains": ["SYSFUNC_VPI_VALUE=42", "SYSFUNC_RESULT=42", "PASSED"]
+}

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1304_vpi_visibility.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1304_vpi_visibility_2017"],
+  "vpi-sources": ["vpi/issue1304_visibility.c"],
+  "output-contains": ["PASSED"]
+}

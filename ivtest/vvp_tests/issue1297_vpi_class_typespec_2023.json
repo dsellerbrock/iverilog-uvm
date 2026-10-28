@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1297_vpi_class_typespec.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1297_class_typespec"],
+  "vpi-sources": ["vpi/issue1297_class_typespec.c"],
+  "output-contains": ["PASSED"]
+}
