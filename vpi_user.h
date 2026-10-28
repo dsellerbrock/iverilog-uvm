@@ -275,6 +275,7 @@ typedef struct t_vpi_delay  {
 
 /* OBJECT CODES */
 #define vpiConstant     7
+#define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiFor         15
 #define vpiFunction    20
 #define vpiIntegerVar  25
@@ -348,6 +349,7 @@ typedef struct t_vpi_delay  {
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+#define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */
 #   define vpiInput 1
