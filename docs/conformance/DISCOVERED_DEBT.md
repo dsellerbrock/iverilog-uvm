@@ -4789,6 +4789,36 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** M9 #909 paired tests and Slurm T0/T1 job 4764; the command and per-test results are retained in A3's local SHA256-manifested evidence bundle `evidence/m9-issue909-baseline-20261024/recorded-t0-t1-4764/`.
 - **Triage status:** Known boundary; not part of #909.
 
+### DD-141 — associative `find_index` on struct values aborts code generation
+
+- **Discovered while working:** M9 #854, while qualifying custom iterator-index
+  lookup for struct array items.
+- **Observation:** On unpatched main `5c081171`, an associative array of structs
+  using `find_index(item) with (item.index == 7)` fails in both `-g2017` and
+  `-g2023` during VVP code generation with `unsupported associative find_index
+  runtime type`. This is independent of #854: the probe uses the default index
+  name, not the optional index-name argument. Expected: compile/run succeeds
+  and the result queue contains the key `"key"`. Actual: the compiler exits
+  during code generation before creating a runnable VVP file.
+- **File/function:** `tgt-vvp/eval_object.c`,
+  `draw_assoc_index_locator_expr_()`; `unique_runtime_type_supported_()`
+  rejects the struct iterator type around line 1652.
+- **Possible clause:** IEEE 1800-2023 §7.12.1 (associative locator methods) and
+  §7.12.4 (iterator index querying).
+- **Evidence:** `~/codex-supervisor/evidence/a3-m9-854-lead-probes-20261025/`
+  (manifested Slurm 4840 output, probe source, and script; the same diagnostic
+  also appeared in Slurm 4834).
+- **Reproducer status:** confirmed on main with `A3-m9-854-lead-probes.sv`,
+  module `m9_854_assoc_struct_default_index`. Both commands fail:
+  `iverilog -g2017 -s m9_854_assoc_struct_default_index -o /tmp/assoc.vvp
+  A3-m9-854-lead-probes.sv` and the same command with `-g2023`; source is in
+  the evidence directory above.
+- **Triage status:** separate backend issue; open+closed searches found no
+  direct match. Open #485 covers associative assignment-pattern values, while
+  closed #853 covers struct-valued index keys crashing at runtime; neither
+  covers struct elements in `find_index`. Leave outside #854 and report the
+  minimal reproducer for supervisor issue filing.
+
 ### DD-142 — class-to-integral rejection has expression-provenance limits
 
 - **Discovered while working:** M9 #759.
@@ -4797,7 +4827,84 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage:** #759 claims only direct assignment, variable initialization, compound assignment, and clocking-variable drive from a resolved class variable or selected property. Keep the general fallback unchanged; do not pin its warning in a golden. Function-result, ternary, and `new`-to-integral cases need a future source-type-provenance fix and paired tests.
 - **Evidence:** [narrowed-guard probes](../evidence/m9-issue759-class-20261025/focused-followup-20261025/a3-759-focused-followup-readme.md) and the [earlier reducer record](../evidence/m9-issue759-class-20261025/diagnostic-verification.txt).
 
-### DD-143 — typed assignment-pattern casts are rejected as array equality operands
+### DD-143 — assertion function output-argument rejection has a generic diagnostic
+
+- **Discovered while working:** M9 #1183.
+- **Observation:** A function with an output argument used in a concurrent assertion is rejected in both editions before the assertion-purity check, with `Assignment l-value too complex` at the assignment in the function body. IEEE 1800-2023 §16.6 explicitly prohibits output, inout, or ref arguments in functions appearing in assertion expressions, so the rejection is correct; only the diagnostic is generic.
+- **Evidence:** `evidence/m9-1183-function-purity-20261026/t1-first-pass/sv_assert_function_output_arg_fail_{2017,2023}.runner.log`.
+- **Triage status:** Diagnostic clarity only; no additional conformance claim or implementation change in #1183.
+
+### DD-144 — dynamic non-goal coverage options may be clobbered by extension constants
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** The derived-constructor wrapper added for goal/comment inheritance can also expose the same ordering problem for `weight`, `per_instance`, or `get_inst_coverage`: a base constructor may write a dynamic value before the extension's constant value is applied. These options are outside the current goal/comment fix and remain unverified.
+- **File/function:** `elab_expr.cc::elaborate_covgrp_options` and the extension path in `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Tech-lead source review during #689; the analogous dynamic-goal/constant-extension-goal case reproduced in `evidence/slurm-vvpdiag-attempt04/recorded/run-2023.stdout`. No reducer was run for the other option names.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-145 — compound dynamic goal expressions emit a misleading unresolved-name warning
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** A compound covergroup goal expression such as `initial_goal + 1` is probed for constant evaluation in class scope, which emits `Unable to bind ... initial_goal ... (compile-progress: unresolved reference)` before the expression falls back to run-time evaluation. A bare constructor-formal expression does not emit this warning. The corresponding `opt_weight` path uses the same probe pattern; that case is not yet reproduced.
+- **File/function:** `elaborate.cc::opt_goal` and the corresponding `opt_weight` probe.
+- **Possible clause:** IEEE 1800-2017/2023 §19.7.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the warning was captured alongside unrelated test errors.
+- **Reproducer status:** confirmed for `opt_goal`; sketched for `opt_weight`
+- **Triage status:** untriaged; warning cleanup is outside #689.
+
+### DD-146 — extension coverpoints cannot use an inherited sample argument
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** In a 2023 embedded covergroup extension, a derived coverpoint over the inherited `sample()` formal is rejected with a `sorry` saying the expression is unsupported when sampled through a base-class handle. A coverpoint over a derived-class member compiles, so this is a separate inherited-sample resolution limit.
+- **File/function:** Embedded covergroup extension expression binding in `elaborate.cc`.
+- **Possible clause:** IEEE 1800-2023 §19.4.1.
+- **Evidence:** Slurm job 4942, `evidence/slurm-vvpdiag-attempt03/attempt-03/compile.stderr`; the derived-member control compiled in job 4943.
+- **Reproducer status:** confirmed
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — synthetic constructor chains can silently skip missing base arguments
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** `PChainConstructor::elaborate` returns an empty block when a synthesized `new@` chain has missing base-constructor arguments. That compile-progress fallback can hide a required `super.new()` call instead of reporting the missing arguments.
+- **File/function:** `PChainConstructor::elaborate`.
+- **Possible clause:** IEEE 1800-2023 §8.7.
+- **Evidence:** source review during #689; the implicit-derived covergroup test now creates a synthesized constructor chain. The missing-argument fallback itself has not yet been reproduced.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged; do not widen #689.
+
+### DD-147 — inherited covergroup `at_least` and `weight` slots remain positional
+
+- **Discovered while working:** M9 issue #689.
+- **Observation:** Per-instance `at_least` and `weight` properties are still allocated inline in coverpoint/cross order. Replacing inherited items may therefore give base-class handles the wrong option slot, analogous to the goal/comment bug fixed in this PR; this has not been reproduced.
+- **File/function:** `elaborate.cc`, `add_option_props` calls in coverpoint and cross elaboration.
+- **Possible clause:** IEEE 1800-2023 §19.7.1.
+- **Evidence:** Tech-lead source review during the #1688 inherited-slot investigation; no reproducer run.
+- **Reproducer status:** unverified.
+- **Triage status:** logged for a separate follow-up; do not widen #689.
+
+### DD-148 — concurrent assertions do not validate clocking-input sampling events
+
+- **Discovered while working:** #711 (M9 sampled-value functions over clocking inputs).
+- **Observation:** The procedural sampled-value lowering now validates that a
+  clocking input's event is provably the same as the inferred procedural event.
+  The concurrent-assertion path still maps `cb.d` to its raw source without
+  comparing the clocking block event to the assertion event. Its mapped-input
+  selector path also ignores selectors such as `cb.e[1]` when `e` aliases an
+  expression. Do not broaden #711 to change this assertion behavior.
+- **Possible clause:** IEEE 1800-2017/2023 §16.5.1; the event relationship
+  needs a focused interpretation and paired regression before changing it.
+- **Reproducer sketch (not yet run):** declare `clocking cb @(negedge clk);`
+  with `input #1step d`, then evaluate `$rose(cb.d)` in
+  `assert property (@(posedge clk) ...)`. For the selector case, declare
+  `input e = a` and use `$past(cb.e[1])` in an assertion.
+- **File/function:** `pform.cc::sva_wrap_preponed_`, clocking-input branch near
+  the sampled operand rewrite.
+- **Triage status:** discovered debt outside the procedural #711 fix; no
+  conformance claim filed and no assertion reproducer run yet.
+
+### DD-149 — typed assignment-pattern casts are rejected as array equality operands
 
 - **Discovery ID:** DD-143.
 - **Active blocker:** #728.

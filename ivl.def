@@ -90,6 +90,8 @@ ivl_expr_property_idx
 ivl_expr_repeat
 ivl_expr_ref_lval
 ivl_expr_ref_lval2
+ivl_expr_ref_lval_at
+ivl_expr_ref_lval_count
 ivl_expr_scope
 ivl_expr_sel_type
 ivl_expr_signal
@@ -503,6 +505,10 @@ ivl_type_covgrp_merge_instances
 ivl_type_covgrp_type_weight
 ivl_type_covgrp_weight
 ivl_type_covgrp_weight_prop
+ivl_type_covgrp_goal
+ivl_type_covgrp_goal_prop
+ivl_type_covgrp_comment
+ivl_type_covgrp_comment_prop
 ivl_type_covgrp_items
 ivl_type_covgrp_item_type_weight
 ivl_type_covgrp_item_at_least
@@ -510,6 +516,10 @@ ivl_type_covgrp_item_at_least_prop
 ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_weight_ir
 ivl_type_covgrp_item_weight_prop
+ivl_type_covgrp_item_goal
+ivl_type_covgrp_item_goal_prop
+ivl_type_covgrp_item_comment
+ivl_type_covgrp_item_comment_prop
 ivl_type_covgrp_item_is_cross
 ivl_type_covgrp_item_name
 ivl_type_covgrp_item_guardsrc

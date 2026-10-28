@@ -604,13 +604,23 @@ void pform_end_class_declaration(const struct vlltype&loc)
 {
       ivl_assert(loc, pform_cur_class);
 
+	// A covergroup extension needs an implicit constructor so its option
+	// initializers run after the base constructor.
+	bool has_cg_extension = false;
+	for (auto*cg : pform_cur_class->type->covergroups)
+	      if (cg && cg->is_extension) has_cg_extension = true;
+	bool needs_extension_ctor = has_cg_extension
+	      && pform_cur_class->type->base_type
+	      && pform_cur_class->funcs.find(perm_string::literal("new"))
+		 == pform_cur_class->funcs.end();
+
 	// If there were initializer statements, then collect them
 	// into an implicit constructor function. Also make sure that an
 	// explicit constructor exists if base class constructor arguments are
 	// specified, so that the base class constructor will be called.
       if (!pform_cur_class->type->initialize.empty() ||
 	  !pform_cur_class->type->base_args.empty() ||
-	  pform_cur_class->type->base_default) {
+	  pform_cur_class->type->base_default || needs_extension_ctor) {
 	    PFunction*func = pform_push_function_scope(loc, "new@", LexicalScope::AUTOMATIC);
 	    if (pform_cur_class->type->base_default) {
 		  func->set_ports(pform_class_constructor_default_ports(loc, func));
@@ -1085,7 +1095,9 @@ void pform_class_covergroup(const struct vlltype&loc,
 		  if (found == cg->coverpoints.end())
 			cg->coverpoints.push_back(std::move(item));
 		  else {
+			item.option_slot = found->option_slot;
 			class_type_t::pform_coverpoint_t base_only = *found;
+			base_only.option_slot = -1;
 			string alias = "$ivl_inherited_"
 			      + string(extends_name.str()) + "_"
 			      + std::to_string(found - cg->coverpoints.begin());
@@ -1119,15 +1131,24 @@ void pform_class_covergroup(const struct vlltype&loc,
 				       });
 		  if (found == cg->crosses.end())
 			cg->crosses.push_back(std::move(item));
-		  else
+		  else {
+			item.option_slot = found->option_slot;
 			*found = std::move(item);
+		  }
 	    }
 	    for (const auto&item : added_options)
 		  cg->options[item.first] = item.second;
+	    cg->extension_options = added_options;
       }
       // Resolve implicit cross items after inheritance is merged so names
       // from a base covergroup remain references to its components.
       pform_covergroup_implicit_cross_coverpoints_(loc, cg);
+      for (auto&cp : cg->coverpoints)
+	    if (cp.option_slot < 0)
+		  cp.option_slot = cg->option_slot_count++;
+      for (auto&cross : cg->crosses)
+	    if (cross.option_slot < 0)
+		  cross.option_slot = cg->option_slot_count++;
       for (auto&cross : cg->crosses) {
 	    if (!cross.value_type || !cross.value_type->members) continue;
 	    auto member = cross.value_type->members->begin();

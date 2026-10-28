@@ -32,6 +32,7 @@
 # include  <cinttypes>
 # include  <cctype>
 # include  <cerrno>
+# include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
 # include  <limits>
@@ -2549,7 +2550,57 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
       if (property_is_static(pid))
 	    return;
 
+	// IEEE 1800-2017/2023 8.12: an embedded covergroup's object
+	// handle is set to null in the shallow copy. Its declared type is the
+	// synthesized covergroup class with an enclosing-object parent slot.
+	const class_type*declared_type = property_declared_class_type(pid);
+	if (declared_type && declared_type->is_covergroup()
+	    && declared_type->covgrp_parent_prop() >= 0) {
+	    vvp_object_t null_handle;
+	    for (size_t idx = 0 ; idx < property_array_size(pid) ; idx += 1)
+		  properties_[pid].type->set_object(dst_buf, null_handle, idx);
+	    return;
+	}
+
       properties_[pid].type->copy(dst_buf, src_buf);
+}
+
+unsigned class_type::copy_common_initial_sequence(inst_t dst,
+			const class_type*src_type, inst_t src) const
+{
+      if (!src_type || !is_struct_type_ || is_union_type_
+	  || !src_type->is_struct_type_ || src_type->is_union_type_)
+	    return 0;
+
+      unsigned copied = 0;
+      size_t count = properties_.size() < src_type->properties_.size()
+	    ? properties_.size() : src_type->properties_.size();
+      for (size_t pid = 0; pid < count; ++pid) {
+	    const prop_t&target = properties_[pid];
+	    const prop_t&source = src_type->properties_[pid];
+	    if (target.base_type != source.base_type
+		|| target.array_size != source.array_size
+		|| target.dimensions != source.dimensions
+		|| target.declared_class_type != source.declared_class_type)
+		  break;
+	    for (size_t idx = 0; idx < target.array_size; ++idx) {
+		  if (property_vec4_width(pid)) {
+			vvp_vector4_t value;
+			src_type->get_vec4(src, pid, value, idx);
+			set_vec4(dst, pid, value, idx);
+		  } else if (target.base_type == "r") {
+			set_real(dst, pid, src_type->get_real(src, pid, idx), idx);
+		  } else if (target.base_type == "S") {
+			set_string(dst, pid, src_type->get_string(src, pid, idx), idx);
+		  } else {
+			vvp_object_t value;
+			src_type->get_object(src, pid, value, idx);
+			set_object(dst, pid, value, idx);
+		  }
+	    }
+	    ++copied;
+      }
+      return copied;
 }
 
 int class_type::get_type_code(void) const
@@ -3123,6 +3174,19 @@ static bool compile_class_covgrp_property_valid_(uint64_t encoded,
             && !compile_class->property_is_static(prop);
 }
 
+static bool compile_class_covgrp_string_property_valid_(uint64_t encoded)
+{
+      if (encoded == 0) return true;
+      if (encoded > (uint64_t)std::numeric_limits<int>::max() + 1)
+            return false;
+      size_t prop = static_cast<size_t>(encoded - 1);
+      return prop < compile_class->property_count()
+            && compile_class->property_base_type(prop) == "S"
+            && compile_class->property_array_size(prop) == 1
+            && compile_class->property_dimensions(prop).empty()
+            && !compile_class->property_is_static(prop);
+}
+
 void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop)
 {
@@ -3141,6 +3205,24 @@ void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
             options.get_inst_coverage_prop = get_inst_prop ? (int)(get_inst_prop - 1) : -1;
             compile_class->set_covgrp_options(options);
       }
+}
+
+void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
+					uint64_t comment_prop, char*comment)
+{
+      assert(compile_class);
+      if (goal > std::numeric_limits<unsigned>::max()
+	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
+	  || !compile_class_covgrp_string_property_valid_(comment_prop)) {
+	    yyerror("invalid .covgrp_option_values metadata value");
+	    return;
+      }
+      class_type::covgrp_options_t options = compile_class->covgrp_options();
+      options.goal_prop = goal_prop ? (int)(goal_prop - 1) : -1;
+      options.goal = (unsigned)goal;
+      options.comment_prop = comment_prop ? (int)(comment_prop - 1) : -1;
+      options.comment = comment ? comment : "";
+      compile_class->set_covgrp_options(options);
 }
 
 void compile_class_covgrp_per_instance(uint64_t value, uint64_t property)
@@ -3206,6 +3288,25 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 		  bad = true;
       if (bad)
 	    yyerror("invalid .covgrp_item_options metadata value");
+}
+
+void compile_class_covgrp_item_option_values(uint64_t item_idx,
+					     uint64_t goal_prop,
+					     uint64_t goal,
+					     uint64_t comment_prop,
+					     char*comment)
+{
+      assert(compile_class);
+      if (item_idx > std::numeric_limits<size_t>::max()
+	  || goal > std::numeric_limits<unsigned>::max()
+	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
+	  || !compile_class_covgrp_string_property_valid_(comment_prop)
+	  || !compile_class->set_covgrp_item_option_values(
+		static_cast<size_t>(item_idx),
+		goal_prop ? (int)(goal_prop - 1) : -1, (unsigned)goal,
+		comment_prop ? (int)(comment_prop - 1) : -1,
+		comment ? comment : ""))
+	    yyerror("invalid .covgrp_item_option_values metadata value");
 }
 
 void compile_class_covgrp_item_guard(uint64_t item_idx, uint64_t has_guard)
@@ -3795,11 +3896,20 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
       store(covgrp_options_.weight_prop, covgrp_options_.weight);
       store(covgrp_options_.get_inst_coverage_prop, covgrp_options_.get_inst_coverage);
       store(covgrp_options_.per_instance_prop, covgrp_options_.per_instance);
+      store(covgrp_options_.goal_prop, covgrp_options_.goal);
+      if (covgrp_options_.comment_prop >= 0
+	  && (size_t)covgrp_options_.comment_prop < property_count())
+	    obj->set_string((size_t)covgrp_options_.comment_prop,
+		    covgrp_options_.comment);
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
 	    store(item.at_least_prop, item.at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+	    store(item.goal_prop, item.goal);
+	    if (item.comment_prop >= 0
+		&& (size_t)item.comment_prop < property_count())
+		  obj->set_string((size_t)item.comment_prop, item.comment);
       }
 }
 
@@ -3977,7 +4087,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    return 0.0;
       // A declaration alone contributes no bins. Retired instances still
       // belong to the cumulative population, even with zero instance weight.
-      if (covgrp_live_.empty() && !covgrp_has_retired_options_) return 0.0;
+      if (covgrp_live_.empty() && !covgrp_has_retired_options_
+	  && !covgrp_db_loaded_) return 0.0;
       if (!covgrp_options_.merge_instances) {
             size_t item = static_cast<size_t>(selected_item);
 	    long double weights = selected_item >= 0

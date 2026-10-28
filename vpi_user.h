@@ -658,6 +658,10 @@ extern void vpip_format_strength(char*str, s_vpi_value*value, unsigned bit);
      $finish system tasks bundled with iverilog use this function to
      tell vvp to exit SUCCESS or FAILURE. */
 extern void vpip_set_return_value(int value);
+/* IEEE 1800-2023 19.9 functional-coverage database control. */
+#define VPIP_COVGRP_DB_SET_NAME 0
+#define VPIP_COVGRP_DB_LOAD     1
+extern int vpip_covgrp_db(int op, const char*name);
 
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
@@ -795,7 +799,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 12;
+static const PLI_UINT32 vpip_routines_version = 13;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -856,7 +860,12 @@ typedef struct {
     PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
     void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
                                                    PLI_INT32);
+    void        (*register_immediate_cover)(PLI_INT32, const char*,
+                                             const char*, PLI_INT32,
+                                             vpiHandle);
+    void        (*report_immediate_cover)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*print_finish_stats)(void);
+    int         (*covgrp_db)(int, const char*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

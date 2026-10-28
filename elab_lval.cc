@@ -3818,8 +3818,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
             }
 
 	      // IEEE 1800-2023 19.5/19.7.1: coverpoint and cross labels form
-	      // pseudo hierarchy under a covergroup instance. Rewrite the two
-	      // supported mutable item options to the synthesized scalar slot on
+	      // pseudo hierarchy under a covergroup instance. Rewrite supported
+	      // mutable item options to the synthesized scalar slot on
 	      // this particular covergroup object before ordinary property lookup.
 	    if (owner_class && owner_class->is_covergroup()
 		&& member_cur.index.empty() && member_path.size() >= 2) {
@@ -3840,8 +3840,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      cerr << get_fileline() << ": sorry: procedural write of "
 				   << "coverpoint/cross option `" << member_cur.name
 				   << ".option." << value_comp.name
-				   << "' is not supported; only option.at_least and "
-				   << "option.weight are implemented." << endl;
+				   << "' is not supported; supported options are "
+				   << "option.at_least, option.weight, option.goal, and "
+				   << "option.comment." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
@@ -3871,7 +3872,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  next_modport = owner_class->get_prop_interface_modport(pidx);
 
 		  property_qualifier_t qual = owner_class->get_prop_qual(pidx);
-		  if (qual.test_local() && ! owner_class->test_scope_is_method(scope)) {
+		  if (qual.test_local()
+		      && !owner_class->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 			cerr << get_fileline() << ": error: "
 			     << "Local property " << owner_class->get_prop_name(pidx)
 			     << " is not accessible (l-value) in this context."

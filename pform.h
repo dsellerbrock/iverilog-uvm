@@ -66,6 +66,12 @@ class PPackage;
 struct vlltype;
 struct lgate;
 
+/* Check the IEEE 1800 restriction on calls from design modules to program
+ * subroutines after the caller and callee scopes have been resolved. */
+extern bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
+					     const NetScope*caller,
+					     const NetScope*callee);
+
 /*
  * The min:typ:max expression s selected at parse time using the
  * enumeration. When the compiler makes a choice, it also prints a
@@ -460,7 +466,8 @@ extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,
 					 std::list<sva_sequence_formal_t>*formals,
 					 std::vector<sva_seq_step_t>*steps);
-extern void pform_sva_set_default_disable(PExpr*expr);
+extern void pform_sva_set_default_disable(const struct vlltype&loc,
+                                          PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 /* Evaluate the integral constant-expression subset used by SVA
    repetition and cycle-delay bounds while the module is being parsed. */
@@ -631,6 +638,9 @@ pform_sva_multiclock_comb_antecedent(
 			   sva_property_t*ante, PEventStatement*clk,
 			   std::vector<sva_seq_step_t>*conseq,
 			   std::vector<sva_mc_seg_t>*tail);
+extern sva_property_t*
+pform_sva_clocked_leaf_prop(const struct vlltype&loc, PEventStatement*clk,
+			    std::vector<sva_seq_step_t>*chain);
 extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,

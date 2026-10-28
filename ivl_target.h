@@ -1093,6 +1093,8 @@ extern unsigned    ivl_expr_parms(ivl_expr_t net);
   /* IVL_EX_SFUNC: optional compiler-known ref-output destination. */
 extern ivl_lval_t  ivl_expr_ref_lval(ivl_expr_t net);
 extern ivl_lval_t  ivl_expr_ref_lval2(ivl_expr_t net);
+extern ivl_lval_t  ivl_expr_ref_lval_at(ivl_expr_t net, unsigned idx);
+extern unsigned    ivl_expr_ref_lval_count(ivl_expr_t net);
   /* IVL_EX_SFUNC: exact concrete virtual-interface function candidates. */
 extern ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx);
 extern unsigned    ivl_expr_vif_methods(ivl_expr_t net);
@@ -2842,9 +2844,17 @@ extern unsigned ivl_type_covgrp_per_instance(ivl_type_t net);
 extern int ivl_type_covgrp_weight_prop(ivl_type_t net);
 extern int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net);
 extern int ivl_type_covgrp_per_instance_prop(ivl_type_t net);
+extern unsigned ivl_type_covgrp_goal(ivl_type_t net);
+extern int ivl_type_covgrp_goal_prop(ivl_type_t net);
+extern const char* ivl_type_covgrp_comment(ivl_type_t net);
+extern int ivl_type_covgrp_comment_prop(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_type_weight(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx);
+extern int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_comment(ivl_type_t net, int idx);
+extern int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx);
   /* Hidden per-instance scalar slots for the supported mutable item options
      (-1 for legacy metadata without materialized runtime state). */
 extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);

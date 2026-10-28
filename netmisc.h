@@ -739,6 +739,10 @@ extern const netclass_t* find_method_containing_class(
       Design*des, const LineInfo&loc, NetScope*scope);
 extern bool scope_method_uses_implicit_this(Design*des, NetScope*scope);
 extern NetNet* find_implicit_this_handle(Design*des, NetScope*scope);
+extern NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                         const netclass_t*type, NetExpr*object,
+                                         const LineInfo&loc,
+                                         const netclass_t*inherited = nullptr);
 extern void netmisc_release_elaboration_caches();
 
 /*

@@ -777,6 +777,9 @@ struct class_type_t : public data_type_t {
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
+	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
+	    // storage; stable across covergroup extensions.
+	    int option_slot = -1;
 	    const PClass* decl_class = nullptr;
 	    bool inherited_cross_only = false;
 	    bool declared_by_extension = false;
@@ -825,6 +828,9 @@ struct class_type_t : public data_type_t {
 		  bool matches_all = false;
 	    };
 	    perm_string label;                 // cross label (or auto)
+	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
+	    // storage; stable across covergroup extensions.
+	    int option_slot = -1;
 	    const PClass* decl_class = nullptr;
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
 	    std::vector<PExpr*> cp_exprs;       // implicit variable expressions
@@ -838,6 +844,7 @@ struct class_type_t : public data_type_t {
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
 	    bool is_extension = false;
+	    int option_slot_count = 0;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.
 	    std::vector<perm_string> ctor_formals;
@@ -860,6 +867,7 @@ struct class_type_t : public data_type_t {
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)
 	    std::map<perm_string, PExpr*> options;
+	    std::map<perm_string, PExpr*> extension_options;
       };
       std::vector<pform_covergroup_t*> covergroups;
 

@@ -13920,6 +13920,39 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 	    return tmp;
       }
 
+      auto append_extension_options = [&](NetBlock*block) {
+	    bool appended = false;
+	    for (const auto&extension : class_this->covgrp_extension_classes()) {
+		  const perm_string name = extension.first;
+		  netclass_t*type = extension.second;
+		  if (!type || !type->is_covergroup()) continue;
+		  int prop = class_this->property_idx_from_name(name);
+		  if (prop < 0) continue;
+
+		  NetExpr*handle = new NetEProperty(new NetESignal(var_this),
+						    (unsigned)prop, nullptr);
+		  const netclass_t*inherited = nullptr;
+		  int inherited_prop = class_super->property_idx_from_name(name);
+		  if (inherited_prop >= 0) {
+			inherited = dynamic_cast<const netclass_t*>(
+			      class_super->get_prop_type(
+				    static_cast<size_t>(inherited_prop)));
+			if (inherited && !inherited->is_covergroup()) inherited = nullptr;
+		  }
+		  NetExpr*call = elaborate_covgrp_options(des, scope, type,
+						      handle, *this, inherited);
+		  if (call == handle) continue;
+
+		  NetAssign_*lvalue = new NetAssign_(var_this);
+		  lvalue->set_property(lex_strings.make(name.str()), (unsigned)prop);
+		  NetAssign*assignment = new NetAssign(lvalue, call);
+		  assignment->set_line(*this);
+		  block->append(assignment);
+		  appended = true;
+	    }
+	    return appended;
+      };
+
 	// If super.new(...) is a user defined constructor, then call
 	// it. This is a bit more complicated because there may be arguments.
 	      if (NetScope*new_scope = class_super->get_constructor()) {
@@ -14046,15 +14079,21 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 			set_this->set_line(*this);
 			blk->append(set_this);
 			blk->append(stmt);
+		    append_extension_options(blk);
 			return blk;
 		  }
 	    }
-	    return stmt;
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+	    blk->set_line(*this);
+	    blk->append(stmt);
+	    append_extension_options(blk);
+	    return blk;
       }
 
 	// There is no constructor at all in the parent, so skip it.
       NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
       tmp->set_line(*this);
+	append_extension_options(tmp);
       return tmp;
 }
 
@@ -17168,6 +17207,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	   A static task with explicit automatic locals still needs its
 	   %alloc/call/%free wrapper. */
       if ((parm_count == 0) && !subroutine_needs_call_frame_(task)) {
+	    if (!validate_program_subroutine_call(des, *this, scope, task))
+		  return nullptr;
 	      // Check if a task call is allowed in this context.
 	    test_task_calls_ok_(des, scope);
 
@@ -18463,6 +18504,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 								       class_type->get_name()))
 			class_type = visible_class;
 	    }
+	    if (class_type->is_interface_class()
+		&& (method_name == perm_string::literal("rand_mode")
+		    || method_name == perm_string::literal("constraint_mode"))) {
+		  cerr << get_fileline() << ": error: " << method_name
+		       << "() is not allowed on an interface class handle"
+		       << " (IEEE 1800-2017/2023 8.26.9)." << endl;
+		  des->errors += 1;
+		  delete obj_expr;
+		  return 0;
+	    }
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
@@ -19485,6 +19536,46 @@ bool PCallTask::test_task_calls_ok_(Design*des, const NetScope*scope) const
       return true;
 }
 
+static const NetScope* enclosing_design_element_(const NetScope*scope)
+{
+      for (; scope; scope = scope->parent()) {
+	    if (scope->type() == NetScope::PACKAGE
+		|| scope->type() == NetScope::CLASS)
+		  return nullptr;
+	    if (scope->type() == NetScope::MODULE)
+		  return scope->is_unit() ? nullptr : scope;
+      }
+      return nullptr;
+}
+
+bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
+				      const NetScope*caller,
+				      const NetScope*callee)
+{
+      if (!caller || !callee)
+	    return true;
+
+	/* Class method calls have their own receiver and dispatch rules. Keep
+	 * them outside this design-element restriction pending separate clause
+	 * analysis. */
+      if (caller->get_class_scope() || callee->get_class_scope())
+	    return true;
+
+      const NetScope*caller_design = enclosing_design_element_(caller);
+      const NetScope*callee_design = enclosing_design_element_(callee);
+      if (!caller_design || !callee_design
+	  || !callee_design->program_block()
+	  || caller_design->program_block())
+	    return true;
+
+      cerr << loc.get_fileline()
+	   << ": error: Calling program subroutines from within design "
+	      "modules is illegal and shall result in an error "
+	      "(IEEE 1800-2017/2023 24.5)." << endl;
+      des->errors += 1;
+      return false;
+}
+
 NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
 {
 	// Generate a function call version of this task call.
@@ -19559,6 +19650,9 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 					     NetFuncDef*def) const
 {
       NetScope*dscope = def->scope();
+
+      if (!validate_program_subroutine_call(des, *this, scope, dscope))
+	    return nullptr;
 
 	/* A void function cannot be part of the constant-function subset, and
 	 * statement-form calls do not pass through PECallFunction's constant-call
@@ -20243,6 +20337,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
 {
+	      if (!validate_program_subroutine_call(des, *this, scope, task))
+	    return nullptr;
+
 	      const NetBaseDef*def = 0;
 		      if (task->type() == NetScope::TASK) {
 			    def = task->task_def();
@@ -34650,8 +34747,11 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 		  "$onehot0", "$pow", "$realtobits", "$right", "$rtoi",
 		  "$shortrealtobits", "$signed", "$sin", "$sinh", "$size",
 		  "$sqrt", "$tan", "$tanh", "$typename", "$unsigned",
-		  "$ivl_array_query$size", "$ivl_assoc_method$exists",
+		  "$ivl_clocking_sample", "$ivl_array_query$size",
+		  "$ivl_assoc_method$exists",
 		  "$ivl_assoc_method$num", "$ivl_checked_property_index",
+		  // Read-only Preponed operand sample (§14.13, §16.5.1); validate operands recursively below.
+		  "$ivl_clocking_sample",
 		  "$ivl_class_method$constraint_mode_get",
 		  "$ivl_class_method$get_randstate", "$ivl_class_method$rand_mode_get",
 		  "$ivl_class_method$rand_mode_get_assoc",
@@ -41447,6 +41547,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      w = we;
 			}
 			string mode = r.weight_is_divided ? ":/" : ":=";
+			if (generation_flag < GN_VER2023 && r.is_range) mode += "17";
 			result += " (b " + mode + " " + w + " " + range_ir + ")";
 		  } else {
 			result += " " + range_ir;
@@ -42003,6 +42104,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      for (auto* cgdef : pclass->type->covergroups) {
 		    if (!cgdef) continue;
 
+		      // IEEE 1800-2017/2023 19.8.1 places the constructor and
+		      // overridden sample() formals in one lexical scope.
+		    for (perm_string ctor_formal : cgdef->ctor_formals) {
+			  for (perm_string sample_formal : cgdef->sample_formals) {
+				if (ctor_formal != sample_formal) continue;
+				cerr << pclass->get_fileline()
+				     << ": error: covergroup constructor and sample() "
+				     << "formals share the name '" << ctor_formal
+				     << "' (IEEE 1800 19.8.1)." << endl;
+				des->errors += 1;
+			  }
+		    }
+
 		    string cg_cname = string("__covgrp_")
 				      + string(name_.str())
 				      + "_" + string(cgdef->name.str()) + "_t";
@@ -42377,6 +42491,26 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return std::make_pair(dflt, ir);
 		    };
+		      // Fold values that can be stored in the covergroup type record;
+	      // constructor-dependent values remain instance initializers.
+	    auto opt_goal = [&](PExpr*expr) -> std::pair<unsigned,PExpr*> {
+		  if (!expr) return std::make_pair(100u, static_cast<PExpr*>(nullptr));
+		  NetExpr*value = is_direct_ctor_formal(expr) ? nullptr
+			: elab_and_eval(des, class_scope_, expr,
+					&netvector_t::atom2s32, false);
+		  if (NetEConst*constant = dynamic_cast<NetEConst*>(value)) {
+			unsigned goal = static_cast<unsigned>(constant->value().as_ulong64());
+			delete value;
+			return std::make_pair(goal, static_cast<PExpr*>(nullptr));
+		  }
+		  delete value;
+		  return std::make_pair(100u, expr);
+	    };
+	    auto opt_comment = [](PExpr*expr) -> std::pair<std::string,PExpr*> {
+		  if (const PEString*value = dynamic_cast<const PEString*>(expr))
+			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
+		  return std::make_pair(std::string(), expr);
+	    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
@@ -43339,8 +43473,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    unsigned prop_idx = cg_class->get_properties();
 		    unsigned cp_idx  = 0;
 		    unsigned dyn_family = 0;
-		    bool has_parent_set_bins = false;
-		    bool has_parent_range_bins = false;
 				    auto add_unique_cov_property = [&](const std::string&base,
 								     ivl_type_t property_type) -> int {
 					  std::string candidate = base;
@@ -43413,12 +43545,77 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto per_instance_it = cgdef->options.find(perm_string::literal("per_instance"));
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
+            group_options.goal = 100;
+            group_options.goal_expr = nullptr;
+            auto goal_it = cgdef->options.find(perm_string::literal("goal"));
+            if (goal_it != cgdef->options.end()) {
+                  std::pair<unsigned,PExpr*>goal = opt_goal(goal_it->second);
+                  group_options.goal = goal.first;
+                  group_options.goal_expr = goal.second;
+            }
+            group_options.comment.clear();
+            group_options.comment_expr = nullptr;
+            auto comment_it = cgdef->options.find(perm_string::literal("comment"));
+            if (comment_it != cgdef->options.end()) {
+                  std::pair<std::string,PExpr*>comment =
+                        opt_comment(comment_it->second);
+                  group_options.comment = comment.first;
+                  group_options.comment_expr = comment.second;
+            }
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
             // Keep this offset aligned across base and embedded extension types.
             group_options.per_instance_prop = add_unique_cov_property(
                   "__covgrp_group_option_per_instance", &netvector_t::scalar_bool);
+            group_options.goal_prop = add_unique_cov_counter(
+                  "__covgrp_group_option_goal");
+            group_options.comment_prop = add_unique_cov_property(
+                  "__covgrp_group_option_comment", &netstring_t::type_string);
+            if (cgdef->is_extension) {
+                  int inherited_idx = property_idx_from_name(cgdef->name);
+                  ivl_assert(*pclass, get_super() && inherited_idx >= 0
+                        && static_cast<size_t>(inherited_idx) < super_props);
+                  const netclass_t*base_cg = dynamic_cast<const netclass_t*>(
+                        get_super()->get_prop_type(static_cast<size_t>(inherited_idx)));
+                  ivl_assert(*pclass, base_cg && base_cg->is_covergroup());
+                  // The base covergroup may still be lazily materialized here.
+                  const netclass_t::covgrp_options_t&base_options =
+                        base_cg->covgrp_options();
+                  if (base_options.goal_prop >= 0)
+                        ivl_assert(*pclass, group_options.goal_prop
+                              == base_options.goal_prop);
+                  if (base_options.comment_prop >= 0)
+                        ivl_assert(*pclass, group_options.comment_prop
+                              == base_options.comment_prop);
+            }
+            auto add_item_goal_comment_props = [&](const std::string&stem) {
+                  return std::make_pair(
+                        add_unique_cov_counter(stem + "_option_goal"),
+                        add_unique_cov_property(stem + "_option_comment",
+                                                &netstring_t::type_string));
+            };
+            std::vector<std::pair<int,int>> cp_goal_comment_props(
+                  cgdef->coverpoints.size(), std::make_pair(-1, -1));
+            std::vector<std::pair<int,int>> cross_goal_comment_props(
+                  cgdef->crosses.size(), std::make_pair(-1, -1));
+            std::vector<std::pair<int,int>> option_slots(
+                  cgdef->option_slot_count);
+            for (size_t slot = 0; slot < option_slots.size(); ++slot)
+                  option_slots[slot] = add_item_goal_comment_props(
+                        "__covgrp_item_slot_" + std::to_string(slot));
+            for (size_t idx = 0; idx < cgdef->coverpoints.size(); ++idx) {
+                  int slot = cgdef->coverpoints[idx].option_slot;
+                  ivl_assert(*pclass, slot >= 0
+                        && static_cast<size_t>(slot) < option_slots.size());
+                  cp_goal_comment_props[idx] = option_slots[slot];
+            }
+            for (size_t idx = 0; idx < cgdef->crosses.size(); ++idx) {
+                  int slot = cgdef->crosses[idx].option_slot;
+                  ivl_assert(*pclass, slot >= 0
+                        && static_cast<size_t>(slot) < option_slots.size());
+                  cross_goal_comment_props[idx] = option_slots[slot];
+            }
             auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
                                    const char*where) -> unsigned {
                   auto it = options.find(perm_string::literal("type_option.weight"));
@@ -43904,14 +44101,24 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
-			  std::pair<int,int> cp_option_props =
-				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
+			  std::string cp_option_stem = "__covgrp_item_" + std::to_string(cp_idx);
+			  std::pair<int,int> cp_option_props = add_option_props(cp_option_stem);
+			  auto cp_goal_it = cp.options.find(perm_string::literal("goal"));
+			  auto cp_comment_it = cp.options.find(perm_string::literal("comment"));
+		  std::pair<unsigned,PExpr*>cp_goal = opt_goal(
+			cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second);
+		  std::pair<std::string,PExpr*>cp_comment = opt_comment(
+			cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
 						nullptr, -1,
 						cp_option_props.first,
-						cp_option_props.second);
+						cp_option_props.second,
+						cp_goal_comment_props[cp_idx].first,
+						cp_goal_comment_props[cp_idx].second,
+						cp_goal.second, cp_comment.second,
+						cp_goal.first, cp_comment.first);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -44183,13 +44390,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
-				      if (base_kind != 0) {
-					    cerr << "sorry: covergroup '" << cgdef->name
-						 << "': ignore/illegal transition bins are "
-						 << "not supported; bin '" << bin.name
-						 << "' is dropped." << endl;
-					    continue;
-				      }
+				      if (base_kind == 1) continue;
 				      // shortcut: wildcard transition bins need literal patterns and
 				      // cannot be arrayed; add set indexing when a case needs it.
 				      if (bin.wildcard && bin.arrayed) {
@@ -44394,6 +44595,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    pieces.push_back(std::move(terms));
 					    bool pieces_changed = false;
 					    for (auto&ignored : ignored_trans) {
+						  if (base_kind == 2) break;
 						  std::vector<std::vector<trans_term_t>> next_pieces;
 						  for (auto&piece : pieces) {
 							bool plain = true;
@@ -44482,13 +44684,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    "c:" + std::to_string(r.second) + ":" + tag));
 						  }
 						  for (auto&r : term.ir_ranges)
-							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							      4u | (base_kind == 2 ? 1024u : 0u),
 							      family, bin.arrayed ? 0 : ~(uint64_t)0,
 							      bin.name.str(), r.first, r.second,
 							      cp_value_width, cp_value_signed, bin_guard,
 							      sq, st, term.repeat, term.min, term.max);
 					    }
-					    has_value_bins = true;
+					    if (base_kind == 0) has_value_bins = true;
 					    continue;
 				      }
 				      if (bin.arrayed && family_total > array_transition_limit) {
@@ -44511,7 +44714,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  for (auto&r : term.ranges) {
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
-							      4u | (bin.wildcard ? 8u : 0u),
+							      (base_kind == 2 ? 2u | 1024u : 4u)
+								    | (bin.wildcard ? 8u : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
@@ -44522,6 +44726,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 					    }
 				      }
+				      if (base_kind == 2) continue;
 				      if (bin.arrayed) {
 					    for (uint64_t logical = 0;
 						 logical < (uint64_t)family_total; logical++) {
@@ -44808,7 +45013,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						   cp_value_supported ? cp_value_width : 64,
 						   cp_value_supported && cp_value_signed,
 						   bin_guard);
-				      if (set_on_parent) has_parent_set_bins = true;
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
 					    d.name = bin.name;
@@ -45131,9 +45335,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      unsigned family = dyn_family++;
 				    for (auto&ir : ir_ranges) {
-					  if (ir.first.find("pp:") != std::string::npos
-					      || ir.second.find("pp:") != std::string::npos)
-						has_parent_range_bins = true;
 					  cg_class->add_covgrp_dyn_bin(
 							cp_idx, cp_idx, kindval, family,
 							dyn_array_size, bin.name.str(),
@@ -45254,6 +45455,80 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // must not trigger unrelated automatic-bin synthesis.
 				if (rr.empty()) {
 				      if (base_kind == 0) has_value_bins = true;
+				      continue;
+				}
+
+				if (bin.arrayed && !bin.array_size && bin.wildcard
+				    && base_kind == 0) {
+				      // IEEE 1800-2017/2023 19.5.4: an open wildcard-bin
+				      // array has one ordinary bin for each distinct 2-state
+				      // value matched by its patterns. Expand patterns here so
+				      // sampling and cross-bin selection see concrete values.
+				      static const uint64_t wildcard_array_bin_limit = 65536;
+				      if (cp_value_width == 0 || cp_value_width > 64) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' has a coverpoint wider than 64 bits; "
+						 << "the bin array is not represented." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      uint64_t value_mask = cp_value_width == 64
+					    ? UINT64_MAX
+					    : (UINT64_C(1) << cp_value_width) - 1;
+				      std::set<uint64_t> values;
+				      std::set<std::pair<uint64_t,uint64_t>> patterns(
+					    rr.begin(), rr.end());
+				      bool too_many = false;
+				      for (const auto&pattern : patterns) {
+					    std::vector<unsigned> free_bits;
+					    for (unsigned bit = 0; bit < cp_value_width; bit++)
+						  if (!(pattern.second & (UINT64_C(1) << bit)))
+							free_bits.push_back(bit);
+					    if (free_bits.size() > 16) {
+						  too_many = true;
+						  break;
+					    }
+					    uint64_t count = UINT64_C(1) << free_bits.size();
+					    for (uint64_t combination = 0; combination < count;
+						 combination++) {
+						  uint64_t value = pattern.first & value_mask;
+						  for (size_t free_idx = 0;
+						       free_idx < free_bits.size(); free_idx++)
+							if (combination & (UINT64_C(1) << free_idx))
+							      value |= UINT64_C(1) << free_bits[free_idx];
+						  values.insert(value);
+						  if (values.size() > wildcard_array_bin_limit) {
+							too_many = true;
+							break;
+						  }
+					    }
+					    if (too_many) break;
+				      }
+				      if (too_many) {
+					    cerr << "sorry: open wildcard covergroup bin array '"
+						 << bin.name << "' needs more than "
+						 << wildcard_array_bin_limit
+						 << " value-keyed counters; the bin array is dropped."
+						 << endl;
+					    des->errors += 1;
+					    continue;
+				      }
+				      for (uint64_t value : values) {
+					    std::vector<std::pair<uint64_t,uint64_t>> value_range;
+					    value_range.push_back(std::make_pair(value, value));
+					    std::string bn = bstem + "_" + std::to_string(value);
+					    unsigned source_prop = add_value_prop(
+						  bn, value_range, base_kind, bin_guard);
+					    xbin_desc_t d;
+					    d.name = lex_strings.make((std::string(bin.name.str())
+							       + "[" + std::to_string(value)
+							       + "]").c_str());
+					    d.ranges = value_range;
+					    d.source_prop = (int)source_prop;
+					    d.guard_idx = bin_guard;
+					    vbins.push_back(std::move(d));
+				      }
+				      has_value_bins = true;
 				      continue;
 				}
 
@@ -45732,7 +46007,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // product of the contributing coverpoints' value
 		      // bins.  Named cross bins (binsof selects) land in
 		      // M11-3; their pform is captured already.
-		    for (auto& cross : cgdef->crosses) {
+		    for (size_t cross_idx = 0; cross_idx < cgdef->crosses.size(); ++cross_idx) {
+			  auto&cross = cgdef->crosses[cross_idx];
 		  const netclass_t*cross_decl_class =
 			covgrp_decl_class(cross.decl_class, "cross");
 		  if (!cg_standalone && cross_decl_class
@@ -45901,15 +46177,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				     << "(IEEE 1800-2023 19.4.1)." << endl;
 				des->errors += 1;
 			  }
-			  std::pair<int,int> x_option_props =
-				add_option_props("__covgrp_item_" + std::to_string(item_idx));
+			  std::string x_option_stem = "__covgrp_item_" + std::to_string(item_idx);
+			  std::pair<int,int> x_option_props = add_option_props(x_option_stem);
+			  auto x_goal_it = cross.options.find(perm_string::literal("goal"));
+			  auto x_comment_it = cross.options.find(perm_string::literal("comment"));
+		  std::pair<unsigned,PExpr*>x_goal = opt_goal(
+			x_goal_it == cross.options.end() ? nullptr : x_goal_it->second);
+		  std::pair<std::string,PExpr*>x_comment = opt_comment(
+			x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
 						x_weight.second,
 						cross.iff_expr, x_guard_src,
 						x_option_props.first,
-						x_option_props.second);
+						x_option_props.second,
+						cross_goal_comment_props[cross_idx].first,
+						cross_goal_comment_props[cross_idx].second,
+					x_goal.second, x_comment.second,
+					x_goal.first, x_comment.first);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
@@ -46863,9 +47149,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
-	    if (!cg_standalone
-		&& (cgdef->is_extension || has_parent_set_bins
-		    || has_parent_range_bins || !cgdef->sample_events.empty())) {
+	    if (!cg_standalone) {
 				  int parent_prop = add_unique_cov_property(
 					"__covgrp_parent", this);
 				  if (parent_prop >= 0)
@@ -46897,6 +47181,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << "sampling treats it as enabled." << endl;
 				}
 			  }
+		    }
+
+	    // Every compiled item must carry its mutable goal/comment property.
+		    for (size_t item = 0; item < cg_class->covgrp_item_count(); item++) {
+			  ivl_assert(*pclass, cg_class->covgrp_item(item).goal_prop >= 0
+				&& cg_class->covgrp_item(item).comment_prop >= 0);
 		    }
 
 		    // Replace the covergroup property declaration on the

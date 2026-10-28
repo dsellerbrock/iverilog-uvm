@@ -2008,6 +2008,15 @@ NetNet* find_array_method_iter_index(const NetNet*iter_net,
       return 0;
 }
 
+static NetNet* find_struct_array_method_iter_index_(
+	const NetNet*iter_net, perm_string member_name)
+{
+      const netstruct_t*struct_type = iter_net ? iter_net->struct_type() : 0;
+      if (!struct_type || struct_type->member_index(member_name) != (unsigned)-1)
+	    return 0;
+      return find_array_method_iter_index(iter_net, member_name);
+}
+
 static bool array_method_iter_index_forbidden_(const NetNet*iter_net,
 					       perm_string index_name =
 					       perm_string::literal("index"))
@@ -4307,6 +4316,24 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 6.16: "a[0] = b; // invalid, requires a cast".
+	 * A string character (type byte) is not assignment-compatible with a
+	 * non-literal string-typed expression. String literals keep their
+	 * 5.9/6.16 integral conversion, so exclude PEString. The wider
+	 * packed-vector case is deliberately not decided here. */
+      if (gn_system_verilog()
+	  && (lv_net_type == &netvector_t::atom2s8
+	      || lv_net_type == &netvector_t::atom2u8)
+	  && expr->expr_type() == IVL_VT_STRING
+	  && !dynamic_cast<const PEString*>(expr)) {
+	    cerr << expr->get_fileline() << ": error: A string-typed expression "
+		 << "cannot be assigned to a byte or string character without an "
+		 << "explicit cast (IEEE 1800-2017/2023 6.16)." << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+	  }
+
 	/* Class handles are type-incompatible with integral types (IEEE 1800
 	 * 6.22.5). The type is on the PExpr from test_width before netmisc's
 	 * compile-progress fallback replaces the r-value. Use it only for an
@@ -5715,23 +5742,27 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
 
       /* Reuse procedural-assignment validation for consts, nets and other
          read-valid but write-invalid names before exporting the expression
-         side effect. The bounded backend below currently accepts only the
-         resulting scalar signal shape. */
+         side effect. */
       NetAssign_*lval = left_->elaborate_lval(des, scope, false, false);
       if (!lval)
             return nullptr;
-      delete lval;
 
       NetExpr*lp = left_->elaborate_expr(des, scope, l_width, flags);
-      if (!lp)
+      if (!lp) {
+            delete lval;
             return nullptr;
+      }
 
       NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
-      if (!lsig || lsig->word_index()) {
+      const bool concat_lvalue = lval->more != 0
+	    || dynamic_cast<NetEConcat*>(lp) != 0;
+      if ((!concat_lvalue && (!lsig || lsig->word_index()))
+          || (concat_lvalue && op_ != '=')) {
             cerr << get_fileline() << ": sorry: Assignment expressions "
                  << "currently require a scalar variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5740,6 +5771,7 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
                  << "currently require an integral variable l-value." << endl;
             des->errors += 1;
             delete lp;
+            delete lval;
             return nullptr;
       }
 
@@ -5747,26 +5779,30 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*rp = right_->elaborate_expr(des, scope, l_width, flags);
       if (!rp) {
             delete lp;
+            delete lval;
             return nullptr;
       }
       rp = cast_to_width(rp, l_width, signed_flag_, *this);
 
-      NetNet*target = lsig->sig();
       /* The ordinary l-value used for validation above is temporary;
 	 without this permanent note, `x = (member = 1)' can evade the
 	 continuous/procedural-driver check. An already reserved continuous
 	 driver is the opposite elaboration order of the same conflict. */
-      if (target->coerced_to_uwire()
-	  && target->test_part_driven(target->vector_width()-1, 0, 0)) {
-	cerr << get_fileline() << ": error: Variable '" << target->name()
-	     << "' cannot have continuous and procedural drivers on the"
-	     << " same bits." << endl;
-	des->errors += 1;
-	delete lp;
-	delete rp;
-	return nullptr;
+      for (NetAssign_*cur = lval; cur; cur = cur->more) {
+	NetNet*target = cur->sig();
+	if (target && target->coerced_to_uwire()
+	    && target->test_part_driven(target->vector_width()-1, 0, 0)) {
+	  cerr << get_fileline() << ": error: Variable '" << target->name()
+	       << "' cannot have continuous and procedural drivers on the"
+	       << " same bits." << endl;
+	  des->errors += 1;
+	  delete lp;
+	  delete rp;
+	  delete lval;
+	  return nullptr;
+	}
+	if (target) target->note_assignment_expression_write();
       }
-      target->note_assignment_expression_write();
 
       string name = "$ivl_assign_expr$";
       name += op_;
@@ -5775,6 +5811,10 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       fun->set_line(*this);
       fun->parm(0, lp);
       fun->parm(1, rp);
+      if (concat_lvalue)
+	fun->set_ref_output(lval);
+      else
+	delete lval;
 
       return cast_to_width(fun, expr_wid, signed_flag_, *this);
 }
@@ -7710,7 +7750,7 @@ static bool stream_property_readable_(Design*des, NetScope*scope,
       if (quiet)
 	    return true;
       if (ct->get_prop_qual(pidx).test_local()
-	  && !ct->test_scope_is_method(scope)) {
+	  && !ct->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << inner->get_fileline() << ": error: Local property "
 		 << ct->get_prop_name(pidx)
 		 << " is not accessible in this context." << endl;
@@ -15058,7 +15098,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && !class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -15746,7 +15787,7 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
  * pseudo hierarchy rather than class objects. Replace the three source
  * components
  *
- *     <coverpoint-or-cross>.option.{at_least,weight}
+ *     <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
  *
  * with the synthesized scalar property that carries the mutable value on
  * this covergroup object. Advance the iterator to the final consumed
@@ -15808,8 +15849,9 @@ static void report_unsupported_covergroup_item_option_(
 {
       cerr << loc->get_fileline() << ": sorry: procedural " << access
 	   << " of coverpoint/cross option `" << item << ".option."
-	   << member << "' is not supported; only option.at_least and "
-	   << "option.weight are implemented." << endl;
+	   << member << "' is not supported; supported options are "
+	   << "option.at_least, option.weight, option.goal, and "
+	   << "option.comment." << endl;
       des->errors += 1;
 }
 
@@ -16608,7 +16650,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && ! class_type->test_scope_is_method(scope)) {
+      if (qual.test_local()
+	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
 	    cerr << get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -18186,6 +18229,8 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
 					 unsigned flags) const
 {
+	      if (!validate_program_subroutine_call(des, *this, scope, dscope))
+	    return nullptr;
 
       if (! check_call_matches_definition_(des, dscope))
 	    return 0;
@@ -23545,8 +23590,12 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       if (found_symbol && sr.net
 	  && sr.path_tail.size() == 1
 	  && sr.path_tail.front().index.empty()) {
-	    if (NetNet*idx_net = find_array_method_iter_index(
-		  sr.net, sr.path_tail.front().name)) {
+	    NetNet*idx_net = sr.net->struct_type()
+		  ? find_struct_array_method_iter_index_(
+			sr.net, sr.path_tail.front().name)
+		  : find_array_method_iter_index(
+			sr.net, sr.path_tail.front().name);
+	    if (idx_net) {
 		expr_type_   = idx_net->data_type();
 		expr_width_  = idx_net->vector_width();
 		min_width_   = expr_width_;
@@ -24166,6 +24215,26 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && net->unpacked_dimensions() == 0
 		  && (net->darray_type() || net->queue_type());
+
+	    if (gn_system_verilog() && net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			net, member_name)) {
+			if (array_method_iter_index_forbidden_(net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!indexed_container_member_path
 		&& (net->struct_type()
@@ -25340,6 +25409,26 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  && !sr.path_head.back().index.empty()
 		  && sr.net->unpacked_dimensions() == 0
 		  && (sr.net->darray_type() || sr.net->queue_type());
+
+	    if (gn_system_verilog() && sr.net->struct_type()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()) {
+		  perm_string member_name = sr.path_tail.front().name;
+		  if (NetNet*idx_net = find_struct_array_method_iter_index_(
+			sr.net, member_name)) {
+			if (array_method_iter_index_forbidden_(sr.net, member_name)) {
+			      cerr << get_fileline() << ": error: iterator index "
+				   << "querying is not allowed for wildcard-index "
+				      "associative arrays (IEEE 1800-2017 7.12.4)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
 
 	    if (!sr.path_tail.empty()
 		&& !indexed_container_member_path
@@ -30205,14 +30294,36 @@ unsigned PENewClass::test_width(Design*, NetScope*, width_mode_t&)
 // Compile option initializers as ordinary assignments. Constructor actuals
 // have already been captured in the object, so an initializer never evaluates
 // an actual argument again and retains normal four-state expression semantics.
-static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
-                                        const netclass_t*type, NetExpr*object,
-                                        const LineInfo&loc)
+static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
+{
+      if (!type || !type->is_covergroup()) return false;
+      const auto&options = type->covgrp_options();
+      if (options.goal_expr || options.comment_expr) return true;
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            if (item.goal_expr || item.comment_expr) return true;
+      }
+      return false;
+}
+
+NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                  const netclass_t*type, NetExpr*object,
+                                  const LineInfo&loc,
+                                  const netclass_t*inherited)
 {
       if (!type->is_covergroup()) return object;
       const auto&options = type->covgrp_options();
-      if (!options.weight_expr && !options.get_inst_coverage_expr
-            && !options.per_instance_expr) return object;
+      bool has_dynamic_options = options.weight_expr
+            || options.get_inst_coverage_expr || options.per_instance_expr
+            || options.goal_expr || options.comment_expr;
+      for (size_t idx = 0; !has_dynamic_options
+            && idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            has_dynamic_options = item.goal_expr || item.comment_expr;
+      }
+      if (!has_dynamic_options
+            && !(inherited && covgrp_has_dynamic_goal_comment(inherited)))
+            return object;
       NetScope*declaration = options.declaration_scope;
       ivl_assert(loc, declaration);
       NetScope*wrapper = new NetScope(declaration, hname_t(declaration->local_symbol()),
@@ -30250,20 +30361,47 @@ static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
                                             type->covgrp_ctor_formal_prop(idx), nullptr);
             body->append(new NetAssign(new NetAssign_(formal), value));
       }
-      auto assign_option = [&](int prop, PExpr*expr) {
-            if (!expr) return;
-            NetExpr*value = elaborate_rval_expr(des, wrapper, type->get_prop_type(prop),
-                                                expr, false);
+      auto assign_option = [&](int prop, PExpr*expr, NetExpr*default_value) {
+            if (prop < 0) {
+                  delete default_value;
+                  return;
+            }
+            NetExpr*value = default_value;
+            if (expr) {
+                  delete value;
+                  value = elaborate_rval_expr(des, wrapper, type->get_prop_type(prop),
+                                              expr, false);
+            }
             if (!value) return;
             NetAssign_*lval = new NetAssign_(receiver);
             lval->set_property(lex_strings.make(type->get_prop_name(prop)), prop);
             NetAssign*assignment = new NetAssign(lval, value);
-            assignment->set_line(*expr);
+            assignment->set_line(expr ? *expr : loc);
             body->append(assignment);
       };
-      assign_option(options.weight_prop, options.weight_expr);
-      assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr);
-      assign_option(options.per_instance_prop, options.per_instance_expr);
+      assign_option(options.weight_prop, options.weight_expr, nullptr);
+      assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr, nullptr);
+      assign_option(options.per_instance_prop, options.per_instance_expr, nullptr);
+      auto signed_goal_value = [](unsigned goal) -> NetExpr* {
+            verinum value((uint64_t)goal, 32);
+            value.has_sign(true);
+            return new NetEConst(value);
+      };
+      assign_option(options.goal_prop, options.goal_expr,
+            inherited && !options.goal_expr
+                  ? signed_goal_value(options.goal) : nullptr);
+      assign_option(options.comment_prop, options.comment_expr,
+            inherited && !options.comment_expr
+                  ? new NetECString(options.comment) : nullptr);
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const netclass_t::covgrp_item_t&item = type->covgrp_item(idx);
+            assign_option(item.goal_prop, item.goal_expr,
+                  inherited && !item.goal_expr
+                        ? signed_goal_value(item.goal) : nullptr);
+            assign_option(item.comment_prop, item.comment_expr,
+                  inherited && !item.comment_expr
+                        ? new NetECString(item.comment) : nullptr);
+      }
       def->set_proc(body);
       NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);
       call->set_line(loc);
