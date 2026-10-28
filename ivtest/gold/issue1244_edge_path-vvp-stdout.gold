@@ -1,0 +1,2 @@
+PASS
+ivltests/issue1244_edge_path.sv:16: $finish called at 5 (1s)
