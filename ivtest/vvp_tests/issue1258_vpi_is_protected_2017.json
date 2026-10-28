@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1258_vpi_is_protected.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1258_is_protected_2017"],
+  "vpi-sources": ["vpi/issue1258_is_protected.c"],
+  "output-contains": ["PASSED"]
+}
