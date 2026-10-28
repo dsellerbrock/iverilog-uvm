@@ -69,6 +69,7 @@ EXTERN_C_START
 #define vpiStringVar        616
 #define vpiBitVar           620
 #define vpiArrayVar         vpiRegArray
+#define vpiVirtualInterfaceVar 728
 
 /* M12-7: covergroup drill-down (Icarus extension — IEEE 1800 defines
  * no covergroup VPI object model; UCIS covers interchange). On a

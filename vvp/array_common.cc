@@ -20,6 +20,7 @@
  */
 
 #include "array_common.h"
+#include "vpi_priv.h"
 
 vpiHandle __vpiArrayBase::vpi_array_base_iterate(int code)
 {
@@ -139,6 +140,17 @@ void __vpiArrayWord::as_word_t::vpi_get_value(p_vpi_value vp)
       assert(obj);
       struct __vpiArrayBase*my_parent = obj->get_parent();
       return my_parent->get_word_value(obj, vp);
+}
+
+int __vpiArrayWord::as_word_t::get_type_code(void) const
+{
+      struct __vpiArrayWord*obj = array_var_word_from_handle(
+            const_cast<__vpiArrayWord::as_word_t*>(this));
+      assert(obj);
+      __vpiArray*array = dynamic_cast<__vpiArray*>(obj->get_parent());
+      if (array && array->is_virtual_interface_array())
+            return vpiVirtualInterfaceVar;
+      return vpiMemoryWord;
 }
 
 vpiHandle __vpiArrayWord::as_word_t::vpi_put_value(p_vpi_value vp, int flags)
