@@ -2,6 +2,9 @@
 # Test list files are a list of test names and the json that
 # describes the test.
 
+issue1250_deprecated_dpi_2017 vvp_tests/issue1250_deprecated_dpi_2017.json
+issue1250_deprecated_dpi_2023 vvp_tests/issue1250_deprecated_dpi_2023.json
+
 always4A			vvp_tests/always4A.json
 issue1249_pure_dpi_formals_2017 vvp_tests/issue1249_pure_dpi_formals_2017.json
 issue1249_pure_dpi_formals_2023 vvp_tests/issue1249_pure_dpi_formals_2023.json

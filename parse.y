@@ -86,6 +86,20 @@ static void pform_check_pure_dpi_function_(const struct vlltype&loc,
 		yyerror(loc, "error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).");
 }
 
+/* IEEE 1800-2017/2023 35.5.4 requires a diagnostic for the deprecated
+ * DPI spec string and specifies the compatibility information it contains. */
+static void pform_check_deprecated_dpi_spec_(const struct vlltype&loc,
+					     const char*spec)
+{
+	  if (spec && strcmp(spec, "DPI") == 0) {
+		cerr << loc << ": warning: \"DPI\" is deprecated and should be replaced "
+			  "with \"DPI-C\". Use of the \"DPI-C\" string may require "
+			  "changes in the DPI application's C code. (IEEE 1800-2017/2023 35.5.4)."
+		     << endl;
+		warn_count += 1;
+	  }
+}
+
 /* IEEE 1800-2023 8.3 note 25 limits dynamic method override specifiers to
  * methods declared in non-interface classes. */
 static void pform_check_method_override_interface_class_(const struct vlltype&loc)
@@ -8038,6 +8052,7 @@ dpi_import_export_declaration
   : K_import STRING dpi_function_import_property_opt K_function
     data_type_or_implicit_or_void function_identifier
       { assert(current_function == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
@@ -8053,6 +8068,7 @@ dpi_import_export_declaration
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_function
     data_type_or_implicit_or_void function_identifier
       { assert(current_function == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
       }
     tf_port_list_parens_opt ';'
@@ -8068,6 +8084,7 @@ dpi_import_export_declaration
       }
   | K_import STRING dpi_function_import_property_opt K_task IDENTIFIER
       { assert(current_task == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	if ($3) yyerror(@4, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
@@ -8082,6 +8099,7 @@ dpi_import_export_declaration
       }
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_task IDENTIFIER
       { assert(current_task == 0);
+	pform_check_deprecated_dpi_spec_(@1, $2);
 	if ($3) yyerror(@6, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
