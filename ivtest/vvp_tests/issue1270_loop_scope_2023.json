@@ -1,0 +1,12 @@
+{
+  "type": "normal",
+  "source": "issue1270_loop_scope.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1270_loop_scope"],
+  "vpi-sources": ["vpi/issue1270_loop_scope.c"],
+  "output-contains": [
+    "PASSED",
+    "PASS for loop variable scope type 15",
+    "PASS foreach loop variable scope type 675"
+  ]
+}
