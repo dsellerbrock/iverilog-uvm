@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1287_vpi_waiting_event.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1287_vpi_waiting_event_2023"],
+  "vpi-sources": ["vpi/issue1287_vpi_waiting_event.c"],
+  "output-contains": ["WAITING=1", "PASSED"]
+}

@@ -27,6 +27,7 @@
 # include  <map>
 # include  <functional>
 # include  <cstdint>
+# include  <vector>
 
 class scalar_event_history;
 class vvp_fun_wait_order;
@@ -557,6 +558,7 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
 	// and report whether the event fired in the current time step.
       void note_triggered(void);
       virtual bool triggered_now(void) const;
+      virtual void collect_waiting_threads(std::vector<vthread_t>&threads) const = 0;
       void add_wait_order_observer(vvp_fun_wait_order*observer);
       void remove_wait_order_observer(vvp_fun_wait_order*observer);
 
@@ -586,6 +588,7 @@ class vvp_named_event_sa : public vvp_named_event {
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
+      void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
     private:
       vthread_t threads_;
@@ -613,6 +616,7 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
       bool triggered_now(void) const override;
+      void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;
@@ -643,6 +647,7 @@ class vvp_named_event_dyn : public vvp_named_event {
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
+      void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
     private:
       vthread_t threads_;

@@ -2232,6 +2232,13 @@ vvp_named_event::~vvp_named_event()
 {
 }
 
+static void collect_event_wait_list_(vthread_t head,
+                                     std::vector<vthread_t>&threads)
+{
+      for (vthread_t cur = head; cur; cur = vthread_event_wait_next(cur))
+            threads.push_back(cur);
+}
+
 /* Only events that fired in the current slot need a 1-to-0 notification.
  * Swap the set before dispatch so a trigger during dispatch belongs to the
  * new slot, and erase on destruction to avoid retaining stale functors. */
@@ -2265,6 +2272,12 @@ vvp_named_event_sa::~vvp_named_event_sa()
 vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
 {
       return vthread_add_event_wait(thread, &threads_);
+}
+
+void vvp_named_event_sa::collect_waiting_threads(
+      std::vector<vthread_t>&threads) const
+{
+      collect_event_wait_list_(threads_, threads);
 }
 
 vthread_t vvp_named_event_sa::add_triggered_change_waiter(vthread_t thread)
@@ -2410,6 +2423,13 @@ bool vvp_named_event_aa::triggered_now(void) const
             && state->last_trigger_time == schedule_simtime();
 }
 
+void vvp_named_event_aa::collect_waiting_threads(
+      std::vector<vthread_t>&threads) const
+{
+      for (const named_event_aa_state_s*state : active_states_)
+            collect_event_wait_list_(state->threads, threads);
+}
+
 vvp_named_event_dyn::vvp_named_event_dyn()
 : vvp_named_event(0), threads_(0)
 {
@@ -2422,6 +2442,12 @@ vvp_named_event_dyn::~vvp_named_event_dyn()
 vthread_t vvp_named_event_dyn::add_waiting_thread(vthread_t thread)
 {
       return vthread_add_event_wait(thread, &threads_);
+}
+
+void vvp_named_event_dyn::collect_waiting_threads(
+      std::vector<vthread_t>&threads) const
+{
+      collect_event_wait_list_(threads_, threads);
 }
 
 void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
