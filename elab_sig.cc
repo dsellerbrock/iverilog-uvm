@@ -4364,6 +4364,9 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 
       if (user_type) {
             sig->set_user_nettype(user_type);
+            if (!user_type->has_resolution_function())
+                  sig->attribute(perm_string::literal("_ivl_udnt_unresolved"),
+                                 verinum("1"));
       }
       sig->set_virtual_interface(resolved_virtual_interface);
 
