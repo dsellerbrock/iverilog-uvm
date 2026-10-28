@@ -1597,6 +1597,24 @@ void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay)
 vvp_time64_t schedule_simtime(void)
 { return schedule_time; }
 
+void schedule_get_time_queue(vector<vvp_time64_t>& times)
+{
+      vvp_time64_t time = schedule_time;
+
+      for (struct event_time_s* ctim = sched_list; ctim; ctim = ctim->next) {
+            bool before_rosync = ctim->start || ctim->preponed || ctim->active
+                  || ctim->active_sync || ctim->inactive || ctim->nbassign
+                  || ctim->nbasync || ctim->observed || ctim->reactive
+                  || ctim->re_inactive || ctim->re_nbassign || ctim->rwsync;
+            bool any_event = before_rosync || ctim->rosync || ctim->del_thr;
+
+            if (any_event && (ctim->delay > 0 || before_rosync))
+                  times.push_back(time);
+
+            time += ctim->delay;
+      }
+}
+
 static bool sim_at_rosync = false;
 bool schedule_at_rosync(void)
 { return sim_at_rosync; }
