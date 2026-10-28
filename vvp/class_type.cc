@@ -3778,9 +3778,9 @@ unsigned class_type::covgrp_cumulative_at_least_(size_t idx) const
 {
       if (idx >= covgrp_items_.size()) return 1;
 
-      unsigned maximum = idx < covgrp_retired_at_least_.size()
-	    ? covgrp_retired_at_least_[idx] : 0;
-      bool found = covgrp_has_retired_options_;
+      unsigned maximum = idx < covgrp_retired_population_.item_at_least.size()
+	    ? covgrp_retired_population_.item_at_least[idx] : 0;
+      bool found = covgrp_retired_population_.has_options;
       for (vvp_cobject*obj : covgrp_live_) {
 	    // The destructor removes dead instances. Retain defensive checks
 	    // because the same live registry drives event sampling.
@@ -3831,43 +3831,51 @@ class_type::covgrp_instance_snapshot_t class_type::covgrp_snapshot_(
       return snapshot;
 }
 
+void class_type::covgrp_accumulate_instance_(covgrp_population_t&population,
+      vvp_cobject*obj) const
+{
+      if (!obj || obj->get_defn() != this) return;
+
+      bool contributes = false;
+      double score = vvp_covgrp_instance_coverage(obj, &contributes);
+      if (contributes) {
+	    unsigned weight = covgrp_weight(obj);
+	    population.weight += weight;
+	    population.weighted += (long double)weight * score;
+      }
+      if (population.item_weight.size() < covgrp_items_.size()) {
+	    population.item_weight.resize(covgrp_items_.size(), 0);
+	    population.item_weighted.resize(covgrp_items_.size(), 0);
+	    population.item_has_bins.resize(covgrp_items_.size(), false);
+      }
+      for (size_t item = 0; item < covgrp_items_.size(); item += 1) {
+	    bool item_contributes = false;
+	    double item_score = vvp_covgrp_instance_coverage(
+		  obj, &item_contributes, static_cast<int>(item));
+	    population.item_has_bins[item] =
+		  population.item_has_bins[item] || item_contributes;
+	    unsigned item_weight = covgrp_item_weight(obj, item);
+	    population.item_weight[item] += item_weight;
+	    population.item_weighted[item] +=
+		  (long double)item_weight * item_score;
+      }
+      if (population.item_at_least.size() < covgrp_items_.size())
+	    population.item_at_least.resize(covgrp_items_.size(), 0);
+      for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1)
+	    population.item_at_least[idx] = std::max(
+		  population.item_at_least[idx], covgrp_item_at_least(obj, idx));
+      population.has_options = true;
+}
+
 void class_type::covgrp_live_remove(vvp_cobject*obj) const
 {
       if (obj && obj->get_defn() == this) {
-            bool contributes = false;
-            double score = vvp_covgrp_instance_coverage(obj, &contributes);
-            if (covgrp_per_instance(obj))
-                  covgrp_retired_instances_.push_back(
-                        covgrp_snapshot_(obj, covgrp_instance_id_(obj), score));
-            if (contributes) {
-                  unsigned weight = covgrp_weight(obj);
-                  covgrp_retired_weight_ += weight;
-                  covgrp_retired_weighted_ += (long double)weight * score;
-            }
-	    if (covgrp_retired_item_weight_.size() < covgrp_items_.size()) {
-		  covgrp_retired_item_weight_.resize(covgrp_items_.size(), 0);
-		  covgrp_retired_item_weighted_.resize(covgrp_items_.size(), 0);
-		  covgrp_retired_item_has_bins_.resize(covgrp_items_.size(), false);
-	    }
-	    for (size_t item = 0; item < covgrp_items_.size(); item += 1) {
-		  bool item_contributes = false;
-		  double item_score = vvp_covgrp_instance_coverage(
-			obj, &item_contributes, static_cast<int>(item));
-		  covgrp_retired_item_has_bins_[item] =
-			covgrp_retired_item_has_bins_[item] || item_contributes;
-		  unsigned item_weight = covgrp_item_weight(obj, item);
-		  covgrp_retired_item_weight_[item] += item_weight;
-		  covgrp_retired_item_weighted_[item] +=
-			(long double)item_weight * item_score;
-	    }
-
-	    if (covgrp_retired_at_least_.size() < covgrp_items_.size())
-		  covgrp_retired_at_least_.resize(covgrp_items_.size(), 0);
-	    for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1)
-		  covgrp_retired_at_least_[idx] = std::max(
-			covgrp_retired_at_least_[idx],
-			covgrp_item_at_least(obj, idx));
-	    covgrp_has_retired_options_ = true;
+	    bool contributes = false;
+	    double score = vvp_covgrp_instance_coverage(obj, &contributes);
+	    if (covgrp_per_instance(obj))
+		  covgrp_retired_instances_.push_back(
+			covgrp_snapshot_(obj, covgrp_instance_id_(obj), score));
+	    covgrp_accumulate_instance_(covgrp_retired_population_, obj);
       }
 
       for (size_t idx = 0; idx < covgrp_live_.size(); idx += 1)
@@ -4087,21 +4095,22 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    return 0.0;
       // A declaration alone contributes no bins. Retired instances still
       // belong to the cumulative population, even with zero instance weight.
-      if (covgrp_live_.empty() && !covgrp_has_retired_options_
+      const covgrp_population_t& retired = covgrp_retired_population_;
+      if (covgrp_live_.empty() && !retired.has_options
 	  && !covgrp_db_loaded_) return 0.0;
       if (!covgrp_options_.merge_instances) {
             size_t item = static_cast<size_t>(selected_item);
 	    long double weights = selected_item >= 0
-		  ? (item < covgrp_retired_item_weight_.size()
-		      ? covgrp_retired_item_weight_[item] : 0)
-		  : covgrp_retired_weight_;
+		  ? (item < retired.item_weight.size()
+		      ? (long double)retired.item_weight[item] : 0)
+		  : (long double)retired.weight;
 	    long double weighted = selected_item >= 0
-		  ? (item < covgrp_retired_item_weighted_.size()
-		      ? covgrp_retired_item_weighted_[item] : 0)
-		  : covgrp_retired_weighted_;
+		  ? (item < retired.item_weighted.size()
+		      ? retired.item_weighted[item] : 0)
+		  : retired.weighted;
 	    bool item_has_bins = selected_item >= 0
-		  && item < covgrp_retired_item_has_bins_.size()
-		  && covgrp_retired_item_has_bins_[item];
+		  && item < retired.item_has_bins.size()
+		  && retired.item_has_bins[item];
             for (vvp_cobject*obj : covgrp_live_) {
                   bool instance_contributes = false;
                   double score = vvp_covgrp_instance_coverage(
