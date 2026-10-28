@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1337_vpi_time_queue.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1337_vpi_time_queue_2017"],
+  "vpi-sources": ["vpi/issue1337_vpi_time_queue.c"],
+  "output-contains": ["TIMEQUEUE_AT0[1]=5", "TIMEQUEUE_AT5[0]=5", "TIMEQUEUE_AT5[1]=10", "PASSED"]
+}

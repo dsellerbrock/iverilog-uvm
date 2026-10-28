@@ -22,6 +22,7 @@
 # include  "vthread.h"
 # include  "vvp_net.h"
 # include  "array.h"
+# include  <vector>
 
 /*
  * This causes a thread to be scheduled for execution. The schedule
@@ -239,6 +240,9 @@ extern void schedule_simulate(void);
  * but is used for printouts and stuff.
  */
 extern vvp_time64_t schedule_simtime(void);
+
+/* Return pending time slots in increasing absolute simulation time. */
+extern void schedule_get_time_queue(std::vector<vvp_time64_t>& times);
 
 /*
  * Indicate that the simulator is running the rosync callbacks. This is
