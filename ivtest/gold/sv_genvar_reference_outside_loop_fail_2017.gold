@@ -1,0 +1,4 @@
+./ivltests/sv_genvar_reference_outside_loop_fail_2017.v:3: error: Genvar `i' cannot be referenced outside a loop generate scheme (IEEE 1800 clause 27.4).
+./ivltests/sv_genvar_reference_outside_loop_fail_2017.v:3: error: Genvar `i' cannot be referenced outside a loop generate scheme (IEEE 1800 clause 27.4).
+./ivltests/sv_genvar_reference_outside_loop_fail_2017.v:3: error: Genvar `i' cannot be referenced outside a loop generate scheme (IEEE 1800 clause 27.4).
+3 error(s) during elaboration.

@@ -653,6 +653,17 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      }
 			}
 		  }
+
+		  if (LineInfo*genvar = scope->find_genvar(path_tail.name)) {
+			cerr << li->get_fileline() << ": error: Genvar `"
+			     << path_tail.name
+			     << "' cannot be referenced outside a loop generate scheme "
+			 << (gn_system_verilog()
+			     ? "(IEEE 1800 clause 27.4)." : ".") << endl;
+			des->errors += 1;
+			res->genvar_outside_loop = true;
+			return false;
+		  }
 	    }
 
 	    // Could not find an object. Maybe this is a child scope name? If
