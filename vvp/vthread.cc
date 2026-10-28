@@ -32217,6 +32217,30 @@ bool of_AA_STORE_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
 
 
 /*
+ * %union/tag <pid>
+ *
+ * Select the member while constructing a tagged-union expression. Ordinary
+ * property stores then enforce that the selected member remains active.
+ */
+bool of_UNION_TAG(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || !cobj->get_defn()->is_tagged_union_type()
+	  || pid >= cobj->get_defn()->property_count()) {
+	    cerr << thr->get_fileline()
+		 << "runtime error: invalid tagged-union expression member."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return true;
+      }
+      cobj->activate_union_member(pid);
+      return true;
+}
+
+/*
  * %store/prop/ref <formal>, <pid>
  *
  * Retain a covergroup constructor ref binding on its newly-created object.
