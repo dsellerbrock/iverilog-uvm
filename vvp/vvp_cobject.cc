@@ -25,6 +25,7 @@
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
 # include  <algorithm>
+# include  <atomic>
 # include  <iostream>
 # include  <cassert>
 # include  <cstdio>
@@ -33,8 +34,15 @@ using namespace std;
 
 extern void vvp_covgrp_finalize_parent_bins(vvp_cobject*cobj);
 
+static uint64_t next_class_object_id_()
+{
+      static std::atomic<uint64_t> next_id(1);
+      return next_id.fetch_add(1, std::memory_order_relaxed);
+}
+
 vvp_cobject::vvp_cobject(const class_type*defn)
-: defn_(defn), properties_(defn->instance_new()),
+: defn_(defn), object_id_(next_class_object_id_()),
+  properties_(defn->instance_new()),
   union_active_member_(defn->is_tagged_union_type()
 		       && defn->property_count() ? 0 : -1), union_vec4_(0),
   instance_constant_initialized_(defn->property_count(), false),

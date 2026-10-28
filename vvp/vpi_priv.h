@@ -1211,6 +1211,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      int64_t vpi_get64(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_handle(int code) override;
