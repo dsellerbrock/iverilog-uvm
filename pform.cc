@@ -14086,8 +14086,57 @@ struct sampled_pending_t {
       PECallFunction*call;
       struct vlltype loc;
       bool automatic_operand;
+      bool automatic_bit_select;
 };
 static std::vector<sampled_pending_t> sampled_pending_;
+
+static bool pform_ident_is_automatic_(LexicalScope*scope,
+				      const PEIdent*id)
+{
+      if (!scope || !id || id->path().package || id->path().name.size() != 1)
+	    return false;
+
+      PWire*wire = nullptr;
+      LexicalScope*owner = nullptr;
+      for (LexicalScope*cur = scope; cur && !wire;
+	   cur = cur->parent_scope()) {
+	    wire = cur->wires_find(id->path().name.front().name);
+	    if (wire) owner = cur;
+      }
+      if (!wire || !owner) return false;
+
+      ivl_lifetime_t lifetime = wire->lifetime_override();
+      if (lifetime == IVL_VLT_INHERITED) {
+	    LexicalScope*effective_scope = owner;
+	    while (effective_scope
+		   && effective_scope->default_lifetime == LexicalScope::INHERITED)
+		  effective_scope = effective_scope->parent_scope();
+	    return effective_scope
+		  && effective_scope->default_lifetime == LexicalScope::AUTOMATIC;
+	  }
+      return lifetime == IVL_VLT_AUTOMATIC;
+}
+
+static bool pform_past_automatic_bit_select_(LexicalScope*scope,
+					     const PECallFunction*call)
+{
+      if (!call || peek_tail_name(call->path().name) != "$past")
+	    return false;
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      if (args.size() != 1 || !args[0].parm) return false;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(args[0].parm);
+      if (!id || id->path().package || id->path().name.size() != 1)
+	    return false;
+      if (pform_ident_is_automatic_(scope, id)) return false;
+      const name_component_t&name = id->path().name.front();
+      if (name.index.size() != 1
+	  || name.index.front().sel != index_component_t::SEL_BIT
+	  || !name.index.front().msb)
+	    return false;
+      const PEIdent*index = dynamic_cast<const PEIdent*>(
+	    name.index.front().msb);
+      return pform_ident_is_automatic_(scope, index);
+}
 
 bool pform_is_sampled_value_function(const char*name)
 {
@@ -14118,29 +14167,7 @@ static bool pform_is_auto_sampled_value_(LexicalScope*scope,
       if (!id || id->path().package || id->path().name.size() != 1)
 	    return false;
 
-      PWire*wire = nullptr;
-      LexicalScope*owner = nullptr;
-      for (LexicalScope*cur = scope; cur && !wire;
-	   cur = cur->parent_scope()) {
-	    wire = cur->wires_find(id->path().name.front().name);
-	    if (wire) owner = cur;
-      }
-      if (!wire || !owner) return false;
-
-      ivl_lifetime_t lifetime = wire->lifetime_override();
-      if (lifetime == IVL_VLT_INHERITED) {
-	    LexicalScope*effective_scope = owner;
-	    while (effective_scope
-		   && effective_scope->default_lifetime == LexicalScope::INHERITED)
-		  effective_scope = effective_scope->parent_scope();
-	    if (!effective_scope
-		|| effective_scope->default_lifetime != LexicalScope::AUTOMATIC)
-		  return false;
-	  } else if (lifetime != IVL_VLT_AUTOMATIC) {
-	    return false;
-      }
-
-      return true;
+      return pform_ident_is_automatic_(scope, id);
 }
 
 void pform_note_sampled_call(const struct vlltype&loc, PECallFunction*cf)
@@ -14149,6 +14176,8 @@ void pform_note_sampled_call(const struct vlltype&loc, PECallFunction*cf)
       p.call = cf;
       p.loc = loc;
       p.automatic_operand = pform_is_auto_sampled_value_(lexical_scope, cf);
+      p.automatic_bit_select =
+	    pform_past_automatic_bit_select_(lexical_scope, cf);
       sampled_pending_.push_back(p);
 }
 
@@ -14203,6 +14232,47 @@ static void pform_capture_procedural_sampled_(
 {
       PECallFunction*cf = pending.call;
       if (cf->sampled_subst()) return;
+
+      if (pending.automatic_bit_select) {
+	    const PEIdent*operand = dynamic_cast<const PEIdent*>(
+		  cf->get_parms()[0].parm);
+	    pform_name_t base_path = operand->path().name;
+	    index_component_t select = base_path.front().index.front();
+	    base_path.front().index.clear();
+	    PEIdent*base = new PEIdent(base_path, operand->lexical_pos());
+	    base->reloc_lexical_pos_bind(false);
+	    base->set_line(*operand);
+
+	    std::list<named_pexpr_t>past_args;
+	    named_pexpr_t arg0;
+	    arg0.parm = base;
+	    past_args.push_back(arg0);
+	    PECallFunction*past = new PECallFunction(
+		  lex_strings.make("$past"), past_args);
+	    FILE_NAME(past, pending.loc);
+	    PExpr*history = sva_rewrite_sampled_(pending.loc, past, inst,
+		  hist_idx, pre, post, init, true);
+	    if (!history || !select.msb) {
+		  delete history;
+		  live_operands += 1;
+		  return;
+	    }
+	    index_component_t current_select;
+	    current_select.sel = select.sel;
+	    current_select.msb = sva_clone_expr_(select.msb);
+	    current_select.lsb = select.lsb == select.msb
+		  ? current_select.msb : sva_clone_expr_(select.lsb);
+	    if (!current_select.msb || (select.lsb && !current_select.lsb)) {
+		  delete history;
+		  live_operands += 1;
+		  return;
+	    }
+	    PEPostSelect*selected = new PEPostSelect(history, current_select);
+	    selected->set_line(*cf);
+	    sampled_pending_drop_(cf);
+	    cf->set_sampled_subst(selected);
+	    return;
+      }
 
       if (pending.automatic_operand) {
 	    PExpr*current_value = nullptr;
@@ -14765,6 +14835,8 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
       pending.loc = loc;
       pending.automatic_operand = pform_is_auto_sampled_value_(lexical_scope,
 									 cf);
+      pending.automatic_bit_select =
+	    pform_past_automatic_bit_select_(lexical_scope, cf);
 
 	/* Parsed mid-statement, so this can be inside a begin/end.
 	   Hoist the sampler and its registers out of the PBlock. */
