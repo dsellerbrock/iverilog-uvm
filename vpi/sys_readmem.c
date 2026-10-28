@@ -250,9 +250,13 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
 	/* Dynamic arrays and queues expose their element kind as vpiArrayType. */
       mem_kind = vpi_get(vpiType, arg);
-      if (mem_kind == vpiArrayVar) mem_kind = vpi_get(vpiArrayType, arg);
-      if (mem_kind != vpiMemory && mem_kind != vpiDynamicArray &&
-	  mem_kind != vpiQueueArray) {
+      if (mem_kind == vpiArrayVar) {
+	    PLI_INT32 array_type = vpi_get(vpiArrayType, arg);
+	    if (array_type != vpiStaticArray && array_type != vpiUndefined)
+		  mem_kind = array_type;
+      }
+      if (mem_kind != vpiMemory && mem_kind != vpiRegArray &&
+	  mem_kind != vpiDynamicArray && mem_kind != vpiQueueArray) {
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
 	    vpi_printf("%s's second argument must be a memory.\n", name);

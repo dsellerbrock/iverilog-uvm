@@ -635,7 +635,9 @@ static PLI_INT32 sys_fread_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
 
 	/* Are we reading into a memory? */
-      if (vpi_get(vpiType, mem_reg) == vpiMemory) is_mem = 1;
+      if (vpi_get(vpiType, mem_reg) == vpiRegArray &&
+	  vpi_get(vpiArrayType, mem_reg) == vpiStaticArray)
+	    is_mem = 1;
       else is_mem = 0;
 
 	/* We only need to get these for memories. */

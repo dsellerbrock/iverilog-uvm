@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1281_memory_vpi_types.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1281_memory_vpi_types_2023"],
+  "vpi-sources": ["vpi/issue1281_memory_vpi_types.c"],
+  "output-contains": ["PASSED"]
+}

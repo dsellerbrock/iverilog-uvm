@@ -528,6 +528,23 @@ const char* vpi_type_as_string(PLI_INT32 code)
       return buf;
 }
 
+static int vpi_reported_type(vpiHandle ref)
+{
+      int type = ref->get_type_code();
+      if (type == vpiAssertion) {
+	    int assertion_type = ref->vpi_get(vpiType);
+	    if (assertion_type != vpiUndefined) type = assertion_type;
+      }
+      if (type == vpiMemory)
+	    return is_net_array(ref) ? vpiNetArray : vpiRegArray;
+      if (type == vpiMemoryWord) {
+	    vpiHandle parent = ref->vpi_handle(vpiParent);
+	    if (parent && parent->get_type_code() == vpiMemory)
+		  return is_net_array(parent) ? vpiNet : vpiReg;
+      }
+      return type;
+}
+
 PLI_INT32 vpi_get(int property, vpiHandle ref)
 {
 	/* We don't care what the ref is there is only one delay selection. */
@@ -542,18 +559,12 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
 
       if (property == vpiType) {
-	    int type = ref->get_type_code();
-	    if (type == vpiAssertion) {
-		  int assertion_type = ref->vpi_get(property);
-		  if (assertion_type != vpiUndefined) type = assertion_type;
-	    }
+	    int type = vpi_reported_type(ref);
 	    if (vpi_trace) {
 		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
 			  ref, vpi_type_as_string(type));
 	    }
 
-	    if (type == vpiMemory && is_net_array(ref))
-		  return vpiNetArray;
 	    return type;
       }
 
@@ -609,18 +620,12 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
       }
 
       if (property == vpiType) {
-	    int type = ref->get_type_code();
-	    if (type == vpiAssertion) {
-		  int assertion_type = ref->vpi_get(property);
-		  if (assertion_type != vpiUndefined) type = assertion_type;
-	    }
+	    int type = vpi_reported_type(ref);
 	    if (vpi_trace) {
 		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
 			  ref, vpi_type_as_string(type));
 	    }
 
-	    if (type == vpiMemory && is_net_array(ref))
-		  type = vpiNetArray;
 	    return (char *)vpi_type_as_string(type);
       }
 
@@ -1533,7 +1538,7 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
 	    if (nm && !strcmp(name, nm)) {
 		  rtn = ref->intern[i];
 		  break;
-	    } else if (vpi_get(vpiType, ref->intern[i]) == vpiMemory ||
+	    } else if (vpi_get(vpiType, ref->intern[i]) == vpiRegArray ||
 	               vpi_get(vpiType, ref->intern[i]) == vpiNetArray) {
 		  /* We need to iterate on the words */
 		  vpiHandle word_i, word_h;
