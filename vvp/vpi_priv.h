@@ -306,6 +306,9 @@ class __vpiScope : public __vpiHandle {
       __vpiScopedTime scoped_time;
       struct __vpiScopedSTime scoped_stime;
       struct __vpiScopedRealtime scoped_realtime;
+	/* Module-array element index, when this scope is an array member. */
+      bool has_module_array_index_;
+      __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
 	/* Set of types */
