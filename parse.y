@@ -65,6 +65,27 @@ static perm_string pform_coverpoint_implicit_name_(PExpr*expr)
 	  return perm_string::literal("cp");
 }
 
+/* IEEE 1800-2017/2023 35.5.2 restricts pure functions to nonvoid
+ * declarations with input-only formals. */
+static void pform_check_pure_dpi_function_(const struct vlltype&loc,
+					   bool is_pure,
+					   data_type_t*return_type,
+					   const vector<pform_tf_port_t>*ports)
+{
+	  if (!is_pure)
+		return;
+
+	  bool invalid = dynamic_cast<const void_type_t*>(return_type) != 0;
+	  for (size_t idx = 0; ports && idx < ports->size(); idx += 1) {
+		PWire*port = ports->at(idx).port;
+		if (port && (port->get_port_type() == NetNet::POUTPUT
+			     || port->get_port_type() == NetNet::PINOUT))
+		      invalid = true;
+	  }
+	  if (invalid)
+		yyerror(loc, "error: A pure DPI function must be nonvoid and have no output or inout arguments (IEEE 1800-2017/2023 35.5.2).");
+}
+
 /* IEEE 1800-2023 8.3 note 25 limits dynamic method override specifiers to
  * methods declared in non-interface classes. */
 static void pform_check_method_override_interface_class_(const struct vlltype&loc)
@@ -8023,6 +8044,7 @@ dpi_import_export_declaration
       { current_function->set_ports($8);
 	current_function->set_return($5);
 	current_function->set_dpi_import($6);
+	pform_check_pure_dpi_function_(@4, $3, $5, $8);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8037,6 +8059,7 @@ dpi_import_export_declaration
       { current_function->set_ports($10);
 	current_function->set_return($7);
 	current_function->set_dpi_import($4);
+	pform_check_pure_dpi_function_(@6, $4, $7, $10);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8181,7 +8204,7 @@ package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
+        pform_make_let(@2, tmp2, $3, $5);
       }
   | parameter_declaration
   | type_declaration
@@ -10574,7 +10597,7 @@ block_item_decl
      parallel blocks and in subroutines, which share this grammar rule. */
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@1, tmp2, $3, $5);
+        pform_make_let(@2, tmp2, $3, $5);
       }
 
   /* Blocks can have type declarations. */

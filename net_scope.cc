@@ -30,6 +30,7 @@
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "PPackage.h"
+# include  "PTask.h"
 # include  "PWire.h"
 # include  <cstring>
 # include  <cstdlib>
@@ -1487,18 +1488,24 @@ void NetScope::add_tie_lo(Design*des)
 /* M13: let lookup — search local and imported declarations before walking
    lexical parents. Continue past the design-element scope only to its
    compilation-unit scope; never cross into a containing module instance. */
-PLet* NetScope::find_let(const Design*des, perm_string name) const
+PLet* NetScope::find_let(const Design*des, perm_string name,
+                         unsigned lexical_pos) const
 {
       const NetScope*cur = this;
       for (;;) {
 	    std::map<perm_string,PLet*>::const_iterator it
 		  = cur->lets_.find(name);
-	    if (it != cur->lets_.end()) return it->second;
+	    if (it != cur->lets_.end() &&
+	        (lexical_pos == UINT_MAX ||
+	         it->second->lexical_pos() <= lexical_pos)) return it->second;
 	    NetScope*import_scope = const_cast<NetScope*>(cur)->find_import(des, name);
 	    if (import_scope) {
 		  std::map<perm_string,PLet*>::const_iterator imported
 			= import_scope->lets_.find(name);
-		  if (imported != import_scope->lets_.end()) return imported->second;
+		  if (imported != import_scope->lets_.end() &&
+		      (lexical_pos == UINT_MAX ||
+		       imported->second->lexical_pos() <= lexical_pos))
+			return imported->second;
 	    }
 	    if (cur->type() == MODULE && cur->parent() &&
 		cur->parent()->type() == MODULE) return 0;

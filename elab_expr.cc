@@ -7967,16 +7967,78 @@ static NetExpr* stream_uarray_concat_(const LineInfo*li,
       return cat;
 }
 
+/* A whole unpacked struct is an object in the VVP representation, but its
+ * stream is the concatenation of its members in declaration order
+ * (IEEE 1800-2017/2023 11.4.14.1).  Lower a struct with packed members to
+ * ordinary property reads before the general streaming lowering sees it. */
+static bool stream_whole_struct_operand_(Design*des, NetScope*scope,
+					 PExpr*inner, NetNet*&net,
+					 const netstruct_t*&record,
+					 unsigned&width)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(inner);
+      if (!id || !id->path().back().index.empty())
+	    return false;
+      symbol_search_results sr;
+      symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
+      if (!sr.net || !sr.path_tail.empty())
+	    return false;
+      record = dynamic_cast<const netstruct_t*>(sr.net->net_type());
+      if (!record || record->packed() || record->members().empty())
+	    return false;
+      width = 0;
+      size_t count = record->union_flag() ? 1 : record->members().size();
+      for (size_t i = 0; i < count; i += 1) {
+	    ivl_type_t mt = record->members()[i].net_type;
+	    if (!mt || !mt->packed() || mt->packed_width() <= 0
+		|| static_cast<unsigned long>(mt->packed_width()) > UINT_MAX-width)
+		  return false;
+	    width += static_cast<unsigned>(mt->packed_width());
+      }
+      net = sr.net;
+      return true;
+}
+
+static NetExpr* stream_struct_concat_(const LineInfo*li, NetNet*net,
+				      const netstruct_t*record)
+{
+      size_t count = record->union_flag() ? 1 : record->members().size();
+      NetEConcat*cat = new NetEConcat((unsigned)count, 1, IVL_VT_LOGIC);
+      cat->set_line(*li);
+      for (size_t i = 0; i < count; i += 1) {
+	    NetESignal*base = new NetESignal(net);
+	    base->set_line(*li);
+	    NetEProperty*member = new NetEProperty(base, i);
+	    member->set_line(*li);
+	    unsigned width = (unsigned)record->members()[i].net_type->packed_width();
+	    NetEConst*offset = new NetEConst(verinum((uint64_t)0, 32u));
+	    offset->set_line(*li);
+	    NetESelect*field = new NetESelect(member, offset, width,
+					       record->members()[i].net_type);
+	    field->set_line(*li);
+	    cat->set((unsigned)i, field);
+      }
+      return cat;
+}
+
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
       stream_uarray_op_info_t s_info;
       int s_have = inner_ ? stream_uarray_operand_(des, scope, inner_,
 							    s_info, true) : 0;
+      NetNet*struct_net = nullptr;
+      const netstruct_t*struct_type = nullptr;
+      unsigned struct_width = 0;
+      bool struct_have = !s_have && inner_
+	    && stream_whole_struct_operand_(des, scope, inner_, struct_net,
+					    struct_type, struct_width);
       if (s_have < 0) {
 	    expr_width_ = 0;
       } else if (s_have > 0) {
 	    expr_width_ = (unsigned)s_info.elem_type->packed_width()
 		  * s_info.elem_count;
+      } else if (struct_have) {
+	    expr_width_ = struct_width;
       } else {
 	    expr_width_ = inner_->test_width(des, scope, mode);
       }
@@ -8322,7 +8384,13 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 			* s_info.elem_count;
 		  body = stream_uarray_concat_(this, s_info);
 	    } else {
-		  w = inner_->test_width(des, scope, m);
+		  NetNet*struct_net = nullptr;
+		  const netstruct_t*struct_type = nullptr;
+		  if (stream_whole_struct_operand_(des, scope, inner_, struct_net,
+						   struct_type, w)) {
+			body = stream_struct_concat_(this, struct_net, struct_type);
+		  } else {
+			w = inner_->test_width(des, scope, m);
 		  if (w == 0) {
 			cerr << get_fileline() << ": error: streaming concatenation "
 			      "requires a known-width inner expression." << endl;
@@ -8330,6 +8398,7 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 			return nullptr;
 		  }
 		  body = inner_->elaborate_expr(des, scope, w, flags);
+		  }
 	    }
       }
       unsigned slice = resolve_slice_(des, scope);
@@ -8375,7 +8444,11 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 		  w = (unsigned)s_info.elem_type->packed_width()
 			* s_info.elem_count;
 	    } else {
-		  w = inner_->test_width(des, scope, m);
+		  NetNet*struct_net = nullptr;
+		  const netstruct_t*struct_type = nullptr;
+		  if (!stream_whole_struct_operand_(des, scope, inner_, struct_net,
+						    struct_type, w))
+			w = inner_->test_width(des, scope, m);
 	    }
       }
       if (w == 0) {
@@ -11540,7 +11613,7 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       NetScope*lookup = scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
+      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos_) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
@@ -11558,7 +11631,7 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       NetScope*lookup = scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
+      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos()) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;

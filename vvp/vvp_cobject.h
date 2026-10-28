@@ -131,6 +131,7 @@ class vvp_cobject : public vvp_object {
       bool claim_instance_constant_assignment(size_t pid, bool&report);
 
       int union_active_member(void) const { return union_active_member_; }
+      void activate_union_member(size_t pid);
 
 	// Per-instance dynamic named event storage (IEEE 1800-2017 15.5).
 	// A non-static class `event` property is backed by its own
@@ -383,7 +384,7 @@ class vvp_cobject : public vvp_object {
       uint64_t rng_state_ = 0;
       bool rng_seeded_ = false;
 
-      bool union_member_read_ok_(size_t pid) const;
+      bool union_member_access_ok_(size_t pid) const;
 };
 
 // Raw per-instance score, independent of get_inst_coverage mode selection.

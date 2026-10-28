@@ -1,0 +1,3 @@
+ivltests/issue1236_let_forward_fail_2023.v:3: error: No function named `identity' found in this context (issue1236_let_forward_fail_2023).
+ivltests/issue1236_let_forward_fail_2023.v:3: error: Unable to elaborate r-value: identity(8'd42)
+2 error(s) during elaboration.

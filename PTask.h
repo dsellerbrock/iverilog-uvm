@@ -274,7 +274,8 @@ class PLet : public PTaskFunc {
 
 // FIXME: Should the port list be a vector. Check once implemented completely
       explicit PLet(perm_string name, LexicalScope*parent,
-                    std::list<let_port_t*>*ports, PExpr*expr);
+                    std::list<let_port_t*>*ports, PExpr*expr,
+                    unsigned lexical_pos);
       ~PLet() override;
 
       void elaborate_sig(Design*des, NetScope*scope) const override { (void)des; (void)scope; }
@@ -284,10 +285,12 @@ class PLet : public PTaskFunc {
 
       const std::list<let_port_t*>* let_ports() const { return ports_; }
       PExpr* let_expr() const { return expr_; }
+      unsigned lexical_pos() const { return lexical_pos_; }
 
     private:
       std::list<let_port_t*>*ports_;
       PExpr*expr_;
+      unsigned lexical_pos_;
 };
 
 #endif /* IVL_PTask_H */
