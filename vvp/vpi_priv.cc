@@ -536,6 +536,11 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
       if (ref == 0)
 	    return vpip_get_global(property);
 
+	  // No objects are currently represented as protected by the simulator.
+	  // vpiIsProtected is defined for every object, so return FALSE before
+	  // dispatching to type-specific property handlers.
+	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
+
       if (property == vpiType) {
 	    int type = ref->get_type_code();
 	    if (type == vpiAssertion) {
