@@ -274,7 +274,7 @@ unsigned is_int_var_or_mem(vpiHandle obj)
       case vpiLongIntVar:
       case vpiReg:
       case vpiTimeVar:
-      case vpiMemory:
+      case vpiRegArray:
 	rtn = 1;
 	break;
     }

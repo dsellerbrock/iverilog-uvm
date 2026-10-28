@@ -186,7 +186,7 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
       if (!args) return 0;
       while (idx < 3 && (arg[idx] = vpi_scan(args)) != 0) idx += 1;
       vpi_free_object(args);
-      if (idx != 3 || vpi_get(vpiType, arg[0]) != vpiMemory) {
+      if (idx != 3 || vpi_get(vpiType, arg[0]) != vpiRegArray) {
             vpi_printf("ERROR: %s:%d: %s requires a memory, input expression, and output variable.\n",
                        vpi_get_str(vpiFile, callh), (int)vpi_get(vpiLineNo, callh), name);
             vpip_set_return_value(1);

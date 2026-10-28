@@ -58,7 +58,7 @@ static void dump_object(vpiHandle item)
 	    break;
 #endif
 	      /* vpiMemory contains words. */
-	  case vpiMemory:
+	  case vpiRegArray:
 	    argv = vpi_iterate(vpiMemoryWord, item);
 	    for (cur = vpi_scan(argv) ; cur ; cur = vpi_scan(argv))
 		  dump_object(cur);

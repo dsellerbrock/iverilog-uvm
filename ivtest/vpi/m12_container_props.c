@@ -64,10 +64,10 @@ static vpiHandle check_int(vpiHandle h, int pos, const char*name, int want)
             failed += 1;
             return 0;
       }
-      if (vpi_get(vpiType, el) != vpiMemoryWord) {
+      if (vpi_get(vpiType, el) != vpiReg) {
             char label[256];
             snprintf(label, sizeof label, "%s element type", name);
-            fail_i(label, vpi_get(vpiType, el), vpiMemoryWord);
+            fail_i(label, vpi_get(vpiType, el), vpiReg);
       }
       val.format = vpiIntVal;
       vpi_get_value(el, &val);

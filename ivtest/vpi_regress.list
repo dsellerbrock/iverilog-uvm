@@ -126,6 +126,8 @@ pr2048463		normal			pr2048463.c		pr2048463.log
 pr2314742		normal			pr2314742.c		pr2314742.gold
 issue958_2017	normal,-g2017		issue958.c		issue958_2017.gold
 issue958_2023	normal,-g2023		issue958.c		issue958_2023.gold
+issue1281_vpi_memory_types_2017 normal,-g2017 issue1281_memory_types.c issue1281_vpi_memory_types_2017.gold
+issue1281_vpi_memory_types_2023 normal,-g2023 issue1281_memory_types.c issue1281_vpi_memory_types_2023.gold
 pr2966059		normal			pr2966059.c		pr2966059.gold
 pr2971220		normal			pr2971220.c		pr2971220.gold
 pure_comb_finish_cb	normal,-g2012		pure_comb_finish_cb.c	pure_comb_finish_cb.gold

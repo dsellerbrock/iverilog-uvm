@@ -394,7 +394,7 @@ static unsigned is_integral_seed_obj(vpiHandle obj)
             return ctype == vpiDecConst || ctype == vpiBinaryConst ||
                    ctype == vpiOctConst || ctype == vpiHexConst;
       }
-      if (type == vpiMemoryWord) {
+      if (type == vpiReg) {
             s_vpi_value val;
             val.format = vpiObjTypeVal;
             vpi_get_value(obj, &val);

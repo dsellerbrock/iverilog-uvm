@@ -499,6 +499,14 @@ static PLI_INT32 sys_dumplimit_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
+static int is_memory_word(vpiHandle item)
+{
+      vpiHandle parent;
+      if (vpi_get(vpiType, item) != vpiReg) return 0;
+      parent = vpi_handle(vpiParent, item);
+      return parent && vpi_get(vpiType, parent) == vpiRegArray;
+}
+
 static void scan_item(unsigned depth, vpiHandle item, int skip)
 {
       static int dumpable_types[] = {
@@ -525,17 +533,16 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
       const char* ident;
       int64_t nexus_id;
 
+      int memory_word = is_memory_word(item);
+      if (memory_word && vpi_get(vpiConstantSelect, item) == 0) {
+	    /* Turn a non-constant array word select into a constant word select. */
+	  vpiHandle array = vpi_handle(vpiParent, item);
+	  PLI_INT32 idx = vpi_get(vpiIndex, item);
+	  item = vpi_handle_by_index(array, idx);
+      }
+
       switch (vpi_get(vpiType, item)) {
 
-	  case vpiMemoryWord:
-	    if (vpi_get(vpiConstantSelect, item) == 0) {
-		    /* Turn a non-constant array word select into a
-		     * constant word select. */
-		  vpiHandle array = vpi_handle(vpiParent, item);
-		  PLI_INT32 idx = vpi_get(vpiIndex, item);
-		  item = vpi_handle_by_index(array, idx);
-	    }
-	    // fallthrough
 	  case vpiIntegerVar:
 	  case vpiBitVar:
 	  case vpiByteVar:
@@ -548,7 +555,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 
 	      /* An array word is implicitly escaped so look for an
 	       * escaped identifier that this could conflict with. */
-            if (vpi_get(vpiType, item) == vpiMemoryWord &&
+            if (memory_word &&
                 vpi_handle_by_name(vpi_get_str(vpiFullName, item), 0)) {
 		  vpi_printf("LXT warning: dumping array word %s will "
 		             "conflict with an escaped identifier.\n",

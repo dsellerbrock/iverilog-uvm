@@ -2376,7 +2376,7 @@ static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
             if (item_name && strcmp(item_name, name) == 0)
                   return item;
 
-            if (vpi_get(vpiType, item) == vpiMemory
+            if (vpi_get(vpiType, item) == vpiRegArray
                 || vpi_get(vpiType, item) == vpiNetArray) {
                   vpiHandle word_iter = item->vpi_iterate(vpiMemoryWord);
                   vpiHandle word = 0;

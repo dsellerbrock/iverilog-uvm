@@ -14,7 +14,7 @@ static PLI_INT32 memmonitor_compiletf(PLI_BYTE8*name)
       }
 
       while ( (arg = vpi_scan(argv)) ) {
-	    if (vpi_get(vpiType, arg) != vpiMemory) {
+	    if (vpi_get(vpiType, arg) != vpiRegArray) {
 		  vpi_printf("ERROR: %s expects only memory arguments\n", name);
 		  vpi_control(vpiFinish, 1);
 		  return 0;

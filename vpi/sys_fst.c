@@ -441,6 +441,14 @@ static PLI_INT32 sys_dumplimit_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
+static int is_memory_word(vpiHandle item)
+{
+      vpiHandle parent;
+      if (vpi_get(vpiType, item) != vpiReg) return 0;
+      parent = vpi_handle(vpiParent, item);
+      return parent && vpi_get(vpiType, parent) == vpiRegArray;
+}
+
 static void scan_item(unsigned depth, vpiHandle item, int skip)
 {
       struct t_cb_data cb;
@@ -520,7 +528,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 
 	/* Do some special processing/checking on array words. Dumping
 	 * array words is an Icarus extension. */
-      if (item_type == vpiMemoryWord) {
+      if (is_memory_word(item)) {
 	      /* Turn a non-constant array word select into a constant
 	       * word select. */
 	    if (vpi_get(vpiConstantSelect, item) == 0) {
@@ -533,7 +541,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	       * escaped identifier that this could conflict with. */
 	      /* This does not work as expected since we always find at
 	       * least the array word. We likely need a custom routine. */
-            if (vpi_get(vpiType, item) == vpiMemoryWord &&
+            if (is_memory_word(item) &&
                 vpi_handle_by_name(vpi_get_str(vpiFullName, item), 0)) {
 		  vpi_printf("FST warning: array word %s will conflict "
 		             "with an escaped identifier.\n",
@@ -885,7 +893,7 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  scname = strdup(vpi_get_str(vpiFullName,
 		                              vpi_handle(vpiScope, item)));
 		  fullname = vpi_get_str(vpiFullName, item);
-		  if (((item_type != vpiMemoryWord) &&
+		  if ((!is_memory_word(item) &&
 		       vcd_names_search(&fst_tab, scname)) ||
 		      vcd_names_search(&fst_var, fullname)) {
 		        vpi_printf("FST warning: skipping signal %s, "

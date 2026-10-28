@@ -549,6 +549,10 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 
 	    if (type == vpiMemory && is_net_array(ref))
 		  return vpiNetArray;
+	    /* IEEE 1800-2017/2023 37.20: the legacy memory access methods
+	     * expose the generalized array and variable object types. */
+	    if (type == vpiMemory) return vpiRegArray;
+	    if (type == vpiMemoryWord) return vpiReg;
 	    return type;
       }
 
@@ -616,6 +620,8 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
 
 	    if (type == vpiMemory && is_net_array(ref))
 		  type = vpiNetArray;
+	    if (type == vpiMemory) type = vpiRegArray;
+	    if (type == vpiMemoryWord) type = vpiReg;
 	    return (char *)vpi_type_as_string(type);
       }
 
@@ -1528,7 +1534,7 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
 	    if (nm && !strcmp(name, nm)) {
 		  rtn = ref->intern[i];
 		  break;
-	    } else if (vpi_get(vpiType, ref->intern[i]) == vpiMemory ||
+	    } else if (vpi_get(vpiType, ref->intern[i]) == vpiRegArray ||
 	               vpi_get(vpiType, ref->intern[i]) == vpiNetArray) {
 		  /* We need to iterate on the words */
 		  vpiHandle word_i, word_h;

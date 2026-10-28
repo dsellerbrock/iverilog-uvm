@@ -2335,7 +2335,7 @@ static PLI_INT32 sys_printtimescale_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		case vpiShortIntVar:
 		case vpiIntVar:
 		case vpiLongIntVar:
-		case vpiMemory:
+		case vpiRegArray:
 		case vpiMemoryWord:
 		case vpiModule:
 		case vpiNamedBegin:
