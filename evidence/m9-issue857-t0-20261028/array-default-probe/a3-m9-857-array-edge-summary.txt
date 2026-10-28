@@ -1,0 +1,7 @@
+Batch: batch/2026-10-28-2, source SHA 69fa8fa5211568016824d2740304d6a2594f2aad (PR #1867 + #1872)
+Host: macOS ARM64; built the exact batch locally with `sh autoconf.sh`, configure, `make -j2`, and `make install` via macslot/localrun. Build exited 0 in 276.73 s; localrun reported 937,803,776-byte maximum RSS.
+Each probe was compiled separately with a 30-second localrun wall timeout in -g2017 and -g2023 using the batch's local-install compiler.
+Queue member (`int q[$]`) default 5: exit 1 in both editions, `error: The expression ''sd5' cannot be implicitly cast to the target type.`
+Dynamic-array member (`int d[]`) default 5: exit 1 in both editions, same explicit cast error.
+Associative-array member (`int a[string]`) default 5: exit 1 in both editions, `error: associative-array context requires an associative-array value.` No simulation was run because both editions rejected it at compile time.
+No silent acceptance or missing value was observed. The issue #857 reproducer targets fixed unpacked arrays; this check only verifies the new fallback rejects other array kinds loudly.

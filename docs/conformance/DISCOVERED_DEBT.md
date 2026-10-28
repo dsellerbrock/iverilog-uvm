@@ -4953,3 +4953,24 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** Not probed.
 - **Triage status:** Unverified and out of scope of #857; probe before opening an
   issue or widening the fix.
+
+### DD-152 — structure defaults reject associative-array members
+
+- **Discovered while working:** M9 issue #857.
+- **Observation:** For `typedef struct { int x; int a[string]; } SA;`, assigning
+  `s = '{default:5}` is rejected during elaboration with
+  `associative-array context requires an associative-array value` in both
+  -g2017 and -g2023. IEEE 1800-2017/2023 §10.9.2 applies default keys to
+  unmatched array members according to the array rules; §7.9.11 defines the
+  default index of an associative-array literal. This suggests a nested
+  associative-array default may be required, but its precise recursive effect
+  needs focused confirmation.
+- **File/function:** `elab_expr.cc::PEAssignPattern::elaborate_expr_default_`;
+  exact implementation site not isolated.
+- **Evidence:** `evidence/m9-issue857-t0-20261028/array-default-probe/` has the
+  reducer, both compiler diagnostics, and the batch/toolchain summary.
+- **Reproducer status:** Compile-time rejection confirmed in both editions;
+  runtime default-index behavior was not reached.
+- **Triage status:** Untriaged and separate from #857's fixed unpacked-array
+  members. Do not widen #857; confirm the nested associative-array semantics
+  before filing or implementing.

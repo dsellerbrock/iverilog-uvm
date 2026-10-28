@@ -1,0 +1,4 @@
+43ceb6f99c8ec4109bbcfc8120c69f9b9a11f6be97c9589103d94f6cd08c107d  assoc.sv  # 2026-10-28 15:28:19 Assoc-array default member probe on exact T2 batch 69fa8fa5, -g2017 and -g2023; compile-time rejection in both.
+a209544c073518ce499b7171ef4967d279931579f414e6830538dd21d3caf692  assoc-2017.compile.log  # 2026-10-28 15:28:19 Assoc-array default member probe on exact T2 batch 69fa8fa5, -g2017 and -g2023; compile-time rejection in both.
+ef1e40b338857b226550b743a6d245f3e0e4ad8b6767d778db544a987c2f446b  assoc-2023.compile.log  # 2026-10-28 15:28:19 Assoc-array default member probe on exact T2 batch 69fa8fa5, -g2017 and -g2023; compile-time rejection in both.
+55dcb8fd4fd9a06ca0a5dcacfa00ba1e5db24a47d658bb6760b044985b1d70b1  a3-m9-857-array-edge-summary.txt  # 2026-10-28 15:28:19 Assoc-array default member probe on exact T2 batch 69fa8fa5, -g2017 and -g2023; compile-time rejection in both.
