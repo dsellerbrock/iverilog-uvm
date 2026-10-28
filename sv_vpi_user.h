@@ -170,6 +170,8 @@ EXTERN_C_START
 #define cbAssertionEnable       612
 #define cbAssertionReset        613
 #define cbAssertionKill         614
+#define cbAssertionVacuousSuccess     657
+#define cbAssertionDisabledEvaluation 658
 
 /* Attempt information passed to an assertion callback.
 

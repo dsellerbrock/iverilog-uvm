@@ -12421,6 +12421,8 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
    the automaton engine delivers these. */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
+static const int SVA_CB_VACUOUS = 657; /* cbAssertionVacuousSuccess */
+static const int SVA_CB_DISABLED = 658; /* cbAssertionDisabledEvaluation */
 
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
@@ -20856,6 +20858,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
       loop.push_back(sva_reactive_wait_(loc));
       loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
 	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+      loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
+	    sva_report_stmt_(loc, inst, SVA_CB_VACUOUS)));
       if (action) {
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
@@ -28864,7 +28868,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
+	    std::vector<Statement*> disabled;
+	    disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED));
+	    disabled.push_back(clear_attempt_state());
+	    PCondit*dc = new PCondit(disable, sva_block_(loc, disabled), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
       } else {

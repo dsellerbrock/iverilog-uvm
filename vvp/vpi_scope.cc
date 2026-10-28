@@ -1229,9 +1229,14 @@ class __vpiAssertion : public __vpiHandle {
 	    else
 		  info.detail.failExpr = 0;
 	    info.attemptStartTime = st;
+	    bool info_is_null = reason == cbAssertionVacuousSuccess
+		  || reason == cbAssertionDisabledEvaluation
+		  || reason == cbAssertionDisable || reason == cbAssertionEnable
+		  || reason == cbAssertionReset || reason == cbAssertionKill;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].reason == reason && cbs_[i].cb)
-			cbs_[i].cb(reason, &t, this, &info,
+			cbs_[i].cb(reason, &t, this,
+				   info_is_null ? 0 : &info,
 				   (PLI_BYTE8*)cbs_[i].user_data);
 	    }
       }
