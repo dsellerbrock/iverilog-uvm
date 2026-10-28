@@ -290,6 +290,8 @@ typedef struct t_vpi_delay  {
 #define vpiNamedFork   35
 #define vpiWait        69
 #define vpiElseStmt    73
+#define vpiForIncStmt  74 /* increment statement in for loop */
+#define vpiForInitStmt 75 /* initialization statement in for loop */
 #define vpiForeachStmt 675
 #define vpiOrderedWait 671
 #define vpiWaitFork    672
