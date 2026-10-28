@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_ustruct_member_fixed_array_defaults.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_ustruct_member_fixed_array_defaults"
+}

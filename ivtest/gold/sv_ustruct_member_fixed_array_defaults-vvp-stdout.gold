@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_ustruct_member_fixed_array_defaults.v:25: $finish called at 0 (1s)
