@@ -3247,6 +3247,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
+      char access_suffix[8] = "";
 
       suffix[0] = 0;
 
@@ -3343,8 +3344,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
-      fprintf(vvp_out, "S_%p .scope %s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix,
+	/* IEEE 1800-2017/2023 37.8 and 37.41 detail 6 expose the access
+	   kind on interface subroutine declarations and DPI declarations. */
+      if (ivl_scope_is_dpi_import(net))
+	    strcpy(access_suffix, ".acc4");
+      else if (ivl_scope_is_dpi_export(net))
+	    strcpy(access_suffix, ".acc3");
+      else if ((ivl_scope_type(net) == IVL_SCT_TASK
+		|| ivl_scope_type(net) == IVL_SCT_FUNCTION)
+	       && ivl_scope_parent(net)
+	       && ivl_scope_is_interface(ivl_scope_parent(net)))
+	    strcpy(access_suffix, ".acc2");
+
+	  fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
+	      net, prefix, type, suffix, access_suffix,
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),
