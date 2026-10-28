@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_struct_default_unpacked_union_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_struct_default_unpacked_union_fail" ]
+}
