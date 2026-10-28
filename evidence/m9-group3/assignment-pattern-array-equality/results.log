@@ -1,0 +1,146 @@
+===== -g2017 xz =====
+x-first/mismatch-last: 0 1 0 1 (expect 0 1 0 1)
+mismatch-first/x-last: 0 1 0 1 (expect 0 1 0 1)
+all-known-equal: 1 0 1 0 (expect 1 0 1 0)
+===== -g2017 shapes =====
+rank3-middle-reversed=1
+size/typedef=1 reversed=1 self=1
+===== -g2017 net_arrays =====
+net-array=1
+===== -g2017 struct_members =====
+struct-member=1
+===== -g2017 class_properties =====
+class-property=1
+===== -g2017 function_return =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/function_return.sv:4: error: Array r needs an array index here.
+1 error(s) during elaboration.
+===== -g2017 assignment_pattern =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/assignment_pattern.sv:3: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+===== -g2017 real_array =====
+real-plusminus-zero=1
+===== -g2017 string_array =====
+string-array=1
+===== -g2017 class_handle_array =====
+class-handles-same=1
+class-handles-different=0
+===== -g2017 sensitivity =====
+initial: 1 1 1
+changed-last-element: 0 0 0
+===== -g2017 dynamic_fixed =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/dynamic_fixed.sv:3: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+===== -g2017 type_equiv =====
+int-bit-signed=1 packed-bounds=1
+===== EXPECT REJECT -g2017 rank_eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-rank_eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 dim_eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-dim_eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 rank_!eq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-rank_!eq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 dim_!eq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-dim_!eq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 rank_eqeqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-rank_eqeqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 dim_eqeqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-dim_eqeqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 rank_!eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-rank_!eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2017 dim_!eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2017-dim_!eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 xz =====
+x-first/mismatch-last: 0 1 0 1 (expect 0 1 0 1)
+mismatch-first/x-last: 0 1 0 1 (expect 0 1 0 1)
+all-known-equal: 1 0 1 0 (expect 1 0 1 0)
+===== -g2023 shapes =====
+rank3-middle-reversed=1
+size/typedef=1 reversed=1 self=1
+===== -g2023 net_arrays =====
+net-array=1
+===== -g2023 struct_members =====
+struct-member=1
+===== -g2023 class_properties =====
+class-property=1
+===== -g2023 function_return =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/function_return.sv:4: error: Array r needs an array index here.
+1 error(s) during elaboration.
+===== -g2023 assignment_pattern =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/assignment_pattern.sv:3: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+===== -g2023 real_array =====
+real-plusminus-zero=1
+===== -g2023 string_array =====
+string-array=1
+===== -g2023 class_handle_array =====
+class-handles-same=1
+class-handles-different=0
+===== -g2023 sensitivity =====
+initial: 1 1 1
+changed-last-element: 0 0 0
+===== -g2023 dynamic_fixed =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/dynamic_fixed.sv:3: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+===== -g2023 type_equiv =====
+int-bit-signed=1 packed-bounds=1
+===== EXPECT REJECT -g2023 rank_eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-rank_eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 dim_eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-dim_eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 rank_!eq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-rank_!eq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 dim_!eq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-dim_!eq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 rank_eqeqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-rank_eqeqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 dim_eqeqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-dim_eqeqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 rank_!eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-rank_!eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== EXPECT REJECT -g2023 dim_!eqeq =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/2023-dim_!eqeq.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2005 xz =====
+x-first/mismatch-last: 0 1 0 1 (expect 0 1 0 1)
+mismatch-first/x-last: 0 1 0 1 (expect 0 1 0 1)
+all-known-equal: 1 0 1 0 (expect 1 0 1 0)
+===== -g2009 xz =====
+x-first/mismatch-last: 0 1 0 1 (expect 0 1 0 1)
+mismatch-first/x-last: 0 1 0 1 (expect 0 1 0 1)
+all-known-equal: 1 0 1 0 (expect 1 0 1 0)

@@ -1,0 +1,2 @@
+./ivltests/sv_uarray_equality_untyped_pattern_fail.v:8: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.

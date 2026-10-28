@@ -1,0 +1,3 @@
+ivltests/sv_multidimensional_array_equality_shape_err.v:9: error: fixed unpacked array comparison requires compatible array shapes and equivalent element types.
+ivltests/sv_multidimensional_array_equality_shape_err.v:10: error: fixed unpacked array comparison requires compatible array shapes and equivalent element types.
+2 error(s) during elaboration.

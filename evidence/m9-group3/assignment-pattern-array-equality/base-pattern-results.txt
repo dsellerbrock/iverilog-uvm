@@ -1,0 +1,50 @@
+== base 02ff255 -g2017 typed patterns
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:10: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:11: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:11: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:12: error: Array M needs an array index here.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:13: error: Array M needs an array index here.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:14: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+9 error(s) during elaboration.
+rc=9
+== base 02ff255 -g2017 untyped pattern
+/tmp/a3_728_edge.HhFx2J/untyped.sv:1: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+rc=1
+== base 02ff255 -g2023 typed patterns
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:9: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:10: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:11: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:11: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:12: error: Array M needs an array index here.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:13: error: Array M needs an array index here.
+/tmp/a3_728_edge.HhFx2J/sv_eq.sv:14: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+9 error(s) during elaboration.
+rc=9
+== base 02ff255 -g2023 untyped pattern
+/tmp/a3_728_edge.HhFx2J/untyped.sv:1: error: a fixed unpacked array or slice may only be compared with a compatible array or slice.
+1 error(s) during elaboration.
+rc=1
+        0.16 real         0.08 user         0.04 sys
+            16793600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               16691  page reclaims
+                 218  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  20  voluntary context switches
+                 263  involuntary context switches
+            63521690  instructions retired
+            22594302  cycles elapsed
+             2376160  peak memory footprint
