@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1334_vpi_return_stmt.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1334_vpi_return_stmt_2017"],
+  "vpi-sources": ["vpi/issue1334_vpi_return_stmt.c"],
+  "output-contains": ["VPI RETURN STATEMENT CONSTANT PASSED"]
+}
