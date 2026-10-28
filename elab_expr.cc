@@ -11592,7 +11592,7 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       NetScope*lookup = scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
+      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos_) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
@@ -11610,7 +11610,7 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       NetScope*lookup = scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name) : 0;
+      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos()) : 0;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
