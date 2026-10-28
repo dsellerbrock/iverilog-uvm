@@ -1,0 +1,74 @@
+===== -g2017 function_return_fixed =====
+function-return=1
+===== -g2017 type_int_logic =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_int_logic.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_int_integer =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_int_integer.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_signedness =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_signedness.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_bit_logic =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_bit_logic.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_width =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_width.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_enum =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_enum.sv:2: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2017 type_struct_vector =====
+x
+===== -g2023 function_return_fixed =====
+function-return=1
+===== -g2023 type_int_logic =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_int_logic.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_int_integer =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_int_integer.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_signedness =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_signedness.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_bit_logic =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_bit_logic.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_width =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_width.sv:1: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_enum =====
+compile_rc=1
+/tmp/a3_728_edge.HhFx2J/type_enum.sv:2: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+1 error(s) during elaboration.
+===== -g2023 type_struct_vector =====
+x
+        0.64 real         0.36 user         0.17 sys
+            16760832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               80740  page reclaims
+                1134  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 100  voluntary context switches
+                 989  involuntary context switches
+           115132171  instructions retired
+            53574969  cycles elapsed
+             2359776  peak memory footprint

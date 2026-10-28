@@ -1,0 +1,12 @@
+10e7f3765235ec2addcee465ec171dae381dc497b76b70d6ce093150947502fd  sv_eq.sv  # 2026-10-27 03:11:18 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+44815a5facb2f9fefeb58a28995c5baba2d8ac0f7efe2c7c9e0614ac2f4f9e80  untyped.sv  # 2026-10-27 03:11:18 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+b091d9eea8691ba533beb05c8cbf907dce64e964750c4c7ebb906fa10266d624  packed_types.sv  # 2026-10-27 03:11:18 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+b41a297f2a2120f4f6f8697bd2b81c141609f6b94d67b7867125bd14c87449c3  typed-run.sh  # 2026-10-27 03:11:18 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+4200de81de8db4b41a2510dcd9177a9bbc58f35641d663156a86f5a9c41b4a58  baseline-pattern-run.sh  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+be0463af66dc0297e9d1fcb3cef86714872bb78e0b5051c18e1b797a5dea2183  packed-run.sh  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+7581fac1b8d432e4b16eee02d93a5e271a87bf4c7297ac5f569192ef2103203d  current-pattern-results.txt  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+eb1579c92461c9d52b3b11a894d79b8d1d7acacbcf330fb84da3bd3544e46e8a  base-pattern-results.txt  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+699a2204d1c3fbcea3b8bf18e1a24cf09cb11098509c77d8c058d77c8f54c9d5  packed-types-results.txt  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+3e34283ddf70b86e439500a458c39e119659fc20318289e808b59bc04e6a44ca  results.log  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+536b2f7ce6bcc80cdd92e4aca0672dcb42474974401964aaaddc75290bd09884  typecheck.out  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths
+6b18042ddf89fc733044a6f79c8e9963166ea714d8673e1877de09fb58b4b0b4  a3-728-assignment-pattern-summary.md  # 2026-10-27 03:11:19 Base-vs-#728 typed and untyped assignment-pattern equality probes; raw results and tool paths

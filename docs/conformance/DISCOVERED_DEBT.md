@@ -4903,3 +4903,14 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   the sampled operand rewrite.
 - **Triage status:** discovered debt outside the procedural #711 fix; no
   conformance claim filed and no assertion reproducer run yet.
+
+### DD-149 — typed assignment-pattern casts are rejected as array equality operands
+
+- **Discovery ID:** DD-143.
+- **Active blocker:** #728.
+- **Observation:** Typed assignment-pattern cast operands such as `arr_t'{1,2}` in `==`, `!=`, `===`, and `!==`, and a multidimensional `mat_t'{...}` operand in equality, are rejected during elaboration in both -g2017 and -g2023. On base commit `02ff25587ad369ea333c61fee650a7e33c4fdeca`, one-dimensional forms receive the generic compatible-array diagnostic and multidimensional forms report `Array M needs an array index here`; the #728 build rejects them with the generic diagnostic. The untyped form `A=='{1,2}` is separately invalid under §10.9 because equality is not an assignment-like context.
+- **File/function:** `elab_expr.cc::elaborate_fixed_uarray_comparison_` emits the generic comparison diagnostic; the baseline multidimensional fallback reaches `PEIdent::elaborate_expr_net_word_`.
+- **Possible clause:** IEEE 1800-2017/2023 §10.9 and §11.4.5.
+- **Evidence:** Base and #728 compiler outputs, reducers, tool paths and revisions are recorded in `evidence/m9-group3/assignment-pattern-array-equality/` with `MANIFEST.sha256`.
+- **Reproducer status:** Reproduces on clean base 02ff255 and the #728 build in both editions.
+- **Triage status:** Open, unscheduled. Do not pin the typed-form rejection in a regression; the untyped invalid form has its own negative regression. Its current compatible-array diagnostic wording is provisional.

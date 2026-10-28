@@ -1140,28 +1140,34 @@ int decode_fixed_uarray_slice(Design*des, NetScope*scope,
       bool found = symbol_search(&loc, des, scope, id->path(),
 				 id->lexical_pos(), &sr);
       if (!found || !sr.net || !sr.path_tail.empty()
-	  || sr.net->unpacked_dimensions() != 1)
+	  || sr.net->unpacked_dimensions() == 0)
 	    return 0;
 
       const name_component_t&tail = id->path().name.back();
-      const netrange_t&declared = sr.net->unpacked_dims().front();
+      const netranges_t&declared = sr.net->unpacked_dims();
       if (tail.index.empty()) {
 	    if (!allow_whole)
 		  return 0;
 	    out.signal = sr.net;
 	    out.canonical_base = 0;
-	    out.count = declared.width();
-	    out.selected_range = declared;
+	    unsigned long count = 1;
+	    for (const netrange_t&dim : declared) {
+		  if (dim.width() > ULONG_MAX / count)
+			return 0;
+		  count *= dim.width();
+	    }
+	    out.count = count;
+	    out.selected_range = declared.front();
 	    out.element_type = sr.net->net_type();
 	    out.whole = true;
 	    return 1;
       }
 
-      if (tail.index.size() != 1)
+      if (declared.size() != 1 || tail.index.size() != 1)
 	    return 0;
 
       int rc = decode_fixed_uarray_slice_select_(
-	    des, scope, loc, tail.index.front(), declared,
+	    des, scope, loc, tail.index.front(), declared.front(),
 	    sr.net->net_type(), out, quiet);
       if (rc > 0)
 	    out.signal = sr.net;
