@@ -168,6 +168,7 @@ extern void vthread_unpin(vthread_t thr);
  * owns it. This makes an ordinary event wait cancellable in O(1) when a
  * disabled fork kills the waiting branch. */
 extern vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head);
+extern vthread_t vthread_event_wait_next(vthread_t thr);
 extern void vthread_cancel_event_wait(vthread_t thr);
 extern void vthread_cancel_mutation_wait(vthread_t thr);
 extern void vthread_dump_live_threads(const char*reason);

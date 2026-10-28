@@ -767,6 +767,7 @@ class __vpiNamedEvent : public __vpiHandle {
       char* vpi_get_str(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
 
       inline void add_vpi_callback(__vpiCallback*cb)
       { cb->next = callbacks_;
@@ -791,6 +792,7 @@ class __vpiNamedEvent : public __vpiHandle {
 
 extern vpiHandle vpip_make_named_event(const char*name, vvp_net_t*f,
 			       bool automatic_storage);
+extern vpiHandle vpip_make_process_handle(vthread_t thread);
 
 /*
  * Memory is an array of bits that is accessible in N-bit chunks, with

@@ -350,6 +350,8 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 class __vpiProcess : public __vpiHandle {
     public:
       explicit __vpiProcess(__vpiScope*scope) : scope_(scope) { }
+      explicit __vpiProcess(vthread_t thread)
+      : scope_(vthread_scope(thread)) { }
       int get_type_code(void) const override { return vpiProcess; }
 
       char* vpi_get_str(int code) override
@@ -362,6 +364,11 @@ class __vpiProcess : public __vpiHandle {
     private:
       __vpiScope*scope_;
 };
+
+vpiHandle vpip_make_process_handle(vthread_t thread)
+{
+      return new __vpiProcess(thread);
+}
 
 /*
  * This function implements the vpi_iterate method for vpiModule and

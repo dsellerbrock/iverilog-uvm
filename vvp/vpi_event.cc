@@ -19,6 +19,7 @@
 
 # include  "compile.h"
 # include  "vpi_priv.h"
+# include  "event.h"
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
@@ -45,6 +46,32 @@ __vpiNamedEvent::~__vpiNamedEvent()
 
 int __vpiNamedEvent::get_type_code(void) const
 { return vpiNamedEvent; }
+
+vpiHandle __vpiNamedEvent::vpi_iterate(int code)
+{
+#ifndef vpiWaitingProcesses
+# define vpiWaitingProcesses 734
+#endif
+      if (code != vpiWaitingProcesses || !funct || !funct->fun)
+            return 0;
+
+      vvp_named_event*event = dynamic_cast<vvp_named_event*>(funct->fun);
+      if (!event)
+            return 0;
+
+      std::vector<vthread_t>threads;
+      event->collect_waiting_threads(threads);
+      if (threads.empty())
+            return 0;
+
+      vpiHandle*args = static_cast<vpiHandle*>(
+            calloc(threads.size(), sizeof(vpiHandle)));
+      if (!args)
+            return 0;
+      for (size_t idx = 0; idx < threads.size(); idx += 1)
+            args[idx] = vpip_make_process_handle(threads[idx]);
+      return vpip_make_iterator(threads.size(), args, true);
+}
 
 int __vpiNamedEvent::vpi_get(int code)
 {
