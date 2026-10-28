@@ -798,6 +798,16 @@ struct vpiScopeClass  : public __vpiScope {
       inline vpiScopeClass(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam) { }
       int get_type_code(void) const override { return vpiClassTypespec; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiClassDefn && scope) {
+		  std::map<std::string,class_type*>::const_iterator defn =
+			scope->classes.find(scope_name());
+		  if (defn != scope->classes.end())
+			return defn->second;
+	    }
+	    return __vpiScope::vpi_handle(code);
+      }
 };
 
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
