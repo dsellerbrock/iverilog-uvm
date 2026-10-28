@@ -6654,6 +6654,14 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	    my_scope = new NetScope(scope, use_name, bl_type_!=BL_SEQ
 				    ? NetScope::FORK_JOIN
 				    : NetScope::BEGIN_END);
+            if (bl_type_ != BL_SEQ) {
+                  // Scope attributes encode zero as IVL_ATT_VOID, so offset
+                  // the standard vpiJoin/vpiJoinNone/vpiJoinAny values.
+                  long join_type = bl_type_ == BL_PAR ? 1
+                        : bl_type_ == BL_JOIN_NONE ? 2 : 3;
+                  my_scope->attribute(perm_string::literal("_ivl_vpi_join_type"),
+                                     verinum((uint64_t)join_type, 32));
+            }
 	    if (deferred_assertion_label_scope_)
 		  my_scope->attribute(perm_string::literal("_ivl_deferred_assert_label"),
 				     verinum((uint64_t)1, 1));

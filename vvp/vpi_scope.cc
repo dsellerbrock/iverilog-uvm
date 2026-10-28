@@ -382,6 +382,9 @@ int __vpiScope::vpi_get(int code)
 
           case vpiAutomatic:
 	    return is_automatic_? 1 : 0;
+
+	  case vpiJoinType:
+	    return join_type;
       }
 
       return vpiUndefined;
@@ -1164,6 +1167,12 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
                    char*parent, long file_idx, long lineno,
                    long def_file_idx, long def_lineno, long is_cell)
 {
+      int join_type = vpiUndefined;
+      char*join = strstr(type, ".join");
+      if (join && join[5] >= '0' && join[5] <= '2') {
+	    join_type = join[5] - '0';
+	    memmove(join, join + 6, strlen(join + 6) + 1);
+      }
       count_vpi_scopes += 1;
       char vec_type;
       char sign_flag;
@@ -1276,6 +1285,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
+      scope->join_type = join_type;
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

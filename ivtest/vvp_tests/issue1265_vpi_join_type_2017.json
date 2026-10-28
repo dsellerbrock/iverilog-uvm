@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1265_vpi_join_type.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1265_join_type_2017"],
+  "vpi-sources": ["vpi/issue1265_join_type.c"],
+  "output-contains": ["PASSED"]
+}
