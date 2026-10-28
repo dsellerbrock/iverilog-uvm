@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_uarray_equality_untyped_pattern_fail.v",
+  "iverilog-args": ["-g2017", "-s", "sv_uarray_equality_untyped_pattern_fail"],
+  "gold": "sv_uarray_equality_untyped_pattern_fail"
+}

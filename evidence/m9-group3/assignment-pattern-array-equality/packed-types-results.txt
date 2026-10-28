@@ -1,0 +1,28 @@
+== -g2017 ==
+pstruct equal: eq=1 ceq=1 (expect 1 1)
+pstruct mismatch: eq=0 (expect 0)
+pstruct x: eq=x ceq=1 (expect x 1)
+2-state pstruct: eq=1 (expect 1)
+== -g2023 ==
+pstruct equal: eq=1 ceq=1 (expect 1 1)
+pstruct mismatch: eq=0 (expect 0)
+pstruct x: eq=x ceq=1 (expect x 1)
+2-state pstruct: eq=1 (expect 1)
+        0.19 real         0.09 user         0.04 sys
+            16793600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               14908  page reclaims
+                 220  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  14  voluntary context switches
+                 298  involuntary context switches
+            63134056  instructions retired
+            22451067  cycles elapsed
+             2343392  peak memory footprint
