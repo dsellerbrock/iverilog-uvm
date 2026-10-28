@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1320_vpi_assignment_op_2023.v",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1320_vpi_assignment_op_2023"],
+  "vpi-sources": ["vpi/issue1320_vpi_assignment_op.c"],
+  "output-contains": ["PASSED"]
+}
