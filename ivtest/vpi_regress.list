@@ -25,6 +25,9 @@
 # For testing with other simulators
 #==========
 
+issue1276_vpi_range_2017 normal,-g2017 issue1276_vpi_range.c issue1276_vpi_range_2017.gold
+issue1276_vpi_range_2023 normal,-g2023 issue1276_vpi_range.c issue1276_vpi_range_2023.gold
+
 # Icarus returns vpiReg instead of vpiTimeVar.
 vstd:by_name		normal			by_name.c		by_name-std.log
 
