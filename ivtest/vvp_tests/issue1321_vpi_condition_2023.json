@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1321_vpi_condition.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1321_vpi_condition_2023"],
+  "vpi-sources": ["vpi/issue1321_vpi_condition.c"],
+  "output-contains": ["PASSED"]
+}

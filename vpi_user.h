@@ -275,6 +275,7 @@ typedef struct t_vpi_delay  {
 
 /* OBJECT CODES */
 #define vpiConstant     7
+#define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiFor         15
 #define vpiFunction    20
 #define vpiIntegerVar  25
@@ -287,7 +288,11 @@ typedef struct t_vpi_delay  {
 #define vpiNamedBegin  33
 #define vpiNamedEvent  34
 #define vpiNamedFork   35
+#define vpiWait        69
+#define vpiElseStmt    73
 #define vpiForeachStmt 675
+#define vpiOrderedWait 671
+#define vpiWaitFork    672
 #define vpiNet         36
 #define vpiNetBit      37
 #define vpiNettypeDecl 523
@@ -304,8 +309,10 @@ typedef struct t_vpi_delay  {
 #define vpiTask        59
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
+#define vpiRepeat      51 /* repeat statement */
 #define vpiUdpDefn     66
 #define vpiUserSystf   67
+#define vpiWhile       70 /* while statement */
 #define vpiNetArray   114
 #define vpiRange      115
 #define vpiIndex       78
@@ -349,6 +356,7 @@ typedef struct t_vpi_delay  {
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+#define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */
 #   define vpiInput 1
@@ -419,6 +427,7 @@ typedef struct t_vpi_delay  {
 #define vpiConstantSelect 53
 #define vpiSigned         65
 #define vpiLocalParam     70
+#define vpiCondition      71
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */

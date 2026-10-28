@@ -760,7 +760,8 @@ static void pform_check_constraint_override_specifiers_(
 
 void pform_class_constraint(const struct vlltype&loc,
 			     bool is_static, unsigned override_specifiers,
-			     const char*name, std::list<PExpr*>*items)
+			     const char*name, std::list<PExpr*>*items,
+			     bool is_external)
 {
       if (!pform_cur_class || !name)
 	    return;
@@ -769,6 +770,20 @@ void pform_class_constraint(const struct vlltype&loc,
 	  class_type_t*type = pform_cur_class->type;
 	  bool had_decl = type->constraint_declarations.count(pname) != 0;
 	  auto existing_decl = type->constraint_declarations.find(pname);
+	  if (!is_external
+	      && ((existing_decl != type->constraint_declarations.end()
+		   && existing_decl->second.is_prototype)
+		  || type->extern_constraints.count(pname))) {
+	    cerr << loc << ": error: Constraint block `" << pname
+		 << "' conflicts with a prototype in the same class "
+		    "(IEEE 1800-2017/2023 18.5.1)." << endl;
+	    error_count += 1;
+	    if (items) {
+		  for (PExpr*item : *items) delete item;
+		  delete items;
+	    }
+	    return;
+	  }
 	  if (existing_decl != type->constraint_declarations.end()
 	      && !existing_decl->second.is_prototype) {
 	    cerr << loc << ": error: Constraint `" << pname

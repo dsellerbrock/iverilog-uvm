@@ -13,6 +13,8 @@
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
+issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
+issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
 
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
@@ -3129,6 +3131,12 @@ sv_randomize_global_sampling_fail normal,-g2017,-s,main ivltests gold=sv_randomi
 sv_randomize_global_sampling_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
 sv_constraint_prototype_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold
 sv_constraint_prototype_collision_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold
+sv_constraint_duplicate_external_fail CE,-g2017,-s,main ivltests gold=sv_constraint_duplicate_external_fail.gold
+sv_constraint_duplicate_external_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_duplicate_external_fail.gold
+sv_constraint_prototype_block_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_prototype_block_collision_fail.gold
+sv_constraint_prototype_block_collision_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_prototype_block_collision_fail.gold
+sv_constraint_explicit_prototype_block_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_explicit_prototype_block_collision_fail.gold
+sv_constraint_explicit_prototype_block_collision_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_explicit_prototype_block_collision_fail.gold
 
 # Joint randc history admission and deferred container rollback.
 sv_randomize_global_history_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_history_fail.gold

@@ -4914,3 +4914,42 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** Base and #728 compiler outputs, reducers, tool paths and revisions are recorded in `evidence/m9-group3/assignment-pattern-array-equality/` with `MANIFEST.sha256`.
 - **Reproducer status:** Reproduces on clean base 02ff255 and the #728 build in both editions.
 - **Triage status:** Open, unscheduled. Do not pin the typed-form rejection in a regression; the untyped invalid form has its own negative regression. Its current compatible-array diagnostic wording is provisional.
+
+### DD-150 — packed-struct field selects through unpacked-struct members read X
+
+- **Discovered while working:** M9 issue #857.
+- **Observation:** A packed struct stored as a member of an unpacked struct has the
+  correct whole packed value, but selecting its fields through the wrapper returns
+  X. Explicit named, positional, nested-default and outer-default assignments
+  all produce the same result, so this is independent of #857's recursive default
+  handling. Copying the packed member to a packed variable is the proposed working
+  path for checking its fields.
+- **File/function:** Read-side packed-struct member selection through an
+  unpacked-struct member; the implementation site is not yet isolated.
+- **Possible clause:** None assigned. IEEE 1800-2023 §10.9.2 governs the pattern
+  assignment, not this later member-select read.
+- **Evidence:** Slurm job #5307 on `aceef434` and job #5311 on clean current
+  main `aad4e4dc0d0b`; both -g2017 and -g2023. The whole value is
+  `010100000101`, direct top-level field reads are 5/5, while wrapped field
+  reads are x/x even with explicit assignment. Branch controls are under
+  `evidence/m9-issue857-t0-20261028/controls3/`; the minimal no-default repro
+  and baseline logs are under `evidence/m9-issue857-t0-20261028/baseline-main/`.
+- **Reproducer status:** Confirmed on both #857 and clean current main.
+- **Triage status:** Open, not in scope of #857. No exact duplicate found; #499
+  may share a root cause but covers an indexed unpacked struct-member followed
+  by a packed bit select, not this scalar nested-member path. #1469, #539 and
+  #1219 describe different symptoms. Supervisor triage is pending.
+
+### DD-151 — packed-array members may need recursive structure-default handling
+
+- **Discovered while working:** M9 issue #857.
+- **Observation:** `elaborate_expr_default_` recurses through structures and
+  fixed unpacked arrays, but not packed-array member types. IEEE 1800-2023
+  §10.9.2 says defaults apply to unmatched array members according to the array
+  pattern rules. No packed-array reducer was run, so this remains a source-review
+  suspicion, not a confirmed conformance gap.
+- **File/function:** `elab_expr.cc::PEAssignPattern::elaborate_expr_default_`.
+- **Evidence:** Source review only; no probe or output evidence.
+- **Reproducer status:** Not probed.
+- **Triage status:** Unverified and out of scope of #857; probe before opening an
+  issue or widening the fix.

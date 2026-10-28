@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1323_vpi_wait_constants.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1323_vpi_wait_constants_2023"],
+  "vpi-sources": ["vpi/issue1323_vpi_wait_constants.c"],
+  "output-contains": ["PASSED"]
+}
