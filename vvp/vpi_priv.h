@@ -281,6 +281,8 @@ class __vpiScope : public __vpiHandle {
       inline const char*scope_def_name() const { return tname_; }
 	// TRUE if this is an automatic func/task/block
       inline bool is_automatic() const { return is_automatic_; }
+	// IEEE 1800 vpiAccessType for task/function declarations, when defined.
+      inline void set_access_type(int value) { access_type_ = value; }
 	// TRUE if this scope owns activation contexts. This is normally the
 	// same as automatic lifetime, but a static subroutine with explicitly
 	// automatic locals owns contexts only for those locals.
@@ -331,6 +333,7 @@ class __vpiScope : public __vpiHandle {
       const char*tname_;
 	/* the scope may be "automatic" */
       bool is_automatic_;
+	int access_type_ = vpiUndefined;
 	/* Static mixed-lifetime scope (task/function/begin/fork ".ctx")
 	   ownership. This does not affect vpiAutomatic or inherited
 	   declaration lifetime. */

@@ -384,6 +384,11 @@ typedef struct t_vpi_delay  {
 #   define vpiHexConst    5
 #   define vpiStringConst 6
 #define vpiFuncType  44
+#define vpiAccessType 604
+#define vpiForkJoinAcc 1
+#define vpiExternAcc 2
+#define vpiDPIExportAcc 3
+#define vpiDPIImportAcc 4
 #   define vpiIntFunc     1
 #   define vpiRealFunc    2
 #   define vpiTimeFunc    3

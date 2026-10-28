@@ -3244,6 +3244,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
             ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
       int emit_evcd_metadata = dumpports_flag && *dumpports_flag;
       const char *type;
+      const char *access_suffix = "";
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
@@ -3294,6 +3295,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       default:               type = "?";        assert(0);
       }
 
+      /* Preserve the IEEE VPI access category on task/function declarations.
+       * This is declaration metadata and must survive through the VVP scope
+       * record so vpi_get(vpiAccessType, ...) can report it. */
+      if (ivl_scope_type(net) == IVL_SCT_TASK
+	  || ivl_scope_type(net) == IVL_SCT_FUNCTION) {
+	    if (ivl_scope_is_dpi_import(net))
+		  access_suffix = ".access4"; /* vpiDPIImportAcc */
+	    else if (ivl_scope_is_dpi_export(net))
+		  access_suffix = ".access3"; /* vpiDPIExportAcc */
+	    else if (ivl_scope_parent(net)
+		     && ivl_scope_is_interface(ivl_scope_parent(net)))
+		  access_suffix = ".access1"; /* vpiForkJoinAcc */
+      }
+
       if (ivl_scope_type(net)==IVL_SCT_FUNCTION) {
 	    switch (ivl_scope_func_type(net)) {
 		case IVL_VT_LOGIC:
@@ -3330,8 +3345,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
-      fprintf(vvp_out, "S_%p .scope %s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix,
+      fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
+              net, prefix, type, suffix, access_suffix,
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),

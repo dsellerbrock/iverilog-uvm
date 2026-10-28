@@ -382,6 +382,9 @@ int __vpiScope::vpi_get(int code)
 
           case vpiAutomatic:
 	    return is_automatic_? 1 : 0;
+
+	  case vpiAccessType:
+	    return access_type_;
       }
 
       return vpiUndefined;
@@ -1169,6 +1172,15 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       char sign_flag;
       unsigned wid;
 
+	/* The target appends this metadata to task/function scope type names,
+	 * keeping the existing VVP scope record grammar intact. */
+	int access_type = vpiUndefined;
+	char* access_tag = strstr(type, ".access");
+	if (access_tag) {
+	      access_type = atoi(access_tag + 7);
+	      *access_tag = 0;
+	}
+
         /* A mixed-lifetime static function uses the ordinary static VPI
            function class, with a separate context-owner bit. Canonicalize
            its type spelling before the existing return-type decoder. */
@@ -1276,6 +1288,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
+
+	if (access_type != vpiUndefined)
+	      scope->set_access_type(access_type);
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

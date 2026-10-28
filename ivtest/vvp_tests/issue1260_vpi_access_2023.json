@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1260_vpi_access.v",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1260_vpi_access"],
+  "vpi-sources": ["vpi/issue1260_vpi_access.c"],
+  "output-contains": ["PASSED"]
+}
