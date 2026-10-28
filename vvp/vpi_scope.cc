@@ -559,6 +559,62 @@ vpiHandle __vpiScope::vpi_handle(int code)
 vpiHandle __vpiScope::vpi_iterate(int code)
 { return module_iter(code, this); }
 
+__vpiFunctionReturn::__vpiFunctionReturn(__vpiScope*scope, int func_type,
+                                         unsigned width, bool is_2state)
+: scope_(scope), type_code_(vpiReg), width_(width), signed_(false)
+{
+      switch (func_type) {
+          case vpiIntFunc:
+            type_code_ = vpiIntVar;
+            width_ = 32;
+            signed_ = true;
+            break;
+          case vpiRealFunc:
+            type_code_ = vpiRealVar;
+            width_ = 0;
+            break;
+          case vpiTimeFunc:
+            type_code_ = vpiTimeVar;
+            width_ = 64;
+            break;
+          case vpiSizedSignedFunc:
+            signed_ = true;
+            type_code_ = is_2state ? vpiBitVar : vpiReg;
+            break;
+          case vpiSizedFunc:
+            type_code_ = is_2state ? vpiBitVar : vpiReg;
+            break;
+          default:
+            /* String and user-defined returns use vpiOtherFunc in the
+               runtime scope descriptor. Their dedicated type metadata is
+               not currently emitted by the compiler. */
+            type_code_ = vpiStringVar;
+            width_ = 0;
+            break;
+      }
+}
+
+int __vpiFunctionReturn::vpi_get(int code)
+{
+      switch (code) {
+          case vpiSigned: return signed_;
+          case vpiSize: return static_cast<int>(width_);
+          case vpiAutomatic: return scope_->vpi_get(vpiAutomatic);
+          default: return vpiUndefined;
+      }
+}
+
+char* __vpiFunctionReturn::vpi_get_str(int code)
+{
+      return generic_get_str(code, scope_, scope_->scope_name(), NULL);
+}
+
+vpiHandle __vpiFunctionReturn::vpi_handle(int code)
+{
+      if (code == vpiScope || code == vpiParent) return scope_;
+      return __vpiHandle::vpi_handle(code);
+}
+
 
 class vpiScopeModule  : public __vpiScope {
     public:

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1301_function_return.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1301_function_return_2023"],
+  "vpi-sources": ["vpi/issue1301_function_return.c"],
+  "output-contains": ["ISSUE1301_FUNCTION_RETURN_PASSED", "PASSED"]
+}
