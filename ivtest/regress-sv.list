@@ -6118,6 +6118,8 @@ sv_packed_struct_array_equality normal,-g2017,-s,sv_packed_struct_array_equality
 sv_packed_struct_array_equality_2023 normal,-g2023,-s,sv_packed_struct_array_equality_2023 ivltests gold=sv_packed_struct_array_equality.gold
 sv_uarray_equality_untyped_pattern_fail CE,-g2017,-s,sv_uarray_equality_untyped_pattern_fail ivltests gold=sv_uarray_equality_untyped_pattern_fail.gold
 sv_uarray_equality_untyped_pattern_fail_2023 CE,-g2023,-s,sv_uarray_equality_untyped_pattern_fail_2023 ivltests gold=sv_uarray_equality_untyped_pattern_fail_2023.gold
+sv_bits_dynamic_queue	normal,-g2017		ivltests gold=sv_bits_dynamic_queue.gold
+sv_bits_dynamic_queue_2023	normal,-g2023		ivltests gold=sv_bits_dynamic_queue.gold
 issue1236_let_forward_fail_2017 CE,-g2017,-sissue1236_let_forward_fail_2017 ivltests gold=issue1236_let_forward_fail_2017.gold
 issue1236_let_forward_fail_2023 CE,-g2023,-sissue1236_let_forward_fail_2023 ivltests gold=issue1236_let_forward_fail_2023.gold
 issue1224_udnt_default_2017 normal,-g2017,-s,test ivltests gold=issue1224_udnt_default.gold
