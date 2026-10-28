@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1303_function_size.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1303_function_size_2017"],
+  "vpi-sources": ["vpi/issue1303_function_size.c"],
+  "output-contains": ["ISSUE1303_FUNCTION_SIZE_PASSED", "PASSED"]
+}
