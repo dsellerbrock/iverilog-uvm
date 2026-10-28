@@ -1,0 +1,3 @@
+CELL=work.issue1248_leaf UPPER=work.issue1248_leaf HIER=issue1248_library_binding.u
+WIDTH=[work.issue1248_leaf] LEFT=[work.issue1248_leaf]
+PASSED

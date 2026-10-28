@@ -3,6 +3,8 @@
 # describes the test.
 
 always4A			vvp_tests/always4A.json
+issue1248_library_binding_2017 vvp_tests/issue1248_library_binding_2017.json
+issue1248_library_binding_2023 vvp_tests/issue1248_library_binding_2023.json
 issue1249_pure_dpi_formals_2017 vvp_tests/issue1249_pure_dpi_formals_2017.json
 issue1249_pure_dpi_formals_2023 vvp_tests/issue1249_pure_dpi_formals_2023.json
 issue1212_local_subclass_access_2017 vvp_tests/issue1212_local_subclass_access_2017.json
