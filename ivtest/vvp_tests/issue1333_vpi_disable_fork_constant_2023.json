@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1333_vpi_disable_fork_constant.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1333_vpi_disable_fork_constant_2023"],
+  "vpi-sources": ["vpi/issue1333_vpi_disable_fork_constant.c"],
+  "output-contains": ["PASSED"]
+}
