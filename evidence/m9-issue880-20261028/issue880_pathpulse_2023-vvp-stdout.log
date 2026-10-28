@@ -1,0 +1,26 @@
+SDF WARNING: ivltests/issue880_pathpulse.sdf:57: PATHPULSE filtering for vector module-path outputs is not supported.
+Y 1 0
+P 1 0
+R 1 0
+A 1 0
+C 4 0
+M 4 0
+Y 35 x
+Y 37 0
+Y 57 1
+Y 62 0
+P 125 x
+P 127 0
+P 147 1
+P 150 0
+R 204 1
+R 206 0
+M 304 1
+M 306 0
+M 330 1
+M 332 0
+C 404 1
+C 408 0
+A 504 1
+A 505 0
+ivltests/issue880_pathpulse.sv:45: $finish called at 598 (1ns)

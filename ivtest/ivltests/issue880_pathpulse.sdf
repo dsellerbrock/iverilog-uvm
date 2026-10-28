@@ -1,0 +1,68 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue880_pathpulse")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue880_buf")
+    (INSTANCE u1)
+    (DELAY
+      (ABSOLUTE (IOPATH a y (4) (4)))
+      (PATHPULSE a y (2) (3))
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_buf")
+    (INSTANCE u2)
+    (DELAY
+      (PATHPULSEPERCENT a y (50) (75))
+      (ABSOLUTE (IOPATH a y (4) (4)))
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_buf")
+    (INSTANCE u3)
+    (DELAY
+      (ABSOLUTE (IOPATH a y (4) (4)))
+      (PATHPULSE a y (2))
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_multi")
+    (INSTANCE u4)
+    (DELAY
+      (PATHPULSE (1) (1))
+      (ABSOLUTE
+        (IOPATH a y (4) (4))
+        (IOPATH b y (8) (8))
+      )
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_multi")
+    (INSTANCE u5)
+    (DELAY
+      (ABSOLUTE
+        (IOPATH a y (4) (4))
+        (IOPATH b y (8) (8))
+      )
+      (PATHPULSE a y (2) (3))
+      (PATHPULSE b y (5) (6))
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_vec")
+    (INSTANCE u6)
+    (DELAY
+      (ABSOLUTE (IOPATH a y (4) (4)))
+      (PATHPULSE a y (2) (3))
+    )
+  )
+  (CELL
+    (CELLTYPE "issue880_buf")
+    (INSTANCE u7)
+    (DELAY
+      (PATHPULSEPERCENT a y (25) (50))
+      (ABSOLUTE (IOPATH a y (4) (2)))
+    )
+  )
+)

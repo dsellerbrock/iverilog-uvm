@@ -198,6 +198,26 @@ class vvp_fun_modpath_src;
 
 class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
+      struct pulse_event_;
+      typedef std::list<pulse_event_*> pulse_event_list_t;
+      typedef std::map<vvp_time64_t, pulse_event_list_t> pulse_event_map_t;
+      struct pulse_event_ {
+	    pulse_event_(vvp_time64_t time, const vvp_vector4_t& from,
+			 const vvp_vector4_t& to)
+	    : sim_time(time), from(from), to(to) { }
+	    vvp_time64_t sim_time;
+	    vvp_vector4_t from;
+	    vvp_vector4_t to;
+	    pulse_event_map_t::iterator bucket;
+	    pulse_event_list_t::iterator position;
+      };
+
+      struct pulse_wakeup_ : vvp_gen_event_s {
+	    explicit pulse_wakeup_(vvp_fun_modpath*owner) : owner_(owner) { }
+	    void run_run() override;
+	    vvp_fun_modpath* owner_;
+      };
+
     public:
       vvp_fun_modpath(vvp_net_t*net, unsigned width);
       ~vvp_fun_modpath() override;
@@ -209,6 +229,15 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
     private:
       virtual void run_run() override;
+      pulse_event_* enqueue_pulse_event_(vvp_time64_t time,
+					 const vvp_vector4_t& from,
+					 const vvp_vector4_t& to);
+      void cancel_pulse_event_(pulse_event_*event);
+      void schedule_pulse_transition_(vvp_time64_t delay,
+				      vvp_time64_t reject,
+				      vvp_time64_t error,
+				      const vvp_vector4_t&bit);
+      void run_pulse_events_();
 
     private:
       vvp_net_t*net_;
@@ -217,6 +246,9 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
       vvp_fun_modpath_src*src_list_;
       vvp_fun_modpath_src*ifnone_list_;
+      pulse_event_map_t pulse_events_;
+      pulse_event_*pending_pulse_;
+      vvp_vector4_t pulse_vec4_;
 
     private: // not implemented
       vvp_fun_modpath(const vvp_fun_modpath&);
@@ -239,10 +271,18 @@ class vvp_fun_modpath_src  : public vvp_net_fun_t {
 
       void get_delay12(vvp_time64_t out[12]) const;
       void put_delay12(const vvp_time64_t in[12]);
+      void get_pulse_limits12(vvp_time64_t reject[12],
+                              vvp_time64_t error[12]) const;
+      void put_pulse_limits12(const vvp_time64_t reject[12],
+                              const vvp_time64_t error[12]);
+      bool has_pulse_limits() const { return pulse_limits_set_; }
 
     private:
 	// FIXME: Needs to be a 12-value array
       vvp_time64_t delay_[12];
+      vvp_time64_t pulse_reject_[12];
+      vvp_time64_t pulse_error_[12];
+      bool pulse_limits_set_;
 	// Used by vvp_fun_modpath to keep a list of modpath_src objects.
       vvp_fun_modpath_src*next_;
 

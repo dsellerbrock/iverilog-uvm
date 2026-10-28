@@ -38,6 +38,21 @@ static vpiHandle sdf_callh = 0;
 static vpiHandle sdf_cur_cell;
 static char* sdf_fname = NULL;
 
+/* Percent limits depend on the final IOPATH delays, so apply pulse records after parsing. */
+struct sdf_pathpulse_annotation_s {
+      struct sdf_pathpulse_annotation_s*next;
+      vpiHandle cell;
+      char*src;
+      char*dst;
+      int percent;
+      struct sdf_delay_s reject;
+      struct sdf_delay_s error;
+      int lineno;
+};
+
+static struct sdf_pathpulse_annotation_s* sdf_pathpulse_head = NULL;
+static struct sdf_pathpulse_annotation_s* sdf_pathpulse_tail = NULL;
+
 static vpiHandle find_scope(vpiHandle scope, const char*name)
 {
       vpiHandle idx = vpi_iterate(vpiModule, scope);
@@ -368,6 +383,121 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
       }
 }
 
+void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
+                          const struct sdf_delay_s*reject,
+                          const struct sdf_delay_s*error,
+                          const int sdf_lineno)
+{
+      if (sdf_cur_cell == 0)
+	    return;
+
+      struct sdf_pathpulse_annotation_s*entry =
+	    malloc(sizeof(struct sdf_pathpulse_annotation_s));
+      if (entry == NULL) {
+	    vpi_printf("SDF ERROR: %s:%d: Unable to allocate PATHPULSE annotation\n",
+	               sdf_fname, sdf_lineno);
+	    return;
+      }
+
+      entry->next = NULL;
+      entry->cell = sdf_cur_cell;
+      entry->src = src ? strdup(src) : NULL;
+      entry->dst = dst ? strdup(dst) : NULL;
+      entry->percent = percent;
+      entry->reject = *reject;
+      entry->error = *error;
+      entry->lineno = sdf_lineno;
+      if ((src && entry->src == NULL) || (dst && entry->dst == NULL)) {
+	    vpi_printf("SDF ERROR: %s:%d: Unable to allocate PATHPULSE path\n",
+	               sdf_fname, sdf_lineno);
+	    free(entry->src);
+	    free(entry->dst);
+	    free(entry);
+	    return;
+      }
+
+      if (sdf_pathpulse_tail)
+	    sdf_pathpulse_tail->next = entry;
+      else
+	    sdf_pathpulse_head = entry;
+      sdf_pathpulse_tail = entry;
+}
+
+static void sdf_apply_pathpulse_annotations(void)
+{
+      while (sdf_pathpulse_head) {
+	    struct sdf_pathpulse_annotation_s*entry = sdf_pathpulse_head;
+	    vpiHandle iter = vpi_iterate(vpiModPath, entry->cell);
+	    vpiHandle path;
+	    int match_count = 0;
+
+	    if (iter) while ((path = vpi_scan(iter))) {
+		  s_vpi_delay delays;
+		  struct t_vpi_time delay_vals[36];
+		  vpiHandle path_t_out = vpi_handle(vpiModPathOut, path);
+		  vpiHandle path_out = vpi_handle(vpiExpr, path_t_out);
+		  int idx;
+
+		  if (entry->src) {
+			vpiHandle path_t_in = vpi_handle(vpiModPathIn, path);
+			vpiHandle path_in = vpi_handle(vpiExpr, path_t_in);
+
+			if (strcmp(entry->src, vpi_get_str(vpiName, path_in)) != 0 ||
+			    strcmp(entry->dst, vpi_get_str(vpiName, path_out)) != 0)
+			      continue;
+		  }
+
+		  delays.da = delay_vals;
+		  delays.no_of_delays = 12;
+		  delays.time_type = vpiScaledRealTime;
+		  delays.mtm_flag = 0;
+		  delays.append_flag = 0;
+		  delays.pulsere_flag = 1;
+		  vpi_get_delays(path, &delays);
+
+		  for (idx = 0 ; idx < 12 ; idx += 1) {
+			double delay = delay_vals[idx].real;
+			if (entry->reject.defined) {
+			      delay_vals[12+idx].real = entry->percent ?
+				    delay * entry->reject.value / 100.0 : entry->reject.value;
+			}
+			if (entry->error.defined) {
+			      delay_vals[24+idx].real = entry->percent ?
+				    delay * entry->error.value / 100.0 : entry->error.value;
+			} else if (entry->reject.defined) {
+			      delay_vals[24+idx].real = delay_vals[12+idx].real;
+			}
+			delay_vals[idx].type = vpiScaledRealTime;
+			delay_vals[12+idx].type = vpiScaledRealTime;
+			delay_vals[24+idx].type = vpiScaledRealTime;
+		  }
+
+		  vpi_put_delays(path, &delays);
+		  if (vpi_get(vpiSize, path_out) > 1) {
+			vpi_printf("SDF WARNING: %s:%d: PATHPULSE filtering for vector "
+			           "module-path outputs is not supported.\n",
+			           sdf_fname, entry->lineno);
+		  }
+		  match_count += 1;
+	    }
+
+	    if (match_count == 0) {
+		  vpi_printf("SDF WARNING: %s:%d: Unable to match PATHPULSE%s%s%s%s in %s\n",
+		             sdf_fname, entry->lineno, entry->src ? " " : "",
+		             entry->src ? entry->src : "", entry->dst ? " " : "",
+		             entry->dst ? entry->dst : "",
+		             vpi_get_str(vpiFullName, entry->cell));
+	    }
+
+	    sdf_pathpulse_head = entry->next;
+	    if (sdf_pathpulse_head == NULL)
+		  sdf_pathpulse_tail = NULL;
+	    free(entry->src);
+	    free(entry->dst);
+	    free(entry);
+      }
+}
+
 static void check_command_line_args(void)
 {
       struct t_vpi_vlog_info vlog_info;
@@ -486,6 +616,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       sdf_cur_cell = 0;
       sdf_callh = callh;
       sdf_process_file(sdf_fd, fname);
+      sdf_apply_pathpulse_annotations();
       sdf_callh = 0;
 
       fclose(sdf_fd);

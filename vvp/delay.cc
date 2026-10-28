@@ -26,6 +26,7 @@
 #endif
 #include <iostream>
 #include <cstdlib>
+#include <algorithm>
 #include <list>
 #include <cassert>
 #include <cmath>
@@ -775,14 +776,22 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 }
 
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width)
-: net_(net), src_list_(0), ifnone_list_(0)
+: net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
+      pulse_vec4_ = cur_vec4_;
       schedule_init_propagate(net_, cur_vec4_);
 }
 
 vvp_fun_modpath::~vvp_fun_modpath()
 {
+	// Canceled events leave a harmless scheduled wakeup; the scheduler has no cancellation handle.
+      for (pulse_event_map_t::iterator bucket = pulse_events_.begin();
+	   bucket != pulse_events_.end(); ++bucket)
+	    for (pulse_event_list_t::iterator pos = bucket->second.begin();
+		 pos != bucket->second.end(); ++pos)
+		  delete *pos;
+
 	// Delete the source probes.
       while (src_list_) {
 	    vvp_fun_modpath_src*tmp = src_list_;
@@ -808,8 +817,80 @@ void vvp_fun_modpath::add_modpath_src(vvp_fun_modpath_src*that, bool ifnone)
       }
 }
 
-static vvp_time64_t delay_from_edge(vvp_bit4_t a, vvp_bit4_t b,
-                                           vvp_time64_t const array[12])
+vvp_fun_modpath::pulse_event_* vvp_fun_modpath::enqueue_pulse_event_(
+      vvp_time64_t time, const vvp_vector4_t& from, const vvp_vector4_t& to)
+{
+      std::pair<pulse_event_map_t::iterator, bool> ins =
+	    pulse_events_.insert(std::make_pair(time, pulse_event_list_t()));
+      pulse_event_*event = new pulse_event_(time, from, to);
+      ins.first->second.push_back(event);
+      event->bucket = ins.first;
+      event->position = --ins.first->second.end();
+      return event;
+}
+
+void vvp_fun_modpath::cancel_pulse_event_(pulse_event_*event)
+{
+      pulse_event_map_t::iterator bucket = event->bucket;
+      bucket->second.erase(event->position);
+      if (pending_pulse_ == event)
+	    pending_pulse_ = 0;
+      delete event;
+      if (bucket->second.empty())
+	    pulse_events_.erase(bucket);
+}
+
+void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
+						 vvp_time64_t reject,
+						 vvp_time64_t error,
+						 const vvp_vector4_t&bit)
+{
+      vvp_vector4_t from = cur_vec4_;
+      cur_vec4_ = bit;
+      vvp_time64_t due = schedule_simtime() + delay;
+
+      if (pending_pulse_ && bit.eeq(pending_pulse_->from)) {
+	    vvp_time64_t width = due > pending_pulse_->sim_time ?
+		  due - pending_pulse_->sim_time : 0;
+	    reject = std::min(reject, delay);
+	    error = std::max(reject, std::min(error, delay));
+
+	    if (width < reject) {
+		  cancel_pulse_event_(pending_pulse_);
+		  return;
+	    }
+	    if (width < error)
+		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
+      }
+
+      pending_pulse_ = enqueue_pulse_event_(due, from, bit);
+      schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
+}
+
+void vvp_fun_modpath::pulse_wakeup_::run_run()
+{
+      owner_->run_pulse_events_();
+}
+
+void vvp_fun_modpath::run_pulse_events_()
+{
+      vvp_time64_t now = schedule_simtime();
+      while (!pulse_events_.empty() && pulse_events_.begin()->first <= now) {
+	    pulse_event_map_t::iterator bucket = pulse_events_.begin();
+	    for (pulse_event_list_t::iterator pos = bucket->second.begin();
+		 pos != bucket->second.end(); ++pos) {
+		  pulse_event_*event = *pos;
+		  if (pending_pulse_ == event)
+			pending_pulse_ = 0;
+		  pulse_vec4_ = event->to;
+		  net_->send_vec4(pulse_vec4_, 0);
+		  delete event;
+	    }
+	    pulse_events_.erase(bucket);
+      }
+}
+
+static delay_edge_t delay_edge_from(vvp_bit4_t a, vvp_bit4_t b)
 {
       typedef delay_edge_t bit4_table4[4];
       static const bit4_table4 edge_table[4] = {
@@ -819,7 +900,13 @@ static vvp_time64_t delay_from_edge(vvp_bit4_t a, vvp_bit4_t b,
 	    { DELAY_EDGE_x0, DELAY_EDGE_x1, DELAY_EDGE_xz, DELAY_EDGE_x0 }
       };
 
-      return array[ edge_table[a][b] ];
+      return edge_table[a][b];
+}
+
+static vvp_time64_t delay_from_edge(vvp_bit4_t a, vvp_bit4_t b,
+                                    vvp_time64_t const array[12])
+{
+      return array[delay_edge_from(a, b)];
 }
 
 void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -887,13 +974,16 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 	   each if the 12 numbers the minimum from all the
 	   candidates. This minimum set becomes the chosen delay to
 	   use. */
-      vvp_time64_t out_at[12];
+      vvp_time64_t out_at[12], reject_at[12], error_at[12];
+      bool pulse_at[12];
       vvp_time64_t now = schedule_simtime();
 
       typedef list<vvp_fun_modpath_src*>::const_iterator iter_t;
 
       iter_t cur = candidate_list.begin();
       vvp_fun_modpath_src*src = *cur;
+      vvp_time64_t src_reject[12], src_error[12];
+      src->get_pulse_limits12(src_reject, src_error);
 
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1) {
 	    out_at[idx] = src->wake_time_ + src->delay_[idx];
@@ -901,25 +991,36 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 		  out_at[idx] = 0;
 	    else
 		  out_at[idx] -= now;
+	    reject_at[idx] = src_reject[idx];
+	    error_at[idx] = src_error[idx];
+	    pulse_at[idx] = src->has_pulse_limits();
       }
 
       for (++ cur ; cur != candidate_list.end() ; ++ cur ) {
 	    src = *cur;
+	    src->get_pulse_limits12(src_reject, src_error);
 	    for (unsigned idx = 0 ;  idx < 12 ;  idx += 1) {
 		  vvp_time64_t tmp = src->wake_time_ + src->delay_[idx];
 		  if (tmp <= now)
 			tmp = 0;
 		  else
 			tmp -= now;
-		  if (tmp < out_at[idx])
+		  // For equal delays, explicit limits win; otherwise keep the first path.
+		  if (tmp < out_at[idx] ||
+		      (tmp == out_at[idx] && src->has_pulse_limits() &&
+		       !pulse_at[idx])) {
 			out_at[idx] = tmp;
+			reject_at[idx] = src_reject[idx];
+			error_at[idx] = src_error[idx];
+			pulse_at[idx] = src->has_pulse_limits();
 	    }
+      }
       }
 
 	/* Given the scheduled output time, create an output event. */
-      vvp_time64_t use_delay = delay_from_edge(cur_vec4_.value(0),
-					       bit.value(0),
-					       out_at);
+      delay_edge_t use_edge = delay_edge_from(cur_vec4_.value(0),
+						      bit.value(0));
+      vvp_time64_t use_delay = out_at[use_edge];
 
 	/* FIXME: This bases the edge delay on only the least
 	   bit. This is WRONG! I need to find all the possible delays,
@@ -939,6 +1040,13 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             }
       }
 
+      // shortcut: pulse filtering covers scalar paths until vector path events are modeled per bit.
+      if (bit.size() == 1 && pulse_at[use_edge]) {
+	    schedule_pulse_transition_(use_delay, reject_at[use_edge],
+				       error_at[use_edge], bit);
+	    return;
+      }
+
       cur_vec4_ = bit;
       schedule_generic(this, use_delay, false);
 }
@@ -953,6 +1061,7 @@ vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12])
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1)
 	    delay_[idx] = del[idx];
 
+      pulse_limits_set_ = false;
       next_ = 0;
       wake_time_ = 0;
       condition_flag_ = true;
@@ -972,6 +1081,25 @@ void vvp_fun_modpath_src::put_delay12(const vvp_time64_t val[12])
 {
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1)
 	    delay_[idx] = val[idx];
+}
+
+void vvp_fun_modpath_src::get_pulse_limits12(vvp_time64_t reject[12],
+                                             vvp_time64_t error[12]) const
+{
+      for (unsigned idx = 0 ; idx < 12 ; idx += 1) {
+	    reject[idx] = pulse_limits_set_ ? pulse_reject_[idx] : delay_[idx];
+	    error[idx] = pulse_limits_set_ ? pulse_error_[idx] : delay_[idx];
+      }
+}
+
+void vvp_fun_modpath_src::put_pulse_limits12(const vvp_time64_t reject[12],
+                                             const vvp_time64_t error[12])
+{
+      for (unsigned idx = 0 ; idx < 12 ; idx += 1) {
+	    pulse_reject_[idx] = reject[idx];
+	    pulse_error_[idx] = error[idx];
+      }
+      pulse_limits_set_ = true;
 }
 
 void vvp_fun_modpath_src::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -1107,6 +1235,48 @@ static vpiHandle modpath_src_index ( vpiHandle ref, int)
       return 0;
 }
 
+static void derive_modpath_x_delays(vvp_time64_t val[12], int count)
+{
+      if (count > 6) return;
+
+      val[DELAY_EDGE_0x] = std::min(val[DELAY_EDGE_0z], val[DELAY_EDGE_01]);
+      val[DELAY_EDGE_x1] = std::max(val[DELAY_EDGE_z1], val[DELAY_EDGE_01]);
+      val[DELAY_EDGE_1x] = std::min(val[DELAY_EDGE_1z], val[DELAY_EDGE_10]);
+      val[DELAY_EDGE_x0] = std::max(val[DELAY_EDGE_z0], val[DELAY_EDGE_10]);
+      val[DELAY_EDGE_xz] = std::max(val[DELAY_EDGE_1z], val[DELAY_EDGE_0z]);
+      val[DELAY_EDGE_zx] = std::min(val[DELAY_EDGE_z1], val[DELAY_EDGE_z0]);
+}
+
+static void convert_modpath_delays(struct t_vpi_time*data, int count,
+                                   int time_type, const unsigned char map[12],
+                                   __vpiScope*scope, vvp_time64_t val[12])
+{
+      if (time_type == vpiSimTime) {
+	    for (int idx = 0 ; idx < 12 ; idx += 1)
+		  val[idx] = vpip_timestruct_to_time(data+map[idx]);
+      } else {
+	      // Negative module-path delays and pulse limits are treated as zero.
+	    for (int idx = 0 ; idx < count ; idx += 1)
+		  if (data[idx].real < 0.0) data[idx].real = 0.0;
+	    for (int idx = 0 ; idx < 12 ; idx += 1)
+		  val[idx] = vpip_scaled_real_to_time64(data[map[idx]].real, scope);
+      }
+
+      derive_modpath_x_delays(val, count);
+}
+
+static void return_modpath_delays(struct t_vpi_time*data, int count,
+                                  int time_type, __vpiScope*scope,
+                                  const vvp_time64_t val[12])
+{
+      for (int idx = 0 ; idx < count ; idx += 1) {
+	    if (time_type == vpiSimTime)
+		  vpip_time_to_timestruct(data+idx, val[idx]);
+	    else
+		  data[idx].real = vpip_time_to_scaled_real(val[idx], scope);
+      }
+}
+
 
 /*
  * This routine will put specific dimension of delay[] values
@@ -1117,7 +1287,7 @@ static vpiHandle modpath_src_index ( vpiHandle ref, int)
 static void modpath_src_put_delays (vpiHandle ref, p_vpi_delay delays)
 {
       vvp_time64_t tmp[12];
-      int idx;
+      vvp_time64_t reject[12], error[12];
       struct __vpiModPathSrc * src = dynamic_cast<__vpiModPathSrc*>(ref) ;
       assert(src) ;
 
@@ -1154,45 +1324,20 @@ static void modpath_src_put_delays (vpiHandle ref, p_vpi_delay delays)
 	    break;
       }
 
-      if (delays->time_type == vpiSimTime) {
-	    for (idx = 0 ; idx < 12 ; idx += 1) {
-		  tmp[idx] = vpip_timestruct_to_time(delays->da+use_map[0][idx]);
-	    }
-      } else {
-	      // You cannot create a modpath with a negative delay so set it
-	      // to zero per 1364-2005 section 14.3.1.
-	    for (idx = 0 ; idx < delays->no_of_delays ; idx += 1) {
-		  if (delays->da[idx].real < 0.0) delays->da[idx].real = 0.0;
-	    }
-	    for (idx = 0 ; idx < 12 ; idx += 1) {
-		  tmp[idx] = vpip_scaled_real_to_time64(delays->da[use_map[0][idx]].real,
-							src->dest->scope);
-	    }
-      }
-
-      /* Now define the to-from-x delays if needed. */
-      if (delays->no_of_delays <= 6) {
-	      /* 0->x is the minimum of 0->z and 0->1. */
-	    tmp[DELAY_EDGE_0x] = tmp[DELAY_EDGE_0z] < tmp[DELAY_EDGE_01] ?
-	                           tmp[DELAY_EDGE_0z] : tmp[DELAY_EDGE_01];
-	      /* x->1 is the maximum of z->1 and 0->1. */
-	    tmp[DELAY_EDGE_x1] = tmp[DELAY_EDGE_z1] > tmp[DELAY_EDGE_01] ?
-	                           tmp[DELAY_EDGE_z1] : tmp[DELAY_EDGE_01];
-	      /* 1->x is the minimum of 1->z and 1->0. */
-	    tmp[DELAY_EDGE_1x] = tmp[DELAY_EDGE_1z] < tmp[DELAY_EDGE_10] ?
-	                           tmp[DELAY_EDGE_1z] : tmp[DELAY_EDGE_10];
-	      /* x->0 is the maximum of z->0 and 1->0. */
-	    tmp[DELAY_EDGE_x0] = tmp[DELAY_EDGE_z0] > tmp[DELAY_EDGE_10] ?
-	                           tmp[DELAY_EDGE_z0] : tmp[DELAY_EDGE_10];
-	      /* x->z is the maximum of 1->z and 0->z. */
-	    tmp[DELAY_EDGE_xz] = tmp[DELAY_EDGE_1z] > tmp[DELAY_EDGE_0z] ?
-	                           tmp[DELAY_EDGE_1z] : tmp[DELAY_EDGE_0z];
-	      /* z->x is the minimum of z->1 and z->0. */
-	    tmp[DELAY_EDGE_zx] = tmp[DELAY_EDGE_z1] < tmp[DELAY_EDGE_z0] ?
-	                           tmp[DELAY_EDGE_z1] : tmp[DELAY_EDGE_z0];
-      }
-
+      convert_modpath_delays(delays->da, delays->no_of_delays,
+			     delays->time_type, use_map[0],
+			     src->dest->scope, tmp);
       fun->put_delay12(tmp);
+
+      if (delays->pulsere_flag) {
+	    convert_modpath_delays(delays->da+delays->no_of_delays,
+				   delays->no_of_delays, delays->time_type,
+				   use_map[0], src->dest->scope, reject);
+	    convert_modpath_delays(delays->da+2*delays->no_of_delays,
+				   delays->no_of_delays, delays->time_type,
+				   use_map[0], src->dest->scope, error);
+	    fun->put_pulse_limits12(reject, error);
+      }
 }
 
 /*
@@ -1211,9 +1356,9 @@ static void modpath_src_get_delays ( vpiHandle ref, p_vpi_delay delays )
       vvp_fun_modpath_src *fun = dynamic_cast<vvp_fun_modpath_src*>(src->net->fun);
       assert(fun);
 
-      int idx;
-      vvp_time64_t tmp[12];
+      vvp_time64_t tmp[12], reject[12], error[12];
       fun->get_delay12(tmp);
+      fun->get_pulse_limits12(reject, error);
 
       switch (delays->no_of_delays) {
 	  case 1:
@@ -1228,14 +1373,15 @@ static void modpath_src_get_delays ( vpiHandle ref, p_vpi_delay delays )
 	    break;
       }
 
-      if (delays->time_type == vpiSimTime) {
-	    for (idx = 0; idx < delays->no_of_delays; idx += 1) {
-		  vpip_time_to_timestruct(delays->da+idx, tmp[idx]);
-	    }
-      } else {
-	    for (idx = 0; idx < delays->no_of_delays; idx += 1) {
-		  delays->da[idx].real = vpip_time_to_scaled_real(tmp[idx], src->dest->scope);
-	    }
+      return_modpath_delays(delays->da, delays->no_of_delays,
+			    delays->time_type, src->dest->scope, tmp);
+      if (delays->pulsere_flag) {
+	    return_modpath_delays(delays->da+delays->no_of_delays,
+				  delays->no_of_delays, delays->time_type,
+				  src->dest->scope, reject);
+	    return_modpath_delays(delays->da+2*delays->no_of_delays,
+				  delays->no_of_delays, delays->time_type,
+				  src->dest->scope, error);
       }
 }
 

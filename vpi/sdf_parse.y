@@ -43,6 +43,7 @@ char sdf_use_hchar = '.';
       struct port_with_edge_s port_with_edge;
       struct sdf_delval_list_s delval_list;
       struct interconnect_port_s interconnect_port;
+      struct { char* src; char* dst; } pathpulse;
 };
 
 %token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE
@@ -67,6 +68,7 @@ char sdf_use_hchar = '.';
 %type <string_val> port port_instance
 
 %type <interconnect_port> port_interconnect
+%type <pathpulse> input_output_path_opt input_output_path
 
 %type <real_val> signed_real_number
 %type <delay> delval rvalue_opt rvalue rtriple signed_real_number_opt
@@ -305,7 +307,15 @@ deltype_list
 
 deltype
   : '(' K_PATHPULSE input_output_path_opt rvalue rvalue_opt ')'
+      { sdf_pathpulse_delays(0, $3.src, $3.dst, &$4, &$5, @2.first_line);
+	if ($3.src) free($3.src);
+	if ($3.dst) free($3.dst);
+      }
   | '(' K_PATHPULSEPERCENT input_output_path_opt rvalue rvalue_opt ')'
+      { sdf_pathpulse_delays(1, $3.src, $3.dst, &$4, &$5, @2.first_line);
+	if ($3.src) free($3.src);
+	if ($3.dst) free($3.dst);
+      }
   | '(' K_ABSOLUTE del_def_list ')'
   | '(' K_INCREMENT del_def_list ')'
   | '(' error ')'
@@ -460,12 +470,12 @@ scalar_constant
   ;
 
 input_output_path_opt
-  : input_output_path
-  |
+  : input_output_path { $$ = $1; }
+  | /* Empty */ { $$.src = 0; $$.dst = 0; }
   ;
 
 input_output_path
-  : port_instance port_instance
+  : port_instance port_instance { $$.src = $1; $$.dst = $2; }
   ;
 
 port_spec
