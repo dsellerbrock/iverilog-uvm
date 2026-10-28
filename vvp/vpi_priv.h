@@ -343,6 +343,10 @@ class __vpiScope : public __vpiHandle {
       signed int time_precision :8;
       int join_type = vpiUndefined;
       int access_type = vpiUndefined;
+      int dpi_pure = 0;
+      int dpi_context = 0;
+      int dpi_cstr = vpiUndefined;
+      const char*dpi_c_identifier = 0;
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);

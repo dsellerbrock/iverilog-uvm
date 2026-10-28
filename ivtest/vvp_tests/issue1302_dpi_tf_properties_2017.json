@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1302_dpi_tf_properties.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1302_dpi_tf_properties_2017"],
+  "vpi-sources": ["vpi/issue1302_dpi_tf_properties.c"],
+  "output-contains": ["PASSED"]
+}

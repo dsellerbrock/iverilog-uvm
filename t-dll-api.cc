@@ -2810,6 +2810,13 @@ extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
       return proc ? proc->dpi_c_name : 0;
 }
 
+extern "C" int ivl_scope_dpi_cstr(ivl_scope_t net)
+{ ivl_scope_proc_s*proc = net->proc_(); return proc ? proc->dpi_cstr : 2; }
+extern "C" int ivl_scope_dpi_pure(ivl_scope_t net)
+{ ivl_scope_proc_s*proc = net->proc_(); return proc ? proc->dpi_pure : 0; }
+extern "C" int ivl_scope_dpi_context(ivl_scope_t net)
+{ ivl_scope_proc_s*proc = net->proc_(); return proc ? proc->dpi_context : 0; }
+
 extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)
 {
       assert(net);
@@ -2822,6 +2829,8 @@ extern "C" const char*ivl_scope_dpi_export_c_name(ivl_scope_t net)
       ivl_scope_proc_s*proc = net->proc_();
       return proc ? proc->dpi_export_c_name : 0;
 }
+extern "C" int ivl_scope_dpi_export_cstr(ivl_scope_t net)
+{ ivl_scope_proc_s*proc = net->proc_(); return proc ? proc->dpi_export_cstr : 2; }
 
 extern "C" unsigned ivl_scope_is_cell(ivl_scope_t net)
 {

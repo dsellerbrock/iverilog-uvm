@@ -941,13 +941,17 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
       if (const PFunction*pfunc = net->func_pform()) {
             if (pfunc->is_dpi_import()) {
                   scope->is_dpi_import = true;
-                  scope->ensure_proc_()->dpi_c_name =
-			pfunc->dpi_c_name().c_str();
+                  ivl_scope_proc_s*proc = scope->ensure_proc_();
+                  proc->dpi_c_name = pfunc->dpi_c_name().c_str();
+                  proc->dpi_cstr = pfunc->dpi_cstr();
+                  proc->dpi_pure = pfunc->dpi_pure();
+                  proc->dpi_context = pfunc->dpi_context();
             }
             if (pfunc->is_dpi_export()) {
                   scope->is_dpi_export = true;
-                  scope->ensure_proc_()->dpi_export_c_name =
-			pfunc->dpi_export_c_name().c_str();
+                  ivl_scope_proc_s*proc = scope->ensure_proc_();
+                  proc->dpi_export_c_name = pfunc->dpi_export_c_name().c_str();
+                  proc->dpi_export_cstr = pfunc->dpi_export_cstr();
             }
       }
 }
@@ -3607,13 +3611,17 @@ void dll_target::scope(const NetScope*net)
 		      if (const PTask*ptask = net->task_pform()) {
 			    if (ptask->is_dpi_import()) {
 				  scop->is_dpi_import = true;
-				  scop->ensure_proc_()->dpi_c_name =
-					ptask->dpi_c_name().c_str();
+			  ivl_scope_proc_s*proc = scop->ensure_proc_();
+			  proc->dpi_c_name = ptask->dpi_c_name().c_str();
+			  proc->dpi_cstr = ptask->dpi_cstr();
+			  proc->dpi_pure = ptask->dpi_pure();
+			  proc->dpi_context = ptask->dpi_context();
 			    }
 			    if (ptask->is_dpi_export()) {
 				  scop->is_dpi_export = true;
-				  scop->ensure_proc_()->dpi_export_c_name =
-					ptask->dpi_export_c_name().c_str();
+			  ivl_scope_proc_s*proc = scop->ensure_proc_();
+			  proc->dpi_export_c_name = ptask->dpi_export_c_name().c_str();
+			  proc->dpi_export_cstr = ptask->dpi_export_cstr();
 			    }
 		      }
 		      break;

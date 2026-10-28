@@ -443,6 +443,15 @@ int __vpiScope::vpi_get(int code)
 
 	  case vpiAccessType:
 	    return access_type;
+
+	  case vpiDPIPure:
+	    return dpi_pure;
+
+	  case vpiDPIContext:
+	    return dpi_context;
+
+	  case vpiDPICStr:
+	    return dpi_cstr;
       }
 
       return vpiUndefined;
@@ -450,7 +459,11 @@ int __vpiScope::vpi_get(int code)
 
 
 char*__vpiScope::vpi_get_str(int code)
-{ return scope_get_str(code, this); }
+{
+      if (code == vpiDPICIdentifier)
+	    return (char*)dpi_c_identifier;
+      return scope_get_str(code, this);
+}
 
 vpiHandle __vpiScope::vpi_handle(int code)
 { return scope_get_handle(code, this); }
@@ -1284,6 +1297,10 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 {
       int join_type = vpiUndefined;
       int access_type = vpiUndefined;
+      int dpi_pure = 0;
+      int dpi_context = 0;
+      int dpi_cstr = vpiUndefined;
+      char dpi_c_identifier[512] = "";
       char*join = strstr(type, ".join");
       if (join && join[5] >= '0' && join[5] <= '2') {
 	    join_type = join[5] - '0';
@@ -1293,6 +1310,14 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       if (access && access[4] >= '1' && access[4] <= '4') {
 	    access_type = access[4] - '0';
 	    memmove(access, access + 5, strlen(access + 5) + 1);
+      }
+      char*dpi = strstr(type, ".dpi.");
+      if (dpi) {
+	    int consumed = 0;
+	    if (sscanf(dpi, ".dpi.%d.%d.%d.%511s%n", &dpi_pure,
+		       &dpi_context, &dpi_cstr, dpi_c_identifier,
+		       &consumed) == 4)
+		  memmove(dpi, dpi + consumed, strlen(dpi + consumed) + 1);
       }
       count_vpi_scopes += 1;
       char vec_type;
@@ -1408,6 +1433,11 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope->set_owns_automatic_context();
       scope->join_type = join_type;
       scope->access_type = access_type;
+      scope->dpi_pure = dpi_pure;
+      scope->dpi_context = dpi_context;
+      scope->dpi_cstr = dpi_cstr;
+      if (dpi_c_identifier[0])
+	    scope->dpi_c_identifier = vpip_name_string(dpi_c_identifier);
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;

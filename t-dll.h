@@ -874,6 +874,9 @@ struct ivl_scope_objects_s {
 };
 
 struct ivl_scope_proc_s {
+      ivl_scope_proc_s() : def(0), u_(), dpi_c_name(0),
+	  dpi_export_c_name(0), dpi_cstr(2), dpi_pure(0), dpi_context(0),
+	  dpi_export_cstr(2), ports(0) { }
       ivl_statement_t def;
       union {
 	    ivl_signal_t*port;
@@ -881,6 +884,10 @@ struct ivl_scope_proc_s {
       } u_;
       const char*dpi_c_name;
       const char*dpi_export_c_name;
+      int dpi_cstr;
+      unsigned dpi_pure : 1;
+      unsigned dpi_context : 1;
+      int dpi_export_cstr;
       unsigned ports;
 };
 

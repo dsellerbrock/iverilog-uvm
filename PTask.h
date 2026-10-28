@@ -101,22 +101,30 @@ class PTaskFunc : public PScope, public PNamedItem {
 	// DPI import linkage (35.x): both functions and tasks can be
 	// DPI imports; the code generator synthesizes the marshaling
 	// body from the C name.
-      void set_dpi_import(const char*c_name) {
+      void set_dpi_import(const char*c_name, int cstr, bool pure, bool context) {
 	    is_dpi_import_ = true;
 	    dpi_c_name_ = c_name;
+	    dpi_cstr_ = cstr;
+	    dpi_pure_ = pure;
+	    dpi_context_ = context;
       }
       bool is_dpi_import() const { return is_dpi_import_; }
       const std::string& dpi_c_name() const { return dpi_c_name_; }
+      int dpi_cstr() const { return dpi_cstr_; }
+      bool dpi_pure() const { return dpi_pure_; }
+      bool dpi_context() const { return dpi_context_; }
 
 	// DPI export linkage (35.5): a normal SV function/task (with a
 	// body) that is additionally made callable from C under a C name.
 	// Marked by a separate `export "DPI-C"' declaration that names it.
-      void set_dpi_export(const char*c_name) {
+      void set_dpi_export(const char*c_name, int cstr = 2) {
 	    is_dpi_export_ = true;
 	    dpi_export_c_name_ = c_name;
+	    dpi_export_cstr_ = cstr;
       }
       bool is_dpi_export() const { return is_dpi_export_; }
       const std::string& dpi_export_c_name() const { return dpi_export_c_name_; }
+      int dpi_export_cstr() const { return dpi_export_cstr_; }
 
       virtual void elaborate_sig(Design*des, NetScope*scope) const =0;
       virtual void elaborate(Design*des, NetScope*scope) const =0;
@@ -144,8 +152,12 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool procedural_body_scope_ = true;
       bool is_dpi_import_ = false;
       std::string dpi_c_name_;
+      int dpi_cstr_ = 2;
+      bool dpi_pure_ = false;
+      bool dpi_context_ = false;
       bool is_dpi_export_ = false;
       std::string dpi_export_c_name_;
+      int dpi_export_cstr_ = 2;
       std::vector<pform_tf_port_t>*ports_;
 };
 
