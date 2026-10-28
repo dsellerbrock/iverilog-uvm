@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1230_stream_unpacked_struct.v",
+  "iverilog-args": ["-g2017", "-s", "top"]
+}

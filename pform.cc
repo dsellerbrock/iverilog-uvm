@@ -1876,6 +1876,7 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 
       PECallFunction*tmp = new PECallFunction(name, parms);
       tmp->set_leading_type_args(type_args);
+      tmp->set_lexical_pos(loc.lexical_pos);
       if (type_args)
 	    tmp->set_scoped_type_prefix();
       FILE_NAME(tmp, loc);
@@ -5977,7 +5978,8 @@ pform_append_struct_member_defaults_(const vlltype&li,
                         pform_struct_variable_shape_(member_info, mname);
 
                   if (PExpr*default_expr = mname->expr.get()) {
-                        if (member_shape != PFORM_STRUCT_DEFAULT_SCALAR) {
+                        if (member_shape != PFORM_STRUCT_DEFAULT_SCALAR &&
+                            member_shape != PFORM_STRUCT_DEFAULT_FIXED_ARRAY) {
                               cerr << li.get_fileline()
                                    << ": sorry: unpacked-struct default "
                                       "member initializers are not yet "
@@ -6609,7 +6611,7 @@ void pform_make_let(const struct vlltype&loc,
 	    return;
       }
 
-      PLet*res = new PLet(name, scope, ports, expr);
+      PLet*res = new PLet(name, scope, ports, expr, loc.lexical_pos);
       FILE_NAME(res, loc);
 	scope->lets[name] = res;
 }

@@ -114,6 +114,18 @@ static ivl_scope_t resolution_function_of_nexus(ivl_nexus_t nex)
       return resolver;
 }
 
+static int unresolved_user_nettype_of_nexus(ivl_nexus_t nex)
+{
+      unsigned idx;
+      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+	    ivl_nexus_ptr_t nptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(nptr);
+	    if (sig && ivl_signal_attr(sig, "_ivl_udnt_unresolved"))
+		  return 1;
+      }
+      return 0;
+}
+
 static char* draw_C4_to_string(ivl_net_const_t cptr)
 {
       const char*bits = ivl_const_bits(cptr);
@@ -688,6 +700,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
       char**driver_labels;
       unsigned ndrivers = 0;
       ivl_scope_t user_resolver = resolution_function_of_nexus(nex);
+      int unresolved_user_nettype = unresolved_user_nettype_of_nexus(nex);
 
       const char*resolv_type;
 
@@ -785,6 +798,15 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    if (signal_data_type_of_nexus(nex) == IVL_VT_REAL) {
 		  nex_private = draw_Cr_to_string(0.0);
 		  nex_private[0] = 'c';
+	    } else if (unresolved_user_nettype
+		       && signal_data_type_of_nexus(nex) == IVL_VT_LOGIC) {
+		  unsigned jdx;
+		  nex_private = malloc(wid + 5);
+		  strcpy(nex_private, "c4<");
+		  for (jdx = 0 ; jdx < wid ; jdx += 1)
+			nex_private[jdx + 3] = 'x';
+		  nex_private[wid + 3] = '>';
+		  nex_private[wid + 4] = 0;
 	    } else {
 		  unsigned jdx;
 		  char*tmp = malloc((pull ? 3 : 1) * wid + 5);

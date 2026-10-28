@@ -1484,6 +1484,9 @@ class PECallFunction : public PExpr {
 
       void set_leading_type_args(struct parmvalue_t*type_args)
             { leading_type_args_ = type_args; }
+      void set_lexical_pos(unsigned lexical_pos)
+            { lexical_pos_ = lexical_pos; }
+      unsigned lexical_pos() const { return lexical_pos_; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
       void set_borrowed_leading_type_args(
@@ -1566,6 +1569,7 @@ class PECallFunction : public PExpr {
 	// built once and test_width/elaborate_expr delegate to it.
       mutable PExpr*let_subst_ = nullptr;
       mutable bool let_subst_tried_ = false;
+      unsigned lexical_pos_ = UINT_MAX;
       PExpr* let_substitution_(Design*des, NetScope*scope) const;
       struct parmvalue_t*leading_type_args_ = 0;
       bool owns_leading_type_args_ = true;

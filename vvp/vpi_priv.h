@@ -23,6 +23,9 @@
 # include  "sv_vpi_user.h"
 # include  "vvp_net.h"
 # include  "config.h"
+#ifndef vpiJoinType
+# define vpiJoinType 603
+#endif
 
 # include  <map>
 # include  <list>
@@ -321,6 +324,7 @@ class __vpiScope : public __vpiHandle {
       std::set<vthread_t> threads;
       signed int time_units :8;
       signed int time_precision :8;
+      int join_type = vpiUndefined;
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);

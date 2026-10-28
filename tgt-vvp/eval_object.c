@@ -3770,6 +3770,10 @@ static int eval_object_aggregate_literal_(ivl_expr_t expr)
             nparm = nprop;
 
       union_active_member = ivl_expr_union_active_member(expr);
+      if (union_active_member >= 0
+          && ivl_type_is_tagged_union(agg_type))
+            fprintf(vvp_out, "    %%union/tag %d; tagged-union expression\n",
+                    union_active_member);
       for (idx = 0; idx < nparm; idx += 1) {
             if (union_active_member >= 0
                 && idx != (unsigned)union_active_member)

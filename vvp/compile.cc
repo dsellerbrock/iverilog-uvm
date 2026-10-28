@@ -842,6 +842,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/real", of_UNBOX_REAL,0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%unbox/str",  of_UNBOX_STR, 0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
+      { "%union/tag", of_UNION_TAG, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%vif/fatal", of_VIF_FATAL, 0,{OA_NONE,     OA_NONE,    OA_NONE} },
       { "%vif/nullcheck", of_VIF_NULLCHECK, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%vif/tickchg",of_VIF_TICKCHG,1,{OA_NUMBER, OA_NONE,    OA_NONE} },
