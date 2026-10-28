@@ -703,6 +703,23 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
 
+      if (code == vpiRange) {
+	    const std::vector<__vpiSignal::packed_range_t>&ranges =
+		  rfp->declared_packed_ranges.empty()
+		  ? rfp->packed_ranges : rfp->declared_packed_ranges;
+	    unsigned depth = rfp->declared_packed_ranges.empty()
+		  ? rfp->packed_depth : 0;
+	    unsigned count = ranges.size() - depth;
+	    if (count == 0) return 0;
+	    vpiHandle*args = new vpiHandle[count];
+	    for (unsigned idx = 0; idx < count; idx += 1) {
+		  const __vpiSignal::packed_range_t&range =
+			  ranges[depth + idx];
+		  args[idx] = vpip_make_range(range.left, range.right);
+	    }
+	    return vpip_make_iterator(count, args, true);
+      }
+
       if (code == vpiIndex) {
 	    return rfp->is_netarray ? rfp->id.index->vpi_iterate(code) : NULL;
       }

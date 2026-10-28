@@ -60,6 +60,20 @@ vpiHandle vpip_make_iterator(unsigned nargs, vpiHandle*args,
       return res;
 }
 
+vpiHandle vpip_make_range(int left, int right)
+{
+      return new __vpiRange(left, right);
+}
+
+vpiHandle __vpiRange::vpi_handle(int code)
+{
+      switch (code) {
+          case vpiLeftRange: return &left;
+          case vpiRightRange: return &right;
+      }
+      return 0;
+}
+
 /*
  * The vpi_scan function only applies to iterators. It returns the
  * next vpiHandle in the iterated list.

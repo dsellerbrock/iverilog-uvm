@@ -626,6 +626,34 @@ static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
       fprintf(vvp_out, "\";\n");
 }
 
+static void emit_declared_packed_dims_(ivl_signal_t sig, const char*suffix)
+{
+      unsigned dims = ivl_signal_packed_dimensions(sig);
+      if (dims == 0)
+            return;
+      fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
+      for (unsigned idx = 0; idx < dims; idx += 1) {
+            if (idx) fputc(',', vvp_out);
+            fprintf(vvp_out, "%d:%d", ivl_signal_packed_msb(sig, idx),
+                    ivl_signal_packed_lsb(sig, idx));
+      }
+      fprintf(vvp_out, "\";\n");
+}
+
+static void emit_unpacked_dims_(ivl_signal_t sig)
+{
+      unsigned dims = ivl_signal_dimensions(sig);
+      if (dims == 0)
+            return;
+      fprintf(vvp_out, " .packed_dims v%p, \"U:", sig);
+      for (unsigned idx = 0; idx < dims; idx += 1) {
+            if (idx) fputc(',', vvp_out);
+            fprintf(vvp_out, "%d:%d", ivl_signal_array_dim_msb(sig, idx),
+                    ivl_signal_array_dim_lsb(sig, idx));
+      }
+      fprintf(vvp_out, "\";\n");
+}
+
 /*
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
  * struct/union type of a signal, for waveform dumpers. The type string is
@@ -994,6 +1022,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		  fputc('"', vvp_out);
 	    }
 	    fprintf(vvp_out, ";\n");
+	    emit_unpacked_dims_(sig);
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);
@@ -1004,6 +1033,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    sig, datatype_flag, storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first, msb, lsb);
+	    emit_unpacked_dims_(sig);
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_DARRAY) {
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
@@ -1142,10 +1172,12 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    ivl_signal_local(sig)? " Local signal" : "" );
       }
 
-      if (ivl_signal_data_type(sig) == IVL_VT_BOOL ||
-          ivl_signal_data_type(sig) == IVL_VT_LOGIC) {
-            emit_packed_dims_(sig,
-                  ivl_signal_dimensions(sig) > 0 ? "" : "_0");
+	      if (ivl_signal_data_type(sig) == IVL_VT_BOOL ||
+	          ivl_signal_data_type(sig) == IVL_VT_LOGIC) {
+	            if (ivl_signal_dimensions(sig) > 0)
+	                  emit_packed_dims_(sig, "");
+	            else
+	                  emit_declared_packed_dims_(sig, "_0");
       }
 
       if (ivl_signal_dimensions(sig) == 0
@@ -1237,6 +1269,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
 			fprintf(vvp_out, "v%p .array \"%s\", %d %d;\n",
 				sig, vvp_mangle_name(ivl_signal_basename(sig)),
 				swapped ? first : last, swapped ? last : first);
+			if (iword == 0)
+			      emit_unpacked_dims_(sig);
 		  }
 		  if (dimensions > 0) {
 			/* If this is a word of an array, then use an
@@ -1288,6 +1322,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
 			        sig, vvp_mangle_name(ivl_signal_basename(sig)),
 			        nex_data->net,
 			        ivl_signal_basename(nex_data->net));
+			emit_unpacked_dims_(sig);
 			emit_packed_dims_(sig, "");
 			break;
 
@@ -1302,6 +1337,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
 				      vvp_mangle_name(ivl_signal_basename(sig)),
 				      swapped ? first : last,
 				      swapped ? last : first );
+			      emit_unpacked_dims_(sig);
 			}
 
 			fprintf(vvp_out, "v%p_%u .net%s v%p %u, %d %d, "
@@ -1340,7 +1376,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
                   || ivl_signal_data_type(sig) == IVL_VT_LOGIC)) {
                 char suffix[32];
                 snprintf(suffix, sizeof suffix, "_%u", iword);
-                emit_packed_dims_(sig, suffix);
+                emit_declared_packed_dims_(sig, suffix);
                 if (dimensions > 0 && iword == 0)
                       emit_packed_dims_(sig, "");
           }

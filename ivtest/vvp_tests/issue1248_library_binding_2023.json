@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue1248_library_binding.v","iverilog-args":["-g2023","-s","issue1248_library_binding"],"gold":"issue1248_library_binding"}

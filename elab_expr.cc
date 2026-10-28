@@ -30701,6 +30701,17 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  const_cast<netclass_t*>(ctype)->elaborate(des, pc);
       }
 
+	// A concrete parameterized class can reach sample() before its deferred
+	// body has installed the embedded covergroup's bin metadata.
+	if (ctype->specialized_instance() && !ctype->generic_body_only()
+	    && ctype->has_embedded_covergroups()
+	    && !ctype->body_elaborated() && !ctype->body_elaborating()) {
+	      const NetScope*cs = ctype->class_scope();
+	      PClass*pc = cs ? const_cast<PClass*>(cs->class_pform()) : 0;
+	      if (pc)
+		    const_cast<netclass_t*>(ctype)->elaborate(des, pc);
+	}
+
       NetScope *new_scope = ctype->get_constructor();
       if (new_scope == 0) {
               // No constructor.

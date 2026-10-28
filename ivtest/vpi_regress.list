@@ -25,6 +25,9 @@
 # For testing with other simulators
 #==========
 
+issue1276_vpi_range_2017 normal,-g2017 issue1276_vpi_range.c issue1276_vpi_range_2017.gold
+issue1276_vpi_range_2023 normal,-g2023 issue1276_vpi_range.c issue1276_vpi_range_2023.gold
+
 # Icarus returns vpiReg instead of vpiTimeVar.
 vstd:by_name		normal			by_name.c		by_name-std.log
 
@@ -186,6 +189,8 @@ m12_assert_step  normal,-g2012 m12_assert_step.c m12_assert_step.log
 m12_assert_start_identity normal,-g2012 m12_assert_start_identity.c m12_assert_start_identity.log
 m6b_nba_sync  normal,-g2012 m6b_nba_sync.c m6b_nba_sync.log
 m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
+issue1266_vpi_process_scope_2017 normal,-g2017 issue1266_process_scope.c issue1266_vpi_process_scope_2017.log
+issue1266_vpi_process_scope_2023 normal,-g2023 issue1266_process_scope.c issue1266_vpi_process_scope_2023.log
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log
 m12bcb_assert_cb normal,-g2012   m12bcb_assert_cb.c m12bcb_assert_cb.log

@@ -42,8 +42,9 @@ class packed_dims_resolv_t : public resolv_list_s {
     public:
       packed_dims_resolv_t(char*label,
             const vector<__vpiSignal::packed_range_t>&ranges,
-            unsigned width)
-      : resolv_list_s(label), ranges_(ranges), width_(width), obj_(0)
+            unsigned width, bool unpacked)
+      : resolv_list_s(label), ranges_(ranges), width_(width),
+        unpacked_(unpacked), obj_(0)
       {
             if (__vpiArray*array = array_find(label)) obj_ = array;
       }
@@ -63,7 +64,9 @@ class packed_dims_resolv_t : public resolv_list_s {
                         yyerror("packed dimension metadata width mismatch");
                         compile_errors += 1;
                   } else {
-                        sig->packed_ranges = ranges_;
+                        sig->declared_packed_ranges = ranges_;
+                        if (ranges_.size() > 1)
+                              sig->packed_ranges = ranges_;
                         sig->packed_depth = 0;
                         sig->value_base = 0;
                         sig->value_width = width_;
@@ -71,6 +74,10 @@ class packed_dims_resolv_t : public resolv_list_s {
                         sig->lsb.set_value(ranges_[0].right);
                   }
             } else if (__vpiArray*array = dynamic_cast<__vpiArray*>(obj_)) {
+                  if (unpacked_) {
+                        array->unpacked_ranges = ranges_;
+                        return true;
+                  }
                   /* A net array may be declared before the source of its
                      first word.  In that case compile_netw queues the word
                      attachment, so the array exists but nets[0] is null.
@@ -106,6 +113,7 @@ class packed_dims_resolv_t : public resolv_list_s {
     private:
       vector<__vpiSignal::packed_range_t> ranges_;
       unsigned width_;
+      bool unpacked_;
       vpiHandle obj_;
 };
 
@@ -146,6 +154,8 @@ void compile_packed_dims(char*label, char*layout)
 {
       vector<__vpiSignal::packed_range_t> ranges;
       const char*cur = layout;
+      bool unpacked = cur[0] == 'U' && cur[1] == ':';
+      if (unpacked) cur += 2;
       bool syntax_valid = true;
       while (*cur) {
             char*end = 0;
@@ -185,7 +195,7 @@ void compile_packed_dims(char*label, char*layout)
             free(label);
       } else {
             packed_dims_resolv_t*res = new packed_dims_resolv_t(
-                  label, ranges, static_cast<unsigned>(width));
+                  label, ranges, static_cast<unsigned>(width), unpacked);
             if (array_find(label)) {
                   resolv_submit(res);
             } else {

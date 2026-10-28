@@ -303,6 +303,7 @@ typedef struct t_vpi_delay  {
 #define vpiUdpDefn     66
 #define vpiUserSystf   67
 #define vpiNetArray   114
+#define vpiRange      115
 #define vpiIndex       78
 #define vpiLeftRange   79
 #define vpiParent      81

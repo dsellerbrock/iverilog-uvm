@@ -1,5 +1,3 @@
-WARNING: ./ivltests/swrite.v:210: %l currently unsupported $swrite<%l>.
-WARNING: ./ivltests/swrite.v:212: %L currently unsupported $swrite<%L>.
 WARNING: ./ivltests/swrite.v:275: $swrite returned a value with an embedded NULL (see %u/%z).
 WARNING: ./ivltests/swrite.v:277: $swrite returned a value with an embedded NULL (see %u/%z).
 WARNING: ./ivltests/swrite.v:299: $swrite returned a value with an embedded NULL (see %u/%z).
