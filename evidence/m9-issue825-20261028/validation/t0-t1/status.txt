@@ -1,0 +1,4 @@
+smoke_rc=0
+legacy_exit=0
+json_tests=57
+json_failures=0

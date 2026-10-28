@@ -21,10 +21,34 @@
 
 # include  "LineInfo.h"
 # include  "StringHeap.h"
+# include  <ostream>
 # include  <vector>
 # include  <list>
 
 class PExpr;
+
+struct pform_specify_terminal_t {
+      pform_specify_terminal_t(perm_string name_arg,
+                               perm_string member_arg = perm_string())
+      : name(name_arg), member(member_arg) { }
+
+      bool operator==(const pform_specify_terminal_t&that) const
+      { return name == that.name && member == that.member; }
+      bool operator!=(const pform_specify_terminal_t&that) const
+      { return !(*this == that); }
+      bool dotted() const { return !member.nil(); }
+
+      perm_string name;
+      perm_string member;
+};
+
+inline std::ostream& operator<<(std::ostream&out,
+                                const pform_specify_terminal_t&terminal)
+{
+      out << terminal.name;
+      if (terminal.dotted()) out << '.' << terminal.member;
+      return out;
+}
 
 /*
 * The PSpecPath is the parse of a specify path, which is in its most
@@ -57,12 +81,13 @@ class PExpr;
 class PSpecPath  : public LineInfo {
 
     public:
-      PSpecPath(const std::list<perm_string> &src_list,
-	        const std::list<perm_string> &dst_list,
+      PSpecPath(const std::list<pform_specify_terminal_t> &src_list,
+	        const std::list<pform_specify_terminal_t> &dst_list,
 		char polarity, bool full_flag);
       ~PSpecPath() override;
 
       void elaborate(class Design*des, class NetScope*scope) const;
+      void elaborate_bound_(class Design*des, class NetScope*scope) const;
 
       void dump(std::ostream&out, unsigned ind) const;
 
@@ -77,9 +102,9 @@ class PSpecPath  : public LineInfo {
 	// What is the polarity of the connection.
       char polarity_;
 	// Ordered set of source nodes of a path
-      std::vector<perm_string> src;
+      std::vector<pform_specify_terminal_t> src;
 	// Ordered set of destination nodes of a path
-      std::vector<perm_string> dst;
+      std::vector<pform_specify_terminal_t> dst;
 	// Data source expression
       class PExpr* data_source_expression;
 

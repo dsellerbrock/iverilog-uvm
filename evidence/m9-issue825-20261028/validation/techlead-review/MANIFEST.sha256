@@ -1,0 +1,7 @@
+e177aa54fe348b06707eb5bb117cd0725351c9d1bf684813a7ead6541e6a52d2  summary.txt  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+364874e922b80dcb951e0d8a56952c06b41cc3d5c7fbaf5c57ba9ffcd4a48db5  results.txt  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+1629fc21193376b3c4a8e49c887f9bda7552633df04bc5b30f84e67c501cab44  sv_specify_interface_actual_modport_typed_fail.compiler.log  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+5c6d2c779c2a4bb3ce5e9d6871de569187e44e21f931146fc4710e102bf7f811  sv_specify_interface_actual_modport_generic_fail.compiler.log  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+0c5ff5ca37c8777937682f7a2d27dee70a5533cc1aa6ad6a63bc8b721bf5ec0d  sv_specify_interface_forward_chain_bad.compiler.log  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+945e979857a00aeaae461be449d6470c978d71fdd37495dd6df7d6c47f8b6662  sv_specify_interface_forward_chain_2017.stdout.log  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass
+945e979857a00aeaae461be449d6470c978d71fdd37495dd6df7d6c47f8b6662  sv_specify_interface_forward_chain_2023.stdout.log  # 2026-10-28 07:52:49 Slurm job 5276: 43 legacy and 65 JSON focused interface/specify tests, all pass

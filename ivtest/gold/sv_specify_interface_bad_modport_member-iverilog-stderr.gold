@@ -1,0 +1,2 @@
+ivltests/sv_specify_interface_terminals.v:59: error: Interface member 'hidden' is not listed in modport 'flop'.
+1 error(s) during elaboration.

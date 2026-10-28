@@ -1,0 +1,2 @@
+ivltests/sv_specify_interface_terminals.v:43: error: Path source ch.q must be an input or inout port.
+1 error(s) during elaboration.

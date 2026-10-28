@@ -2451,6 +2451,14 @@ struct pending_interface_continuous_driver_t {
 static vector<pending_interface_continuous_driver_t>
       pending_interface_continuous_drivers_;
 
+struct pending_interface_specify_path_t {
+      const PSpecPath* path;
+      NetScope* scope;
+};
+
+static vector<pending_interface_specify_path_t>
+      pending_interface_specify_paths_;
+
 struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
@@ -27985,7 +27993,152 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       return true;
 }
 
+struct resolved_specify_path_terminal_t {
+      NetNet* net;
+      NetNet::PortType direction;
+};
+
+static bool resolve_specify_path_terminal_(Design*des, const LineInfo*loc,
+					    NetScope*scope,
+					    const pform_specify_terminal_t&terminal,
+					    resolved_specify_path_terminal_t&resolved,
+					    bool&unbound)
+{
+      unbound = false;
+      resolved.net = nullptr;
+      resolved.direction = NetNet::NOT_A_PORT;
+      if (!terminal.dotted()) {
+	    resolved.net = scope->find_signal(terminal.name);
+	    resolved.direction = resolved.net
+		  ? resolved.net->port_type() : NetNet::NOT_A_PORT;
+	    return true;
+      }
+
+      NetNet*base = scope->find_signal(terminal.name);
+      const netclass_t*interface_type = base
+	    ? dynamic_cast<const netclass_t*>(base->net_type()) : nullptr;
+      if (!base || base->port_type() == NetNet::NOT_A_PORT
+	  || !interface_type || !interface_type->is_interface()) {
+	    cerr << loc->get_fileline() << ": error: '" << terminal.name
+		 << "' is not an interface port, so '" << terminal
+		 << "' is not a valid path terminal." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      if (base->port_type() == NetNet::PREF) {
+	    cerr << loc->get_fileline() << ": error: Ref port '"
+		 << terminal.name
+		 << "' cannot be a terminal in a specify path." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      if (base->pin_count() != 1) {
+	    cerr << loc->get_fileline() << ": sorry: Interface array port '"
+		 << terminal.name << "' cannot be a specify path terminal." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      int property = interface_type->property_idx_from_name(terminal.member);
+      if (property < 0) {
+	    cerr << loc->get_fileline() << ": error: Interface '"
+		 << terminal.name << "' has no member '" << terminal.member
+		 << "'." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      perm_string modport = interface_type->interface_modport();
+      if (modport.nil()) {
+	    verinum modport_attr = base->attribute(
+		  perm_string::literal("ivl_modport"));
+	    if (modport_attr != verinum())
+		  modport = lex_strings.make(modport_attr.as_string().c_str());
+      }
+
+      NetNet::PortType direction = NetNet::PINOUT;
+      if (!modport.nil()) {
+	    const PModport*view = interface_modport_view(interface_type, modport);
+	    if (!view) {
+		  cerr << loc->get_fileline() << ": error: Cannot resolve modport '"
+		       << modport << "' on interface port '" << terminal.name
+		       << "'." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    auto port = view->simple_ports.find(terminal.member);
+	    if (port == view->simple_ports.end()) {
+		  cerr << loc->get_fileline() << ": error: Interface member '"
+		       << terminal.member << "' is not listed in modport '"
+		       << modport << "'." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (port->second.second) {
+		  cerr << loc->get_fileline() << ": sorry: Specify paths through "
+		       << "named-expression modport ports are not supported." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    direction = port->second.first;
+	    if (direction != NetNet::PINPUT && direction != NetNet::POUTPUT
+		&& direction != NetNet::PINOUT) {
+		  cerr << loc->get_fileline() << ": error: Modport member '"
+		       << terminal.member << "' has no specify-path direction." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+
+      const NetNet*unbound_root = nullptr;
+      NetNet*member = base->resolve_interface_member(0, property,
+						    &unbound_root);
+      if (!member && unbound_root) {
+	    unbound = true;
+	    return true;
+      }
+      if (!member || member->pin_count() != 1
+	  || member->unpacked_dimensions() > 0
+	  || !type_is_vectorable(member->data_type())) {
+	    cerr << loc->get_fileline() << ": error: Unable to resolve interface "
+		 << "specify terminal '" << terminal << "'." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      resolved.net = member;
+      resolved.direction = direction;
+      return true;
+}
+
 void PSpecPath::elaborate(Design*des, NetScope*scope) const
+{
+      if (!gn_specify_blocks_flag)
+	    return;
+      for (const pform_specify_terminal_t&terminal : src) {
+	    if (terminal.dotted()) {
+		  pending_interface_specify_paths_.push_back({this, scope});
+		  return;
+	    }
+      }
+      for (const pform_specify_terminal_t&terminal : dst) {
+	    if (terminal.dotted()) {
+		  pending_interface_specify_paths_.push_back({this, scope});
+		  return;
+	    }
+      }
+      elaborate_bound_(des, scope);
+}
+
+static void finalize_interface_specify_paths_(Design*des)
+{
+      for (const pending_interface_specify_path_t&pending :
+	   pending_interface_specify_paths_)
+	    pending.path->elaborate_bound_(des, pending.scope);
+      pending_interface_specify_paths_.clear();
+}
+
+void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 {
       uint64_t delay_value[12];
       unsigned ndelays = 0;
@@ -28053,6 +28206,39 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*condition, condit_sig);
       }
 
+      vector<resolved_specify_path_terminal_t> resolved_src;
+      vector<resolved_specify_path_terminal_t> resolved_dst;
+      bool terminals_valid = true;
+      bool unbound = false;
+      for (const pform_specify_terminal_t&terminal : src) {
+	    resolved_specify_path_terminal_t resolved;
+	    bool terminal_unbound = false;
+	    if (!resolve_specify_path_terminal_(des, this, scope, terminal,
+						resolved, terminal_unbound))
+		  terminals_valid = false;
+	    if (terminal_unbound) {
+		  unbound = true;
+		  break;
+	    }
+	    resolved_src.push_back(resolved);
+      }
+      if (!unbound) {
+	    for (const pform_specify_terminal_t&terminal : dst) {
+		  resolved_specify_path_terminal_t resolved;
+		  bool terminal_unbound = false;
+		  if (!resolve_specify_path_terminal_(des, this, scope, terminal,
+						      resolved, terminal_unbound))
+			terminals_valid = false;
+		  if (terminal_unbound) {
+			unbound = true;
+			break;
+		  }
+		  resolved_dst.push_back(resolved);
+	    }
+      }
+      if (unbound || !terminals_valid)
+	    return;
+
 	/* A parallel connection does not support more than a one to one
 	   connection (source/destination). */
       if (! full_flag_ && ((src.size() != 1) || (dst.size() != 1))) {
@@ -28060,18 +28246,15 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	     * with multiple sources/destinations if all the paths are only a
 	     * single bit wide (a scalar or a one bit vector). */
 	    bool all_single = true;
-	    typedef std::vector<perm_string>::const_iterator str_vec_iter;
-	    for (str_vec_iter cur = src.begin();
-		 ( cur != src.end() && all_single); ++ cur) {
-		  const NetNet *psig = scope->find_signal(*cur);
+	    for (const resolved_specify_path_terminal_t&terminal : resolved_src) {
+		  const NetNet *psig = terminal.net;
 		    /* We will report a missing signal as invalid later. For
 		     * now assume it's a single bit. */
 		  if (psig == 0) continue;
 		  if (psig->vector_width() != 1) all_single = false;
 	    }
-	    for (str_vec_iter cur = dst.begin();
-		 ( cur != dst.end() && all_single); ++ cur) {
-		  const NetNet *psig = scope->find_signal(*cur);
+	    for (const resolved_specify_path_terminal_t&terminal : resolved_dst) {
+		  const NetNet *psig = terminal.net;
 		    /* The same as above for source paths. */
 		  if (psig == 0) continue;
 		  if (psig->vector_width() != 1) all_single = false;
@@ -28086,12 +28269,13 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
       }
 
 	/* Create all the various paths from the path specifier. */
-      typedef std::vector<perm_string>::const_iterator str_vector_iter;
-      for (str_vector_iter cur = dst.begin()
-		 ; cur != dst.end() ; ++ cur ) {
+      for (size_t dst_idx = 0; dst_idx < dst.size(); dst_idx += 1) {
+	    const pform_specify_terminal_t&terminal = dst[dst_idx];
+	    const resolved_specify_path_terminal_t&resolved_dst_terminal =
+		  resolved_dst[dst_idx];
 
 	    if (debug_elaborate) {
-		  cerr << get_fileline() << ": debug: Path to " << (*cur);
+		  cerr << get_fileline() << ": debug: Path to " << terminal;
 		  if (condit_sig)
 			cerr << " if " << condit_sig->name();
 		  else if (conditional)
@@ -28099,21 +28283,21 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 		  cerr << " from ";
 	    }
 
-	    NetNet*dst_sig = scope->find_signal(*cur);
+	    NetNet*dst_sig = resolved_dst_terminal.net;
 	    if (dst_sig == 0) {
 		  cerr << get_fileline() << ": error: No wire '"
-		       << *cur << "' in this module." << endl;
+		       << terminal << "' in this module." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
 
 	    unsigned long dst_wid = dst_sig->vector_width();
 
-	    if (dst_sig->port_type() != NetNet::POUTPUT
-		&& dst_sig->port_type() != NetNet::PINOUT) {
+	    if (resolved_dst_terminal.direction != NetNet::POUTPUT
+		&& resolved_dst_terminal.direction != NetNet::PINOUT) {
 
 		  cerr << get_fileline() << ": error: Path destination "
-		       << *cur << " must be an output or inout port." << endl;
+		       << terminal << " must be an output or inout port." << endl;
 		  des->errors += 1;
 	    }
 
@@ -28157,26 +28341,28 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    unsigned idx = 0;
-	    for (str_vector_iter cur_src = src.begin()
-		       ; cur_src != src.end() ; ++ cur_src ) {
-		  NetNet*src_sig = scope->find_signal(*cur_src);
+	    for (size_t src_idx = 0; src_idx < src.size(); src_idx += 1) {
+		  const pform_specify_terminal_t&src_terminal = src[src_idx];
+		  const resolved_specify_path_terminal_t&resolved_src_terminal =
+			  resolved_src[src_idx];
+		  NetNet*src_sig = resolved_src_terminal.net;
 		  if (src_sig == 0) {
 			cerr << get_fileline() << ": error: No wire '"
-			     << *cur_src << "' in this module." << endl;
+			     << src_terminal << "' in this module." << endl;
 			des->errors += 1;
 			continue;
 		  }
 
 		  if (debug_elaborate) {
-			if (cur_src != src.begin()) cerr << " and ";
+			if (src_idx != 0) cerr << " and ";
 			cerr << src_sig->name();
 		  }
 
-		  if ( (src_sig->port_type() != NetNet::PINPUT)
-		    && (src_sig->port_type() != NetNet::PINOUT) ) {
+		  if (resolved_src_terminal.direction != NetNet::PINPUT
+		      && resolved_src_terminal.direction != NetNet::PINOUT) {
 
 			cerr << get_fileline() << ": error: Path source "
-			     << *cur_src << " must be an input or inout port."
+			     << src_terminal << " must be an input or inout port."
 			     << endl;
 			des->errors += 1;
 		  }
@@ -48406,6 +48592,7 @@ Design* elaborate(list<perm_string>roots)
       Design*des = new Design;
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
+      pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       pending_variable_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
@@ -48775,6 +48962,7 @@ Design* elaborate(list<perm_string>roots)
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
       finalize_interface_continuous_drivers_(des);
+      finalize_interface_specify_paths_(des);
       finalize_unsafe_interface_drivers_(des);
 
       /* Port-based generic type propagation is complete only after every

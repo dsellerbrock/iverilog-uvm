@@ -2266,6 +2266,8 @@ static Module::port_t *module_declare_explicit_port(
 	   strdup. They can be put into lists with the texts type. */
       char*text;
       std::list<perm_string>*perm_strings;
+      pform_specify_terminal_t*specify_terminal;
+      std::list<pform_specify_terminal_t>*specify_terminals;
       std::list<sva_sequence_formal_t>*sva_formals;
 
       std::list<pform_ident_t>*identifiers;
@@ -2885,7 +2887,9 @@ static Module::port_t *module_declare_explicit_port(
 %type <join_keyword> join_keyword
 
 %type <letter> spec_polarity
-%type <perm_strings>  specify_path_identifiers
+%type <specify_terminal> specify_path_terminal
+%type <specify_terminals> specify_path_identifiers
+%destructor { delete $$; } specify_path_terminal specify_path_identifiers
 
 %type <specpath> specify_simple_path specify_simple_path_decl
 %type <specpath> specify_edge_path specify_edge_path_decl
@@ -17986,8 +17990,8 @@ specify_item
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
-	for (perm_string name : *$2) {
-	      if (pform_specify_path_output_previously_declared(name))
+	for (const pform_specify_terminal_t&terminal : *$2) {
+	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
 	}
 	/* Pulse-filtering control, not a timing check -- the old
@@ -18002,8 +18006,8 @@ specify_item
       }
   | K_pulsestyle_ondetect specify_path_identifiers ';'
       {
-	for (perm_string name : *$2) {
-	      if (pform_specify_path_output_previously_declared(name))
+	for (const pform_specify_terminal_t&terminal : *$2) {
+	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
 	}
 	/* Pulse-filtering control, not a timing check -- the old
@@ -18123,10 +18127,24 @@ specify_simple_path
   ;
 
 specify_path_identifiers
-  : IDENTIFIER
-      { std::list<perm_string>*tmp = new std::list<perm_string>;
-	tmp->push_back(lex_strings.make($1));
+  : specify_path_terminal
+      { std::list<pform_specify_terminal_t>*tmp =
+	      new std::list<pform_specify_terminal_t>;
+	tmp->push_back(*$1);
+	delete $1;
 	$$ = tmp;
+      }
+  | specify_path_identifiers ',' specify_path_terminal
+      { std::list<pform_specify_terminal_t>*tmp = $1;
+	tmp->push_back(*$3);
+	delete $3;
+	$$ = tmp;
+      }
+  ;
+
+specify_path_terminal
+  : IDENTIFIER
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1));
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary ']'
@@ -18135,9 +18153,7 @@ specify_path_identifiers
 			 "in path declarations. The declaration "
 			 "will be applied to the whole vector.");
 	}
-	std::list<perm_string>*tmp = new std::list<perm_string>;
-	tmp->push_back(lex_strings.make($1));
-	$$ = tmp;
+	$$ = new pform_specify_terminal_t(lex_strings.make($1));
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
@@ -18146,37 +18162,35 @@ specify_path_identifiers
 			 "in path declarations. The declaration "
 			 "will be applied to the whole vector.");
 	}
-	std::list<perm_string>*tmp = new std::list<perm_string>;
-	tmp->push_back(lex_strings.make($1));
-	$$ = tmp;
+	$$ = new pform_specify_terminal_t(lex_strings.make($1));
 	delete[]$1;
       }
-  | specify_path_identifiers ',' IDENTIFIER
-      { std::list<perm_string>*tmp = $1;
-	tmp->push_back(lex_strings.make($3));
-	$$ = tmp;
+  | IDENTIFIER '.' IDENTIFIER
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1),
+					       lex_strings.make($3));
+	delete[]$1;
 	delete[]$3;
       }
-  | specify_path_identifiers ',' IDENTIFIER '[' expr_primary ']'
+  | IDENTIFIER '.' IDENTIFIER '[' expr_primary ']'
       { if (gn_specify_blocks_flag) {
 	      yywarn(@4, "warning: Bit selects are not currently supported "
 			 "in path declarations. The declaration "
 			 "will be applied to the whole vector.");
 	}
-	std::list<perm_string>*tmp = $1;
-	tmp->push_back(lex_strings.make($3));
-	$$ = tmp;
+	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+					       lex_strings.make($3));
+	delete[]$1;
 	delete[]$3;
       }
-  | specify_path_identifiers ',' IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
+  | IDENTIFIER '.' IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
       { if (gn_specify_blocks_flag) {
 	      yywarn(@4, "warning: Part selects are not currently supported "
 			 "in path declarations. The declaration "
 			 "will be applied to the whole vector.");
 	}
-	std::list<perm_string>*tmp = $1;
-	tmp->push_back(lex_strings.make($3));
-	$$ = tmp;
+	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+					       lex_strings.make($3));
+	delete[]$1;
 	delete[]$3;
       }
   ;

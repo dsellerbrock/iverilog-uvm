@@ -1541,7 +1541,7 @@ void PSpecPath::dump(std::ostream&out, unsigned ind) const
 
       for (unsigned idx = 0 ;  idx < src.size() ;  idx += 1) {
 	    if (idx > 0) out << ", ";
-	    assert(src[idx]);
+	    assert(!src[idx].name.nil());
 	    out << src[idx];
       }
 
@@ -1555,7 +1555,7 @@ void PSpecPath::dump(std::ostream&out, unsigned ind) const
 
       for (unsigned idx = 0 ; idx < dst.size() ;  idx += 1) {
 	    if (idx > 0) out << ", ";
-	    assert(dst[idx]);
+	    assert(!dst[idx].name.nil());
 	    out << dst[idx];
       }
 
