@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1486_assoc_wildcard_traversal_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1486_assoc_wildcard_traversal_fail_2023"
+}

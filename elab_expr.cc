@@ -9728,6 +9728,22 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	  || method_name == "last"
 	  || method_name == "next"
 	  || method_name == "prev") {
+	    const netqueue_t*queue =
+		  dynamic_cast<const netqueue_t*>(container_type);
+	    if (queue && queue->assoc_compat()
+		&& queue->assoc_wildcard()) {
+		  const char*clause = method_name == "first" ? "7.9.4"
+			: method_name == "last" ? "7.9.5"
+			: method_name == "next" ? "7.9.6" : "7.9.7";
+		  cerr << li->get_fileline() << ": error: The associative array "
+		       << "method '" << method_name
+		       << "' is not allowed for wildcard-index associative arrays "
+		       << "(IEEE 1800-2017/2023 " << clause << ")." << endl;
+		  des->errors += 1;
+		  delete sub_expr;
+		  return 0;
+	    }
+
 	    NetExpr*key_expr = 0;
 	    if ((parms.size() != 1) || (parms[0].parm == 0)) {
 		    // M1B-3 audit, finding C: silently returned const-0
@@ -9748,8 +9764,6 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    const netqueue_t*queue =
-		  dynamic_cast<const netqueue_t*>(container_type);
 	    ivl_type_t expected = queue && queue->assoc_compat()
 		  ? queue->assoc_index_type() : nullptr;
 	    ivl_type_t actual = key_expr->net_type();
