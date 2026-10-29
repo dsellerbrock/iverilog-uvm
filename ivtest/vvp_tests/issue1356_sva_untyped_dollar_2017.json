@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1356_sva_untyped_dollar.v",
+  "iverilog-args": ["-g2017", "-s", "issue1356_sva_untyped_dollar"],
+  "gold": "issue1356_sva_untyped_dollar"
+}

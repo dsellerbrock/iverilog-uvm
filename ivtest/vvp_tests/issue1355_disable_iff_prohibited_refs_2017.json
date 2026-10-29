@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1355_disable_iff_prohibited_refs.v",
+    "iverilog-args": ["-g2017", "-s", "top"],
+    "gold": "issue1355_disable_iff_prohibited_refs"
+}

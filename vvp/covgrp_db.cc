@@ -23,7 +23,9 @@
 # include  <cerrno>
 # include  <cinttypes>
 # include  <climits>
+# include  <cmath>
 # include  <cstdio>
+# include  <cstdlib>
 # include  <cstring>
 # include  <fstream>
 # include  <iomanip>
@@ -154,6 +156,27 @@ static bool covgrp_db_parse_u128_(const string&text, unsigned __int128&value)
       return true;
 }
 
+static bool covgrp_db_parse_long_double_(const string&text, long double&value)
+{
+      if (text.empty()) return false;
+      errno = 0;
+      char*end = 0;
+      value = strtold(text.c_str(), &end);
+      return end == text.c_str() + text.size() && errno != ERANGE
+	    && std::isfinite(value);
+}
+
+static bool covgrp_db_weighted_valid_(long double weighted,
+      unsigned __int128 weight)
+{
+      if (!std::isfinite(weighted) || weighted < 0) return false;
+      if (weight == 0) return weighted == 0;
+      long double maximum = 100.0L * static_cast<long double>(weight);
+      long double epsilon = numeric_limits<long double>::epsilon()
+	    * std::max(1.0L, maximum) * 8.0L;
+      return weighted <= maximum + epsilon;
+}
+
 static unsigned long covgrp_db_pid_()
 {
 #if defined(_WIN32)
@@ -276,7 +299,7 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 	    return false;
       }
 
-      string body = "IVL_COVDB 1\n";
+      string body = "IVL_COVDB 2\n";
       uint64_t body_lines = 1;
       auto add_line = [&body, &body_lines](const string&line) {
 	    body += line;
@@ -285,11 +308,6 @@ bool class_type::covgrp_db_save(const string&path, string&err)
       };
 
       for (const class_type*ct : covgrp_registry()) {
-	    if (!ct->covgrp_options_.merge_instances) {
-		  err = "covergroup " + ct->dispatch_prefix_
-			+ " uses merge_instances=0; cumulative database save unsupported";
-		  return false;
-	    }
 	    set<unsigned> dyn_families, cross_families, trans_families;
 	    set<unsigned> static_trans_families;
 	    for (const cov_dyn_bin_t&bin : ct->covgrp_dyn_bins_) {
@@ -332,6 +350,42 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 		   << " merge_instances "
 		   << (ct->covgrp_options_.merge_instances ? 1 : 0);
 	    add_line(header.str());
+
+	    class_type::covgrp_population_t population;
+	    if (!ct->covgrp_options_.merge_instances) {
+		  population = ct->covgrp_retired_population_;
+		  for (vvp_cobject*obj : ct->covgrp_live_)
+			ct->covgrp_accumulate_instance_(population, obj);
+	    }
+	    population.item_weight.resize(ct->covgrp_items_.size(), 0);
+	    population.item_weighted.resize(ct->covgrp_items_.size(), 0);
+	    population.item_has_bins.resize(ct->covgrp_items_.size(), false);
+	    population.item_at_least.resize(ct->covgrp_items_.size(), 0);
+	    if (!covgrp_db_weighted_valid_(population.weighted, population.weight)) {
+		  err = "covergroup " + ct->dispatch_prefix_
+			+ " has invalid cumulative coverage";
+		  return false;
+	    }
+	    ostringstream population_record;
+	    population_record << "pop " << covgrp_db_u128_(population.weight) << ' '
+		  << setprecision(numeric_limits<long double>::max_digits10)
+		  << scientific << population.weighted << ' '
+		  << ct->covgrp_items_.size() << ' '
+		  << (population.has_options ? 1 : 0);
+	    for (size_t idx = 0; idx < ct->covgrp_items_.size(); idx += 1) {
+		  if (!covgrp_db_weighted_valid_(population.item_weighted[idx],
+				population.item_weight[idx])) {
+			err = "covergroup " + ct->dispatch_prefix_
+			      + " has invalid item coverage";
+			return false;
+		  }
+		  population_record << ' '
+			<< covgrp_db_u128_(population.item_weight[idx]) << ' '
+			<< population.item_weighted[idx] << ' '
+			<< (population.item_has_bins[idx] ? 1 : 0) << ' '
+			<< population.item_at_least[idx];
+	    }
+	    add_line(population_record.str());
 
 	    set<unsigned> props;
 	    for (const cov_bin_t&bin : ct->covgrp_bins_)
@@ -513,7 +567,10 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
       string body = contents.substr(0, end_start);
       string end_line = contents.substr(end_start,
 					contents.size() - end_start - 1);
-      if (body.compare(0, 12, "IVL_COVDB 1\n") != 0) {
+      unsigned version = 0;
+	if (body.compare(0, 12, "IVL_COVDB 1\n") == 0) version = 1;
+	else if (body.compare(0, 12, "IVL_COVDB 2\n") == 0) version = 2;
+	else {
 	    err = "wrong database magic or version";
 	    return false;
       }
@@ -538,7 +595,10 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
       }
 
       struct staged_type_t {
-	    const class_type*type;
+	    const class_type*type = 0;
+	    bool merge_instances = false;
+	    bool has_population = false;
+	    class_type::covgrp_population_t population;
 	    map<unsigned, uint32_t> props;
 	    map<unsigned, unsigned __int128> totals;
 	    map<unsigned, vector<pair<uint64_t,uint64_t>>> ranges;
@@ -636,9 +696,9 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			err = "line " + to_string(line_number) + ": merge_instances mismatch";
 			return false;
 		  }
-		  if (!ct->covgrp_options_.merge_instances) {
+	  if (version == 1 && !file_merge) {
 			err = "covergroup " + prefix
-			      + " uses merge_instances=0; cumulative database load unsupported";
+		      + " uses merge_instances=0; version 1 has no population data";
 			return false;
 		  }
 		  for (const cov_bin_t&bin : ct->covgrp_bins_) {
@@ -654,7 +714,83 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 		  staged_by_prefix.insert(make_pair(prefix, current_type));
 		  staged_type_t entry;
 		  entry.type = ct;
+	  entry.merge_instances = file_merge != 0;
 		  staged.push_back(entry);
+	    } else if (tag == "pop") {
+	  if (version != 2) {
+		err = "version 1 database cannot contain population records";
+		return false;
+	  }
+	  if (current_type == numeric_limits<size_t>::max()
+	      || staged[current_type].has_population) {
+		err = "line " + to_string(line_number)
+		      + ": duplicate or misplaced population record";
+		return false;
+	  }
+	  string weight_text, weighted_text, item_count_text, options_text;
+	  if (!(record >> weight_text >> weighted_text >> item_count_text >> options_text)) {
+		err = "line " + to_string(line_number) + ": malformed population record";
+		return false;
+	  }
+	  class_type::covgrp_population_t&population = staged[current_type].population;
+	  uint64_t item_count = 0, options = 0;
+	  if (!covgrp_db_parse_u128_(weight_text, population.weight)
+	      || !covgrp_db_parse_long_double_(weighted_text, population.weighted)
+	      || !covgrp_db_parse_u64_(item_count_text, item_count)
+	      || item_count != staged[current_type].type->covgrp_items_.size()
+	      || !covgrp_db_parse_u64_(options_text, options) || options > 1
+	      || !covgrp_db_weighted_valid_(population.weighted, population.weight)) {
+		err = "line " + to_string(line_number) + ": invalid population values";
+		return false;
+	  }
+	  population.has_options = options != 0;
+	  population.item_weight.resize(static_cast<size_t>(item_count), 0);
+	  population.item_weighted.resize(static_cast<size_t>(item_count), 0);
+	  population.item_has_bins.resize(static_cast<size_t>(item_count), false);
+	  population.item_at_least.resize(static_cast<size_t>(item_count), 0);
+	  for (size_t idx = 0; idx < item_count; idx += 1) {
+		string item_weight_text, item_weighted_text;
+		string bins_text, at_least_text;
+		uint64_t has_bins = 0, at_least = 0;
+		if (!(record >> item_weight_text >> item_weighted_text
+		      >> bins_text >> at_least_text)
+		    || !covgrp_db_parse_u128_(item_weight_text,
+			  population.item_weight[idx])
+		    || !covgrp_db_parse_long_double_(item_weighted_text,
+			  population.item_weighted[idx])
+		    || !covgrp_db_parse_u64_(bins_text, has_bins) || has_bins > 1
+		    || !covgrp_db_parse_u64_(at_least_text, at_least)
+		    || at_least > UINT_MAX
+		    || !covgrp_db_weighted_valid_(population.item_weighted[idx],
+			  population.item_weight[idx])) {
+		      err = "line " + to_string(line_number)
+			    + ": invalid item population values";
+		      return false;
+		}
+		population.item_has_bins[idx] = has_bins != 0;
+		population.item_at_least[idx] = static_cast<unsigned>(at_least);
+	  }
+	  if (record >> extra) {
+		err = "line " + to_string(line_number) + ": trailing population data";
+		return false;
+	  }
+	  bool has_values = population.weight != 0 || population.weighted != 0;
+	  for (size_t idx = 0; idx < item_count; idx += 1)
+		has_values = has_values || population.item_weight[idx] != 0
+		      || population.item_weighted[idx] != 0
+		      || population.item_has_bins[idx]
+		      || population.item_at_least[idx] != 0;
+	  if (!population.has_options && has_values) {
+		err = "line " + to_string(line_number)
+		      + ": population values lack coverage options";
+		return false;
+	  }
+	  if (staged[current_type].merge_instances && has_values) {
+		err = "line " + to_string(line_number)
+		      + ": merged coverage type has per-instance population";
+		return false;
+	  }
+	  staged[current_type].has_population = true;
 	    } else if (tag == "prop") {
 		  string encoded_name, count_text, trailing;
 		  if (!(record >> encoded_name >> count_text) || (record >> trailing)
@@ -980,6 +1116,36 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
       };
       for (const staged_type_t&entry : staged) {
 	    const class_type*ct = entry.type;
+	    if (version == 2 && !entry.has_population) {
+		err = "database type is missing its population record";
+		return false;
+	    }
+	    if (version == 1 && entry.has_population) {
+		err = "version 1 database cannot contain population records";
+		return false;
+	    }
+	    if (!entry.merge_instances) {
+		  const class_type::covgrp_population_t&saved = entry.population;
+		  const class_type::covgrp_population_t&current =
+			ct->covgrp_retired_population_;
+		  const unsigned __int128 maximum = ~(unsigned __int128)0;
+		  if (current.weight > maximum - saved.weight
+		      || !std::isfinite(current.weighted + saved.weighted)) {
+			err = "database population exceeds the cumulative coverage range";
+			return false;
+		  }
+		  for (size_t idx = 0; idx < saved.item_weight.size(); idx += 1) {
+			unsigned __int128 weight = idx < current.item_weight.size()
+			      ? current.item_weight[idx] : 0;
+			long double weighted = idx < current.item_weighted.size()
+			      ? current.item_weighted[idx] : 0;
+			if (weight > maximum - saved.item_weight[idx]
+			    || !std::isfinite(weighted + saved.item_weighted[idx])) {
+			      err = "database item population exceeds the cumulative coverage range";
+			      return false;
+			}
+		  }
+	    }
 	    for (const auto&count : entry.dyn_counts) {
 		  unsigned family = count.first.first;
 		  uint64_t key = count.first.second;
@@ -1074,6 +1240,28 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 	  };
 	  for (staged_type_t&entry : staged) {
 	    class_type*ct = const_cast<class_type*>(entry.type);
+	    if (!entry.merge_instances) {
+		  class_type::covgrp_population_t&population =
+			ct->covgrp_retired_population_;
+		  population.weight += entry.population.weight;
+		  population.weighted += entry.population.weighted;
+		  if (population.item_weight.size() < entry.population.item_weight.size()) {
+			population.item_weight.resize(entry.population.item_weight.size(), 0);
+			population.item_weighted.resize(entry.population.item_weight.size(), 0);
+			population.item_has_bins.resize(entry.population.item_weight.size(), false);
+			population.item_at_least.resize(entry.population.item_weight.size(), 0);
+		  }
+		  for (size_t idx = 0; idx < entry.population.item_weight.size(); idx += 1) {
+			population.item_weight[idx] += entry.population.item_weight[idx];
+			population.item_weighted[idx] += entry.population.item_weighted[idx];
+			population.item_has_bins[idx] = population.item_has_bins[idx]
+			      || entry.population.item_has_bins[idx];
+			population.item_at_least[idx] = std::max(
+			      population.item_at_least[idx], entry.population.item_at_least[idx]);
+		  }
+		  population.has_options = population.has_options
+			|| entry.population.has_options;
+	    }
 	    for (const auto&prop : entry.props) {
 		  if (ct->type_counts_.size() <= prop.first)
 			ct->type_counts_.resize(static_cast<size_t>(prop.first) + 1, 0);

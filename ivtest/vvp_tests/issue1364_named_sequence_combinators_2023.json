@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1364_named_sequence_combinators.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1364_named_sequence_combinators"
+}
