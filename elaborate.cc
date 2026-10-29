@@ -42651,6 +42651,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (formal == name) return true;
 			  return false;
 		    };
+		    auto is_direct_embedded_member = [&](const PExpr*expr) -> bool {
+			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+			  if (cg_standalone || !id || id->path().size() != 1
+			      || id->path().name.front().local_scope
+			      || !id->path().name.front().index.empty()) return false;
+			  return property_idx_from_name(id->path().name.front().name) >= 0;
+		    };
 
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
@@ -42658,13 +42665,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					const char*optname, unsigned dflt) -> unsigned {
 			  auto it = opts.find(lex_strings.make(optname));
 			  if (it == opts.end() || !it->second) return dflt;
-			  NetExpr*e = is_direct_ctor_formal(it->second) ? nullptr
+		  bool embedded_option = optname == std::string("at_least")
+			&& &opts == &cgdef->options
+			&& is_direct_embedded_member(it->second);
+		  NetExpr*e = (is_direct_ctor_formal(it->second) || embedded_option) ? nullptr
 				: elab_and_eval(des, class_scope_, it->second,
 						-1, false, false);
 			  unsigned r = dflt;
 			  if (NetEConst*c = dynamic_cast<NetEConst*>(e))
 				r = (unsigned)c->value().as_ulong64();
-			  else
+		  else if (!embedded_option)
 				cerr << "sorry: covergroup option '" << optname
 				     << "' is not a constant; using default "
 				     << dflt << "." << endl;
@@ -43746,6 +43756,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
             auto&group_options = cg_class->covgrp_options();
             group_options.declaration_scope = class_scope_;
+			group_options.at_least_expr = is_direct_embedded_member(
+			      cgdef->options.count(perm_string::literal("at_least"))
+				    ? cgdef->options.at(perm_string::literal("at_least")) : nullptr)
+			      ? cgdef->options.at(perm_string::literal("at_least")) : nullptr;
             auto weight_it = cgdef->options.find(perm_string::literal("weight"));
             if (weight_it != cgdef->options.end())
                   group_options.weight_expr = weight_it->second;
@@ -44329,6 +44343,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
+			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
+				group_options.at_least_expr && cp.options.count(
+				      perm_string::literal("at_least")) == 0);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -46406,6 +46423,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
+				group_options.at_least_expr && cross.options.count(
+				      perm_string::literal("at_least")) == 0);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
