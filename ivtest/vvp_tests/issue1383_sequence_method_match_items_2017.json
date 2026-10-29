@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1383_sequence_method_match_items.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1383_sequence_method_match_items"],
+  "gold": "issue1383_sequence_method_match_items"
+}
