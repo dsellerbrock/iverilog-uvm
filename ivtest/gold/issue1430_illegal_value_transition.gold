@@ -1,0 +1,3 @@
+ERROR: covergroup illegal_bin matched (prop_idx=5)
+ISSUE1430_ILLEGAL_VALUE_TRANSITION_PASS
+PASSED
