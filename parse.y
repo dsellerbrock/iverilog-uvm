@@ -2721,10 +2721,11 @@ static Module::port_t *module_declare_explicit_port(
 %type <cmitem>  case_matches_item
 %type <cmitems> case_matches_items
 %type <match_pattern> match_pattern
+%type <match_pattern> match_pattern_item
 %type <match_patterns> match_pattern_list
 %type <expr> pattern_subject pattern_condition
 %type <statement> pattern_if_prefix
-%destructor { delete $$; } match_pattern
+%destructor { delete $$; } match_pattern match_pattern_item
 %destructor {
       if ($$) {
             for (PMatchPattern*pattern : *$$) delete pattern;
@@ -11593,10 +11594,22 @@ match_pattern
       }
   ;
 
-match_pattern_list
+/* Structure patterns use the same positional or named member forms as
+   assignment patterns, but their members are recursively matched. */
+match_pattern_item
   : match_pattern
+      { $$ = $1; }
+  | IDENTIFIER ':' match_pattern
+      { $3->member_name(lex_strings.make($1));
+        delete[] $1;
+        $$ = $3;
+      }
+  ;
+
+match_pattern_list
+  : match_pattern_item
       { $$ = new std::vector<PMatchPattern*>(1, $1); }
-  | match_pattern_list ',' match_pattern
+  | match_pattern_list ',' match_pattern_item
       { $1->push_back($3); $$ = $1; }
   ;
 
