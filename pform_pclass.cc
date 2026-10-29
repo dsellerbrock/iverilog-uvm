@@ -943,6 +943,19 @@ static void pform_covergroup_implicit_cross_coverpoints_(
 	    for (size_t item_idx = 0; item_idx < cross.cp_labels.size();
 		 item_idx += 1) {
 		  perm_string item = cross.cp_labels[item_idx];
+		  if (item_idx < cross.cp_exprs.size()
+		      && cross.cp_exprs[item_idx]) {
+			const PEIdent*id =
+			      dynamic_cast<const PEIdent*>(cross.cp_exprs[item_idx]);
+			if (id && id->path().name.size() > 1) {
+			      cerr << cross.cp_exprs[item_idx]->get_fileline()
+				   << ": error: cross item must be a coverpoint "
+				      "identifier or variable identifier; "
+				      "hierarchical member expressions are not allowed."
+				   << endl;
+			      error_count += 1;
+			}
+		  }
 		  bool declared = false;
 		  for (const auto&cp : cg->coverpoints) {
 			if (cp.label == item) {

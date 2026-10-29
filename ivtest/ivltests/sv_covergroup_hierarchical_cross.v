@@ -1,6 +1,4 @@
-// Caliptra compatibility extension: IEEE 1800-2017 19.6 restricts a cross
-// item to a coverpoint label or variable identifier, but Caliptra uses
-// hierarchical member expressions here. Preserve each complete expression.
+// IEEE 1800-2017 19.6 requires hierarchical member expressions to be declared as coverpoints.
 interface coverage_if;
   typedef struct packed {
     logic valid;
@@ -11,7 +9,9 @@ interface coverage_if;
   status_t consumer;
 
   covergroup hierarchical_cg;
-    valid_x_clear: cross producer.valid, consumer.clear;
+    producer_valid: coverpoint producer.valid;
+    consumer_clear: coverpoint consumer.clear;
+    valid_x_clear: cross producer_valid, consumer_clear;
   endgroup
 
   hierarchical_cg coverage = new;

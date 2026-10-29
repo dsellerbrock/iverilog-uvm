@@ -10,6 +10,8 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+sv_covergroup_cross_hierarchical_member_fail_2017 CE,-g2017,-s,coverage_if ivltests gold=sv_covergroup_cross_hierarchical_member_fail_2017.gold
+sv_covergroup_cross_hierarchical_member_fail_2023 CE,-g2023,-s,coverage_if ivltests gold=sv_covergroup_cross_hierarchical_member_fail_2023.gold
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests

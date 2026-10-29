@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_cross_hierarchical_member_fail.v:5: error: cross item must be a coverpoint identifier or variable identifier; hierarchical member expressions are not allowed.
+ivltests/sv_covergroup_cross_hierarchical_member_fail.v:5: error: cross item must be a coverpoint identifier or variable identifier; hierarchical member expressions are not allowed.

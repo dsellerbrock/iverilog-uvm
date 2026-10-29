@@ -5439,8 +5439,8 @@ bins_item
   ;
 
 /* IEEE 1800-2017 19.6: a cross item is either a coverpoint label or a
-   variable expression, for which an implicit coverpoint is created. Preserve
-   the full hierarchical path instead of flattening it to its first name. */
+   variable identifier, for which an implicit coverpoint is created. Preserve
+   non-bare names so covergroup elaboration can reject them with a diagnostic. */
 cross_item_list
   : hierarchy_identifier
       { $$ = new std::list<class_type_t::pform_cross_t::item_t>();
