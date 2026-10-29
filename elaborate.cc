@@ -44528,6 +44528,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
 			  bool has_value_bins = false;
+			  bool has_explicit_real_bins = false;
+			  for (const auto& bin : cp.bins)
+				if ((unsigned)bin.kind == 0)
+				      has_explicit_real_bins = true;
 
 			    // M11-6: IEEE 19.5.5 — values named by
 			    // ignore_bins/illegal_bins are excluded from
@@ -46139,6 +46143,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // bins => min(auto_bin_max, 2**M) uniform bins
 			    // over the coverpoint's bit-pattern space.
 			  if (!has_value_bins) {
+				if (cp_real_type && cp_real_supported) {
+				      if (!has_explicit_real_bins) {
+					    cerr << pclass->get_fileline()
+						 << ": error: real coverpoint '" << cp.label
+						 << "' requires at least one explicit bins construct "
+						    "(IEEE 1800-2023 19.5)." << endl;
+					    des->errors += 1;
+				      }
+				      cp_idx++;
+				      continue;
+				}
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,

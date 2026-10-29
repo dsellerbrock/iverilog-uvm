@@ -1,0 +1,2 @@
+ivltests/real_coverpoint_auto_bins_fail.v:3: error: real-valued coverpoint bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+1 error(s) during elaboration.
