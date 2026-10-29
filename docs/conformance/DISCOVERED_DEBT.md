@@ -5029,3 +5029,39 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
   combinator behavior is verified.
 - **Triage status:** Open; pre-existing and not fixed in #714. Correct the test
   separately with stimulus that demonstrates the intended behavior.
+
+### DD-156 — unequal-length intersect antecedent is rejected before runtime
+
+- **Discovered while working:** M9 issue #714 T1 baseline comparison.
+- **Observation:** `intersect_unequal_lengths_nfa_only.sv` expects an unequal
+  fixed-length `intersect` antecedent to be empty and therefore vacuous. The
+  current compiler instead rejects the implication at line 26 with “an
+  implication antecedent that can never match is illegal” under
+  IEEE 1800-2017/2023 §16.12.22. The test and the new diagnostic disagree;
+  this entry does not decide which expectation is correct.
+- **File:** `tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv`.
+- **Evidence:** The exact `origin/main` baseline `35a2bc33` and rebased #714
+  build produce the same compile error. The reproducer command and logs are in
+  `evidence/m9-issue714-corrected-baseline-check-20261029/`; the diagnostic
+  was introduced by [commit 5d1f1cb5d](https://github.com/dsellerbrock/iverilog-uvm/commit/5d1f1cb5df16bcfd41ced972e89e49a40b4e1b39).
+- **Reproducer status:** Confirmed on the exact main baseline and the #714
+  branch; the failure occurs before simulation.
+- **Triage status:** Parked for separate IEEE/test adjudication; not caused by
+  or fixed in #714.
+
+### DD-157 — package-qualified sequence local declaration fails to parse
+
+- **Discovered while working:** M9 issue #714 T1 baseline comparison.
+- **Observation:** `local_var_decl.sv` declares a packed local variable in a
+  named sequence using a package-qualified width, a form permitted by IEEE
+  1800-2017/2023 §16.10. The compiler reports a syntax error at line 15 and
+  then cannot bind `captured_match` at line 19, so the registered NFA test
+  never reaches simulation.
+- **File:** `tests/sva_nfa/local_var_decl.sv`.
+- **Evidence:** The exact `origin/main` baseline `35a2bc33` and #714 build
+  produce the same errors in legacy and NFA modes. The source, commands, and
+  logs are in `evidence/m9-issue714-corrected-baseline-check-20261029/`.
+- **Reproducer status:** Confirmed on the exact main baseline and the #714
+  branch with `-g2012`.
+- **Triage status:** Parked as a separate §16.10 parser-support issue; not
+  caused by or fixed in #714.
