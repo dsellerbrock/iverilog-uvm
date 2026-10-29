@@ -7685,53 +7685,7 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      expression, so the previous form keeps working. */
   | K_default K_disable K_iff expression ';'
       { pform_sva_set_default_disable(@2, $4); }
-  /* M9: named no-argument property/sequence declarations, usable by
-     assertions later in the SAME module. */
-  | K_property IDENTIFIER ';' property_spec ';' K_endproperty
-      { pform_sva_declare_property(@2, $2, $4);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@8, "property", $2, $8);
-	pform_sva_declare_property(@2, $2, $4);
-	delete[] $2;
-      }
-  /* Focused unambiguous slice of assertion_variable_declaration for the
-     ubiquitous built-in `int' local. Using the concrete keyword here avoids
-     making the full data_type grammar compete with every expression start;
-     richer assertion-local types remain on the existing unclocked path. */
-  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
-      property_spec_disable_iff_opt property_expr ';' K_endproperty
-      { sva_property_t*p = $7;
-	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
-	else { delete $5; delete $6; }
-	pform_sva_declare_property(@2, $2, p);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
-      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
-      { sva_property_t*p = $7;
-	check_end_label(@11, "property", $2, $11);
-	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
-	else { delete $5; delete $6; }
-	pform_sva_declare_property(@2, $2, p);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER ';' sva_int_local_declarations
-      property_spec_disable_iff_opt property_expr ';' K_endproperty
-      { sva_property_t*p = $6;
-	if (p) p->disable_iff_expr = $5; else delete $5;
-	pform_sva_declare_property(@2, $2, p);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER ';' sva_int_local_declarations
-      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
-      { sva_property_t*p = $6;
-	check_end_label(@10, "property", $2, $10);
-	if (p) p->disable_iff_expr = $5; else delete $5;
-	pform_sva_declare_property(@2, $2, p);
-	delete[] $2;
-      }
+  | property_declaration
   /* An ordinary unclocked named sequence keeps the flat splice table. */
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence(@2, $2, $4);
@@ -7818,29 +7772,6 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
-  /* M9D: parameterized named property/sequence declarations. Formal
-     arguments (plain identifiers) are substituted with the actual
-     argument expressions at each instantiation. */
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty
-      { pform_sva_declare_property_p(@2, $2, $4, $7);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@11, "property", $2, $11);
-	pform_sva_declare_property_p(@2, $2, $4, $7);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
-      sva_int_local_declarations property_spec ';' K_endproperty
-      { pform_sva_declare_property_p(@2, $2, $4, $8);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
-      sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@12, "property", $2, $12);
-	pform_sva_declare_property_p(@2, $2, $4, $8);
-	delete[] $2;
-      }
   | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
@@ -7891,6 +7822,73 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      input skews sample a delayed shadow, output skews delay the
      drive landing. Edge qualifiers on skews are recorded but not
      applied. */
+/* Reuse the property declaration forms supported at module-like scope,
+   without making clocking-block declarations legal in package/$unit scope. */
+property_declaration
+  : K_property IDENTIFIER ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { check_end_label(@8, "property", $2, $8);
+	pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
+      property_spec_disable_iff_opt property_expr ';' K_endproperty
+      { sva_property_t*p = $7;
+	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
+	else { delete $5; delete $6; }
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
+      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
+      { sva_property_t*p = $7;
+	check_end_label(@11, "property", $2, $11);
+	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
+	else { delete $5; delete $6; }
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations
+      property_spec_disable_iff_opt property_expr ';' K_endproperty
+      { sva_property_t*p = $6;
+	if (p) p->disable_iff_expr = $5; else delete $5;
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations
+      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
+      { sva_property_t*p = $6;
+	check_end_label(@10, "property", $2, $10);
+	if (p) p->disable_iff_expr = $5; else delete $5;
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { check_end_label(@11, "property", $2, $11);
+	pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $8);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
+      { check_end_label(@12, "property", $2, $12);
+	pform_sva_declare_property_p(@2, $2, $4, $8);
+	delete[] $2;
+      }
+  ;
+
+
 clocking_item
   : K_input clocking_skew_opt list_of_identifiers ';'
       {
@@ -8283,6 +8281,9 @@ package_export_item_list
 
 package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
+  /* Named properties are assertion declarations in package and $unit
+     scope too (IEEE 1800-2017/2023 16.12). */
+  | property_declaration
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
         pform_make_let(@2, tmp2, $3, $5);
