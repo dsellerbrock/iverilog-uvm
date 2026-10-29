@@ -1,0 +1,2 @@
+ivltests/issue1394_no_match_antecedents_2017.v:5: error: implication antecedent sequence admits no matches (IEEE 1800 16.12.22).
+ivltests/issue1394_no_match_antecedents_2017.v:7: error: implication antecedent sequence admits no matches (IEEE 1800 16.12.22).

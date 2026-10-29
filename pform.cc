@@ -27785,6 +27785,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       }
 
+	/* IEEE 1800-2017/2023 16.12.22(b),(c): an implication
+	   antecedent must have at least one match, and |-> additionally
+	   requires a nonempty match. The sequence-tree analysis proves
+	   fixed unequal-length intersections empty; reject that antecedent
+	   before either the NFA or legacy lowering can accept it. */
+      if (prop && (prop->op_type == 1 || prop->op_type == 2)
+	  && prop->ante_tree && sva_tree_proves_empty_(prop->ante_tree)) {
+	    cerr << loc << ": error: implication antecedent sequence admits no matches (IEEE 1800 16.12.22)." << endl;
+	    error_count += 1;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+
 	/* Stage B combinator trees (sequence or/and): only the
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */

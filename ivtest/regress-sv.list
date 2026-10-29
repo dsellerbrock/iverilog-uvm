@@ -48,6 +48,8 @@ sv_assert_first_match_sequence_combinators normal,-g2017,-gassertions ivltests g
 sv_assert_first_match_sequence_combinators_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
 issue1387_if_property_dist_condition_2017 normal,-g2017,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 issue1387_if_property_dist_condition_2023 normal,-g2023,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
+issue1394_no_match_antecedents_2017 CE,-g2017,-gassertions,-s,issue1394_no_match_antecedents ivltests
+issue1394_no_match_antecedents_2023 CE,-g2023,-gassertions,-s,issue1394_no_match_antecedents ivltests
 sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
 sv_assert_function_sample_pure normal,-g2017,-gassertions ivltests gold=sv_assert_function_sample_pure.gold
 sv_assert_function_nested_side_effect_fail CE,-g2017,-gassertions ivltests gold=sv_assert_function_nested_side_effect_fail.gold

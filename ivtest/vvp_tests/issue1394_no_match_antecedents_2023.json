@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1394_no_match_antecedents_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue1394_no_match_antecedents" ],
+    "gold"           : "issue1394_no_match_antecedents_2023"
+}
