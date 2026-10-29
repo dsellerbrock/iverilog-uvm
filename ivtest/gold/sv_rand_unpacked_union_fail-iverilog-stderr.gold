@@ -1,0 +1,2 @@
+ivltests/sv_rand_unpacked_union_fail.v:4: error: property 'value' of class bad_rand_union has an unpacked union type, which cannot be declared rand (IEEE 1800-2017/2023 18.4).
+1 error(s) during elaboration.

@@ -780,6 +780,7 @@ struct class_type_t : public data_type_t {
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
+	    data_type_t* type = nullptr; // optional IEEE 19.5 coverpoint type
 	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
 	    // storage; stable across covergroup extensions.
 	    int option_slot = -1;
@@ -829,6 +830,8 @@ struct class_type_t : public data_type_t {
 		  PExpr* with_expr = nullptr;
 		  PExpr* matches_expr = nullptr;
 		  bool matches_all = false;
+		  PExpr* iff_expr = nullptr;
+		  int iff_guard_idx = -1;
 	    };
 	    perm_string label;                 // cross label (or auto)
 	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option

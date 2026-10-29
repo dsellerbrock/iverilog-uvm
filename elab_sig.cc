@@ -1391,6 +1391,21 @@ static bool class_randc_property_type_ok_(ivl_type_t type)
       return false;
 }
 
+/* IEEE 1800-2017/2023 18.4 prohibits unpacked unions from being randomized.
+ * Array layers do not make an unpacked union element a valid rand/randc
+ * property type. */
+static bool class_unpacked_union_property_type_(ivl_type_t type)
+{
+      if (!type)
+	    return false;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return class_unpacked_union_property_type_(array->element_type());
+
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      return record && record->union_flag() && !record->packed();
+}
+
 /* The runtime cycle bitmap is per packed randc value. For an unpacked
  * container that value is one element, whereas a packed array is itself one
  * value. Peel only unpacked array/container layers before applying the
@@ -2706,6 +2721,17 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			cerr << endl;
 			des->errors += 1;
 		  }
+	    }
+
+	    if (!bad_type && cur->second.qual.test_rand()
+		&& use_type && class_unpacked_union_property_type_(use_type)) {
+		  bad_type = true;
+		  cerr << cur->second.get_fileline() << ": error: property '"
+		       << cur->first << "' of class " << get_name()
+		       << " has an unpacked union type, which cannot be declared "
+		       << "rand"
+		       << " (IEEE 1800-2017/2023 18.4)." << endl;
+		  des->errors += 1;
 	    }
 
 	      // A randc declaration denotes one cycle over an integral, enum,

@@ -2844,6 +2844,7 @@ extern int      ivl_type_covgrp_cross_bins(ivl_type_t net);
 extern unsigned ivl_type_covgrp_cross_bin_family(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_cross_bin_kind(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_cross_bin_target(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_bin_guard(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_cross_bin_name(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_cross_bin_select_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);

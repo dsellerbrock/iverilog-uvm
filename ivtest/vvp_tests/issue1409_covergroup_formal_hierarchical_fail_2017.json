@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1409_covergroup_formal_hierarchical_fail.v",
+  "iverilog-args": ["-g2017", "-s", "issue1409_covergroup_formal_hierarchical_fail"],
+  "gold": "issue1409_covergroup_formal_hierarchical_fail"
+}

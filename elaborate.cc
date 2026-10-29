@@ -28575,6 +28575,20 @@ static void elaborate_tasks(Design*des, NetScope*scope,
 
 
 
+static bool covergroup_strobe_enabled_(Design*des, NetScope*scope,
+				       const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!cgdef) return false;
+	auto it = cgdef->options.find(perm_string::literal("type_option.strobe"));
+	if (it == cgdef->options.end() || !it->second) return false;
+	NetExpr*value = elab_and_eval(des, scope, it->second, -1, false, false);
+	NetEConst*constant = dynamic_cast<NetEConst*>(value);
+	bool result = constant && constant->value().is_defined()
+	      && constant->value().as_ulong64() != 0;
+	delete value;
+	return result;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -28616,7 +28630,17 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		  st->set_line(*pcl);
 		  PEventStatement ev(cgdef->sample_events);
 		  ev.set_line(*pcl);
-		  NetProc*wrapped = ev.elaborate_st(des, scope, st);
+		  NetProc*event_body = st;
+		  if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+			NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
+			NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
+				IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
+			wait->set_line(*pcl);
+			body->append(wait);
+			body->append(st);
+			event_body = body;
+		  }
+		  NetProc*wrapped = ev.elaborate_st(des, scope, event_body);
 		  if (!wrapped) {
 			cerr << pcl->get_fileline() << ": sorry: cannot "
 			     << "elaborate the sampling event of covergroup '"
@@ -28656,7 +28680,21 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    call->set_line(*sig);
 	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
 	    ev->set_line(*sig);
-	    ev->set_statement(call);
+	    Statement*event_body = call;
+	    if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+		pform_name_t wait_path;
+		wait_path.push_back(name_component_t(
+			perm_string::literal("$ivl_covgrp_strobe_wait")));
+		PCallTask*wait = new PCallTask(wait_path, no_parms);
+		wait->set_line(*sig);
+		PBlock*body = new PBlock(PBlock::BL_SEQ);
+		vector<Statement*>statements;
+		statements.push_back(wait);
+		statements.push_back(call);
+		body->set_statement(statements);
+		event_body = body;
+	    }
+	    ev->set_statement(event_body);
 	    NetProc*st = ev->elaborate(des, scope);
 	    if (!st) {
 		  cerr << sig->get_fileline() << ": sorry: cannot "
@@ -42151,6 +42189,15 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       return cov_named_eval_(e, values, out);
 }
 
+static int64_t cov_with_item_value_(uint64_t value, unsigned width,
+				    bool is_signed)
+{
+      if (is_signed && width > 0 && width < 64
+		  && (value & (UINT64_C(1) << (width - 1))))
+		value |= (~UINT64_C(0) << width);
+      return (int64_t)value;
+}
+
 void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 {
       if (constraints_elaborated_ || constraints_elaborating_ || !pclass)
@@ -44295,6 +44342,37 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
+			  ivl_type_t declared_cp_type = cp.type
+				? cp.type->elaborate_type(des, class_scope_) : nullptr;
+			  if (cp.type) {
+				if (!declared_cp_type) {
+				      cerr << cp.type->get_fileline()
+					   << ": error: cannot resolve explicit coverpoint type."
+					   << endl;
+				      des->errors += 1;
+				} else {
+				      cp_type = declared_cp_type;
+				      ivl_variable_type_t declared_base = cp_type->base_type();
+				      bool declared_integral = declared_base == IVL_VT_BOOL
+					    || declared_base == IVL_VT_LOGIC
+					    || dynamic_cast<const netenum_t*>(cp_type);
+				      bool declared_real = declared_base == IVL_VT_REAL;
+				      if (!declared_integral && !declared_real) {
+					    cerr << cp.type->get_fileline()
+						 << ": error: coverpoint type must be integral"
+						    " or real."
+						 << endl;
+					    des->errors += 1;
+				      }
+				      cp_value_supported = declared_integral
+					    && cp_type->packed()
+					    && cp_type->packed_width() > 0
+					    && cp_type->packed_width() <= 64;
+				      cp_value_width = cp_type->packed()
+					    ? cp_type->packed_width() : 0;
+				      cp_value_signed = cp_type->get_signed();
+			}
+			  }
 			  ivl_variable_type_t cp_base = cp_type
 				? cp_type->base_type() : IVL_VT_NO_TYPE;
 			    // test_width() reports REAL for any operator with a real
@@ -44362,7 +44440,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_value_widths.push_back(cp_value_width);
 			  cp_value_signedness.push_back(cp_value_signed);
 			  int parent_prop = -1;
-			  if (!cg_standalone)
+			  if (!cg_standalone && !cp.type)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
 				const pform_scoped_name_t&path = pe->path();
 				bool this_property = !path.package
@@ -44418,7 +44496,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // M11-3: event-driven sampling metadata —
 			    // the runtime reads these parent properties
 			    // directly on each declaration-event fire.
-			  cg_class->add_covgrp_cp_srcprop(parent_prop);
+			  cg_class->add_covgrp_cp_srcprop(cp.type ? -1 : parent_prop);
 			  {
 				int gsrc = -1;
 				if (!cg_standalone && cgdef->is_extension
@@ -44457,16 +44535,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cg_class->add_covgrp_cp_guardsrc(gsrc);
 			  }
 			  string sample_ir;
+			  PExpr*cp_sample_expr = cp.type && cp.expr
+				? new PECastType(cp.type, cp.expr) : cp.expr;
 			  if (!cg_standalone && cp.expr && parent_prop < 0) {
 				bool uses_sample_formal = false;
 				for (perm_string formal : cgdef->sample_formals)
-				      if (cp.expr->refs_name(formal)) {
+				      if (cp_sample_expr->refs_name(formal)) {
 					    uses_sample_formal = true;
 					    break;
 				      }
 				if (!uses_sample_formal)
 				      sample_ir = pexpr_to_covergroup_sample_ir(
-					    cp.expr, cg_class, this, des, class_scope_);
+					    cp_sample_expr, cg_class, this, des, class_scope_);
 				if (!sample_ir.empty()
 			    && !covergroup_sample_ir_supported_(sample_ir,
 							cg_class, this))
@@ -44489,7 +44569,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // is not a parent-class property (standalone
 			    // covergroups, in-class expression
 			    // coverpoints).
-			  cg_class->add_covgrp_cp_expr(cp.expr);
+			  cg_class->add_covgrp_cp_expr(cp_sample_expr);
 
 			  opt_check(cp.options, "coverpoint");
 			  unsigned cp_at_least = opt_uint(cp.options, "at_least",
@@ -45810,7 +45890,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (uint64_t v = r.first; evalok; v++) {
 						  int64_t res = 0;
 						  int rc = cov_with_eval_(bin.with_expr,
-									  (int64_t)v, res);
+						  cov_with_item_value_(v,
+							cp_value_width,
+							cp_value_signed), res);
 						  if (rc < 0) { evalok = false; break; }
 						  if (res != 0)
 							keep.push_back(std::make_pair(v, v));
@@ -46473,6 +46555,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      reject_shadowed_covgrp_expr(bin.matches_expr,
 						  cross_decl_class,
 						  "cross bin matches expression for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.iff_expr,
+					  cross_decl_class,
+					  "cross bin iff guard for " + bin_item);
 			      check_select(bin.select);
 			}
 		  }
@@ -46627,7 +46712,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // allocating type-global counter properties for one arbitrarily
 			    // elaborated constructor value. The runtime resolves each plan
 			    // after this covergroup object's constructor state is captured.
-			  if (has_dynamic_family) {
+		      bool has_bin_iff = false;
+		      for (xbin_t&cb : cross.bins) {
+			    if (cb.iff_expr) {
+				  has_bin_iff = true;
+				  cb.iff_guard_idx = static_cast<int>(
+					cg_class->add_covgrp_bin_guard(cb.iff_expr));
+			    }
+		      }
+	      if (has_dynamic_family || has_bin_iff) {
 				std::vector<std::string> select_irs(cross.bins.size());
 				bool plan_ok = true;
 				auto append_select_token = [](std::string&out,
@@ -46737,7 +46830,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
-				      if (cb.with_expr
+				      if (cb.with_expr || cb.set_expr
 					  || !compile_select(cb.select, select_irs[ub])) {
 					    cerr << "sorry: dynamic cross bin '" << cb.name
 						 << "' uses a selection form that cannot be "
@@ -46811,6 +46904,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      const xbin_t&cb = cross.bins[ub];
 				      cg_class->add_covgrp_cross_bin(family,
 					    (unsigned)cb.kind, dynamic_bin_props[ub],
+					    cb.iff_guard_idx < 0
+					      ? netclass_t::COVGRP_NO_GUARD
+					      : (unsigned)cb.iff_guard_idx,
 					    cb.name.str(), select_irs[ub]);
 				}
 				continue;

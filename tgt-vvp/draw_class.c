@@ -622,10 +622,11 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    }
 	    int nxb = ivl_type_covgrp_cross_bins(classtype);
 	    for (idx = 0 ; idx < nxb ; idx += 1) {
-		  fprintf(vvp_out, " .covgrp_cross_bin %u %u %u \"%s\" \"%s\"\n",
+		  fprintf(vvp_out, " .covgrp_cross_bin %u %u %u %u \"%s\" \"%s\"\n",
 			  ivl_type_covgrp_cross_bin_family(classtype, idx),
 			  ivl_type_covgrp_cross_bin_kind(classtype, idx),
 			  ivl_type_covgrp_cross_bin_target(classtype, idx),
+			  ivl_type_covgrp_cross_bin_guard(classtype, idx),
 			  vvp_mangle_name(
 				ivl_type_covgrp_cross_bin_name(classtype, idx)),
 			  ivl_type_covgrp_cross_bin_select_ir(classtype, idx));

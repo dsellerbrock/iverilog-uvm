@@ -1,0 +1,2 @@
+PASS per-bin iff
+./ivltests/sv_covergroup_cross_bin_iff_2023.v:20: $finish called at 0 (1s)

@@ -1,0 +1,3 @@
+ISSUE1410_COVERGROUP_STROBE_PASS
+PASSED
+./ivltests/issue1410_covergroup_strobe.v:70: $finish called at 4 (1s)

@@ -458,6 +458,7 @@ extern bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_SAMPLE_DYN(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_SAMPLE_ALL(vthread_t thr, vvp_code_t code);
+extern bool of_COVGRP_STROBE_WAIT(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_START(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_STOP(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE(vthread_t thr, vvp_code_t code);

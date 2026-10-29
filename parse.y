@@ -5039,7 +5039,31 @@ covergroup_item_list
 
 /* Labeled coverpoint: "cp: coverpoint expr { ... }" */
 covergroup_item
-  : IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
+  : data_type_or_implicit_no_opt IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->type  = $1;
+	cp->label = lex_strings.make($2);
+	cp->expr  = $5;
+	cp->iff_expr = $6;
+	if ($8) {
+	      for (auto* b : *$8) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $8;
+	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
+	delete[] $2;
+	$$ = cp;
+	}
+  | data_type_or_implicit_no_opt IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt ';'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->type  = $1;
+	cp->label = lex_strings.make($2);
+	cp->expr  = $5;
+	cp->iff_expr = $6;
+	delete[] $2;
+	$$ = cp;
+	}
+  | IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
@@ -5480,25 +5504,28 @@ cross_item_list
    cross { }.  M11-3: captured as select trees for elaboration. */
 cross_body_opt
   : /* empty */
-  | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr ';'
+  | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr bins_iff_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
 	cb.select = $5;
+	cb.iff_expr = $6;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
-  | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr ';'
+  | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr bins_iff_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
 	cb.select = $5;
+	cb.iff_expr = $6;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
-  | cross_body_opt K_bins bins_name '=' cross_bins_expr ';'
+  | cross_body_opt K_bins bins_name '=' cross_bins_expr bins_iff_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
 	cb.select = $5;
+	cb.iff_expr = $6;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
   | cross_body_opt K_bins bins_name '=' hierarchy_identifier attribute_list_opt argument_list_parens ';'
@@ -9417,12 +9444,13 @@ sva_seq_comb_concat
   ;
 
 /* IEEE 1800-2017 16.11 sequence_match_item subroutine calls. This bounded
-   carrier intentionally recognizes the direct system-task form used by the
-   executable slice plus a parenthesized unqualified user task. Reusing the
-   fully general statement-position `subroutine_call' here activates its
-   receiver/package/hierarchy ambiguity in expression context and adds parser
-   conflicts. Unsupported direct calls are still retained for one targeted
-   semantic diagnostic; broader receiver/package shapes remain future work. */
+   carrier intentionally recognizes direct system-task and receiver-method
+   forms used by the executable slice plus a parenthesized unqualified user
+   task. Reusing the fully general statement-position `subroutine_call' here
+   activates its receiver/package/hierarchy ambiguity in expression context
+   and adds parser conflicts. Unsupported direct calls are still retained for
+   one targeted semantic diagnostic; broader receiver/package shapes remain
+   future work. */
 sva_match_call
   : SYSTEM_IDENTIFIER argument_list_parens_opt
       { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
@@ -9437,6 +9465,13 @@ sva_match_call
 	delete[] $1;
 	delete $2;
 	$$ = tmp; }
+  | hierarchy_identifier '.' IDENTIFIER argument_list_parens
+      { PEIdent*receiver = pform_new_ident(@1, *$1);
+	$$ = pform_receiver_method_task(
+	      @2, receiver, lex_strings.make($3), $4, 0);
+	delete $1;
+	delete[] $3;
+      }
   ;
 
 sva_match_call_list
