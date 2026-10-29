@@ -9806,6 +9806,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       }
 
       vector<bool> cp_suppressed(ncp, false);
+      vector<bool> cp_illegal_value(ncp, false);
 
 	// Illegal check (kind 2), before ignore per 19.5.5.
       for (auto& kv : by_prop) {
@@ -9868,6 +9869,11 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			      const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 			      if (bin.cp_idx < ncp)
 				    cp_suppressed[bin.cp_idx] = true;
+			  // An illegal value suppresses state bins for this sample, but
+			  // IEEE 1800-2017/2023 19.5.6 says it has no effect on a
+			  // transition that includes the value.
+			  if (bin.cp_idx < ncp && !(bin.kind & 1024))
+				cp_illegal_value[bin.cp_idx] = true;
 			}
 	    }
       }
@@ -10018,7 +10024,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (k == 4) {
 		  bool count_enabled = bin_enabled(first.guard_idx);
 		  unsigned cp = first.cp_idx;
-		  if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp])
+		  if (cp >= ncp || !cp_sampled[cp]
+		      || (cp_suppressed[cp] && !cp_illegal_value[cp]))
 			continue;
 		  std::vector<const class_type::cov_bin_t*> records;
 		  for (size_t bi : recs) records.push_back(&defn->covgrp_bin(bi));
@@ -10087,7 +10094,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!state.valid || !state.meta || state.records.empty()
 		|| (state.meta->kind & 1024)) continue;
 	    unsigned cp = state.meta->cp_idx;
-	    if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp]) continue;
+	    if (cp >= ncp || !cp_sampled[cp]
+		|| (cp_suppressed[cp] && !cp_illegal_value[cp])) continue;
 	    std::vector<const class_type::cov_bin_t*> records;
 	    for (const auto&rec : state.records) records.push_back(&rec);
 	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
