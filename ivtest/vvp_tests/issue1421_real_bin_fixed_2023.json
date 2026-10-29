@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1421_real_bin_fixed.v",
+  "iverilog-args": ["-g2023", "-s", "issue1421_real_bin_fixed"],
+  "gold": "issue1421_real_bin_fixed"
+}
