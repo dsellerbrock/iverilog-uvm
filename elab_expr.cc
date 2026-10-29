@@ -30705,6 +30705,16 @@ unsigned PENewArray::test_width(Design*, NetScope*, width_mode_t&)
 NetExpr* PENewArray::elaborate_expr(Design*des, NetScope*scope,
 				    ivl_type_t ntype, unsigned flags) const
 {
+	  /* IEEE 1800-2017/2023 7.5.1: the target itself must be a dynamic
+	   * array. A fixed unpacked array does not become a valid target merely
+	   * because one of its element dimensions is dynamic. */
+	  if (!dynamic_cast<const netdarray_t*>(ntype)) {
+		cerr << get_fileline() << ": error: The new array constructor may "
+		        "only be used in an assignment to a dynamic array." << endl;
+		des->errors += 1;
+		return nullptr;
+	  }
+
 	// Elaborate the size expression.
       width_mode_t mode = LOSSLESS;
       unsigned use_wid = size_->test_width(des, scope, mode);
