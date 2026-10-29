@@ -3938,6 +3938,20 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* IEEE 1800-2017/2023 10.3.3 permits only one delay for a
+	 * continuous assignment to a user-defined nettype, including an
+	 * unpacked array of such nets. */
+      if (lval->user_nettype() && delay_count() > 1) {
+	    cerr << get_fileline() << ": error: A continuous assignment to a "
+		 << "user-defined nettype may specify only one delay "
+		    "(IEEE 1800 10.3.3)." << endl;
+	    des->errors += 1;
+	    if (lval->local_flag())
+		  delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
 	// If this turns out to be an assignment to an unpacked array,
 	// then handle that special case elsewhere. Test the declared shape,
 	// not the physical pin count: a one-element unpacked array has one pin

@@ -1,0 +1,2 @@
+ivltests/issue1513_nettype_multiple_delay_2023.v:7: error: A continuous assignment to a user-defined nettype may specify only one delay (IEEE 1800 10.3.3).
+1 error(s) during elaboration.
