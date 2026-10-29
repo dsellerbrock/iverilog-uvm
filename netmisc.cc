@@ -2773,6 +2773,38 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 {
       const netqueue_t*queue =
 	    dynamic_cast<const netqueue_t*>(container_type);
+      if (queue && queue->assoc_compat()) {
+	    ivl_type_t index_type = queue->assoc_index_type();
+	    if (queue->assoc_wildcard()
+		|| (index_type && index_type->packed())) {
+	      PExpr::width_mode_t mode = PExpr::SIZED;
+	      unsigned errors_before = des->errors;
+	      expr->test_width(des, scope, mode);
+	      if (des->errors != errors_before)
+		    return nullptr;
+
+	      ivl_variable_type_t source_base = expr->expr_type();
+	      if (queue->assoc_wildcard()
+		  && source_base != IVL_VT_BOOL
+		  && source_base != IVL_VT_LOGIC
+		  && !dynamic_cast<const PEString*>(expr)) {
+		    cerr << expr->get_fileline() << ": error: a wildcard-index "
+			 "associative array requires an integral index "
+			 "(IEEE 1800-2017/2023 7.8.1)." << endl;
+		    des->errors += 1;
+		    return nullptr;
+	      }
+	      if (index_type && index_type->packed()
+		  && source_base == IVL_VT_REAL) {
+		    cerr << expr->get_fileline() << ": error: an integral "
+			 "associative-array index cannot implicitly cast a real or "
+			 "shortreal expression (IEEE 1800-2017/2023 7.8.4)."
+			 << endl;
+		    des->errors += 1;
+		    return nullptr;
+	      }
+	    }
+      }
       if (queue && queue->assoc_index_type()
 	  && queue->assoc_index_type()->base_type() == IVL_VT_STRING) {
 	    PExpr::width_mode_t mode = PExpr::SIZED;

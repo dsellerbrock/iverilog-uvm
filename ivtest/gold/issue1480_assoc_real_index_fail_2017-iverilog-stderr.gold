@@ -1,0 +1,5 @@
+ivltests/issue1480_assoc_real_index_fail_2017.v:12: error: a wildcard-index associative array requires an integral index (IEEE 1800-2017/2023 7.8.1).
+ivltests/issue1480_assoc_real_index_fail_2017.v:13: error: an integral associative-array index cannot implicitly cast a real or shortreal expression (IEEE 1800-2017/2023 7.8.4).
+ivltests/issue1480_assoc_real_index_fail_2017.v:14: error: a wildcard-index associative array requires an integral index (IEEE 1800-2017/2023 7.8.1).
+ivltests/issue1480_assoc_real_index_fail_2017.v:15: error: an integral associative-array index cannot implicitly cast a real or shortreal expression (IEEE 1800-2017/2023 7.8.4).
+4 error(s) during elaboration.
