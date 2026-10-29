@@ -1,0 +1,5 @@
+ivltests/sv_assoc_real_index_type_fail.v:6: error: associative array index type cannot contain real or shortreal (IEEE 1800-2017/2023 7.8.5).
+ivltests/sv_assoc_real_index_type_fail.v:2: error: associative array index type cannot contain real or shortreal (IEEE 1800-2017/2023 7.8.5).
+ivltests/sv_assoc_real_index_type_fail.v:3: error: associative array index type cannot contain real or shortreal (IEEE 1800-2017/2023 7.8.5).
+ivltests/sv_assoc_real_index_type_fail.v:7: error: associative array index type cannot contain real or shortreal (IEEE 1800-2017/2023 7.8.5).
+4 error(s) during elaboration.

@@ -2818,6 +2818,27 @@ static bool finite_enum_index_range_(const netenum_t*enum_type,
       return true;
 }
 
+static bool assoc_index_type_contains_real_(ivl_type_t type)
+{
+      if (!type)
+	    return false;
+
+      if (dynamic_cast<const netreal_t*>(type))
+	    return true;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return assoc_index_type_contains_real_(array->element_type());
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (assoc_index_type_contains_real_(member.net_type))
+			return true;
+	    return false;
+      }
+
+      return false;
+}
+
 static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
 					     const LineInfo &li,
 					     ivl_type_t base_type,
@@ -2828,6 +2849,13 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
 
       data_type_t*index_type_pf = const_cast<PEAssocType*>(assoc_idx)->index_type();
       ivl_type_t index_type = index_type_pf->elaborate_type(des, scope);
+
+      if (assoc_index_type_contains_real_(index_type)) {
+	    cerr << li.get_fileline() << ": error: associative array index type "
+		 << "cannot contain real or shortreal (IEEE 1800-2017/2023 7.8.5)."
+		 << endl;
+	    des->errors++;
+      }
 
       // Keep associative arrays in the assoc-compat queue representation even
       // for finite enum-key cases. Lowering them to a plain unpacked array
