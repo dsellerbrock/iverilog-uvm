@@ -2647,6 +2647,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <value_range> parameter_value_ranges_opt
 %type <expr> value_range_expression
 %type <expr> property_spec_disable_iff_opt
+%type <expr> sva_expression_or_dist
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
@@ -9223,13 +9224,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      evaluation to a PASS the moment c holds; `reject_on(c) p' aborts to a
      FAIL. The sync_ variants sample c at the clock (op 14 accept_on,
      15 reject_on, 16 sync_accept_on, 17 sync_reject_on). */
-  | K_accept_on '(' expression ')' property_expr
+  | K_accept_on '(' sva_expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 14, $3, $5); }
-  | K_reject_on '(' expression ')' property_expr
+  | K_reject_on '(' sva_expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 15, $3, $5); }
-  | K_sync_accept_on '(' expression ')' property_expr
+  | K_sync_accept_on '(' sva_expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 16, $3, $5); }
-  | K_sync_reject_on '(' expression ')' property_expr
+  | K_sync_reject_on '(' sva_expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 17, $3, $5); }
   /* IEEE 1800-2017 16.12.8: property combinators over boolean operands.
      `a implies b' == `!a | b'; `a iff b' == `(a & b) | (!a & !b)';
@@ -9891,6 +9892,22 @@ property_spec /* IEEE1800-2012 A.2.10 */
 property_spec_disable_iff_opt /* */
   : K_disable K_iff '(' expression ')' { $$ = $4; }
   | %prec sva_decl_expr_start { $$ = nullptr; }
+  ;
+
+/* IEEE 1800-2017/2023 16.12.14: an abort condition is expression_or_dist.
+   The distribution qualifier contributes no selection behavior here; outside
+   a randomize constraint, the condition is the value of its expression. */
+sva_expression_or_dist
+  : expression { $$ = $1; }
+  | expression K_dist '{' dist_list '}'
+      { for (inside_range_t& range : *$4) {
+	    delete range.lo;
+	    delete range.hi;
+	    delete range.weight;
+	  }
+	delete $4;
+	$$ = $1;
+      }
   ;
 
 random_qualifier /* IEEE1800-2005 A.1.8 */

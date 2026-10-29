@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1389_abort_condition_dist_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1389_abort_condition_dist_2017"],
+  "output-contains": ["PASSED"]
+}

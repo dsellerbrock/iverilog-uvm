@@ -1382,6 +1382,8 @@ sv_vif_array_runtime_index normal,-g2012 ivltests
 sv_unit_scope_vif normal,-g2012 ivltests
 sv_program_clocking_finish normal,-g2012 ivltests
 sv_abort_operators normal,-g2012 ivltests
+issue1389_abort_condition_dist_2017 normal,-g2017,-gassertions ivltests gold=issue1389_abort_condition_dist_2017.gold
+issue1389_abort_condition_dist_2023 normal,-g2023,-gassertions ivltests gold=issue1389_abort_condition_dist_2023.gold
 sv_property_combinators normal,-g2012 ivltests
 sv_typeparm_aggregate_property normal,-g2012 ivltests
 sv_disable_soft normal,-g2012 ivltests
