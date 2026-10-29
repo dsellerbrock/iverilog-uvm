@@ -9576,6 +9576,27 @@ static PExpr* sva_clone_subst_(PExpr*e,
 {
       if (!e) return nullptr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    /* A dotted formal reference such as `x.triggered' is represented as
+	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
+	       first, then preserve the member suffix as member-access nodes. */
+	    if (subst && !id->path().package && id->path().name.size() > 1) {
+		  const name_component_t&base = id->path().name.front();
+		  std::map<perm_string,PExpr*>::const_iterator it =
+			 subst->find(base.name);
+		  if (it != subst->end() && base.index.empty()) {
+			PExpr*value = sva_clone_subst_(it->second, nullptr);
+			if (!value) return nullptr;
+			for (pform_name_t::const_iterator comp =
+			       ++id->path().name.begin();
+			     comp != id->path().name.end(); ++comp) {
+			      if (!comp->index.empty()) { delete value; return nullptr; }
+			      PEMemberAccess*member = new PEMemberAccess(value, comp->name);
+			      member->set_line(*e);
+			      value = member;
+			}
+			return value;
+		  }
+	    }
 	    if (subst && !id->path().package && id->path().name.size() == 1) {
 		  const name_component_t&component = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
@@ -9644,6 +9665,13 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    }
 	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
             cp->set_dotted_suffix(id->has_dotted_suffix());
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEMemberAccess*member = dynamic_cast<PEMemberAccess*>(e)) {
+	    PExpr*base = sva_clone_subst_(member->base(), subst);
+	    if (!base) return nullptr;
+	    PEMemberAccess*cp = new PEMemberAccess(base, member->member_name());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -21167,6 +21195,18 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	     member access on the parameterized sequence call. */
 	  if (PEMemberAccess*member = dynamic_cast<PEMemberAccess*>(e)) {
 	    if (member->member_name() == perm_string::literal("triggered")) {
+	      PEIdent*sequence = dynamic_cast<PEIdent*>(member->base());
+	      if (sequence && !sequence->path().package
+		  && sequence->path().name.size() == 1
+		  && sequence->path().name.front().index.empty()) {
+		    PExpr*ind = sva_endpoint_indicator_(
+			  loc, sequence->path().name.front().name,
+			  perm_string::literal("triggered"), failed);
+		    if (ind) {
+			  delete e;
+			  return ind;
+		    }
+	      }
 	      PECallFunction*instance = dynamic_cast<PECallFunction*>(member->base());
 	      if (instance && !instance->receiver_expr()
 		  && !instance->path().package && instance->path().name.size() == 1) {
