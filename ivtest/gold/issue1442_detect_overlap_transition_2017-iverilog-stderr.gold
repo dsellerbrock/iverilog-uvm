@@ -1,0 +1,1 @@
+warning: covergroup 'cg' coverpoint 'cp': bins 'forward' and 'repeated' overlap (option.detect_overlap).

@@ -44855,6 +44855,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // ignored sequence to value sets once; the regular bins below
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
+			  struct detect_transition_t {
+				string name;
+				std::vector<trans_ranges_t> terms;
+			  };
+			  std::vector<detect_transition_t> detect_transitions;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
 			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
@@ -45354,6 +45359,60 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      if (bad) continue;
 				      if (programs.empty()) continue;
+
+				  // IEEE 1800-2017/2023 19.7: detect_overlap applies to
+				  // transition lists as well as value ranges. Compare fixed,
+				  // unrepeated sequences as sets at each sample position.
+				  if (opt_uint(cp.options, "detect_overlap",
+					       cg_detect_overlap)
+				      && !bin.wildcard && !constructor_dependent) {
+					bool simple = true;
+					std::vector<detect_transition_t> current;
+					for (auto&program : programs) {
+					      detect_transition_t sequence;
+					      sequence.name = bin.name.str();
+					      for (auto&term : program) {
+						    if (term.dynamic || term.repeat !=
+							(unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
+							  simple = false;
+							  break;
+						    }
+						    sequence.terms.push_back(term.ranges);
+					      }
+					      if (!simple) break;
+					      current.push_back(std::move(sequence));
+					}
+					if (simple) {
+					      for (auto&sequence : current) {
+						    for (auto&previous : detect_transitions) {
+							  if (sequence.terms.size() != previous.terms.size())
+								continue;
+							  bool overlaps = true;
+							  for (size_t i = 0; i < sequence.terms.size(); i++) {
+								    bool term_overlaps = false;
+								    for (auto&a : sequence.terms[i])
+								    for (auto&b : previous.terms[i])
+									  if (a.first <= b.second
+									      && b.first <= a.second)
+										term_overlaps = true;
+								    if (!term_overlaps) {
+									  overlaps = false;
+									  break;
+							    }
+							  }
+							  if (overlaps)
+								cerr << "warning: covergroup '"
+								     << cgdef->name
+								     << "' coverpoint '" << cp.label
+								     << "': bins '" << previous.name
+								     << "' and '" << sequence.name
+								     << "' overlap (option.detect_overlap)."
+								     << endl;
+						    }
+						    detect_transitions.push_back(sequence);
+					      }
+					}
+				  }
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
