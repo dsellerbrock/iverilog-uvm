@@ -1040,7 +1040,7 @@ struct foreach_index_type_t : public data_type_t {
  * These tokens so that they don't interfere with the namespace and
  * are handled specially.
  */
-# define SUPER_TOKEN "#"
+# define SUPER_TOKEN "\001super"
 # define THIS_TOKEN  "@"
 
 static inline std::ostream& operator<< (std::ostream&out, const data_type_t&that)
