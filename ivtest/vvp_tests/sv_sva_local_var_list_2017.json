@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_sva_local_var_list.v",
+    "iverilog-args": ["-g2017"],
+    "output-contains": ["PASSED"]
+}

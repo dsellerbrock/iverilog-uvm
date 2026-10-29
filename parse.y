@@ -8930,6 +8930,12 @@ sva_int_local_declarations
 	     it != $2->end(); ++it)
 	      pform_sva_declare_int_local(@1, it->str());
 	delete $2; $$ = 0; }
+  | K_bit sva_local_ident_list ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<perm_string>::iterator it = $2->begin();
+	     it != $2->end(); ++it)
+	      pform_sva_declare_logic_local(@1, it->str(), nullptr);
+	delete $2; $$ = 0; }
   | K_sva_logic_local dimensions sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<perm_string>::iterator it = $3->begin();
@@ -8951,6 +8957,11 @@ sva_int_local_declarations
       { for (std::list<perm_string>::iterator it = $3->begin();
 	     it != $3->end(); ++it)
 	      pform_sva_declare_int_local(@2, it->str());
+	delete $3; $$ = 0; }
+  | sva_int_local_declarations K_bit sva_local_ident_list ';'
+      { for (std::list<perm_string>::iterator it = $3->begin();
+	     it != $3->end(); ++it)
+	      pform_sva_declare_logic_local(@2, it->str(), nullptr);
 	delete $3; $$ = 0; }
   | sva_int_local_declarations K_sva_logic_local dimensions sva_local_ident_list ';'
       { for (std::list<perm_string>::iterator it = $4->begin();
