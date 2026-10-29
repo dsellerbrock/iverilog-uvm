@@ -359,6 +359,7 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiIteratorType   57 /* object type of an iterator */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
 #define vpiCaseX          2 /* ignore X's */
