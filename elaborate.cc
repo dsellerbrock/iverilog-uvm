@@ -45926,10 +45926,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 			  }
 
-			    // Automatic bins (19.5.1): no explicit value
-			    // bins => min(auto_bin_max, 2**M) uniform bins
-			    // over the coverpoint's bit-pattern space.
-			  if (!has_value_bins) {
+			    // Automatic bins (19.5.3) are defined for integral
+			    // coverpoints only. Real coverpoints need explicit bins.
+			  if (!has_value_bins && cp_real_type) {
+				cerr << pclass->get_fileline()
+				     << ": error: real coverpoint '" << cp.label
+				     << "' requires at least one explicit bins construct."
+				     << endl;
+				des->errors += 1;
+			  } else if (!has_value_bins) {
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,

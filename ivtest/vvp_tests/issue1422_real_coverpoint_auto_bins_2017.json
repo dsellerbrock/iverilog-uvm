@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1422_real_coverpoint_auto_bins_2017.v",
+  "iverilog-args": ["-g2017", "-sissue1422_real_coverpoint_auto_bins"],
+  "gold": "issue1422_real_coverpoint_auto_bins_2017"
+}
