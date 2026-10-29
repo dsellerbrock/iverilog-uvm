@@ -3938,6 +3938,22 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* IEEE 1800-2017/2023 10.3.4 limits a continuous-assignment drive
+	 * strength to scalar nets, except supply0 and supply1 nets. */
+	if (strength_specified()
+	    && lval->vector_width() > 1
+	    && lval->net_delay_declared_type() != NetNet::SUPPLY0
+	    && lval->net_delay_declared_type() != NetNet::SUPPLY1) {
+	      cerr << get_fileline() << ": error: Drive strength on a continuous "
+		      "assignment is only allowed for scalar nets, except supply0 "
+		      "and supply1 nets (IEEE 1800-2017/2023 10.3.4)." << endl;
+	      des->errors += 1;
+	      if (lval->local_flag())
+		    delete lval;
+	      delete_unique_delays_(rise_time, fall_time, decay_time);
+	      return;
+	}
+
 	// If this turns out to be an assignment to an unpacked array,
 	// then handle that special case elsewhere. Test the declared shape,
 	// not the physical pin count: a one-element unpacked array has one pin

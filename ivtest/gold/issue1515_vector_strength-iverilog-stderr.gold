@@ -1,0 +1,2 @@
+ivltests/issue1515_vector_strength.v:3: error: Drive strength on a continuous assignment is only allowed for scalar nets, except supply0 and supply1 nets (IEEE 1800-2017/2023 10.3.4).
+1 error(s) during elaboration.

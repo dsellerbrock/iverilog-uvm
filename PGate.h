@@ -133,6 +133,8 @@ class PGate : public PNamedItem {
 
       ivl_drive_t strength0() const;
       ivl_drive_t strength1() const;
+      bool strength_specified() const { return strength_specified_; }
+      void strength_specified(bool value) { strength_specified_ = value; }
 
       void strength0(ivl_drive_t);
       void strength1(ivl_drive_t);
@@ -164,6 +166,7 @@ class PGate : public PNamedItem {
       std::list<pform_range_t>*ranges_;
 
       ivl_drive_t str0_, str1_;
+      bool strength_specified_ = false;
 
       void set_pins_(std::list<PExpr*>*pins);
 

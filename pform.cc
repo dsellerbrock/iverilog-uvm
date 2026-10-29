@@ -5174,6 +5174,7 @@ static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
 
       cur->strength0(str.str0);
       cur->strength1(str.str1);
+      cur->strength_specified(str.specified);
 
       if (pform_cur_generate)
 	    pform_cur_generate->add_gate(cur);
