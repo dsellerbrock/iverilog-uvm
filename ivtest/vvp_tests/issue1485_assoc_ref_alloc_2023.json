@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1485_assoc_ref_alloc.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1485_assoc_ref_alloc"
+}

@@ -7645,6 +7645,32 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* Bind to a true associative-array element reference. Capture the
+       * evaluated key before entering the subroutine so it is allocated and
+       * remains the same element for the entire ref lifetime. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_assoc") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t array = ivl_stmt_parm(net, 1);
+	    ivl_expr_t key = ivl_stmt_parm(net, 2);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    ivl_signal_t asig = array ? ivl_expr_signal(array) : 0;
+	    if (fsig && asig && key) {
+		  ivl_variable_type_t type = ivl_signal_data_type(fsig);
+		  unsigned kind = type == IVL_VT_REAL ? 1
+			: type == IVL_VT_STRING ? 2
+			: type == IVL_VT_CLASS ? 3 : 0;
+		  unsigned width = ivl_signal_width(fsig);
+		  const char*key_kind = draw_eval_assoc_key_(key, 0);
+		  fprintf(vvp_out,
+			  "    %%ref/capture/aa/%s v%p_0, %u, %u; ref associative element\n",
+			  key_kind, asig, kind, width);
+		  fprintf(vvp_out,
+			  "    %%ref/bind/captured v%p_0; bind associative ref element\n",
+			  fsig);
+	    }
+	    return 0;
+      }
+
       /* $ivl_ref_bind_prop_elem(<formal>, <receiver>, <pid>, <index>) --
        * bind to an element of a dynamic container stored in a class
        * property, preserving the element identity across deletion. */

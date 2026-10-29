@@ -652,6 +652,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%randomize/with/objects", of_RANDOMIZE_WITH_OBJECTS, 3,{OA_STRING, OA_BIT1,OA_BIT2} },
       { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%ref/bind/captured",of_REF_BIND_CAPTURED,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%ref/bind/el",of_REF_BIND_EL,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/el/el/o",of_REF_BIND_EL_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%ref/bind/el/o",of_REF_BIND_EL_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },

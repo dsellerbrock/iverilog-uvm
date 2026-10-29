@@ -19988,6 +19988,29 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
+	      /* An associative-array element: aa[key]. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice()) {
+		  const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(
+			lv->sig()->array_type());
+		  if (assoc && assoc->assoc_compat()) {
+			NetESignal*formal_e = new NetESignal(port);
+			formal_e->set_line(*this);
+			NetESignal*array_e = new NetESignal(lv->sig());
+			array_e->set_line(*this);
+			vector<NetExpr*> argv(3);
+			argv[0] = formal_e;
+			argv[1] = array_e;
+			argv[2] = lv->word()->dup_expr();
+			NetSTask*bind = new NetSTask("$ivl_ref_bind_assoc",
+						     IVL_SFUNC_AS_TASK_IGNORE, argv);
+			bind->set_line(*this);
+			delete lv;
+			return bind;
+		  }
+	    }
+
 	      /* An element of a dynamic array or queue: da[i], q[i]. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0

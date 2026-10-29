@@ -312,10 +312,34 @@ void vvp_assoc_base::element_refs_remove_(const vvp_vector4_t&key)
       for (vvp_assoc_element_ref*ref : selected) ref->detach();
 }
 
+template <class ASSOC, class KEY, class VALUE>
+static void materialize_assoc_ref_entry_(ASSOC*assoc, const KEY&key,
+					 VALUE value)
+{
+      if (!assoc || assoc->exists_key(key)) return;
+      if (assoc->get(key, value)) value = assoc_value_copy_element_(value);
+      assoc->set(key, value);
+}
+
+template <class KEY>
+static void materialize_assoc_ref_key_(vvp_assoc_base*assoc,
+					const KEY&key, unsigned width)
+{
+      materialize_assoc_ref_entry_(dynamic_cast<vvp_assoc_vec4*>(assoc), key,
+				   vvp_vector4_t(width, BIT4_0));
+      materialize_assoc_ref_entry_(dynamic_cast<vvp_assoc_real*>(assoc), key,
+				   0.0);
+      materialize_assoc_ref_entry_(dynamic_cast<vvp_assoc_string*>(assoc), key,
+				   std::string());
+      materialize_assoc_ref_entry_(dynamic_cast<vvp_assoc_object*>(assoc), key,
+				   vvp_object_t());
+}
+
 vvp_object_t vvp_assoc_base::capture_element_ref(
       const std::string&key, vvp_assoc_element_ref::kind_t kind,
       unsigned width)
 {
+      materialize_assoc_ref_key_(this, key, width);
       for (vvp_assoc_element_ref*ref : element_refs_)
             if (ref->matches(key)) return vvp_object_t(ref);
       return vvp_object_t(new vvp_assoc_element_ref(this, key, kind, width));
@@ -325,6 +349,7 @@ vvp_object_t vvp_assoc_base::capture_element_ref(
       const vvp_object_t&key, vvp_assoc_element_ref::kind_t kind,
       unsigned width)
 {
+      materialize_assoc_ref_key_(this, key, width);
       for (vvp_assoc_element_ref*ref : element_refs_)
             if (ref->matches(key)) return vvp_object_t(ref);
       return vvp_object_t(new vvp_assoc_element_ref(this, key, kind, width));
@@ -334,6 +359,7 @@ vvp_object_t vvp_assoc_base::capture_element_ref(
       const vvp_vector4_t&key, vvp_assoc_element_ref::kind_t kind,
       unsigned width)
 {
+      materialize_assoc_ref_key_(this, key, width);
       for (vvp_assoc_element_ref*ref : element_refs_)
             if (ref->matches(key)) return vvp_object_t(ref);
       return vvp_object_t(new vvp_assoc_element_ref(this, key, kind, width));

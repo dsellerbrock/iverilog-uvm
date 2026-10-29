@@ -534,6 +534,7 @@ extern bool of_PUTC_STRA_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_NET(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_NET_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND_CAPTURED(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_F(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_EL(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t code);

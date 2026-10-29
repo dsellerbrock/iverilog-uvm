@@ -130,9 +130,9 @@ class vvp_assoc_base : public vvp_object {
 	// %aa/delete/all opcode calls it.
       virtual void clear() =0;
 
-	// Capture one evaluated key as a stable ref target. Missing elements are
-	// represented without inserting an entry; the first attached write creates
-	// the element, matching ordinary associative-array l-value semantics.
+	// Capture one evaluated key as a stable ref target. A missing element is
+	// inserted with its declared default value, as required when it is passed
+	// by reference (IEEE 1800-2017/2023 7.8.7).
       vvp_object_t capture_element_ref(const std::string&key,
 				       vvp_assoc_element_ref::kind_t kind,
 				       unsigned vec4_width);

@@ -30380,6 +30380,31 @@ bool of_REF_BIND(vthread_t, vvp_code_t cp)
       return true;
 }
 
+bool of_REF_BIND_CAPTURED(vthread_t thr, vvp_code_t cp)
+{
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/captured error: the formal is not a ref signal."
+		 << endl;
+	    assert(formal);
+	    return true;
+      }
+      vvp_object_t captured;
+      thr->pop_object(captured);
+      vvp_lvalue_ref*ref = captured.peek<vvp_lvalue_ref>();
+      vvp_object_t element = ref ? ref->element_storage() : vvp_object_t();
+      if (element.test_nil()) {
+	    cerr << "%ref/bind/captured error: invalid associative ref target."
+		 << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return true;
+      }
+      formal->bind_captured_elem(cp->net, element);
+      return true;
+}
+
 /*
  * %ref/bind/f <formal>, <companion>
  *

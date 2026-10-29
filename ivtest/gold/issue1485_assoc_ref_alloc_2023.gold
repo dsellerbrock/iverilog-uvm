@@ -1,0 +1,2 @@
+ISSUE1485 PASS
+./ivltests/issue1485_assoc_ref_alloc_2023.v:29: $finish called at 0 (1s)

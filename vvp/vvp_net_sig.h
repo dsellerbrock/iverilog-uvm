@@ -559,6 +559,8 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid);
       void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
                      int64_t index);
+      void bind_captured_elem(vvp_net_t*formal,
+                              const vvp_object_t&element);
       void bind_word(vvp_net_t*formal, struct __vpiArray*arr, unsigned index);
 
 	// vvp_net_fun_t: forward everything to the bound net.
@@ -680,6 +682,7 @@ class vvp_lvalue_ref : public vvp_object {
       value_kind_t value_kind() const { return value_kind_; }
       unsigned value_width() const { return width_; }
       vvp_object_t mutation_receiver() const;
+      vvp_object_t element_storage() const;
       bool read_vec4(vvp_vector4_t&value) const { return read_vec4_(value); }
       void set_part(int64_t base, bool valid);
       void store_vec4(const vvp_vector4_t&value);

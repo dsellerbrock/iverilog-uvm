@@ -1160,6 +1160,23 @@ void vvp_ref_signal_aa::bind_elem(vvp_net_t*formal,
       unsupported_ref_event_binding_(formal, "an array or queue element");
 }
 
+void vvp_ref_signal_aa::bind_captured_elem(vvp_net_t*formal,
+                                           const vvp_object_t&element)
+{
+      vvp_context_t frame = vthread_get_wt_context();
+      if (!frame) return;
+      ref_aa_slot*slot =
+	    ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+	    slot = new ref_aa_slot;
+	    vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->clear();
+      slot->kind = ref_aa_slot::REF_ELEM;
+      slot->obj = element;
+      unsupported_ref_event_binding_(formal, "an associative-array element");
+}
+
 void vvp_ref_signal_aa::bind_word(vvp_net_t*formal,
                                   struct __vpiArray*arr, unsigned index)
 {
@@ -2020,6 +2037,11 @@ vvp_object_t vvp_lvalue_ref::mutation_receiver() const
                 object_.peek<vvp_assoc_element_ref>())
             return cell->attached_owner();
       return vvp_object_t();
+}
+
+vvp_object_t vvp_lvalue_ref::element_storage() const
+{
+      return storage_kind_ == STORAGE_ELEMENT ? object_ : vvp_object_t();
 }
 
 static void captured_ref_slot_(ref_aa_slot&slot,
