@@ -1,0 +1,5 @@
+{
+    "type": "CE",
+    "source": "issue1507_foreach_scope_escape.v",
+    "iverilog-args": ["-g2023", "-s", "tb"]
+}

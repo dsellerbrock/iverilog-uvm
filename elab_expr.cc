@@ -25680,6 +25680,28 @@ static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
       return false;
 }
 
+/* A foreach index is visible only in its implicit loop scope (IEEE
+ * 1800-2017/2023 12.7.3). Unresolved names normally retain a compile-progress
+ * warning for frontend constructs that are not modeled yet, but that
+ * recovery must not turn a reference to an escaped foreach index into a
+ * successful simulation with a fabricated value. */
+static bool unresolved_foreach_index_is_out_of_scope_(NetScope*scope,
+						       perm_string name)
+{
+      const perm_string foreach_attr =
+		perm_string::literal("_ivl_vpi_foreach_scope");
+      for (NetScope*ancestor = scope; ancestor;
+	   ancestor = ancestor->parent()) {
+	    for (const auto&child : ancestor->children()) {
+		  NetScope*loop_scope = child.second;
+		  if (loop_scope->attribute(foreach_attr).as_ulong() != 0
+		      && loop_scope->find_signal(name))
+			return true;
+	    }
+      }
+      return false;
+}
+
 NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
@@ -27108,6 +27130,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // the error branch.
 	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
 		&& !sr.decl_after_use
+		&& !unresolved_foreach_index_is_out_of_scope_(
+		      scope, path_.name.front().name)
 		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
@@ -27294,6 +27318,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// came out of a concurrent assertion must not degrade to a
 	// warning here either.
       if (gn_system_verilog() && !strict_bind_ && !sr.decl_after_use
+	  && !unresolved_foreach_index_is_out_of_scope_(
+		scope, path_.name.front().name)
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"
