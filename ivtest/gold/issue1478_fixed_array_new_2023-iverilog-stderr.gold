@@ -1,0 +1,3 @@
+ivltests/issue1478_fixed_array_new.v:8: error: The new array constructor may only be used in an assignment to a dynamic array.
+ivltests/issue1478_fixed_array_new.v:3: error: The new array constructor may only be used in an assignment to a dynamic array.
+Elaboration failed

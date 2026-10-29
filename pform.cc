@@ -19603,6 +19603,21 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    ? &linear_ante_leaf : prop->ante_tree;
       const sva_stree_t*consequence_tree = linear_wait_implication
 	    ? &linear_conseq_leaf : prop->tree;
+	/* IEEE 1800-2017/2023 16.12.22(b),(c): implication antecedents
+	   must admit a match (and |-> additionally requires a nonempty match).
+	   The source-tree proof recognizes statically empty languages such as an
+	   intersect of unequal fixed lengths. Do this before building a machine:
+	   an unreachable antecedent accept would otherwise become vacuous success. */
+      if (implication && endpoint_fanout
+	  && sva_tree_proves_empty_(ante_tree)) {
+	    cerr << loc << ": error: an implication antecedent that can never "
+		 << "match is illegal (IEEE 1800-2017/2023 16.12.22)" << endl;
+	    error_count += 1;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      }
 	/* Assignment-bearing sibling paths need one value per live path, which
 	   this bitset carrier cannot represent. Admit only the statically exact
 	   deterministic-prefix subset; the caller emits the focused tree_sorry

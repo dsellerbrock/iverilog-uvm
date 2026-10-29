@@ -17,7 +17,7 @@ program main;
 	 $finish;
       end
 
-      obj = new[3] (3.0);
+      obj = new[3] ('{3.0,3.0,3.0});
       foo = sum_array(obj);
       if (foo != 9.0) begin
 	 $display("FAILED -- sum of '{3.3.3} is %0d", foo);

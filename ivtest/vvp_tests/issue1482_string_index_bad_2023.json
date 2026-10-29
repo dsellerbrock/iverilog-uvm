@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1482_string_index_bad.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1482_string_index_bad"
+}

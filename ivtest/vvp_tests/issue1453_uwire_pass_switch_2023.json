@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1453_uwire_pass_switch.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue1453_uwire_pass_switch"
+}

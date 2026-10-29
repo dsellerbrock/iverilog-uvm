@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1477_darray_new_scalar_initializer_fail_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1477_darray_new_scalar_initializer_fail"],
+  "gold": "issue1477_darray_new_scalar_initializer_fail_2017"
+}

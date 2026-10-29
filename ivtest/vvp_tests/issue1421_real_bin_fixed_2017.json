@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1421_real_bin_fixed.v",
+  "iverilog-args": ["-g2017", "-s", "issue1421_real_bin_fixed"],
+  "gold": "issue1421_real_bin_fixed_2017"
+}

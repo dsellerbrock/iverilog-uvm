@@ -1,0 +1,2 @@
+ivltests/issue1424_zero_sized_coverpoint_bin_2023.v:3: error: fixed covergroup bin array size shall be a positive integral expression (IEEE 1800 19.5.1).
+1 error(s) during elaboration.

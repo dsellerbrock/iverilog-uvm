@@ -929,7 +929,7 @@ void pform_class_pure_constraint(const struct vlltype&loc,
 extern std::vector<class_type_t::pform_cross_t> pending_crosses_;
 extern std::map<perm_string, PExpr*> pending_cg_options_;
 
-/* IEEE 1800-2017 19.6. A cross item may name either an explicitly declared
+/* IEEE 1800-2017/2023 19.6. A cross item may name either an explicitly declared
  * coverpoint or an integral variable. In the latter case the language creates
  * an implicit coverpoint equivalent to `coverpoint variable'. Do this after
  * the complete covergroup body has been parsed so a cross can precede the
@@ -954,6 +954,7 @@ static void pform_covergroup_implicit_cross_coverpoints_(
 
 		  class_type_t::pform_coverpoint_t cp;
 		  cp.label = item;
+		  cp.implicit_cross_item = true;
 		  cp.decl_class = cross.decl_class;
 		  cp.declared_by_extension = cross.declared_by_extension;
 		  if (item_idx < cross.cp_exprs.size()

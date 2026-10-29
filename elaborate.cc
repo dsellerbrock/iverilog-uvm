@@ -4639,6 +4639,20 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 
       vector<NetNet*>lval_sigs (lval_count);
 
+      bool pass_switch = false;
+      switch (type()) {
+	  case TRAN:
+	  case RTRAN:
+	  case TRANIF0:
+	  case TRANIF1:
+	  case RTRANIF0:
+	  case RTRANIF1:
+	    pass_switch = true;
+	    break;
+	  default:
+	    break;
+      }
+
       for (unsigned idx = 0 ; idx < lval_count ; idx += 1) {
 	    if (pin(idx) == 0) {
 		  cerr << get_fileline() << ": error: Logic gate port "
@@ -4651,8 +4665,12 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 	      // SystemVerilog: IEEE 1800-2017 6.5 allows one primitive
 	      // output as a variable's single continuous source (the
 	      // shared lnet path re-checks for procedural conflicts).
-            if (lval_count > gate_count)
-	          lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
+	    if (lval_count > gate_count) {
+	          if (pass_switch)
+		lval_sigs[idx] = pin(idx)->elaborate_pass_net(des, scope, false);
+	          else
+		lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
+	    }
             else
 	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope,
 	                                                    gn_system_verilog());
@@ -28589,6 +28607,37 @@ static bool covergroup_strobe_enabled_(Design*des, NetScope*scope,
 	return result;
 }
 
+static perm_string covergroup_observed_clocking_event_(Design*des, NetScope*scope,
+				       const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!scope || scope->type() != NetScope::MODULE || !cgdef) return perm_string();
+	auto mod_it = pform_modules.find(scope->module_name());
+	if (mod_it == pform_modules.end() || !mod_it->second) return perm_string();
+	const Module*mod = mod_it->second;
+	for (const auto&cp : cgdef->coverpoints) {
+	      const PEIdent*id = dynamic_cast<const PEIdent*>(cp.expr);
+	      if (!id || id->path().name.size() != 2) continue;
+	      const name_component_t&cb_name = id->path().name.front();
+	      const name_component_t&signal_name = id->path().name.back();
+	      if (!cb_name.index.empty() || !signal_name.index.empty()) continue;
+	      auto cb_it = mod->clocking_blocks.find(cb_name.name);
+	      if (cb_it == mod->clocking_blocks.end()) continue;
+	      PExpr*delay = nullptr;
+	      if (cb_it->second->input_skew(signal_name.name, delay)
+		  != Module::PClocking::SKEW_DELAY || !delay) continue;
+	      NetExpr*value = elab_and_eval(des, scope, delay, -1, false, false);
+	      NetEConst*constant = dynamic_cast<NetEConst*>(value);
+	      bool zero = constant && constant->value().is_defined()
+		  && constant->value().as_ulong64() == 0;
+	      delete value;
+	      if (zero) {
+		    string trigger = string("_ivl_cbtrig$") + cb_name.name.str();
+		    return lex_strings.make(trigger.c_str());
+	      }
+	}
+	return perm_string();
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -28609,6 +28658,8 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->is_covergroup_standalone) continue;
 	    for (auto*cgdef : pcl->type->covergroups) {
 		  if (!cgdef || cgdef->sample_events.empty()) continue;
+		  perm_string observed_trigger =
+			covergroup_observed_clocking_event_(des, scope, cgdef);
 		  netclass_t*parent_ct = scope->find_class(des, pcl->pscope_name());
 		  if (!parent_ct) continue;
 		  int cgp = parent_ct->property_idx_from_name(cgdef->name);
@@ -28631,12 +28682,24 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		  PEventStatement ev(cgdef->sample_events);
 		  ev.set_line(*pcl);
 		  NetProc*event_body = st;
-		  if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+		  if (!observed_trigger.nil() || covergroup_strobe_enabled_(des, scope, cgdef)) {
 			NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
-			NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
-				IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
-			wait->set_line(*pcl);
-			body->append(wait);
+			if (!observed_trigger.nil()) {
+			      pform_name_t trigger_path;
+			      trigger_path.push_back(name_component_t(observed_trigger));
+			      PEIdent*trigger_id = new PEIdent(trigger_path, 0);
+			      PEEvent*trigger_expr = new PEEvent(PEEvent::ANYEDGE, trigger_id);
+			      PEventStatement*wait = new PEventStatement(trigger_expr);
+			      wait->set_line(*pcl);
+			      NetProc*wait_proc = wait->elaborate(des, scope);
+			      if (wait_proc) body->append(wait_proc);
+			}
+			if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+			      NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
+					IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
+			      wait->set_line(*pcl);
+			      body->append(wait);
+			}
 			body->append(st);
 			event_body = body;
 		  }
@@ -28670,6 +28733,8 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->covergroups.empty()) continue;
 	    class_type_t::pform_covergroup_t*cgdef = pcl->type->covergroups.front();
 	    if (!cgdef || cgdef->sample_events.empty()) continue;
+	    perm_string observed_trigger =
+		  covergroup_observed_clocking_event_(des, scope, cgdef);
 
 	    pform_name_t mpath;
 	    mpath.push_back(name_component_t(sig->name()));
@@ -28681,7 +28746,7 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
 	    ev->set_line(*sig);
 	    Statement*event_body = call;
-	    if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+	    if (!observed_trigger.nil() || covergroup_strobe_enabled_(des, scope, cgdef)) {
 		pform_name_t wait_path;
 		wait_path.push_back(name_component_t(
 			perm_string::literal("$ivl_covgrp_strobe_wait")));
@@ -28689,7 +28754,17 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		wait->set_line(*sig);
 		PBlock*body = new PBlock(PBlock::BL_SEQ);
 		vector<Statement*>statements;
-		statements.push_back(wait);
+		if (!observed_trigger.nil()) {
+		      pform_name_t trigger_path;
+		      trigger_path.push_back(name_component_t(observed_trigger));
+		      PEIdent*trigger_id = new PEIdent(trigger_path, 0);
+		      PEEvent*trigger_expr = new PEEvent(PEEvent::ANYEDGE, trigger_id);
+		      PEventStatement*observed_wait = new PEventStatement(trigger_expr);
+		      observed_wait->set_line(*sig);
+		      statements.push_back(observed_wait);
+		}
+		if (covergroup_strobe_enabled_(des, scope, cgdef))
+		      statements.push_back(wait);
 		statements.push_back(call);
 		body->set_statement(statements);
 		event_body = body;
@@ -34252,6 +34327,9 @@ static string constraint_class_container_size_ir_(
 	// An outer dynamic array of dynamic arrays stores value containers,
 	// despite sharing the runtime object-array storage with class handles.
 	if (dynamic_cast<const netdarray_t*>(etype)) ttext = "D";
+	// Class-handle arrays need a distinct descriptor so solver write-back
+	// preserves their object identities and leaves newly added handles null.
+	if (dynamic_cast<const netclass_t*>(etype)) ttext = "Do";
 	// Q<MAX>:<ENC> distinguishes queue construction from dynamic-array
 	// construction at solver write-back. MAX is the maximum element count
 	// (0 means unbounded).
@@ -43723,21 +43801,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				return ok && std::isfinite(value);
 			  };
 			  for (auto&range : ranges) {
-				if (!range.first || !range.second) {
-				      cerr << "error: real covergroup bin '" << bin_name
-					   << "' requires finite range endpoints." << endl;
-				      return false;
-				}
-				double lo, hi;
-				if (!endpoint(range.first, lo) || !endpoint(range.second, hi)) {
-				      cerr << range.first->get_fileline()
+				double lo = -std::numeric_limits<double>::infinity();
+				double hi = std::numeric_limits<double>::infinity();
+				bool unbounded = !range.first || !range.second;
+				if ((range.first && !endpoint(range.first, lo))
+				    || (range.second && !endpoint(range.second, hi))) {
+				      PExpr* bad_endpoint = range.first ? range.first : range.second;
+				      cerr << bad_endpoint->get_fileline()
 					   << ": error: real covergroup bin '" << bin_name
 					   << "' requires constant finite endpoints." << endl;
 				      des->errors += 1;
 				      return false;
 				}
 				if (hi < lo) std::swap(lo, hi);
-				if (!partition) {
+				// IEEE 1800-2023 19.5.1 specifies that a real range
+				// containing $ is represented by one bin, not partitioned.
+				if (!partition || unbounded) {
 				      rout.push_back(std::make_pair(real_key(lo), real_key(hi)));
 				      continue;
 				}
@@ -44207,6 +44286,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 			  }
 			  if (!this_qualified) ++comp;
+		      // A direct clocking-block reference is represented as a dotted
+		      // identifier, but its clockvar is not a module net. Use its raw
+		      // declaration type when resolving the coverpoint's value width.
+		      if (!type && id->path().name.size() == 2) {
+			    NetScope*decl_scope = class_scope_->parent();
+			    const name_component_t&cb_name = id->path().name.front();
+			    const name_component_t&signal_name = id->path().name.back();
+			    if (decl_scope && decl_scope->type() == NetScope::MODULE
+				&& cb_name.index.empty() && signal_name.index.empty()) {
+				  auto mod_it = pform_modules.find(decl_scope->module_name());
+				  if (mod_it != pform_modules.end() && mod_it->second) {
+				    auto cb_it = mod_it->second->clocking_blocks.find(cb_name.name);
+				    if (cb_it != mod_it->second->clocking_blocks.end()
+					&& std::find(cb_it->second->signals.begin(),
+						     cb_it->second->signals.end(),
+					     signal_name.name)
+				       != cb_it->second->signals.end()) {
+				  NetNet*raw = resolve_clocking_raw_signal(
+					des, decl_scope, cb_it->second, signal_name.name);
+				  if (raw) return raw->net_type();
+			    }
+			  }
+			    }
+		      }
 			  for (; type && comp != id->path().name.end(); ++comp) {
 				if (const netclass_t*ct =
 				      dynamic_cast<const netclass_t*>(type)) {
@@ -44236,6 +44339,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				dynamic_cast<const PEMemberAccess*>(expr);
 			  if (!member) return nullptr;
 			  ivl_type_t type = coverpoint_expr_type(member->base());
+		      if (!type) {
+			    // Clocking-block members are not ordinary module properties.
+			    // Resolve a direct enclosing-module clockvar to its raw signal
+			    // type so explicit value bins use the declared integral width.
+			    const PEIdent*cb_id =
+				  dynamic_cast<const PEIdent*>(member->base());
+			    NetScope*decl_scope = class_scope_->parent();
+			    if (cb_id && cb_id->path().name.size() == 1
+				&& cb_id->path().name.front().index.empty()
+				&& decl_scope && decl_scope->type() == NetScope::MODULE) {
+				  auto mod_it = pform_modules.find(decl_scope->module_name());
+				  if (mod_it != pform_modules.end() && mod_it->second) {
+				    auto cb_it = mod_it->second->clocking_blocks.find(
+					  cb_id->path().name.front().name);
+				    if (cb_it != mod_it->second->clocking_blocks.end()
+					&& std::find(cb_it->second->signals.begin(),
+						     cb_it->second->signals.end(),
+						     member->member_name())
+				       != cb_it->second->signals.end()) {
+				  NetNet*raw = resolve_clocking_raw_signal(
+					des, decl_scope, cb_it->second,
+					member->member_name());
+				  if (raw) return raw->net_type();
+			    }
+			  }
+		      }
+		      }
 			  if (const netclass_t*ct =
 				dynamic_cast<const netclass_t*>(type)) {
 				int pidx = ct->property_idx_from_name(member->member_name());
@@ -44382,6 +44512,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_real_type = cp_base == IVL_VT_REAL
 				|| (cp.expr && cp.expr->expr_type() == IVL_VT_REAL
 				    && (!cp_binary || strchr("+-*/p", cp_binary->get_op())));
+			  if (cp.implicit_cross_item && cp_real_type) {
+				cerr << cp.expr->get_fileline()
+				     << ": error: a real variable cannot be a direct cross item."
+				     << endl;
+				des->errors += 1;
+			  }
 			  auto cp_interval_it = cp.options.find(
 				perm_string::literal("type_option.real_interval"));
 			  auto group_interval_it = cgdef->options.find(
@@ -44392,7 +44528,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      ? group_interval_it->second : nullptr;
 			  bool cp_real_supported = cp_real_type
 				&& sv_feature_available(SVF_REAL_COVERPOINT_BINS);
-			  if (cp_real_type && !cp_real_supported
+			  if (cp_real_type && !cp.implicit_cross_item
+			      && !cp_real_supported
 			      && !real_interval_expr) {
 				if (!sv_require_feature(cp.expr,
 							SVF_REAL_COVERPOINT_BINS))
@@ -44782,6 +44919,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 
 			  for (auto& bin : cp.bins) {
+			if (cp_real_supported && bin.is_default && bin.arrayed) {
+			      cerr << cp.expr->get_fileline()
+				   << ": error: IEEE 1800-2023 19.5.1 prohibits an array of bins "
+				      "for a default bin of a real coverpoint." << endl;
+			      des->errors += 1;
+			      continue;
+			}
 			const netclass_t*bin_decl_class = nullptr;
 			if (bin.decl_class)
 			      bin_decl_class = covgrp_decl_class(bin.decl_class, "bin");
@@ -44852,7 +44996,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (cp_real_supported
 				    && (!bin.trans_seqs.empty() || bin.set_expr
 					|| bin.wildcard || !bin.source_coverpoint.nil()
-					|| bin.with_expr || bin.array_size)) {
+					|| bin.with_expr)) {
 				      cerr << pclass->get_fileline()
 					   << ": error: real coverpoint bin '" << bin.name
 					   << "' uses a bin form outside real range bins." << endl;
@@ -45025,6 +45169,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  term.alternatives = term.dynamic ? 1 : alternatives > UINT64_MAX
 							? UINT64_MAX : (uint64_t)alternatives;
 						  term.repeat = (unsigned)source_term.repeat_kind;
+						  if (base_kind == 2
+						      && (term.repeat == class_type_t::
+							 pform_cov_trans_term_t::TRANS_GOTO
+							  || term.repeat == class_type_t::
+							 pform_cov_trans_term_t::TRANS_NONCONSECUTIVE)) {
+							cerr << "error: illegal transition bin '"
+							     << bin.name
+							     << "' cannot contain goto or nonconsecutive "
+							     << "repetition because its sequence length is "
+							     << "unbounded (IEEE 1800-2017/2023 19.5.6)."
+							     << endl;
+							des->errors += 1;
+							bad = true;
+							break;
+						  }
 						  if (source_term.repeat_kind
 						      != class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
 							if (!repeat_bound(source_term.repeat_lo, term.min)
@@ -45567,7 +45726,50 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					desc.source_prop = (int)prop;
 					desc.guard_idx = bin_guard;
 					vbins.push_back(std::move(desc));
-				      } else {
+				      } else if (bin.array_size && base_kind == 0) {
+					NetExpr*se = elab_and_eval(des, class_scope_,
+						bin.array_size, -1, false, false);
+					NetEConst*sc = dynamic_cast<NetEConst*>(se);
+					uint64_t bins = sc && sc->value().is_defined()
+						? sc->value().as_ulong64() : 0;
+					delete se;
+					if (bins == 0 || bins > 65536) {
+					      cerr << pclass->get_fileline()
+						   << ": error: real coverpoint fixed bin array '"
+						   << bin.name << "' requires a positive constant size "
+						   << "no greater than 65536." << endl;
+					      des->errors += 1;
+					      continue;
+					}
+					size_t per_bin = std::max<size_t>(1,
+					      real_ranges.size() / bins);
+					size_t item = 0;
+					for (uint64_t idx = 0; idx < bins; ++idx) {
+					      size_t end = idx + 1 == bins
+						    ? real_ranges.size()
+						    : std::min(real_ranges.size(), item + per_bin);
+					      std::vector<std::pair<uint64_t,uint64_t>> ranges(
+						    real_ranges.begin() + item,
+						    real_ranges.begin() + end);
+					      item = end;
+					      std::string name = bstem + "_" + std::to_string(idx);
+					      unsigned prop = add_value_prop(name, ranges,
+						    kindval, bin_guard);
+					      if (ranges.empty())
+						    cg_class->add_covgrp_bin(cp_idx, prop, 1, 0,
+							  kindval, 0, cp_idx, 0, 1, 1, 0, 1,
+							  netclass_t::COVGRP_NO_FAMILY, 0, bin_guard);
+					      xbin_desc_t desc;
+					      desc.name = lex_strings.make(
+						    (std::string(bin.name.str()) + "["
+						     + std::to_string(idx) + "]").c_str());
+					      desc.ranges = std::move(ranges);
+					      desc.source_prop = (int)prop;
+					      desc.guard_idx = bin_guard;
+					      vbins.push_back(std::move(desc));
+					}
+				      has_value_bins = true;
+				} else {
 					for (size_t idx = 0; idx < real_ranges.size(); ++idx) {
 					      std::vector<std::pair<uint64_t,uint64_t>> range(1,
 						    real_ranges[idx]);
@@ -46133,6 +46335,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								       bin.array_size, -1,
 								       false, false);
 					    NetEConst*sc = dynamic_cast<NetEConst*>(se);
+					    if (sc && sc->value().is_zero()) {
+						  cerr << pclass->get_fileline()
+						       << ": error: fixed covergroup bin array size shall be a positive integral expression (IEEE 1800 19.5.1)."
+						       << endl;
+						  des->errors += 1;
+						  delete se;
+						  continue;
+					    }
 					    nbins = sc ? sc->value().as_ulong64() : 0;
 					    delete se;
 					    if (nbins == 0) {

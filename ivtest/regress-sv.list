@@ -1,6 +1,8 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
+
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
 #
@@ -11,12 +13,15 @@
 #    any later version.
 #
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
+issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
+issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1410_covergroup_strobe_2017 normal,-g2017,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1410_covergroup_strobe_2023 normal,-g2023,-s,test ivltests gold=issue1410_covergroup_strobe.gold
+issue1414_clocking_block_coverpoint normal,-g2017,-s,test ivltests gold=issue1414_clocking_block_coverpoint.gold
 issue1383_sequence_method_match_items_2017 normal,-g2017,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1383_sequence_method_match_items_2023 normal,-g2023,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
@@ -1624,6 +1629,8 @@ sv_covergroup_sample_output_formal_fail_2023 CE,-g2023 ivltests gold=sv_covergro
 sv_covergroup_real_interval normal,-g2023 ivltests gold=sv_covergroup_real_interval.gold
 sv_covergroup_real_interval_fail_2017 CE,-g2017 ivltests gold=sv_covergroup_real_interval_fail_2017.gold
 sv_covergroup_real_interval_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_real_interval_fail_2023.gold
+issue1421_real_bin_fixed_2017 CE,-g2017 ivltests gold=issue1421_real_bin_fixed_2017.gold
+issue1421_real_bin_fixed_2023 normal,-g2023 ivltests gold=issue1421_real_bin_fixed.gold
 sv_covergroup_ctor_bin_ranges normal,-g2017 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
 sv_covergroup_ctor_bin_ranges_2023 normal,-g2023 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
 sv_covergroup_ctor_bin_ranges_type_coverage normal,-g2017 ivltests gold=sv_covergroup_ctor_bin_ranges_type_coverage.gold
@@ -1879,7 +1886,7 @@ sv_assert_clocking_input_skew_zero_2017 CE,-g2017,-gassertions ivltests
 sv_assert_clocking_input_skew_zero_2023 CE,-g2023,-gassertions ivltests
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
 sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
-sv_assert_intersect_unequal_lengths normal,-g2017 ivltests gold=sv_assert_intersect_unequal_lengths.gold
+sv_assert_intersect_unequal_lengths CE,-g2017 ivltests
 sv_constraint_expr_width normal,-g2012 ivltests
 sv_constraint_dist_boolean_subject normal,-g2012 ivltests gold=sv_constraint_dist_boolean_subject.gold
 sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_wide_literal_fail.gold
@@ -3142,6 +3149,8 @@ sv_randomize_global_source_priority normal,-g2017,-s,main ivltests gold=sv_rando
 sv_randomize_global_source_priority_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_source_priority.gold
 sv_randomize_global_handle_size_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
 sv_randomize_global_handle_size_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
+sv_rand_object_array_resize_2017 normal,-g2017,-s,test ivltests gold=sv_rand_object_array_resize.gold
+sv_rand_object_array_resize_2023 normal,-g2023,-s,test ivltests gold=sv_rand_object_array_resize.gold
 sv_randomize_global_cycle_soft_priority normal,-g2017,-s,main ivltests gold=sv_randomize_global_cycle_soft_priority.gold
 sv_randomize_global_cycle_soft_priority_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_cycle_soft_priority.gold
 
@@ -4817,6 +4826,9 @@ sv_covergroup_signed_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_si
 sv_covergroup_signed_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
 sv_covergroup_array_default_bins_2017 normal,-g2017,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
 sv_covergroup_array_default_bins_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_array_default_bins.gold
+issue1423_real_default_array_fail_2017 CE,-g2017,-s,issue1423_real_default_array_fail ivltests gold=issue1423_real_default_array_fail_2017.gold
+issue1423_real_default_array_fail_2023 CE,-g2023,-s,issue1423_real_default_array_fail ivltests gold=issue1423_real_default_array_fail_2023.gold
+issue1423_real_default_scalar_2023 normal,-g2023,-s,issue1423_real_default_scalar ivltests gold=issue1423_real_default_scalar_2023.gold
 sv_covergroup_open_end_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_open_end_ranges.gold
 sv_covergroup_open_end_transition normal,-g2017,-s,test ivltests gold=sv_covergroup_open_end_transition.gold
@@ -6207,3 +6219,14 @@ issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
 
 issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
 issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold
+
+# IEEE 1800-2017/2023 §19.5.1: fixed coverpoint bin array sizes must be positive.
+issue1424_zero_sized_coverpoint_bin_2017 CE,-g2017,-s,top ivltests
+issue1424_zero_sized_coverpoint_bin_2023 CE,-g2023,-s,top ivltests
+issue1433_cross_real_variable_fail_2017 CE,-g2017,-s,issue1433_cross_real_variable_fail ivltests gold=issue1433_cross_real_variable_fail_2017.gold
+issue1433_cross_real_variable_fail_2023 CE,-g2023,-s,issue1433_cross_real_variable_fail ivltests gold=issue1433_cross_real_variable_fail_2023.gold
+issue1420_real_bin_dollar_2017 normal,-g2017,-s,issue1420_real_bin_dollar_2017 ivltests gold=issue1420_real_bin_dollar.gold
+issue1420_real_bin_dollar_2023 normal,-g2023,-DISSUE1420_2023,-s,issue1420_real_bin_dollar_2023 ivltests gold=issue1420_real_bin_dollar.gold
+# IEEE 1800-2017/2023 6.24.3 rejects local/protected class-handle sources.
+sv_bitstream_class_local_source_fail_2017 CE,-g2017,-s,sv_bitstream_class_local_source_fail ivltests
+sv_bitstream_class_local_source_fail_2023 CE,-g2023,-s,sv_bitstream_class_local_source_fail ivltests

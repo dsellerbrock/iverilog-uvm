@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue1431_illegal_unbounded_transition.v","iverilog-args":["-g2023","-s","issue1431_illegal_unbounded_transition"]}

@@ -16133,22 +16133,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       // Keep selected class handles and their retained callbacks intact.
-      // IEEE 1800-2017 18.5.8.1/18.5.9 / 1800-2023 18.5.7.1/18.5.8:
-      // handle-array resizing requires typed allocation and a defined graph
-      // selection barrier; the integral allocator below cannot implement it.
+      // Arrays of class handles use the typed resize/write-back path below;
+      // unsupported handle collection shapes still cannot resize in a graph.
       if (graph)
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if ((type != "Do" && type != "Qo")
-                      || sv.container_type == "D"
-                      || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
-				builder.local_index(sv.idx)))
+                  bool class_handle_array = type == "Do"
+                        && sv.container_type == "Do" && sv.leaf == 0;
+                  if ((!class_handle_array
+                       && ((type != "Do" && type != "Qo")
+                           || sv.container_type == "D"
+                           || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+				builder.local_index(sv.idx)))))
                       || !rand_size_active_(builder, prop_active,
 					   sv.idx, sv.leaf)) continue;
                   uint64_t count = 0;
-                  if (!z3_eval_uint64(ctx, model, sv.var, count)
-                      || count != cobj_darray_size(builder.object(sv.idx),
-					      builder.local_index(sv.idx), sv.leaf)) {
+                  if (!class_handle_array
+                      && (!z3_eval_uint64(ctx, model, sv.var, count)
+                          || count != cobj_darray_size(builder.object(sv.idx),
+					      builder.local_index(sv.idx), sv.leaf))) {
                         fprintf(stderr, "ERROR: resizing a random class-handle collection during a global solve is not yet supported.\n");
                         Z3_model_dec_ref(ctx, model);
 
@@ -16295,7 +16298,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if ((type == "Do" || type == "Qo")
+                  bool class_handle_array = type == "Do"
+                        && sv.container_type == "Do" && sv.leaf == 0;
+                  if (!class_handle_array
+                      && (type == "Do" || type == "Qo")
                       && sv.container_type != "D"
                       && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
 				builder.local_index(sv.idx)))) continue;
@@ -16321,7 +16327,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  return rand_nested_elem_active_(builder, prop_active,
 						     sv.idx, sv.leaf, adr);
 	    };
-	    vvp_darray*da = desc.elem_type == "D"
+	    vvp_darray*da = (desc.elem_type == "D" || desc.elem_type == "Do")
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
@@ -16358,6 +16364,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    nv.set_bit(b, (property_rng(sv.idx).next() & 1)
 						  ? BIT4_1 : BIT4_0);
 			queue->set_word_max((unsigned)adr, nv, queue_max);
+		  }
+	    } else if (desc.elem_type == "Do") {
+		  // Retained class handles keep their identity. New handles are null;
+		  // randomization does not construct class objects (IEEE 1800 18.4).
+		  for (uint64_t adr = 0; old_array && adr < new_size
+		       && adr < old_array->get_size(); ++adr) {
+		    vvp_object_t handle;
+		    old_array->get_word((unsigned)adr, handle);
+		    da->set_word((unsigned)adr, handle);
 		  }
 	    } else if (desc.elem_type == "D") {
 		  // Retained inner arrays are values; new inner arrays start empty.

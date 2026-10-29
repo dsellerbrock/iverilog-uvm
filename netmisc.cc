@@ -2773,8 +2773,61 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 {
       const netqueue_t*queue =
 	    dynamic_cast<const netqueue_t*>(container_type);
+      if (queue && queue->assoc_index_type()
+	  && queue->assoc_index_type()->base_type() == IVL_VT_STRING) {
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned errors_before = des->errors;
+	    expr->test_width(des, scope, mode);
+	    if (des->errors != errors_before)
+		  return nullptr;
+	    if (expr->expr_type() != IVL_VT_STRING) {
+		  cerr << expr->get_fileline() << ": error: a string-indexed "
+		       << "associative array requires a string index "
+		       << "(IEEE 1800-2017/2023 7.8.2)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
       if (queue && queue->assoc_compat()) {
 	    ivl_type_t index_type = queue->assoc_index_type();
+	    if (index_type && index_type->base_type() == IVL_VT_CLASS) {
+		  /* IEEE 1800-2017/2023 7.8.3 permits a class-indexed map key
+		   * only when its static type is the declared class or a derived
+		   * class.  The generic assignment-context elaborator only sees
+		   * IVL_VT_CLASS here and can consequently accept unrelated handles;
+		   * inspect the uncoerced expression type before elaborating the key. */
+		  PExpr::width_mode_t mode = PExpr::SIZED;
+		  unsigned errors_before = des->errors;
+		  expr->test_width(des, scope, mode);
+		  if (des->errors != errors_before)
+			return nullptr;
+
+		  NetExpr*key = expr->elaborate_expr(des, scope, expr->expr_width(), 0);
+		  if (!key)
+			return nullptr;
+
+		  if (dynamic_cast<const NetENull*>(key)
+		      || dynamic_cast<const PENull*>(expr))
+			return key;
+
+		  const netclass_t*expected =
+			dynamic_cast<const netclass_t*>(index_type);
+		  const netclass_t*actual =
+			dynamic_cast<const netclass_t*>(key->net_type());
+		  for (const netclass_t*cur = actual; cur; cur = cur->get_super()) {
+			if (cur == expected)
+			      return key;
+		  }
+
+		  cerr << expr->get_fileline() << ": error: class-indexed associative-array "
+		       << "key must have type `"
+		       << (expected ? expected->get_name() : perm_string())
+		       << "' or a derived class (IEEE 1800-2017/2023 7.8.3)."
+		       << endl;
+		  des->errors += 1;
+		  delete key;
+		  return nullptr;
+	    }
 	    if (index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
 		  ivl_variable_type_t cast_type = index_type->base_type();

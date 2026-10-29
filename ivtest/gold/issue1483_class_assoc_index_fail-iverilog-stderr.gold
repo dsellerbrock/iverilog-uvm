@@ -1,0 +1,2 @@
+ivltests/issue1483_class_assoc_index_fail.v:8: error: class-indexed associative-array key must have type `expected_key' or a derived class (IEEE 1800-2017/2023 7.8.3).
+1 error(s) during elaboration.

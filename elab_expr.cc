@@ -18606,10 +18606,37 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    if (des->errors != error_count)
 		  return nullptr;
       }
-        // Icarus allows a dynamic array to be initialised with a single
-        // elementary value, in that case the expression needs to be evaluated
-        // with the rigth width.
-      if (darray)
+	  if (darray && (flags & DARRAY_NEW_INIT)) {
+	    width_mode_t mode = SIZED;
+	    unsigned error_count = des->errors;
+	    const_cast<PECallFunction*>(this)->test_width(des, scope, mode);
+	    if (des->errors != error_count)
+		  return nullptr;
+	    bool unpacked_array_result = false;
+	    if (!receiver_) {
+		  symbol_search_results search;
+		  if (symbol_search(this, des, scope, path_, UINT_MAX, &search)
+		      && search.scope) {
+			NetFuncDef*def = find_function_definition(
+			      des, scope, search.scope);
+			const NetNet*result = def ? def->return_sig() : nullptr;
+			if (result)
+			      unpacked_array_result =
+				    result->unpacked_dimensions() > 0;
+		  }
+	    }
+	    if (expr_type_ != IVL_VT_DARRAY && expr_type_ != IVL_VT_QUEUE
+		&& !unpacked_array_result) {
+		  cerr << get_fileline() << ": error: Function result is not an array "
+		       << "assignment-compatible with the dynamic-array initializer."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	  }
+	        // Preserve legacy element-context sizing except when elaborating
+	        // the assignment-compatible array operand of new[N](initializer).
+      if (darray && !(flags & DARRAY_NEW_INIT))
 	    width = darray->element_type()->packed_width();
       return elaborate_expr(des, scope, width, flags);
 }
@@ -21390,6 +21417,30 @@ static bool bitstream_cast_type_(ivl_type_t type, bool destination)
       return bitstream_cast_type_(type, destination, active);
 }
 
+static bool bitstream_class_has_restricted_property_(const netclass_t*type)
+{
+      if (!type)
+	    return false;
+      for (size_t idx = 0 ; idx < type->get_properties(); idx += 1) {
+	    property_qualifier_t qual = type->get_prop_qual(idx);
+	    if (!qual.test_static()
+		&& (qual.test_local() || qual.test_protected()))
+		  return true;
+      }
+      return false;
+}
+
+static bool bitstream_cast_source_is_this_(const PExpr*expr)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+	    return false;
+      const pform_scoped_name_t&path = ident->path();
+      return !path.package && path.name.size() == 1
+	    && path.name.front().name == perm_string::literal("this")
+	    && path.name.front().index.empty();
+}
+
 /* Return the fixed bit-stream width for an unpacked struct whose members
  * are packed. A zero result means that this helper does not apply. */
 static unsigned fixed_struct_stream_width_(ivl_type_t type)
@@ -21696,6 +21747,22 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (sub == 0)
 	    return 0;
 
+	/* IEEE 1800-2017/2023 6.24.3 excludes class-handle sources whose
+	 * class declares local or protected instance properties. The sole
+	 * exception is the current instance handle itself. Check this before
+	 * lowering a class handle to its one-bit representation. */
+      const netclass_t*source_class =
+	    dynamic_cast<const netclass_t*>(sub->net_type());
+      if (source_class && bitstream_cast_type_(target_type_, true)
+	  && bitstream_class_has_restricted_property_(source_class)
+	  && !bitstream_cast_source_is_this_(base_)) {
+	    cerr << get_fileline() << ": error: class handle with local or protected members cannot be used as a bit-stream cast source."
+		 << endl;
+	    des->errors += 1;
+	    delete sub;
+	    return nullptr;
+      }
+
 	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
 	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
 	 * not have a packed_width(), so check their member widths before the
@@ -21836,6 +21903,67 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 			for (size_t member_idx = 0;
 			     member_idx < record->members().size(); member_idx += 1) {
 			      NetEProperty*field = new NetEProperty(sub->dup_expr(), member_idx);
+			      field->set_line(*this);
+			      stream->set(member_idx, field);
+			}
+			stream->set_line(*this);
+			delete sub;
+			NetExpr*bits = target_type_->base_type() == IVL_VT_BOOL
+			      ? cast_to_int2(stream, expr_width_)
+			      : cast_to_int4(stream, expr_width_);
+			return pad_to_width(bits, expr_wid, signed_flag_, *this,
+				    target_type_);
+		  }
+	    }
+      }
+
+	/* A class handle is represented as a one-bit object reference in VVP,
+	 * but a class bit-stream cast streams its non-static properties. For
+	 * fixed-width packed properties, read each property in declaration order
+	 * and form the generic packed value before converting to the destination
+	 * (IEEE 1800-2017/2023 6.24.3). */
+      if (target_type_ && target_type_->packed()) {
+	    const netclass_t*class_type =
+		  dynamic_cast<const netclass_t*>(sub->net_type());
+	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
+		  || dynamic_cast<const NetEProperty*>(sub);
+	    if (class_type && stable_source) {
+		  vector<size_t> properties;
+		  unsigned width = 0;
+		  bool streamable = true;
+		  bool has_four_state = false;
+		  for (size_t idx = 0; idx < class_type->get_properties(); idx += 1) {
+			property_qualifier_t qual = class_type->get_prop_qual(idx);
+			if (qual.test_static())
+			      continue;
+			ivl_type_t prop_type = class_type->get_prop_type(idx);
+			if (!prop_type || !prop_type->packed()
+			    || prop_type->packed_width() <= 0
+			    || static_cast<unsigned>(prop_type->packed_width())
+				 > UINT_MAX - width) {
+			      streamable = false;
+			      break;
+			}
+			width += static_cast<unsigned>(prop_type->packed_width());
+			properties.push_back(idx);
+			has_four_state = has_four_state
+			      || prop_type->base_type() == IVL_VT_LOGIC;
+		  }
+		  if (streamable && !properties.empty()) {
+			if (width != static_cast<unsigned>(target_type_->packed_width())) {
+			      cerr << get_fileline()
+				   << ": error: bit-stream cast between fixed-size types of different sizes."
+				   << endl;
+			      des->errors += 1;
+			      delete sub;
+			      return nullptr;
+			}
+			NetEConcat*stream = new NetEConcat(properties.size(), 1,
+			      has_four_state ? IVL_VT_LOGIC : IVL_VT_BOOL);
+			for (size_t member_idx = 0;
+			     member_idx < properties.size(); member_idx += 1) {
+			      NetEProperty*field = new NetEProperty(
+				    sub->dup_expr(), properties[member_idx]);
 			      field->set_line(*this);
 			      stream->set(member_idx, field);
 			}
@@ -25116,9 +25244,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
                   return tmp;
             }
 
-              // Icarus allows a dynamic array to be initialised with a
-              // single elementary value, so try that next.
-	    check_type = array_type->element_type();
+	      // A new[N](initializer) operand must be an array, not a scalar
+	      // converted in the array element context.
+	    if (!(flags & DARRAY_NEW_INIT))
+		  check_type = array_type->element_type();
       }
 
 	      if (!have_type || !check_type->type_compatible(have_type)) {
@@ -30677,6 +30806,16 @@ unsigned PENewArray::test_width(Design*, NetScope*, width_mode_t&)
 NetExpr* PENewArray::elaborate_expr(Design*des, NetScope*scope,
 				    ivl_type_t ntype, unsigned flags) const
 {
+	  /* IEEE 1800-2017/2023 7.5.1: the target itself must be a dynamic
+	   * array. A fixed unpacked array does not become a valid target merely
+	   * because one of its element dimensions is dynamic. */
+	  if (!dynamic_cast<const netdarray_t*>(ntype)) {
+		cerr << get_fileline() << ": error: The new array constructor may "
+		        "only be used in an assignment to a dynamic array." << endl;
+		des->errors += 1;
+		return nullptr;
+	  }
+
 	// Elaborate the size expression.
       width_mode_t mode = LOSSLESS;
       unsigned use_wid = size_->test_width(des, scope, mode);
@@ -30732,7 +30871,8 @@ NetExpr* PENewArray::elaborate_expr(Design*des, NetScope*scope,
 	      // type. The run-time will assign this value to each element.
 	    const netarray_t*array_type = dynamic_cast<const netarray_t*> (ntype);
 
-	    init_val = init_->elaborate_expr(des, scope, array_type, flags);
+	    init_val = init_->elaborate_expr(des, scope, array_type,
+					      flags | DARRAY_NEW_INIT);
       }
 
       NetENew*tmp = new NetENew(ntype, size, init_val);
@@ -31665,7 +31805,8 @@ unsigned PENumber::test_width(Design*, NetScope*, width_mode_t&mode)
       return expr_width_;
 }
 
-NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype, unsigned) const
+NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype,
+				  unsigned flags) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PENumber::elaborate_expr: "
@@ -31675,9 +31816,13 @@ NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype, unsig
 		       << "ntype=" << *ntype << endl;
       }
 
-      // Icarus allows dynamic arrays to be initialised with a single value.
-      if (const netdarray_t*array_type = dynamic_cast<const netdarray_t*> (ntype))
-            ntype = array_type->element_type();
+      // A new[N](initializer) operand is an array, so a numeric scalar must
+      // not inherit the dynamic array's element type as its context.
+      if (!(flags & DARRAY_NEW_INIT)) {
+	    if (const netdarray_t*array_type =
+		      dynamic_cast<const netdarray_t*> (ntype))
+		  ntype = array_type->element_type();
+      }
 
       // Special case: If the context type is REAL, then cast the
       // vector value to a real and return a NetECReal.
@@ -31878,8 +32023,16 @@ NetExpr* PEString::elaborate_expr_uarray_(Design*des, NetScope*,
 }
 
 NetExpr* PEString::elaborate_expr(Design*des, NetScope*scope,
-				   ivl_type_t type, unsigned) const
+				   ivl_type_t type, unsigned flags) const
 {
+	  if ((flags & DARRAY_NEW_INIT)
+	      && dynamic_cast<const netdarray_t*>(type)) {
+		cerr << get_fileline() << ": error: String literal is not an array "
+		     << "assignment-compatible with the dynamic-array initializer."
+		     << endl;
+		des->errors += 1;
+		return nullptr;
+	  }
       if (const netuarray_t*uarray_type =
 		    dynamic_cast<const netuarray_t*>(type)) {
 	    return elaborate_expr_uarray_(des, scope, uarray_type,

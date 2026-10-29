@@ -45,7 +45,8 @@ using namespace std;
  */
 NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 					 bool bidirectional_flag,
-					 bool var_allowed_in_sv) const
+					 bool var_allowed_in_sv,
+					 bool pass_switch_flag) const
 {
       ivl_assert(*this, scope);
 
@@ -78,7 +79,12 @@ NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    }
 
 	    if (bidirectional_flag) {
-		  nets[idx] = parms_[idx]->elaborate_bi_net(des, scope, var_allowed_in_sv);
+		  if (pass_switch_flag)
+			nets[idx] = parms_[idx]->elaborate_pass_net(des, scope,
+			                                            var_allowed_in_sv);
+		  else
+			nets[idx] = parms_[idx]->elaborate_bi_net(des, scope,
+			                                          var_allowed_in_sv);
 	    } else {
 		  nets[idx] = parms_[idx]->elaborate_lnet(des, scope, var_allowed_in_sv);
 	    }
@@ -175,6 +181,12 @@ NetNet* PEConcat::elaborate_bi_net(Design*des, NetScope*scope,
                                    bool var_allowed_in_sv) const
 {
       return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv);
+}
+
+NetNet* PEConcat::elaborate_pass_net(Design*des, NetScope*scope,
+                                     bool var_allowed_in_sv) const
+{
+	  return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv, true);
 }
 
 bool PEConcat::is_collapsible_net(Design*des, NetScope*scope,
@@ -523,7 +535,8 @@ bool PEIdent::eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,
  */
 NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 					bool bidirectional_flag,
-					bool var_allowed_in_sv) const
+					bool var_allowed_in_sv,
+					bool pass_switch_flag) const
 {
       ivl_assert(*this, scope);
 
@@ -541,6 +554,15 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       NetNet*sig = sr.net;
       pform_name_t base_path = sr.path_head;
       pform_name_t member_path = sr.path_tail;
+
+      if (pass_switch_flag && sig
+	  && sig->type() == NetNet::UNRESOLVED_WIRE) {
+	    cerr << get_fileline() << ": error: Unresolved wire `"
+	         << sig->name() << "' cannot be connected to a bidirectional "
+	         << "terminal of a pass switch." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       if (sig == 0) {
 	    cerr << get_fileline() << ": error: Net " << path_
@@ -1479,6 +1501,12 @@ NetNet* PEIdent::elaborate_bi_net(Design*des, NetScope*scope,
                                   bool var_allowed_in_sv) const
 {
       return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv);
+}
+
+NetNet* PEIdent::elaborate_pass_net(Design*des, NetScope*scope,
+                                    bool var_allowed_in_sv) const
+{
+      return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv, true);
 }
 
 /*

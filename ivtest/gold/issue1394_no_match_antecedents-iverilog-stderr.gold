@@ -1,0 +1,2 @@
+ivltests/issue1394_no_match_antecedents.v:6: error: an implication antecedent that can never match is illegal (IEEE 1800-2017/2023 16.12.22)
+ivltests/issue1394_no_match_antecedents.v:8: error: an implication antecedent that can never match is illegal (IEEE 1800-2017/2023 16.12.22)

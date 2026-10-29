@@ -1,0 +1,2 @@
+issue1457_class_bitstream_source normal,-g2017,-s,top ivltests gold=issue1457_class_bitstream_source.gold
+issue1457_class_bitstream_source normal,-g2023,-s,top ivltests gold=issue1457_class_bitstream_source.gold

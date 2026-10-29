@@ -1,0 +1,3 @@
+ivltests/issue1453_uwire_pass_switch.v:5: error: Unresolved wire `unresolved' cannot be connected to a bidirectional terminal of a pass switch.
+ivltests/issue1453_uwire_pass_switch.v:5: error: Failed to elaborate primitive output expression top.unresolved.
+2 error(s) during elaboration.
