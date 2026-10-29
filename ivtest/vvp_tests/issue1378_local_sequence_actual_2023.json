@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1378_local_sequence_actual.v",
+  "iverilog-args": ["-g2023", "-s", "issue1378_local_sequence_actual"],
+  "gold": "issue1378_local_sequence_actual"
+}
