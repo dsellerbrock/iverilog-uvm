@@ -16778,22 +16778,39 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		 condition changes only at the clock (the synchronous-stimulus
 		 case). Like the rest of this sampled-value engine, a purely
 		 asynchronous mid-cycle glitch on c is not modeled. */
-	    if (kind == 2) {
-		  const char*w = (op == 14) ? "accept_on"
-			       : (op == 15) ? "reject_on"
-			       : (op == 16) ? "sync_accept_on"
-			       : "sync_reject_on";
-		  cerr << loc << ": sorry: `cover property' of a `" << w
-		       << "' operator is not supported; the cover is dropped."
-		       << endl;
-		  error_count += 1;
-		  delete fail_stmt; delete clk; delete disable;
-		  return;
-	    }
 	    bool accept = (op == 14 || op == 16);
 	    PExpr*pe = (*prop->seq)[0].expr;   /* operand p (consumed below) */
 	    PExpr*ce = prop->abort_cond;       /* abort condition (consumed) */
 	    prop->abort_cond = nullptr;
+	    if (kind == 2) {
+		  /* A cover succeeds when the abort property's result is true:
+		     accept_on succeeds on the abort condition or p, while
+		     reject_on succeeds only when the condition is false and p.
+		     Both operands are sampled by the same clocked checker. */
+		  PExpr*passexpr = accept
+			? sva_logic_(loc, 'o', ce, pe)
+			: sva_logic_(loc, 'a', sva_not_(loc, ce), pe);
+		  PExpr*ps = sva_rewrite_sampled_(loc, passexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_c = sva_make_reg_(loc, inst, "m", 0);
+		  pre.push_back(sva_assign_(loc, r_c, ps));
+		  attempt_state.push_back(r_c);
+		  perm_string r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+		  init_zero.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+					      sva_id_(loc, r_c));
+		  FILE_NAME(add, loc);
+		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_c),
+				 sva_report_stmt_(loc, inst, SVA_CB_SUCCESS), nullptr));
+		  if (pass_stmt) {
+			body.push_back(sva_if_(loc, sva_id_(loc, r_c),
+				       sva_cover_spawn_(loc, pass_stmt), nullptr));
+			pass_stmt = nullptr;
+		  }
+		  delete fail_stmt;
+	    } else {
 	    PExpr*failexpr;
 	    if (accept)
 		  failexpr = sva_logic_(loc, 'a', sva_not_(loc, ce),
@@ -16817,6 +16834,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    }
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
 				   sva_fail_action_(loc, inst, action), nullptr));
+	    }
       } else {
 	      /* ---- within (fixed-length sequences). ---- */
 	    std::vector<PExpr*> A, B;
