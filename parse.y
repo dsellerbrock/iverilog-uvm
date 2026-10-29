@@ -238,6 +238,7 @@ static void pform_cross_bind_function_types_(PFunction*func)
 {
 	  if (!pending_cross_scope_active_ || !func)
 		return;
+	  pform_cross_register_function(func);
 	  func->typedefs[pending_cross_value_typedef_->name] = pending_cross_value_typedef_;
 	  func->typedefs[pending_cross_queue_typedef_->name] = pending_cross_queue_typedef_;
 	  func->set_return_type_scope_local();
@@ -1298,6 +1299,7 @@ static void recover_stale_function_scope(const YYLTYPE&loc)
 
 void reset_parser_file_state(void)
 {
+      pform_cross_reset_visibility();
       while (!current_block_stack.empty()) {
 	    current_block_stack.pop();
 	    pform_pop_scope();
@@ -6577,7 +6579,8 @@ function_declaration /* IEEE1800-2005: A.2.6 */
 function_declaration_header
   : K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2);
+	current_function = pform_push_function_scope(@1, $4, $2,
+					      pending_cross_scope_active_);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);
 	$$ = $4;
@@ -6585,7 +6588,8 @@ function_declaration_header
       }
   | method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2);
+	current_function = pform_push_function_scope(@1, $4, $2,
+					      pending_cross_scope_active_);
 	current_function->set_method_override_specifiers($1);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);

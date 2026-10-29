@@ -589,6 +589,59 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       scope->local_symbols[name] = item;
 }
 
+namespace {
+struct cross_function_visibility_t {
+      perm_string name;
+      LexicalScope*scope;
+};
+struct cross_function_reference_t {
+      perm_string name;
+      LexicalScope*scope;
+      std::string location;
+      bool diagnosed;
+};
+static std::vector<cross_function_visibility_t> cross_functions_;
+static std::vector<cross_function_reference_t> cross_function_references_;
+
+static bool scope_is_within_(LexicalScope*scope, LexicalScope*parent)
+{
+      for (; scope; scope = scope->parent_scope())
+	    if (scope == parent) return true;
+      return false;
+}
+
+static void diagnose_cross_function_reference_(cross_function_reference_t&ref)
+{
+      cerr << ref.location << ": error: function '" << ref.name
+	   << "' is not visible outside its cross scope." << endl;
+      error_count += 1;
+      ref.diagnosed = true;
+}
+}
+
+void pform_cross_register_function(PFunction*func)
+{
+      if (!func) return;
+      LexicalScope*parent = func->parent_scope();
+      PBlock*block = dynamic_cast<PBlock*>(parent);
+      if (!block || !block->pscope_name().str()
+	  || strncmp(block->pscope_name().str(), "$__ivl_cross_scope_", 19) != 0)
+	    return;
+
+      cross_function_visibility_t entry = {func->pscope_name(), parent};
+      cross_functions_.push_back(entry);
+      for (auto&reference : cross_function_references_)
+	    if (!reference.diagnosed && reference.name == entry.name
+		&& !scope_is_within_(reference.scope, entry.scope))
+	      diagnose_cross_function_reference_(reference);
+}
+
+void pform_cross_reset_visibility()
+{
+      cross_functions_.clear();
+      cross_function_references_.clear();
+}
+
 PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
 
 /* A property inherited from a base class (IEEE 1800-2017 8.15, 8.18): a local
@@ -839,7 +892,8 @@ PTask* pform_push_task_scope_unbound(const struct vlltype&loc, const char*name,
 }
 
 PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
-                                     LexicalScope::lifetime_t lifetime)
+                                     LexicalScope::lifetime_t lifetime,
+                                     bool scope_local_symbol)
 {
       perm_string func_name = lex_strings.make(name);
 
@@ -865,7 +919,8 @@ PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
 	    pform_cur_generate->funcs[func_name] = func;
 
       } else {
-	    add_local_symbol(scopex, func_name, func);
+	    add_local_symbol(scope_local_symbol ? lexical_scope : scopex,
+	                     func_name, func);
 	    scopex->funcs[func_name] = func;
       }
 
@@ -1879,6 +1934,18 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 {
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, true);
+
+	  /* Calls can precede the cross declaration, so retain their lexical
+	     scopes and validate them when cross-local functions are declared. */
+	  if (name.size() == 1) {
+	    cross_function_reference_t reference = {
+		  name.front().name, lexical_scope, loc.get_fileline(), false};
+	    for (const auto&function : cross_functions_)
+		  if (function.name == reference.name
+		      && !scope_is_within_(reference.scope, function.scope))
+		    diagnose_cross_function_reference_(reference);
+	    cross_function_references_.push_back(reference);
+	  }
 
       PECallFunction*tmp = new PECallFunction(name, parms);
       tmp->set_leading_type_args(type_args);
