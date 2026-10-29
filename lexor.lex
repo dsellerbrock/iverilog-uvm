@@ -487,6 +487,9 @@ TU [munpf]
 		  sva_named_decl_header = 4;
 	    } else if (rc == K_int) {
 		  sva_named_decl_header = 4;
+	    } else if (rc == K_bit) {
+		  rc = K_sva_bit_local;
+		  sva_named_decl_header = 4;
 	    } else {
 		  sva_named_decl_header = 0;
 	    }

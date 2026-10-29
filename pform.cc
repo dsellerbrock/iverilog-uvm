@@ -9946,6 +9946,7 @@ struct sva_local_decl_type_t {
    match-item RHS. The resulting expression then survives every existing
    property/sequence clone without adding parallel type ownership to the IR. */
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
+static std::set<perm_string> sva_local_formal_names_;
 
 /* Transfer declaration identity into the property IR before the temporary
    type/coercion table is cleared. Assignment destinations alone are
@@ -9965,12 +9966,21 @@ void pform_sva_end_local_declarations(void)
 	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
 	    delete it->second.width;
       sva_local_decl_types_.clear();
+      sva_local_formal_names_.clear();
 }
 
 void pform_sva_begin_local_declarations(void)
 {
       /* This also recovers safely after a malformed prior declaration. */
-      pform_sva_end_local_declarations();
+      for (std::map<perm_string,sva_local_decl_type_t>::iterator it =
+	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
+	    delete it->second.width;
+      sva_local_decl_types_.clear();
+}
+
+void pform_sva_add_local_formal(const char*name)
+{
+      sva_local_formal_names_.insert(lex_strings.make(name));
 }
 
 static PExpr* sva_local_dimension_width_(const struct vlltype&loc,
@@ -10014,7 +10024,7 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
 				    bool packed_range_known = true)
 {
       perm_string key = lex_strings.make(name);
-      if (sva_local_decl_types_.count(key)) {
+      if (sva_local_decl_types_.count(key) || sva_local_formal_names_.count(key)) {
 	    cerr << loc << ": error: duplicate assertion local variable `"
 		 << key << "'." << endl;
 	    error_count += 1;
@@ -10035,6 +10045,20 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
       PENumber*width = new PENumber(new verinum((uint64_t)32, 32));
       FILE_NAME(width, loc);
       sva_local_decl_insert_(loc, name, width, true, 31, 0);
+}
+
+void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name)
+{
+      perm_string key = lex_strings.make(name);
+      if (sva_local_formal_names_.count(key)) {
+	    cerr << loc << ": error: duplicate assertion local variable `"
+		 << key << "'." << endl;
+	    error_count += 1;
+	    return;
+      }
+      cerr << loc << ": sorry: assertion local variable `" << key
+	   << "' with 2-state type is not supported." << endl;
+      error_count += 1;
 }
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
