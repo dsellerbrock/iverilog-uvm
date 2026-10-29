@@ -369,11 +369,13 @@ TU [munpf]
 \"            { BEGIN(CSTRING); }
 <CSTRING>\\\\ { yymore(); /* Catch \\, which is a \ escaping itself */ }
 <CSTRING>\\\" { yymore(); /* Catch \", which is an escaped quote */ }
+<CSTRING>\\x[xXzZ] { VLerror(yylloc, "error: x and z are not allowed as hexadecimal digits in string escape."); yymore(); }
 <CSTRING>\\\n { yymore(); /* Catch \\n, which will be filtered out */
 		yylloc.first_line += 1; }
 <CSTRING>\n   { yymore(); /* bare newline from macro stringification; filter replaces with space */
 		yylloc.first_line += 1; }
-<CSTRING>\"   { BEGIN(0);
+<CSTRING>\"   {
+		BEGIN(0);
 		yylval.text = yytext_string_filter(yytext, yyleng);
 		yylval.text[strlen(yylval.text)-1] = 0;
 		return STRING; }
