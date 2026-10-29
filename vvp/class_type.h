@@ -318,6 +318,7 @@ class class_type : public __vpiHandle {
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    bool is_cross = false;
+	    unsigned cross_num_print_missing = 0;
 	    std::string name;   // M12-7: coverpoint/cross label
 	    int iff_src = -1;   // parent property for event-driven cross iff
 	    int has_guard = -1; // unset preserves old VVP behavior
@@ -410,6 +411,10 @@ class class_type : public __vpiHandle {
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
 	return true; }
+      bool set_covgrp_item_cross_num_print_missing(size_t idx, unsigned value)
+      { if (idx >= covgrp_items_.size()) return false;
+        covgrp_items_[idx].cross_num_print_missing = value;
+        return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
 	bool covgrp_cp_real(size_t cp) const

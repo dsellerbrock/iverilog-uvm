@@ -524,6 +524,7 @@ class netclass_t : public ivl_type_s {
 	    PExpr* goal_expr = nullptr;
 	    PExpr* comment_expr = nullptr;
 	    bool is_cross = false;
+	    unsigned cross_num_print_missing = 0;
 	    perm_string name;   // M12-7: coverpoint/cross label
 	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
 	    int iff_src = -1;          // parent property for sample/all
@@ -671,6 +672,8 @@ class netclass_t : public ivl_type_s {
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       void set_covgrp_item_at_least_inherited(size_t idx, bool value)
       { covgrp_items_[idx].at_least_inherited = value; }
+      void set_covgrp_item_cross_num_print_missing(size_t idx, unsigned value)
+      { covgrp_items_[idx].cross_num_print_missing = value; }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }

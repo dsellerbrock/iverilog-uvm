@@ -6230,3 +6230,5 @@ issue1420_real_bin_dollar_2023 normal,-g2023,-DISSUE1420_2023,-s,issue1420_real_
 # IEEE 1800-2017/2023 6.24.3 rejects local/protected class-handle sources.
 sv_bitstream_class_local_source_fail_2017 CE,-g2017,-s,sv_bitstream_class_local_source_fail ivltests
 sv_bitstream_class_local_source_fail_2023 CE,-g2023,-s,sv_bitstream_class_local_source_fail ivltests
+sv_covergroup_cross_num_print_missing_2017 normal,-g2017,-s,tb ivltests gold=sv_covergroup_cross_num_print_missing.gold
+sv_covergroup_cross_num_print_missing_2023 normal,-g2023,-s,tb ivltests gold=sv_covergroup_cross_num_print_missing.gold

@@ -5097,6 +5097,14 @@ extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)
       return 0;
 }
 
+extern "C" unsigned ivl_type_covgrp_item_cross_num_print_missing(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+            return class_type->covgrp_item((size_t)idx).cross_num_print_missing;
+      return 0;
+}
+
 /* M12-7: coverpoint/cross label of a coverage item (may be nil). */
 extern "C" const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx)
 {

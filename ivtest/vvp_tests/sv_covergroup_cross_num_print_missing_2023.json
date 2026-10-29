@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_cross_num_print_missing_2023.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_covergroup_cross_num_print_missing",
+    "coverage-report": "sv_covergroup_cross_num_print_missing-coverage.gold"
+}

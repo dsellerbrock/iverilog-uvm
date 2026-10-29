@@ -768,6 +768,7 @@ extern void compile_class_covgrp_item_option_values(uint64_t item_idx,
 						    char*comment);
 extern void compile_class_covgrp_item_guard(uint64_t item_idx,
 					    uint64_t has_guard);
+extern void compile_class_covgrp_item_missing(uint64_t item_idx, uint64_t count);
 extern void compile_class_covgrp_parent(uint64_t prop);
 extern void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc);
 extern void compile_class_covgrp_sample_ir(uint64_t cp, char*ir);

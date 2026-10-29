@@ -1,0 +1,13 @@
+# Icarus Verilog functional coverage report
+covergroup tb.cg type_coverage 37.50
+  item 0 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_a_values_0 count 1 hit
+    bin __bin_cp_a_values_1 count 0 MISS
+  item 1 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_b_values_0 count 1 hit
+    bin __bin_cp_b_values_1 count 0 MISS
+  item 2 kind cross at_least 1 weight 1
+    bin __covgrp_cross_2_auto_0 count 1 hit
+    bin __covgrp_cross_2_auto_1 count 0 MISS
+  item 3 kind cross at_least 1 weight 1
+    bin __covgrp_cross_3_auto_0 count 1 hit

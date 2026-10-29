@@ -128,9 +128,10 @@ def compare_files(log_path, gold_path):
     return True
 
 
-def run_cmd(cmd: list) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list, env: dict = None) -> subprocess.CompletedProcess:
     '''Run the given command'''
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+                         env=env)
     return res
 
 def build_vpi_modules(options: dict, it_key: str) -> list:
@@ -357,7 +358,13 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     # run the vvp command
     vvp_cmd = assemble_vvp_cmd(options, cfg)
-    vvp_res = run_cmd(vvp_cmd)
+    report_path = None
+    vvp_env = None
+    if options.get('coverage_report'):
+        report_path = os.path.join("work", it_key + ".coverage-report")
+        vvp_env = os.environ.copy()
+        vvp_env['IVL_COVERAGE_REPORT'] = report_path
+    vvp_res = run_cmd(vvp_cmd, vvp_env)
     log_results(it_key, "vvp", vvp_res)
 
     log_list = ["iverilog-stdout", "iverilog-stderr",
@@ -378,6 +385,11 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
     vvp_rtn = build_vvp_return(expected_fail, vvp_res)
     if vvp_rtn:
         return vvp_rtn
+
+    if report_path:
+        gold_path = os.path.join("gold", options['coverage_report'])
+        if not compare_files(report_path, gold_path):
+            return [1, "Failed - coverage report differs."]
 
     return check_run_outputs(options, vvp_res.stdout.decode('ascii'), log_list, expected_fail)
 

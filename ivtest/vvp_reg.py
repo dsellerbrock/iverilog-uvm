@@ -109,7 +109,8 @@ def process_test(item: list, cfg: list) -> str:
         'vvp_args_extended' : it_dict.get('vvp-args-extended', [ ]),
         'vpi_modules'       : it_dict.get('vpi-modules', [ ]),
         'vpi_sources'       : it_dict.get('vpi-sources', [ ]),
-        'output_contains'   : it_dict.get('output-contains', [ ])
+        'output_contains'   : it_dict.get('output-contains', [ ]),
+        'coverage_report'   : it_dict.get('coverage-report', None)
     }
 
     if cfg['strict']:

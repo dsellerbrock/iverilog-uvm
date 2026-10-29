@@ -3321,6 +3321,14 @@ void compile_class_covgrp_item_guard(uint64_t item_idx, uint64_t has_guard)
 	    yyerror("invalid .covgrp_item_guard metadata value");
 }
 
+void compile_class_covgrp_item_missing(uint64_t item_idx, uint64_t count)
+{
+      if (!compile_class || item_idx > UINT_MAX || count > UINT_MAX
+	  || !compile_class->set_covgrp_item_cross_num_print_missing(
+		static_cast<size_t>(item_idx), static_cast<unsigned>(count)))
+	    yyerror("invalid .covgrp_item_missing metadata value");
+}
+
 /* M11-3: event-driven sampling metadata. The .covgrp_src property
  * indexes arrive biased by +1 (0 = none) because the vvp lexer only
  * accepts unsigned numbers. */
@@ -4292,12 +4300,19 @@ void class_type::covgrp_report(FILE*fd)
 		  fprintf(fd, "  item %u kind %s at_least %u weight %u\n",
 			  ip.first, is_cross ? "cross" : "coverpoint",
 			  at_least, weight);
+		  unsigned missing_printed = 0;
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
+			uint32_t cnt = ct->type_count(prop);
+			if (is_cross && (k == 0 || k == 4) && cnt < at_least) {
+			      unsigned limit = ip.first < ct->covgrp_items_.size()
+				    ? ct->covgrp_items_[ip.first].cross_num_print_missing : 0;
+			      if (missing_printed >= limit) continue;
+			      missing_printed += 1;
+			}
 			const char*tag = (k == 2 || k == 5) ? "illegal"
 			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
-			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,
 				ct->property_name(prop).c_str(), cnt,
 				(k == 0 || k == 4)
@@ -4320,6 +4335,7 @@ void class_type::covgrp_report(FILE*fd)
 			      && ct->covgrp_items_[idx].is_cross;
 			fprintf(fd, "    item %u kind %s at_least %u weight %u\n",
 				idx, is_cross ? "cross" : "coverpoint", at_least, weight);
+			unsigned missing_printed = 0;
 			for (unsigned prop : ip.second) {
 			      unsigned kind = prop_kind[prop];
 			      const char*tag = (kind == 2 || kind == 5) ? "illegal"
@@ -4327,6 +4343,12 @@ void class_type::covgrp_report(FILE*fd)
 			      auto count_it = instance.bin_counts.find(prop);
 			      uint32_t count = count_it == instance.bin_counts.end()
 				    ? 0 : count_it->second;
+			  if (is_cross && (kind == 0 || kind == 4) && count < at_least) {
+				unsigned limit = idx < ct->covgrp_items_.size()
+				      ? ct->covgrp_items_[idx].cross_num_print_missing : 0;
+				if (missing_printed >= limit) continue;
+				missing_printed += 1;
+			  }
 			      fprintf(fd, "      %s %s count %u %s\n", tag,
 				      ct->property_name(prop).c_str(), count,
 				      (kind == 0 || kind == 4)
