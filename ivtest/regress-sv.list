@@ -1,6 +1,8 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
+
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
 #

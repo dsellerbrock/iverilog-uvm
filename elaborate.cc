@@ -44945,6 +44945,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  term.alternatives = term.dynamic ? 1 : alternatives > UINT64_MAX
 							? UINT64_MAX : (uint64_t)alternatives;
 						  term.repeat = (unsigned)source_term.repeat_kind;
+						  if (base_kind == 2
+						      && (term.repeat == class_type_t::
+							 pform_cov_trans_term_t::TRANS_GOTO
+							  || term.repeat == class_type_t::
+							 pform_cov_trans_term_t::TRANS_NONCONSECUTIVE)) {
+							cerr << "error: illegal transition bin '"
+							     << bin.name
+							     << "' cannot contain goto or nonconsecutive "
+							     << "repetition because its sequence length is "
+							     << "unbounded (IEEE 1800-2017/2023 19.5.6)."
+							     << endl;
+							des->errors += 1;
+							bad = true;
+							break;
+						  }
 						  if (source_term.repeat_kind
 						      != class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
 							if (!repeat_bound(source_term.repeat_lo, term.min)
