@@ -12498,6 +12498,8 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
    the automaton engine delivers these. */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
+static const int SVA_CB_VACUOUS_SUCCESS = 657; /* cbAssertionVacuousSuccess */
+static const int SVA_CB_DISABLED_EVAL = 658; /* cbAssertionDisabledEvaluation */
 
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
@@ -12611,8 +12613,8 @@ static Statement* sva_cover_spawn_(const struct vlltype&loc,
 static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
 			      Statement*action);
 static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
-static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
-                               Statement*clear);
+static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
+                               PExpr*disable, Statement*clear);
 
 static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 				 perm_string req, perm_string vac_req,
@@ -20365,7 +20367,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       for (size_t i = 0 ; i < post.size() ; i += 1)
 	    full.push_back(post[i]);
 
-      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
+      if (disable) sva_disable_abort_(loc, inst, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -21195,6 +21197,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
       loop.push_back(sva_reactive_wait_(loc));
       loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
 	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+      loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
+	    sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
       if (action) {
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
@@ -21227,8 +21231,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 /* A pulse between assertion clocks still cancels live attempts. Observe
    the exact-false-to-exact-true transition independently of the clocked
    Observed-region level check, as in the parameter-repeat engine. */
-static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
-                               Statement*clear)
+static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
+                               PExpr*disable, Statement*clear)
 {
       PExpr*copy = sva_clone_expr_(disable);
       if (!copy) {
@@ -21245,7 +21249,10 @@ static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
       events.push_back(new PEEvent(PEEvent::POSEDGE, truth));
       PEventStatement*abort = new PEventStatement(events);
       FILE_NAME(abort, loc);
-      abort->set_statement(clear);
+      std::vector<Statement*> disabled;
+      disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
+      disabled.push_back(clear);
+      abort->set_statement(sva_block_(loc, disabled));
       PProcess*process = pform_make_behavior(IVL_PR_ALWAYS, abort, nullptr);
       FILE_NAME(process, loc);
 }
@@ -22804,7 +22811,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
       if (dis_async1) {
-	    sva_disable_abort_(loc, dis_async1, clear_domain1_state());
+	    sva_disable_abort_(loc, inst, dis_async1, clear_domain1_state());
 	    delete dis_async1;
 	    dis_async1 = nullptr;
       }
@@ -23383,7 +23390,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
       if (dis_async2) {
-	    sva_disable_abort_(loc, dis_async2,
+	    sva_disable_abort_(loc, inst, dis_async2,
 			       clear_domain2_state(
 				     sva_id_(loc, req), sva_id_(loc, req)));
 	    delete dis_async2;
@@ -24759,7 +24766,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			clear.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
 		  }
 	    }
-	    sva_disable_abort_(loc, disable, sva_block_(loc, clear));
+	    sva_disable_abort_(loc, inst, disable, sva_block_(loc, clear));
 	    delete disable;
 	    disable = nullptr;
       }
@@ -27211,7 +27218,7 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       PProcess*checker = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
       FILE_NAME(checker, loc);
       if (disable_event) {
-            sva_disable_abort_(loc, disable_event, clear());
+            sva_disable_abort_(loc, inst, disable_event, clear());
             delete disable_event;
       }
       init.push_back(sva_register_stmt_(loc, inst, -1, true));
@@ -27443,7 +27450,8 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
 
-      if (disable) sva_disable_abort_(loc, disable, sva_assign_(loc, pipe, sva_bit_(loc, 0)));
+      if (disable) sva_disable_abort_(loc, inst, disable,
+				      sva_assign_(loc, pipe, sva_bit_(loc, 0)));
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -29219,7 +29227,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
+	    std::vector<Statement*> disabled;
+	    disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
+	    disabled.push_back(clear_attempt_state());
+	    PCondit*dc = new PCondit(disable, sva_block_(loc, disabled), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
       } else {
@@ -29228,7 +29239,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
 
-      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
+      if (disable) sva_disable_abort_(loc, inst, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
