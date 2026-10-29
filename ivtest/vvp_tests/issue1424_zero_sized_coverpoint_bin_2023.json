@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1424_zero_sized_coverpoint_bin_2023.v",
+    "iverilog-args": ["-g2023", "-s", "top"],
+    "gold": "issue1424_zero_sized_coverpoint_bin_2023"
+}
