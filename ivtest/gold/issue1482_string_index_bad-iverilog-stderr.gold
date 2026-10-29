@@ -1,0 +1,2 @@
+ivltests/issue1482_string_index_bad.sv:5: error: a string-indexed associative array requires a string index (IEEE 1800-2017/2023 7.8.2).
+Elaboration failed
