@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1350_assertion_event_info.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1350_assertion_event_info_2023"],
+  "vpi-sources": ["vpi/issue1350_assertion_event_info.c"],
+  "output-contains": ["PASSED"]
+}

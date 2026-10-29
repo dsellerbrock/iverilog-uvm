@@ -159,7 +159,8 @@ EXTERN_C_START
    covering every attempt that stepped that tick), and -- from the
    global control tasks -- cbAssertionDisable/Enable
    ($assertoff/$asserton transitions) and cbAssertionReset
-   ($assertkill). The legacy engine (IVL_SVA_LEGACY=1) delivers
+   ($assertkill emits cbAssertionKill and cbAssertionReset). The legacy
+   engine (IVL_SVA_LEGACY=1) delivers
    everything except the step reasons. */
 #define cbAssertionStart        606
 #define cbAssertionSuccess      607
@@ -170,6 +171,8 @@ EXTERN_C_START
 #define cbAssertionEnable       612
 #define cbAssertionReset        613
 #define cbAssertionKill         614
+#define cbAssertionVacuousSuccess 657
+#define cbAssertionDisabledEvaluation 658
 
 /* Attempt information passed to an assertion callback.
 

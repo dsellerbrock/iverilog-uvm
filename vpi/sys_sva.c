@@ -174,6 +174,7 @@ static void sva_control_apply_entry_(sva_control_entry_t*entry,
 	    if (was)
 		  vpip_assertion_report(entry->idx, cbAssertionDisable,
 					entry->scope);
+	    vpip_assertion_report(entry->idx, cbAssertionKill, entry->scope);
 	    vpip_assertion_report(entry->idx, cbAssertionReset, entry->scope);
       } else if (was != entry->enabled) {
 	    vpip_assertion_report(entry->idx,
