@@ -17485,7 +17485,8 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	   separate finite-attempt-pool limit. */
       for (size_t i = 0 ; i < prop->seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*prop->seq)[i];
-	    if (st.delay_lo != st.delay_hi)
+	    if (generation_flag < GN_VER2017
+		&& st.delay_lo != st.delay_hi)
 		  return sva_match_item_sorry_(loc,
 			"on variable-length sequences are not supported yet");
 	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
