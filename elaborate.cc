@@ -19797,6 +19797,20 @@ static bool ref_property_is_dynamic_container_(const NetAssign_*property_lval)
 	    || property_type->base_type() == IVL_VT_QUEUE;
 }
 
+static PExpr* subroutine_default_actual_(NetScope*decl_scope, NetNet*port)
+{
+      const PTaskFunc*subroutine = decl_scope->task_pform();
+      if (!subroutine) subroutine = decl_scope->func_pform();
+      const vector<pform_tf_port_t>*formals = subroutine
+	    ? subroutine->peek_ports() : 0;
+	  if (!formals) return 0;
+      for (const pform_tf_port_t&formal : *formals) {
+	    if (formal.port && formal.port->basename() == port->name())
+		  return formal.defe;
+      }
+      return 0;
+}
+
 NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 					NetScope*default_scope,
 					NetNet*port, PExpr*actual,
@@ -19810,21 +19824,8 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	 the caller's scope. */
       NetScope*actual_scope = scope;
       if (actual == 0) {
-	    const PTaskFunc*subroutine = default_scope->task_pform();
-	    if (!subroutine) subroutine = default_scope->func_pform();
-	    const vector<pform_tf_port_t>*ports = subroutine
-		  ? subroutine->peek_ports() : 0;
-	    if (ports) {
-		  for (const pform_tf_port_t&declared_port : *ports) {
-			if (!declared_port.port
-			    || declared_port.port->basename() != port->name())
-			      continue;
-			actual = declared_port.defe;
-			if (actual)
-			      actual_scope = default_scope;
-			break;
-		  }
-	    }
+	    actual = subroutine_default_actual_(default_scope, port);
+	    if (actual) actual_scope = default_scope;
       }
 
       if (actual == 0) {
@@ -20529,21 +20530,28 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
+	    PExpr*actual = args[parms_idx];
+	    NetScope*actual_scope = scope;
+	    if (!actual && (port->port_type() == NetNet::POUTPUT
+		    || port->port_type() == NetNet::PINOUT)) {
+		  actual = subroutine_default_actual_(task, port);
+		  if (actual) actual_scope = task;
+	    }
 
 	      /* Copy-bound ref formals bypass the bind helper below. Validate
 		 their actual before aggregate-slice and copy-in handling. */
 	    if (port->port_type() == NetNet::PREF
-		&& !ref_formal_is_bound(port) && args[parms_idx]) {
+		&& !ref_formal_is_bound(port) && actual) {
 		  unsigned errors_before = des->errors;
-		  NetAssign_*actual_lval = args[parms_idx]->elaborate_lval(
-			des, scope, false, false, false, port->get_const());
+		  NetAssign_*actual_lval = actual->elaborate_lval(
+			des, actual_scope, false, false, false, port->get_const());
 		  if (!actual_lval) {
 			if (des->errors == errors_before)
 			      des->errors += 1;
 			continue;
 		  }
 		  bool equivalent = ref_actual_type_equivalent_(
-			des, port, args[parms_idx], actual_lval);
+			des, port, actual, actual_lval);
 		  delete actual_lval;
 		  if (!equivalent)
 			continue;
@@ -20555,9 +20563,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 declared bounds survive into SV/DPI, and use direct canonical
 		 word copies for fixed formals. The same description is retained
 		 for the direction-correct copy-back below. */
-	    int slice_kind = args[parms_idx]
+	    int slice_kind = actual
 		  ? decode_subroutine_uarray_slice_actual_(
-			des, scope, *this, args[parms_idx], slice_actuals[idx])
+			des, actual_scope, *this, actual, slice_actuals[idx])
 		  : 0;
 	    if (slice_kind < 0)
 		  continue;
@@ -20610,7 +20618,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  NetNet*via = 0;
 		  NetProc*bind = elaborate_ref_bind_(
 				des, scope, const_cast<NetScope*>(def->scope()), port,
-						     args[parms_idx], idx,
+						     actual, idx,
 						     &via);
 		  if (bind)
 			block->append(bind);
@@ -20635,7 +20643,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetExpr*rv = 0;
 
-	    if (args[parms_idx]) {
+	    if (actual) {
 		  unsigned copy_in_errors_before = des->errors;
 		    // A fixed unpacked-array formal's NetNet::net_type() is
 		    // only its ELEMENT type; its complete formal type (including
@@ -20656,16 +20664,17 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			: PExpr::NO_FLAGS;
 		  if (gn_commercial_unsafe_flag && !dpi_open_argument
 		      && port->port_type() != NetNet::PREF) {
-			const PEIdent*actual = dynamic_cast<const PEIdent*>(args[parms_idx]);
-			if (actual && !actual->leading_type_args()
-			    && actual->path().package == 0
-			    && actual->path().name.size() == 1
-			    && actual->path().name.front().index.empty()) {
-			      ivl_type_t actual_type = actual->test_type_of_ident(des, scope);
+			const PEIdent*actual_id = dynamic_cast<const PEIdent*>(actual);
+			if (actual_id && !actual_id->leading_type_args()
+			    && actual_id->path().package == 0
+			    && actual_id->path().name.size() == 1
+			    && actual_id->path().name.front().index.empty()) {
+			      ivl_type_t actual_type = actual_id->test_type_of_ident(
+				    des, actual_scope);
 			      if (commercial_unsafe_positional_container_type_match(
 				    formal_type, actual_type, true))
-				rv = elaborate_rval_expr(des, scope, actual_type,
-						 args[parms_idx],
+				rv = elaborate_rval_expr(des, actual_scope, actual_type,
+						 actual,
 						 false, false, argument_flags);
 			}
 		  }
@@ -20684,10 +20693,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 				 independently instead of falling through to the vector
 				 assignment path. */
 			if (const PEIdent*rid =
-			      dynamic_cast<const PEIdent*>(args[parms_idx])) {
+			      dynamic_cast<const PEIdent*>(actual)) {
 			      symbol_search_results asr;
 			      bool found = symbol_search(
-				    this, des, scope, rid->path(),
+				    this, des, actual_scope, rid->path(),
 				    rid->lexical_pos(), &asr);
 			      if (found && asr.net && asr.path_tail.empty()
 				  && rid->path().name.back().index.empty()) {
@@ -20716,7 +20725,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 			if (fdims.size() == 1) {
 			      rv = elaborate_rval_expr(
-				    des, scope, formal_type, args[parms_idx],
+				    des, actual_scope, formal_type, actual,
 				    false, false, argument_flags);
 			      if (NetEProperty*rprop =
 				    dynamic_cast<NetEProperty*>(rv)) {
@@ -20747,7 +20756,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  }
 		  if (!rv)
 			rv = elaborate_rval_expr(
-			      des, scope, formal_type, args[parms_idx],
+			      des, actual_scope, formal_type, actual,
 			      false, false, argument_flags);
 		  copy_in_error[idx] = des->errors != copy_in_errors_before;
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
@@ -20809,6 +20818,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    size_t parms_idx = idx - off;
 
 	    NetNet*port = def->port(idx);
+	    PExpr*actual = args[parms_idx];
+	    NetScope*actual_scope = scope;
+	    if (!actual && (port->port_type() == NetNet::POUTPUT
+		    || port->port_type() == NetNet::PINOUT)) {
+		  actual = subroutine_default_actual_(task, port);
+		  if (actual) actual_scope = task;
+	    }
 
 	      /* Skip input ports, and any ref port that was bound to its
 		 actual -- there is nothing to copy back, and a copy-back
@@ -20859,13 +20875,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 message. Note that the elaborate_lval method already
 		 printed a detailed message for the latter case. */
 	    NetAssign_*lv = 0;
-	    if (args[parms_idx]) {
+	    if (actual) {
 		  unsigned errors_before = des->errors;
-		  lv = args[parms_idx]->elaborate_lval(des, scope, false, false);
+		  lv = actual->elaborate_lval(des, actual_scope, false, false);
 		  if (lv == 0) {
-			cerr << args[parms_idx]->get_fileline() << ": error: "
+			cerr << actual->get_fileline() << ": error: "
 			     << "I give up on task port " << (idx+1)
-			     << " expression: " << *args[parms_idx] << endl;
+			     << " expression: " << *actual << endl;
 			// The base PExpr l-value elaborator reports why the
 			// expression is invalid but historically did not increment
 			// the design error count.  Make every rejected output/inout
