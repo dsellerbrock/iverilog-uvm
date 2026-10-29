@@ -16132,31 +16132,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             return Z3PASS_FAILED;
       }
 
-      // Keep selected class handles and their retained callbacks intact.
-      // IEEE 1800-2017 18.5.8.1/18.5.9 / 1800-2023 18.5.7.1/18.5.8:
-      // handle-array resizing requires typed allocation and a defined graph
-      // selection barrier; the integral allocator below cannot implement it.
-      if (graph)
-            for (const auto&sv : builder.size_vars) {
-                  const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if ((type != "Do" && type != "Qo")
-                      || sv.container_type == "D"
-                      || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
-				builder.local_index(sv.idx)))
-                      || !rand_size_active_(builder, prop_active,
-					   sv.idx, sv.leaf)) continue;
-                  uint64_t count = 0;
-                  if (!z3_eval_uint64(ctx, model, sv.var, count)
-                      || count != cobj_darray_size(builder.object(sv.idx),
-					      builder.local_index(sv.idx), sv.leaf)) {
-                        fprintf(stderr, "ERROR: resizing a random class-handle collection during a global solve is not yet supported.\n");
-                        Z3_model_dec_ref(ctx, model);
-
-                        Z3_optimize_dec_ref(ctx, opt);
-                        return Z3PASS_FAILED;
-                  }
-            }
-
 	// Evaluate every active struct leaf before mutating any of them. A model
 	// that cannot produce one requested scalar is not a successful partial
 	// write-back; return failure and let the enclosing graph transaction
@@ -16293,9 +16268,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       for (auto& sv : builder.size_vars) {
 	    if (!rand_size_active_(builder, prop_active, sv.idx, sv.leaf)) continue;
 	    uint64_t new_size = 0;
+            const string&type = builder.type(sv.idx)->property_base_type(
+		  builder.local_index(sv.idx));
             if (graph) {
-                  const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if ((type == "Do" || type == "Qo")
+                  if (type == "Qo"
                       && sv.container_type != "D"
                       && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
 				builder.local_index(sv.idx)))) continue;
@@ -16304,6 +16280,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  continue;
 	    uint64_t cap = random_container_size_cap_(sv.container_type);
 	    if (new_size > cap) new_size = cap;
+	    if (graph && type == "Do" && sv.container_type != "D"
+		&& !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
+			  builder.local_index(sv.idx)))) {
+		  // A rand array of class handles resizes as part of the global
+		  // solve. Retain handles by index; newly allocated entries are
+		  // null and therefore add no objects to this solve's graph.
+		  vvp_object_t old_obj;
+		  get_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				sv.leaf, old_obj);
+		  vvp_darray*old_array = old_obj.peek<vvp_darray>();
+		  vvp_darray_object*da = new vvp_darray_object((size_t)new_size);
+		  for (size_t adr = 0; old_array && adr < new_size
+		       && adr < old_array->get_size(); ++adr) {
+			vvp_object_t handle;
+			old_array->get_word((unsigned)adr, handle);
+			da->set_word((unsigned)adr, handle);
+		  }
+		  vvp_object_t obj(da);
+		  set_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+				  sv.leaf, obj);
+		  if (old_array) {
+			vvp_object_t stored;
+			get_leaf_object_(builder.object(sv.idx), builder.local_index(sv.idx),
+					  sv.leaf, stored);
+			if (vvp_darray*stored_array = stored.peek<vvp_darray>())
+			      stored_array->inherit_rand_modes(*old_array);
+		  }
+		  continue;
+	    }
 
 	    random_container_desc_t desc =
 		  random_container_desc_(sv.container_type);

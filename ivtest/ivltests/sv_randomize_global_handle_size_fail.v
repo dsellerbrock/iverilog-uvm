@@ -1,26 +1,22 @@
-// IEEE 1800-2017 18.5.8.1/18.5.9; 2023 18.5.7.1/18.5.8.
+// IEEE 1800-2017/2023 18.4: retain class handles during rand array resize;
+// newly added elements are null and are not constructed by randomize().
 class size_leaf;
-  rand bit [2:0] value;
+  rand bit [7:0] value;
 endclass
 class size_root;
   rand size_leaf items[];
-  int count = 2;
-  function new();
-    items = new[2]; foreach (items[i]) items[i] = new;
-  endfunction
-  constraint c { items.size() == count; foreach (items[i]) items[i].value == i+2; }
+  constraint c { items.size() == 2; }
 endclass
 module main;
   size_root r = new;
   size_leaf saved;
   initial begin
-    saved = r.items[0];
-    if (!r.randomize() || r.items[0] != saved || r.items[0].value != 2)
-      $fatal(1, "stable handle collection rejected or replaced");
-    r.count = 3;
-    if (r.randomize()) $fatal(1, "unsupported handle growth silently succeeded");
-    if (r.items.size() != 2 || r.items[0] != saved || r.items[0].value != 2)
-      $fatal(1, "failed handle growth changed graph");
+    r.items = new[1];
+    saved = new;
+    r.items[0] = saved;
+    if (!r.randomize()) $fatal(1, "class-handle array resize failed");
+    if (r.items.size() != 2 || r.items[0] != saved || r.items[1] != null)
+      $fatal(1, "array resize did not retain handle and null-initialize new entry");
     $display("PASSED");
   end
 endmodule
