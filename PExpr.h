@@ -540,10 +540,11 @@ class PEFNumber : public PExpr {
 
     public:
       bool refs_name(perm_string name) const override;
-      explicit PEFNumber(verireal*vp);
+      explicit PEFNumber(verireal*vp, bool one_step = false);
       ~PEFNumber() override;
 
       const verireal& value() const;
+      bool is_one_step() const;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -557,6 +558,7 @@ class PEFNumber : public PExpr {
 
     private:
       verireal*value_;
+      bool one_step_;
 };
 
 class PEIdent : public PExpr {

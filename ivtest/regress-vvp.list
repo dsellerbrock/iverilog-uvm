@@ -1,6 +1,8 @@
 
 # Test list files are a list of test names and the json that
 # describes the test.
+issue1462_step_global_precision_2017 vvp_tests/issue1462_step_global_precision_2017.json
+issue1462_step_global_precision_2023 vvp_tests/issue1462_step_global_precision_2023.json
 
 issue1367_unclocked_disable_2017 vvp_tests/issue1367_unclocked_disable_2017.json
 issue1383_sequence_method_match_items_2017 vvp_tests/issue1383_sequence_method_match_items_2017.json
