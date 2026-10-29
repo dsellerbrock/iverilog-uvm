@@ -1,0 +1,6 @@
+error: Some design elements have no explicit time unit and/or
+       : time precision; IEEE 1800-2017/2023 3.14.2.3 requires an error.
+       : Affected design elements are:
+       :   -- module issue1463_mixed_time_scopes declared here: ./ivltests/issue1463_mixed_time_scopes.v:8
+       :   -- module issue1463_unspecified declared here: ./ivltests/issue1463_mixed_time_scopes.v:5
+1 error(s) during elaboration.

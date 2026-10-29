@@ -15,6 +15,8 @@ issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
+issue1463_mixed_time_scopes_2017 CE,-g2017,-s,issue1463_mixed_time_scopes ivltests gold=issue1463_mixed_time_scopes-iverilog-stderr.gold
+issue1463_mixed_time_scopes_2023 CE,-g2023,-s,issue1463_mixed_time_scopes ivltests gold=issue1463_mixed_time_scopes-iverilog-stderr.gold
 issue1410_covergroup_strobe_2017 normal,-g2017,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1410_covergroup_strobe_2023 normal,-g2023,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1383_sequence_method_match_items_2017 normal,-g2017,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold

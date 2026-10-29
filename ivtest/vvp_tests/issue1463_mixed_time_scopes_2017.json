@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1463_mixed_time_scopes_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1463_mixed_time_scopes"],
+  "gold": "issue1463_mixed_time_scopes"
+}

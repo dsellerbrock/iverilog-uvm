@@ -48454,28 +48454,24 @@ bool Design::check_proc_synth() const
 /*
  * Check whether all design elements have an explicit timescale or all
  * design elements use the default timescale. If a mixture of explicit
- * and default timescales is found, a warning message is output. Note
+ * and default timescales is found, a diagnostic is output. Note
  * that we only need to check the top level design elements - nested
  * design elements will always inherit the timescale from their parent
  * if they don't have any local timescale declarations.
  *
- * NOTE: Strictly speaking, this should be an error for SystemVerilog
- * (1800-2012 section 3.14.2).
+ * A mixture is an error for SystemVerilog (IEEE 1800-2017/2023
+ * 3.14.2.3) and a warning for Verilog when -Wtimescale is enabled.
  */
 static void check_timescales(bool&some_explicit, bool&some_implicit,
 			     const PScope*scope)
 {
-      if (scope->time_unit_is_default)
-	    some_implicit = true;
-      else
+      if (scope->has_explicit_timescale())
 	    some_explicit = true;
-      if (scope->time_prec_is_default)
-	    some_implicit = true;
       else
-	    some_explicit = true;
+	    some_implicit = true;
 }
 
-static void check_timescales()
+static bool check_timescales()
 {
       bool some_explicit = false;
       bool some_implicit = false;
@@ -48514,14 +48510,14 @@ static void check_timescales()
       }
 
       if (!(some_explicit && some_implicit))
-	    return;
+	    return false;
 
       if (gn_system_verilog()) {
-	    cerr << "warning: "
+	    cerr << "error: "
 		 << "Some design elements have no explicit time unit and/or"
 		 << endl;
 	    cerr << "       : "
-		 << "time precision. This may cause confusing timing results."
+		 << "time precision; IEEE 1800-2017/2023 3.14.2.3 requires an error."
 		 << endl;
 	    cerr << "       : "
 		 << "Affected design elements are:"
@@ -48544,7 +48540,7 @@ static void check_timescales()
       }
 
       if (!gn_system_verilog())
-	    return;
+	    return true;
 
       for (pkg = pform_packages.begin(); pkg != pform_packages.end(); ++pkg) {
 	    const PPackage*pp = *pkg;
@@ -48572,6 +48568,8 @@ static void check_timescales()
 	    }
 	    cerr << endl;
       }
+
+      return true;
 }
 
 /*
@@ -49095,8 +49093,10 @@ Design* elaborate(list<perm_string>roots)
 	    return des;
 
 	// Now we have the full design, check for timescale inconsistencies.
-      if (warn_timescale)
-	    check_timescales();
+	if (gn_system_verilog() || warn_timescale) {
+	    if (check_timescales() && gn_system_verilog())
+		  des->errors++;
+	}
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "
