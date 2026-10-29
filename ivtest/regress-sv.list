@@ -62,6 +62,8 @@ sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_
 sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
 issue1253_invalid_dpi_linkage_2017 CE,-g2017,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2017.gold
 issue1253_invalid_dpi_linkage_2023 CE,-g2023,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2023.gold
+issue1386_nested_disable_iff_property_2017 CE,-g2017,-gassertions,-s,issue1386_nested_disable_iff_property_2017 ivltests
+issue1386_nested_disable_iff_property_2023 CE,-g2023,-gassertions,-s,issue1386_nested_disable_iff_property_2023 ivltests
 issue1226_proc_decl_order CE,-g2017,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2017.gold
 issue1226_proc_decl_order_2023 CE,-g2023,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2023.gold
 sv_checker_always_ff_blocking_fail_2017 CE,-g2017,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2017.gold
