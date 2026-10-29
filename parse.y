@@ -5039,7 +5039,31 @@ covergroup_item_list
 
 /* Labeled coverpoint: "cp: coverpoint expr { ... }" */
 covergroup_item
-  : IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
+  : data_type_or_implicit_no_opt IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->type  = $1;
+	cp->label = lex_strings.make($2);
+	cp->expr  = $5;
+	cp->iff_expr = $6;
+	if ($8) {
+	      for (auto* b : *$8) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $8;
+	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
+	delete[] $2;
+	$$ = cp;
+	}
+  | data_type_or_implicit_no_opt IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt ';'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->type  = $1;
+	cp->label = lex_strings.make($2);
+	cp->expr  = $5;
+	cp->iff_expr = $6;
+	delete[] $2;
+	$$ = cp;
+	}
+  | IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;

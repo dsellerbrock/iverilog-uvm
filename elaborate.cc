@@ -44103,6 +44103,37 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
+			  ivl_type_t declared_cp_type = cp.type
+				? cp.type->elaborate_type(des, class_scope_) : nullptr;
+			  if (cp.type) {
+				if (!declared_cp_type) {
+				      cerr << cp.type->get_fileline()
+					   << ": error: cannot resolve explicit coverpoint type."
+					   << endl;
+				      des->errors += 1;
+				} else {
+				      cp_type = declared_cp_type;
+				      ivl_variable_type_t declared_base = cp_type->base_type();
+				      bool declared_integral = declared_base == IVL_VT_BOOL
+					    || declared_base == IVL_VT_LOGIC
+					    || dynamic_cast<const netenum_t*>(cp_type);
+				      bool declared_real = declared_base == IVL_VT_REAL;
+				      if (!declared_integral && !declared_real) {
+					    cerr << cp.type->get_fileline()
+						 << ": error: coverpoint type must be integral"
+						    " or real."
+						 << endl;
+					    des->errors += 1;
+				      }
+				      cp_value_supported = declared_integral
+					    && cp_type->packed()
+					    && cp_type->packed_width() > 0
+					    && cp_type->packed_width() <= 64;
+				      cp_value_width = cp_type->packed()
+					    ? cp_type->packed_width() : 0;
+				      cp_value_signed = cp_type->get_signed();
+			}
+			  }
 			  ivl_variable_type_t cp_base = cp_type
 				? cp_type->base_type() : IVL_VT_NO_TYPE;
 			    // test_width() reports REAL for any operator with a real
@@ -44170,7 +44201,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_value_widths.push_back(cp_value_width);
 			  cp_value_signedness.push_back(cp_value_signed);
 			  int parent_prop = -1;
-			  if (!cg_standalone)
+			  if (!cg_standalone && !cp.type)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
 				const pform_scoped_name_t&path = pe->path();
 				bool this_property = !path.package
@@ -44226,7 +44257,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // M11-3: event-driven sampling metadata —
 			    // the runtime reads these parent properties
 			    // directly on each declaration-event fire.
-			  cg_class->add_covgrp_cp_srcprop(parent_prop);
+			  cg_class->add_covgrp_cp_srcprop(cp.type ? -1 : parent_prop);
 			  {
 				int gsrc = -1;
 				if (!cg_standalone && cgdef->is_extension
@@ -44265,16 +44296,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cg_class->add_covgrp_cp_guardsrc(gsrc);
 			  }
 			  string sample_ir;
+			  PExpr*cp_sample_expr = cp.type && cp.expr
+				? new PECastType(cp.type, cp.expr) : cp.expr;
 			  if (!cg_standalone && cp.expr && parent_prop < 0) {
 				bool uses_sample_formal = false;
 				for (perm_string formal : cgdef->sample_formals)
-				      if (cp.expr->refs_name(formal)) {
+				      if (cp_sample_expr->refs_name(formal)) {
 					    uses_sample_formal = true;
 					    break;
 				      }
 				if (!uses_sample_formal)
 				      sample_ir = pexpr_to_covergroup_sample_ir(
-					    cp.expr, cg_class, this, des, class_scope_);
+					    cp_sample_expr, cg_class, this, des, class_scope_);
 				if (!sample_ir.empty()
 			    && !covergroup_sample_ir_supported_(sample_ir,
 							cg_class, this))
@@ -44297,7 +44330,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // is not a parent-class property (standalone
 			    // covergroups, in-class expression
 			    // coverpoints).
-			  cg_class->add_covgrp_cp_expr(cp.expr);
+			  cg_class->add_covgrp_cp_expr(cp_sample_expr);
 
 			  opt_check(cp.options, "coverpoint");
 			  unsigned cp_at_least = opt_uint(cp.options, "at_least",

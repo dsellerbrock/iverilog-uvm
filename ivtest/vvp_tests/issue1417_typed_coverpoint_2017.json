@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1417_typed_coverpoint_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "issue1417_typed_coverpoint"
+}
