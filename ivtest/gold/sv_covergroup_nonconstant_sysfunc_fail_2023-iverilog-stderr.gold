@@ -1,0 +1,2 @@
+error: non-constant system function call in covergroup bin expression `invalid' (IEEE 1800-2017/2023 19.5).
+1 error(s) during elaboration.

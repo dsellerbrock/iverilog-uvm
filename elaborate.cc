@@ -42988,6 +42988,67 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  }
 			  return false;
 		    };
+		    std::function<bool(const PExpr*)> range_has_nonconstant_sysfunc;
+		    range_has_nonconstant_sysfunc = [&](const PExpr*expr) -> bool {
+			  if (!expr) return false;
+			  if (const PECallFunction*call =
+				dynamic_cast<const PECallFunction*>(expr)) {
+				const pform_name_t&name = call->path().name;
+				if (!call->receiver_expr() && !call->path().package
+				    && name.size() == 1
+				    && !strncmp(name.back().name, "$", 1)) {
+				      NetExpr*value = elab_and_eval(des, class_scope_,
+					    const_cast<PECallFunction*>(call), -1, false, false);
+				      bool constant = dynamic_cast<NetEConst*>(value) != nullptr;
+				      delete value;
+				      if (!constant) return true;
+				}
+				if (range_has_nonconstant_sysfunc(call->receiver_expr())) return true;
+				for (const named_pexpr_t&parm : call->get_parms())
+				      if (range_has_nonconstant_sysfunc(parm.parm)) return true;
+				return false;
+			  }
+			  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+				for (const name_component_t&component : id->path().name)
+				      for (const index_component_t&index : component.index)
+					    if (range_has_nonconstant_sysfunc(index.msb)
+						|| range_has_nonconstant_sysfunc(index.lsb)) return true;
+				return false;
+			  }
+			  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+				return range_has_nonconstant_sysfunc(unary->get_expr());
+			  if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+				return range_has_nonconstant_sysfunc(binary->get_left())
+				      || range_has_nonconstant_sysfunc(binary->get_right());
+			  if (const PETernary*ternary =
+				dynamic_cast<const PETernary*>(expr))
+				return range_has_nonconstant_sysfunc(ternary->get_cond())
+				      || range_has_nonconstant_sysfunc(ternary->get_true())
+				      || range_has_nonconstant_sysfunc(ternary->get_false());
+			  if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+				if (range_has_nonconstant_sysfunc(concat->repeat_expr())) return true;
+				for (const PExpr*part : concat->stream_parms())
+				      if (range_has_nonconstant_sysfunc(part)) return true;
+			  }
+			  if (const PEMemberAccess*member =
+				dynamic_cast<const PEMemberAccess*>(expr))
+				return range_has_nonconstant_sysfunc(member->base());
+			  if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+				if (range_has_nonconstant_sysfunc(inside->get_expr())) return true;
+				for (const inside_range_t&range : inside->get_ranges())
+				      if (range_has_nonconstant_sysfunc(range.lo)
+					  || range_has_nonconstant_sysfunc(range.hi)
+					  || range_has_nonconstant_sysfunc(range.weight)) return true;
+			  }
+			  if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+				return range_has_nonconstant_sysfunc(cast->cast_size())
+				      || range_has_nonconstant_sysfunc(cast->cast_base());
+			  if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+				return range_has_nonconstant_sysfunc(cast->cast_base());
+			  if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+				return range_has_nonconstant_sysfunc(cast->cast_base());
+			  return false;
+		    };
 		    std::function<bool(const PExpr*)> range_has_binding_error;
 		    range_has_binding_error = [&](const PExpr*expr) -> bool {
 			  if (!expr) return false;
@@ -45317,6 +45378,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				std::vector<std::pair<uint64_t,uint64_t>> rr;
 				std::vector<std::vector<uint64_t>> xz_values;
+				bool invalid_system_function = false;
 				if (!bin.source_coverpoint.nil()) {
 				      const class_type_t::pform_coverpoint_t*source_cp = nullptr;
 				      for (auto&candidate : cgdef->coverpoints)
@@ -45409,11 +45471,24 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << "is dropped." << endl;
 					    continue;
 				      }
-				} else if (!eval_ranges(bin.ranges, rr, cp_value_width,
+				} else if ([&]() {
+				      for (auto&range : bin.ranges)
+					    if (range_has_nonconstant_sysfunc(range.first)
+						|| range_has_nonconstant_sysfunc(range.second)) {
+						  cerr << "error: non-constant system function call in covergroup bin expression `"
+						       << bin.name << "' (IEEE 1800-2017/2023 19.5)."
+						       << endl;
+						  des->errors += 1;
+						  invalid_system_function = true;
+						  return true;
+					    }
+				      return false;
+				}() || !eval_ranges(bin.ranges, rr, cp_value_width,
 						 cp_value_signed, bin.name.str(),
 						 !bin.arrayed && !bin.with_expr && !bin.set_expr
 						 && bin.source_coverpoint.nil()
 						 ? &xz_values : nullptr)) {
+					if (invalid_system_function) continue;
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
