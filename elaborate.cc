@@ -46051,6 +46051,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								       bin.array_size, -1,
 								       false, false);
 					    NetEConst*sc = dynamic_cast<NetEConst*>(se);
+					    if (sc && sc->value().is_zero()) {
+						  cerr << pclass->get_fileline()
+						       << ": error: fixed covergroup bin array size shall be a positive integral expression (IEEE 1800 19.5.1)."
+						       << endl;
+						  des->errors += 1;
+						  delete se;
+						  continue;
+					    }
 					    nbins = sc ? sc->value().as_ulong64() : 0;
 					    delete se;
 					    if (nbins == 0) {
