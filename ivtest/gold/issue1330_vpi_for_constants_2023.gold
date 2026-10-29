@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1330_vpi_for_constants_2023.v:4: $finish called at 0 (1s)
