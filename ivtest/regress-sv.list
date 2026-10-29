@@ -4245,6 +4245,8 @@ sv_assert_multiclock_bounded_antecedent_backlog normal,-g2017 ivltests gold=sv_a
 sv_assert_multiclock_bounded_antecedent_backlog_2023 normal,-g2023 ivltests gold=sv_assert_multiclock_bounded_antecedent_backlog_2023.gold
 
 # L91 finite Boolean multiclock repetition
+issue1395_empty_only_nonoverlap normal,-g2017 ivltests gold=issue1395_empty_only_nonoverlap.gold
+issue1395_empty_only_nonoverlap_2023 normal,-g2023 ivltests gold=issue1395_empty_only_nonoverlap.gold
 sv_assert_multiclock_boolean_repeat_range normal,-g2017 ivltests
 sv_assert_multiclock_boolean_repeat_range_2023 normal,-g2023 ivltests
 sv_assert_multiclock_boolean_repeat_empty_nonoverlap normal,-g2017 ivltests
