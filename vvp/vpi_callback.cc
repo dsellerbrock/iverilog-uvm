@@ -819,10 +819,8 @@ static struct __vpiCallback* make_at_start_of_sim_time(p_cb_data data)
       return obj;
 }
 
-/* cbNBASynch (IEEE 1800-2017 clause 38): fires once the NBA region of
-   the target time slot has fully drained -- including nonblocking
-   updates scheduled by nonblocking updates -- and before the Observed
-   region and the cbReadWriteSynch / cbAtEndOfSimTime points. */
+/* cbNBASynch (IEEE 1800 4.4.3.3/4.10 and 38.36.2): fires immediately
+   before the nonblocking assignments of the target time slot. */
 static struct __vpiCallback* make_nba_sync(p_cb_data data)
 {
       if (!check_callback_time(data, false))

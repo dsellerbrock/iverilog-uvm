@@ -10,7 +10,7 @@
  *
  * The expected region order is
  *     cbNBASynch -> cbReadWriteSynch -> cbAtEndOfSimTime -> cbReadOnlySynch
- * with every one of them seeing the settled q.
+ * cbNBASynch runs before the NBA and sees q=0; later callbacks see q=1.
  */
 # include  <vpi_user.h>
 # include  <stdlib.h>

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1343_nba_sync.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1343_nba_sync_2023"],
+  "vpi-sources": ["vpi/issue1343_nba_sync.c"],
+  "output-contains": ["ISSUE1343_NBA_SYNC_PASS"]
+}
