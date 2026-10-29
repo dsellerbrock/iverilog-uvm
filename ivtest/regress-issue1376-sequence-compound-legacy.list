@@ -1,0 +1,2 @@
+issue1376_sequence_compound_match_item normal,-g2017,-s,issue1376_sequence_compound_match_item ivltests gold=issue1376_sequence_compound_match_item_legacy.gold
+issue1376_sequence_compound_match_item_2023 normal,-g2023,-s,issue1376_sequence_compound_match_item ivltests gold=issue1376_sequence_compound_match_item_legacy.gold
