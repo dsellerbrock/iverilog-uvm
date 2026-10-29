@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1423_real_default_array_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue1423_real_default_array_fail"],
+  "gold": "issue1423_real_default_array_fail_2023"
+}
