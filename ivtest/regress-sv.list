@@ -19,6 +19,8 @@ issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
 issue1480_assoc_real_index_fail_2017 CE,-g2017,-s,top ivltests
 issue1480_assoc_real_index_fail_2023 CE,-g2023,-s,top ivltests
+issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_force_select_2017.gold
+issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests

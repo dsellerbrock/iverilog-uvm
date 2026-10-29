@@ -1,0 +1,5 @@
+./ivltests/issue1524_udnt_force_select_2017.v:6: error: force/release target shall not be a bit-select or part-select of a net with a user-defined nettype (IEEE 1800-2017/2023 10.6.2).
+./ivltests/issue1524_udnt_force_select_2017.v:7: error: force/release target shall not be a bit-select or part-select of a net with a user-defined nettype (IEEE 1800-2017/2023 10.6.2).
+./ivltests/issue1524_udnt_force_select_2017.v:8: error: force/release target shall not be a bit-select or part-select of a net with a user-defined nettype (IEEE 1800-2017/2023 10.6.2).
+./ivltests/issue1524_udnt_force_select_2017.v:9: error: force/release target shall not be a bit-select or part-select of a net with a user-defined nettype (IEEE 1800-2017/2023 10.6.2).
+4 error(s) during elaboration.
