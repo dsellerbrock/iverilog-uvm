@@ -6,6 +6,8 @@ issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
+issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
+issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)

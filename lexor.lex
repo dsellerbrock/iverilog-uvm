@@ -371,7 +371,8 @@ TU [munpf]
 <CSTRING>\\\" { yymore(); /* Catch \", which is an escaped quote */ }
 <CSTRING>\\\n { yymore(); /* Catch \\n, which will be filtered out */
 		yylloc.first_line += 1; }
-<CSTRING>\n   { yymore(); /* bare newline from macro stringification; filter replaces with space */
+<CSTRING>\n   { VLerror(yylloc, "error: Unescaped newline in quoted string literal.");
+		yymore();
 		yylloc.first_line += 1; }
 <CSTRING>\"   { BEGIN(0);
 		yylval.text = yytext_string_filter(yytext, yyleng);
