@@ -1,0 +1,2 @@
+ivltests/issue1479_foreach_wildcard_index_2017.v:6: error: Associative arrays with wildcard index type shall not be used in a foreach loop (IEEE 1800-2017/2023 7.8.1).
+1 error(s) during elaboration.

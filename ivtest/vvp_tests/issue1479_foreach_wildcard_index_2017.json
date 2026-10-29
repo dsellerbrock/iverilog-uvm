@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1479_foreach_wildcard_index_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue1479_foreach_wildcard_index_2017"
+}

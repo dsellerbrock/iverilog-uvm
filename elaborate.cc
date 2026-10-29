@@ -27023,6 +27023,18 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 {
       ivl_assert(*this, array_expr);
 
+      const netqueue_t*assoc_type =
+	    dynamic_cast<const netqueue_t*>(array_expr->net_type());
+      if (assoc_type && assoc_type->assoc_compat()
+	  && assoc_type->assoc_wildcard()) {
+	    delete array_expr;
+	    cerr << get_fileline() << ": error: Associative arrays with wildcard index type "
+	    << "shall not be used in a foreach loop (IEEE 1800-2017/2023 7.8.1)."
+	    << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       if (index_vars_.size() > index_var_start
 	  && index_vars_[index_var_start].nil()) {
 	const netqueue_t*assoc =
