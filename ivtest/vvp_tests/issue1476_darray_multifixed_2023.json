@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1476_darray_multifixed_2023.v",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["PASS: dynamic array with multiple fixed inner dimensions"]
+}

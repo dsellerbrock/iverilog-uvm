@@ -30438,17 +30438,31 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 
 			NetExpr*mux = nullptr;
 			if (level_fixed) {
-			      if (level_fixed->static_dimensions().size() != 1) {
-				    cerr << get_fileline() << ": sorry: an associative-array"
-					 << " value with more than one fixed dimension is not"
-					 << " yet supported." << endl;
+			      const size_t fixed_dims =
+				    level_fixed->static_dimensions().size();
+			      auto fixed_end = idx_it;
+			      size_t fixed_count = 0;
+			      while (fixed_count < fixed_dims
+				     && fixed_end != path_.back().index.end()) {
+				    ++fixed_end;
+				    ++fixed_count;
+			      }
+			      if (fixed_count != fixed_dims) {
+				    cerr << get_fileline() << ": sorry: partial indexing of "
+					 << "a multidimensional fixed array in a dynamic-array "
+					 << "element is not yet supported." << endl;
 				    des->errors += 1;
 				    delete cur_sel;
 				    return 0;
 			      }
-			      list<index_component_t>fixed_index(1, level_index);
+			      list<index_component_t>fixed_index(idx_it, fixed_end);
 			      mux = make_checked_canonical_property_index(
 				    des, scope, this, fixed_index, level_fixed, need_const);
+			      if (mux) {
+				    idx_it = fixed_end;
+				    et = level_fixed->element_type();
+				    ew = et ? et->packed_width() : 1;
+			      }
 			} else {
 			      mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);
@@ -30464,7 +30478,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			sel->set_line(*this);
 			cur_sel = sel;
 			cur_type = et;
-			++idx_it;
+			if (!level_fixed)
+			      ++idx_it;
 
 			  // Only a further CONTAINER level consumes another
 			  // index; anything else leaves the remaining

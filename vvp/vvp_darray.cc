@@ -1047,14 +1047,21 @@ vvp_object* vvp_darray_object::duplicate(void) const
 void vvp_darray_object::rebind_declared_element_container_layout(
       const vvp_container_layout_t&element_layout)
 {
-      for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
-	    if (vvp_object*value = array_[idx].peek<vvp_object>()) {
+	  for (size_t idx = 0 ; idx < array_.size() ; idx += 1) {
+	    vvp_object*value = array_[idx].peek<vvp_object>();
+	    if (!value && element_layout
+		&& element_layout->kind == VVP_CONTAINER_FIXED) {
+		  array_[idx] = vvp_make_fixed_array_value(element_layout);
+		  value = array_[idx].peek<vvp_object>();
+	    }
+	    if (value) {
 		  if (element_layout
 		      && element_layout->kind == VVP_CONTAINER_FIXED)
 			vvp_rebind_fixed_array_value(value, element_layout);
 		  else
 			value->set_declared_container_layout(element_layout);
 	    }
+	  }
 }
 
 vvp_darray_real::~vvp_darray_real()

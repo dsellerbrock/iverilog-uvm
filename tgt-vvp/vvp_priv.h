@@ -963,9 +963,10 @@ static inline uint64_t queue_receiver_max_operand_(ivl_expr_t receiver,
 }
 
 /* Emit the strict recursive container-layout suffix understood by new VVP.
- * Q0 means a known-unbounded queue; D and A carry no bound. An associative
- * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
- * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
+ * Q0 means a known-unbounded queue; D and A carry no bound. Fixed unpacked
+ * dimensions are stored as one flat child array; their checked canonical
+ * index preserves each declared bound before selecting a flat word. The
+ * leaf is b<width>, v<width>, or o for two-state, four-state, or object
  * elements. */
 static inline void emit_container_layout_suffix_(ivl_type_t type)
 {
@@ -975,12 +976,25 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
             if (type_is_fixed_uarray_property_(cur)) {
                   ivl_type_t leaf = ivl_type_element(cur);
                   const ivl_variable_type_t leaf_base = ivl_type_base(leaf);
-                  const int left = ivl_type_packed_msb(cur, 0);
-                  const int right = ivl_type_packed_lsb(cur, 0);
+                  uint64_t count = 1;
+                  for (unsigned dim = 0;
+                       dim < ivl_type_packed_dimensions(cur); ++dim) {
+                        const int left = ivl_type_packed_msb(cur, dim);
+                        const int right = ivl_type_packed_lsb(cur, dim);
+                        const uint64_t width = (uint64_t)(
+                              left >= right ? left - right : right - left) + 1;
+                        if (width > UINT_MAX || count > UINT_MAX / width) {
+                              count = 0;
+                              break;
+                        }
+                        count *= width;
+                  }
+                  if (count == 0)
+                        break;
                   const char kind = leaf_base == IVL_VT_BOOL ? 'b'
                         : leaf_base == IVL_VT_LOGIC ? 'v' : 'o';
-                  fprintf(vvp_out, "%cF%d:%d:%c", emitted ? ',' : '!',
-                          left, right, kind);
+                  fprintf(vvp_out, "%cF0:%" PRIu64 ":%c",
+                          emitted ? ',' : '!', count - 1, kind);
                   if (kind != 'o')
                         fprintf(vvp_out, "%u", ivl_type_packed_width(leaf));
                   break;

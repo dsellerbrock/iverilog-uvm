@@ -66,6 +66,12 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
       const char*signed_char;
       ivl_variable_type_t type = ivl_type_base(element_type);
 
+      if (type_is_fixed_uarray_property_(element_type)) {
+	    fprintf(vvp_out, "    %%new/darray %u, \"o\";\n", size_reg);
+	    clr_word(size_reg);
+	    return;
+      }
+
       if ((type == IVL_VT_BOOL) || (type == IVL_VT_LOGIC)) {
 	    wid = ivl_type_packed_width(element_type);
 	    signed_char = ivl_type_signed(element_type) ? "s" : "";
