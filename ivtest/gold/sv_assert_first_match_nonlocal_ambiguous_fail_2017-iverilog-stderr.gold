@@ -1,0 +1,2 @@
+ivltests/sv_assert_first_match_nonlocal_ambiguous_fail.v:6: sorry: sequence match-item lvalue `x' must be an assertion local variable (IEEE 1800 16.6).
+ivltests/sv_assert_first_match_nonlocal_ambiguous_fail.v:6: sorry: a local-variable match-item assignment inside a first_match operand followed by a variable-length step can have tied earliest matches with different values; the assertion is dropped.

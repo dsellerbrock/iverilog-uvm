@@ -1,0 +1,1 @@
+./ivltests/sv_assert_first_match_assignment_ambiguous_fail.v:10: sorry: a local-variable match-item assignment inside a first_match operand followed by a variable-length step can have tied earliest matches with different values; the assertion is dropped.

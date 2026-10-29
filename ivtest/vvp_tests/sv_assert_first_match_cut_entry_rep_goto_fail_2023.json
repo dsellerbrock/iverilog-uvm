@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_assert_first_match_cut_entry_rep_goto_fail_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "sv_assert_first_match_cut_entry_rep_goto_fail"
+  ],
+  "gold": "sv_assert_first_match_cut_entry_rep_goto_fail_2023"
+}

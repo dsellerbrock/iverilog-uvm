@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_assert_first_match_duplicate_assignment_fail.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "sv_assert_first_match_duplicate_assignment_fail"],
+  "gold": "sv_assert_first_match_duplicate_assignment_fail_2017"
+}

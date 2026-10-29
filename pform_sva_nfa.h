@@ -38,6 +38,7 @@ struct sva_nfa_edge_t {
       std::vector<PExpr*> guards; // empty = always true; AND otherwise
       bool epsilon = false;       // construction-time only
       bool first_match_exit = false; // leaves a retained first_match wrapper
+      unsigned first_match_cut_group = 0;
       // Guard conjunction at the wrapper boundary, before a following ##0
       // source suffix is fused into the full transition guards.
       std::vector<PExpr*> first_match_guards;
@@ -91,6 +92,18 @@ extern bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
 				std::vector<sva_nfa_boundary_t>&boundary);
+
+enum sva_first_match_group_class_t {
+      SVA_FIRST_MATCH_FIXED,
+      SVA_FIRST_MATCH_CUT,
+      SVA_FIRST_MATCH_UNSUPPORTED
+};
+extern sva_first_match_group_class_t pform_sva_first_match_group_class(
+				const std::vector<sva_seq_step_t>&steps,
+				unsigned group);
+
+/* Reject cut groups whose entry can be reached at more than one tick. */
+extern bool pform_sva_nfa_first_match_cuts_ok(const sva_nfa_t&nfa);
 
 extern void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,
 			       const sva_nfa_t&nfa);

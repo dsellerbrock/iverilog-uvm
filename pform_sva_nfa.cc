@@ -22,9 +22,42 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <iostream>
+# include  <map>
+# include  <set>
 # include  <vector>
 
 using namespace std;
+
+sva_first_match_group_class_t pform_sva_first_match_group_class(
+				const vector<sva_seq_step_t>&steps, unsigned group)
+{
+      if (group == 0) return SVA_FIRST_MATCH_UNSUPPORTED;
+      size_t first = steps.size(), last = 0;
+      bool variable = false;
+      for (size_t i = 0; i < steps.size(); i += 1) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (st.fm_group != group) continue;
+	    if (!st.fm) return SVA_FIRST_MATCH_UNSUPPORTED;
+	    if (first == steps.size()) first = i;
+	    last = i;
+
+	    bool fixed_consecutive = st.rep_kind == 3
+		  && st.rep_lo == st.rep_hi && st.rep_tail == 0;
+	    if ((st.rep_kind != 0 && !fixed_consecutive) || st.rep_tail != 0
+		|| st.grouped_repeat || st.group_repeat_start || st.group_repeat_end
+		|| !st.group_repeat_opens.empty() || !st.group_repeat_closes.empty()
+		|| !st.group_repeat_members.empty())
+		  return SVA_FIRST_MATCH_UNSUPPORTED;
+	    if (i != first
+		&& (st.delay_lo != st.delay_hi || st.delay_hi == -1))
+		  variable = true;
+      }
+      if (first == steps.size()) return SVA_FIRST_MATCH_UNSUPPORTED;
+      for (size_t i = first; i <= last; i += 1)
+	    if (!steps[i].fm || steps[i].fm_group != group)
+		  return SVA_FIRST_MATCH_UNSUPPORTED;
+      return variable ? SVA_FIRST_MATCH_CUT : SVA_FIRST_MATCH_FIXED;
+}
 
 bool pform_sva_nfa_enabled()
 {
@@ -513,6 +546,7 @@ static void fold_epsilons_(sva_nfa_t&nfa)
 		  if (o.from == ne.from && o.to == ne.to
 		      && o.guards == ne.guards
 		      && o.first_match_exit == ne.first_match_exit
+		      && o.first_match_cut_group == ne.first_match_cut_group
 		      && o.first_match_guards == ne.first_match_guards) {
 			return;
 		  }
@@ -611,12 +645,90 @@ static void prune_dead_states_(sva_nfa_t&nfa,
       if (old_to_new) old_to_new->swap(remap);
 }
 
+bool pform_sva_nfa_first_match_cuts_ok(const sva_nfa_t&nfa)
+{
+      set<unsigned> groups;
+      map<unsigned,set<unsigned> > internal, entries;
+      map<unsigned,bool> has_exit;
+      for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+	    const sva_nfa_edge_t&ed = nfa.edges[i];
+	    if (ed.epsilon) return false;
+	    if (ed.first_match_cut_group == 0) continue;
+	    unsigned group = ed.first_match_cut_group;
+	    groups.insert(group);
+	    if (ed.first_match_exit) has_exit[group] = true;
+	    else internal[group].insert(ed.to);
+      }
+      if (groups.empty()) return true;
+
+      for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+	    const sva_nfa_edge_t&ed = nfa.edges[i];
+	    unsigned group = ed.first_match_cut_group;
+	    if (group != 0 && !internal[group].count(ed.from))
+		  entries[group].insert(ed.from);
+      }
+      if (nfa.nstates == 0 || nfa.start >= nfa.nstates) return false;
+
+      const unsigned depth_limit = 130;
+      vector< vector<bool> > reachable(depth_limit + 1,
+					       vector<bool>(nfa.nstates, false));
+      reachable[0][nfa.start] = true;
+      for (unsigned depth = 0; depth < depth_limit; depth += 1)
+	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+		  const sva_nfa_edge_t&ed = nfa.edges[i];
+		  if (reachable[depth][ed.from])
+			reachable[depth+1][ed.to] = true;
+	    }
+
+      for (set<unsigned>::const_iterator it = groups.begin();
+	   it != groups.end(); ++it) {
+	    unsigned group = *it;
+	    if (!has_exit[group] || entries[group].empty()) return false;
+
+	    set<unsigned> depths;
+	    for (unsigned depth = 0; depth <= depth_limit; depth += 1)
+		  for (set<unsigned>::const_iterator ent = entries[group].begin();
+		       ent != entries[group].end(); ++ent)
+			if (reachable[depth][*ent]) depths.insert(depth);
+	    if (depths.size() != 1) return false;
+
+	    /* If the cap hides another possible entry, reject rather than lower
+	       a cut whose single entry depth has not been proved. */
+	    vector<bool> reaches_entry(nfa.nstates, false);
+	    for (set<unsigned>::const_iterator ent = entries[group].begin();
+		 ent != entries[group].end(); ++ent)
+		  reaches_entry[*ent] = true;
+	    bool changed = true;
+	    while (changed) {
+		  changed = false;
+		  for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+			const sva_nfa_edge_t&ed = nfa.edges[i];
+			if (reaches_entry[ed.to] && !reaches_entry[ed.from]) {
+			      reaches_entry[ed.from] = true;
+			      changed = true;
+			}
+		  }
+	    }
+	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+		  const sva_nfa_edge_t&ed = nfa.edges[i];
+		  if (reachable[depth_limit][ed.from] && reaches_entry[ed.to])
+			return false;
+	    }
+      }
+      return true;
+}
+
 static bool nfa_chain_suffix_(sva_nfa_t&nfa,
                               const std::vector<sva_seq_step_t>&steps,
                               size_t k, unsigned cur, bool first,
                               unsigned&exit)
 {
       if (k == steps.size()) { exit = cur; return true; }
+      sva_first_match_group_class_t fm_class = SVA_FIRST_MATCH_FIXED;
+      if (steps[k].fm)
+	    fm_class = pform_sva_first_match_group_class(steps,
+							steps[k].fm_group);
+      if (fm_class == SVA_FIRST_MATCH_UNSUPPORTED) return false;
       bool tagged = !steps[k].group_repeat_opens.empty();
       if (!tagged && !steps[k].group_repeat_start) {
             if (steps[k].grouped_repeat) return false;
@@ -718,10 +830,16 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 		  return true;
 	    }
             bool fm_exit = steps[k].fm
-                          && (k + 1 == steps.size() || !steps[k+1].fm);
+                          && (k + 1 == steps.size() || !steps[k+1].fm
+                              || steps[k+1].fm_group != steps[k].fm_group);
+            size_t edge_first = nfa.edges.size();
             unsigned next = nfa_add_step_(nfa, cur, steps[k], first,
                                           fm_exit);
             if (next == ~0u) return false;
+            if (fm_class == SVA_FIRST_MATCH_CUT)
+		  for (size_t i = edge_first; i < nfa.edges.size(); i += 1)
+			if (!nfa.edges[i].epsilon)
+			      nfa.edges[i].first_match_cut_group = steps[k].fm_group;
             return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
       }
 
@@ -892,7 +1010,7 @@ bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
       nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
-      return true;
+      return pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 
 /*
@@ -908,6 +1026,10 @@ static bool nfa_product_fragment_(sva_nfa_t&nfa,
 				  bool and_mode,
 				  unsigned&start, unsigned&exit)
 {
+      for (size_t i = 0; i < A.edges.size(); i += 1)
+	    if (A.edges[i].first_match_cut_group != 0) return false;
+      for (size_t i = 0; i < B.edges.size(); i += 1)
+	    if (B.edges[i].first_match_cut_group != 0) return false;
       sva_nfa_t A2 = A, B2 = B;
       unsigned doneA = 0, doneB = 0;
       if (and_mode) {
@@ -1072,7 +1194,7 @@ bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
       nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
-      return true;
+      return pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 
 bool pform_sva_nfa_build_implication(
@@ -1144,6 +1266,9 @@ bool pform_sva_nfa_build_implication(
 			e.guards = terminal[ai].guards;
 			e.guards.insert(e.guards.end(), be.guards.begin(),
 					be.guards.end());
+			e.first_match_exit = be.first_match_exit;
+			e.first_match_cut_group = be.first_match_cut_group;
+			e.first_match_guards = be.first_match_guards;
 			nfa.edges.push_back(e);
 		  }
       }
@@ -1157,7 +1282,7 @@ bool pform_sva_nfa_build_implication(
 		  return false;
 	    boundary[i].from = remap[boundary[i].from];
       }
-      return !boundary.empty();
+      return !boundary.empty() && pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 
 void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,

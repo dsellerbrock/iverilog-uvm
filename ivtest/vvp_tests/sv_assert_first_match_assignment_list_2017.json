@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_first_match_assignment_list.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "sv_assert_first_match_assignment_list"],
+  "gold": "sv_assert_first_match_assignment_list"
+}
