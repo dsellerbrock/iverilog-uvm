@@ -825,6 +825,7 @@ sv_darray_copy_empty2	normal,-g2009		ivltests
 sv_darray_copy_empty3	normal,-g2009		ivltests
 sv_darray_copy_empty4	normal,-g2009		ivltests
 sv_darray_decl_assign	normal,-g2009		ivltests
+sv_darray_new_fixed_initializer	normal,-g2017		ivltests
 sv_darray_function	normal,-g2009		ivltests
 sv_darray_new_default_fill normal,-g2012		ivltests
 sv_darray_new_default_runtime_size normal,-g2012	ivltests
