@@ -27,6 +27,7 @@
 # include  <sstream>
 # include  <algorithm>
 # include  <limits>
+# include  <vector>
 # include  "netlist.h"
 # include  "PClass.h"
 # include  "netparray.h"
@@ -2787,6 +2788,58 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 		  des->errors += 1;
 		  return nullptr;
 	    }
+      }
+      if (queue && queue->assoc_wildcard()) {
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned errors_before = des->errors;
+	    expr->test_width(des, scope, mode);
+	    if (des->errors != errors_before)
+		  return nullptr;
+	    const PEString*literal = dynamic_cast<const PEString*>(expr);
+	    if (!literal && !type_is_vectorable(expr->expr_type())) {
+		  cerr << expr->get_fileline() << ": error: a wildcard associative-array "
+		       << "index must be integral or a string literal "
+		       << "(IEEE 1800-2017/2023 7.8.1)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    /* IEEE 1800-2017/2023 7.8.1 treats a string literal used as a
+	     * wildcard associative index as an unsigned packed byte vector, not
+	     * as a string key. Keep the integral expression self-determined too,
+	     * so equal-width literal and numeric keys reach the same vector-key
+	     * path without assignment-context widening. */
+	    NetExpr*key;
+	    if (literal) {
+		  const verinum&value = literal->parsed_value();
+		  vector<verinum::V> bits(value.len());
+		  for (unsigned idx = 0; idx < value.len(); idx += 1)
+			bits[idx] = value.get(idx);
+		  NetEConst*constant = new NetEConst(
+			verinum(bits.data(), bits.size()));
+		  constant->set_line(*expr);
+		  key = constant;
+	    } else {
+		  key = expr->elaborate_expr(des, scope, expr->expr_width(), 0);
+	    }
+	    if (NetEConst*constant = dynamic_cast<NetEConst*>(key)) {
+		  const verinum&value = constant->value();
+		  unsigned width = value.len();
+		  while (width > 1 && value.get(width - 1) == verinum::V0)
+			width -= 1;
+		  if (width != value.len()) {
+			vector<verinum::V> bits(width);
+			for (unsigned idx = 0; idx < width; idx += 1)
+			      bits[idx] = value.get(idx);
+			NetEConst*minimal = new NetEConst(
+			      verinum(bits.data(), bits.size()));
+			minimal->set_line(*expr);
+			delete key;
+			key = minimal;
+		  }
+	    }
+	    if (key)
+		  key->cast_signed(false);
+	    return key;
       }
       if (queue && queue->assoc_compat()) {
 	    ivl_type_t index_type = queue->assoc_index_type();
