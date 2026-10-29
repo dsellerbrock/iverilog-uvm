@@ -9224,13 +9224,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      evaluation to a PASS the moment c holds; `reject_on(c) p' aborts to a
      FAIL. The sync_ variants sample c at the clock (op 14 accept_on,
      15 reject_on, 16 sync_accept_on, 17 sync_reject_on). */
-  | K_accept_on '(' expression ')' property_expr
+  | K_accept_on '(' expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 14, $3, $5); }
-  | K_reject_on '(' expression ')' property_expr
+  | K_reject_on '(' expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 15, $3, $5); }
-  | K_sync_accept_on '(' expression ')' property_expr
+  | K_sync_accept_on '(' expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 16, $3, $5); }
-  | K_sync_reject_on '(' expression ')' property_expr
+  | K_sync_reject_on '(' expression_or_dist ')' property_expr
       { $$ = pform_sva_abort(@1, 17, $3, $5); }
   /* IEEE 1800-2017 16.12.8: property combinators over boolean operands.
      `a implies b' == `!a | b'; `a iff b' == `(a & b) | (!a & !b)';
