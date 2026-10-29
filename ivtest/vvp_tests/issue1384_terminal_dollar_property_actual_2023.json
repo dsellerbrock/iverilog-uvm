@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1384_terminal_dollar_property_actual.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue1384_terminal_dollar_property_actual"],
+  "gold": "issue1384_terminal_dollar_property_actual"
+}

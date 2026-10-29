@@ -11533,9 +11533,35 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		? sva_clone_subst_((*in)[k].rep_hi_expr, &subst) : nullptr;
 	    bool calls_ok = sva_clone_match_calls_(
 		  (*in)[k].match_calls, st.match_calls, &subst);
+	    bool delay_range_resolved = false;
+	    /* IEEE 1800-2017/2023 16.12 permits `$' as an untyped property
+	       actual when its substituted reference is a delay upper bound. */
+	    if (st.delay_lo_expr && st.delay_hi_expr
+		&& st.delay_lo == -5 && st.delay_hi == -5) {
+	      long lo = 0, hi = 0;
+	      if (pform_sva_const_long(st.delay_lo_expr, lo)
+		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = lo;
+		st.delay_hi = -1;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)
+			 && lo >= 0 && hi >= lo) {
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = lo;
+		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      }
+	    }
 	    if (!st.expr || ((*in)[k].lv_rhs && !st.lv_rhs)
-		|| ((*in)[k].delay_lo_expr && !st.delay_lo_expr)
-		|| ((*in)[k].delay_hi_expr && !st.delay_hi_expr)
+		|| (!delay_range_resolved
+		    && (((*in)[k].delay_lo_expr && !st.delay_lo_expr)
+			|| ((*in)[k].delay_hi_expr && !st.delay_hi_expr)))
 		|| ((*in)[k].rep_lo_expr && !st.rep_lo_expr)
 		|| ((*in)[k].rep_hi_expr && !st.rep_hi_expr)
 		|| !calls_ok) {
