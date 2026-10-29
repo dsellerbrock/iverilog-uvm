@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1410_covergroup_strobe.v",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["ISSUE1410_COVERGROUP_STROBE_PASS"]
+}

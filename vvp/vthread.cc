@@ -10306,6 +10306,16 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
       return true;
 }
 
+/* Defer an event-triggered strobe covergroup process until the end of
+ * this time slot, before sample operands are evaluated. */
+bool of_COVGRP_STROBE_WAIT(vthread_t thr, vvp_code_t)
+{
+      if (schedule_finished()) return false;
+      thr->i_am_delaying = 1;
+      schedule_vthread_at_end_of_simtime(thr);
+      return false;
+}
+
 /* %covgrp/start and %covgrp/stop (19.8.1): per-instance sampling
  * enable.  Stack on entry: obj-stack top = cg_obj. */
 bool of_COVGRP_START(vthread_t thr, vvp_code_t)
