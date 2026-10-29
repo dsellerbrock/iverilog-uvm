@@ -24,6 +24,8 @@
 
 # include  "vvp_net.h"
 # include  "schedule.h"
+# include  <string>
+# include  <vector>
 
 struct udp_levels_table;
 
@@ -39,7 +41,10 @@ struct vvp_udp_s {
 	// sequential UDP.
       unsigned port_count() const;
       bool is_sequential() const { return seq_; };
-      char *name() { return name_; }
+      const char *name() const { return name_; }
+      void set_table(char **table);
+      unsigned table_size() const { return table_.size(); }
+      const std::string& table_entry(unsigned idx) const { return table_[idx]; }
 
 	// Return the initial output value.
       vvp_bit4_t get_init() const;
@@ -53,6 +58,7 @@ struct vvp_udp_s {
       unsigned ports_;
       vvp_bit4_t init_;
       bool seq_;
+      std::vector<std::string> table_;
 };
 
 /*
@@ -214,6 +220,9 @@ class vvp_udp_seq_s : public vvp_udp_s {
  * This looks up a UDP definition from its LABEL.
  */
 struct vvp_udp_s *udp_find(const char *label);
+unsigned udp_defn_count();
+struct vvp_udp_s *udp_defn_at(unsigned idx);
+struct vvp_udp_s *udp_find_name(const char *name);
 
 /*
  * The udp_fun_core is the core of the udp instance in the

@@ -25,6 +25,7 @@
 # include  "part.h"
 # include  "concat.h"
 # include  "resolv.h"
+# include  "udp.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -1495,11 +1496,99 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle ref)
       return res;
 }
 
+class __vpiUdpTableEntry : public __vpiHandle {
+    public:
+      explicit __vpiUdpTableEntry(const std::string& value) : value_(value) { }
+      int get_type_code(void) const override { return vpiTableEntry; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiSize) return value_.size();
+	    return __vpiHandle::vpi_get(code);
+      }
+      void vpi_get_value(p_vpi_value value) override
+      {
+	    if (value->format == vpiStringVal || value->format == vpiObjTypeVal) {
+		  vpip_string_get_value(value_, value);
+		  return;
+	    }
+	    if (value->format != vpiVectorVal) {
+		  __vpiHandle::vpi_get_value(value);
+		  return;
+	    }
+	    unsigned count = (value_.size() + 3) / 4;
+	    s_vpi_vecval *vec = static_cast<s_vpi_vecval*>(
+		  need_result_buf(count * sizeof(s_vpi_vecval), RBUF_VAL));
+	    memset(vec, 0, count * sizeof(s_vpi_vecval));
+	    for (unsigned idx = 0; idx < value_.size(); idx += 1) {
+		  unsigned slot = idx % 4;
+		  unsigned word = idx / 4;
+		  unsigned shift = 24 - (slot % 2) * 16;
+		  if (slot < 2)
+			vec[word].aval |= static_cast<unsigned char>(value_[idx]) << shift;
+		  else
+			vec[word].bval |= static_cast<unsigned char>(value_[idx]) << shift;
+	    }
+	    value->value.vector = vec;
+      }
+    private:
+      std::string value_;
+};
+
+class __vpiUdpDefn : public __vpiHandle {
+    public:
+      explicit __vpiUdpDefn(vvp_udp_s *defn) : defn_(defn)
+      {
+	    for (unsigned idx = 0; idx < defn_->table_size(); idx += 1)
+		  entries_.push_back(new __vpiUdpTableEntry(defn_->table_entry(idx)));
+      }
+      int get_type_code(void) const override { return vpiUdpDefn; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize: return defn_->port_count();
+		case vpiProtected: return 0;
+		case vpiPrimType: return defn_->is_sequential() ? vpiSeqPrim : vpiCombPrim;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+      char *vpi_get_str(int code) override
+      {
+	    if (code == vpiName || code == vpiFullName || code == vpiDefName)
+		  return const_cast<char*>(defn_->name());
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiTableEntry || entries_.empty()) return 0;
+	    return vpip_make_iterator(entries_.size(), &entries_[0], false);
+      }
+    private:
+      vvp_udp_s *defn_;
+      std::vector<vpiHandle> entries_;
+};
+
+static std::map<vvp_udp_s*, vpiHandle> vpip_udp_definitions;
+
+static vpiHandle vpip_get_udp_handle(vvp_udp_s *defn)
+{
+      std::map<vvp_udp_s*, vpiHandle>::iterator found = vpip_udp_definitions.find(defn);
+      if (found != vpip_udp_definitions.end()) return found->second;
+      vpiHandle handle = new __vpiUdpDefn(defn);
+      vpip_udp_definitions[defn] = handle;
+      return handle;
+}
+
 static vpiHandle vpip_make_udp_iterator()
 {
-// HERE: Add support for iterating over UDP definitions.
-//       See 26.6.16 (page 400 in 1364-2005).
-      return 0;
+      unsigned count = udp_defn_count();
+      if (count == 0) return 0;
+
+      vpiHandle *items = new vpiHandle[count];
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    vvp_udp_s *defn = udp_defn_at(idx);
+	    items[idx] = vpip_get_udp_handle(defn);
+      }
+      return vpip_make_iterator(count, items, true);
 }
 
 /*
@@ -1558,6 +1647,8 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
       }
 
       if (ref == 0)
+	    rtn = vpi_iterate_global(type);
+	  else if (type == vpiUdpDefn)
 	    rtn = vpi_iterate_global(type);
       else
 	    rtn = ref->vpi_iterate(type);
@@ -1770,6 +1861,13 @@ static vpiHandle class_member_descent_(const char*name, vpiHandle scope)
 vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 {
       vpiHandle hand;
+
+	// UDP definitions are design-wide objects, not children of a module
+	// instance. Allow their definition name to be used as a root lookup.
+      if (!scope) {
+	    if (vvp_udp_s *defn = udp_find_name(name))
+		  return vpip_get_udp_handle(defn);
+      }
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_handle_by_name(%s, %p) -->\n",

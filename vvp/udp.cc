@@ -37,12 +37,11 @@
 
 using namespace std;
 
-// We may need these later when we build the VPI interface to
-// UDP definitions.
-#ifdef CHECK_WITH_VALGRIND
+// Keep UDP definitions available to the VPI interface.
 static vvp_udp_s **udp_defns = 0;
 static unsigned udp_defns_count = 0;
 
+#ifdef CHECK_WITH_VALGRIND
 void udp_defns_delete()
 {
       for (unsigned idx = 0; idx < udp_defns_count; idx += 1) {
@@ -76,6 +75,26 @@ struct vvp_udp_s *udp_find(const char *label)
       return (struct vvp_udp_s *)v.ptr;
 }
 
+unsigned udp_defn_count()
+{
+      return udp_defns_count;
+}
+
+struct vvp_udp_s *udp_defn_at(unsigned idx)
+{
+      assert(idx < udp_defns_count);
+      return udp_defns[idx];
+}
+
+struct vvp_udp_s *udp_find_name(const char *name)
+{
+      for (unsigned idx = 0; idx < udp_defns_count; idx += 1) {
+	    if (strcmp(udp_defns[idx]->name(), name) == 0)
+		  return udp_defns[idx];
+      }
+      return 0;
+}
+
 ostream& operator <<(ostream&o, const struct udp_levels_table&table)
 {
       o << "[" << hex << table.mask0
@@ -97,17 +116,21 @@ vvp_udp_s::vvp_udp_s(const char*label, char*name__, unsigned ports,
       v.ptr = this;
       sym_set_value(udp_table, label, v);
 
-#ifdef CHECK_WITH_VALGRIND
       udp_defns_count += 1;
       udp_defns = static_cast<vvp_udp_s **>(realloc(udp_defns,
                   udp_defns_count*sizeof(vvp_udp_s **)));
       udp_defns[udp_defns_count-1] = this;
-#endif
 }
 
 vvp_udp_s::~vvp_udp_s()
 {
       delete[] name_;
+}
+
+void vvp_udp_s::set_table(char **table)
+{
+      for (unsigned idx = 0; table[idx]; idx += 1)
+	    table_.push_back(table[idx]);
 }
 
 unsigned vvp_udp_s::port_count() const

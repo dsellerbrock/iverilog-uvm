@@ -320,6 +320,7 @@ typedef struct t_vpi_delay  {
 #define vpiRepeatControl 52
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
+#define vpiTableEntry  58 /* UDP state table entry */
 #define vpiTask        59
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
@@ -379,6 +380,7 @@ typedef struct t_vpi_delay  {
 #define vpiTopModule      7
 #define vpiCellInstance   8
 #define vpiDefName        9
+#define vpiProtected     10 /* source protected object (Boolean) */
 #define vpiDefAttribute  55 /* attribute defined for the object (Boolean) */
 #define vpiIteratorType  57 /* object type of an iterator */
 #define vpiTimeUnit      11
@@ -396,6 +398,11 @@ typedef struct t_vpi_delay  {
 #   define vpiInout 3
 #   define vpiMixedIO 4 /* Not currently output */
 #   define vpiNoDirection 5
+
+/* Primitive subtype properties. */
+#define vpiPrimType 33
+#   define vpiSeqPrim 27
+#   define vpiCombPrim 28
 
 #define vpiNetType       22
 #define vpiNetTypedefAlias 705

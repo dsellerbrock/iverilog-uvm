@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1408_vpi_udp_defn.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1408_vpi_udp_defn_2017"],
+  "vpi-sources": ["vpi/issue1408_vpi_udp_defn.c"],
+  "output-contains": ["PASS: issue1408 UDP definitions and table entries"]
+}

@@ -2905,9 +2905,11 @@ void compile_udp_def(int sequ, char *label, char *name,
 		  init4 = BIT4_X;
 
 	    vvp_udp_seq_s *u = new vvp_udp_seq_s(label, name, nin, init4);
+	    u->set_table(table);
 	    u->compile_table(table);
       } else {
 	    vvp_udp_comb_s *u = new vvp_udp_comb_s(label, name, nin);
+	    u->set_table(table);
 	    u->compile_table(table);
       }
       free(label);
