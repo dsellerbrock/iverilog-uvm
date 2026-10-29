@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1461_cross_namespace_name_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1461_cross_namespace_name"
+}

@@ -2903,6 +2903,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <int_val> sva_int_local_declarations
 %type <atom_type> atom_type
 %type <int_val> module_start module_end
+%type <text> module_identifier
 
 %type <lifetime> lifetime lifetime_opt
 
@@ -16052,7 +16053,7 @@ cont_assign_list
      items, and finally an end marker. */
 
 module
-  : attribute_list_opt module_start lifetime_opt IDENTIFIER
+  : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
 			  $2==K_checker, $3, $1);
         port_declaration_context_init();
@@ -16159,6 +16160,14 @@ module_start
       { pform_error_in_generate(@1, "checker declaration");
         $$ = K_checker;
       }
+  ;
+
+/* A package and a design unit occupy distinct global name spaces. The
+   lexer classifies a previously declared package spelling as
+   PACKAGE_IDENTIFIER, but it remains a valid design-unit identifier. */
+module_identifier
+  : IDENTIFIER { $$ = $1; }
+  | PACKAGE_IDENTIFIER { $$ = dup_cstr($1->pscope_name().str()); }
   ;
 
 module_end
@@ -16582,6 +16591,11 @@ module_item
       { perm_string tmp1 = lex_strings.make($2.text);
 		  pform_make_modgates(@2, tmp1, $3, $4, $1);
 		  delete[]$2.text;
+      }
+  | attribute_list_opt
+	  PACKAGE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string tmp1 = $2->pscope_name();
+		  pform_make_modgates(@2, tmp1, $3, $4, $1);
       }
 
         | attribute_list_opt
