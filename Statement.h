@@ -538,9 +538,10 @@ class PCaseMatches : public Statement {
             ~Item();
       };
 
-      PCaseMatches(PExpr*expr, std::vector<Item*>*items,
-                   NetCase::TYPE case_type)
-            : expr_(expr), items_(items), case_type_(case_type) {}
+      PCaseMatches(ivl_case_quality_t quality, PExpr*expr,
+                   std::vector<Item*>*items, NetCase::TYPE case_type)
+            : quality_(quality), expr_(expr), items_(items),
+              case_type_(case_type) {}
       ~PCaseMatches() override;
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -550,6 +551,7 @@ class PCaseMatches : public Statement {
 
     private:
       friend class pform_constructor_order_audit_t;
+      ivl_case_quality_t quality_;
       PExpr *expr_;
       std::vector<Item*>*items_;
       NetCase::TYPE case_type_;
