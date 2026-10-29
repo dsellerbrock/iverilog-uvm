@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1506_qualified_pattern_if.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue1506_qualified_pattern_if"
+}

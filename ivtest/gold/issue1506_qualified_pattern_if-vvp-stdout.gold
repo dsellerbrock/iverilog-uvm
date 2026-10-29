@@ -1,0 +1,5 @@
+WARNING: ivltests/issue1506_qualified_pattern_if.v:6: no condition matches for priority or unique if statement
+         Time: 0  Scope: test
+WARNING: ivltests/issue1506_qualified_pattern_if.v:7: no condition matches for priority or unique if statement
+         Time: 0  Scope: test
+PASSED
