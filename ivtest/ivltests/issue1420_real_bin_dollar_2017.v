@@ -1,4 +1,4 @@
-module issue1420_real_bin_dollar;
+module issue1420_real_bin_dollar_2017;
 `ifdef ISSUE1420_2023
   real value;
   covergroup cg;
