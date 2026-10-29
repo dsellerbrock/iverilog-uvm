@@ -54,6 +54,29 @@ static type_parameter_restriction_t param_type_restriction =
 static bool in_gen_region = false;
 static std::list<pform_range_t>* specparam_active_range = 0;
 
+static void sva_destroy_parser_match_items_(
+	std::vector<sva_match_item_t>*items)
+{
+	if (!items) return;
+	for (size_t i = 0; i < items->size(); i += 1) {
+	      delete (*items)[i].lv_rhs;
+	      delete (*items)[i].call;
+	}
+	delete items;
+}
+
+static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
+{
+	  bool nested = false;
+	  for (size_t i = 0 ; i < steps.size() ; i += 1)
+		nested = nested || steps[i].fm;
+	  unsigned group = nested ? 0 : pform_sva_new_first_match_group_id();
+	  for (size_t i = 0 ; i < steps.size() ; i += 1) {
+		steps[i].fm = true;
+		steps[i].fm_group = group;
+	  }
+}
+
 /* IEEE 1800-2017/2023 19.5: an unlabeled coverpoint over one variable is
  * named after that variable. Keep the existing internal fallback for
  * expressions that do not name a single variable. */
@@ -2347,6 +2370,9 @@ static Module::port_t *module_declare_explicit_port(
       // M9: sequence step chains for property/sequence expressions.
       std::vector<sva_seq_step_t>* sva_seq;
 
+      sva_match_item_t* sva_item;
+      std::vector<sva_match_item_t>* sva_items;
+
       // IEEE 1800-2017 16.11 sequence match-item calls, in source order.
       std::vector<PCallTask*>* sva_calls;
 
@@ -2656,6 +2682,10 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
 %type <sva_calls> sva_match_call_list
+%type <sva_item> sva_match_item
+%type <sva_items> sva_match_item_list
+%destructor { delete $$->lv_rhs; delete $$->call; delete $$; } <sva_item>
+%destructor { sva_destroy_parser_match_items_($$); } <sva_items>
 %type <sva_mc_ext> sva_mc_tail sva_mc_tail_opt
 %type <sva_case_item>  property_case_item
 %type <sva_case_items> property_case_items
@@ -9482,6 +9512,44 @@ sva_match_call_list
       { $1->push_back($3); $$ = $1; }
   ;
 
+sva_match_item
+  : sva_match_call
+      { $$ = new sva_match_item_t;
+	$$->kind = sva_match_item_t::SUBROUTINE_CALL;
+	$$->call = $1; }
+  | IDENTIFIER '=' expression
+      { $$ = new sva_match_item_t;
+	$$->kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	$$->lv_name = lex_strings.make($1);
+	$$->lv_rhs = pform_sva_coerce_local_assignment(@1, $1, $3, true);
+	delete[] $1; }
+  | IDENTIFIER compressed_operator expression
+      { $$ = new sva_match_item_t;
+	$$->kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	$$->lv_name = lex_strings.make($1);
+	PEIdent*lval = new PEIdent($$->lv_name, @1.lexical_pos);
+	FILE_NAME(lval, @1);
+	PEBinary*updated = new PEBinary($2, lval, $3);
+	FILE_NAME(updated, @2);
+	$$->lv_rhs = pform_sva_coerce_local_assignment(@1, $1, updated, true);
+	delete[] $1; }
+  ;
+
+sva_match_item_list
+  : sva_match_item
+      { $$ = new std::vector<sva_match_item_t>;
+	$$->push_back(*$1);
+	$1->lv_rhs = nullptr;
+	$1->call = nullptr;
+	delete $1; }
+  | sva_match_item_list ',' sva_match_item
+      { $1->push_back(*$3);
+	$3->lv_rhs = nullptr;
+	$3->call = nullptr;
+	delete $3;
+	$$ = $1; }
+  ;
+
 sva_seq_atom
     /* `sva_bool_atom' is a bare `expression'. See its definition for why
        the indirection is required (reduce/reduce tie-break on ')'). */
@@ -9499,8 +9567,11 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	item.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9508,12 +9579,15 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	PEIdent*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	PEIdent*lval = new PEIdent(item.lv_name, @4.lexical_pos);
 	FILE_NAME(lval, @4);
 	PEBinary*updated = new PEBinary($5, lval, $6);
 	FILE_NAME(updated, @5);
-	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, updated);
+	item.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, updated);
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9524,20 +9598,26 @@ sva_seq_atom
   | '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
       { if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
-	    st.lv_name = lex_strings.make($4);
-	    st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	    sva_match_item_t item;
+	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	    item.lv_name = lex_strings.make($4);
+	    item.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	    st.items.push_back(item);
 	  } else delete $6;
 	delete[] $4;
 	$$ = $2; }
   | '(' sva_seq_expr ',' IDENTIFIER compressed_operator expression ')'
       { if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
-	    st.lv_name = lex_strings.make($4);
-	    PEIdent*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	    sva_match_item_t item;
+	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	    item.lv_name = lex_strings.make($4);
+	    PEIdent*lval = new PEIdent(item.lv_name, @4.lexical_pos);
 	    FILE_NAME(lval, @4);
 	    PEBinary*updated = new PEBinary($5, lval, $6);
 	    FILE_NAME(updated, @5);
-	    st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, updated);
+	    item.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, updated);
+	    st.items.push_back(item);
 	  } else delete $6;
 	delete[] $4;
 	$$ = $2; }
@@ -9548,13 +9628,16 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(item.lv_name, @4.lexical_pos);
 	PExpr*one = new PENumber(new verinum(1));
 	FILE_NAME(lval, @4);
 	FILE_NAME(one, @4);
-	st.lv_rhs = pform_sva_coerce_local_assignment(
+	item.lv_rhs = pform_sva_coerce_local_assignment(
 	      @4, $4, new PEBinary('+', lval, one));
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9562,13 +9645,16 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($5);
-	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(item.lv_name, @5.lexical_pos);
 	PExpr*one = new PENumber(new verinum(1));
 	FILE_NAME(lval, @5);
 	FILE_NAME(one, @5);
-	st.lv_rhs = pform_sva_coerce_local_assignment(
+	item.lv_rhs = pform_sva_coerce_local_assignment(
 	      @5, $5, new PEBinary('+', lval, one));
+	st.items.push_back(item);
 	delete[] $5;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9576,13 +9662,16 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	PExpr*lval = new PEIdent(st.lv_name, @4.lexical_pos);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	PExpr*lval = new PEIdent(item.lv_name, @4.lexical_pos);
 	PExpr*one = new PENumber(new verinum(1));
 	FILE_NAME(lval, @4);
 	FILE_NAME(one, @4);
-	st.lv_rhs = pform_sva_coerce_local_assignment(
+	item.lv_rhs = pform_sva_coerce_local_assignment(
 	      @4, $4, new PEBinary('-', lval, one));
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9590,13 +9679,16 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($5);
-	PExpr*lval = new PEIdent(st.lv_name, @5.lexical_pos);
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($5);
+	PExpr*lval = new PEIdent(item.lv_name, @5.lexical_pos);
 	PExpr*one = new PENumber(new verinum(1));
 	FILE_NAME(lval, @5);
 	FILE_NAME(one, @5);
-	st.lv_rhs = pform_sva_coerce_local_assignment(
+	item.lv_rhs = pform_sva_coerce_local_assignment(
 	      @5, $5, new PEBinary('-', lval, one));
+	st.items.push_back(item);
 	delete[] $5;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9607,7 +9699,13 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.match_calls.swap(*$4);
+	for (size_t i = 0; i < $4->size(); i += 1) {
+	      sva_match_item_t item;
+	      item.kind = sva_match_item_t::SUBROUTINE_CALL;
+	      item.call = (*$4)[i];
+	      st.items.push_back(item);
+	}
+	$4->clear();
 	delete $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9615,9 +9713,18 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
-	st.match_calls.swap(*$8);
+	sva_match_item_t assignment;
+	assignment.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	assignment.lv_name = lex_strings.make($4);
+	assignment.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
+	st.items.push_back(assignment);
+	for (size_t i = 0; i < $8->size(); i += 1) {
+	      sva_match_item_t item;
+	      item.kind = sva_match_item_t::SUBROUTINE_CALL;
+	      item.call = (*$8)[i];
+	      st.items.push_back(item);
+	}
+	$8->clear();
 	delete[] $4;
 	delete $8;
 	steps->push_back(st);
@@ -9629,10 +9736,13 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = pform_sva_selected_local_assignment(@4, $4, $6, $8, $11, false);
-	st.lv_selected = st.lv_rhs != nullptr;
-	if (!st.lv_rhs) st.lv_name = perm_string();
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	item.lv_rhs = pform_sva_selected_local_assignment(@4, $4, $6, $8, $11, false);
+	item.lv_selected = item.lv_rhs != nullptr;
+	if (!item.lv_rhs) item.lv_name = perm_string();
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -9641,41 +9751,41 @@ sva_seq_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $2;
-	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = pform_sva_selected_local_assignment(@4, $4, $6, nullptr, $9, true);
-	st.lv_selected = st.lv_rhs != nullptr;
-	if (!st.lv_rhs) st.lv_name = perm_string();
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($4);
+	item.lv_rhs = pform_sva_selected_local_assignment(@4, $4, $6, nullptr, $9, true);
+	item.lv_selected = item.lv_rhs != nullptr;
+	if (!item.lv_rhs) item.lv_name = perm_string();
+	st.items.push_back(item);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
 
-  /* 16.9.9: in match-existence positions first_match(s) has a match
+  /* 16.9.8: in match-existence positions first_match(s) has a match
      iff s does — transparent for standalone/single-length forms. The
      wrapped steps are flagged so a COMPOSED multi-length first_match
      (where the cut would change which match continues) is caught and
      diagnosed at lowering rather than silently over-matching. */
   | K_first_match '(' sva_seq_expr ')'
-      { for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	  { sva_mark_first_match_(*$3);
 	$$ = $3; }
   /* IEEE 1800-2017/2023 16.9.8: match items following the operand
      belong to its ending match, and are considered inside first_match.
      Keep them on the final step so the existing ordered match-item
      lowering executes them only when that endpoint is selected. */
-  | K_first_match '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
-      { if (!$3->empty()) {
+  | K_first_match '(' sva_seq_expr ',' sva_match_item_list ')'
+	  { if (!$3->empty()) {
 	    sva_seq_step_t&st = $3->back();
-	    st.lv_name = lex_strings.make($5);
-	    st.lv_rhs = pform_sva_coerce_local_assignment(@5, $5, $7);
-	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
-	  } else delete $7;
-	delete[] $5;
-	$$ = $3; }
-  | K_first_match '(' sva_seq_expr ',' sva_match_call_list ')'
-      { if (!$3->empty()) {
-	    sva_seq_step_t&st = $3->back();
-	    st.match_calls.insert(st.match_calls.end(), $5->begin(), $5->end());
-	    for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
-	  } else { for (size_t i=0; i<$5->size(); i+=1) delete (*$5)[i]; }
+	    st.items.insert(st.items.end(), $5->begin(), $5->end());
+	    $5->clear();
+	    sva_mark_first_match_(*$3);
+	  } else {
+	    for (size_t i = 0; i < $5->size(); i += 1) {
+		  delete (*$5)[i].lv_rhs;
+		  delete (*$5)[i].call;
+	    }
+	  }
 	delete $5;
 	$$ = $3; }
   | sva_seq_atom K_LBSTAR expression ']'

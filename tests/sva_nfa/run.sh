@@ -15,6 +15,7 @@
 # Usage: PATH=<install>/bin:$PATH bash tests/sva_nfa/run.sh
 
 BIN=$(which iverilog)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 DIR=$(dirname "$0")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -22,6 +23,7 @@ PASS=0
 FAIL=0
 
 norm() { sed -E 's/0x[0-9a-f]+/0xPTR/g'; }
+run_limited() { python3 "$ROOT/scripts/run_with_timeout.py" 120 -- "$@"; }
 
 # Preserve the producer's exit status without relying on a pipeline. This is
 # intentionally compatible with the macOS system Bash (3.2).
@@ -29,7 +31,7 @@ run_norm() {
     local out="$1"
     local status
     shift
-    "$@" > "$out.raw" 2>&1
+    run_limited "$@" > "$out.raw" 2>&1
     status=$?
     if ! norm < "$out.raw" > "$out"; then
         return 125
@@ -42,9 +44,14 @@ for sv in "$DIR"/*.sv; do
     printf "  %-40s " "$name"
     case "$name" in
     *_nfa_only)
+        standard=-g2012
+        case "$name" in
+        *_2017_nfa_only) standard=-g2017 ;;
+        *_2023_nfa_only) standard=-g2023 ;;
+        esac
         # Legacy must reject loudly (the automaton engine is the default
         # now, so legacy is selected explicitly with IVL_SVA_LEGACY=1)...
-        IVL_SVA_LEGACY=1 "$BIN" -g2012 \
+        run_limited env IVL_SVA_LEGACY=1 "$BIN" "$standard" -I"$DIR" \
             -o "$TMP/$name.off.vvp" "$sv" > "$TMP/$name.off.cc" 2>&1
         legacy_status=$?
         if [ "$legacy_status" -eq 0 ] \
@@ -54,7 +61,8 @@ for sv in "$DIR"/*.sv; do
             FAIL=$((FAIL+1)); continue
         fi
         # ...and the NFA engine must match the hand-computed gold.
-        if ! IVL_SVA_NFA=1 "$BIN" -g2012 -o "$TMP/$name.vvp" "$sv" \
+        if ! run_limited env IVL_SVA_NFA=1 "$BIN" "$standard" -I"$DIR" \
+                -o "$TMP/$name.vvp" "$sv" \
                 > "$TMP/$name.cmp" 2>&1; then
             echo "FAIL (flag-on compile failed)"
             head -3 "$TMP/$name.cmp"; FAIL=$((FAIL+1)); continue

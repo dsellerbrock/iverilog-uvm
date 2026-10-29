@@ -97,6 +97,14 @@ struct sva_group_repeat_t {
       long first_delay_hi = 0;
 };
 
+struct sva_match_item_t {
+      enum kind_t { LOCAL_ASSIGNMENT, SUBROUTINE_CALL } kind;
+      perm_string lv_name;
+      PExpr* lv_rhs = nullptr;
+      bool lv_selected = false;
+      PCallTask* call = nullptr;
+};
+
 struct sva_seq_step_t {
       long delay_lo = 0;    // -1: ##[m:$]; -2: non-constant; -3: an
 			    // unsupported repetition shape (diagnosed)
@@ -124,17 +132,9 @@ struct sva_seq_step_t {
       std::vector<unsigned> group_repeat_closes;
       std::vector<unsigned> group_repeat_members;
       PExpr* expr = nullptr;
-      perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
-      PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
-      // shortcut: selected writes use fixed-delay lowering; extend LV-2 when
-      // variable-delay and implication paths preserve ordered lvalue updates.
-      bool lv_selected = false;
-      // IEEE 1800-2017 16.11: sequence match-item subroutine calls execute
-      // in source order after the optional local-variable assignment above.
-      // The bounded lowering diagnoses every unsupported placement/call
-      // before an assertion engine can silently discard it.
-      std::vector<PCallTask*> match_calls;
+      std::vector<sva_match_item_t> items; // endpoint actions in source order
       bool fm = false;      // step is inside a first_match(...) wrapper
+      unsigned fm_group = 0; // identity of that first_match wrapper
       // M9-NFA stage C.1: goto/nonconsecutive repetition of the boolean
       // `expr' (IEEE 1800-2017 16.9.2). rep_kind 0 = none; 1 = goto
       // `[->m:n]' (match ends ON the n-th occurrence); 2 = nonconsecutive
@@ -156,6 +156,8 @@ struct sva_seq_step_t {
       PExpr* rep_lo_expr = nullptr;
       PExpr* rep_hi_expr = nullptr;
 };
+
+extern unsigned pform_sva_new_first_match_group_id();
 
 /* Sequence formals currently retain the subset needed by named-sequence
  * substitution. A local input formal is represented as a per-attempt local

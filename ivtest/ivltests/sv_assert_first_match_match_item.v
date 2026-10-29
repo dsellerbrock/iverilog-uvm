@@ -8,12 +8,13 @@ module sv_assert_first_match_match_item;
     hits++;
   endtask
 
-  sequence local_sequence;
+  property local_property;
+    // The match-item target is declared in its enclosing property scope.
     int local_value;
-    1'b1;
-  endsequence
+    first_match(1'b1, local_value = 1) |-> (local_value == 1);
+  endproperty
 
-  cover property (@(posedge clk) first_match(local_sequence, local_value = 1));
+  cover property (@(posedge clk) local_property);
   cover property (@(posedge clk) first_match(1'b1, hit()));
 
   initial begin
