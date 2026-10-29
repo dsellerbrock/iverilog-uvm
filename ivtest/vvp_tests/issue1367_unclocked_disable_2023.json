@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1367_unclocked_disable_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

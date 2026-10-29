@@ -425,7 +425,10 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
    per-attempt carrier has the local's type, rather than the assignment RHS
    type. The packed-logic helper consumes dimensions. */
 extern void pform_sva_begin_local_declarations(void);
+extern void pform_sva_add_local_formal(const char*name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
+					const char*name);
+extern void pform_sva_declare_bit_local(const struct vlltype&loc,
 					const char*name);
 /* owns_dimensions=false borrows *dimensions to compute a width for one
    name among several sharing a single comma-separated declaration,

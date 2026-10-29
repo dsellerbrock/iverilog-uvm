@@ -10,6 +10,10 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
+issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
+issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
+issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
@@ -21,6 +25,8 @@ issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
 issue1320_vpi_assignment_op_2023 normal,-g2023 ivltests
 issue1329_vpi_expect_constant_2017 normal,-g2017,-s,top ivltests gold=issue1329_vpi_expect_constant_2017.gold
 issue1329_vpi_expect_constant_2023 normal,-g2023,-s,top ivltests gold=issue1329_vpi_expect_constant_2023.gold
+issue1330_vpi_for_constants_2017 normal,-g2017,-s,issue1330_vpi_for_constants ivltests gold=issue1330_vpi_for_constants_2017.gold
+issue1330_vpi_for_constants_2023 normal,-g2023,-s,issue1330_vpi_for_constants ivltests gold=issue1330_vpi_for_constants_2023.gold
 issue1356_sva_untyped_dollar_2017 normal,-g2017,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 issue1356_sva_untyped_dollar_2023 normal,-g2023,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 
@@ -32,6 +38,8 @@ issue1250_deprecated_dpi_2017 CO,-g2017,-s,test ivltests
 issue1250_deprecated_dpi_2023 CO,-g2023,-s,test ivltests
 issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_generate ivltests
 issue1249_pure_dpi_formals_2023 CE,-g2023,-s,test ivltests
+issue1371_sequence_local_formal_redeclared_2017 CE,-g2017,-s,issue1371_sequence_local_formal_redeclared ivltests
+issue1371_sequence_local_formal_redeclared_2023 CE,-g2023,-s,issue1371_sequence_local_formal_redeclared ivltests
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_sequence_combinators normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold

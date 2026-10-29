@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1339_vpi_def_attribute_constant.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1339_vpi_def_attribute_constant_2017"],
+  "vpi-sources": ["vpi/issue1339_vpi_def_attribute_constant.c"],
+  "output-contains": ["PASSED"]
+}

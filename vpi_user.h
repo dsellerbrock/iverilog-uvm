@@ -274,11 +274,13 @@ typedef struct t_vpi_delay  {
 #define vpiHiZ          0x01
 
 /* OBJECT CODES */
+#define vpiAliasStmt    646 /* alias statement */
 #define vpiAssignStmt    2 /* quasi-continuous assignment */
 #define vpiConstant     7
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
+#define vpiDoWhile    670 /* do-while statement */
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
 #define vpiFunction    20
@@ -296,11 +298,14 @@ typedef struct t_vpi_delay  {
 #define vpiNamedFork   35
 #define vpiWait        69
 #define vpiElseStmt    73
+#define vpiForIncStmt  74 /* increment statement in for loop */
+#define vpiForInitStmt 75 /* initialization statement in for loop */
 #define vpiExpectStmt  674
 #define vpiForeachStmt 675
 #define vpiOrderedWait 671
 #define vpiWaitFork    672
 #define vpiDisableFork 673
+#define vpiReturnStmt  691
 #define vpiNet         36
 #define vpiNetBit      37
 #define vpiNettypeDecl 523
@@ -336,6 +341,7 @@ typedef struct t_vpi_delay  {
 #define vpiModPathIn     95
 #define vpiModPathOut    96
 #define vpiVariables   100
+#define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
@@ -359,6 +365,7 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiNullOp         36 /* null operation */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
 #define vpiCaseX          2 /* ignore X's */
@@ -371,6 +378,7 @@ typedef struct t_vpi_delay  {
 #define vpiTopModule      7
 #define vpiCellInstance   8
 #define vpiDefName        9
+#define vpiDefAttribute  55 /* attribute defined for the object (Boolean) */
 #define vpiTimeUnit      11
 #define vpiTimePrecision 12
 #define vpiActiveTimeFormat 119

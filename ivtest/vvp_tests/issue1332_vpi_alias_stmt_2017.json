@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1332_vpi_alias_stmt.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1332_vpi_alias_stmt_2017"],
+  "vpi-sources": ["vpi/issue1332_vpi_alias_stmt.c"],
+  "output-contains": ["PASSED"]
+}

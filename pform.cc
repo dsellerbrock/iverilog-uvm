@@ -9946,6 +9946,7 @@ struct sva_local_decl_type_t {
    match-item RHS. The resulting expression then survives every existing
    property/sequence clone without adding parallel type ownership to the IR. */
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
+static std::set<perm_string> sva_local_formal_names_;
 
 /* Transfer declaration identity into the property IR before the temporary
    type/coercion table is cleared. Assignment destinations alone are
@@ -9965,12 +9966,21 @@ void pform_sva_end_local_declarations(void)
 	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
 	    delete it->second.width;
       sva_local_decl_types_.clear();
+      sva_local_formal_names_.clear();
 }
 
 void pform_sva_begin_local_declarations(void)
 {
       /* This also recovers safely after a malformed prior declaration. */
-      pform_sva_end_local_declarations();
+      for (std::map<perm_string,sva_local_decl_type_t>::iterator it =
+	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
+	    delete it->second.width;
+      sva_local_decl_types_.clear();
+}
+
+void pform_sva_add_local_formal(const char*name)
+{
+      sva_local_formal_names_.insert(lex_strings.make(name));
 }
 
 static PExpr* sva_local_dimension_width_(const struct vlltype&loc,
@@ -10014,7 +10024,7 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
 				    bool packed_range_known = true)
 {
       perm_string key = lex_strings.make(name);
-      if (sva_local_decl_types_.count(key)) {
+      if (sva_local_decl_types_.count(key) || sva_local_formal_names_.count(key)) {
 	    cerr << loc << ": error: duplicate assertion local variable `"
 		 << key << "'." << endl;
 	    error_count += 1;
@@ -10035,6 +10045,20 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
       PENumber*width = new PENumber(new verinum((uint64_t)32, 32));
       FILE_NAME(width, loc);
       sva_local_decl_insert_(loc, name, width, true, 31, 0);
+}
+
+void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name)
+{
+      perm_string key = lex_strings.make(name);
+      if (sva_local_formal_names_.count(key)) {
+	    cerr << loc << ": error: duplicate assertion local variable `"
+		 << key << "'." << endl;
+	    error_count += 1;
+	    return;
+      }
+      cerr << loc << ": sorry: assertion local variable `" << key
+	   << "' with 2-state type is not supported." << endl;
+      error_count += 1;
 }
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
@@ -12498,6 +12522,8 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
    the automaton engine delivers these. */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
+static const int SVA_CB_VACUOUS_SUCCESS = 657; /* cbAssertionVacuousSuccess */
+static const int SVA_CB_DISABLED_EVAL = 658; /* cbAssertionDisabledEvaluation */
 
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
@@ -12611,8 +12637,8 @@ static Statement* sva_cover_spawn_(const struct vlltype&loc,
 static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
 			      Statement*action);
 static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
-static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
-                               Statement*clear);
+static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
+                               PExpr*disable, Statement*clear);
 
 static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 				 perm_string req, perm_string vac_req,
@@ -14920,6 +14946,7 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 {
       if (!cf || !ev || ev->event_expressions().empty())
 	    return;
+      cf->set_sampled_explicit_clock();
       if (cf->sampled_subst())
 	    return;
 
@@ -17851,6 +17878,97 @@ void pform_sva_destroy_property(sva_property_t*prop)
       delete prop;
 }
 
+/* IEEE 1800-2017 16.9.3 requires sampled-value calls in a disable
+   condition or assertion clock expression to carry their own clock.
+   These expressions are outside the property clock-flow context, so the
+   normal assertion binder must not infer the property's clock for them. */
+static bool sva_check_explicit_sampled_clock_(PExpr*expr)
+{
+      if (!expr) return false;
+      bool error = false;
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(expr)) {
+	    if (!cf->path().package && cf->path().name.size() == 1
+		&& pform_is_sampled_value_function(
+		      peek_tail_name(cf->path().name).str())
+		&& !cf->sampled_explicit_clock()) {
+		  cerr << cf->get_fileline() << ": error: sampled-value function `"
+		       << peek_tail_name(cf->path().name).str()
+		       << "' in a disable condition or assertion clock expression "
+		       << "shall be explicitly clocked (IEEE 1800-2017 16.9.3)."
+		       << endl;
+		  error_count += 1;
+		  sampled_pending_drop_(cf);
+		  error = true;
+	    }
+	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  error |= sva_check_explicit_sampled_clock_(parms[i].parm);
+	    return error;
+      }
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    bool id_error = false;
+	    for (pform_name_t::const_iterator name = id->path().name.begin()
+		 ; name != id->path().name.end() ; ++name) {
+		  for (std::list<index_component_t>::const_iterator index =
+			     name->index.begin() ; index != name->index.end() ; ++index) {
+			if (index->msb)
+			      id_error |= sva_check_explicit_sampled_clock_(index->msb);
+			if (index->lsb && index->lsb != index->msb)
+			      id_error |= sva_check_explicit_sampled_clock_(index->lsb);
+		  }
+	    }
+	    return id_error;
+      }
+      if (PEPostSelect*post = dynamic_cast<PEPostSelect*>(expr)) {
+	    bool post_error =
+		  sva_check_explicit_sampled_clock_(post->base());
+	    if (post->index().msb)
+		  post_error |= sva_check_explicit_sampled_clock_(post->index().msb);
+	    if (post->index().lsb && post->index().lsb != post->index().msb)
+		  post_error |= sva_check_explicit_sampled_clock_(post->index().lsb);
+	    return post_error;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(expr))
+	    return sva_check_explicit_sampled_clock_(un->get_expr());
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr)) {
+	    bool left = sva_check_explicit_sampled_clock_(bin->get_left());
+	    bool right = sva_check_explicit_sampled_clock_(bin->get_right());
+	    return left || right;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(expr)) {
+	    bool cond = sva_check_explicit_sampled_clock_(ter->get_cond());
+	    bool yes = sva_check_explicit_sampled_clock_(ter->get_true());
+	    bool no = sva_check_explicit_sampled_clock_(ter->get_false());
+	    return cond || yes || no;
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(expr)) {
+	    bool inside_error =
+		  sva_check_explicit_sampled_clock_(inside->get_expr());
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1) {
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].lo);
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].hi);
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].weight);
+	    }
+	    return inside_error;
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(expr)) {
+	    bool concat_error =
+		  sva_check_explicit_sampled_clock_(cc->repeat_expr());
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  concat_error |= sva_check_explicit_sampled_clock_(parms[i]);
+	    return concat_error;
+      }
+      return false;
+}
+
 /* A property_expr normally arrives without a clock and simply takes the
    property_spec prefix.  An embedded named sequence can already carry its
    declaration clock, however (`@(c) g throughout named_seq').  The old
@@ -17870,6 +17988,16 @@ sva_property_t* pform_sva_apply_property_context(
 	    delete clk;
 	    delete disable_iff;
 	    return nullptr;
+      }
+
+      sva_check_explicit_sampled_clock_(disable_iff);
+      if (clk) {
+	    const std::vector<PEEvent*>&events = clk->event_expressions();
+	    for (size_t i = 0 ; i < events.size() ; i += 1) {
+		  if (!events[i]) continue;
+		  sva_check_explicit_sampled_clock_(events[i]->expr());
+		  sva_check_explicit_sampled_clock_(events[i]->condition());
+	    }
       }
 
 	/* IEEE 1800-2017 9.4.2.4 and 1800-2023 16.5.2 permit a named
@@ -20365,7 +20493,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       for (size_t i = 0 ; i < post.size() ; i += 1)
 	    full.push_back(post[i]);
 
-      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
+      if (disable) sva_disable_abort_(loc, inst, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -21195,6 +21323,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
       loop.push_back(sva_reactive_wait_(loc));
       loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
 	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+      loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
+	    sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
       if (action) {
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
@@ -21227,8 +21357,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 /* A pulse between assertion clocks still cancels live attempts. Observe
    the exact-false-to-exact-true transition independently of the clocked
    Observed-region level check, as in the parameter-repeat engine. */
-static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
-                               Statement*clear)
+static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
+                               PExpr*disable, Statement*clear)
 {
       PExpr*copy = sva_clone_expr_(disable);
       if (!copy) {
@@ -21245,7 +21375,10 @@ static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
       events.push_back(new PEEvent(PEEvent::POSEDGE, truth));
       PEventStatement*abort = new PEventStatement(events);
       FILE_NAME(abort, loc);
-      abort->set_statement(clear);
+      std::vector<Statement*> disabled;
+      disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
+      disabled.push_back(clear);
+      abort->set_statement(sva_block_(loc, disabled));
       PProcess*process = pform_make_behavior(IVL_PR_ALWAYS, abort, nullptr);
       FILE_NAME(process, loc);
 }
@@ -22804,7 +22937,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
       if (dis_async1) {
-	    sva_disable_abort_(loc, dis_async1, clear_domain1_state());
+	    sva_disable_abort_(loc, inst, dis_async1, clear_domain1_state());
 	    delete dis_async1;
 	    dis_async1 = nullptr;
       }
@@ -23383,7 +23516,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
       if (dis_async2) {
-	    sva_disable_abort_(loc, dis_async2,
+	    sva_disable_abort_(loc, inst, dis_async2,
 			       clear_domain2_state(
 				     sva_id_(loc, req), sva_id_(loc, req)));
 	    delete dis_async2;
@@ -24759,7 +24892,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			clear.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
 		  }
 	    }
-	    sva_disable_abort_(loc, disable, sva_block_(loc, clear));
+	    sva_disable_abort_(loc, inst, disable, sva_block_(loc, clear));
 	    delete disable;
 	    disable = nullptr;
       }
@@ -27211,7 +27344,7 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       PProcess*checker = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
       FILE_NAME(checker, loc);
       if (disable_event) {
-            sva_disable_abort_(loc, disable_event, clear());
+            sva_disable_abort_(loc, inst, disable_event, clear());
             delete disable_event;
       }
       init.push_back(sva_register_stmt_(loc, inst, -1, true));
@@ -27443,7 +27576,8 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
 
-      if (disable) sva_disable_abort_(loc, disable, sva_assign_(loc, pipe, sva_bit_(loc, 0)));
+      if (disable) sva_disable_abort_(loc, inst, disable,
+				      sva_assign_(loc, pipe, sva_bit_(loc, 0)));
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -29219,7 +29353,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
+	    std::vector<Statement*> disabled;
+	    disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
+	    disabled.push_back(clear_attempt_state());
+	    PCondit*dc = new PCondit(disable, sva_block_(loc, disabled), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
       } else {
@@ -29228,7 +29365,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
 
-      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
+      if (disable) sva_disable_abort_(loc, inst, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
