@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1437_cross_function_scope.v",
+  "iverilog-args": ["-g2023", "-s", "issue1437_cross_function_scope"]
+}

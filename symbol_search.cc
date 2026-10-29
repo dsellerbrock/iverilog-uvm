@@ -313,7 +313,7 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 	    if (!passed_module_boundary) {
 		  // Special case `super` keyword. Return the `this` object, but
 		  // with the type of the base class.
-		  if (path_tail.name == "#") {
+		  if (path_tail.name == perm_string::literal(SUPER_TOKEN)) {
 			// Find 'this' by walking up the scope hierarchy.
 			// In task scopes 'this' lives in the parent class scope,
 			// not the task scope itself.  Walk up through TASK/FUNC/BEGIN

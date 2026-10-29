@@ -8819,8 +8819,18 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 		  return st->elaborate_unpack(des, rval_scope, lv_width);
 	    if (lv_width > 0
 		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
-		  if (st->is_lval_context())
-			return st->elaborate_unpack(des, rval_scope, lv_width);
+		  if (st->is_lval_context()) {
+			NetExpr*unpacked = st->elaborate_unpack(des, rval_scope,
+								 lv_width);
+			if (unpacked && lv_type == IVL_VT_BOOL) {
+			      NetECast*cast = new NetECast('2', unpacked,
+								 lv_width, false,
+								 lv_net_type);
+			      cast->set_line(*st);
+			      unpacked = cast;
+			}
+			return unpacked;
+		  }
 		  return st->elaborate_pack_into(des, rval_scope, lv_width);
 	    }
 	      // String target (e.g. joining a queue of strings): the
@@ -13579,6 +13589,37 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                  << endl;
             des->errors += 1;
             return nullptr;
+      }
+
+      /* Qualified pattern cases use the existing case-quality runtime
+       * checks. Each pattern predicate is a Boolean case item against a
+       * constant true selector; retaining the original quality here makes
+       * unique check every matching pattern and priority check for no match. */
+      if (quality_ != IVL_CASE_QUALITY_BASIC) {
+            unsigned count = items_ ? items_->size() : 0;
+            NetEConst*selector = new NetEConst(verinum(verinum::V1));
+            selector->set_line(*expr_);
+            NetCase*res = new NetCase(quality_, NetCase::EQ, selector, count);
+            res->set_line(*this);
+            for (unsigned idx = 0; idx < count; idx += 1) {
+                  Item*item = (*items_)[idx];
+                  if (!item) continue;
+                  if (item->is_default) {
+                        NetProc*body = item->stat
+                              ? item->stat->elaborate(des, scope) : nullptr;
+                        res->set_case(idx, nullptr, body, idx);
+                        continue;
+                  }
+                  NetExpr*match = elaborate_pattern_match_(
+                        item->pattern ? static_cast<const LineInfo*>(item->pattern)
+                                      : static_cast<const LineInfo*>(this),
+                        expr_, item->pattern, case_type_, des, scope);
+                  if (!match) continue;
+                  NetProc*body = item->stat
+                        ? item->stat->elaborate(des, scope) : nullptr;
+                  res->set_case(idx, match, body, idx);
+            }
+            return res;
       }
 
       NetProc*cascade = nullptr;
@@ -42979,6 +43020,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
 		  return std::make_pair(std::string(), expr);
 	    };
+	    auto opt_type_comment = [&](PExpr*expr, const char*where) -> std::string {
+		  if (!expr) return std::string();
+		  NetExpr*value = elab_and_eval(des, class_scope_, expr,
+					&netstring_t::type_string, false);
+		  std::string result;
+		  if (NetECString*constant = dynamic_cast<NetECString*>(value))
+			result = constant->value().as_string();
+		  else {
+			cerr << expr->get_fileline() << ": error: " << where
+			     << " type_option.comment requires a constant string expression."
+			     << endl;
+			des->errors += 1;
+		  }
+		  delete value;
+		  return result;
+	    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
@@ -44100,6 +44157,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   group_options.comment = comment.first;
                   group_options.comment_expr = comment.second;
             }
+            group_options.type_comment.clear();
+            auto type_comment_it = cgdef->options.find(
+                  perm_string::literal("type_option.comment"));
+            if (type_comment_it != cgdef->options.end()) {
+                  group_options.type_comment = opt_type_comment(
+			type_comment_it->second, "covergroup");
+            }
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
@@ -44738,6 +44802,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second);
 		  std::pair<std::string,PExpr*>cp_comment = opt_comment(
 			cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
+		  auto cp_type_comment_it = cp.options.find(
+			perm_string::literal("type_option.comment"));
+		  std::string cp_type_comment = opt_type_comment(
+			cp_type_comment_it == cp.options.end() ? nullptr
+			      : cp_type_comment_it->second, "coverpoint");
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
@@ -44748,6 +44817,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
+			  cg_class->set_covgrp_item_type_comment(cp_idx,
+				cp_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
 				group_options.at_least_expr && cp.options.count(
 				      perm_string::literal("at_least")) == 0);
@@ -44855,6 +44926,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // ignored sequence to value sets once; the regular bins below
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
+			  struct detect_transition_t {
+				string name;
+				std::vector<trans_ranges_t> terms;
+			  };
+			  std::vector<detect_transition_t> detect_transitions;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
 			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
@@ -45354,6 +45430,60 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      if (bad) continue;
 				      if (programs.empty()) continue;
+
+				  // IEEE 1800-2017/2023 19.7: detect_overlap applies to
+				  // transition lists as well as value ranges. Compare fixed,
+				  // unrepeated sequences as sets at each sample position.
+				  if (opt_uint(cp.options, "detect_overlap",
+					       cg_detect_overlap)
+				      && !bin.wildcard && !constructor_dependent) {
+					bool simple = true;
+					std::vector<detect_transition_t> current;
+					for (auto&program : programs) {
+					      detect_transition_t sequence;
+					      sequence.name = bin.name.str();
+					      for (auto&term : program) {
+						    if (term.dynamic || term.repeat !=
+							(unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
+							  simple = false;
+							  break;
+						    }
+						    sequence.terms.push_back(term.ranges);
+					      }
+					      if (!simple) break;
+					      current.push_back(std::move(sequence));
+					}
+					if (simple) {
+					      for (auto&sequence : current) {
+						    for (auto&previous : detect_transitions) {
+							  if (sequence.terms.size() != previous.terms.size())
+								continue;
+							  bool overlaps = true;
+							  for (size_t i = 0; i < sequence.terms.size(); i++) {
+								    bool term_overlaps = false;
+								    for (auto&a : sequence.terms[i])
+								    for (auto&b : previous.terms[i])
+									  if (a.first <= b.second
+									      && b.first <= a.second)
+										term_overlaps = true;
+								    if (!term_overlaps) {
+									  overlaps = false;
+									  break;
+							    }
+							  }
+							  if (overlaps)
+								cerr << "warning: covergroup '"
+								     << cgdef->name
+								     << "' coverpoint '" << cp.label
+								     << "': bins '" << previous.name
+								     << "' and '" << sequence.name
+								     << "' overlap (option.detect_overlap)."
+								     << endl;
+						    }
+						    detect_transitions.push_back(sequence);
+					      }
+					}
+				  }
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
@@ -47003,6 +47133,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			x_goal_it == cross.options.end() ? nullptr : x_goal_it->second);
 		  std::pair<std::string,PExpr*>x_comment = opt_comment(
 			x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
+		  auto x_type_comment_it = cross.options.find(
+			perm_string::literal("type_option.comment"));
+		  std::string x_type_comment = opt_type_comment(
+			x_type_comment_it == cross.options.end() ? nullptr
+			      : x_type_comment_it->second, "cross");
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
@@ -47014,6 +47149,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+			  cg_class->set_covgrp_item_type_comment(item_idx,
+				x_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
 				group_options.at_least_expr && cross.options.count(
 				      perm_string::literal("at_least")) == 0);

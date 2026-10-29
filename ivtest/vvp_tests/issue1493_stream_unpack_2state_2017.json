@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1493_stream_unpack_2state_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1493_stream_unpack_2state"],
+  "output-contains": ["PASSED"]
+}

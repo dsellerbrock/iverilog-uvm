@@ -273,6 +273,7 @@ static void pform_cross_bind_function_types_(PFunction*func)
 {
 	  if (!pending_cross_scope_active_ || !func)
 		return;
+	  pform_cross_register_function(func);
 	  func->typedefs[pending_cross_value_typedef_->name] = pending_cross_value_typedef_;
 	  func->typedefs[pending_cross_queue_typedef_->name] = pending_cross_queue_typedef_;
 	  func->set_return_type_scope_local();
@@ -1333,6 +1334,7 @@ static void recover_stale_function_scope(const YYLTYPE&loc)
 
 void reset_parser_file_state(void)
 {
+      pform_cross_reset_visibility();
       while (!current_block_stack.empty()) {
 	    current_block_stack.pop();
 	    pform_pop_scope();
@@ -6619,7 +6621,8 @@ function_declaration /* IEEE1800-2005: A.2.6 */
 function_declaration_header
   : K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2);
+	current_function = pform_push_function_scope(@1, $4, $2,
+					      pending_cross_scope_active_);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);
 	$$ = $4;
@@ -6627,7 +6630,8 @@ function_declaration_header
       }
   | method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2);
+	current_function = pform_push_function_scope(@1, $4, $2,
+					      pending_cross_scope_active_);
 	current_function->set_method_override_specifiers($1);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);
@@ -19882,7 +19886,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "case-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQ);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -19902,7 +19906,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "casex-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQX);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQX);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -19912,7 +19916,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "casez-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQZ);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQZ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -19976,6 +19980,28 @@ statement_item /* This is roughly statement_item in the LRM */
   | if_qualifier K_if '(' expression ')' statement_or_null K_else statement_or_null
       { pform_requires_sv(@1, "qualified if statement");
 	$$ = pform_make_quality_if(@1, $1, $4, $6, $8);
+      }
+  | if_qualifier K_if '(' pattern_condition ')' statement_or_null %prec less_than_K_else
+      { pform_requires_sv(@1, "qualified pattern-matching conditional");
+	assert(!current_pattern_blocks.empty());
+	PEMatches*condition = dynamic_cast<PEMatches*>($4);
+	assert(condition);
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	Statement*if_true = pform_pattern_finish_scope(
+	      @2, block, $6, condition->subject(), condition->pattern());
+	$$ = pform_make_quality_if(@2, $1, condition, if_true, nullptr);
+      }
+  | if_qualifier K_if '(' pattern_condition ')' statement_or_null K_else statement_or_null
+      { pform_requires_sv(@1, "qualified pattern-matching conditional");
+	assert(!current_pattern_blocks.empty());
+	PEMatches*condition = dynamic_cast<PEMatches*>($4);
+	assert(condition);
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	Statement*if_true = pform_pattern_finish_scope(
+	      @2, block, $6, condition->subject(), condition->pattern());
+	$$ = pform_make_quality_if(@2, $1, condition, if_true, $8);
       }
   | K_if '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");

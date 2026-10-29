@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1516_escaped_hash.v",
+  "iverilog-args": ["-g2023", "-s", "issue1516_escaped_hash"],
+  "gold": "issue1516_escaped_hash"
+}

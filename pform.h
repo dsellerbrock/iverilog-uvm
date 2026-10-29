@@ -716,7 +716,8 @@ extern PTask*pform_push_task_scope_unbound(const struct vlltype&loc, const char*
 					   LexicalScope::lifetime_t lifetime);
 
 extern PFunction*pform_push_function_scope(const struct vlltype&loc, const char*name,
-					   LexicalScope::lifetime_t lifetime);
+					   LexicalScope::lifetime_t lifetime,
+					   bool scope_local_symbol = false);
 extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
 					     LexicalScope::lifetime_t lifetime,
 					     bool procedural_body = true);
@@ -825,6 +826,8 @@ extern PECallFunction* pform_make_call_function(const struct vlltype&loc,
 						const pform_name_t&name,
 						const std::list<named_pexpr_t> &parms,
 						struct parmvalue_t*type_args = 0);
+extern void pform_cross_register_function(PFunction*func);
+extern void pform_cross_reset_visibility();
 extern PCallTask* pform_make_call_task(const struct vlltype&loc,
 				       const pform_name_t&name,
 				       const std::list<named_pexpr_t> &parms,

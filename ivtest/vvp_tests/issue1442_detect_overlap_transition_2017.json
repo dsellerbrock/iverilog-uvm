@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1442_detect_overlap_transition.v",
+  "iverilog-args": ["-g2017", "-s", "issue1442_detect_overlap_transition"],
+  "gold": "issue1442_detect_overlap_transition_2017"
+}

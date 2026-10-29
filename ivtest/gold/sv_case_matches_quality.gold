@@ -1,0 +1,8 @@
+PASS pattern case qualifiers
+WARNING: ./ivltests/sv_case_matches_quality.v:7: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: top
+WARNING: ./ivltests/sv_case_matches_quality.v:13: value is unhandled for priority or unique case statement
+         Time: 0  Scope: top
+WARNING: ./ivltests/sv_case_matches_quality.v:16: value is unhandled for priority or unique case statement
+         Time: 0  Scope: top
+./ivltests/sv_case_matches_quality.v:24: $finish called at 0 (1s)

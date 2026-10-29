@@ -315,6 +315,7 @@ class class_type : public __vpiHandle {
 	    int weight_prop = -1;
 	    unsigned goal = 100;
 	    std::string comment;
+	    std::string type_comment;
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    bool is_cross = false;
@@ -406,6 +407,10 @@ class class_type : public __vpiHandle {
 	  covgrp_items_[idx].comment_prop = comment_prop;
 	  covgrp_items_[idx].comment = comment;
 	  return true; }
+      bool set_covgrp_item_type_comment(size_t idx, const std::string&comment)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].type_comment = comment;
+	return true; }
       bool set_covgrp_item_guard(size_t idx, bool has_guard)
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
@@ -537,6 +542,7 @@ class class_type : public __vpiHandle {
             unsigned weight = 1, get_inst_coverage = 1;
             unsigned goal = 100;
             std::string comment;
+            std::string type_comment;
             int weight_prop = -1, get_inst_coverage_prop = -1;
             int per_instance_prop = -1;
             int goal_prop = -1, comment_prop = -1;
@@ -603,9 +609,11 @@ class class_type : public __vpiHandle {
       struct covgrp_instance_snapshot_t {
             uint64_t id = 0;
             double coverage = 0.0;
+            std::string comment;
             std::map<unsigned, uint32_t> bin_counts;
             std::vector<unsigned> item_at_least;
             std::vector<unsigned> item_weight;
+            std::vector<std::string> item_comments;
       };
       uint64_t covgrp_instance_id_(class vvp_cobject*obj) const;
       covgrp_instance_snapshot_t covgrp_snapshot_(class vvp_cobject*obj,
