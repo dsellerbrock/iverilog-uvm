@@ -2951,6 +2951,26 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
       return const_cast<netclass_t*>(class_type)->ensure_property_decl(des, name);
 }
 
+static bool report_covergroup_ctor_formal_hierarchical_access_(
+		Design*des, const netclass_t*class_type, int pidx,
+		const std::string&fileline)
+{
+      if (!class_type || !class_type->is_covergroup() || pidx < 0)
+	    return false;
+      for (size_t idx = 0; idx < class_type->covgrp_ctor_formal_count();
+	   idx += 1) {
+	    if (class_type->covgrp_ctor_formal_prop(idx) != (unsigned)pidx)
+		  continue;
+	    cerr << fileline << ": error: Covergroup constructor formal `"
+		 << class_type->covgrp_ctor_formal_name(idx)
+		 << "' cannot be accessed using a hierarchical name "
+		    "(IEEE 1800-2017/2023 19.3)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      return false;
+}
+
 /* Clocking-block member path rewrites are shared with l-value
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
@@ -16852,6 +16872,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			  // a NetESelect over the whole array property reads
 			  // element 0 / x — the index was effectively dropped.
 			int tprop = cur_class->property_idx_from_name(tail_comp.name);
+			if (report_covergroup_ctor_formal_hierarchical_access_(
+			      des, cur_class, tprop, get_fileline())) {
+			      delete base_expr;
+			      return nullptr;
+			}
 			ivl_type_t tprop_type = (tprop >= 0)
 			      ? cur_class->get_prop_type(tprop) : nullptr;
 			perm_string next_modport = (tprop >= 0)
@@ -16900,6 +16925,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				         expr_wid, flags);
 
       int pidx = ensure_class_property_idx_(des, class_type, comp.name);
+      if (report_covergroup_ctor_formal_hierarchical_access_(
+	    des, class_type, pidx, get_fileline()))
+	    return nullptr;
       if (pidx < 0) {
             if (gn_system_verilog() && comp.index.empty()) {
                   if (array_method_iter_index_forbidden_(sr.net, comp.name)) {
