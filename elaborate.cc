@@ -44772,7 +44772,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (cp_real_supported
 				    && (!bin.trans_seqs.empty() || bin.set_expr
 					|| bin.wildcard || !bin.source_coverpoint.nil()
-					|| bin.with_expr || bin.array_size)) {
+					|| bin.with_expr)) {
 				      cerr << pclass->get_fileline()
 					   << ": error: real coverpoint bin '" << bin.name
 					   << "' uses a bin form outside real range bins." << endl;
@@ -45487,7 +45487,50 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					desc.source_prop = (int)prop;
 					desc.guard_idx = bin_guard;
 					vbins.push_back(std::move(desc));
-				      } else {
+				      } else if (bin.array_size && base_kind == 0) {
+					NetExpr*se = elab_and_eval(des, class_scope_,
+						bin.array_size, -1, false, false);
+					NetEConst*sc = dynamic_cast<NetEConst*>(se);
+					uint64_t bins = sc && sc->value().is_defined()
+						? sc->value().as_ulong64() : 0;
+					delete se;
+					if (bins == 0 || bins > 65536) {
+					      cerr << pclass->get_fileline()
+						   << ": error: real coverpoint fixed bin array '"
+						   << bin.name << "' requires a positive constant size "
+						   << "no greater than 65536." << endl;
+					      des->errors += 1;
+					      continue;
+					}
+					size_t per_bin = std::max<size_t>(1,
+					      real_ranges.size() / bins);
+					size_t item = 0;
+					for (uint64_t idx = 0; idx < bins; ++idx) {
+					      size_t end = idx + 1 == bins
+						    ? real_ranges.size()
+						    : std::min(real_ranges.size(), item + per_bin);
+					      std::vector<std::pair<uint64_t,uint64_t>> ranges(
+						    real_ranges.begin() + item,
+						    real_ranges.begin() + end);
+					      item = end;
+					      std::string name = bstem + "_" + std::to_string(idx);
+					      unsigned prop = add_value_prop(name, ranges,
+						    kindval, bin_guard);
+					      if (ranges.empty())
+						    cg_class->add_covgrp_bin(cp_idx, prop, 1, 0,
+							  kindval, 0, cp_idx, 0, 1, 1, 0, 1,
+							  netclass_t::COVGRP_NO_FAMILY, 0, bin_guard);
+					      xbin_desc_t desc;
+					      desc.name = lex_strings.make(
+						    (std::string(bin.name.str()) + "["
+						     + std::to_string(idx) + "]").c_str());
+					      desc.ranges = std::move(ranges);
+					      desc.source_prop = (int)prop;
+					      desc.guard_idx = bin_guard;
+					      vbins.push_back(std::move(desc));
+					}
+				      has_value_bins = true;
+				} else {
 					for (size_t idx = 0; idx < real_ranges.size(); ++idx) {
 					      std::vector<std::pair<uint64_t,uint64_t>> range(1,
 						    real_ranges[idx]);
