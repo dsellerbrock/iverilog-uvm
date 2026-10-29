@@ -6178,6 +6178,8 @@ issue1417_typed_coverpoint_2017 normal,-g2017,-s,test ivltests gold=issue1417_ty
 issue1417_typed_coverpoint_2023 normal,-g2023,-s,test ivltests gold=issue1417_typed_coverpoint.gold
 issue1461_cross_namespace_name_2017 normal,-g2017,-s,tb ivltests gold=issue1461_cross_namespace_name.gold
 issue1461_cross_namespace_name_2023 normal,-g2023,-s,tb ivltests gold=issue1461_cross_namespace_name.gold
+issue1426_distribute_first_2017 normal,-g2017,-s,test ivltests gold=issue1426_distribute_first.gold
+issue1426_distribute_first_2023 normal,-g2023,-s,test ivltests gold=issue1426_distribute_first.gold
 
 # IEEE 1800-2017/2023 assignment expressions with concatenation l-values
 issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold

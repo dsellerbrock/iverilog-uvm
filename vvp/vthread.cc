@@ -7777,6 +7777,9 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
 				     const vvp_vector4_t*wide_val = nullptr)
 {
+      // Empty bins retained after type_option.distribute_first filtering
+      // contribute to the coverage denominator but can never be sampled.
+      if (bin.kind & 2048) return false;
       if (bin.kind & 128) {
 	    unsigned width = bin.hi >> 16;
 	    unsigned word = (bin.hi >> 8) & 255;
