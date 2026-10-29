@@ -239,6 +239,8 @@ class PExpr : public LineInfo {
 	// ports of tran primitives.
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope,
                                        bool var_allowed_in_sv) const;
+      virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope,
+                                        bool var_allowed_in_sv) const;
 
 	// Expressions that can be in the l-value of procedural
 	// assignments can be elaborated with this method. If the
@@ -464,6 +466,8 @@ class PEConcat : public PExpr {
                                      bool var_allowed_in_sv) const override;
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope,
                                        bool var_allowed_in_sv) const override;
+      virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope,
+                                        bool var_allowed_in_sv) const override;
 
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;
@@ -484,7 +488,8 @@ class PEConcat : public PExpr {
 			   bool string_context);
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
-				     bool var_allowed_in_sv) const;
+				     bool var_allowed_in_sv,
+				     bool pass_switch_flag = false) const;
     private:
       std::vector<PExpr*>parms_;
       std::valarray<width_mode_t>width_modes_;
@@ -619,6 +624,7 @@ class PEIdent : public PExpr {
       virtual NetNet* elaborate_lnet(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
 
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
+      virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
 
 	// Identifiers are also allowed as procedural assignment l-values.
       virtual NetAssign_* elaborate_lval(Design*des,
@@ -942,7 +948,8 @@ class PEIdent : public PExpr {
 
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
-				     bool var_allowed_in_sv) const;
+				     bool var_allowed_in_sv,
+				     bool pass_switch_flag = false) const;
 
 
       bool eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,

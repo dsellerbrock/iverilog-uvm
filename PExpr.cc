@@ -176,6 +176,12 @@ NetNet* PExpr::elaborate_bi_net(Design*, NetScope*, bool) const
       return 0;
 }
 
+NetNet* PExpr::elaborate_pass_net(Design*des, NetScope*scope,
+                                  bool var_allowed_in_sv) const
+{
+      return elaborate_bi_net(des, scope, var_allowed_in_sv);
+}
+
 bool PExpr::is_collapsible_net(Design*, NetScope*, NetNet::PortType) const
 {
       return false;

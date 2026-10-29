@@ -4639,6 +4639,20 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 
       vector<NetNet*>lval_sigs (lval_count);
 
+      bool pass_switch = false;
+      switch (type()) {
+	  case TRAN:
+	  case RTRAN:
+	  case TRANIF0:
+	  case TRANIF1:
+	  case RTRANIF0:
+	  case RTRANIF1:
+	    pass_switch = true;
+	    break;
+	  default:
+	    break;
+      }
+
       for (unsigned idx = 0 ; idx < lval_count ; idx += 1) {
 	    if (pin(idx) == 0) {
 		  cerr << get_fileline() << ": error: Logic gate port "
@@ -4651,8 +4665,12 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 	      // SystemVerilog: IEEE 1800-2017 6.5 allows one primitive
 	      // output as a variable's single continuous source (the
 	      // shared lnet path re-checks for procedural conflicts).
-            if (lval_count > gate_count)
-	          lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
+	    if (lval_count > gate_count) {
+	          if (pass_switch)
+		lval_sigs[idx] = pin(idx)->elaborate_pass_net(des, scope, false);
+	          else
+		lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
+	    }
             else
 	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope,
 	                                                    gn_system_verilog());
