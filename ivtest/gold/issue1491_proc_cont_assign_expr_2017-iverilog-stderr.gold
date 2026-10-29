@@ -1,0 +1,2 @@
+ivltests/issue1491_proc_cont_assign_expr_2017.sv:4: error: Assignment operator is not allowed in an expression within a procedural continuous assignment (IEEE 1800-2017/2023 11.3.6).
+Elaboration failed

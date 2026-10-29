@@ -21502,7 +21502,9 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       ivl_variable_type_t ltype = lval->expr_type();
 
       PExprProceduralContextGuard procedural_context(false);
-      NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
+      NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype,
+                                        lwid, expr_, false, false,
+                                        PExpr::PROC_CONT_ASSIGN_EXPR);
       if (rexp == 0)
 	    return 0;
 

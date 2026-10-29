@@ -98,6 +98,9 @@ class PExpr : public LineInfo {
       static const unsigned NEED_CONST   = 0x1;
       static const unsigned SYS_TASK_ARG = 0x2;
       static const unsigned SYS_TASK_ARG_OUTPUT = 0x1000;
+      // Assignment operators are forbidden in expressions within a
+      // procedural continuous assignment (IEEE 1800-2017/2023 11.3.6).
+      static const unsigned PROC_CONT_ASSIGN_EXPR = 0x2000;
       static const unsigned ANNOTATABLE  = 0x4;
       // Permit the symbolic unbounded value only while evaluating a value
       // parameter assignment or the argument of $isunbounded().
