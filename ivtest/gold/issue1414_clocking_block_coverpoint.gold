@@ -1,0 +1,3 @@
+PASS: issue1414 clocking-block coverpoint bins
+PASSED
+./ivltests/issue1414_clocking_block_coverpoint.v:36: $finish called at 6 (1s)

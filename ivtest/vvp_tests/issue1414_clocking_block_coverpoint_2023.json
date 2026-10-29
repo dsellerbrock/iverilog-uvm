@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1414_clocking_block_coverpoint.v",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["PASS: issue1414 clocking-block coverpoint bins"]
+}

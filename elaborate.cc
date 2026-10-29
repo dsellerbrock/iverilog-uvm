@@ -28575,6 +28575,65 @@ static void elaborate_tasks(Design*des, NetScope*scope,
 
 
 
+/* Resolve a standalone coverpoint's module clocking-block input reference. */
+static const Module::PClocking* standalone_coverpoint_clocking_(
+	    const PExpr*expr, NetScope*scope, perm_string&cb_name,
+	    perm_string&signal_name)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() != 2
+	  || !id->path().name.front().index.empty()
+	  || !id->path().name.back().index.empty())
+	    return nullptr;
+
+      cb_name = id->path().name.front().name;
+      signal_name = id->path().name.back().name;
+      for (NetScope*walker = scope; walker; walker = walker->parent()) {
+	    if (walker->type() != NetScope::MODULE) continue;
+	    auto module = pform_modules.find(walker->module_name());
+	    if (module == pform_modules.end() || !module->second) continue;
+	    auto clocking = module->second->clocking_blocks.find(cb_name);
+	    if (clocking == module->second->clocking_blocks.end()
+		|| !clocking->second
+		|| clocking->second->signal_direction(signal_name) == NetNet::POUTPUT)
+		  continue;
+	    return clocking->second;
+      }
+      return nullptr;
+}
+
+static bool standalone_clocking_events_match_(
+	    const std::vector<PEEvent*>&sample_events,
+	    const PEventStatement*clocking_event)
+{
+      if (!clocking_event) return false;
+      const std::vector<PEEvent*>&clock_events =
+	    clocking_event->event_expressions();
+      if (sample_events.size() != clock_events.size()) return false;
+      for (size_t idx = 0; idx < sample_events.size(); idx += 1) {
+	    const PEEvent*sample = sample_events[idx];
+	    const PEEvent*clock = clock_events[idx];
+	    if (!sample || !clock || sample->type() != clock->type()
+		|| sample->condition() || clock->condition())
+		  return false;
+	    const PEIdent*sample_id = dynamic_cast<const PEIdent*>(sample->expr());
+	    const PEIdent*clock_id = dynamic_cast<const PEIdent*>(clock->expr());
+	    if (!sample_id || !clock_id || sample_id->path().package
+		|| clock_id->path().package
+		|| sample_id->path().name.size() != clock_id->path().name.size())
+		  return false;
+	    auto sample_part = sample_id->path().name.begin();
+	    auto clock_part = clock_id->path().name.begin();
+	    for (; sample_part != sample_id->path().name.end();
+		 ++sample_part, ++clock_part) {
+		  if (sample_part->name != clock_part->name
+		      || !sample_part->index.empty() || !clock_part->index.empty())
+			return false;
+	    }
+      }
+      return true;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -28654,7 +28713,33 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    std::list<named_pexpr_t> no_parms;
 	    PCallTask*call = new PCallTask(mpath, no_parms);
 	    call->set_line(*sig);
-	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
+	    PEventStatement*ev = nullptr;
+	    const Module::PClocking*sample_clocking = nullptr;
+	    perm_string sample_cb_name, sample_cb_signal;
+	    for (const class_type_t::pform_coverpoint_t&cp : cgdef->coverpoints) {
+		  const Module::PClocking*candidate =
+			standalone_coverpoint_clocking_(cp.expr, scope,
+							 sample_cb_name,
+							 sample_cb_signal);
+		  if (!candidate) continue;
+		  PExpr*delay = nullptr;
+		  if (candidate->input_skew(sample_cb_signal, delay)
+			  == Module::PClocking::SKEW_DELAY
+		      && standalone_clocking_events_match_(cgdef->sample_events,
+							 candidate->event)) {
+			sample_clocking = candidate;
+			break;
+		  }
+	    }
+	    if (sample_clocking) {
+		  PEIdent*clocking_id = new PEIdent(sample_cb_name, 0);
+		  clocking_id->set_line(*sig);
+		  PEEvent*clocking_event = new PEEvent(PEEvent::ANYEDGE, clocking_id);
+		  clocking_event->set_line(*sig);
+		  ev = new PEventStatement(clocking_event);
+	    } else {
+		  ev = new PEventStatement(cgdef->sample_events);
+	    }
 	    ev->set_line(*sig);
 	    ev->set_statement(call);
 	    NetProc*st = ev->elaborate(des, scope);
@@ -43991,8 +44076,32 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
 		    std::function<ivl_type_t(const PExpr*)> coverpoint_expr_type;
 		    coverpoint_expr_type = [&](const PExpr*expr) -> ivl_type_t {
-			  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
-				return coverpoint_ident_type(id);
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+			ivl_type_t type = coverpoint_ident_type(id);
+			if (type) return type;
+			// A standalone covergroup's clocking input is resolved through
+			// its enclosing module/interface scope, not as a class property.
+			perm_string cb_name, signal_name;
+			if (cg_standalone
+			    && standalone_coverpoint_clocking_(id, class_scope_,
+							       cb_name, signal_name)) {
+			      PExpr::width_mode_t mode = PExpr::SIZED;
+			      unsigned width = const_cast<PEIdent*>(id)->test_width(
+				    des, class_scope_, mode);
+			      NetExpr*resolved = id->elaborate_expr(
+				    des, class_scope_, width, 0);
+			      if (resolved) {
+				    ivl_type_t resolved_type = resolved->net_type();
+				    if (!resolved_type)
+					  if (const NetESignal*signal =
+						dynamic_cast<const NetESignal*>(resolved))
+						resolved_type = signal->sig()->net_type();
+				    delete resolved;
+				    return resolved_type;
+			      }
+			}
+			return nullptr;
+	    }
 			  const PEMemberAccess*member =
 				dynamic_cast<const PEMemberAccess*>(expr);
 			  if (!member) return nullptr;
