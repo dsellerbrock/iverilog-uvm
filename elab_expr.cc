@@ -21417,6 +21417,30 @@ static bool bitstream_cast_type_(ivl_type_t type, bool destination)
       return bitstream_cast_type_(type, destination, active);
 }
 
+static bool bitstream_class_has_restricted_property_(const netclass_t*type)
+{
+      if (!type)
+	    return false;
+      for (size_t idx = 0 ; idx < type->get_properties(); idx += 1) {
+	    property_qualifier_t qual = type->get_prop_qual(idx);
+	    if (!qual.test_static()
+		&& (qual.test_local() || qual.test_protected()))
+		  return true;
+      }
+      return false;
+}
+
+static bool bitstream_cast_source_is_this_(const PExpr*expr)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+	    return false;
+      const pform_scoped_name_t&path = ident->path();
+      return !path.package && path.name.size() == 1
+	    && path.name.front().name == perm_string::literal("this")
+	    && path.name.front().index.empty();
+}
+
 /* Return the fixed bit-stream width for an unpacked struct whose members
  * are packed. A zero result means that this helper does not apply. */
 static unsigned fixed_struct_stream_width_(ivl_type_t type)
@@ -21722,6 +21746,22 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       }
       if (sub == 0)
 	    return 0;
+
+	/* IEEE 1800-2017/2023 6.24.3 excludes class-handle sources whose
+	 * class declares local or protected instance properties. The sole
+	 * exception is the current instance handle itself. Check this before
+	 * lowering a class handle to its one-bit representation. */
+      const netclass_t*source_class =
+	    dynamic_cast<const netclass_t*>(sub->net_type());
+      if (source_class && bitstream_cast_type_(target_type_, true)
+	  && bitstream_class_has_restricted_property_(source_class)
+	  && !bitstream_cast_source_is_this_(base_)) {
+	    cerr << get_fileline() << ": error: class handle with local or protected members cannot be used as a bit-stream cast source."
+		 << endl;
+	    des->errors += 1;
+	    delete sub;
+	    return nullptr;
+      }
 
 	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
 	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
