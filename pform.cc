@@ -10257,10 +10257,15 @@ static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
+
       const pform_name_t&path = call->path();
-      return path.size() == 1 && path.front().index.empty()
-	     && (path.front().name == perm_string::literal("$display")
-		 || (cover && call->parms().empty()));
+      return (path.size() == 1 && path.front().index.empty()
+	      && (path.front().name == perm_string::literal("$display")
+		  || (cover && call->parms().empty())))
+	     || (!call->receiver_expr() && !call->package()
+		 && !call->has_scoped_type_prefix()
+		 && path.size() == 2 && path.front().index.empty()
+		 && path.back().index.empty() && call->parms().empty());
 }
 
 static PCallTask* sva_clone_match_call_(
