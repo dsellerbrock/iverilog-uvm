@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1478_fixed_array_new.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"           : "issue1478_fixed_array_new_2023"
+}
