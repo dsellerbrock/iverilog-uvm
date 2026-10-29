@@ -279,6 +279,7 @@ typedef struct t_vpi_delay  {
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
+#define vpiDoWhile    670 /* do-while statement */
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
 #define vpiFunction    20
@@ -338,6 +339,7 @@ typedef struct t_vpi_delay  {
 #define vpiModPathIn     95
 #define vpiModPathOut    96
 #define vpiVariables   100
+#define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
@@ -361,6 +363,7 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiNullOp         36 /* null operation */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
 #define vpiCaseX          2 /* ignore X's */
