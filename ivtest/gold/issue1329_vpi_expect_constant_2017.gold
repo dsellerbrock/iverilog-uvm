@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1329_vpi_expect_constant_2017.v:4: $finish called at 0 (1s)

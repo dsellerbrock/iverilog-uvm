@@ -13,10 +13,16 @@
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
+issue1363_sequence_triggered_args_2017 normal,-g2017,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
+issue1363_sequence_triggered_args_2023 normal,-g2023,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
 issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
 issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
 issue1320_vpi_assignment_op_2023 normal,-g2023 ivltests
+issue1329_vpi_expect_constant_2017 normal,-g2017,-s,top ivltests gold=issue1329_vpi_expect_constant_2017.gold
+issue1329_vpi_expect_constant_2023 normal,-g2023,-s,top ivltests gold=issue1329_vpi_expect_constant_2023.gold
+issue1356_sva_untyped_dollar_2017 normal,-g2017,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
+issue1356_sva_untyped_dollar_2023 normal,-g2023,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 
 issue1184_sva_sampled_queue_delete_2017 normal,-g2017,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
 issue1184_sva_sampled_queue_delete_2023 normal,-g2023,-gassertions ivltests gold=issue1184_sva_sampled_queue_delete.gold
@@ -6168,3 +6174,5 @@ sv_genvar_reference_outside_loop_fail_2023 CE,-g2023,-s,sv_genvar_reference_outs
 # IEEE 1800-2017/2023 §16.8: sequence actual names must identify formals.
 issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_sequence_2017 ivltests
 issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests
+issue1364_named_sequence_combinators_2017 CN,-g2017,-s,top ivltests
+issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
