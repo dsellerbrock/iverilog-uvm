@@ -1,5 +1,4 @@
-// Test default value for output port
-// This should work, but isn't supported yet
+// IEEE 1800-2017/2023 13.5.3: output defaults bind to the declaration scope.
 
 module test();
 
