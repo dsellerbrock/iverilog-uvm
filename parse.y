@@ -77,6 +77,18 @@ static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
 	  }
 }
 
+static void sva_check_first_match_lvalues_(
+	const struct vlltype&loc, const std::vector<sva_seq_step_t>&steps)
+{
+	for (size_t i = 0; i < steps.size(); i += 1)
+	      for (size_t j = 0; j < steps[i].items.size(); j += 1) {
+		    const sva_match_item_t&item = steps[i].items[j];
+		    if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+			&& item.lv_rhs)
+			  pform_sva_match_lvalue_declared(loc, item.lv_name);
+	      }
+}
+
 /* IEEE 1800-2017/2023 19.5: an unlabeled coverpoint over one variable is
  * named after that variable. Keep the existing internal fallback for
  * expressions that do not name a single variable. */
@@ -9768,7 +9780,8 @@ sva_seq_atom
      (where the cut would change which match continues) is caught and
      diagnosed at lowering rather than silently over-matching. */
   | K_first_match '(' sva_seq_expr ')'
-	  { sva_mark_first_match_(*$3);
+	  { sva_check_first_match_lvalues_(@1, *$3);
+	    sva_mark_first_match_(*$3);
 	$$ = $3; }
   /* IEEE 1800-2017/2023 16.9.8: match items following the operand
      belong to its ending match, and are considered inside first_match.
@@ -9779,6 +9792,7 @@ sva_seq_atom
 	    sva_seq_step_t&st = $3->back();
 	    st.items.insert(st.items.end(), $5->begin(), $5->end());
 	    $5->clear();
+	    sva_check_first_match_lvalues_(@1, *$3);
 	    sva_mark_first_match_(*$3);
 	  } else {
 	    for (size_t i = 0; i < $5->size(); i += 1) {

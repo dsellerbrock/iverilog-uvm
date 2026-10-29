@@ -2,7 +2,7 @@
 // order, and call arguments see preceding local assignments.
 module sv_assert_first_match_mixed_items;
   logic clk = 0, a = 0, b = 0;
-  int failures = 0;
+  int hits = 0;
   always #5 clk = ~clk;
 
   sequence s;
@@ -15,7 +15,7 @@ module sv_assert_first_match_mixed_items;
                                $display("x=%0d", x), y = x + 1,
                                $display("y=%0d", y));
   endproperty
-  assert property (p) else failures++;
+  cover property (p) hits++;
 
   initial begin
     @(negedge clk); a = 1;
@@ -23,8 +23,8 @@ module sv_assert_first_match_mixed_items;
     @(negedge clk); b = 0;
     repeat (2) @(negedge clk);
 
-    if (failures != 0)
-      $fatal(1, "first_match mixed-item failures=%0d", failures);
+    if (hits != 1)
+      $fatal(1, "first_match mixed-item hits=%0d", hits);
     $display("PASSED: mixed first_match items preserve source order");
     $finish(0);
   end

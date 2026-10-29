@@ -10156,6 +10156,18 @@ void pform_sva_add_local_formal(const char*name)
       sva_local_formal_names_.insert(lex_strings.make(name));
 }
 
+bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
+				     perm_string name)
+{
+      if (sva_local_decl_types_.count(name)
+	  || sva_local_formal_names_.count(name)) return true;
+      cerr << loc << ": sorry: sequence match-item lvalue `"
+	   << name << "' must be an assertion local variable (IEEE 1800 16.6)."
+	   << endl;
+      error_count += 1;
+      return false;
+}
+
 static PExpr* sva_local_dimension_width_(const struct vlltype&loc,
 					 PExpr*left, PExpr*right)
 {
@@ -10292,11 +10304,8 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       std::map<perm_string,sva_local_decl_type_t>::const_iterator it =
 	    sva_local_decl_types_.find(key);
       if (it == sva_local_decl_types_.end()) {
-	    if (!require_declared || sva_local_formal_names_.count(key)) return rhs;
-	    cerr << loc << ": sorry: sequence match-item lvalue `"
-		 << name << "' must be an assertion local variable (IEEE 1800 16.6)."
-		 << endl;
-	    error_count += 1;
+	    if (!require_declared) return rhs;
+	    if (pform_sva_match_lvalue_declared(loc, key)) return rhs;
 	    delete rhs;
 	    return nullptr;
       }
@@ -19389,6 +19398,23 @@ static bool sva_nfa_dependent_rhs_substitutable_(
    SEQ_CONCAT topology might have a provable prefix. Keeping the admission
    rule syntactic and narrow prevents a branch-local write from overwriting a
    value already snapshotted by an earlier endpoint. */
+static bool sva_first_match_assign_ambiguous_(
+			       const std::vector<sva_seq_step_t>&steps)
+{
+      for (size_t i = 0; i < steps.size(); i += 1) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (!sva_step_has_assignment_(st) || !st.fm || st.fm_group == 0
+		|| pform_sva_first_match_group_class(steps, st.fm_group)
+		   != SVA_FIRST_MATCH_CUT)
+		  continue;
+	    for (size_t j = i + 1; j < steps.size(); j += 1)
+		  if (steps[j].fm_group == st.fm_group
+		      && steps[j].delay_lo != steps[j].delay_hi)
+			return true;
+      }
+      return false;
+}
+
 static bool sva_nfa_local_prefix_safe_(
 			       const sva_stree_t*tree,
 			       std::map<perm_string,unsigned>&assignments,
@@ -19668,6 +19694,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<PExpr*> lv_rhs_expr;     // per lv: rhs (borrowed)
       std::vector<PExpr*> lv_gate_expr;    // per lv: assigning-step gate (borrowed)
       bool lv_dup_in_chain = false;
+      bool fm_ambiguous_assignment = false;
       {
 	    std::vector<const std::vector<sva_seq_step_t>*> sources;
 	    if (have_tree) {
@@ -19682,6 +19709,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 	    }
 	    for (size_t vi = 0 ; vi < sources.size() ; vi += 1) {
+		  if (sva_first_match_assign_ambiguous_(*sources[vi]))
+			fm_ambiguous_assignment = true;
 		  std::set<perm_string> seen_in_source;
 		  for (size_t si = 0 ; si < sources[vi]->size() ; si += 1) {
 			const sva_seq_step_t&st = (*sources[vi])[si];
@@ -19705,6 +19734,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       if (lv_dup_in_chain) {
 	    /* The NFA has one carrier per local, so later writes would be dropped. */
 	    prop->tree_sorry = 6;
+	    return false;
+      }
+      if (fm_ambiguous_assignment) {
+	    prop->tree_sorry = 10;
 	    return false;
       }
       bool has_lv = !lv_list.empty();
@@ -20570,8 +20603,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  body.push_back(sva_assign_(loc, nx[j],
 			    next_state(nfa, s[k], j, lvmap, exit_hits)));
 	    }
-	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
-		 it != exit_hits.end(); ++it) delete it->second;
 	      /* LV-2: capture — a slot takes a local variable's rhs sample
 		 exactly when the ASSIGNING EDGE fires (the gate matched
 		 from the pre-advance state), NOT merely when it sits in the
@@ -20628,6 +20659,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				    sva_assign_(loc, vk[k][li], rhs), nullptr));
 			}
 	    }
+	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
+		 it != exit_hits.end(); ++it) delete it->second;
 	    for (std::map<perm_string,PExpr*>::iterator it = lvmap.begin();
 		 it != lvmap.end() ; ++it)
 		  delete it->second;
@@ -29257,6 +29290,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << "leaf prefix; branch-local, post-branch, repeated, and "
 		       << "duplicate assignments require per-path local state and "
 		       << "the assertion is dropped." << endl;
+	    else if (prop->tree_sorry == 10)
+		  cerr << loc << ": sorry: a local-variable match-item "
+		       << "assignment inside a first_match operand followed by "
+		       << "a variable-length step can have tied earliest matches "
+		       << "with different values; the assertion is dropped."
+		       << endl;
 	    else
 		  cerr << loc << ": sorry: this local-variable assertion shape is "
 		       << "not supported by the automaton engine yet; the "
