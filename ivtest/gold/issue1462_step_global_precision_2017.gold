@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1462_step_global_precision_2017.v:17: $finish called at 1000 (1ps)

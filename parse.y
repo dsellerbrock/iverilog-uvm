@@ -424,14 +424,11 @@ static void mark_lazy_virtual_interface_default_(PExpr*expr)
 	    interface_type->allow_unresolved = true;
 }
 
-/* IEEE 1800-2017 3.14.3/5.8: procedural #1step is one precision tick
-   expressed in the current scope's timeunit. Keep it as a real delay so
-   the ordinary delay elaborator performs the final design-precision scale. */
+/* Preserve procedural #1step until elaboration knows the design-wide
+   precision. */
 static PExpr* pform_one_step_delay_(const struct vlltype&loc)
 {
-      double value = pow(10.0,
-			 (double)(pform_get_timeprec() - pform_get_timeunit()));
-      PEFNumber*delay = new PEFNumber(new verireal(value));
+      PEFNumber*delay = new PEFNumber(new verireal(0.0), true);
       FILE_NAME(delay, loc);
       return delay;
 }

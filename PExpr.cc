@@ -622,8 +622,8 @@ PEAssocType::~PEAssocType()
 {
 }
 
-PEFNumber::PEFNumber(verireal*v)
-: value_(v)
+PEFNumber::PEFNumber(verireal*v, bool one_step)
+: value_(v), one_step_(one_step)
 {
 }
 
@@ -635,6 +635,11 @@ PEFNumber::~PEFNumber()
 const verireal& PEFNumber::value() const
 {
       return *value_;
+}
+
+bool PEFNumber::is_one_step() const
+{
+      return one_step_;
 }
 
 PEIdent::PEIdent(const pform_name_t&that, unsigned lexical_pos)

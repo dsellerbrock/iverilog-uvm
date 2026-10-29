@@ -8854,6 +8854,13 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 				      bool clocking_skew)
 {
+      const PEFNumber*real_expr = dynamic_cast<const PEFNumber*>(expr);
+      if (real_expr && real_expr->is_one_step()) {
+	    NetEConst*delay = new NetEConst(verinum(uint64_t(1), 64));
+	    delay->set_line(*expr);
+	    return delay;
+      }
+
       unsigned errors_before = des->errors;
       NetExpr*dex = elab_and_eval(des, scope, expr, -1, clocking_skew);
 
