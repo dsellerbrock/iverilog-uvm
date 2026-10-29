@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "issue1395_empty_only_nonoverlap.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "issue1395_empty_only_nonoverlap"
+}

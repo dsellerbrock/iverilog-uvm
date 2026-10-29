@@ -27724,6 +27724,35 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					       pass_stmt, kind))
 	    return;
 
+	/* IEEE 1800-2017/2023 16.12.22(c) permits an antecedent that
+	   admits only empty matches for |=>. Its sole match contributes no
+	   sampled tick, so this implication is exactly the consequent delayed
+	   by one clock. Normalize the direct exact-zero-repeat shape before the
+	   generic variable-antecedent promotion can turn it into a tree that
+	   cannot represent the epsilon match. */
+      if (prop && prop->op_type == 2 && !prop->tree && !prop->ante_tree
+	  && !prop->seq_clk_evt && !prop->mc_prefix
+	  && (!prop->mc_more || prop->mc_more->empty())
+	  && prop->mc_boundary == -1 && !prop->abort_cond
+	  && !prop->forbidden_consequent && prop->strength == 0
+	  && prop->win_lo == -1 && prop->win_hi == -1 && prop->antecedent
+	  && prop->antecedent->size() == 1 && prop->seq && !prop->seq->empty()) {
+	    const sva_seq_step_t&ante = prop->antecedent->front();
+	    if (ante.delay_lo == 0 && ante.delay_hi == 0
+		&& ante.rep_kind == 3 && ante.rep_lo == 0 && ante.rep_hi == 0
+		&& ante.rep_tail == 0 && !ante.lv_rhs
+		&& ante.match_calls.empty()
+		&& prop->seq->front().delay_lo >= 0
+		&& prop->seq->front().delay_hi >= -1) {
+		  pform_sva_destroy_sequence(prop->antecedent);
+		  prop->antecedent = nullptr;
+		  prop->op_type = 0;
+		  prop->seq->front().delay_lo += 1;
+		  if (prop->seq->front().delay_hi >= 0)
+			prop->seq->front().delay_hi += 1;
+	    }
+      }
+
 	/* A variable-length implication antecedent is a regular sequence,
 	   but it cannot use the legacy flat implication bookkeeping (there
 	   is no single fixed completion offset). Promote both operands to
