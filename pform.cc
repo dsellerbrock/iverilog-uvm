@@ -9937,6 +9937,7 @@ struct sva_local_decl_type_t {
       long packed_left = 0;
       long packed_right = 0;
       bool packed_range_known = true;
+      bool two_state = false;
 };
 
 /* Named property/sequence local declarations are not ordinary module wires,
@@ -10021,7 +10022,8 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
 				    bool signed_flag,
 				    long packed_left = 0,
 				    long packed_right = 0,
-				    bool packed_range_known = true)
+				    bool packed_range_known = true,
+				    bool two_state = false)
 {
       perm_string key = lex_strings.make(name);
       if (sva_local_decl_types_.count(key) || sva_local_formal_names_.count(key)) {
@@ -10037,6 +10039,7 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
       rec.packed_left = packed_left;
       rec.packed_right = packed_right;
       rec.packed_range_known = packed_range_known;
+	      rec.two_state = two_state;
       sva_local_decl_types_[key] = rec;
 }
 
@@ -10049,16 +10052,9 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
 
 void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name)
 {
-      perm_string key = lex_strings.make(name);
-      if (sva_local_formal_names_.count(key)) {
-	    cerr << loc << ": error: duplicate assertion local variable `"
-		 << key << "'." << endl;
-	    error_count += 1;
-	    return;
-      }
-      cerr << loc << ": sorry: assertion local variable `" << key
-	   << "' with 2-state type is not supported." << endl;
-      error_count += 1;
+	  PENumber*width = new PENumber(new verinum((uint64_t)1, 32));
+	  FILE_NAME(width, loc);
+	  sva_local_decl_insert_(loc, name, width, false, 0, 0, true, true);
 }
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
@@ -10134,6 +10130,13 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       FILE_NAME(size, loc);
       PECastSign*sign = new PECastSign(it->second.signed_flag, size);
       FILE_NAME(sign, loc);
+	  if (it->second.two_state) {
+		PENumber*one = new PENumber(new verinum((uint64_t)1, 1));
+		FILE_NAME(one, loc);
+		PEBComp*is_one = new PEBComp('E', sign, one);
+		FILE_NAME(is_one, loc);
+		return is_one;
+	  }
       return sign;
 }
 
@@ -15714,6 +15717,16 @@ static bool sva_expand_fixed_(const struct vlltype&loc, const char*what,
  * can never match; rather than synthesize an always-false checker we
  * diagnose that loudly. Variable-length operands are a loud sorry.
  */
+static unsigned sva_chain_local_assignment_count_(
+					const std::vector<sva_seq_step_t>*seq)
+{
+      unsigned count = 0;
+      if (!seq) return count;
+      for (size_t i = 0 ; i < seq->size() ; i += 1)
+	    if ((*seq)[i].lv_rhs) count += 1;
+      return count;
+}
+
 std::vector<sva_seq_step_t>*
 pform_sva_intersect(const struct vlltype&loc,
 		    std::vector<sva_seq_step_t>*s1,
@@ -15732,6 +15745,45 @@ pform_sva_intersect(const struct vlltype&loc,
 	    return nullptr;
       }
 
+	/* The fixed-cycle boolean merge below also has to retain the local
+	   variable match item. The linear step representation can carry one
+	   assignment, so keep this path for the single-assignment case and let
+	   the automaton tree handle more involved parallel writes. */
+      unsigned local_count = sva_chain_local_assignment_count_(s1)
+	    + sva_chain_local_assignment_count_(s2);
+      if (local_count > 1) {
+	    cerr << loc << ": sorry: `intersect' with multiple parallel local-"
+		 << "variable assignments requires per-path local state; the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_sequence(s1);
+	    pform_sva_destroy_sequence(s2);
+	    return nullptr;
+      }
+
+	/* Save the one match item before expansion. sva_expand_fixed_ moves
+	   only the boolean expression into the per-cycle arrays. */
+      perm_string local_name;
+      PExpr*local_rhs = nullptr;
+      bool local_selected = false;
+      long local_offset = 0;
+      if (local_count == 1) {
+	    std::vector<sva_seq_step_t>*owner =
+		  sva_chain_local_assignment_count_(s1) ? s1 : s2;
+	    long offset = 0;
+	    for (size_t i = 0 ; i < owner->size() ; i += 1) {
+		  sva_seq_step_t&st = (*owner)[i];
+		  offset += st.delay_lo;
+		  if (!st.lv_rhs) continue;
+		  local_name = st.lv_name;
+		  local_rhs = st.lv_rhs;
+		  local_selected = st.lv_selected;
+		  local_offset = offset;
+		  st.lv_rhs = nullptr;
+		  break;
+	    }
+      }
+
       std::vector<PExpr*> A, B;
       bool ok = sva_expand_fixed_(loc, "intersect", *s1, A);
       if (ok) ok = sva_expand_fixed_(loc, "intersect", *s2, B);
@@ -15746,6 +15798,7 @@ pform_sva_intersect(const struct vlltype&loc,
       if (!ok) {
 	    for (size_t k = 0 ; k < A.size() ; k += 1) delete A[k];
 	    for (size_t k = 0 ; k < B.size() ; k += 1) delete B[k];
+	    delete local_rhs;
 	    delete s1; delete s2;
 	    return nullptr;
       }
@@ -15769,6 +15822,12 @@ pform_sva_intersect(const struct vlltype&loc,
 	    st.delay_hi = st.delay_lo;
 	    st.rep_tail = 0;
 	    st.expr = ex;
+	    if ((long)k == local_offset && local_rhs) {
+		  st.lv_name = local_name;
+		  st.lv_rhs = local_rhs;
+		  st.lv_selected = local_selected;
+		  local_rhs = nullptr;
+	    }
 	    out->push_back(st);
       }
       delete s1; delete s2;
@@ -18199,7 +18258,10 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
 	      && !sva_chain_has_match_calls_(s1)
 	      && !sva_chain_has_match_calls_(s2);
 	bool unequal_fixed = fixed_intersect && l1 != l2;
-	if (fixed_intersect && (!unequal_fixed || !pform_sva_nfa_enabled())) {
+	unsigned local_count = sva_chain_local_assignment_count_(s1)
+	      + sva_chain_local_assignment_count_(s2);
+	if (fixed_intersect && local_count <= 1
+	    && (!unequal_fixed || !pform_sva_nfa_enabled())) {
 	    std::vector<sva_seq_step_t>*tr = pform_sva_intersect(loc, s1, s2);
 	    if (!tr) return nullptr;
 	    sva_property_t*p = new sva_property_t;
@@ -18293,6 +18355,35 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 				    sva_property_t*a, sva_property_t*b)
 {
+	/* For equal-length fixed operands with exactly one local assignment,
+	   `and' and `intersect' have the same per-cycle boolean conjunction.
+	   Preserve the match item in the linear chain so the variable flows
+	   out into a following sequence expression. */
+	if (op == 'a' && a && b && !a->clk_evt && !b->clk_evt
+	    && sva_prop_is_leaf_chain_(a) && sva_prop_is_leaf_chain_(b)) {
+	      std::vector<sva_seq_step_t>*s1 = a->tree->chain;
+	      std::vector<sva_seq_step_t>*s2 = b->tree->chain;
+	      long l1 = 0, l2 = 0;
+	      unsigned local_count = sva_chain_local_assignment_count_(s1)
+		    + sva_chain_local_assignment_count_(s2);
+	      if (local_count == 1 && sva_chain_fixed_len_(*s1, l1)
+		  && sva_chain_fixed_len_(*s2, l2) && l1 == l2
+		  && !sva_chain_has_match_calls_(s1)
+		  && !sva_chain_has_match_calls_(s2)) {
+		    a->tree->chain = nullptr;
+		    b->tree->chain = nullptr;
+		    sva_tree_delete_(sva_prop_take_tree_(a), false);
+		    sva_tree_delete_(sva_prop_take_tree_(b), false);
+		    std::vector<sva_seq_step_t>*seq =
+			  pform_sva_intersect(loc, s1, s2);
+		    if (!seq) return nullptr;
+		    sva_property_t*p = new sva_property_t;
+		    p->seq = seq;
+		    p->op_type = 0;
+		    return p;
+	      }
+	}
+
       PEventStatement*clk = nullptr;
       if (a && b && a->clk_evt && b->clk_evt) {
 	    ostringstream left, right;
@@ -18389,6 +18480,42 @@ sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
 	    return nullptr;
       }
       delete delay;
+
+	/* Preserve a single local assignment on the deterministic fixed-delay
+	   path when a fixed composite is followed by ##N. Retaining this shape
+	   as a tree makes the NFA conservatively reject the local variable even
+	   though the continuation is a linear sequence. */
+	if (cycles > 0 && prefix && suffix && !prefix->clk_evt
+	    && !prefix->disable_iff_expr
+	    && (sva_prop_is_leaf_chain_(prefix)
+		|| (prefix->seq && !prefix->tree))) {
+	      std::vector<sva_seq_step_t>*left_chain = prefix->seq
+		    ? prefix->seq : prefix->tree->chain;
+	      long prefix_len = 0, suffix_len = 0;
+	      unsigned local_count = sva_chain_local_assignment_count_(left_chain)
+		    + sva_chain_local_assignment_count_(suffix);
+	      if (local_count == 1
+		  && sva_chain_fixed_len_(*left_chain, prefix_len)
+		  && sva_chain_fixed_len_(*suffix, suffix_len)
+		  && !sva_chain_has_match_calls_(left_chain)
+		  && !sva_chain_has_match_calls_(suffix)) {
+		    if (prefix->seq) {
+			  prefix->seq = nullptr;
+			  delete prefix;
+		    } else {
+			  prefix->tree->chain = nullptr;
+			  sva_tree_delete_(sva_prop_take_tree_(prefix), false);
+		    }
+		    suffix->front().delay_lo += cycles;
+		    suffix->front().delay_hi += cycles;
+		    left_chain->insert(left_chain->end(), suffix->begin(),
+				       suffix->end());
+		    delete suffix;
+		    sva_property_t*out = new sva_property_t;
+		    out->seq = left_chain;
+		    return out;
+	      }
+	}
 
       sva_stree_t*left = sva_prop_take_tree_(prefix);
       if (!left) {
