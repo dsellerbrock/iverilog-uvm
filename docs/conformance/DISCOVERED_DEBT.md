@@ -4972,3 +4972,60 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Triage status:** Open; preserving the legacy behavior is scoped to #714.
   A separate standards-correct migration of the existing forms and tests needs
   its own review.
+
+### DD-153 — local-input sequence-formal match-item writes are lost
+
+- **Discovered while working:** M9 issue #714.
+- **Observation:** IEEE 1800-2017/2023 §16.8.2 treats local-variable sequence
+  formals as local variables and applies §16.10 assignment rules. A local-input
+  formal is initialized from its actual. In `local_input_dummy.sv`, the formal
+  read-only sequence matches once, but assigning to the formal in a sequence
+  match item leaves the later read unchanged, so the match is lost.
+- **File/function:** `pform.cc::pform_sva_instantiate_seq_` substitutes body reads
+  to `_ivl_sva_local_arg_N`; `sva_clone_match_items_` substitutes the RHS and
+  call but leaves `item.lv_name` unchanged.
+- **Evidence:** On clean baseline `43ae99413`, `local_input_read_only.sv` reports
+  `hits=1` while `local_input_dummy.sv` reports `hits=0`, in both -g2017 and
+  -g2023. The equivalent declared-local control reports `hits=1` in both
+  editions. Sources and logs are in
+  `evidence/m9-issue714-formal-findings-20261029/`.
+- **Reproducer status:** Confirmed on clean main baseline in both editions.
+- **Triage status:** Open; not fixed in #714. Fix the lvalue-name mapping before
+  enabling local-formal targets in the new `first_match` validator.
+
+### DD-154 — first_match validation misses locals in formal-bearing sequences
+
+- **Discovered while working:** M9 issue #714.
+- **Observation:** The new `first_match` match-item lvalue check sees empty
+  local-formal and declaration registries while parsing a formal-bearing named
+  sequence body. It therefore rejects both a local-input formal and a declared
+  sequence local with the message that the name is not an assertion local.
+  This is fail-closed, but the message is misleading for those legal locals.
+- **File/function:** The sequence midrule registration actions in `parse.y` are
+  not observed on this parse path; the root cause is not isolated. The check
+  delegates to `pform_sva_match_lvalue_declared` in `pform.cc`.
+- **Possible clause:** IEEE 1800-2017/2023 §16.6, §16.8.2, and §16.9.8.
+- **Evidence:** The untyped-formal, local-input-formal, local-input-with-dummy,
+  and declared-local-in-formal-body probes all report `formals=0 decls=0` and
+  fail compilation in both editions. Probe sources and compiler logs are in
+  `evidence/m9-issue714-formal-findings-20261029/`.
+- **Reproducer status:** Confirmed on the #714 branch in both editions.
+- **Triage status:** Open; keep the #714 check fail-closed and do not pin its
+  misleading diagnostic. Resolve the parser-registration path separately.
+
+### DD-155 — first_match sequence-combinator regression has no clock edge
+
+- **Discovered while working:** M9 issue #714.
+- **Observation:** The test declares `bit clk` but never toggles or assigns it.
+  Its two bare sequence assertions therefore never start, and the `#10`
+  check passes vacuously. Despite its success message, it exercises compilation
+  only and does not test runtime `first_match` behavior for `or`/`and` operands.
+- **File:** `ivtest/ivltests/sv_assert_first_match_sequence_combinators.v`.
+- **Evidence:** The source is unchanged from `origin/main` commit `cf6ab4b53`.
+  The legacy and JSON runners pass both -g2017 and -g2023, but the simulation
+  has no clock edge. Runner output and ownership checks are in
+  `evidence/m9-issue714-combinator-audit-20261029/`.
+- **Reproducer status:** Existing test passes but is compile-only; no runtime
+  combinator behavior is verified.
+- **Triage status:** Open; pre-existing and not fixed in #714. Correct the test
+  separately with stimulus that demonstrates the intended behavior.
