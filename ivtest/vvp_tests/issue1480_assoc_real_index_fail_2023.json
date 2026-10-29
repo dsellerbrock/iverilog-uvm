@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1480_assoc_real_index_fail_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1480_assoc_real_index_fail_2023"
+}
