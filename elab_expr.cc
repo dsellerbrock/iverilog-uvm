@@ -18824,6 +18824,19 @@ static bool function_uarray_slice_matches_formal_(
 	    : uarray_element_equivalent_container_(&slice_type, container);
 }
 
+static PExpr* function_default_actual_(const NetFuncDef*def,
+					       const NetNet*formal)
+{
+      const PFunction*function = def->scope()->func_pform();
+      const vector<pform_tf_port_t>*ports = function
+	    ? function->peek_ports() : 0;
+      if (!ports) return 0;
+      for (const pform_tf_port_t&port : *ports)
+	    if (port.port && port.port->basename() == formal->name())
+		  return port.defe;
+      return 0;
+}
+
 unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 					      const NetFuncDef*def, bool need_const,
 					      vector<NetExpr*>&parms,
@@ -18854,9 +18867,15 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
       for (unsigned idx = 0 ; idx < parm_count ; idx += 1) {
 	    unsigned pidx = idx + parm_off;
 	    PExpr *tmp = args[idx];
+	    const NetNet*formal = def->port(pidx);
+	    NetScope*actual_scope = scope;
+	    if (!tmp && (formal->port_type() == NetNet::POUTPUT
+			 || formal->port_type() == NetNet::PINOUT)) {
+		  tmp = function_default_actual_(def, formal);
+		  if (tmp) actual_scope = const_cast<NetScope*>(def->scope());
+	    }
 
 	    if (tmp) {
-		  const NetNet*formal = def->port(pidx);
 		  ivl_type_t formal_type = formal->unpacked_dimensions() > 0
 			? formal->array_type() : formal->net_type();
 		  bool positional_array_formal =
@@ -18871,7 +18890,7 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		       1800-2017/2023 7.4.6, 7.6, 7.7, 13.5 and 35.5.6.1). */
 		  fixed_uarray_slice_t slice;
 		  int slice_kind = decode_fixed_uarray_slice(
-			des, scope, *tmp, tmp, false, slice);
+			des, actual_scope, *tmp, tmp, false, slice);
 		  if (slice_kind < 0) {
 			parm_errors += 1;
 			continue;
@@ -18890,7 +18909,7 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			    || formal->port_type() == NetNet::PINOUT) {
 			      unsigned errors_before = des->errors;
 			      NetAssign_*lval = tmp->elaborate_lval(
-				    des, scope, false, false);
+				    des, actual_scope, false, false);
 			      if (!lval) {
 				    if (des->errors == errors_before)
 					  des->errors += 1;
@@ -18952,7 +18971,7 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		      || formal->port_type() == NetNet::PREF) {
 			unsigned errors_before = des->errors;
 			NetAssign_*lval = ref_actual->elaborate_lval(
-						   des, scope, false, false,
+						   des, actual_scope, false, false,
 						   false, formal->port_type() == NetNet::PREF
 						   && formal->get_const());
 			if (lval == 0) {
@@ -19095,15 +19114,16 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			    && actual->path().package == 0
 			    && actual->path().name.size() == 1
 			    && actual->path().name.front().index.empty()) {
-			      ivl_type_t actual_type = actual->test_type_of_ident(des, scope);
+			      ivl_type_t actual_type = actual->test_type_of_ident(
+				    des, actual_scope);
 			      if (commercial_unsafe_positional_container_type_match(
 				    argument_type, actual_type, true))
-				parms[pidx] = elaborate_rval_expr(des, scope, actual_type,
+				parms[pidx] = elaborate_rval_expr(des, actual_scope, actual_type,
 							  tmp, need_const, false,
 							  argument_flags);
 			}
 		  }
-		  if (!parms[pidx]) parms[pidx] = elaborate_rval_expr(des, scope,
+		  if (!parms[pidx]) parms[pidx] = elaborate_rval_expr(des, actual_scope,
 			    argument_type, tmp, need_const, false,
 			    argument_flags);
 		  if (parms[pidx] == 0) {
