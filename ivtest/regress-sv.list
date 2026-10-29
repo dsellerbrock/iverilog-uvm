@@ -6188,3 +6188,6 @@ issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_seque
 issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests
 issue1364_named_sequence_combinators_2017 CN,-g2017,-s,top ivltests
 issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
+
+issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
+issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold
