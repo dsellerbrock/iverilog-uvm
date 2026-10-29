@@ -755,7 +755,8 @@ class netclass_t : public ivl_type_s {
 	    COVGRP_RANGE_PARENT_INSTANCE_CONST,
 	    COVGRP_RANGE_PARENT_MUTABLE,
 	    COVGRP_RANGE_PARENT_LOCAL,
-	    COVGRP_RANGE_PARENT_BAD_CONST
+	    COVGRP_RANGE_PARENT_BAD_CONST,
+	    COVGRP_RANGE_FUNCTION_BAD_ARGS
       };
       struct covgrp_range_ref_t {
 	    covgrp_range_ref_kind_t kind;

@@ -34986,7 +34986,7 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 // disallows a method body from reading mutable object state. This strict proof
 // is intentionally separate from the -gcommercial-unsafe compatibility path.
 bool covergroup_constructor_method_pure(Design*des, const NetEUFunc*call,
-		std::string&reason)
+		std::string&reason, unsigned first_default = 1)
 {
       if (!call || !call->func() || !call->func()->func_def()) {
 	    reason = "method body is unresolved";
@@ -34995,8 +34995,9 @@ bool covergroup_constructor_method_pure(Design*des, const NetEUFunc*call,
       const NetFuncDef*def = call->func()->func_def();
       for (unsigned idx = 0; idx < def->port_count(); ++idx) {
 	    NetNet*port = def->port(idx);
-	    if (!port || port->port_type() != NetNet::PINPUT) {
-		reason = "method argument direction is unsupported by this purity proof (const ref may be legal)";
+	    if (!port || (port->port_type() != NetNet::PINPUT
+		  && !(port->port_type() == NetNet::PREF && port->get_const()))) {
+		reason = "function has an output, inout, or non-const ref argument";
 		return false;
 	    }
       }
@@ -35009,7 +35010,7 @@ bool covergroup_constructor_method_pure(Design*des, const NetEUFunc*call,
 	    reason = "effective method arguments are unresolved";
 	    return false;
       }
-      for (unsigned idx = 1; idx < call->parm_count(); ++idx) {
+	  for (unsigned idx = first_default; idx < call->parm_count(); ++idx) {
 	    const NetExpr*arg = call->parm(idx);
 	    if (!dynamic_cast<const NetEConst*>(arg)
 		&& !dynamic_cast<const NetECReal*>(arg)
@@ -42612,11 +42613,126 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      cg_class->add_covgrp_ctor_method_endpoint(
 				expr, (unsigned)prop, width, is_signed);
 		    };
+		    auto reserve_function_endpoint = [&](const PExpr*expr) {
+			  const PECallFunction*call =
+			      dynamic_cast<const PECallFunction*>(expr);
+			  if (!call || call->receiver_expr() || call->path().package
+			      || call->has_scoped_type_prefix()
+			      || call->path().name.size() != 1
+			      || call->get_parms().empty()
+			      || !call->with_constraints().empty()
+			      || !method_endpoints.insert(expr).second) return;
+			  bool has_formal = false;
+			  for (const named_pexpr_t&arg : call->get_parms()) {
+				const PEIdent*id = dynamic_cast<const PEIdent*>(arg.parm);
+				bool matched = false;
+				if (id && !id->path().package
+				    && !id->has_scoped_type_prefix()
+				    && id->path().size() == 1
+				    && !id->path().name.front().local_scope
+				    && id->path().name.front().index.empty()) {
+				      perm_string name = peek_head_name(id->path());
+				      for (size_t fi = 0; fi < cgdef->ctor_formals.size(); fi += 1)
+					if (cgdef->ctor_formals[fi] == name
+					    && (fi >= cgdef->ctor_formal_is_ref.size()
+						|| !cgdef->ctor_formal_is_ref[fi])) {
+					      matched = true;
+					      has_formal = true;
+					      break;
+					}
+				}
+				if (!matched && !dynamic_cast<const PENumber*>(arg.parm))
+				      return;
+			  }
+			  if (!has_formal) return;
+		  symbol_search_results resolved;
+		  if (!symbol_search(call, des, class_scope_, call->path(), UINT_MAX,
+			      &resolved)
+		      || !resolved.scope || resolved.scope->type() != NetScope::FUNC) return;
+		  const PFunction*pfunc = resolved.scope->func_pform();
+		  if (pfunc && (!resolved.scope->func_def()
+			|| !resolved.scope->func_def()->proc()))
+			elaborate_function_outside_caller_fork_(des, pfunc,
+			      resolved.scope);
+		  const NetFuncDef*signature = resolved.scope->func_def();
+		  if (!signature || signature->port_count() != call->get_parms().size())
+			return;
+		  for (unsigned ai = 0; ai < signature->port_count(); ai += 1) {
+			const NetNet*port = signature->port(ai);
+			if (!port || (port->port_type() != NetNet::PINPUT
+			      && !(port->port_type() == NetNet::PREF
+				  && port->get_const()))) {
+			      cerr << expr->get_fileline()
+				   << ": error: covergroup expression function call '"
+				   << call->path()
+				   << "' has an output, inout, or non-const ref argument "
+				      "(IEEE 1800 19.5)." << endl;
+			      des->errors += 1;
+			      cg_class->bind_covgrp_range_ref(
+				    expr, netclass_t::COVGRP_RANGE_FUNCTION_BAD_ARGS);
+			      return;
+			}
+		  }
+			  if (!endpoint_scope) {
+				endpoint_scope = new NetScope(class_scope_,
+				      hname_t(class_scope_->local_symbol()), NetScope::BEGIN_END);
+				endpoint_scope->set_line(expr);
+				endpoint_scope->set_elab_stage(3);
+				for (size_t fi = 0; fi < cg_class->covgrp_ctor_formal_count(); ++fi)
+				      new NetNet(endpoint_scope,
+					cg_class->covgrp_ctor_formal_name(fi), NetNet::REG,
+					cg_class->covgrp_ctor_formal_type(fi));
+			  }
+			  NetExpr*lowered = elab_and_eval(des, endpoint_scope,
+				const_cast<PExpr*>(expr), -1, false, false);
+			  const NetEUFunc*function = dynamic_cast<const NetEUFunc*>(lowered);
+			  unsigned width = lowered ? lowered->expr_width() : 0;
+			  bool is_signed = lowered && lowered->has_sign();
+			  if (!function || width == 0 || width > 64
+			      || (lowered->expr_type() != IVL_VT_BOOL
+				  && lowered->expr_type() != IVL_VT_LOGIC)) {
+				cerr << expr->get_fileline()
+				     << ": error: covergroup function bin endpoint requires "
+					"a resolved integral function return of 1..64 bits."
+				     << endl;
+				des->errors += 1;
+				delete lowered;
+				return;
+			  }
+			  std::string reason;
+		  if (!covergroup_constructor_method_pure(
+			des, function, reason, function->parm_count())) {
+				cerr << expr->get_fileline()
+				     << ": error: covergroup function bin endpoint is not "
+					"permitted by IEEE 1800 19.5: " << reason << "." << endl;
+				des->errors += 1;
+				delete lowered;
+				return;
+			  }
+			  delete lowered;
+			  std::string stem = "__covgrp_ctor_function_"
+			      + std::to_string(method_endpoints.size());
+			  std::string name = stem;
+			  unsigned suffix = 0;
+			  while (cg_class->property_idx_from_name(
+				lex_strings.make(name.c_str())) >= 0)
+				name = stem + "_" + std::to_string(++suffix);
+			  cg_class->set_property(lex_strings.make(name.c_str()),
+			      property_qualifier_t::make_none(),
+			      new netvector_t(IVL_VT_LOGIC, width - 1, 0, is_signed));
+			  int prop = cg_class->property_idx_from_name(
+				lex_strings.make(name.c_str()));
+			  if (prop >= 0)
+			      cg_class->add_covgrp_ctor_method_endpoint(
+				expr, (unsigned)prop, width, is_signed);
+		    };
 		    for (const auto&coverpoint : cgdef->coverpoints)
 		      for (const auto&bin : coverpoint.bins)
 			for (const auto&range : bin.ranges) {
 			  reserve_method_endpoint(range.first);
 			  reserve_method_endpoint(range.second);
+			  reserve_function_endpoint(range.first);
+			  reserve_function_endpoint(range.second);
 			}
 
 		      // M11-4: `with function sample(<formals>)` names.
@@ -42921,6 +43037,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cg_class->covgrp_range_ref(expr);
 			  if (!ref) return false;
 			  return ref->kind == netclass_t::COVGRP_RANGE_CTOR_REF
+			      || ref->kind == netclass_t::COVGRP_RANGE_FUNCTION_BAD_ARGS
 				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_MUTABLE
 				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_LOCAL
 				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_BAD_CONST;

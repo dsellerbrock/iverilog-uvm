@@ -31137,40 +31137,50 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      NetExpr*value = elab_and_eval(des, wrapper,
 				const_cast<PExpr*>(endpoint.expr), -1, false, false);
 			      const NetEUFunc*method =
-				dynamic_cast<const NetEUFunc*>(value);
-			      const NetExpr*receiver = method && method->parm_count()
-				? method->parm(0) : nullptr;
-			      if (!method || !receiver
-				  || receiver->expr_type() != IVL_VT_CLASS
-				  || value->expr_width() != endpoint.width
-				  || value->has_sign() != endpoint.is_signed) {
-				cerr << endpoint.expr->get_fileline()
-				     << ": error: covergroup constructor method bin "
-				     << "endpoint changed type or has no class receiver."
-				     << endl;
-				des->errors += 1;
-				delete value;
-				values.push_back(new NetESignal(slot));
-				continue;
-			      }
-			      NetExpr*receiver_copy = receiver->dup_expr();
-			      NetENull*null_value = new NetENull(receiver->net_type());
-			      NetEBComp*valid = new NetEBComp('N', receiver_copy,
-				null_value);
-			      valid->set_line(*endpoint.expr);
-			      vector<NetExpr*>fatal_args;
-			      fatal_args.push_back(new NetEConst(verinum((uint64_t)1, 32)));
-			      fatal_args.push_back(new NetECString(
-				"covergroup constructor method bin has null or invalid receiver"));
-			      NetSTask*fatal = new NetSTask("$fatal",
-				IVL_SFUNC_AS_TASK_IGNORE, fatal_args);
-			      fatal->set_line(*endpoint.expr);
-			      NetAssign*assign = new NetAssign(new NetAssign_(slot), value);
-			      assign->set_line(*endpoint.expr);
-			      NetCondit*checked = new NetCondit(valid, assign, fatal);
-			      checked->set_line(*endpoint.expr);
-			      body->append(checked);
-			      NetESFunc*unknown_check = new NetESFunc(
+			dynamic_cast<const NetEUFunc*>(value);
+		      const PECallFunction*source_call =
+			dynamic_cast<const PECallFunction*>(endpoint.expr);
+		      bool has_receiver = source_call
+			    && (source_call->receiver_expr()
+				|| source_call->path().name.size() > 1);
+		      const NetExpr*receiver = has_receiver && method
+			    && method->parm_count() ? method->parm(0) : nullptr;
+		      if (!method || (has_receiver && (!receiver
+			  || receiver->expr_type() != IVL_VT_CLASS))
+			  || (!has_receiver && method->parm_count() == 0)
+			  || value->expr_width() != endpoint.width
+			  || value->has_sign() != endpoint.is_signed) {
+			cerr << endpoint.expr->get_fileline()
+			     << ": error: covergroup constructor function bin "
+				"endpoint changed type during construction."
+			     << endl;
+			des->errors += 1;
+			delete value;
+			values.push_back(new NetESignal(slot));
+			continue;
+		      }
+		      NetAssign*assign = new NetAssign(new NetAssign_(slot), value);
+		      assign->set_line(*endpoint.expr);
+		      if (has_receiver) {
+			NetExpr*receiver_copy = receiver->dup_expr();
+			NetENull*null_value = new NetENull(receiver->net_type());
+			NetEBComp*valid = new NetEBComp('N', receiver_copy,
+			      null_value);
+			valid->set_line(*endpoint.expr);
+			vector<NetExpr*>fatal_args;
+			fatal_args.push_back(new NetEConst(verinum((uint64_t)1, 32)));
+			fatal_args.push_back(new NetECString(
+			      "covergroup constructor method bin has null or invalid receiver"));
+			NetSTask*fatal = new NetSTask("$fatal",
+			      IVL_SFUNC_AS_TASK_IGNORE, fatal_args);
+			fatal->set_line(*endpoint.expr);
+			NetCondit*checked = new NetCondit(valid, assign, fatal);
+			checked->set_line(*endpoint.expr);
+			body->append(checked);
+		      } else {
+			body->append(assign);
+		      }
+		      NetESFunc*unknown_check = new NetESFunc(
 				"$isunknown", IVL_VT_BOOL, 1, 1);
 			      unknown_check->parm(0, new NetESignal(slot));
 			      vector<NetExpr*>unknown_args;
