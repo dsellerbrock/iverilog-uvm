@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1392_empty_match_property.v",
+  "iverilog-args": ["-g2023", "-gassertions"],
+  "gold": "issue1392_empty_match_property"
+}

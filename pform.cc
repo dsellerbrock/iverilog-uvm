@@ -28266,6 +28266,25 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
 
+	/* IEEE 1800-2017/2023 16.12.22(a): a sequence used directly as a
+	   property may not admit an empty match. The zero-lower consecutive
+	   repetition has an explicit representation because its empty
+	   alternative cannot be encoded as an ordinary repeated step. Check
+	   after named-sequence expansion, before either assertion engine can
+	   lower it as a property. */
+      if (prop->op_type == 0 && prop->seq->size() == 1
+	  && (*prop->seq)[0].rep_kind == 3
+	  && (*prop->seq)[0].rep_lo == 0) {
+	    cerr << loc << ": error: a sequence used as a property shall not "
+		 << "admit an empty match (IEEE 1800-2017/2023 16.12.22(a))."
+		 << endl;
+	    error_count += 1;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+
       /* Named sequence calls become visible only after splicing. This is
 	 intentionally the same validator, so every unsupported shape emits one
 	 stable diagnostic whether written inline or through a declaration. */
