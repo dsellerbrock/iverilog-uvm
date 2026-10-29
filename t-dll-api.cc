@@ -4908,6 +4908,7 @@ extern "C" unsigned NAME(ivl_type_t net, int idx) \
 IVL_CROSS_BIN_UINT_API(ivl_type_covgrp_cross_bin_family, family)
 IVL_CROSS_BIN_UINT_API(ivl_type_covgrp_cross_bin_kind, kind)
 IVL_CROSS_BIN_UINT_API(ivl_type_covgrp_cross_bin_target, target)
+IVL_CROSS_BIN_UINT_API(ivl_type_covgrp_cross_bin_guard, guard_idx)
 #undef IVL_CROSS_BIN_UINT_API
 
 #define IVL_CROSS_BIN_STR_API(NAME, FIELD) \

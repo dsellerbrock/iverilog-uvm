@@ -1343,7 +1343,10 @@ class_property
   | K_COVGRP_CROSS_TERM T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_cross_term($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_CROSS_BIN T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING
-      { compile_class_covgrp_cross_bin($2, $3, $4, $5, $6); }
+	      { compile_class_covgrp_cross_bin($2, $3, $4, 4294967295ULL,
+						$5, $6); }
+  | K_COVGRP_CROSS_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING
+	      { compile_class_covgrp_cross_bin($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING

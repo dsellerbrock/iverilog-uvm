@@ -741,7 +741,8 @@ extern void compile_class_covgrp_cross_term(uint64_t family, uint64_t dim,
 					    uint64_t source_id,
 					    uint64_t source_aux);
 extern void compile_class_covgrp_cross_bin(uint64_t family, uint64_t kind,
-					   uint64_t target, char*name,
+					   uint64_t target, uint64_t guard_idx,
+					   char*name,
 					   char*select_ir);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t is_cross, char*name = 0,

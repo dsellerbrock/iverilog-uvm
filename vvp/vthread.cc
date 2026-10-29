@@ -9290,6 +9290,19 @@ static bool covgrp_cross_guard_enabled_(unsigned guard,
 	    || (guard < bin_guards.size() && bin_guards[guard] != 0);
 }
 
+static bool covgrp_cross_target_guard_enabled_(const class_type*defn,
+						unsigned family,
+						unsigned target,
+						const vector<uint64_t>&bin_guards)
+{
+      for (size_t idx = 0; idx < defn->covgrp_cross_bin_count(); ++idx) {
+	    const class_type::cov_cross_bin_t&bin = defn->covgrp_cross_bin(idx);
+	    if (bin.family == family && bin.target == target)
+		  return covgrp_cross_guard_enabled_(bin.guard_idx, bin_guards);
+      }
+      return true;
+}
+
 static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
       const covgrp_cross_state_t&state,
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
@@ -9706,6 +9719,11 @@ static bool covgrp_sample_(vthread_t thr, vvp_code_t cp, bool dynamic_type)
 	     if (gi != class_type::COV_NO_GUARD && gi + 1 > dynamic_nbin_guards)
 		   dynamic_nbin_guards = gi + 1;
 	       }
+	       for (size_t bi = 0; bi < actual_defn->covgrp_cross_bin_count(); ++bi) {
+	     unsigned gi = actual_defn->covgrp_cross_bin(bi).guard_idx;
+	     if (gi != class_type::COV_NO_GUARD && gi + 1 > dynamic_nbin_guards)
+		   dynamic_nbin_guards = gi + 1;
+	       }
 	       vector<uint64_t> dynamic_bin_guards(dynamic_nbin_guards, 1);
 	       for (size_t gi = 0; gi < bin_guards.size()
 		   && gi < dynamic_bin_guards.size(); ++gi)
@@ -9915,8 +9933,10 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
-		  illegal_hits.insert(route.illegal_targets.begin(),
-				      route.illegal_targets.end());
+		  for (unsigned prop : route.illegal_targets)
+			if (covgrp_cross_target_guard_enabled_(defn, entry.first,
+							prop, bin_guards))
+			      illegal_hits.insert(prop);
 	    }
 	    for (unsigned prop : illegal_hits) {
 		  cerr << "ERROR: covergroup illegal cross bin matched"
@@ -10123,7 +10143,10 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (!route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
-		  named_hits.insert(route.targets.begin(), route.targets.end());
+		  for (unsigned prop : route.targets)
+			if (covgrp_cross_target_guard_enabled_(defn, entry.first,
+							prop, bin_guards))
+			      named_hits.insert(prop);
 		  if (route.auto_bin != UINT64_MAX)
 			auto_hits.insert(route.auto_bin);
 	    }
@@ -10264,6 +10287,11 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 	    }
 	    for (size_t bi = 0; bi < defn->covgrp_dyn_bin_count(); bi++) {
 		  unsigned gi = defn->covgrp_dyn_bin(bi).guard_idx;
+		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+			nbin_guards = gi + 1;
+	    }
+	    for (size_t bi = 0; bi < defn->covgrp_cross_bin_count(); bi++) {
+		  unsigned gi = defn->covgrp_cross_bin(bi).guard_idx;
 		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
 			nbin_guards = gi + 1;
 	    }

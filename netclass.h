@@ -503,6 +503,7 @@ class netclass_t : public ivl_type_s {
 	    unsigned family = 0;
 	    unsigned kind = 0;
 	    unsigned target = 0;
+	    unsigned guard_idx = COVGRP_NO_GUARD;
 	    std::string name;
 	    std::string select_ir;
       };
@@ -593,10 +594,12 @@ class netclass_t : public ivl_type_s {
       const covgrp_cross_term_t& covgrp_cross_term(size_t idx) const
       { return covgrp_cross_terms_[idx]; }
       void add_covgrp_cross_bin(unsigned family, unsigned kind,
-				unsigned target, const std::string&name,
+				unsigned target, unsigned guard_idx,
+				const std::string&name,
 				const std::string&select_ir)
       { covgrp_cross_bin_t bin;
 	bin.family = family; bin.kind = kind; bin.target = target;
+	bin.guard_idx = guard_idx;
 	bin.name = name; bin.select_ir = select_ir;
 	covgrp_cross_bins_.push_back(bin); }
       size_t covgrp_cross_bin_count() const
