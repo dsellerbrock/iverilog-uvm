@@ -2512,7 +2512,7 @@ static Module::port_t *module_declare_explicit_port(
 %token K_Sskew K_Swidth
 
  /* Icarus specific tokens. */
-%token KK_attribute K_bool K_logic K_sva_logic_local
+%token KK_attribute K_bool K_logic K_sva_logic_local K_sva_bit_local
 
  /* The new tokens from 1364-2001. */
 %token K_automatic K_endgenerate K_generate K_genvar K_localparam
@@ -7850,14 +7850,22 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
       }
   | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
       sva_int_local_declarations sva_seq_expr ';' K_endsequence
-      { pform_sva_declare_sequence_p(@2, $2, $4, $8);
+      { pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
   | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
       sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { check_end_label(@12, "sequence", $2, $12);
-	pform_sva_declare_sequence_p(@2, $2, $4, $8);
+      { check_end_label(@13, "sequence", $2, $13);
+	pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
@@ -8947,6 +8955,11 @@ sva_int_local_declarations
 	      pform_sva_declare_logic_local(@1, it->str(), nullptr);
 	delete $2;
 	$$ = 0; }
+  | K_sva_bit_local sva_local_ident_list ';'
+      { for (std::list<perm_string>::iterator it = $2->begin();
+	     it != $2->end(); ++it)
+	      pform_sva_declare_bit_local(@1, it->str());
+	delete $2; $$ = 0; }
   | sva_int_local_declarations K_int sva_local_ident_list ';'
       { for (std::list<perm_string>::iterator it = $3->begin();
 	     it != $3->end(); ++it)

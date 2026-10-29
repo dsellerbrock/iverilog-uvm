@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1371_sequence_local_formal_redeclared.v",
+  "iverilog-args": ["-g2017", "-s", "issue1371_sequence_local_formal_redeclared"]
+}
