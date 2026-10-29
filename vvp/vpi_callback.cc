@@ -229,7 +229,7 @@ struct sync_cb  : public vvp_gen_event_s {
       virtual void run_run() override;
 };
 
-inline __vpiCallback::__vpiCallback()
+__vpiCallback::__vpiCallback()
 {
       next = 0;
 }
@@ -240,6 +240,12 @@ __vpiCallback::~__vpiCallback()
 
 int __vpiCallback::get_type_code(void) const
 { return vpiCallback; }
+
+PLI_INT32 __vpiCallback::remove()
+{
+      cb_data.cb_rtn = 0;
+      return 1;
+}
 
 
 value_callback::value_callback(p_cb_data data)
@@ -819,10 +825,8 @@ static struct __vpiCallback* make_at_start_of_sim_time(p_cb_data data)
       return obj;
 }
 
-/* cbNBASynch (IEEE 1800-2017 clause 38): fires once the NBA region of
-   the target time slot has fully drained -- including nonblocking
-   updates scheduled by nonblocking updates -- and before the Observed
-   region and the cbReadWriteSynch / cbAtEndOfSimTime points. */
+/* cbNBASynch (IEEE 1800 4.4.3.3/4.10 and 38.36.2): fires immediately
+   before the nonblocking assignments of the target time slot. */
 static struct __vpiCallback* make_nba_sync(p_cb_data data)
 {
       if (!check_callback_time(data, false))
@@ -1124,9 +1128,7 @@ PLI_INT32 vpi_remove_cb(vpiHandle ref)
 {
       struct __vpiCallback*obj = dynamic_cast<__vpiCallback*>(ref);
       assert(obj);
-      obj->cb_data.cb_rtn = 0;
-
-      return 1;
+      return obj->remove();
 }
 
 void callback_execute(struct __vpiCallback*cur)

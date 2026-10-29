@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1375_sva_local_update_unassigned.sv",
+    "iverilog-args" : [ "-g2023", "-s", "issue1375_sva_local_update_unassigned" ],
+    "gold"          : "issue1375_sva_local_update_unassigned"
+}

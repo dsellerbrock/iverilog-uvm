@@ -361,6 +361,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiQualifier   650
+#define vpiImplicitDecl 26 /* implicitly declared net (Boolean) */
 #define vpiUniqueQualifier    1
 #define vpiPriorityQualifier  2
 #define vpiType           1
@@ -379,6 +380,7 @@ typedef struct t_vpi_delay  {
 #define vpiCellInstance   8
 #define vpiDefName        9
 #define vpiDefAttribute  55 /* attribute defined for the object (Boolean) */
+#define vpiIteratorType  57 /* object type of an iterator */
 #define vpiTimeUnit      11
 #define vpiTimePrecision 12
 #define vpiActiveTimeFormat 119
@@ -788,7 +790,8 @@ extern void vpip_make_systf_system_defined(vpiHandle ref);
 extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
                                     const char*file, PLI_INT32 line,
                                     vpiHandle scope, PLI_INT32 depth_arg,
-                                    PLI_INT32 flags);
+                                    PLI_INT32 flags,
+                                    PLI_INT32 assertion_kind);
 /* M12B-cb: report a success/failure event for the assertion identified
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
@@ -939,7 +942,7 @@ typedef struct {
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);
     void        (*set_return_value)(int);
-    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32);
+    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*assertion_clock)(PLI_INT32, vpiHandle);
     void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);

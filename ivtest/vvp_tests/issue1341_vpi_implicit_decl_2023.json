@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1341_vpi_implicit_decl_2023.v",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1341_vpi_implicit_decl_2023"],
+  "vpi-sources": ["vpi/issue1341_vpi_implicit_decl.c"],
+  "output-contains": ["PASSED"]
+}

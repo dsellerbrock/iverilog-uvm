@@ -1,0 +1,6 @@
+Compiling vpi/issue1347_remove_assertion_cb.c...
+Making issue1347_remove_assertion_cb.vpi from  issue1347_remove_assertion_cb.o...
+REGISTERED=1 distinct=1 REMOVE=1
+PASSED
+HITS=0/2 REMOVE_REMAINING=1
+vpi/issue1347_remove_assertion_cb.v:11: $finish called at 18 (1s)

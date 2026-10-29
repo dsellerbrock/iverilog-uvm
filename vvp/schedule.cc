@@ -1528,10 +1528,8 @@ void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay)
 }
 
 /*
- * Post-NBA callback point (cbNBASynch, IEEE 1800-2017 clause 38):
- * schedule an event to run once the NBA region of the slot has fully
- * drained -- including updates scheduled by NBA updates -- and before
- * the Observed region and the cbReadWriteSynch point.
+ * Pre-NBA PLI callback point (cbNBASynch, IEEE 1800 4.4.3.3/4.10 and
+ * 38.36.2): run immediately before the slot's nonblocking assignments.
  */
 void schedule_at_nba_sync(vvp_gen_event_t obj, vvp_time64_t delay)
 {
@@ -1906,19 +1904,13 @@ void schedule_simulate(void)
 			ctim->inactive = 0;
 
 			if (ctim->active == 0) {
-			      ctim->active = ctim->nbassign;
-			      ctim->nbassign = 0;
-
-			  /* Post-NBA callback point (cbNBASynch, IEEE
-			     1800-2017 clause 38): every nonblocking
-			     update of the step, including NBA-scheduled-
-			     from-NBA cascades, has been applied.  Drained
-			     before Observed, and so before the existing
-			     cbReadWriteSynch / cbAtEndOfSimTime points. */
-			if (ctim->active == 0) {
 			      ctim->active = ctim->nbasync;
 			      ctim->nbasync = 0;
 			}
+
+			if (ctim->active == 0) {
+			      ctim->active = ctim->nbassign;
+			      ctim->nbassign = 0;
 
 			  /* Observed region (IEEE 1800-2017 4.4.2.4):
 			     concurrent assertions are evaluated after the

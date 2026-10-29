@@ -27,6 +27,8 @@ issue1329_vpi_expect_constant_2017 normal,-g2017,-s,top ivltests gold=issue1329_
 issue1329_vpi_expect_constant_2023 normal,-g2023,-s,top ivltests gold=issue1329_vpi_expect_constant_2023.gold
 issue1330_vpi_for_constants_2017 normal,-g2017,-s,issue1330_vpi_for_constants ivltests gold=issue1330_vpi_for_constants_2017.gold
 issue1330_vpi_for_constants_2023 normal,-g2023,-s,issue1330_vpi_for_constants ivltests gold=issue1330_vpi_for_constants_2023.gold
+issue1341_vpi_implicit_decl_2017 normal,-g2017,-s,top ivltests
+issue1341_vpi_implicit_decl_2023 normal,-g2023,-s,top ivltests
 issue1356_sva_untyped_dollar_2017 normal,-g2017,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 issue1356_sva_untyped_dollar_2023 normal,-g2023,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 
@@ -44,6 +46,8 @@ sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_ass
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_sequence_combinators normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
 sv_assert_first_match_sequence_combinators_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
+issue1387_if_property_dist_condition_2017 normal,-g2017,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
+issue1387_if_property_dist_condition_2023 normal,-g2023,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
 sv_assert_function_sample_pure normal,-g2017,-gassertions ivltests gold=sv_assert_function_sample_pure.gold
 sv_assert_function_nested_side_effect_fail CE,-g2017,-gassertions ivltests gold=sv_assert_function_nested_side_effect_fail.gold

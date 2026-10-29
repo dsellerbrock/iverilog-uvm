@@ -2647,6 +2647,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <value_range> parameter_value_ranges_opt
 %type <expr> value_range_expression
 %type <expr> property_spec_disable_iff_opt
+%type <expr> expression_or_dist
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
@@ -9240,9 +9241,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_prop_implies(@2, $1, $3); }
   | sva_seq_expr K_iff sva_seq_expr
       { $$ = pform_sva_prop_iff(@2, $1, $3); }
-  | K_if '(' expression ')' property_expr %prec less_than_K_else
+  | K_if '(' expression_or_dist ')' property_expr %prec less_than_K_else
       { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
-  | K_if '(' expression ')' property_expr K_else property_expr
+  | K_if '(' expression_or_dist ')' property_expr K_else property_expr
       { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
@@ -9891,6 +9892,18 @@ property_spec /* IEEE1800-2012 A.2.10 */
 property_spec_disable_iff_opt /* */
   : K_disable K_iff '(' expression ')' { $$ = $4; }
   | %prec sva_decl_expr_start { $$ = nullptr; }
+  ;
+
+/* IEEE 1800-2017/2023 16.12.6: both property-if forms take
+   expression_or_dist. A distribution is represented by PEInside just as
+   in the constraint grammar, preserving its weights for expression eval. */
+expression_or_dist
+  : expression { $$ = $1; }
+  | expression K_dist '{' dist_list '}'
+      { PEInside*tmp = new PEInside($1, $4, true);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   ;
 
 random_qualifier /* IEEE1800-2005 A.1.8 */
