@@ -1027,10 +1027,43 @@ vpiHandle vpip_make_covergroup_iterator(void)
    $ivl_register_assertion, so vpi_iterate(vpiAssertion, scope) and
    vpi_iterate(vpiAssertion, 0) return real identities carrying the
    assertion's name, file, line, and scope. */
+static int assertion_cb_total = 0;
+
+class __vpiAssertionCallback : public __vpiCallback {
+    public:
+      __vpiAssertionCallback(int reason, vpi_assertion_cb_func cb,
+                             char* user_data)
+      : reason_(reason), cb_(cb), user_data_(user_data) { }
+
+      PLI_INT32 remove() override
+      {
+            if (active_) {
+                  active_ = false;
+                  assert(assertion_cb_total > 0);
+                  assertion_cb_total -= 1;
+            }
+            return 1;
+      }
+
+      bool active(void) const { return active_; }
+      int reason(void) const { return reason_; }
+      PLI_INT32 call(p_vpi_time time, vpiHandle assertion,
+                     p_vpi_attempt_info info)
+      {
+            if (!active_) return 0;
+            return cb_(reason_, time, assertion, info,
+                       (PLI_BYTE8*)user_data_);
+      }
+
+    private:
+      int reason_;
+      vpi_assertion_cb_func cb_;
+      char* user_data_;
+      bool active_ = true;
+};
+
 struct assert_cb_t {
-      int reason;
-      vpi_assertion_cb_func cb;
-      char* user_data;
+      __vpiAssertionCallback* callback;
 };
 
 class __vpiAssertion : public __vpiHandle {
@@ -1135,13 +1168,14 @@ class __vpiAssertion : public __vpiHandle {
 	    if (deferred_source_id_) fire(cbAssertionReset);
 	}
 
-      void add_cb(int reason, vpi_assertion_cb_func cb, char*data)
+      vpiHandle add_cb(int reason, vpi_assertion_cb_func cb, char*data)
       {
-	    assert_cb_t c;
-	    c.reason = reason;
-	    c.cb = cb;
-	    c.user_data = data;
+            __vpiAssertionCallback*callback =
+                  new __vpiAssertionCallback(reason, cb, data);
+            assert_cb_t c;
+            c.callback = callback;
 	    cbs_.push_back(c);
+            return callback;
       }
 
       void report_immediate_cover(bool success)
@@ -1244,9 +1278,10 @@ class __vpiAssertion : public __vpiHandle {
 		  info.detail.failExpr = 0;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
-		  if (cbs_[i].reason == reason && cbs_[i].cb)
-		  cbs_[i].cb(reason, &t, this, no_attempt_info ? 0 : &info,
-				   (PLI_BYTE8*)cbs_[i].user_data);
+		  if (cbs_[i].callback->reason() == reason
+		      && cbs_[i].callback->active())
+		  cbs_[i].callback->call(&t, this,
+				 no_attempt_info ? 0 : &info);
 	    }
       }
 
@@ -1275,8 +1310,6 @@ static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
       deferred_assertion_by_key;
 static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
       immediate_cover_by_key;
-static int assertion_cb_total = 0;
-
 static bool selector_path_prefix_(const char*path, const char*prefix)
 {
       size_t len;
@@ -1490,9 +1523,9 @@ vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
       if (!assertion || !cb_rtn) return 0;
       __vpiAssertion*a = dynamic_cast<__vpiAssertion*>(assertion);
       if (!a) return 0;
-      a->add_cb((int)reason, cb_rtn, (char*)user_data);
+      vpiHandle callback = a->add_cb((int)reason, cb_rtn, (char*)user_data);
       assertion_cb_total += 1;
-      return assertion;
+      return callback;
 }
 
 /* M12B: root iterator over all registered assertions
