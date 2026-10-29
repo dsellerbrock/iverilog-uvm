@@ -1,0 +1,2 @@
+./ivltests/issue1423_real_default_array_fail.v:4: error: IEEE 1800-2023 19.5.1 prohibits an array of bins for a default bin of a real coverpoint.
+1 error(s) during elaboration.

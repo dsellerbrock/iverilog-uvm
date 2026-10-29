@@ -1,0 +1,2 @@
+ivltests/issue1423_real_default_array_fail.v:4: error: real-valued coverpoint bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+1 error(s) during elaboration.

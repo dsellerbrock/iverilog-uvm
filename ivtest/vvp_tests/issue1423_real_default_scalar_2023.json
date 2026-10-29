@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1423_real_default_scalar.v",
+  "iverilog-args": ["-g2023", "-s", "issue1423_real_default_scalar"],
+  "gold": "issue1423_real_default_scalar"
+}

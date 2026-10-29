@@ -44702,6 +44702,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 
 			  for (auto& bin : cp.bins) {
+			if (cp_real_supported && bin.is_default && bin.arrayed) {
+			      cerr << cp.expr->get_fileline()
+				   << ": error: IEEE 1800-2023 19.5.1 prohibits an array of bins "
+				      "for a default bin of a real coverpoint." << endl;
+			      des->errors += 1;
+			      continue;
+			}
 			const netclass_t*bin_decl_class = nullptr;
 			if (bin.decl_class)
 			      bin_decl_class = covgrp_decl_class(bin.decl_class, "bin");
