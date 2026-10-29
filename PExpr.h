@@ -1569,11 +1569,14 @@ class PECallFunction : public PExpr {
       bool concurrent_assertion_expr() const { return concurrent_assertion_expr_; }
       void set_sampled_default_clock() { sampled_default_clock_ = true; }
       bool sampled_default_clock() const { return sampled_default_clock_; }
+      void set_sampled_explicit_clock() { sampled_explicit_clock_ = true; }
+      bool sampled_explicit_clock() const { return sampled_explicit_clock_; }
 
     private:
       PExpr*sampled_subst_ = nullptr;
       bool concurrent_assertion_expr_ = false;
       bool sampled_default_clock_ = false;
+      bool sampled_explicit_clock_ = false;
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;

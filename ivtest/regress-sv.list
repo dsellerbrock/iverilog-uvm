@@ -10,6 +10,10 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
+issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
+issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
+issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue1231_stream_array_then_item.gold
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests

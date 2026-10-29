@@ -14920,6 +14920,7 @@ void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 {
       if (!cf || !ev || ev->event_expressions().empty())
 	    return;
+      cf->set_sampled_explicit_clock();
       if (cf->sampled_subst())
 	    return;
 
@@ -17851,6 +17852,97 @@ void pform_sva_destroy_property(sva_property_t*prop)
       delete prop;
 }
 
+/* IEEE 1800-2017 16.9.3 requires sampled-value calls in a disable
+   condition or assertion clock expression to carry their own clock.
+   These expressions are outside the property clock-flow context, so the
+   normal assertion binder must not infer the property's clock for them. */
+static bool sva_check_explicit_sampled_clock_(PExpr*expr)
+{
+      if (!expr) return false;
+      bool error = false;
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(expr)) {
+	    if (!cf->path().package && cf->path().name.size() == 1
+		&& pform_is_sampled_value_function(
+		      peek_tail_name(cf->path().name).str())
+		&& !cf->sampled_explicit_clock()) {
+		  cerr << cf->get_fileline() << ": error: sampled-value function `"
+		       << peek_tail_name(cf->path().name).str()
+		       << "' in a disable condition or assertion clock expression "
+		       << "shall be explicitly clocked (IEEE 1800-2017 16.9.3)."
+		       << endl;
+		  error_count += 1;
+		  sampled_pending_drop_(cf);
+		  error = true;
+	    }
+	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  error |= sva_check_explicit_sampled_clock_(parms[i].parm);
+	    return error;
+      }
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    bool id_error = false;
+	    for (pform_name_t::const_iterator name = id->path().name.begin()
+		 ; name != id->path().name.end() ; ++name) {
+		  for (std::list<index_component_t>::const_iterator index =
+			     name->index.begin() ; index != name->index.end() ; ++index) {
+			if (index->msb)
+			      id_error |= sva_check_explicit_sampled_clock_(index->msb);
+			if (index->lsb && index->lsb != index->msb)
+			      id_error |= sva_check_explicit_sampled_clock_(index->lsb);
+		  }
+	    }
+	    return id_error;
+      }
+      if (PEPostSelect*post = dynamic_cast<PEPostSelect*>(expr)) {
+	    bool post_error =
+		  sva_check_explicit_sampled_clock_(post->base());
+	    if (post->index().msb)
+		  post_error |= sva_check_explicit_sampled_clock_(post->index().msb);
+	    if (post->index().lsb && post->index().lsb != post->index().msb)
+		  post_error |= sva_check_explicit_sampled_clock_(post->index().lsb);
+	    return post_error;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(expr))
+	    return sva_check_explicit_sampled_clock_(un->get_expr());
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr)) {
+	    bool left = sva_check_explicit_sampled_clock_(bin->get_left());
+	    bool right = sva_check_explicit_sampled_clock_(bin->get_right());
+	    return left || right;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(expr)) {
+	    bool cond = sva_check_explicit_sampled_clock_(ter->get_cond());
+	    bool yes = sva_check_explicit_sampled_clock_(ter->get_true());
+	    bool no = sva_check_explicit_sampled_clock_(ter->get_false());
+	    return cond || yes || no;
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(expr)) {
+	    bool inside_error =
+		  sva_check_explicit_sampled_clock_(inside->get_expr());
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1) {
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].lo);
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].hi);
+		  inside_error |= sva_check_explicit_sampled_clock_(ranges[i].weight);
+	    }
+	    return inside_error;
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
+	    return sva_check_explicit_sampled_clock_(cast->cast_base());
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(expr)) {
+	    bool concat_error =
+		  sva_check_explicit_sampled_clock_(cc->repeat_expr());
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  concat_error |= sva_check_explicit_sampled_clock_(parms[i]);
+	    return concat_error;
+      }
+      return false;
+}
+
 /* A property_expr normally arrives without a clock and simply takes the
    property_spec prefix.  An embedded named sequence can already carry its
    declaration clock, however (`@(c) g throughout named_seq').  The old
@@ -17870,6 +17962,16 @@ sva_property_t* pform_sva_apply_property_context(
 	    delete clk;
 	    delete disable_iff;
 	    return nullptr;
+      }
+
+      sva_check_explicit_sampled_clock_(disable_iff);
+      if (clk) {
+	    const std::vector<PEEvent*>&events = clk->event_expressions();
+	    for (size_t i = 0 ; i < events.size() ; i += 1) {
+		  if (!events[i]) continue;
+		  sva_check_explicit_sampled_clock_(events[i]->expr());
+		  sva_check_explicit_sampled_clock_(events[i]->condition());
+	    }
       }
 
 	/* IEEE 1800-2017 9.4.2.4 and 1800-2023 16.5.2 permit a named
