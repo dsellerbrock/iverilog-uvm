@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_assert_first_match_cut_entry_fixed.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "sv_assert_first_match_cut_entry_fixed"
+  ],
+  "gold": "sv_assert_first_match_cut_entry_fixed_2017"
+}

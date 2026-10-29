@@ -426,6 +426,8 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
    type. The packed-logic helper consumes dimensions. */
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_add_local_formal(const char*name);
+extern bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
+					    perm_string name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
 					const char*name);
 extern void pform_sva_declare_bit_local(const struct vlltype&loc,
@@ -441,7 +443,8 @@ extern void pform_sva_declare_logic_local(
 					bool owns_dimensions = true);
 extern PExpr* pform_sva_coerce_local_assignment(
 					const struct vlltype&loc,
-					const char*name, PExpr*rhs);
+					const char*name, PExpr*rhs,
+					bool require_declared = false);
 /* Turn a direct bit/constant part-select local assignment into a full-value
    update expression. Takes ownership of both bounds and rhs. */
 extern PExpr* pform_sva_selected_local_assignment(
