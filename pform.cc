@@ -20736,6 +20736,33 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 	    }
       if (!has_lv) return 0;
 
+	/* IEEE 1800-2017/2023 16.10: an update expression has an implicit
+	   read of its target. Check source-order assignment state before
+	   lowering or routing variable-delay locals to the automaton engine. */
+      std::map<perm_string,unsigned>locals;
+      for (size_t k = 0 ; k < steps.size() ; k += 1)
+	    if (steps[k].lv_rhs) locals[steps[k].lv_name] = 0;
+      std::map<perm_string,unsigned>assigned;
+      for (size_t k = 0 ; k < steps.size() ; k += 1) {
+	    if (!steps[k].lv_rhs) continue;
+	    for (std::map<perm_string,unsigned>::const_iterator it = locals.begin()
+		 ; it != locals.end() ; ++it) {
+		  if (steps[k].lv_selected
+		      && it->first == steps[k].lv_name) continue;
+		  std::map<perm_string,unsigned>one;
+		  one[it->first] = 0;
+		  if (sva_expr_reads_lv_(steps[k].lv_rhs, one)
+		      && !assigned.count(it->first)) {
+			cerr << loc << ": error: assertion local variable `"
+			     << it->first << "' is read before it is assigned."
+			     << endl;
+			error_count += 1;
+			return 1;
+		  }
+	    }
+	    assigned[steps[k].lv_name] = 1;
+      }
+
       long len = 0;
       if (!sva_chain_fixed_len_(steps, len)) {
 	    if (has_selected) {
