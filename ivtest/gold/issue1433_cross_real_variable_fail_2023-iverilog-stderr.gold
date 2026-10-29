@@ -1,0 +1,2 @@
+ivltests/issue1433_cross_real_variable_fail.v:4: error: a real variable cannot be a direct cross item.
+1 error(s) during elaboration.

@@ -44490,6 +44490,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_real_type = cp_base == IVL_VT_REAL
 				|| (cp.expr && cp.expr->expr_type() == IVL_VT_REAL
 				    && (!cp_binary || strchr("+-*/p", cp_binary->get_op())));
+			  if (cp.implicit_cross_item && cp_real_type) {
+				cerr << cp.expr->get_fileline()
+				     << ": error: a real variable cannot be a direct cross item."
+				     << endl;
+				des->errors += 1;
+			  }
 			  auto cp_interval_it = cp.options.find(
 				perm_string::literal("type_option.real_interval"));
 			  auto group_interval_it = cgdef->options.find(
@@ -44500,7 +44506,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      ? group_interval_it->second : nullptr;
 			  bool cp_real_supported = cp_real_type
 				&& sv_feature_available(SVF_REAL_COVERPOINT_BINS);
-			  if (cp_real_type && !cp_real_supported
+			  if (cp_real_type && !cp.implicit_cross_item
+			      && !cp_real_supported
 			      && !real_interval_expr) {
 				if (!sv_require_feature(cp.expr,
 							SVF_REAL_COVERPOINT_BINS))

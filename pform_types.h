@@ -787,6 +787,7 @@ struct class_type_t : public data_type_t {
 	    const PClass* decl_class = nullptr;
 	    bool inherited_cross_only = false;
 	    bool declared_by_extension = false;
+	    bool implicit_cross_item = false;
 	    PExpr* expr;        // expression being covered (e.g., val)
 	    PExpr* iff_expr = nullptr; // M11: iff (guard) — sample gate
 	    std::vector<pform_cov_bins_t> bins;
