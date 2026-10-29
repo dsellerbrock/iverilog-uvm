@@ -11,6 +11,8 @@
 #    any later version.
 #
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
+issue1378_local_sequence_actual_2017 normal,-g2017,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
+issue1378_local_sequence_actual_2023 normal,-g2023,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests

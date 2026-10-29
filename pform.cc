@@ -11551,6 +11551,33 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
 	    st.match_calls.clear();
+	    /* IEEE 1800-2017/2023 16.10: an untyped sequence formal may
+	       denote an enclosing local variable when it is assigned by a
+	       sequence match item.  Expression substitution handles reads
+	       and RHSs; preserve the destination identity as well so the
+	       assigned value flows back to the caller after this instance. */
+	    if (st.lv_name != perm_string()) {
+		  for (size_t f = 0 ; f < decl.formals.size() ; f += 1) {
+			if (st.lv_name != decl.formals[f].name
+			    || decl.formals[f].local_input
+			    || decl.formals[f].type) continue;
+			PEIdent*actual = dynamic_cast<PEIdent*>(actuals[f]->parm);
+			if (!actual || actual->path().package
+			    || actual->path().name.size() != 1
+			    || !actual->path().name.front().index.empty()) {
+			      cerr << loc << ": error: untyped sequence formal `"
+				   << decl.formals[f].name
+				   << "' assigned in a sequence match item requires an entire "
+				      "local-variable actual (IEEE 1800-2017/2023 16.10)."
+				   << endl;
+			      error_count += 1;
+			      pform_sva_destroy_sequence(&initializers);
+			      for (PExpr*expr : owned_subst) delete expr;
+			      return nullptr;
+			}
+			st.lv_name = actual->path().name.front().name;
+		  }
+	    }
 	    st.expr = sva_clone_subst_((*decl.body)[k].expr, &subst);
 	    st.lv_rhs = (*decl.body)[k].lv_rhs
 		? sva_clone_subst_((*decl.body)[k].lv_rhs, &subst) : nullptr;
