@@ -1,0 +1,6 @@
+{
+    "__comment"     : "IEEE 1800-2023 clause 3.14.2.3 rejects mixed specified and unspecified design-element time scopes.",
+    "type"          : "CE",
+    "source"        : "sv_mixed_time_scopes_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_mixed_time_scopes_fail_2023" ]
+}

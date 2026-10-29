@@ -48685,7 +48685,7 @@ static void check_timescales(bool&some_explicit, bool&some_implicit,
 	    some_explicit = true;
 }
 
-static void check_timescales()
+static bool check_timescales()
 {
       bool some_explicit = false;
       bool some_implicit = false;
@@ -48705,29 +48705,11 @@ static void check_timescales()
 			break;
 	    }
       }
-      if (gn_system_verilog() && !(some_explicit && some_implicit)) {
-	    for (pkg = pform_units.begin(); pkg != pform_units.end(); ++pkg) {
-		  const PPackage*pp = *pkg;
-		    // We don't need a timescale if the compilation unit
-		    // contains no items outside a design element.
-		  if (pp->parameters.empty() &&
-		      pp->wires.empty() &&
-		      pp->tasks.empty() &&
-		      pp->funcs.empty() &&
-		      pp->classes.empty())
-			continue;
-
-		  check_timescales(some_explicit, some_implicit, pp);
-		  if (some_explicit && some_implicit)
-			break;
-	    }
-      }
-
       if (!(some_explicit && some_implicit))
-	    return;
+	    return false;
 
       if (gn_system_verilog()) {
-	    cerr << "warning: "
+	    cerr << "error: "
 		 << "Some design elements have no explicit time unit and/or"
 		 << endl;
 	    cerr << "       : "
@@ -48754,7 +48736,7 @@ static void check_timescales()
       }
 
       if (!gn_system_verilog())
-	    return;
+	    return false;
 
       for (pkg = pform_packages.begin(); pkg != pform_packages.end(); ++pkg) {
 	    const PPackage*pp = *pkg;
@@ -48764,24 +48746,7 @@ static void check_timescales()
 		 << " declared here: " << pp->get_fileline() << endl;
       }
 
-      for (pkg = pform_units.begin(); pkg != pform_units.end(); ++pkg) {
-	    PPackage*pp = *pkg;
-	    if (pp->has_explicit_timescale())
-		  continue;
-
-	    if (pp->parameters.empty() &&
-		pp->wires.empty() &&
-		pp->tasks.empty() &&
-		pp->funcs.empty() &&
-		pp->classes.empty())
-		  continue;
-
-	    cerr << "       :   -- compilation unit";
-	    if (pform_units.size() > 1) {
-		  cerr << " from: " << pp->get_file();
-	    }
-	    cerr << endl;
-      }
+      return true;
 }
 
 /*
@@ -49305,8 +49270,10 @@ Design* elaborate(list<perm_string>roots)
 	    return des;
 
 	// Now we have the full design, check for timescale inconsistencies.
-      if (warn_timescale)
-	    check_timescales();
+      if (warn_timescale || gn_system_verilog()) {
+	    if (check_timescales() && gn_system_verilog())
+		  des->errors += 1;
+      }
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "
