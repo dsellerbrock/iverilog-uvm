@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1400_rand_handle_resize_2017.v",
+    "iverilog-args": ["-g2017", "-s", "main"],
+    "gold": "issue1400_rand_handle_resize"
+}
