@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1429_illegal_transition_overlap.v",
+  "iverilog-args": ["-g2023", "-s", "issue1429_illegal_transition_overlap"],
+  "gold": "issue1429_illegal_transition_overlap"
+}

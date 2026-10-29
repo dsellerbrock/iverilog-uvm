@@ -44709,6 +44709,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
+			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
 			  auto normalize_trans_ranges = [](trans_ranges_t r) {
 				std::sort(r.begin(), r.end());
@@ -44726,8 +44727,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 			  for (auto& ib : cp.bins) {
 				if (ib.kind != class_type_t::pform_cov_bins_t::BIN_IGNORE
-				    || ib.trans_seqs.empty() || ib.wildcard
-				    || cp_value_width > 64)
+				    && ib.kind != class_type_t::pform_cov_bins_t::BIN_ILLEGAL)
+				      continue;
+				if (ib.trans_seqs.empty() || ib.wildcard || cp_value_width > 64)
 				      continue;
 				std::vector<std::vector<trans_ranges_t>> found;
 				bool all_ok = true;
@@ -44737,7 +44739,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    trans_ranges_t r;
 					    if (st.repeat_kind != class_type_t::pform_cov_trans_term_t::TRANS_ONCE
 						|| !eval_ranges(st.ranges, r, cp_value_width,
-									cp_value_signed, ib.name.str(), nullptr)
+								cp_value_signed, ib.name.str(), nullptr)
 						|| r.empty()) {
 						  all_ok = false;
 						  break;
@@ -44748,8 +44750,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      found.push_back(std::move(terms));
 				}
 				if (!all_ok) continue;
-				for (auto&f : found) ignored_trans.push_back(std::move(f));
-				resolved_ignore_bins.insert(&ib);
+				for (auto&f : found) {
+				      if (ib.kind == class_type_t::pform_cov_bins_t::BIN_IGNORE)
+					    ignored_trans.push_back(std::move(f));
+				      else illegal_trans.push_back(std::move(f));
+				}
+				if (ib.kind == class_type_t::pform_cov_bins_t::BIN_IGNORE)
+				      resolved_ignore_bins.insert(&ib);
 			  }
 			  auto trans_ranges_intersect = [](const trans_ranges_t&a,
 							   const trans_ranges_t&b) {
@@ -45075,6 +45082,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  des->errors += 1;
 						  bad = true;
 						  break;
+					    }
+					    // A fixed covered sequence whose every transition term is
+					    // contained in a contiguous illegal sequence necessarily
+					    // matches that illegal sequence and is not a coverage bin.
+					    if (base_kind != 2 && !constructor_dependent) {
+						  bool removed = false;
+						  for (const auto&illegal : illegal_trans) {
+							if (illegal.size() > terms.size()) continue;
+							for (size_t offset = 0;
+							     offset + illegal.size() <= terms.size();
+							     ++offset) {
+							      bool contained = true;
+							      for (size_t k = 0; k < illegal.size(); ++k) {
+								    if (terms[offset + k].dynamic
+									|| terms[offset + k].repeat != (unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE
+									|| !trans_ranges_subtract(
+									      terms[offset + k].ranges,
+									      illegal[k]).empty()) {
+									  contained = false;
+									  break;
+								    }
+							      }
+							      if (contained) { removed = true; break; }
+							}
+							if (removed) break;
+						  }
+						  if (removed) continue;
 					    }
 					    std::vector<std::vector<trans_term_t>> pieces;
 					    pieces.push_back(std::move(terms));

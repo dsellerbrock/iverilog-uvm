@@ -6205,5 +6205,9 @@ issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_seque
 issue1364_named_sequence_combinators_2017 CN,-g2017,-s,top ivltests
 issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
 
+# IEEE 1800-2017/2023 §19.5.6: illegal transition subsequences remove bins.
+issue1429_illegal_transition_overlap_2017 normal,-g2017,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
+issue1429_illegal_transition_overlap_2023 normal,-g2023,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
+
 issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
 issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold
