@@ -140,6 +140,11 @@ EXTERN_C_START
 
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
+/* Assertion object vpiType values (IEEE 1800 Annex E). vpiAssert shares
+   its numeric value with vpiAssertion, the iterator type. */
+#define vpiAssert           686
+#define vpiAssume            687
+#define vpiCover             688
 /* Assertion coverage status properties: 2017 40.5.2/40.5.3,
    2023 40.5.2. */
 #define vpiAssertAttemptCovered 770
