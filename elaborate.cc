@@ -8819,8 +8819,18 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 		  return st->elaborate_unpack(des, rval_scope, lv_width);
 	    if (lv_width > 0
 		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
-		  if (st->is_lval_context())
-			return st->elaborate_unpack(des, rval_scope, lv_width);
+		  if (st->is_lval_context()) {
+			NetExpr*unpacked = st->elaborate_unpack(des, rval_scope,
+								 lv_width);
+			if (unpacked && lv_type == IVL_VT_BOOL) {
+			      NetECast*cast = new NetECast('2', unpacked,
+								 lv_width, false,
+								 lv_net_type);
+			      cast->set_line(*st);
+			      unpacked = cast;
+			}
+			return unpacked;
+		  }
 		  return st->elaborate_pack_into(des, rval_scope, lv_width);
 	    }
 	      // String target (e.g. joining a queue of strings): the
