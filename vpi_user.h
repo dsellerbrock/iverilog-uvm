@@ -379,6 +379,7 @@ typedef struct t_vpi_delay  {
 #define vpiCellInstance   8
 #define vpiDefName        9
 #define vpiDefAttribute  55 /* attribute defined for the object (Boolean) */
+#define vpiIteratorType  57 /* object type of an iterator */
 #define vpiTimeUnit      11
 #define vpiTimePrecision 12
 #define vpiActiveTimeFormat 119
