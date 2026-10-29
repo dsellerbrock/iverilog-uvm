@@ -471,6 +471,7 @@ class PCase  : public Statement {
             std::vector<Item*>*, bool quality_if = false);
       ~PCase() override;
       PExpr* case_expr() const { return expr_; }
+      bool is_quality_if() const { return quality_if_; }
       void replace_case_expr(PExpr*expr) { delete expr_; expr_ = expr; }
       std::vector<Item*>* mutable_items() const { return items_; }
 

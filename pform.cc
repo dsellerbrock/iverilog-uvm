@@ -2076,6 +2076,17 @@ Statement* pform_make_quality_if(const struct vlltype&loc,
             append_condition(next_cond, next_if);
       }
 
+      // A qualified if applies to the complete direct else-if chain. A
+      // second qualified if at the end of that chain is therefore illegal;
+      // a qualified if inside an explicit begin-end block remains opaque as
+      // the default statement and is not rejected here.
+      if (PCase*next = dynamic_cast<PCase*>(tail)) {
+            if (next->is_quality_if()) {
+                  cerr << next->get_fileline() << ": error: a unique, unique0, or priority qualifier cannot appear after else in a qualified if-else-if series." << endl;
+                  error_count += 1;
+            }
+      }
+
       if (tail) {
             PCase::Item*def = new PCase::Item;
             def->stat = tail;
