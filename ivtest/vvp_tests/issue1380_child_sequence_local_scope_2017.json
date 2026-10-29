@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1380_child_sequence_local_scope.v",
+  "iverilog-args": ["-g2017", "-s", "issue1380_child_sequence_local_scope"],
+  "gold": "issue1380_child_sequence_local_scope_2017"
+}
