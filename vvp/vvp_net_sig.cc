@@ -1160,6 +1160,69 @@ void vvp_ref_signal_aa::bind_elem(vvp_net_t*formal,
       unsupported_ref_event_binding_(formal, "an array or queue element");
 }
 
+static vvp_assoc_element_ref::kind_t assoc_ref_value_kind_(unsigned value_kind)
+{
+      switch (value_kind) {
+          case vvp_lvalue_ref::VALUE_REAL:
+            return vvp_assoc_element_ref::ELEM_REAL;
+          case vvp_lvalue_ref::VALUE_STRING:
+            return vvp_assoc_element_ref::ELEM_STRING;
+          case vvp_lvalue_ref::VALUE_OBJECT:
+            return vvp_assoc_element_ref::ELEM_OBJECT;
+          case vvp_lvalue_ref::VALUE_VEC4:
+          default:
+            return vvp_assoc_element_ref::ELEM_VEC4;
+      }
+}
+
+void vvp_ref_signal_aa::bind_assoc_element_ref_(vvp_net_t*formal,
+                                                const vvp_object_t&element)
+{
+      vvp_context_t frame = vthread_get_wt_context();
+      if (!frame) return;
+      ref_aa_slot*slot = ref_aa_slot_from_raw(
+            vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->clear();
+      slot->kind = ref_aa_slot::REF_ELEM;
+      slot->obj = element;
+      unsupported_ref_event_binding_(formal,
+                                     "an associative-array element");
+}
+
+void vvp_ref_signal_aa::bind_assoc_elem(vvp_net_t*formal,
+                                        vvp_assoc_base*container,
+                                        const std::string&key,
+                                        unsigned kind)
+{
+      if (container)
+            bind_assoc_element_ref_(formal, container->capture_element_ref(
+		  key, assoc_ref_value_kind_(kind), size_));
+}
+
+void vvp_ref_signal_aa::bind_assoc_elem(vvp_net_t*formal,
+                                        vvp_assoc_base*container,
+                                        const vvp_object_t&key,
+                                        unsigned kind)
+{
+      if (container)
+            bind_assoc_element_ref_(formal, container->capture_element_ref(
+		  key, assoc_ref_value_kind_(kind), size_));
+}
+
+void vvp_ref_signal_aa::bind_assoc_elem(vvp_net_t*formal,
+                                        vvp_assoc_base*container,
+                                        const vvp_vector4_t&key,
+                                        unsigned kind)
+{
+      if (container)
+            bind_assoc_element_ref_(formal, container->capture_element_ref(
+		  key, assoc_ref_value_kind_(kind), size_));
+}
+
 void vvp_ref_signal_aa::bind_word(vvp_net_t*formal,
                                   struct __vpiArray*arr, unsigned index)
 {

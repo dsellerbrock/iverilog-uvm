@@ -1,0 +1,3 @@
+empty exists=1 entries=1 value=0
+default exists=1 entries=1 value=17
+write exists=1 entries=2 value=23

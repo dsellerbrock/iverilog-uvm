@@ -1,0 +1,2 @@
+issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
+issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold

@@ -30464,6 +30464,122 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+template <class ASSOC, class KEY, class VALUE>
+static bool ref_assoc_allocate_value_(ASSOC*assoc, const KEY&key,
+				      unsigned width)
+{
+      if (!assoc || assoc->exists_key(key)) return false;
+      VALUE value;
+      dq_default(value, width);
+      assoc->get(key, value);
+      assoc->set(key, assoc_value_copy_element_(value));
+      return true;
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_vec4*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_vec4, KEY,
+					       vvp_vector4_t>(assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_real*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_real, KEY, double>(
+	    assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_string*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_string, KEY, string>(
+	    assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_object*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_object, KEY,
+					       vvp_object_t>(assoc, key, width);
+}
+
+template <class ASSOC, class KEY>
+static void ref_bind_assoc_kind_(vthread_t thr, vvp_code_t cp,
+				 const KEY&key, vvp_ref_signal_aa*formal,
+				 unsigned value_kind)
+{
+      ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, cp->net2,
+						       "ref-assoc-bind");
+      if (assoc && !aa_index_has_xz_(key)
+	  && ref_assoc_allocate_(assoc, key, formal->value_size()))
+	    notify_mutated_object_signal_(thr, cp->net2, "ref-aa-allocate");
+      formal->bind_assoc_elem(cp->net, assoc, key, value_kind);
+}
+
+template <class KEY>
+static bool ref_bind_assoc_(vthread_t thr, vvp_code_t cp, const KEY&key)
+{
+      vvp_vector4_t kindv = thr->pop_vec4();
+      int64_t value_kind = 0;
+      vector4_to_value(kindv, value_kind, true, false);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/aa error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      switch (value_kind) {
+	  case vvp_lvalue_ref::VALUE_VEC4:
+	    ref_bind_assoc_kind_<vvp_assoc_vec4>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_REAL:
+	    ref_bind_assoc_kind_<vvp_assoc_real>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_STRING:
+	    ref_bind_assoc_kind_<vvp_assoc_string>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_OBJECT:
+	    ref_bind_assoc_kind_<vvp_assoc_object>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  default:
+	    cerr << "%ref/bind/aa error: invalid value kind "
+		 << value_kind << "." << endl;
+	    break;
+      }
+      return true;
+}
+
+/* %ref/bind/aa/{str,obj,v} <formal>, <container-var> -- key and value kind
+ * are on their typed value stacks. */
+bool of_REF_BIND_AA_STR(vthread_t thr, vvp_code_t cp)
+{
+      string key = thr->pop_str();
+      return ref_bind_assoc_(thr, cp, key);
+}
+
+bool of_REF_BIND_AA_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      return ref_bind_assoc_(thr, cp, key);
+}
+
+bool of_REF_BIND_AA_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      return ref_bind_assoc_(thr, cp, key);
+}
+
 /* %ref/bind/el/o <formal> -- bind to an element of the container object
  * already on the object stack. */
 bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)

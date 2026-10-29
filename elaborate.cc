@@ -19995,6 +19995,28 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
+	      /* A ref actual that selects an associative element must retain its
+	       * declared key type; the ordinary element binding is positional. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
+		&& lv->sig()->queue_type()
+		&& lv->sig()->queue_type()->assoc_index_type() != 0) {
+	      NetESignal*formal_e = new NetESignal(port);
+	      formal_e->set_line(*this);
+	      NetESignal*cont_e = new NetESignal(lv->sig());
+	      cont_e->set_line(*this);
+	      vector<NetExpr*> argv(3);
+	      argv[0] = formal_e;
+	      argv[1] = cont_e;
+	      argv[2] = lv->word()->dup_expr();
+	      NetSTask*bind = new NetSTask("$ivl_ref_bind_assoc_elem",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+	      bind->set_line(*this);
+	      delete lv;
+	      return bind;
+	    }
+
 	      /* An element of a dynamic array or queue: da[i], q[i]. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0
