@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1367_unclocked_assertion_clock_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}
