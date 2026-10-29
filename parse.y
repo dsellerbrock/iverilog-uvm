@@ -9414,13 +9414,7 @@ sva_seq_comb_concat
       { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
   ;
 
-/* IEEE 1800-2017 16.11 sequence_match_item subroutine calls. This bounded
-   carrier intentionally recognizes the direct system-task form used by the
-   executable slice plus a parenthesized unqualified user task. Reusing the
-   fully general statement-position `subroutine_call' here activates its
-   receiver/package/hierarchy ambiguity in expression context and adds parser
-   conflicts. Unsupported direct calls are still retained for one targeted
-   semantic diagnostic; broader receiver/package shapes remain future work. */
+/* IEEE 1800-2017 16.11 sequence_match_item subroutine calls. */
 sva_match_call
   : SYSTEM_IDENTIFIER argument_list_parens_opt
       { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
@@ -9428,12 +9422,14 @@ sva_match_call
 	delete[] $1;
 	delete $2;
 	$$ = tmp; }
-  | IDENTIFIER argument_list_parens
+  | IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
       { pform_name_t name;
 	name.push_back(name_component_t(lex_strings.make($1)));
-	PCallTask*tmp = pform_make_call_task(@1, name, *$2);
+	name.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = pform_make_call_task(@1, name, *$4);
 	delete[] $1;
-	delete $2;
+	delete[] $3;
+	delete $4;
 	$$ = tmp; }
   ;
 

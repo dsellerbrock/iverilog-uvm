@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1383_sequence_method_calls.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-gassertions", "-s", "issue1383_sequence_method_calls"],
+  "gold": "issue1383_sequence_method_calls"
+}

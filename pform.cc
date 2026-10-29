@@ -10249,25 +10249,29 @@ PExpr* pform_sva_selected_local_assignment(const struct vlltype&loc,
       return pform_sva_coerce_local_assignment(loc, name, updated);
 }
 
-/* Keep cloning and validation on the same direct-call subset. A user
+/* Keep cloning and validation on the same zero-argument call subset. A user
    subroutine with no actual arguments needs no sampled-argument or ref
    carrier; argument-bearing user calls still fail closed. */
-static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
+static bool sva_match_call_is_supported_(const PCallTask*call, bool cover)
 {
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
       const pform_name_t&path = call->path();
-      return path.size() == 1 && path.front().index.empty()
-	     && (path.front().name == perm_string::literal("$display")
-		 || (cover && call->parms().empty()));
+      if (path.empty() || !call->parms().empty()) return false;
+      for (pform_name_t::const_iterator it = path.begin(); it != path.end(); ++it)
+	    if (!it->index.empty()) return false;
+      if (path.size() == 1
+	  && path.front().name == perm_string::literal("$display"))
+	    return true;
+      return cover;
 }
 
 static PCallTask* sva_clone_match_call_(
       const PCallTask*source,
       const std::map<perm_string,PExpr*>*subst = nullptr)
 {
-      if (!sva_match_call_is_direct_(source, true)) return nullptr;
+      if (!sva_match_call_is_supported_(source, true)) return nullptr;
       std::list<named_pexpr_t> parms;
       const std::vector<named_pexpr_t>&src = source->parms();
       for (size_t i = 0 ; i < src.size() ; i += 1) {
@@ -17149,7 +17153,7 @@ static int sva_validate_match_items_(const struct vlltype&loc,
       }
       const std::vector<PCallTask*>&calls = prop->seq->back().match_calls;
       for (size_t i = 0 ; i < calls.size() ; i += 1)
-	    if (!sva_match_call_is_direct_(calls[i], kind == 2))
+	    if (!sva_match_call_is_supported_(calls[i], kind == 2))
 		  return sva_match_item_sorry_(loc,
 			"currently support only direct $display calls or "
 			"zero-argument user calls in a cover property");
