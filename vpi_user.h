@@ -361,6 +361,7 @@ typedef struct t_vpi_delay  {
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiQualifier   650
+#define vpiImplicitDecl 26 /* implicitly declared net (Boolean) */
 #define vpiUniqueQualifier    1
 #define vpiPriorityQualifier  2
 #define vpiType           1
