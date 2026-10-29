@@ -1,0 +1,4 @@
+call-before
+x=1
+y=2
+PASSED: mixed first_match items preserve source order

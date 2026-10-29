@@ -4953,3 +4953,22 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Reproducer status:** Not probed.
 - **Triage status:** Unverified and out of scope of #857; probe before opening an
   issue or widening the fix.
+
+### DD-152 — legacy sequence match-item assignments accept undeclared locals
+
+- **Discovered while working:** M9 issue #714.
+- **Observation:** Legacy sequence match-item assignments accept undeclared names
+  such as `v` and `x` as per-attempt local carriers. IEEE 1800-2017/2023 §16.10
+  says, “Local variables may be assigned and reassigned within the body of the
+  sequence or property in which they are declared.”
+- **File/function:** `pform.cc::pform_sva_coerce_local_assignment`.
+- **Evidence:** Clean main `779df0de5` passes `local_var.sv`,
+  `local_var_repeat.sv`, `local_var_window_nfa_only.sv`, and
+  `local_var_index_preponed_nfa_only.sv`; tightening the shared validator
+  rejected all four. The #714 implementation now requires a declared local
+  only for the new `first_match` assignment form.
+- **Reproducer status:** Confirmed by the four existing tests on clean main and
+  by the regression failures from the broader validator change.
+- **Triage status:** Open; preserving the legacy behavior is scoped to #714.
+  A separate standards-correct migration of the existing forms and tests needs
+  its own review.
