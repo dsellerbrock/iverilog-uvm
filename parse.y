@@ -867,6 +867,16 @@ static pform_name_t* pform_create_super(void)
    write in some cases. */
 static std::list<named_pexpr_t>*attributes_in_context = 0;
 
+/* Attribute values are constant expressions, and IEEE 1800-2017/2023 5.12
+   forbids an attribute instance anywhere inside one. */
+static unsigned attribute_value_depth = 0;
+
+static void pform_check_attribute_instance(const YYLTYPE&loc)
+{
+      if (attribute_value_depth)
+	    yyerror(loc, "error: attribute instance is not allowed in an attribute value constant expression (IEEE 1800-2017/2023 5.12).");
+}
+
 /* Later version of bison (including 1.35) will not compile in stack
    extension if the output is compiled with C++ and either the YYSTYPE
    or YYLTYPE are provided by the source code. However, I can get the
@@ -1320,6 +1330,7 @@ void reset_parser_file_state(void)
       in_gen_region = false;
       specparam_active_range = 0;
       attributes_in_context = 0;
+      attribute_value_depth = 0;
       port_declaration_context.port_net_type = NetNet::NONE;
       port_declaration_context.port_type = NetNet::NOT_A_PORT;
       port_declaration_context.data_type = 0;
@@ -2776,6 +2787,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt parameter_initializer_opt
+%type <expr>  attribute_value_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
 %type <expr>  delay_value delay_value_simple
@@ -10637,11 +10649,12 @@ attribute_list_opt
   ;
 
 attribute_instance_list
-  : K_PSTAR K_STARP { $$ = 0; }
-  | K_PSTAR attribute_list K_STARP { $$ = $2; }
-  | attribute_instance_list K_PSTAR K_STARP { $$ = $1; }
+  : K_PSTAR K_STARP { pform_check_attribute_instance(@1); $$ = 0; }
+  | K_PSTAR attribute_list K_STARP { pform_check_attribute_instance(@1); $$ = $2; }
+  | attribute_instance_list K_PSTAR K_STARP { pform_check_attribute_instance(@2); $$ = $1; }
   | attribute_instance_list K_PSTAR attribute_list K_STARP
-      { std::list<named_pexpr_t>*tmp = $1;
+      { pform_check_attribute_instance(@2);
+        std::list<named_pexpr_t>*tmp = $1;
 	if (tmp) {
 	    tmp->splice(tmp->end(), *$3);
 	    delete $3;
@@ -10667,7 +10680,7 @@ attribute_list
 
 
 attribute
-  : IDENTIFIER initializer_opt
+  : IDENTIFIER attribute_value_opt
       { named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($1);
@@ -10675,6 +10688,13 @@ attribute
 	delete[]$1;
 	$$ = tmp;
       }
+  ;
+
+attribute_value_opt
+  : '=' { attribute_value_depth += 1; } expression
+      { attribute_value_depth -= 1; $$ = $3; }
+  |
+      { $$ = nullptr; }
   ;
 
 
