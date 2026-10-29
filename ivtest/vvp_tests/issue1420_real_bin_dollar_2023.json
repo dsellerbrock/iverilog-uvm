@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1420_real_bin_dollar_2023.v",
+  "iverilog-args": ["-g2023", "-DISSUE1420_2023", "-s", "issue1420_real_bin_dollar_2023"],
+  "output-contains": ["PASSED"]
+}

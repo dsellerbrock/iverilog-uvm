@@ -43798,21 +43798,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				return ok && std::isfinite(value);
 			  };
 			  for (auto&range : ranges) {
-				if (!range.first || !range.second) {
-				      cerr << "error: real covergroup bin '" << bin_name
-					   << "' requires finite range endpoints." << endl;
-				      return false;
-				}
-				double lo, hi;
-				if (!endpoint(range.first, lo) || !endpoint(range.second, hi)) {
-				      cerr << range.first->get_fileline()
+				double lo = -std::numeric_limits<double>::infinity();
+				double hi = std::numeric_limits<double>::infinity();
+				bool unbounded = !range.first || !range.second;
+				if ((range.first && !endpoint(range.first, lo))
+				    || (range.second && !endpoint(range.second, hi))) {
+				      PExpr* bad_endpoint = range.first ? range.first : range.second;
+				      cerr << bad_endpoint->get_fileline()
 					   << ": error: real covergroup bin '" << bin_name
 					   << "' requires constant finite endpoints." << endl;
 				      des->errors += 1;
 				      return false;
 				}
 				if (hi < lo) std::swap(lo, hi);
-				if (!partition) {
+				// IEEE 1800-2023 19.5.1 specifies that a real range
+				// containing $ is represented by one bin, not partitioned.
+				if (!partition || unbounded) {
 				      rout.push_back(std::make_pair(real_key(lo), real_key(hi)));
 				      continue;
 				}
