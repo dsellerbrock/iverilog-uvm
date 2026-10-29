@@ -1387,6 +1387,8 @@ sv_std_randomize_with_solver normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
 sv_constraint_small_domain_probe normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
+sv_assoc_wildcard_string_index_2017 normal,-g2017,-s,sv_assoc_wildcard_string_index ivltests gold=sv_assoc_wildcard_string_index.gold
+sv_assoc_wildcard_string_index_2023 normal,-g2023,-s,sv_assoc_wildcard_string_index ivltests gold=sv_assoc_wildcard_string_index.gold
 sv_process_status_transitions normal,-g2012 ivltests
 sv_display_p_signed normal,-g2012 ivltests
 sv_array_handle_const_index_method normal,-g2012 ivltests
