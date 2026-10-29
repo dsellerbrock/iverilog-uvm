@@ -1,0 +1,2 @@
+PASS
+ivltests/issue1466_covergroup_option_name.v:15: $finish called at 0 (1s)

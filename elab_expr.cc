@@ -16175,7 +16175,7 @@ static covgrp_item_option_path_t rewrite_covergroup_item_option_component_(
             auto member = std::next(cur);
             if (member == end || !member->index.empty())
                   return COVGRP_ITEM_OPTION_NOT_PSEUDO;
-            int property = class_type->covgrp_option_prop(member->name);
+            int property = class_type->covgrp_option_read_prop(member->name);
             if (property < 0) return COVGRP_ITEM_OPTION_NOT_PSEUDO;
             cur = member;
             component.name = lex_strings.make(class_type->get_prop_name(property));

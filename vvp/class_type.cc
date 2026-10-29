@@ -3893,6 +3893,22 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
 {
       if (!obj || obj->get_defn() != this) return;
 
+      // IEEE 1800-2017/2023 19.7, Table 19-1: each covergroup instance
+      // receives a distinct automatically generated name when option.name
+      // was not initialized by the user.  The hidden string property is
+      // synthesized with every covergroup type and is exposed by the
+      // compiler as the read-only pseudo-member option.name.
+      static uint64_t next_auto_name = 0;
+      const std::string name_prefix = "__covgrp_group_option_name";
+      std::string name = "covergroup_" + std::to_string(++next_auto_name);
+      for (size_t idx = 0; idx < property_count(); idx += 1)
+            if (property_name(idx) == name_prefix
+                  || (property_name(idx).compare(0, name_prefix.size(),
+                                                name_prefix) == 0
+                        && property_name(idx).size() > name_prefix.size()
+                        && property_name(idx)[name_prefix.size()] == '_'))
+                  obj->set_string(idx, name);
+
       auto store = [&](int prop, unsigned value) {
 	    if (prop < 0 || (size_t)prop >= property_count()) return;
 	    unsigned width = property_vec4_width((size_t)prop);

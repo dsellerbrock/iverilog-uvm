@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1466_covergroup_option_name.v",
+  "iverilog-args": ["-g2023", "-s", "issue1466_covergroup_option_name"],
+  "gold": "issue1466_covergroup_option_name"
+}

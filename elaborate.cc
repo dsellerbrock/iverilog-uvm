@@ -44100,6 +44100,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   "__covgrp_group_option_goal");
             group_options.comment_prop = add_unique_cov_property(
                   "__covgrp_group_option_comment", &netstring_t::type_string);
+            group_options.name_prop = add_unique_cov_property(
+                  "__covgrp_group_option_name", &netstring_t::type_string);
             if (cgdef->is_extension) {
                   int inherited_idx = property_idx_from_name(cgdef->name);
                   ivl_assert(*pclass, get_super() && inherited_idx >= 0
