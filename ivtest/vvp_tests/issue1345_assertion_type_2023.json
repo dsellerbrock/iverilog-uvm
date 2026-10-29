@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1345_assertion_type.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1345_assertion_type_2023"],
+  "vpi-sources": ["vpi/issue1345_assertion_type.c"],
+  "output-contains": ["PASS: issue1345 assertion types assert=686 assume=687 cover=688"]
+}

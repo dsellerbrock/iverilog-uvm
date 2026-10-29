@@ -1036,7 +1036,8 @@ struct assert_cb_t {
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
-		     __vpiScope*scope, int depth_arg, int flags)
+		     __vpiScope*scope, int depth_arg, int flags,
+		     int assertion_kind)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
 	scope_(scope),
 	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
@@ -1047,7 +1048,9 @@ class __vpiAssertion : public __vpiHandle {
 	  // that ran the full latency (implications). A plain sequence
 	  // also fails an attempt that dies at its FIRST step, whose
 	  // start is the failing tick itself.
-	fail_full_latency_((flags & 1) != 0) { }
+	fail_full_latency_((flags & 1) != 0),
+	assertion_type_(assertion_kind == 4 ? vpiAssume
+			: assertion_kind == 2 ? vpiCover : vpiAssert) { }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
 		     int deferred_type, const char*file, int line)
@@ -1071,6 +1074,8 @@ class __vpiAssertion : public __vpiHandle {
 		  return immediate_type_;
 	    if (code == vpiType && deferred_source_id_)
 		  return deferred_type_;
+	    if (code == vpiType)
+		  return assertion_type_;
 	    if (code == vpiLineNo) return line_;
 	    return vpiUndefined;
       }
@@ -1261,6 +1266,7 @@ class __vpiAssertion : public __vpiHandle {
       int successes_ = 0;
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
+      int assertion_type_ = vpiAssert;
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
       bool deferred_enabled_ = true;
@@ -1340,11 +1346,12 @@ void vpip_report_deferred_assertion_reset_callbacks(const char*selector,
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
-			     PLI_INT32 flags)
+			     PLI_INT32 flags, PLI_INT32 assertion_kind)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
-					      sc, (int)depth_arg, (int)flags);
+					      sc, (int)depth_arg, (int)flags,
+					      (int)assertion_kind);
       assertion_registry.push_back(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);

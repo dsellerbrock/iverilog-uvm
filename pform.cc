@@ -12390,14 +12390,15 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
    parser-stage and recursion-depth state live with the procedural-clock
    parking code below; this declaration must precede registration helpers. */
 static perm_string sva_active_assertion_label_;
+/* IEEE assertion-control selector: assert=1, cover=2, assume=4. */
+static unsigned sva_active_assertion_kind_ = 1;
 
-/* M12B: build the one-time
-   `$ivl_register_assertion(idx, "name", "file", line)` call that gives a
+/* M12B: build the one-time `$ivl_register_assertion` call that gives a
    synthesized concurrent-assertion checker a VPI identity
    (vpi_iterate(vpiAssertion, ...)). idx is the compile-time instance
    number, which together with the runtime scope identifies the
-   assertion for callback reporting. Placed in the checker's zero-init
-   initial block. */
+   assertion for callback reporting. The call includes the source assertion
+   kind for vpiType. Placed in the checker's zero-init initial block. */
 /* M12-2: `edges' is the FIXED start->accept tick-edge count of the
    assertion automaton (from pform_sva_nfa_fixed_latency), or -1 when
    the latency is variable/unknown. The attempt's real tick latency is
@@ -12441,6 +12442,11 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       a5.parm = new PENumber(new verinum(
 	    (uint64_t)(fail_full_latency ? 1 : 0), 32));
       args.push_back(a5);
+	/* Preserve the declaration kind for its VPI assertion handle. */
+      named_pexpr_t a6;
+      a6.parm = new PENumber(new verinum(
+	    (uint64_t)sva_active_assertion_kind_, 32));
+      args.push_back(a6);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -25445,12 +25451,14 @@ void pform_sva_clear_assertion_label(void)
 
 class sva_assertion_label_scope_t {
     public:
-      explicit sva_assertion_label_scope_t(perm_string label)
-      : outer_(sva_active_assertion_label_)
+      explicit sva_assertion_label_scope_t(perm_string label, int kind)
+      : outer_(sva_active_assertion_label_), outer_kind_(sva_active_assertion_kind_)
       {
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_assertion_label_ = label.nil()
 			? sva_parser_assertion_label_ : label;
+	    if (sva_assertion_label_depth_ == 0)
+		  sva_active_assertion_kind_ = kind == 1 ? 4 : kind == 2 ? 2 : 1;
 	    sva_assertion_label_depth_ += 1;
       }
 
@@ -25459,10 +25467,12 @@ class sva_assertion_label_scope_t {
 	    assert(sva_assertion_label_depth_ > 0);
 	    sva_assertion_label_depth_ -= 1;
 	    sva_active_assertion_label_ = outer_;
+	    sva_active_assertion_kind_ = outer_kind_;
       }
 
     private:
       perm_string outer_;
+      unsigned outer_kind_;
 };
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
@@ -27637,7 +27647,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  perm_string label)
 {
       pform_generated_verification_scope_t verification_scope;
-      sva_assertion_label_scope_t assertion_label_scope(label);
+      sva_assertion_label_scope_t assertion_label_scope(label, kind);
 
 	/* `else ;' is an explicit null failure action, whereas a null
 	   fail_stmt pointer means there was no else arm and requests the LRM
