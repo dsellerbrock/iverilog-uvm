@@ -44608,6 +44608,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
 			  bool has_value_bins = false;
+			  bool has_explicit_value_bin = false;
 
 			    // M11-6: IEEE 19.5.5 — values named by
 			    // ignore_bins/illegal_bins are excluded from
@@ -44823,6 +44824,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  "bin array size for " + bin_item);
 			}
 				unsigned base_kind = (unsigned)bin.kind;
+				if (base_kind == 0 || base_kind == 3)
+				      has_explicit_value_bin = true;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
 				if (cp_real_supported) kindval |= netclass_t::COVGRP_REAL_BIN;
 			if (!cg_standalone && bin.iff_expr && bin_decl_class) {
@@ -46220,7 +46223,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // Automatic bins (19.5.1): no explicit value
 			    // bins => min(auto_bin_max, 2**M) uniform bins
 			    // over the coverpoint's bit-pattern space.
-			  if (!has_value_bins) {
+			  if (cp_real_type) {
+				if (cp_real_supported && !has_explicit_value_bin) {
+				      cerr << cp.expr->get_fileline()
+					   << ": error: real coverpoint '" << cp.label
+					   << "' requires at least one explicit bins construct."
+					   << endl;
+				      des->errors += 1;
+				}
+			  } else if (!has_value_bins) {
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,
