@@ -17360,13 +17360,21 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	    return sva_match_item_sorry_(loc,
 		  "outside the main sequence are not supported yet");
 
+	/* Finite ranged delays are represented by distinct NFA paths, so the
+	   action can run at each accepting endpoint. Keep the current bounded
+	   subset finite and repetition-free: cyclic endpoint tracking has a
+	   separate finite-attempt-pool limit. */
       for (size_t i = 0 ; i < prop->seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*prop->seq)[i];
-	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0 || st.rep_kind != 0)
+	    if (generation_flag < GN_VER2017 && st.delay_lo != st.delay_hi)
 		  return sva_match_item_sorry_(loc,
 			"currently require a fixed-length sequence with no repetition");
+	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
+		|| st.rep_tail != 0 || st.rep_kind != 0)
+		  return sva_match_item_sorry_(loc,
+			"currently require finite delays with no repetition");
       }
+
       const std::vector<PCallTask*>&calls = prop->seq->back().match_calls;
       for (size_t i = 0 ; i < calls.size() ; i += 1)
 	    if (!sva_match_call_is_direct_(calls[i], kind == 2))
@@ -19493,6 +19501,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       if (!have_tree && !implication && prop->seq
 	  && !prop->seq->empty() && !prop->seq->back().match_calls.empty())
 	    match_calls = &prop->seq->back().match_calls;
+      bool preserve_match_endpoints = match_calls != nullptr;
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
       std::vector< std::vector<named_pexpr_t> > match_args;
@@ -20442,14 +20451,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					       (negated || forbidden) ? r_f : r_p,
 					      sva_bit_(loc, 1)));
 	    }
-	    if (!endpoint_fanout && !(cover && sequence_cover)) {
+	    if (!endpoint_fanout
+		&& !(preserve_match_endpoints || (cover && sequence_cover))) {
 		  clear_slot(k, acc_v);
 		  if (track_ob)
 			acc_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
-	    } else if (!endpoint_fanout && sequence_cover) {
-		  /* A sequence-cover attempt remains live after a match while any
-		     later endpoint is still possible. Retire only its accepting
-		     state; the other NFA paths can produce further matches. */
+	    } else if (!endpoint_fanout
+		       && (preserve_match_endpoints || (cover && sequence_cover))) {
+		  /* A sequence-cover attempt and any sequence with attached
+		     endpoint calls remain live after a match while later
+		     endpoints are possible. Retire only its accepting state;
+		     the other NFA paths can produce further matches. */
 		  for (unsigned j = 0; j < N; ++j)
 			acc_v.push_back(sva_assign_(loc, s[k][j],
 			      j == nfa.accept ? sva_bit_(loc, 0)
