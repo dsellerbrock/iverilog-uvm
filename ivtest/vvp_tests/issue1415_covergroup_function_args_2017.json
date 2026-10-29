@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1415_covergroup_function_args.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue1415_covergroup_function_args"
+}

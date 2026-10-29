@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_sva_match_item_ranged_endpoint.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-gno-xtypes", "-s", "sv_sva_match_item_ranged_endpoint"],
+  "gold": "sv_sva_match_item_ranged_endpoint"
+}

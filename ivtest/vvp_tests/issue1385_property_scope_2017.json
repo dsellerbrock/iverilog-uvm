@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1385_property_scope.v",
+    "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1385_property_scope"],
+    "gold": "issue1385_property_scope"
+}

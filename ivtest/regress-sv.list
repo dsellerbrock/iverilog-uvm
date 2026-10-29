@@ -10,6 +10,7 @@
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
@@ -3286,6 +3287,8 @@ sv_covergroup_four_state_options normal,-g2017 ivltests gold=sv_covergroup_four_
 sv_covergroup_four_state_options_2023 normal,-g2023 ivltests gold=sv_covergroup_four_state_options.gold
 sv_covergroup_option_scope normal,-g2017 ivltests gold=sv_covergroup_option_scope.gold
 sv_covergroup_option_scope_2023 normal,-g2023 ivltests gold=sv_covergroup_option_scope.gold
+sv_covergroup_class_option_at_least_legacy2017 normal,-g2017 ivltests gold=sv_covergroup_class_option_at_least.gold
+sv_covergroup_class_option_at_least_legacy2023 normal,-g2023 ivltests gold=sv_covergroup_class_option_at_least.gold
 sv_covergroup_type_weight normal,-g2017 ivltests gold=sv_covergroup_type_weight.gold
 sv_covergroup_type_weight_2023 normal,-g2023 ivltests gold=sv_covergroup_type_weight.gold
 sv_covergroup_type_weight_zero normal,-g2017 ivltests gold=sv_covergroup_type_weight_zero.gold
@@ -4244,6 +4247,8 @@ sv_assert_multiclock_bounded_antecedent_backlog normal,-g2017 ivltests gold=sv_a
 sv_assert_multiclock_bounded_antecedent_backlog_2023 normal,-g2023 ivltests gold=sv_assert_multiclock_bounded_antecedent_backlog_2023.gold
 
 # L91 finite Boolean multiclock repetition
+issue1395_empty_only_nonoverlap normal,-g2017 ivltests gold=issue1395_empty_only_nonoverlap.gold
+issue1395_empty_only_nonoverlap_2023 normal,-g2023 ivltests gold=issue1395_empty_only_nonoverlap.gold
 sv_assert_multiclock_boolean_repeat_range normal,-g2017 ivltests
 sv_assert_multiclock_boolean_repeat_range_2023 normal,-g2023 ivltests
 sv_assert_multiclock_boolean_repeat_empty_nonoverlap normal,-g2017 ivltests
@@ -5583,6 +5588,7 @@ sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_
 sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
 sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
 sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+sv_sva_match_item_ranged_endpoint normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_match_item_ranged_endpoint ivltests gold=sv_sva_match_item_ranged_endpoint.gold
 
 # Scope randomization of fixed unpacked integral arrays.
 sv_std_randomize_fixed_array normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
@@ -6188,3 +6194,6 @@ issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_seque
 issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests
 issue1364_named_sequence_combinators_2017 CN,-g2017,-s,top ivltests
 issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
+
+issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
+issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold

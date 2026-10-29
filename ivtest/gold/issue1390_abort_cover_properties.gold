@@ -1,0 +1,2 @@
+abort cover counts: 2 1 2 1
+./ivltests/issue1390_abort_cover_properties.v:24: $finish called at 30 (1s)

@@ -514,6 +514,7 @@ class netclass_t : public ivl_type_s {
             unsigned type_weight = 1;
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
+	    bool at_least_inherited = false;
 	    int weight_prop = -1;   // mutable per-instance option slot
 	    int goal_prop = -1;
 	    int comment_prop = -1;
@@ -642,6 +643,7 @@ class netclass_t : public ivl_type_s {
             std::string comment;
             PExpr* goal_expr = nullptr;
             PExpr* comment_expr = nullptr;
+            PExpr* at_least_expr = nullptr;
             NetScope* declaration_scope = nullptr;
             int weight_prop = -1, per_instance_prop = -1;
             int get_inst_coverage_prop = -1;
@@ -664,6 +666,8 @@ class netclass_t : public ivl_type_s {
       }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      void set_covgrp_item_at_least_inherited(size_t idx, bool value)
+      { covgrp_items_[idx].at_least_inherited = value; }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }
@@ -751,7 +755,8 @@ class netclass_t : public ivl_type_s {
 	    COVGRP_RANGE_PARENT_INSTANCE_CONST,
 	    COVGRP_RANGE_PARENT_MUTABLE,
 	    COVGRP_RANGE_PARENT_LOCAL,
-	    COVGRP_RANGE_PARENT_BAD_CONST
+	    COVGRP_RANGE_PARENT_BAD_CONST,
+	    COVGRP_RANGE_FUNCTION_BAD_ARGS
       };
       struct covgrp_range_ref_t {
 	    covgrp_range_ref_kind_t kind;

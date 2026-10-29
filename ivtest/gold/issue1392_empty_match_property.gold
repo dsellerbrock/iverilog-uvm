@@ -1,0 +1,2 @@
+./ivltests/issue1392_empty_match_property.v:6: error: a sequence used as a property shall not admit an empty match (IEEE 1800-2017/2023 16.12.22(a)).
+1 error(s) during elaboration.
