@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1517_quoted_string_newline_2017.v",
+    "iverilog-args" : [ "-g2017", "-Iivltests" ],
+    "gold"          : "issue1517_quoted_string_newline"
+}

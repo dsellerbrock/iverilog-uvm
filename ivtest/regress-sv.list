@@ -2,6 +2,8 @@
 # supports SystemVerilog (1800-2012).
 
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
+issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
+issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
