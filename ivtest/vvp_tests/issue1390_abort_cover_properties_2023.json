@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1390_abort_cover_properties.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue1390_abort_cover_properties"],
+  "gold": "issue1390_abort_cover_properties_2023"
+}
