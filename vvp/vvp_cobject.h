@@ -293,6 +293,11 @@ class vvp_cobject : public vvp_object {
 	// M11: covergroup start()/stop() sampling enable.
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
+      bool cov_item_enabled(unsigned item) const
+      { auto it = cov_item_enabled_.find(item);
+	return it == cov_item_enabled_.end() || it->second; }
+      void set_cov_item_enabled(unsigned item, bool enabled)
+      { cov_item_enabled_[item] = enabled; }
 
 	// M3B-5/R3 (IEEE 1800-2017 18.13): the object's own random number
 	// generator. srandom()/set_randstate() had elaborated to a no-op,
@@ -383,6 +388,7 @@ class vvp_cobject : public vvp_object {
       std::map<unsigned,covgrp_cross_state_t> cov_cross_states_;
       bool cov_cross_resolved_ = false;
       bool cov_enabled_ = true;
+      std::map<unsigned, bool> cov_item_enabled_;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;
 	// M3B-5: per-object RNG state (see rng_* above).

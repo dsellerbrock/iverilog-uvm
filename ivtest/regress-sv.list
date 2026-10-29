@@ -4,6 +4,8 @@
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
 issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
+issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
+issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)

@@ -18062,6 +18062,44 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+	      // A named coverpoint or cross is not a class property. Lower its
+	      // start()/stop() task using the item's stable covergroup index.
+	      if (class_type && class_type->is_covergroup()
+		  && (method_name == "start" || method_name == "stop")) {
+		    if (sr.path_tail.size() != 1 || !comp.index.empty()) {
+			  cerr << get_fileline()
+			       << ": error: A named coverage item cannot be indexed."
+			       << endl;
+			  des->errors += 1;
+			  delete obj_expr;
+			  return 0;
+		    }
+		    if (!parms_.empty()) {
+			  cerr << get_fileline() << ": error: " << method_name
+			       << "() takes no arguments on a coverage item." << endl;
+			  des->errors += 1;
+			  delete obj_expr;
+			  return 0;
+		    }
+		    for (size_t item = 0; item < class_type->covgrp_item_count();
+			 item += 1) {
+			  if (class_type->covgrp_item(item).name != comp.name)
+				continue;
+			  vector<NetExpr*>argv;
+			  argv.push_back(obj_expr);
+			  NetEConst*item_arg = new NetEConst(
+				verinum((uint64_t)item, 32));
+			  item_arg->set_line(*this);
+			  argv.push_back(item_arg);
+			  string task_name = "$ivl_class_method$covgrp_item_";
+			  task_name += method_name.str();
+			  task_name += "|" + to_string(item);
+			  NetSTask*sys = new NetSTask(task_name.c_str(),
+				IVL_SFUNC_AS_TASK_IGNORE, argv);
+			  sys->set_line(*this);
+			  return sys;
+		    }
+	      }
 
 		    // An UNPACKED-STRUCT hop in the method-target path
 		    // (`a.q.push_back(...)`, `a.h.method(...)` with a a

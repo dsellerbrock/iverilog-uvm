@@ -9784,6 +9784,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// Cross iff is an item-local gate. A false/X guard suppresses the
 	// cross item only; its contributing coverpoints remain sampled.
       auto item_enabled = [&](unsigned item) -> bool {
+	    if (!cobj->cov_item_enabled(item)) return false;
 	    if (item < ncp) return true;
 	    unsigned gi = item - ncp;
 	    return gi >= cross_guards.size() || cross_guards[gi] != 0;
@@ -9885,7 +9886,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// matcher as ordinary transition bins, but report before normal routing.
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
-	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)) continue;
+	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)
+		|| !item_enabled(state.meta->item_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp]) continue;
 	    std::vector<const class_type::cov_bin_t*> records;
@@ -9905,6 +9907,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 2
+		|| !item_enabled(state.meta->item_idx)
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -10095,7 +10098,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || state.records.empty()
-		|| (state.meta->kind & 1024)) continue;
+		|| (state.meta->kind & 1024)
+		|| !item_enabled(state.meta->item_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp]
 		|| (cp_suppressed[cp] && !cp_illegal_value[cp])) continue;
@@ -10123,6 +10127,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 0
+		|| !item_enabled(state.meta->item_idx)
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -10344,6 +10349,34 @@ bool of_COVGRP_STOP(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
       if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
 	    cobj->set_cov_enabled(false);
+      return true;
+}
+
+/* %covgrp/item/start and %covgrp/item/stop (19.8): per-item collection
+ * enable. Stack on entry: obj-stack top = cg_obj. */
+bool of_COVGRP_ITEM_START(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    const class_type*defn = cobj->get_defn();
+	    if (defn && defn->is_covergroup()
+		&& cp->number < defn->covgrp_item_count())
+		  cobj->set_cov_item_enabled((unsigned)cp->number, true);
+      }
+      return true;
+}
+
+bool of_COVGRP_ITEM_STOP(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    const class_type*defn = cobj->get_defn();
+	    if (defn && defn->is_covergroup()
+		&& cp->number < defn->covgrp_item_count())
+		  cobj->set_cov_item_enabled((unsigned)cp->number, false);
+      }
       return true;
 }
 

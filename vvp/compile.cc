@@ -336,6 +336,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%covgrp/get_inst_coverage/ref", of_COVGRP_GET_INST_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_coverage", of_COVGRP_ITEM_GET_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_inst_coverage", of_COVGRP_ITEM_GET_INST_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/start", of_COVGRP_ITEM_START, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/stop", of_COVGRP_ITEM_STOP, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/options/init", of_COVGRP_OPTIONS_INIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/sample",  of_COVGRP_SAMPLE,   2,{OA_NUMBER, OA_BIT1,OA_NONE} },
       { "%covgrp/sample/all", of_COVGRP_SAMPLE_ALL, 1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
