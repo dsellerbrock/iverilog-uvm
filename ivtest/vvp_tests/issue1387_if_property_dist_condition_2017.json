@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1387_if_property_dist_condition.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1387_if_property_dist_condition"],
+  "output-contains": ["if-property-dist-condition", "PASSED"]
+}
