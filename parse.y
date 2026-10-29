@@ -9014,6 +9014,11 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
+  /* IEEE 1800-2017/2023 16.9.8: a property-level first_match can retain
+     the operand's combinator tree. At this position only match existence
+     is observed, so first_match has no effect on assertion pass/fail. */
+  | K_first_match '(' sva_seq_comb ')'
+      { $$ = $3; }
   | sva_multiclock_seq
       { $$ = $1; }
   /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully

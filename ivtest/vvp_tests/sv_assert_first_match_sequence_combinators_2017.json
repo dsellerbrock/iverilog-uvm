@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assert_first_match_sequence_combinators.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "sv_assert_first_match_sequence_combinators"],
+  "gold": "sv_assert_first_match_sequence_combinators"
+}

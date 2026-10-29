@@ -11312,18 +11312,57 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 {
       std::map<perm_string,PExpr*> subst;
       std::vector<PExpr*> owned_subst;
-      if (parms.size() != decl.formals.size()) {
-	    cerr << loc << ": error: sequence `" << nm << "' expects "
-		 << decl.formals.size() << " argument(s), got " << parms.size()
-		 << "." << endl;
-	    error_count += 1;
-	    return nullptr;
+      std::vector<const named_pexpr_t*> actuals(decl.formals.size(), nullptr);
+      size_t positional = 0;
+      for (size_t k = 0 ; k < parms.size() ; k += 1) {
+	    size_t formal_idx = decl.formals.size();
+	    if (parms[k].name.nil()) {
+		  formal_idx = positional++;
+	    } else {
+		  for (size_t j = 0 ; j < decl.formals.size() ; j += 1) {
+			if (decl.formals[j].name == parms[k].name) {
+			      formal_idx = j;
+			      break;
+			}
+		  }
+		  if (formal_idx == decl.formals.size()) {
+			cerr << loc << ": error: sequence `" << nm
+			     << "' has no formal argument named `"
+			     << parms[k].name << "'." << endl;
+			error_count += 1;
+			return nullptr;
+		  }
+	    }
+	    if (formal_idx >= actuals.size()) {
+		  cerr << loc << ": error: sequence `" << nm << "' expects "
+		       << decl.formals.size() << " argument(s), got " << parms.size()
+		       << "." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    if (actuals[formal_idx]) {
+		  cerr << loc << ": error: sequence `" << nm
+		       << "' formal argument `" << decl.formals[formal_idx].name
+		       << "' is specified more than once." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    actuals[formal_idx] = &parms[k];
+      }
+      for (size_t k = 0 ; k < actuals.size() ; k += 1) {
+	    if (!actuals[k]) {
+		  cerr << loc << ": error: sequence `" << nm
+		       << "' is missing required argument `"
+		       << decl.formals[k].name << "'." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
       }
 
       std::vector<sva_seq_step_t> initializers;
       for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
 	    const sva_sequence_formal_t&formal = decl.formals[k];
-	    if (!parms[k].parm) {
+	    if (!actuals[k]->parm) {
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' argument " << (k+1) << " is empty." << endl;
 		  error_count += 1;
@@ -11332,7 +11371,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  return nullptr;
 	    }
 	    if (!formal.local_input) {
-		  subst[formal.name] = parms[k].parm;
+		  subst[formal.name] = actuals[k]->parm;
 		  continue;
 	    }
 
@@ -11343,7 +11382,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    subst[formal.name] = sva_id_(loc, local_name);
 	    owned_subst.push_back(subst[formal.name]);
 
-	    PExpr*actual = sva_clone_subst_(parms[k].parm, nullptr);
+	    PExpr*actual = sva_clone_subst_(actuals[k]->parm, nullptr);
 	    if (!actual) {
 		  cerr << loc << ": sorry: sequence `" << nm
 		       << "' local input argument cannot be copied." << endl;

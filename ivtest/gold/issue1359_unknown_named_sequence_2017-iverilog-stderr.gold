@@ -1,0 +1,1 @@
+ivltests/issue1359_unknown_named_sequence.sv:6: error: sequence `one' has no formal argument named `missing'.

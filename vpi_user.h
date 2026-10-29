@@ -277,7 +277,10 @@ typedef struct t_vpi_delay  {
 #define vpiConstant     7
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiFor         15
+#define vpiForever     17 /* forever statement */
 #define vpiFunction    20
+#define vpiIf          22 /* if statement */
+#define vpiIfElse      23 /* if-else statement */
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
 #define vpiIterator    27
@@ -304,6 +307,7 @@ typedef struct t_vpi_delay  {
 #define vpiRealVar     47
 #define vpiReg         48
 #define vpiRegBit      49
+#define vpiRepeatControl 52
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
 #define vpiTask        59
@@ -340,7 +344,11 @@ typedef struct t_vpi_delay  {
 
 /* PROPERTIES */
 #define vpiUndefined   (-1)
+#define vpiQualifier   650
+#define vpiUniqueQualifier    1
+#define vpiPriorityQualifier  2
 #define vpiType           1
+#define vpiOpType         39 /* operation subtype */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiName           2
 #define vpiFullName       3
@@ -393,6 +401,7 @@ typedef struct t_vpi_delay  {
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
 #define vpiConstType 40
+#define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
 #   define vpiDecConst    1
 #   define vpiRealConst   2
@@ -414,6 +423,11 @@ typedef struct t_vpi_delay  {
 #   define vpiDPIImportAcc 4
 #define vpiVisibility 620
 #   define vpiPublicVis 1
+/* IEEE 1800-2017 / 1800-2023 37.63 and Annex M */
+#define vpiAlwaysType 624
+#define vpiAlwaysComb 2
+#define vpiAlwaysFF 3
+#define vpiAlwaysLatch 4
 /* IEEE 1800-2023 37.61 / Annex M */
 #define vpiHasActual  636
 #define vpiPrefix 714
