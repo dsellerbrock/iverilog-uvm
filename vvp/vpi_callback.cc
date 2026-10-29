@@ -229,7 +229,7 @@ struct sync_cb  : public vvp_gen_event_s {
       virtual void run_run() override;
 };
 
-inline __vpiCallback::__vpiCallback()
+__vpiCallback::__vpiCallback()
 {
       next = 0;
 }
@@ -240,6 +240,12 @@ __vpiCallback::~__vpiCallback()
 
 int __vpiCallback::get_type_code(void) const
 { return vpiCallback; }
+
+PLI_INT32 __vpiCallback::remove()
+{
+      cb_data.cb_rtn = 0;
+      return 1;
+}
 
 
 value_callback::value_callback(p_cb_data data)
@@ -1122,9 +1128,7 @@ PLI_INT32 vpi_remove_cb(vpiHandle ref)
 {
       struct __vpiCallback*obj = dynamic_cast<__vpiCallback*>(ref);
       assert(obj);
-      obj->cb_data.cb_rtn = 0;
-
-      return 1;
+      return obj->remove();
 }
 
 void callback_execute(struct __vpiCallback*cur)

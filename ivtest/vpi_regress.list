@@ -40,6 +40,7 @@ issue1329_vpi_expect_constant_2023 normal,-g2023 issue1329_vpi_expect_constant.c
 issue1334_vpi_return_stmt_constant_2017 normal,-g2017 issue1334_vpi_return_stmt_constant.c issue1334_vpi_return_stmt_constant_2017.gold
 issue1334_vpi_return_stmt_constant_2023 normal,-g2023 issue1334_vpi_return_stmt_constant.c issue1334_vpi_return_stmt_constant_2023.gold
 issue1340_vpi_iterator_type_constant normal,-g2017 issue1340_vpi_iterator_type_constant.c issue1340_vpi_iterator_type_constant.gold
+issue1347_remove_assertion_cb normal,-g2017 issue1347_remove_assertion_cb.c issue1347_remove_assertion_cb.log
 
 # Icarus returns vpiReg instead of vpiTimeVar.
 vstd:by_name		normal			by_name.c		by_name-std.log

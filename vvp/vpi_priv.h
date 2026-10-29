@@ -224,6 +224,7 @@ struct __vpiCallback : public __vpiHandle {
       __vpiCallback();
       ~__vpiCallback() override;
       int get_type_code(void) const override;
+      virtual PLI_INT32 remove();
 
 	// Used for listing callbacks.
       struct __vpiCallback*next;

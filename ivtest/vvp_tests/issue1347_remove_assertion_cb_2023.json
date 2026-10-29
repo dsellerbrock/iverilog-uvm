@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue1347_remove_assertion_cb.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1347_remove_assertion_cb_2023"],
+  "vpi-sources": ["vpi/issue1347_remove_assertion_cb.c"],
+  "output-contains": [
+    "REGISTERED=1 distinct=1 REMOVE=1",
+    "HITS=0/2 REMOVE_REMAINING=1"
+  ]
+}
