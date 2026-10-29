@@ -3189,6 +3189,44 @@ static bool compile_class_covgrp_string_property_valid_(uint64_t encoded)
             && !compile_class->property_is_static(prop);
 }
 
+static void compile_class_covgrp_split_comment_(const char*encoded,
+						std::string&type,
+						std::string&instance)
+{
+      const std::string text = encoded ? encoded : "";
+      static const std::string prefix("\001IVL-COV-COMMENT-1:");
+      if (text.compare(0, prefix.size(), prefix) != 0) {
+	    type.clear();
+	    instance = text;
+	    return;
+      }
+      size_t colon = text.find(':', prefix.size());
+      size_t length = 0;
+      if (colon == std::string::npos || colon == prefix.size()) {
+	    type.clear();
+	    instance = text;
+	    return;
+      }
+      for (size_t idx = prefix.size(); idx < colon; idx += 1) {
+	    unsigned digit = static_cast<unsigned>(text[idx] - '0');
+	    if (digit > 9 || length
+		  > (std::numeric_limits<size_t>::max() - digit) / 10) {
+		  type.clear();
+		  instance = text;
+		  return;
+	    }
+	    length = length * 10 + digit;
+      }
+      size_t begin = colon + 1;
+      if (length > text.size() - begin) {
+	    type.clear();
+	    instance = text;
+	    return;
+      }
+      type = text.substr(begin, length);
+      instance = text.substr(begin + length);
+}
+
 void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop)
 {
@@ -3217,14 +3255,17 @@ void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
 	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
 	  || !compile_class_covgrp_string_property_valid_(comment_prop)) {
 	    yyerror("invalid .covgrp_option_values metadata value");
+	    delete[]comment;
 	    return;
       }
       class_type::covgrp_options_t options = compile_class->covgrp_options();
       options.goal_prop = goal_prop ? (int)(goal_prop - 1) : -1;
       options.goal = (unsigned)goal;
       options.comment_prop = comment_prop ? (int)(comment_prop - 1) : -1;
-      options.comment = comment ? comment : "";
+      compile_class_covgrp_split_comment_(comment, options.type_comment,
+					  options.comment);
       compile_class->set_covgrp_options(options);
+      delete[]comment;
 }
 
 void compile_class_covgrp_per_instance(uint64_t value, uint64_t property)
@@ -3299,16 +3340,22 @@ void compile_class_covgrp_item_option_values(uint64_t item_idx,
 					     char*comment)
 {
       assert(compile_class);
-      if (item_idx > std::numeric_limits<size_t>::max()
-	  || goal > std::numeric_limits<unsigned>::max()
-	  || !compile_class_covgrp_property_valid_(goal_prop, 32)
-	  || !compile_class_covgrp_string_property_valid_(comment_prop)
-	  || !compile_class->set_covgrp_item_option_values(
-		static_cast<size_t>(item_idx),
-		goal_prop ? (int)(goal_prop - 1) : -1, (unsigned)goal,
-		comment_prop ? (int)(comment_prop - 1) : -1,
-		comment ? comment : ""))
-	    yyerror("invalid .covgrp_item_option_values metadata value");
+	std::string type, instance;
+	compile_class_covgrp_split_comment_(comment, type, instance);
+	bool bad = item_idx > std::numeric_limits<size_t>::max()
+	      || goal > std::numeric_limits<unsigned>::max()
+	      || !compile_class_covgrp_property_valid_(goal_prop, 32)
+	      || !compile_class_covgrp_string_property_valid_(comment_prop);
+	if (!bad) {
+	      size_t idx = static_cast<size_t>(item_idx);
+	      bad = !compile_class->set_covgrp_item_option_values(idx,
+			goal_prop ? (int)(goal_prop - 1) : -1,
+			(unsigned)goal, comment_prop ? (int)(comment_prop - 1) : -1,
+			instance)
+		    || !compile_class->set_covgrp_item_type_comment(idx, type);
+	}
+	if (bad) yyerror("invalid .covgrp_item_option_values metadata value");
+	delete[]comment;
 }
 
 void compile_class_covgrp_item_guard(uint64_t item_idx, uint64_t has_guard)
@@ -3814,6 +3861,9 @@ class_type::covgrp_instance_snapshot_t class_type::covgrp_snapshot_(
       covgrp_instance_snapshot_t snapshot;
       snapshot.id = id;
       snapshot.coverage = coverage;
+      if (covgrp_options_.comment_prop >= 0
+          && (size_t)covgrp_options_.comment_prop < property_count())
+            snapshot.comment = obj->get_string(covgrp_options_.comment_prop);
       for (const cov_bin_t&bin : covgrp_bins_) {
             if (bin.prop_idx == COV_NO_PROP) continue;
             vvp_vector4_t value;
@@ -3826,9 +3876,14 @@ class_type::covgrp_instance_snapshot_t class_type::covgrp_snapshot_(
       }
       snapshot.item_at_least.reserve(covgrp_items_.size());
       snapshot.item_weight.reserve(covgrp_items_.size());
+      snapshot.item_comments.reserve(covgrp_items_.size());
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
             snapshot.item_at_least.push_back(covgrp_item_at_least(obj, idx));
             snapshot.item_weight.push_back(covgrp_item_weight(obj, idx));
+            const cov_item_t&item = covgrp_items_[idx];
+            snapshot.item_comments.push_back(item.comment_prop >= 0
+                  && (size_t)item.comment_prop < property_count()
+                  ? obj->get_string(item.comment_prop) : string());
       }
       return snapshot;
 }
@@ -4261,6 +4316,26 @@ void class_type::covgrp_register(const class_type*ct)
       covgrp_registry_.push_back(ct);
 }
 
+static void covgrp_report_string_(FILE*fd, const std::string&value)
+{
+      fputc('"', fd);
+      for (unsigned char ch : value) {
+            switch (ch) {
+                case '\\': fputs("\\\\", fd); break;
+                case '"': fputs("\\\"", fd); break;
+                case '\n': fputs("\\n", fd); break;
+                case '\r': fputs("\\r", fd); break;
+                case '\t': fputs("\\t", fd); break;
+                default:
+                  if (ch < 0x20 || ch == 0x7f)
+                        fprintf(fd, "\\x%02x", ch);
+                  else
+                        fputc(ch, fd);
+            }
+      }
+      fputc('"', fd);
+}
+
 /* M11: end-of-simulation coverage report (durable text form).  One
  * section per covergroup TYPE: the merged (type-level) counters per
  * bin, per-item coverage, and the type coverage. */
@@ -4268,13 +4343,20 @@ void class_type::covgrp_report(FILE*fd)
 {
       fprintf(fd, "# Icarus Verilog functional coverage report\n");
       for (const class_type*ct : covgrp_registry_) {
-	    fprintf(fd, "covergroup %s.%s type_coverage %.2f\n",
+	    fprintf(fd, "covergroup %s.%s type_coverage %.2f",
 		    ct->scope_path().c_str(), ct->class_name().c_str(),
 		    ct->type_coverage());
+	    if (!ct->covgrp_options_.type_comment.empty()) {
+		  fprintf(fd, " type_comment ");
+		  covgrp_report_string_(fd, ct->covgrp_options_.type_comment);
+	    }
+	    fputc('\n', fd);
 
 	      // group props per item
 	    std::map<unsigned, std::set<unsigned>> item_props;
 	    std::map<unsigned, unsigned> prop_kind;
+	    for (size_t idx = 0; idx < ct->covgrp_items_.size(); idx += 1)
+		  item_props[static_cast<unsigned>(idx)];
 	    for (size_t bi = 0 ; bi < ct->covgrp_bins_.size() ; bi += 1) {
 		  const cov_bin_t&bin = ct->covgrp_bins_[bi];
 		  if (bin.prop_idx == COV_NO_PROP) continue;
@@ -4289,9 +4371,15 @@ void class_type::covgrp_report(FILE*fd)
 			weight = ct->covgrp_items_[ip.first].weight;
 			is_cross = ct->covgrp_items_[ip.first].is_cross;
 		  }
-		  fprintf(fd, "  item %u kind %s at_least %u weight %u\n",
+	  fprintf(fd, "  item %u kind %s at_least %u weight %u",
 			  ip.first, is_cross ? "cross" : "coverpoint",
 			  at_least, weight);
+	  if (ip.first < ct->covgrp_items_.size()
+	      && !ct->covgrp_items_[ip.first].type_comment.empty()) {
+		fprintf(fd, " type_comment ");
+		covgrp_report_string_(fd, ct->covgrp_items_[ip.first].type_comment);
+	  }
+	  fputc('\n', fd);
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
 			const char*tag = (k == 2 || k == 5) ? "illegal"
@@ -4307,9 +4395,14 @@ void class_type::covgrp_report(FILE*fd)
 	    }
 
 	    auto report_instance = [&](const covgrp_instance_snapshot_t&instance) {
-		  fprintf(fd, "  instance %llu per_instance 1 coverage %.2f\n",
+		  fprintf(fd, "  instance %llu per_instance 1 coverage %.2f",
 			  static_cast<unsigned long long>(instance.id),
 			  instance.coverage);
+		  if (!instance.comment.empty()) {
+			fprintf(fd, " comment ");
+			covgrp_report_string_(fd, instance.comment);
+		  }
+		  fputc('\n', fd);
 		  for (const auto&ip : item_props) {
 			unsigned idx = ip.first;
 			unsigned at_least = idx < instance.item_at_least.size()
@@ -4318,8 +4411,14 @@ void class_type::covgrp_report(FILE*fd)
 			      ? instance.item_weight[idx] : 1;
 			bool is_cross = idx < ct->covgrp_items_.size()
 			      && ct->covgrp_items_[idx].is_cross;
-			fprintf(fd, "    item %u kind %s at_least %u weight %u\n",
+			fprintf(fd, "    item %u kind %s at_least %u weight %u",
 				idx, is_cross ? "cross" : "coverpoint", at_least, weight);
+			if (idx < instance.item_comments.size()
+			    && !instance.item_comments[idx].empty()) {
+			      fprintf(fd, " comment ");
+			      covgrp_report_string_(fd, instance.item_comments[idx]);
+			}
+			fputc('\n', fd);
 			for (unsigned prop : ip.second) {
 			      unsigned kind = prop_kind[prop];
 			      const char*tag = (kind == 2 || kind == 5) ? "illegal"

@@ -24,6 +24,25 @@
 # include  <assert.h>
 # include  <inttypes.h>
 
+static const char *covgrp_comment_metadata(const char *type_comment,
+					   const char *instance_comment)
+{
+	static char *metadata;
+	static size_t metadata_size;
+	if (!type_comment) type_comment = "";
+	if (!instance_comment) instance_comment = "";
+	int len = snprintf(NULL, 0, "\001IVL-COV-COMMENT-1:%zu:%s%s",
+			    strlen(type_comment), type_comment, instance_comment);
+	if (len < 0) return "";
+	if ((size_t)len + 1 > metadata_size) {
+		metadata = realloc(metadata, (size_t)len + 1);
+		metadata_size = (size_t)len + 1;
+	}
+	snprintf(metadata, metadata_size, "\001IVL-COV-COMMENT-1:%zu:%s%s",
+		 strlen(type_comment), type_comment, instance_comment);
+	return metadata;
+}
+
 static void show_prop_type(ivl_type_t ptype, const char*rand_prefix);
 
 struct emitted_struct_cobject_s {
@@ -651,7 +670,9 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  ivl_type_covgrp_goal_prop(classtype) + 1,
 		  ivl_type_covgrp_goal(classtype),
 		  ivl_type_covgrp_comment_prop(classtype) + 1,
-		  vvp_mangle_name(ivl_type_covgrp_comment(classtype)));
+		  vvp_mangle_name(covgrp_comment_metadata(
+			ivl_type_covgrp_type_comment(classtype),
+			ivl_type_covgrp_comment(classtype))));
       fprintf(vvp_out, " .covgrp_type_weight %u\n",
             ivl_type_covgrp_type_weight(classtype));
 	    int ni = ivl_type_covgrp_items(classtype);
@@ -680,7 +701,9 @@ void draw_class_in_scope(ivl_type_t classtype)
                   ivl_type_covgrp_item_goal(classtype, idx),
                   ivl_type_covgrp_item_comment_prop(classtype, idx) + 1,
                   vvp_mangle_name(
-                        ivl_type_covgrp_item_comment(classtype, idx)));
+                        covgrp_comment_metadata(
+			      ivl_type_covgrp_item_type_comment(classtype, idx),
+			      ivl_type_covgrp_item_comment(classtype, idx))));
 	  fprintf(vvp_out, " .covgrp_item_guard %u %u\n", idx,
 		  ivl_type_covgrp_item_has_guard(classtype, idx));
 	    }
