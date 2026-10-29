@@ -391,6 +391,19 @@ static int eval_darray_new(ivl_expr_t ex)
 				  ivl_type_base(element_type));
 			  break;
 		    }
+      } else if (init_expr && vvp_expr_is_fixed_uarray_value(init_expr)) {
+	      /* A fixed unpacked-array initializer is first marshaled to its
+	       * assignment-compatible dynamic-array element type. The destination
+	       * was allocated above at the requested size, so %scopy truncates the
+	       * source as needed and leaves default-initialized padding in place. */
+	    char element_text[32];
+	    stream_elem_type_text(element_type, element_text,
+			   sizeof element_text);
+	    draw_eval_object(init_expr);
+	    fprintf(vvp_out, "    %%queue/to/darray \"%s\"; fixed-array new initializer\n",
+		    element_text);
+	    fprintf(vvp_out, "    %%scopy;\n");
+
       } else if (init_expr && (ivl_expr_value(init_expr) == IVL_VT_DARRAY)) {
 		  draw_eval_object(init_expr);
 		  fprintf(vvp_out, "    %%scopy;\n");
