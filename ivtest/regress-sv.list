@@ -6197,3 +6197,5 @@ issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
 
 issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
 issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold
+issue1433_cross_real_variable_fail_2017 CE,-g2017,-s,issue1433_cross_real_variable_fail ivltests gold=issue1433_cross_real_variable_fail_2017.gold
+issue1433_cross_real_variable_fail_2023 CE,-g2023,-s,issue1433_cross_real_variable_fail ivltests gold=issue1433_cross_real_variable_fail_2023.gold
