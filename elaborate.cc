@@ -46264,6 +46264,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      reject_shadowed_covgrp_expr(bin.matches_expr,
 						  cross_decl_class,
 						  "cross bin matches expression for " + bin_item);
+			      reject_shadowed_covgrp_expr(bin.iff_expr,
+					  cross_decl_class,
+					  "cross bin iff guard for " + bin_item);
 			      check_select(bin.select);
 			}
 		  }
@@ -46415,7 +46418,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // allocating type-global counter properties for one arbitrarily
 			    // elaborated constructor value. The runtime resolves each plan
 			    // after this covergroup object's constructor state is captured.
-			  if (has_dynamic_family) {
+		      bool has_bin_iff = false;
+		      for (xbin_t&cb : cross.bins) {
+			    if (cb.iff_expr) {
+				  has_bin_iff = true;
+				  cb.iff_guard_idx = static_cast<int>(
+					cg_class->add_covgrp_bin_guard(cb.iff_expr));
+			    }
+		      }
+	      if (has_dynamic_family || has_bin_iff) {
 				std::vector<std::string> select_irs(cross.bins.size());
 				bool plan_ok = true;
 				auto append_select_token = [](std::string&out,
@@ -46525,7 +46536,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
-				      if (cb.with_expr
+				      if (cb.with_expr || cb.set_expr
 					  || !compile_select(cb.select, select_irs[ub])) {
 					    cerr << "sorry: dynamic cross bin '" << cb.name
 						 << "' uses a selection form that cannot be "
@@ -46599,6 +46610,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      const xbin_t&cb = cross.bins[ub];
 				      cg_class->add_covgrp_cross_bin(family,
 					    (unsigned)cb.kind, dynamic_bin_props[ub],
+					    cb.iff_guard_idx < 0
+					      ? netclass_t::COVGRP_NO_GUARD
+					      : (unsigned)cb.iff_guard_idx,
 					    cb.name.str(), select_irs[ub]);
 				}
 				continue;

@@ -3117,11 +3117,12 @@ void compile_class_covgrp_cross_term(uint64_t family, uint64_t dim,
 }
 
 void compile_class_covgrp_cross_bin(uint64_t family, uint64_t kind,
-				    uint64_t target, char*name, char*select_ir)
+				    uint64_t target, uint64_t guard_idx,
+				    char*name, char*select_ir)
 {
       assert(compile_class);
       const uint64_t u32_max = std::numeric_limits<unsigned>::max();
-      if (family > u32_max || kind > 2 || target > u32_max
+	if (family > u32_max || kind > 2 || target > u32_max || guard_idx > u32_max
 	  || !name || !select_ir) {
 	yyerror("invalid .covgrp_cross_bin metadata value");
 	free(name);
@@ -3129,7 +3130,8 @@ void compile_class_covgrp_cross_bin(uint64_t family, uint64_t kind,
 	return;
       }
       compile_class->add_covgrp_cross_bin((unsigned)family, (unsigned)kind,
-					  (unsigned)target, name, select_ir);
+					  (unsigned)target, (unsigned)guard_idx,
+					  name, select_ir);
       free(name);
       free(select_ir);
 }

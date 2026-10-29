@@ -829,6 +829,8 @@ struct class_type_t : public data_type_t {
 		  PExpr* with_expr = nullptr;
 		  PExpr* matches_expr = nullptr;
 		  bool matches_all = false;
+		  PExpr* iff_expr = nullptr;
+		  int iff_guard_idx = -1;
 	    };
 	    perm_string label;                 // cross label (or auto)
 	    // IEEE 1800-2023 19.4.1/19.7.1 item identity for instance option
