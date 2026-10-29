@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1463_mixed_time_scopes_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1463_mixed_time_scopes_2023"
+}

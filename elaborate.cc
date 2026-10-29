@@ -48766,30 +48766,21 @@ bool Design::check_proc_synth() const
 }
 
 /*
- * Check whether all design elements have an explicit timescale or all
- * design elements use the default timescale. If a mixture of explicit
- * and default timescales is found, a warning message is output. Note
- * that we only need to check the top level design elements - nested
- * design elements will always inherit the timescale from their parent
- * if they don't have any local timescale declarations.
- *
- * NOTE: Strictly speaking, this should be an error for SystemVerilog
- * (1800-2012 section 3.14.2).
+ * Check whether all design elements have an explicit time unit and
+ * precision or all use defaults. SystemVerilog requires an error for a
+ * mixture; Verilog can emit an advisory warning when requested. Nested
+ * design elements inherit the time scope of their parent.
  */
 static void check_timescales(bool&some_explicit, bool&some_implicit,
 			     const PScope*scope)
 {
-      if (scope->time_unit_is_default)
-	    some_implicit = true;
-      else
+      if (scope->has_explicit_timescale())
 	    some_explicit = true;
-      if (scope->time_prec_is_default)
-	    some_implicit = true;
       else
-	    some_explicit = true;
+	    some_implicit = true;
 }
 
-static void check_timescales()
+static void check_timescales(Design*des)
 {
       bool some_explicit = false;
       bool some_implicit = false;
@@ -48809,6 +48800,17 @@ static void check_timescales()
 			break;
 	    }
       }
+
+      // Compilation-unit scopes provide defaults to declarations, but are
+      // not design elements for the mixed time-unit/precision error rule.
+      if (gn_system_verilog() && some_explicit && some_implicit) {
+	    cerr << "error: Some design elements have a time unit and precision "
+		 << "specified and others do not (IEEE 1800-2017/2023 3.14.2.3)."
+		 << endl;
+	    des->errors += 1;
+	    return;
+      }
+
       if (gn_system_verilog() && !(some_explicit && some_implicit)) {
 	    for (pkg = pform_units.begin(); pkg != pform_units.end(); ++pkg) {
 		  const PPackage*pp = *pkg;
@@ -48828,6 +48830,9 @@ static void check_timescales()
       }
 
       if (!(some_explicit && some_implicit))
+	    return;
+
+      if (!gn_system_verilog() && !warn_timescale)
 	    return;
 
       if (gn_system_verilog()) {
@@ -49409,8 +49414,7 @@ Design* elaborate(list<perm_string>roots)
 	    return des;
 
 	// Now we have the full design, check for timescale inconsistencies.
-      if (warn_timescale)
-	    check_timescales();
+      check_timescales(des);
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "
