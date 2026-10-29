@@ -17968,6 +17968,76 @@ sva_property_t* pform_sva_apply_property_context(
 	    prop->clk_evt = clk;
       }
       if (disable_iff) {
+	    bool nested_disable = prop->disable_iff_expr != nullptr;
+	    std::set<sva_scoped_name_t> visited;
+	    std::function<bool(const sva_property_t*, const PGenerate*)>
+		  property_has_disable = [&](const sva_property_t*item,
+					     const PGenerate*scope) {
+		  if (!item) return false;
+		  if (item->disable_iff_expr) return true;
+		  std::function<bool(const std::vector<sva_seq_step_t>*)>
+			  sequence_has_disable = [&](const std::vector<sva_seq_step_t>*seq) {
+			  if (!seq) return false;
+			  for (size_t i = 0; i < seq->size(); ++i) {
+			PECallFunction*cf = dynamic_cast<PECallFunction*>((*seq)[i].expr);
+			if (cf && !cf->path().package
+			    && cf->path().name.size() == 1) {
+			      std::map<sva_scoped_name_t,sva_param_prop_t>::iterator pit =
+				    sva_resolve_(sva_param_properties,
+					peek_tail_name(cf->path().name), scope);
+			      if (pit != sva_param_properties.end() && pit->second.body
+				  && visited.insert(pit->first).second) {
+				    bool found = property_has_disable(pit->second.body,
+							      pit->first.gen);
+				    visited.erase(pit->first);
+				    if (found) return true;
+			      }
+			}
+				PEIdent*id = dynamic_cast<PEIdent*>((*seq)[i].expr);
+				if (!id || id->path().package || id->path().name.size() != 1
+				    || !id->path().name.front().index.empty()) continue;
+				std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+				      sva_resolve_(sva_module_properties,
+					  id->path().name.front().name, scope);
+				if (pit == sva_module_properties.end() || !pit->second
+				    || !visited.insert(pit->first).second) continue;
+				bool found = property_has_disable(pit->second,
+							  pit->first.gen);
+				visited.erase(pit->first);
+				if (found) return true;
+			  }
+			  return false;
+		  };
+		  std::function<bool(const sva_stree_t*)> tree_has_disable =
+			  [&](const sva_stree_t*tree) {
+			  return tree && (sequence_has_disable(tree->chain)
+				  || tree_has_disable(tree->a)
+				  || tree_has_disable(tree->b));
+		  };
+		  if (sequence_has_disable(item->seq)
+		      || sequence_has_disable(item->antecedent)
+		      || sequence_has_disable(item->mc_prefix)
+		      || tree_has_disable(item->tree)
+		      || tree_has_disable(item->ante_tree)) return true;
+		  if (item->mc_more)
+			for (size_t i = 0; i < item->mc_more->size(); ++i)
+			      if (sequence_has_disable((*item->mc_more)[i].chain))
+				    return true;
+		  return false;
+	    };
+	    if (!nested_disable)
+		  nested_disable = property_has_disable(prop, pform_cur_generate);
+	    if (nested_disable) {
+		  cerr << disable_iff->get_fileline()
+		       << ": error: nesting of `disable iff' clauses, "
+		       << "explicitly or through property instantiations, is not "
+		       << "allowed (IEEE 1800-2017 16.12)." << endl;
+		  error_count += 1;
+		  delete disable_iff;
+		  return prop;
+	    }
+      }
+      if (disable_iff) {
 	    if (prop->disable_iff_expr) {
 		  PEBLogic*both = new PEBLogic(
 			'o', prop->disable_iff_expr, disable_iff);

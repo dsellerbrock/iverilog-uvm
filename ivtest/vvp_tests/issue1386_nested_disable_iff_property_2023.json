@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1386_nested_disable_iff_property.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue1386_nested_disable_iff_property"],
+  "gold": "issue1386_nested_disable_iff_property_2023"
+}
