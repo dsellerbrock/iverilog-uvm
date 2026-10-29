@@ -2775,6 +2775,31 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 	    dynamic_cast<const netqueue_t*>(container_type);
       if (queue && queue->assoc_compat()) {
 	    ivl_type_t index_type = queue->assoc_index_type();
+	    /* Validate the source category before contextual elaboration casts it
+	     * to the associative array's declared index type. */
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned errors_before = des->errors;
+	    expr->test_width(des, scope, mode);
+	    if (des->errors != errors_before)
+		  return 0;
+	    ivl_variable_type_t source_type = expr->expr_type();
+	    bool integral_source = source_type == IVL_VT_BOOL
+		  || source_type == IVL_VT_LOGIC;
+	    if (queue->assoc_wildcard() && !integral_source
+		&& !dynamic_cast<const PEString*>(expr)) {
+		  cerr << expr->get_fileline() << ": error: a wildcard associative-array "
+		       << "index must be integral (IEEE 1800-2017 7.8.1)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    if (!queue->assoc_wildcard() && index_type && index_type->packed()
+		&& source_type == IVL_VT_REAL) {
+		  cerr << expr->get_fileline() << ": error: an implicit cast from real "
+		       << "or shortreal to an integral associative-array index is illegal "
+			  "(IEEE 1800-2017 7.8.4)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
 		  ivl_variable_type_t cast_type = index_type->base_type();
