@@ -21877,6 +21877,67 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+	/* A class handle is represented as a one-bit object reference in VVP,
+	 * but a class bit-stream cast streams its non-static properties. For
+	 * fixed-width packed properties, read each property in declaration order
+	 * and form the generic packed value before converting to the destination
+	 * (IEEE 1800-2017/2023 6.24.3). */
+      if (target_type_ && target_type_->packed()) {
+	    const netclass_t*class_type =
+		  dynamic_cast<const netclass_t*>(sub->net_type());
+	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
+		  || dynamic_cast<const NetEProperty*>(sub);
+	    if (class_type && stable_source) {
+		  vector<size_t> properties;
+		  unsigned width = 0;
+		  bool streamable = true;
+		  bool has_four_state = false;
+		  for (size_t idx = 0; idx < class_type->get_properties(); idx += 1) {
+			property_qualifier_t qual = class_type->get_prop_qual(idx);
+			if (qual.test_static())
+			      continue;
+			ivl_type_t prop_type = class_type->get_prop_type(idx);
+			if (!prop_type || !prop_type->packed()
+			    || prop_type->packed_width() <= 0
+			    || static_cast<unsigned>(prop_type->packed_width())
+				 > UINT_MAX - width) {
+			      streamable = false;
+			      break;
+			}
+			width += static_cast<unsigned>(prop_type->packed_width());
+			properties.push_back(idx);
+			has_four_state = has_four_state
+			      || prop_type->base_type() == IVL_VT_LOGIC;
+		  }
+		  if (streamable && !properties.empty()) {
+			if (width != static_cast<unsigned>(target_type_->packed_width())) {
+			      cerr << get_fileline()
+				   << ": error: bit-stream cast between fixed-size types of different sizes."
+				   << endl;
+			      des->errors += 1;
+			      delete sub;
+			      return nullptr;
+			}
+			NetEConcat*stream = new NetEConcat(properties.size(), 1,
+			      has_four_state ? IVL_VT_LOGIC : IVL_VT_BOOL);
+			for (size_t member_idx = 0;
+			     member_idx < properties.size(); member_idx += 1) {
+			      NetEProperty*field = new NetEProperty(
+				    sub->dup_expr(), properties[member_idx]);
+			      field->set_line(*this);
+			      stream->set(member_idx, field);
+			}
+			stream->set_line(*this);
+			delete sub;
+			NetExpr*bits = target_type_->base_type() == IVL_VT_BOOL
+			      ? cast_to_int2(stream, expr_width_)
+			      : cast_to_int4(stream, expr_width_);
+			return pad_to_width(bits, expr_wid, signed_flag_, *this,
+				    target_type_);
+		  }
+	    }
+      }
+
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
 	    switch (sub->expr_type()) {
