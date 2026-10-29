@@ -27752,6 +27752,26 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
       if (prop && prop->tree) {
+	    /* IEEE 1800-2017/2023 16.12.22 requires an implication antecedent
+	       to admit a match. In particular, an unequal-length fixed
+	       intersect has an empty language; do not lower it as a vacuous
+	       antecedent (or let the legacy path discard the proof). */
+	    if ((prop->op_type == 1 || prop->op_type == 2)
+		&& prop->ante_tree && sva_tree_proves_empty_(prop->ante_tree)) {
+		  cerr << loc << ": error: implication antecedent sequence cannot "
+	       << "match (IEEE 1800-2017/2023 16.12.22)." << endl;
+		  error_count += 1;
+		  sva_tree_delete_(prop->ante_tree, true);
+		  prop->ante_tree = nullptr;
+		  sva_tree_delete_(prop->tree, true);
+		  prop->tree = nullptr;
+		  delete prop->clk_evt;
+		  delete prop->disable_iff_expr;
+		  delete prop;
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  return;
+	    }
 	      /* The endpoint-method (.triggered/.matched) lowering must
 	         also cover combinator-tree leaf chains -- the tree
 	         dispatch used to bypass it, leaving the references

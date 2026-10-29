@@ -1,0 +1,2 @@
+ivltests/sv_assert_no_match_antecedent.v:5: error: implication antecedent sequence cannot match (IEEE 1800-2017/2023 16.12.22).
+ivltests/sv_assert_no_match_antecedent.v:7: error: implication antecedent sequence cannot match (IEEE 1800-2017/2023 16.12.22).
