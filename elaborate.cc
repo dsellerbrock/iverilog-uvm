@@ -34214,6 +34214,9 @@ static string constraint_class_container_size_ir_(
 	// An outer dynamic array of dynamic arrays stores value containers,
 	// despite sharing the runtime object-array storage with class handles.
 	if (dynamic_cast<const netdarray_t*>(etype)) ttext = "D";
+	// Class-handle arrays need a distinct descriptor so solver write-back
+	// preserves their object identities and leaves newly added handles null.
+	if (dynamic_cast<const netclass_t*>(etype)) ttext = "Do";
 	// Q<MAX>:<ENC> distinguishes queue construction from dynamic-array
 	// construction at solver write-back. MAX is the maximum element count
 	// (0 means unbounded).
