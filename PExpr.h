@@ -116,6 +116,10 @@ class PExpr : public LineInfo {
       // ordinary-assignment bit/logic interoperability extension out of this
       // path.
       static const unsigned NATIVE_ARRAY_FORMAL_ARG = 0x40;
+      // The optional initializer of a dynamic-array new constructor must
+      // itself be an assignment-compatible array (IEEE 1800-2017/2023 7.5.1).
+      // Do not apply scalar-to-element contextualization while elaborating it.
+      static const unsigned DARRAY_NEW_INIT = 0x80;
 
 	// Convert width mode to human-readable form.
       static const char*width_mode_name(width_mode_t mode);

@@ -1,0 +1,7 @@
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:9: error: integer literal is not compatible with an unpacked type in this context.
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:10: error: the type of the variable 'scalar' doesn't match the context type.
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:10:      : variable type=netvector_t:bool signed[31:0]
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:10:      : context type=dynamic array of netvector_t:bool signed[31:0]
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:11: error: Function result is not an array assignment-compatible with the dynamic-array initializer.
+ivltests/issue1477_darray_new_scalar_initializer_fail_2017.v:12: error: String literal is not an array assignment-compatible with the dynamic-array initializer.
+4 error(s) during elaboration.
