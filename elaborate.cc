@@ -26687,13 +26687,60 @@ NetProc* PForeach::elaborate_static_array_(Design*des, NetScope*scope,
 		 << "Handle as array with static dimensions." << endl;
       }
 
-      NetProc*sub;
-      if (statement_)
-	    sub = statement_->elaborate(des, scope);
-      else
-	    sub = new NetBlock(NetBlock::SEQU, 0);
+      NetProc*sub = elaborate_iteration_body_(des, scope);
       return elaborate_static_array_prefix_(des, scope, dims,
 						index_vars_.size(), sub);
+}
+
+/* Each execution of a foreach body gets its own automatic instance of the
+ * loop variables. The loop-control signals remain in the enclosing foreach
+ * scope; the body's same-named signals are copied from them into a fresh
+ * automatic frame before the body runs. A detached fork therefore keeps the
+ * index values for the iteration that spawned it. IEEE 1800-2017/2023 12.7.3.
+ */
+NetProc* PForeach::elaborate_iteration_body_(Design*des, NetScope*scope) const
+{
+      hname_t scope_name(scope->local_symbol());
+      NetScope*iteration_scope = new NetScope(
+	    scope, scope_name, NetScope::BEGIN_END);
+      iteration_scope->is_auto(true);
+      iteration_scope->auto_frame(true);
+
+      NetBlock*body = new NetBlock(NetBlock::SEQU, iteration_scope);
+      NetAlloc*alloc = new NetAlloc(iteration_scope);
+      alloc->set_line(*this);
+      body->append(alloc);
+
+      for (perm_string name : index_vars_) {
+	    if (name.nil()) continue;
+	    NetNet*control = scope->find_signal(name);
+	    if (!control) {
+		  cerr << get_fileline() << ": internal error: missing foreach control variable `"
+		       << name << "' in scope " << scope_path(scope) << "." << endl;
+		  des->errors += 1;
+		  delete body;
+		  return nullptr;
+	    }
+	    NetNet*iteration_index = new NetNet(
+		  iteration_scope, name, NetNet::REG, control->net_type());
+	    iteration_scope->add_signal(iteration_index);
+	    NetAssign_*lhs = new NetAssign_(iteration_index);
+	    NetESignal*rhs = new NetESignal(control);
+	    rhs->set_line(*this);
+	    NetAssign*copy = new NetAssign(lhs, rhs);
+	    copy->set_line(*this);
+	    body->append(copy);
+      }
+
+      NetProc*sub = statement_
+	    ? statement_->elaborate(des, iteration_scope)
+	    : new NetBlock(NetBlock::SEQU, 0);
+      if (sub) body->append(sub);
+      NetFree*free = new NetFree(iteration_scope);
+      free->set_line(*this);
+      body->append(free);
+      body->set_line(*this);
+      return body;
 }
 
 NetProc* PForeach::elaborate_static_array_prefix_(Design*des,
@@ -26848,9 +26895,7 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 
       if (index_var_start >= index_vars_.size()) {
 	    delete array_expr;
-	    if (statement_)
-		  return statement_->elaborate(des, scope);
-	    return new NetBlock(NetBlock::SEQU, 0);
+	    return elaborate_iteration_body_(des, scope);
       }
 
       if (index_vars_[index_var_start].nil()) {
@@ -26887,8 +26932,7 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 		  return nullptr;
 	    }
 	    delete array_expr;
-	    NetProc*sub = statement_ ? statement_->elaborate(des, scope)
-				     : new NetBlock(NetBlock::SEQU, 0);
+	    NetProc*sub = elaborate_iteration_body_(des, scope);
 	    return elaborate_static_array_prefix_(des, scope, dims, count, sub,
 						   index_var_start);
 	}
@@ -26991,7 +27035,7 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 		  return 0;
 	    }
       } else if (statement_) {
-	    sub = statement_->elaborate(des, scope);
+	    sub = elaborate_iteration_body_(des, scope);
       } else {
 	    sub = new NetBlock(NetBlock::SEQU, 0);
       }
@@ -27055,8 +27099,7 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 	  return nullptr;
 	}
 	delete array_expr;
-	NetProc*sub = statement_ ? statement_->elaborate(des, scope)
-				 : new NetBlock(NetBlock::SEQU, 0);
+	NetProc*sub = elaborate_iteration_body_(des, scope);
 	if (!count) {
 	  delete sub;
 	  return new NetBlock(NetBlock::SEQU, 0);
@@ -27100,7 +27143,7 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 		  return 0;
 	    }
       } else if (statement_) {
-	    sub = statement_->elaborate(des, scope);
+	    sub = elaborate_iteration_body_(des, scope);
       } else {
 	    sub = new NetBlock(NetBlock::SEQU, 0);
       }

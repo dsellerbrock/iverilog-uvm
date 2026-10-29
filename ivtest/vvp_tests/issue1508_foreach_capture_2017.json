@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1508_foreach_capture_2017.v",
+  "iverilog-args": ["-g2017", "-s", "tb"],
+  "output-contains": ["PASSED"]
+}

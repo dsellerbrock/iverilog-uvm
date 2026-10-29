@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1508_foreach_capture_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "output-contains": ["PASSED"]
+}

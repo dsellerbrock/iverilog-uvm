@@ -924,6 +924,7 @@ class PForeach : public Statement {
 					size_t index_var_start) const;
       NetProc* elaborate_static_array_(Design*des, NetScope*scope,
 				       const netranges_t&dims) const;
+      NetProc* elaborate_iteration_body_(Design*des, NetScope*scope) const;
       NetProc* elaborate_static_array_prefix_(Design*des, NetScope*scope,
 				       const netranges_t&dims, size_t count,
 				       NetProc*sub,
