@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_constant_sysfunc.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_covergroup_constant_sysfunc_2023"
+}
