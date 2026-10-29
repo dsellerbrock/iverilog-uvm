@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1455_assoc_bitstream_queue_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "output-contains": ["PASS associative bit-stream casts to queues"]
+}

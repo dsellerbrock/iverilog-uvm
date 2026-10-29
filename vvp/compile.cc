@@ -221,6 +221,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%aa/store/v/obj", of_AA_STORE_V_OBJ, 1, {OA_BIT1,   OA_NONE,     OA_NONE} },
       { "%aa/store/v/str", of_AA_STORE_V_STR, 1, {OA_BIT1,   OA_NONE,     OA_NONE} },
       { "%aa/store/v/v", of_AA_STORE_V_V, 1, {OA_BIT1,     OA_NONE,     OA_NONE} },
+      { "%aa/stream/pack", of_AA_STREAM_PACK, 1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%aa/viv/o/obj", of_AA_VIV_O_OBJ, 1, {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%aa/viv/o/str", of_AA_VIV_O_STR, 1, {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%aa/viv/o/v",   of_AA_VIV_O_V,   1, {OA_NUMBER,   OA_NONE,     OA_NONE} },

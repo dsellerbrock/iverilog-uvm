@@ -2543,6 +2543,45 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strcmp(name, "$ivl_container_cast") == 0)
 	    return draw_eval_explicit_container_cast(expr);
 
+      /* IEEE 1800-2017/2023 6.24.3: pack fixed-width packed values from
+         an associative array in index order before converting the resulting
+         stream to the requested queue element type. */
+      if (strncmp(name, "$ivl_assoc$stream$cast$r", 24) == 0) {
+	    ivl_expr_t source = parm_count == 1 ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_type_t source_type = source ? ivl_expr_net_type(source) : 0;
+	    if (!source_type && source && ivl_expr_type(source) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(source))
+		  source_type = ivl_signal_net_type(ivl_expr_signal(source));
+	    ivl_type_t source_element = source_type
+		  ? ivl_type_element(source_type) : 0;
+	    ivl_type_t target_type = ivl_expr_net_type(expr);
+	    ivl_type_t target_element = target_type
+		  ? ivl_type_element(target_type) : 0;
+	    int key_mode = strstr(name, "$rs$") ? 1
+		  : strstr(name, "$rstr$") ? 2
+		  : strstr(name, "$robj$") ? 3 : 0;
+	    char elem_text[32];
+	    if (!source || !source_element || !target_type || !target_element
+		|| ivl_type_base(source_type) != IVL_VT_QUEUE
+		|| !ivl_type_queue_assoc_compat(source_type)
+		|| ivl_type_base(target_type) != IVL_VT_QUEUE
+		|| ivl_type_queue_assoc_compat(target_type)
+		|| ivl_type_packed_width(source_element) == 0) {
+		  fprintf(stderr, "%s:%u: internal error: malformed associative "
+			  "bit-stream cast marker\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; malformed associative cast marker\n");
+		  return 1;
+	    }
+	    draw_eval_object(source);
+	    fprintf(vvp_out, "    %%aa/stream/pack \"%u,%d\";\n",
+		    ivl_type_packed_width(source_element), key_mode);
+	    stream_elem_type_text(target_element, elem_text, sizeof elem_text);
+	    fprintf(vvp_out, "    %%stream/to/queue \"%s!:%" PRIu64 "\";\n",
+		    elem_text, ivl_type_queue_max_size(target_type));
+	    return 0;
+      }
+
       /* The frontend lowers a queue `$' object-element read to this
        * one-argument marker. Evaluate the receiver once, retain an alias for
        * the eventual element load while %qsize/o consumes its duplicate, then

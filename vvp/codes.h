@@ -703,6 +703,7 @@ extern bool of_STREAM_STORE_PROP_FIXED_DOWN(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_DAR_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t code);
+extern bool of_AA_STREAM_PACK(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_QUEUE_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_UNPACK_L(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_UNPACK_R(vthread_t thr, vvp_code_t code);

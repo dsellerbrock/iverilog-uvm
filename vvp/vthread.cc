@@ -27515,6 +27515,92 @@ bool vvp_stream_container_encoding_is_valid(const char*text, bool as_queue)
 
 static bool container_opcode_runtime_fatal_();
 
+template <typename KEY>
+static bool assoc_stream_pack_keys_(vvp_assoc_base*assoc, unsigned width,
+				    size_t count, unsigned total, int key_mode,
+				    vvp_vector4_t&stream)
+{
+      KEY key;
+      size_t pos = 0;
+      for (bool more = assoc_first_key_(assoc, key, key_mode == 1); more;
+	   more = assoc_next_key_(assoc, key, key_mode == 1), ++pos) {
+	    vvp_object_t ref_object = assoc->capture_element_ref(
+		  key, vvp_assoc_element_ref::ELEM_VEC4, width);
+	    vvp_assoc_element_ref*ref = ref_object.peek<vvp_assoc_element_ref>();
+	    if (!ref || pos >= count)
+		  return false;
+	    vvp_vector4_t value;
+	    ref->get_value(value);
+	    stream.set_vec(total - static_cast<unsigned>((pos + 1) * width), value);
+      }
+      return pos == count;
+}
+
+/* Pack fixed-width packed values from a keyed associative array in
+ * the key order required by IEEE 1800-2017/2023 6.24.3. The following
+ * %stream/to/queue instruction performs the ordinary destination conversion. */
+bool of_AA_STREAM_PACK(vthread_t thr, vvp_code_t cp)
+{
+      unsigned width = 0;
+      int key_mode = 0;
+      int consumed = 0;
+	if (!cp->text
+	    || sscanf(cp->text, "%u,%d%n", &width, &key_mode,
+		      &consumed) != 2
+	    || cp->text[consumed] != 0 || key_mode < 0 || key_mode > 3
+	    || width == 0 || width > STREAM_WITH_MAX_BITS) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed associative bit-stream encoding." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_assoc_base*assoc = object.peek<vvp_assoc_base>();
+      if (!assoc) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: associative bit-stream source is not a map." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      size_t count = assoc->size();
+      if (count > STREAM_WITH_MAX_BITS / width
+	  || count * width > UINT_MAX) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: associative bit-stream source exceeds the bounded "
+		    "runtime width." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      unsigned total = static_cast<unsigned>(count * width);
+      vvp_vector4_t stream(total, BIT4_0);
+
+	bool packed = false;
+	switch (key_mode) {
+	    case 0:
+	    case 1:
+		  packed = assoc_stream_pack_keys_<vvp_vector4_t>(
+			assoc, width, count, total, key_mode, stream);
+		  break;
+	    case 2:
+		  packed = assoc_stream_pack_keys_<std::string>(
+			assoc, width, count, total, key_mode, stream);
+		  break;
+	    case 3:
+		  packed = assoc_stream_pack_keys_<vvp_object_t>(
+			assoc, width, count, total, key_mode, stream);
+		  break;
+	}
+	if (!packed) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: failed to traverse associative bit-stream values." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      thr->push_vec4(stream);
+      return true;
+}
+
 /*
  * %stream/to/queue "<t>" and %stream/to/dar "<t>"
  *

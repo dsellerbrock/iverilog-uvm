@@ -21485,6 +21485,23 @@ static bool positional_container_byte_elements_(ivl_type_t type)
 	    && type_is_vectorable(element->base_type());
 }
 
+static bool assoc_bitstream_to_packed_queue_(ivl_type_t target,
+					       ivl_type_t source)
+{
+	  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(target);
+	  const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(source);
+	  if (!queue || queue->assoc_compat() || !assoc || !assoc->assoc_compat())
+		return false;
+	  ivl_type_t source_element = assoc->element_type();
+	  ivl_type_t target_element = queue->element_type();
+	  return source_element && source_element->packed()
+		&& source_element->packed_width() > 0
+		&& type_is_vectorable(source_element->base_type())
+		&& target_element && target_element->packed()
+		&& target_element->packed_width() > 0
+		&& type_is_vectorable(target_element->base_type());
+}
+
 static bool positional_container_expr_bitstream_(const NetExpr*source)
 {
       if (!source)
@@ -21825,6 +21842,33 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    dynamic_cast<const netqueue_t*>(target_type_);
       bool target_is_direct_assoc = direct_assoc_target
 	    && direct_assoc_target->assoc_compat();
+      if (!target_is_direct_assoc
+	      && assoc_bitstream_to_packed_queue_(target_type_, sub->net_type())) {
+	    const netqueue_t*source_assoc =
+		  dynamic_cast<const netqueue_t*>(sub->net_type());
+	    ivl_type_t index_type = source_assoc->assoc_index_type();
+	    const netvector_t*index = dynamic_cast<const netvector_t*>(index_type);
+	    const char*key_kind = index
+		  ? (index->get_signed() ? "rs" : "ru")
+		  : dynamic_cast<const netstring_t*>(index_type) ? "rstr"
+		  : dynamic_cast<const netclass_t*>(index_type) ? "robj" : nullptr;
+	    if (!key_kind) {
+		  cerr << get_fileline() << ": sorry: bit-stream casts from this "
+		       << "associative-array index type to a queue are not yet "
+		       << "implemented." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    string marker_name = "$ivl_assoc$stream$cast$";
+	    marker_name += key_kind;
+	    marker_name += "$1";
+	    NetESFunc*cast = new NetESFunc(marker_name.c_str(),
+					   target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
       bool positional_pair = false;
       positional_container_expr_type_match(
 	    target_type_, sub, positional_pair);
