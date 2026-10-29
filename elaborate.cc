@@ -42944,7 +42944,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
 		"type_option.comment", "type_option.strobe",
-		"type_option.merge_instances", "type_option.real_interval",
+		"type_option.merge_instances", "type_option.distribute_first",
+		"type_option.real_interval",
 		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
 					if (kv.first == "type_option.cross_retain_auto_bins") {
@@ -42988,6 +42989,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
+			unsigned cg_distribute_first = opt_uint(cgdef->options,
+			      "type_option.distribute_first", 0);
 			    unsigned cg_retain_auto = 1;
 			    auto cg_retain_it = cgdef->options.find(
 				  perm_string::literal("cross_retain_auto_bins"));
@@ -45855,7 +45858,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				  // "with (expr)" filter: enumerate the
 				  // candidate values and keep passers.
-				if (bin.with_expr) {
+				if (bin.with_expr
+				    && !(cg_distribute_first && bin.arrayed
+					 && bin.array_size)) {
 				      if (bin.wildcard) {
 					    cerr << "sorry: wildcard bins with a "
 						 << "'with' filter are not supported; "
@@ -46184,11 +46189,69 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							range_value = last + 1;
 						  }
 					    }
+					    bool empty_after_distribute_filter = false;
+					    bool distribute_filter_valid = true;
+					    if (bin.with_expr && cg_distribute_first) {
+						  int range_filter =
+							apply_inside_filter(bin.with_expr, chunk);
+						  if (range_filter < 0) {
+							cerr << "sorry: covergroup bin '" << bin.name
+							     << "' 'with' inside ranges are not "
+								"constant; the bin is dropped." << endl;
+							chunk.clear();
+							distribute_filter_valid = false;
+						  } else if (range_filter == 0) {
+							uint64_t chunk_total = 0;
+							for (auto&r : chunk)
+							      chunk_total += r.second-r.first+1;
+							if (chunk_total > 4096) {
+							      cerr << "sorry: covergroup bin '" << bin.name
+								   << "' 'with' filter over "
+								   << chunk_total << " values exceeds the "
+								   "4096-value limit; the bin is dropped."
+								   << endl;
+							      chunk.clear();
+								distribute_filter_valid = false;
+							} else {
+							      std::vector<std::pair<uint64_t,uint64_t>> keep;
+							      bool evalok = true;
+							      for (auto&r : chunk) {
+								    for (uint64_t v = r.first; evalok; v++) {
+								  int64_t res = 0;
+								  int rc = cov_with_eval_(bin.with_expr,
+								    cov_with_item_value_(v, cp_value_width,
+										cp_value_signed), res);
+								  if (rc < 0) { evalok = false; break; }
+								  if (res != 0)
+									keep.push_back(std::make_pair(v,v));
+								  if (v == r.second) break;
+								    }
+							      }
+							      if (!evalok) {
+								    cerr << "sorry: covergroup bin '" << bin.name
+									 << "' 'with' expression uses forms the "
+									 "constant evaluator does not support; "
+									 "the bin is dropped." << endl;
+								    chunk.clear();
+								    distribute_filter_valid = false;
+							      } else chunk = std::move(keep);
+						}
+						  }
+					    }
+					    empty_after_distribute_filter = distribute_filter_valid
+						  && bin.with_expr && cg_distribute_first
+						  && chunk.empty();
 					    if (!bin.wildcard) subtract_carved(chunk);
-					    if (chunk.empty()) continue;
+					    if (chunk.empty() && !empty_after_distribute_filter)
+						  continue;
 					    std::string bn = bstem + "_" + std::to_string(k);
 					    unsigned source_prop = add_value_prop(
 						  bn, chunk, kindval, bin_guard);
+					    if (chunk.empty())
+						  cg_class->add_covgrp_bin(cp_idx, source_prop,
+							0, 0, kindval | 2048u, 0, cp_idx,
+							0, 1, 1, 0, 1,
+							netclass_t::COVGRP_NO_FAMILY, 0, bin_guard);
 					    xbin_desc_t d;
 					    d.name = lex_strings.make((std::string(bin.name.str())
 								       + "[" + std::to_string(k) + "]").c_str());
