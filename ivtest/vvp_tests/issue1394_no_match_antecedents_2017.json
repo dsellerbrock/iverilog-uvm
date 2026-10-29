@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1394_no_match_antecedents.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue1394_no_match_antecedents"
+}
