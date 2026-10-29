@@ -2773,6 +2773,21 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 {
       const netqueue_t*queue =
 	    dynamic_cast<const netqueue_t*>(container_type);
+      if (queue && queue->assoc_index_type()
+	  && queue->assoc_index_type()->base_type() == IVL_VT_STRING) {
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned errors_before = des->errors;
+	    expr->test_width(des, scope, mode);
+	    if (des->errors != errors_before)
+		  return nullptr;
+	    if (expr->expr_type() != IVL_VT_STRING) {
+		  cerr << expr->get_fileline() << ": error: a string-indexed "
+		       << "associative array requires a string index "
+		       << "(IEEE 1800-2017/2023 7.8.2)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
       if (queue && queue->assoc_compat()) {
 	    ivl_type_t index_type = queue->assoc_index_type();
 	    if (index_type && index_type->packed()) {
