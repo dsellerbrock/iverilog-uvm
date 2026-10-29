@@ -342,6 +342,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%covgrp/sample/dyn", of_COVGRP_SAMPLE_DYN, 3,{OA_BIT1,OA_VPI_PTR,OA_BIT2} },
       { "%covgrp/start",   of_COVGRP_START,    0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/stop",    of_COVGRP_STOP,     0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%covgrp/strobe/wait", of_COVGRP_STROBE_WAIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%cvt/rv",   of_CVT_RV,  0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%cvt/rv/s", of_CVT_RV_S,0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%cvt/sr", of_CVT_SR, 1,  {OA_BIT1,     OA_NONE,     OA_NONE} },

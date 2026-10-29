@@ -28575,6 +28575,20 @@ static void elaborate_tasks(Design*des, NetScope*scope,
 
 
 
+static bool covergroup_strobe_enabled_(Design*des, NetScope*scope,
+				       const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!cgdef) return false;
+	auto it = cgdef->options.find(perm_string::literal("type_option.strobe"));
+	if (it == cgdef->options.end() || !it->second) return false;
+	NetExpr*value = elab_and_eval(des, scope, it->second, -1, false, false);
+	NetEConst*constant = dynamic_cast<NetEConst*>(value);
+	bool result = constant && constant->value().is_defined()
+	      && constant->value().as_ulong64() != 0;
+	delete value;
+	return result;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -28616,7 +28630,17 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		  st->set_line(*pcl);
 		  PEventStatement ev(cgdef->sample_events);
 		  ev.set_line(*pcl);
-		  NetProc*wrapped = ev.elaborate_st(des, scope, st);
+		  NetProc*event_body = st;
+		  if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+			NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
+			NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
+				IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
+			wait->set_line(*pcl);
+			body->append(wait);
+			body->append(st);
+			event_body = body;
+		  }
+		  NetProc*wrapped = ev.elaborate_st(des, scope, event_body);
 		  if (!wrapped) {
 			cerr << pcl->get_fileline() << ": sorry: cannot "
 			     << "elaborate the sampling event of covergroup '"
@@ -28656,7 +28680,21 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    call->set_line(*sig);
 	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
 	    ev->set_line(*sig);
-	    ev->set_statement(call);
+	    Statement*event_body = call;
+	    if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+		pform_name_t wait_path;
+		wait_path.push_back(name_component_t(
+			perm_string::literal("$ivl_covgrp_strobe_wait")));
+		PCallTask*wait = new PCallTask(wait_path, no_parms);
+		wait->set_line(*sig);
+		PBlock*body = new PBlock(PBlock::BL_SEQ);
+		vector<Statement*>statements;
+		statements.push_back(wait);
+		statements.push_back(call);
+		body->set_statement(statements);
+		event_body = body;
+	    }
+	    ev->set_statement(event_body);
 	    NetProc*st = ev->elaborate(des, scope);
 	    if (!st) {
 		  cerr << sig->get_fileline() << ": sorry: cannot "

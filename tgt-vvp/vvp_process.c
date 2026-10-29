@@ -7485,6 +7485,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
        * value per cross item for cross-level iff (M11/IEEE 19.6). The
        * final two internal constant arguments are ncp and ncross.
        * Emit all vector arguments in order, then the cg object. */
+      if (strcmp(stmt_name, "$ivl_covgrp_strobe_wait") == 0) {
+	    fprintf(vvp_out, "    %%covgrp/strobe/wait;\n");
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
 	    unsigned nparms = ivl_stmt_parm_count(net);
 	    if (nparms < 4) {

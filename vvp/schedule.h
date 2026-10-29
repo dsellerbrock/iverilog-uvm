@@ -35,6 +35,7 @@
  */
 extern void schedule_vthread(vthread_t thr, vvp_time64_t delay,
 			     bool push_flag =false);
+extern void schedule_vthread_at_end_of_simtime(vthread_t thr);
 
 extern void schedule_inactive(vthread_t thr);
 
