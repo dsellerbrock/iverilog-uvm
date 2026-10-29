@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1430_illegal_value_transition_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "output-contains": ["ISSUE1430_ILLEGAL_VALUE_TRANSITION_PASS"]
+}

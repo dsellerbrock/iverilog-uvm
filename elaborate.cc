@@ -8854,6 +8854,13 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 				      bool clocking_skew)
 {
+      const PEFNumber*real_expr = dynamic_cast<const PEFNumber*>(expr);
+      if (real_expr && real_expr->is_one_step()) {
+	    NetEConst*delay = new NetEConst(verinum(uint64_t(1), 64));
+	    delay->set_line(*expr);
+	    return delay;
+      }
+
       unsigned errors_before = des->errors;
       NetExpr*dex = elab_and_eval(des, scope, expr, -1, clocking_skew);
 
@@ -43022,7 +43029,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
 		"type_option.comment", "type_option.strobe",
-		"type_option.merge_instances", "type_option.real_interval",
+		"type_option.merge_instances", "type_option.distribute_first",
+		"type_option.real_interval",
 		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
 					if (kv.first == "type_option.cross_retain_auto_bins") {
@@ -43066,6 +43074,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
+			unsigned cg_distribute_first = opt_uint(cgdef->options,
+			      "type_option.distribute_first", 0);
 			    unsigned cg_retain_auto = 1;
 			    auto cg_retain_it = cgdef->options.find(
 				  perm_string::literal("cross_retain_auto_bins"));
@@ -44846,6 +44856,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
+			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
 			  auto normalize_trans_ranges = [](trans_ranges_t r) {
 				std::sort(r.begin(), r.end());
@@ -44863,8 +44874,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  };
 			  for (auto& ib : cp.bins) {
 				if (ib.kind != class_type_t::pform_cov_bins_t::BIN_IGNORE
-				    || ib.trans_seqs.empty() || ib.wildcard
-				    || cp_value_width > 64)
+				    && ib.kind != class_type_t::pform_cov_bins_t::BIN_ILLEGAL)
+				      continue;
+				if (ib.trans_seqs.empty() || ib.wildcard || cp_value_width > 64)
 				      continue;
 				std::vector<std::vector<trans_ranges_t>> found;
 				bool all_ok = true;
@@ -44874,7 +44886,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    trans_ranges_t r;
 					    if (st.repeat_kind != class_type_t::pform_cov_trans_term_t::TRANS_ONCE
 						|| !eval_ranges(st.ranges, r, cp_value_width,
-									cp_value_signed, ib.name.str(), nullptr)
+								cp_value_signed, ib.name.str(), nullptr)
 						|| r.empty()) {
 						  all_ok = false;
 						  break;
@@ -44885,8 +44897,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      found.push_back(std::move(terms));
 				}
 				if (!all_ok) continue;
-				for (auto&f : found) ignored_trans.push_back(std::move(f));
-				resolved_ignore_bins.insert(&ib);
+				for (auto&f : found) {
+				      if (ib.kind == class_type_t::pform_cov_bins_t::BIN_IGNORE)
+					    ignored_trans.push_back(std::move(f));
+				      else illegal_trans.push_back(std::move(f));
+				}
+				if (ib.kind == class_type_t::pform_cov_bins_t::BIN_IGNORE)
+				      resolved_ignore_bins.insert(&ib);
 			  }
 			  auto trans_ranges_intersect = [](const trans_ranges_t&a,
 							   const trans_ranges_t&b) {
@@ -45234,6 +45251,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  des->errors += 1;
 						  bad = true;
 						  break;
+					    }
+					    // A fixed covered sequence whose every transition term is
+					    // contained in a contiguous illegal sequence necessarily
+					    // matches that illegal sequence and is not a coverage bin.
+					    if (base_kind != 2 && !constructor_dependent) {
+						  bool removed = false;
+						  for (const auto&illegal : illegal_trans) {
+							if (illegal.size() > terms.size()) continue;
+							for (size_t offset = 0;
+							     offset + illegal.size() <= terms.size();
+							     ++offset) {
+							      bool contained = true;
+							      for (size_t k = 0; k < illegal.size(); ++k) {
+								    if (terms[offset + k].dynamic
+									|| terms[offset + k].repeat != (unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE
+									|| !trans_ranges_subtract(
+									      terms[offset + k].ranges,
+									      illegal[k]).empty()) {
+									  contained = false;
+									  break;
+								    }
+							      }
+							      if (contained) { removed = true; break; }
+							}
+							if (removed) break;
+						  }
+						  if (removed) continue;
 					    }
 					    std::vector<std::vector<trans_term_t>> pieces;
 					    pieces.push_back(std::move(terms));
@@ -46057,7 +46101,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				  // "with (expr)" filter: enumerate the
 				  // candidate values and keep passers.
-				if (bin.with_expr) {
+				if (bin.with_expr
+				    && !(cg_distribute_first && bin.arrayed
+					 && bin.array_size)) {
 				      if (bin.wildcard) {
 					    cerr << "sorry: wildcard bins with a "
 						 << "'with' filter are not supported; "
@@ -46394,11 +46440,69 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							range_value = last + 1;
 						  }
 					    }
+					    bool empty_after_distribute_filter = false;
+					    bool distribute_filter_valid = true;
+					    if (bin.with_expr && cg_distribute_first) {
+						  int range_filter =
+							apply_inside_filter(bin.with_expr, chunk);
+						  if (range_filter < 0) {
+							cerr << "sorry: covergroup bin '" << bin.name
+							     << "' 'with' inside ranges are not "
+								"constant; the bin is dropped." << endl;
+							chunk.clear();
+							distribute_filter_valid = false;
+						  } else if (range_filter == 0) {
+							uint64_t chunk_total = 0;
+							for (auto&r : chunk)
+							      chunk_total += r.second-r.first+1;
+							if (chunk_total > 4096) {
+							      cerr << "sorry: covergroup bin '" << bin.name
+								   << "' 'with' filter over "
+								   << chunk_total << " values exceeds the "
+								   "4096-value limit; the bin is dropped."
+								   << endl;
+							      chunk.clear();
+								distribute_filter_valid = false;
+							} else {
+							      std::vector<std::pair<uint64_t,uint64_t>> keep;
+							      bool evalok = true;
+							      for (auto&r : chunk) {
+								    for (uint64_t v = r.first; evalok; v++) {
+								  int64_t res = 0;
+								  int rc = cov_with_eval_(bin.with_expr,
+								    cov_with_item_value_(v, cp_value_width,
+										cp_value_signed), res);
+								  if (rc < 0) { evalok = false; break; }
+								  if (res != 0)
+									keep.push_back(std::make_pair(v,v));
+								  if (v == r.second) break;
+								    }
+							      }
+							      if (!evalok) {
+								    cerr << "sorry: covergroup bin '" << bin.name
+									 << "' 'with' expression uses forms the "
+									 "constant evaluator does not support; "
+									 "the bin is dropped." << endl;
+								    chunk.clear();
+								    distribute_filter_valid = false;
+							      } else chunk = std::move(keep);
+						}
+						  }
+					    }
+					    empty_after_distribute_filter = distribute_filter_valid
+						  && bin.with_expr && cg_distribute_first
+						  && chunk.empty();
 					    if (!bin.wildcard) subtract_carved(chunk);
-					    if (chunk.empty()) continue;
+					    if (chunk.empty() && !empty_after_distribute_filter)
+						  continue;
 					    std::string bn = bstem + "_" + std::to_string(k);
 					    unsigned source_prop = add_value_prop(
 						  bn, chunk, kindval, bin_guard);
+					    if (chunk.empty())
+						  cg_class->add_covgrp_bin(cp_idx, source_prop,
+							0, 0, kindval | 2048u, 0, cp_idx,
+							0, 1, 1, 0, 1,
+							netclass_t::COVGRP_NO_FAMILY, 0, bin_guard);
 					    xbin_desc_t d;
 					    d.name = lex_strings.make((std::string(bin.name.str())
 								       + "[" + std::to_string(k) + "]").c_str());

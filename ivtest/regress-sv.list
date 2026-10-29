@@ -2,6 +2,8 @@
 # supports SystemVerilog (1800-2012).
 
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
+issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
+issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
@@ -15,6 +17,8 @@ issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
+issue1480_assoc_real_index_fail_2017 CE,-g2017,-s,top ivltests
+issue1480_assoc_real_index_fail_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
@@ -22,6 +26,8 @@ issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1410_covergroup_strobe_2017 normal,-g2017,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1410_covergroup_strobe_2023 normal,-g2023,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1414_clocking_block_coverpoint normal,-g2017,-s,test ivltests gold=issue1414_clocking_block_coverpoint.gold
+issue1430_illegal_value_transition_2017 normal,-g2017,-s,test ivltests gold=issue1430_illegal_value_transition.gold
+issue1430_illegal_value_transition_2023 normal,-g2023,-s,test ivltests gold=issue1430_illegal_value_transition.gold
 issue1383_sequence_method_match_items_2017 normal,-g2017,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1383_sequence_method_match_items_2023 normal,-g2023,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
@@ -830,6 +836,7 @@ sv_darray_copy_empty2	normal,-g2009		ivltests
 sv_darray_copy_empty3	normal,-g2009		ivltests
 sv_darray_copy_empty4	normal,-g2009		ivltests
 sv_darray_decl_assign	normal,-g2009		ivltests
+sv_darray_new_fixed_initializer	normal,-g2017		ivltests
 sv_darray_function	normal,-g2009		ivltests
 sv_darray_new_default_fill normal,-g2012		ivltests
 sv_darray_new_default_runtime_size normal,-g2012	ivltests
@@ -1789,6 +1796,8 @@ sv_covergroup_cross_with normal,-g2012 ivltests gold=sv_covergroup_cross_with.go
 sv_covergroup_cross_with_select_expr normal,-g2012 ivltests gold=sv_covergroup_cross_with_select_expr.gold
 sv_covergroup_following_localparam normal,-g2012 ivltests gold=sv_covergroup_following_localparam.gold
 sv_covergroup_hierarchical_cross normal,-g2012 ivltests gold=sv_covergroup_hierarchical_cross.gold
+issue1436_hierarchical_cross_2017 CE,-g2017 ivltests
+issue1436_hierarchical_cross_2023 CE,-g2023 ivltests
 sv_covergroup_procedural_item_options normal,-g2012 ivltests gold=sv_covergroup_procedural_item_options.gold
 sv_covergroup_procedural_item_options_unsupported CE,-g2012 ivltests gold=sv_covergroup_procedural_item_options_unsupported.gold
 sv_covergroup_item_goal_comment_2017 normal,-g2017,-s,sv_covergroup_item_goal_comment ivltests gold=sv_covergroup_item_goal_comment_2017.gold
@@ -6176,6 +6185,10 @@ issue1207_duplicate_random_qualifier_2023 CE,-g2023 ivltests
 # IEEE 1800-2017/2023 §19.5 explicitly typed coverpoints
 issue1417_typed_coverpoint_2017 normal,-g2017,-s,test ivltests gold=issue1417_typed_coverpoint.gold
 issue1417_typed_coverpoint_2023 normal,-g2023,-s,test ivltests gold=issue1417_typed_coverpoint.gold
+issue1461_cross_namespace_name_2017 normal,-g2017,-s,tb ivltests gold=issue1461_cross_namespace_name.gold
+issue1461_cross_namespace_name_2023 normal,-g2023,-s,tb ivltests gold=issue1461_cross_namespace_name.gold
+issue1426_distribute_first_2017 normal,-g2017,-s,test ivltests gold=issue1426_distribute_first.gold
+issue1426_distribute_first_2023 normal,-g2023,-s,test ivltests gold=issue1426_distribute_first.gold
 
 # IEEE 1800-2017/2023 assignment expressions with concatenation l-values
 issue1229_assignment_concat_expr_2017 normal,-g2017,-s,issue1229_assignment_concat_expr ivltests gold=issue1229_assignment_concat_expr.gold
@@ -6216,6 +6229,10 @@ issue1359_unknown_named_sequence_2017 CE,-g2017,-s,issue1359_unknown_named_seque
 issue1359_unknown_named_sequence_2023 CE,-g2023,-s,issue1359_unknown_named_sequence_2023 ivltests
 issue1364_named_sequence_combinators_2017 CN,-g2017,-s,top ivltests
 issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
+
+# IEEE 1800-2017/2023 §19.5.6: illegal transition subsequences remove bins.
+issue1429_illegal_transition_overlap_2017 normal,-g2017,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
+issue1429_illegal_transition_overlap_2023 normal,-g2023,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
 
 issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
 issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold

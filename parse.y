@@ -424,14 +424,11 @@ static void mark_lazy_virtual_interface_default_(PExpr*expr)
 	    interface_type->allow_unresolved = true;
 }
 
-/* IEEE 1800-2017 3.14.3/5.8: procedural #1step is one precision tick
-   expressed in the current scope's timeunit. Keep it as a real delay so
-   the ordinary delay elaborator performs the final design-precision scale. */
+/* Preserve procedural #1step until elaboration knows the design-wide
+   precision. */
 static PExpr* pform_one_step_delay_(const struct vlltype&loc)
 {
-      double value = pow(10.0,
-			 (double)(pform_get_timeprec() - pform_get_timeunit()));
-      PEFNumber*delay = new PEFNumber(new verireal(value));
+      PEFNumber*delay = new PEFNumber(new verireal(0.0), true);
       FILE_NAME(delay, loc);
       return delay;
 }
@@ -2903,6 +2900,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <int_val> sva_int_local_declarations
 %type <atom_type> atom_type
 %type <int_val> module_start module_end
+%type <text> module_identifier
 
 %type <lifetime> lifetime lifetime_opt
 
@@ -5462,13 +5460,16 @@ bins_item
 	yyerrok; $$ = nullptr; }
   ;
 
-/* IEEE 1800-2017 19.6: a cross item is either a coverpoint label or a
-   variable expression, for which an implicit coverpoint is created. Preserve
-   the full hierarchical path instead of flattening it to its first name. */
+/* IEEE 1800-2017 19.6: a cross item is a coverpoint or variable identifier.
+   Retain the historical hierarchical-expression extension in older language
+   modes, but reject it in editions that specify the identifier-only syntax. */
 cross_item_list
   : hierarchy_identifier
       { $$ = new std::list<class_type_t::pform_cross_t::item_t>();
 	class_type_t::pform_cross_t::item_t item;
+	if (generation_flag >= GN_VER2017 && $1->size() != 1) {
+	      yyerror(@1, "error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).");
+	}
 	const name_component_t&root = $1->front();
 	if ($1->size() == 1 && root.index.empty() && !root.local_scope) {
 	      item.label = root.name;
@@ -5481,9 +5482,12 @@ cross_item_list
 	}
 	$$->push_back(item);
 	delete $1;
-      }
+	}
   | cross_item_list ',' hierarchy_identifier
       { class_type_t::pform_cross_t::item_t item;
+	if (generation_flag >= GN_VER2017 && $3->size() != 1) {
+	      yyerror(@3, "error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).");
+	}
 	const name_component_t&root = $3->front();
 	if ($3->size() == 1 && root.index.empty() && !root.local_scope) {
 	      item.label = root.name;
@@ -16052,7 +16056,7 @@ cont_assign_list
      items, and finally an end marker. */
 
 module
-  : attribute_list_opt module_start lifetime_opt IDENTIFIER
+  : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
 			  $2==K_checker, $3, $1);
         port_declaration_context_init();
@@ -16159,6 +16163,14 @@ module_start
       { pform_error_in_generate(@1, "checker declaration");
         $$ = K_checker;
       }
+  ;
+
+/* A package and a design unit occupy distinct global name spaces. The
+   lexer classifies a previously declared package spelling as
+   PACKAGE_IDENTIFIER, but it remains a valid design-unit identifier. */
+module_identifier
+  : IDENTIFIER { $$ = $1; }
+  | PACKAGE_IDENTIFIER { $$ = dup_cstr($1->pscope_name().str()); }
   ;
 
 module_end
@@ -16582,6 +16594,11 @@ module_item
       { perm_string tmp1 = lex_strings.make($2.text);
 		  pform_make_modgates(@2, tmp1, $3, $4, $1);
 		  delete[]$2.text;
+      }
+  | attribute_list_opt
+	  PACKAGE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string tmp1 = $2->pscope_name();
+		  pform_make_modgates(@2, tmp1, $3, $4, $1);
       }
 
         | attribute_list_opt

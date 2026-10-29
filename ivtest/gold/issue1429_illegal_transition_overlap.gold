@@ -1,0 +1,3 @@
+ERROR: covergroup illegal transition bin matched (prop_idx=5)
+illegal transition overlap removed
+./ivltests/issue1429_illegal_transition_overlap.v:32: $finish called at 0 (1s)

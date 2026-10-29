@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1426_distribute_first.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue1426_distribute_first"
+}

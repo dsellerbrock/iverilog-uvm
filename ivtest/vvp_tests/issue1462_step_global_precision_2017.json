@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1462_step_global_precision.sv",
+  "iverilog-args": ["-g2017", "-s", "tb"]
+}
