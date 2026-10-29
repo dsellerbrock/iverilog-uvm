@@ -19762,7 +19762,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "case-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQ);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -19782,7 +19782,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "casex-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQX);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQX);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -19792,7 +19792,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@6, "casez-matches pattern matching");
 	assert(!current_case_match_subjects.empty());
 	current_case_match_subjects.pop();
-	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQZ);
+	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQZ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }

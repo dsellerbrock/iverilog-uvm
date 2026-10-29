@@ -13591,6 +13591,37 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             return nullptr;
       }
 
+      /* Qualified pattern cases use the existing case-quality runtime
+       * checks. Each pattern predicate is a Boolean case item against a
+       * constant true selector; retaining the original quality here makes
+       * unique check every matching pattern and priority check for no match. */
+      if (quality_ != IVL_CASE_QUALITY_BASIC) {
+            unsigned count = items_ ? items_->size() : 0;
+            NetEConst*selector = new NetEConst(verinum(verinum::V1));
+            selector->set_line(*expr_);
+            NetCase*res = new NetCase(quality_, NetCase::EQ, selector, count);
+            res->set_line(*this);
+            for (unsigned idx = 0; idx < count; idx += 1) {
+                  Item*item = (*items_)[idx];
+                  if (!item) continue;
+                  if (item->is_default) {
+                        NetProc*body = item->stat
+                              ? item->stat->elaborate(des, scope) : nullptr;
+                        res->set_case(idx, nullptr, body, idx);
+                        continue;
+                  }
+                  NetExpr*match = elaborate_pattern_match_(
+                        item->pattern ? static_cast<const LineInfo*>(item->pattern)
+                                      : static_cast<const LineInfo*>(this),
+                        expr_, item->pattern, case_type_, des, scope);
+                  if (!match) continue;
+                  NetProc*body = item->stat
+                        ? item->stat->elaborate(des, scope) : nullptr;
+                  res->set_case(idx, match, body, idx);
+            }
+            return res;
+      }
+
       NetProc*cascade = nullptr;
       Item*default_item = nullptr;
       if (items_) {
