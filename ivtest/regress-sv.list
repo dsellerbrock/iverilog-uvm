@@ -21,6 +21,8 @@ issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
 issue1320_vpi_assignment_op_2023 normal,-g2023 ivltests
 issue1329_vpi_expect_constant_2017 normal,-g2017,-s,top ivltests gold=issue1329_vpi_expect_constant_2017.gold
 issue1329_vpi_expect_constant_2023 normal,-g2023,-s,top ivltests gold=issue1329_vpi_expect_constant_2023.gold
+issue1341_vpi_implicit_decl_2017 normal,-g2017,-s,top ivltests
+issue1341_vpi_implicit_decl_2023 normal,-g2023,-s,top ivltests
 issue1356_sva_untyped_dollar_2017 normal,-g2017,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 issue1356_sva_untyped_dollar_2023 normal,-g2023,-s,issue1356_sva_untyped_dollar ivltests gold=issue1356_sva_untyped_dollar.gold
 
