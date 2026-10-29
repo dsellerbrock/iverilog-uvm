@@ -18606,10 +18606,37 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    if (des->errors != error_count)
 		  return nullptr;
       }
-        // Icarus allows a dynamic array to be initialised with a single
-        // elementary value, in that case the expression needs to be evaluated
-        // with the rigth width.
-      if (darray)
+	  if (darray && (flags & DARRAY_NEW_INIT)) {
+	    width_mode_t mode = SIZED;
+	    unsigned error_count = des->errors;
+	    const_cast<PECallFunction*>(this)->test_width(des, scope, mode);
+	    if (des->errors != error_count)
+		  return nullptr;
+	    bool unpacked_array_result = false;
+	    if (!receiver_) {
+		  symbol_search_results search;
+		  if (symbol_search(this, des, scope, path_, UINT_MAX, &search)
+		      && search.scope) {
+			NetFuncDef*def = find_function_definition(
+			      des, scope, search.scope);
+			const NetNet*result = def ? def->return_sig() : nullptr;
+			if (result)
+			      unpacked_array_result =
+				    result->unpacked_dimensions() > 0;
+		  }
+	    }
+	    if (expr_type_ != IVL_VT_DARRAY && expr_type_ != IVL_VT_QUEUE
+		&& !unpacked_array_result) {
+		  cerr << get_fileline() << ": error: Function result is not an array "
+		       << "assignment-compatible with the dynamic-array initializer."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	  }
+	        // Preserve legacy element-context sizing except when elaborating
+	        // the assignment-compatible array operand of new[N](initializer).
+      if (darray && !(flags & DARRAY_NEW_INIT))
 	    width = darray->element_type()->packed_width();
       return elaborate_expr(des, scope, width, flags);
 }
@@ -25116,9 +25143,10 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
                   return tmp;
             }
 
-              // Icarus allows a dynamic array to be initialised with a
-              // single elementary value, so try that next.
-	    check_type = array_type->element_type();
+	      // A new[N](initializer) operand must be an array, not a scalar
+	      // converted in the array element context.
+	    if (!(flags & DARRAY_NEW_INIT))
+		  check_type = array_type->element_type();
       }
 
 	      if (!have_type || !check_type->type_compatible(have_type)) {
@@ -30732,7 +30760,8 @@ NetExpr* PENewArray::elaborate_expr(Design*des, NetScope*scope,
 	      // type. The run-time will assign this value to each element.
 	    const netarray_t*array_type = dynamic_cast<const netarray_t*> (ntype);
 
-	    init_val = init_->elaborate_expr(des, scope, array_type, flags);
+	    init_val = init_->elaborate_expr(des, scope, array_type,
+					      flags | DARRAY_NEW_INIT);
       }
 
       NetENew*tmp = new NetENew(ntype, size, init_val);
@@ -31665,7 +31694,8 @@ unsigned PENumber::test_width(Design*, NetScope*, width_mode_t&mode)
       return expr_width_;
 }
 
-NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype, unsigned) const
+NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype,
+				  unsigned flags) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PENumber::elaborate_expr: "
@@ -31675,9 +31705,13 @@ NetExpr* PENumber::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype, unsig
 		       << "ntype=" << *ntype << endl;
       }
 
-      // Icarus allows dynamic arrays to be initialised with a single value.
-      if (const netdarray_t*array_type = dynamic_cast<const netdarray_t*> (ntype))
-            ntype = array_type->element_type();
+      // A new[N](initializer) operand is an array, so a numeric scalar must
+      // not inherit the dynamic array's element type as its context.
+      if (!(flags & DARRAY_NEW_INIT)) {
+	    if (const netdarray_t*array_type =
+		      dynamic_cast<const netdarray_t*> (ntype))
+		  ntype = array_type->element_type();
+      }
 
       // Special case: If the context type is REAL, then cast the
       // vector value to a real and return a NetECReal.
@@ -31878,8 +31912,16 @@ NetExpr* PEString::elaborate_expr_uarray_(Design*des, NetScope*,
 }
 
 NetExpr* PEString::elaborate_expr(Design*des, NetScope*scope,
-				   ivl_type_t type, unsigned) const
+				   ivl_type_t type, unsigned flags) const
 {
+	  if ((flags & DARRAY_NEW_INIT)
+	      && dynamic_cast<const netdarray_t*>(type)) {
+		cerr << get_fileline() << ": error: String literal is not an array "
+		     << "assignment-compatible with the dynamic-array initializer."
+		     << endl;
+		des->errors += 1;
+		return nullptr;
+	  }
       if (const netuarray_t*uarray_type =
 		    dynamic_cast<const netuarray_t*>(type)) {
 	    return elaborate_expr_uarray_(des, scope, uarray_type,

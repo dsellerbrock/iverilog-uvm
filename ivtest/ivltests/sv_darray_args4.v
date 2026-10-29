@@ -32,13 +32,6 @@ program main;
 	 $finish;
       end
 
-      obj = new[3] ("A");
-      foo = sum_array(obj);
-      if (foo != "AAA") begin
-	 $display("FAILED -- sum of \"AAA\" is %0s", foo);
-	 $finish;
-      end
-
       $display("PASSED");
    end // initial begin
 
