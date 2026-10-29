@@ -3943,7 +3943,21 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	// not the physical pin count: a one-element unpacked array has one pin
 	// but still uses array assignment-pattern and compatibility semantics.
       if (lval->unpacked_dimensions() > 0) {
-	    elaborate_unpacked_array_(des, scope, lval);
+	    if (lval->user_nettype()) {
+		  if (delay_count() > 1) {
+			cerr << get_fileline() << ": error: An array of nets with "
+			     << "a user-defined nettype may have only one "
+			     << "continuous-assignment delay (IEEE 1800-2017/2023 "
+			     << "10.3.3)." << endl;
+			des->errors += 1;
+			delete_unique_delays_(rise_time, fall_time, decay_time);
+			return;
+		  }
+	    }
+	    elaborate_unpacked_array_(des, scope, lval,
+			      lval->user_nettype() ? rise_time : 0,
+			      lval->user_nettype() ? fall_time : 0,
+			      lval->user_nettype() ? decay_time : 0);
 	    return;
       }
 
@@ -4184,11 +4198,16 @@ NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &l
       return expr_net;
 }
 
-void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval) const
+void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
+					NetExpr*rise_time,
+					NetExpr*fall_time,
+					NetExpr*decay_time) const
 {
       NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
       if (rval_net)
-	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net);
+	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
+			      rise_time, fall_time, decay_time,
+			      lval->user_nettype() && delay_count() > 0);
 }
 
 void PGBuiltin::calculate_gate_and_lval_count_(unsigned&gate_count,

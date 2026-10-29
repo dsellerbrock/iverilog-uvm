@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1514_nettype_array_delay.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"           : "issue1514_nettype_array_delay"
+}

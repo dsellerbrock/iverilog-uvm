@@ -187,7 +187,10 @@ class PGAssign  : public PGate {
       virtual void elaborate(Design*des, NetScope*scope) const override;
 
     private:
-      void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval) const;
+      void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
+				     NetExpr*rise_time = 0,
+				     NetExpr*fall_time = 0,
+				     NetExpr*decay_time = 0) const;
 };
 
 

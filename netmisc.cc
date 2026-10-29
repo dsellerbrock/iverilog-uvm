@@ -4095,6 +4095,10 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 					  const LineInfo *loc,
 					  NetNet *lval, NetNet *rval,
 					  const std::vector<long> &stride,
+					  const NetExpr *rise_time,
+					  const NetExpr *fall_time,
+					  const NetExpr *decay_time,
+					  bool whole_value_delay,
 					  unsigned int dim = 0,
 					  unsigned int idx_l = 0,
 					  unsigned int idx_r = 0)
@@ -4134,13 +4138,19 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 		  NetBUFZ *driver = new NetBUFZ(scope, scope->local_symbol(),
 						lval->vector_width(), false);
 		  driver->set_line(*loc);
+		  driver->whole_vector_delay(whole_value_delay);
 		  des->add_node(driver);
 
 		  connect(lval->pin(idx_l), driver->pin(0));
 		  connect(driver->pin(1), rval->pin(idx_r));
+		  if (rise_time || fall_time || decay_time)
+			driver->pin(0).drivers_delays(rise_time, fall_time,
+							     decay_time);
 	    } else {
 		  assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval,
-						stride, dim + 1, idx_l, idx_r);
+						stride, rise_time, fall_time,
+						decay_time, whole_value_delay,
+						dim + 1, idx_l, idx_r);
 	    }
 
 	    idx_l += inc_l;
@@ -4150,7 +4160,11 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 
 void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 			       const LineInfo*loc,
-			       NetNet*lval, NetNet*rval)
+			       NetNet*lval, NetNet*rval,
+			       const NetExpr*rise_time,
+			       const NetExpr*fall_time,
+			       const NetExpr*decay_time,
+			       bool whole_value_delay)
 {
       ivl_assert(*loc, lval->pin_count()==rval->pin_count());
 
@@ -4158,7 +4172,9 @@ void assign_unpacked_with_bufz(Design*des, NetScope*scope,
       vector<long> stride(dims.size());
 
       make_strides(dims, stride);
-      assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval, stride);
+      assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval, stride,
+				    rise_time, fall_time, decay_time,
+				    whole_value_delay);
 }
 
 /*
