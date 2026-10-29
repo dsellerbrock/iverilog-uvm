@@ -28589,6 +28589,37 @@ static bool covergroup_strobe_enabled_(Design*des, NetScope*scope,
 	return result;
 }
 
+static perm_string covergroup_observed_clocking_event_(Design*des, NetScope*scope,
+				       const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!scope || scope->type() != NetScope::MODULE || !cgdef) return perm_string();
+	auto mod_it = pform_modules.find(scope->module_name());
+	if (mod_it == pform_modules.end() || !mod_it->second) return perm_string();
+	const Module*mod = mod_it->second;
+	for (const auto&cp : cgdef->coverpoints) {
+	      const PEIdent*id = dynamic_cast<const PEIdent*>(cp.expr);
+	      if (!id || id->path().name.size() != 2) continue;
+	      const name_component_t&cb_name = id->path().name.front();
+	      const name_component_t&signal_name = id->path().name.back();
+	      if (!cb_name.index.empty() || !signal_name.index.empty()) continue;
+	      auto cb_it = mod->clocking_blocks.find(cb_name.name);
+	      if (cb_it == mod->clocking_blocks.end()) continue;
+	      PExpr*delay = nullptr;
+	      if (cb_it->second->input_skew(signal_name.name, delay)
+		  != Module::PClocking::SKEW_DELAY || !delay) continue;
+	      NetExpr*value = elab_and_eval(des, scope, delay, -1, false, false);
+	      NetEConst*constant = dynamic_cast<NetEConst*>(value);
+	      bool zero = constant && constant->value().is_defined()
+		  && constant->value().as_ulong64() == 0;
+	      delete value;
+	      if (zero) {
+		    string trigger = string("_ivl_cbtrig$") + cb_name.name.str();
+		    return lex_strings.make(trigger.c_str());
+	      }
+	}
+	return perm_string();
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -28609,6 +28640,8 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->is_covergroup_standalone) continue;
 	    for (auto*cgdef : pcl->type->covergroups) {
 		  if (!cgdef || cgdef->sample_events.empty()) continue;
+		  perm_string observed_trigger =
+			covergroup_observed_clocking_event_(des, scope, cgdef);
 		  netclass_t*parent_ct = scope->find_class(des, pcl->pscope_name());
 		  if (!parent_ct) continue;
 		  int cgp = parent_ct->property_idx_from_name(cgdef->name);
@@ -28631,12 +28664,24 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		  PEventStatement ev(cgdef->sample_events);
 		  ev.set_line(*pcl);
 		  NetProc*event_body = st;
-		  if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+		  if (!observed_trigger.nil() || covergroup_strobe_enabled_(des, scope, cgdef)) {
 			NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
-			NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
-				IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
-			wait->set_line(*pcl);
-			body->append(wait);
+			if (!observed_trigger.nil()) {
+			      pform_name_t trigger_path;
+			      trigger_path.push_back(name_component_t(observed_trigger));
+			      PEIdent*trigger_id = new PEIdent(trigger_path, 0);
+			      PEEvent*trigger_expr = new PEEvent(PEEvent::ANYEDGE, trigger_id);
+			      PEventStatement*wait = new PEventStatement(trigger_expr);
+			      wait->set_line(*pcl);
+			      NetProc*wait_proc = wait->elaborate(des, scope);
+			      if (wait_proc) body->append(wait_proc);
+			}
+			if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+			      NetSTask*wait = new NetSTask("$ivl_covgrp_strobe_wait",
+					IVL_SFUNC_AS_TASK_IGNORE, vector<NetExpr*>());
+			      wait->set_line(*pcl);
+			      body->append(wait);
+			}
 			body->append(st);
 			event_body = body;
 		  }
@@ -28670,6 +28715,8 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->covergroups.empty()) continue;
 	    class_type_t::pform_covergroup_t*cgdef = pcl->type->covergroups.front();
 	    if (!cgdef || cgdef->sample_events.empty()) continue;
+	    perm_string observed_trigger =
+		  covergroup_observed_clocking_event_(des, scope, cgdef);
 
 	    pform_name_t mpath;
 	    mpath.push_back(name_component_t(sig->name()));
@@ -28681,7 +28728,7 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
 	    ev->set_line(*sig);
 	    Statement*event_body = call;
-	    if (covergroup_strobe_enabled_(des, scope, cgdef)) {
+	    if (!observed_trigger.nil() || covergroup_strobe_enabled_(des, scope, cgdef)) {
 		pform_name_t wait_path;
 		wait_path.push_back(name_component_t(
 			perm_string::literal("$ivl_covgrp_strobe_wait")));
@@ -28689,7 +28736,17 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		wait->set_line(*sig);
 		PBlock*body = new PBlock(PBlock::BL_SEQ);
 		vector<Statement*>statements;
-		statements.push_back(wait);
+		if (!observed_trigger.nil()) {
+		      pform_name_t trigger_path;
+		      trigger_path.push_back(name_component_t(observed_trigger));
+		      PEIdent*trigger_id = new PEIdent(trigger_path, 0);
+		      PEEvent*trigger_expr = new PEEvent(PEEvent::ANYEDGE, trigger_id);
+		      PEventStatement*observed_wait = new PEventStatement(trigger_expr);
+		      observed_wait->set_line(*sig);
+		      statements.push_back(observed_wait);
+		}
+		if (covergroup_strobe_enabled_(des, scope, cgdef))
+		      statements.push_back(wait);
 		statements.push_back(call);
 		body->set_statement(statements);
 		event_body = body;
@@ -44207,6 +44264,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 			  }
 			  if (!this_qualified) ++comp;
+		      // A direct clocking-block reference is represented as a dotted
+		      // identifier, but its clockvar is not a module net. Use its raw
+		      // declaration type when resolving the coverpoint's value width.
+		      if (!type && id->path().name.size() == 2) {
+			    NetScope*decl_scope = class_scope_->parent();
+			    const name_component_t&cb_name = id->path().name.front();
+			    const name_component_t&signal_name = id->path().name.back();
+			    if (decl_scope && decl_scope->type() == NetScope::MODULE
+				&& cb_name.index.empty() && signal_name.index.empty()) {
+				  auto mod_it = pform_modules.find(decl_scope->module_name());
+				  if (mod_it != pform_modules.end() && mod_it->second) {
+				    auto cb_it = mod_it->second->clocking_blocks.find(cb_name.name);
+				    if (cb_it != mod_it->second->clocking_blocks.end()
+					&& std::find(cb_it->second->signals.begin(),
+						     cb_it->second->signals.end(),
+					     signal_name.name)
+				       != cb_it->second->signals.end()) {
+				  NetNet*raw = resolve_clocking_raw_signal(
+					des, decl_scope, cb_it->second, signal_name.name);
+				  if (raw) return raw->net_type();
+			    }
+			  }
+			    }
+		      }
 			  for (; type && comp != id->path().name.end(); ++comp) {
 				if (const netclass_t*ct =
 				      dynamic_cast<const netclass_t*>(type)) {
@@ -44236,6 +44317,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				dynamic_cast<const PEMemberAccess*>(expr);
 			  if (!member) return nullptr;
 			  ivl_type_t type = coverpoint_expr_type(member->base());
+		      if (!type) {
+			    // Clocking-block members are not ordinary module properties.
+			    // Resolve a direct enclosing-module clockvar to its raw signal
+			    // type so explicit value bins use the declared integral width.
+			    const PEIdent*cb_id =
+				  dynamic_cast<const PEIdent*>(member->base());
+			    NetScope*decl_scope = class_scope_->parent();
+			    if (cb_id && cb_id->path().name.size() == 1
+				&& cb_id->path().name.front().index.empty()
+				&& decl_scope && decl_scope->type() == NetScope::MODULE) {
+				  auto mod_it = pform_modules.find(decl_scope->module_name());
+				  if (mod_it != pform_modules.end() && mod_it->second) {
+				    auto cb_it = mod_it->second->clocking_blocks.find(
+					  cb_id->path().name.front().name);
+				    if (cb_it != mod_it->second->clocking_blocks.end()
+					&& std::find(cb_it->second->signals.begin(),
+						     cb_it->second->signals.end(),
+						     member->member_name())
+				       != cb_it->second->signals.end()) {
+				  NetNet*raw = resolve_clocking_raw_signal(
+					des, decl_scope, cb_it->second,
+					member->member_name());
+				  if (raw) return raw->net_type();
+			    }
+			  }
+		      }
+		      }
 			  if (const netclass_t*ct =
 				dynamic_cast<const netclass_t*>(type)) {
 				int pidx = ct->property_idx_from_name(member->member_name());

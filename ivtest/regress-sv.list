@@ -17,6 +17,7 @@ issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1410_covergroup_strobe_2017 normal,-g2017,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1410_covergroup_strobe_2023 normal,-g2023,-s,test ivltests gold=issue1410_covergroup_strobe.gold
+issue1414_clocking_block_coverpoint normal,-g2017,-s,test ivltests gold=issue1414_clocking_block_coverpoint.gold
 issue1383_sequence_method_match_items_2017 normal,-g2017,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1383_sequence_method_match_items_2023 normal,-g2023,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
 issue1231_stream_array_then_item_2017 normal,-g2017,-s,top ivltests gold=issue1231_stream_array_then_item.gold
