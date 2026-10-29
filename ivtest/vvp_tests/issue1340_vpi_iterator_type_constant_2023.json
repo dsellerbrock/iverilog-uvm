@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1340_vpi_iterator_type_constant.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1340_vpi_iterator_type_constant_2023"],
+  "vpi-sources": ["vpi/issue1340_vpi_iterator_type_constant.c"],
+  "output-contains": ["PASSED"]
+}
