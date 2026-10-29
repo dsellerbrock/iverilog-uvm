@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1376_sequence_compound_match_item.v",
+  "iverilog-args": ["-g2023", "-s", "issue1376_sequence_compound_match_item"],
+  "gold": "issue1376_sequence_compound_match_item"
+}
