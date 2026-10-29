@@ -1,0 +1,2 @@
+ivltests/issue1409_covergroup_formal_hierarchical_fail.v:7: error: Covergroup constructor formal `sampled' cannot be accessed using a hierarchical name (IEEE 1800-2017/2023 19.3).
+1 error(s) during elaboration.
