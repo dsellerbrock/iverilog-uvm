@@ -357,7 +357,10 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     # run the vvp command
     vvp_cmd = assemble_vvp_cmd(options, cfg)
-    vvp_res = run_cmd(vvp_cmd)
+    vvp_env = os.environ.copy()
+    vvp_env.update(options.get('vvp_env', {}))
+    vvp_res = subprocess.run(vvp_cmd, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, check=False, env=vvp_env)
     log_results(it_key, "vvp", vvp_res)
 
     log_list = ["iverilog-stdout", "iverilog-stderr",

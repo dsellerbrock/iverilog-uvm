@@ -5071,6 +5071,14 @@ extern "C" int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx)
       return -1;
 }
 
+extern "C" unsigned ivl_type_covgrp_item_missing(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count()
+	  ? class_type->covgrp_item((size_t)idx).cross_num_print_missing : 0;
+}
+
 extern "C" int ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

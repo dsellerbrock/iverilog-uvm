@@ -43074,6 +43074,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
+		    unsigned cg_cross_missing = opt_uint(cgdef->options,
+			  "cross_num_print_missing", 0);
 			unsigned cg_distribute_first = opt_uint(cgdef->options,
 			      "type_option.distribute_first", 0);
 			    unsigned cg_retain_auto = 1;
@@ -46946,6 +46948,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
+			  unsigned x_missing = opt_uint(cross.options,
+				"cross_num_print_missing", cg_cross_missing);
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1);
 				  unsigned retain_auto = cg_retain_auto;
@@ -47014,6 +47018,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+			  cg_class->set_covgrp_item_missing(item_idx, x_missing);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
 				group_options.at_least_expr && cross.options.count(
 				      perm_string::literal("at_least")) == 0);

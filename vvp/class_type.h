@@ -314,6 +314,7 @@ class class_type : public __vpiHandle {
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
 	    unsigned goal = 100;
+	    unsigned cross_num_print_missing = 0;
 	    std::string comment;
 	    int goal_prop = -1;
 	    int comment_prop = -1;
@@ -410,6 +411,10 @@ class class_type : public __vpiHandle {
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
 	return true; }
+      bool set_covgrp_item_missing(size_t idx, unsigned count)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].cross_num_print_missing = count;
+	return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
 	bool covgrp_cp_real(size_t cp) const
@@ -475,6 +480,9 @@ class class_type : public __vpiHandle {
       { return covgrp_cross_bins_[idx]; }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      unsigned covgrp_item_missing(size_t idx) const
+      { return idx < covgrp_items_.size()
+	  ? covgrp_items_[idx].cross_num_print_missing : 0; }
       unsigned covgrp_item_at_least(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_item_weight(class vvp_cobject*obj, size_t idx) const;
 	// Initialize constant/default at_least and weight slots after constructor

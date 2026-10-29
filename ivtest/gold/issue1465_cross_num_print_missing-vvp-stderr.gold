@@ -1,0 +1,20 @@
+# Icarus Verilog functional coverage report
+covergroup issue1465_cross_num_print_missing.no_missing type_coverage 41.67
+  item 0 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_a_vals_0 count 1 hit
+    bin __bin_cp_a_vals_1 count 0 MISS
+  item 1 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_b_vals_0 count 1 hit
+    bin __bin_cp_b_vals_1 count 0 MISS
+  item 2 kind cross at_least 1 weight 1
+    bin __covgrp_cross_2_auto_0 count 1 hit
+covergroup issue1465_cross_num_print_missing.one_missing type_coverage 41.67
+  item 0 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_a_vals_0 count 1 hit
+    bin __bin_cp_a_vals_1 count 0 MISS
+  item 1 kind coverpoint at_least 1 weight 1
+    bin __bin_cp_b_vals_0 count 1 hit
+    bin __bin_cp_b_vals_1 count 0 MISS
+  item 2 kind cross at_least 1 weight 1
+    bin __covgrp_cross_2_auto_0 count 1 hit
+    bin __covgrp_cross_2_auto_1 count 0 MISS

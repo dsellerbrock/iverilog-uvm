@@ -106,6 +106,7 @@ def process_test(item: list, cfg: list) -> str:
         'gold'              : it_dict.get('gold', None),
         'diff'              : None,
         'vvp_args'          : it_dict.get('vvp-args', [ ]),
+        'vvp_env'           : it_dict.get('vvp-env', { }),
         'vvp_args_extended' : it_dict.get('vvp-args-extended', [ ]),
         'vpi_modules'       : it_dict.get('vpi-modules', [ ]),
         'vpi_sources'       : it_dict.get('vpi-sources', [ ]),

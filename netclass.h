@@ -520,6 +520,7 @@ class netclass_t : public ivl_type_s {
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    unsigned goal = 100;
+	    unsigned cross_num_print_missing = 0;
 	    std::string comment;
 	    PExpr* goal_expr = nullptr;
 	    PExpr* comment_expr = nullptr;
@@ -674,6 +675,8 @@ class netclass_t : public ivl_type_s {
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }
+      void set_covgrp_item_missing(size_t idx, unsigned count)
+      { covgrp_items_[idx].cross_num_print_missing = count; }
 	// Resolve the IEEE hierarchical pseudo-members
 	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on

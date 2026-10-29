@@ -2869,6 +2869,7 @@ extern unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx);
 extern int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_comment(ivl_type_t net, int idx);
 extern int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_missing(ivl_type_t net, int idx);
   /* Hidden per-instance scalar slots for the supported mutable item options
      (-1 for legacy metadata without materialized runtime state). */
 extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);

@@ -683,6 +683,8 @@ void draw_class_in_scope(ivl_type_t classtype)
                         ivl_type_covgrp_item_comment(classtype, idx)));
 	  fprintf(vvp_out, " .covgrp_item_guard %u %u\n", idx,
 		  ivl_type_covgrp_item_has_guard(classtype, idx));
+	  fprintf(vvp_out, " .covgrp_item_missing %u %u\n", idx,
+		  ivl_type_covgrp_item_missing(classtype, idx));
 	    }
 	      /* M11-3: event-driven sampling metadata — the hidden
 		 parent-handle property plus per-coverpoint parent

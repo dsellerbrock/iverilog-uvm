@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "issue1465_cross_num_print_missing_2017.v",
+    "iverilog-args": ["-g2017", "-s", "issue1465_cross_num_print_missing"],
+    "vvp-env": {"IVL_COVERAGE_REPORT": "-"},
+    "gold": "issue1465_cross_num_print_missing"
+}
