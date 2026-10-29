@@ -43020,6 +43020,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
 		  return std::make_pair(std::string(), expr);
 	    };
+	    auto opt_type_comment = [&](PExpr*expr, const char*where) -> std::string {
+		  if (!expr) return std::string();
+		  NetExpr*value = elab_and_eval(des, class_scope_, expr,
+					&netstring_t::type_string, false);
+		  std::string result;
+		  if (NetECString*constant = dynamic_cast<NetECString*>(value))
+			result = constant->value().as_string();
+		  else {
+			cerr << expr->get_fileline() << ": error: " << where
+			     << " type_option.comment requires a constant string expression."
+			     << endl;
+			des->errors += 1;
+		  }
+		  delete value;
+		  return result;
+	    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
 			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
@@ -44141,6 +44157,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   group_options.comment = comment.first;
                   group_options.comment_expr = comment.second;
             }
+            group_options.type_comment.clear();
+            auto type_comment_it = cgdef->options.find(
+                  perm_string::literal("type_option.comment"));
+            if (type_comment_it != cgdef->options.end()) {
+                  group_options.type_comment = opt_type_comment(
+			type_comment_it->second, "covergroup");
+            }
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
@@ -44779,6 +44802,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			cp_goal_it == cp.options.end() ? nullptr : cp_goal_it->second);
 		  std::pair<std::string,PExpr*>cp_comment = opt_comment(
 			cp_comment_it == cp.options.end() ? nullptr : cp_comment_it->second);
+		  auto cp_type_comment_it = cp.options.find(
+			perm_string::literal("type_option.comment"));
+		  std::string cp_type_comment = opt_type_comment(
+			cp_type_comment_it == cp.options.end() ? nullptr
+			      : cp_type_comment_it->second, "coverpoint");
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, cp_type_weight, false,
 						cp.label, cp_weight.second,
@@ -44789,6 +44817,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
+			  cg_class->set_covgrp_item_type_comment(cp_idx,
+				cp_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
 				group_options.at_least_expr && cp.options.count(
 				      perm_string::literal("at_least")) == 0);
@@ -47103,6 +47133,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			x_goal_it == cross.options.end() ? nullptr : x_goal_it->second);
 		  std::pair<std::string,PExpr*>x_comment = opt_comment(
 			x_comment_it == cross.options.end() ? nullptr : x_comment_it->second);
+		  auto x_type_comment_it = cross.options.find(
+			perm_string::literal("type_option.comment"));
+		  std::string x_type_comment = opt_type_comment(
+			x_type_comment_it == cross.options.end() ? nullptr
+			      : x_type_comment_it->second, "cross");
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
                                                 type_weight(cross.options, "cross"),
 						true, cross.label,
@@ -47114,6 +47149,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+			  cg_class->set_covgrp_item_type_comment(item_idx,
+				x_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
 				group_options.at_least_expr && cross.options.count(
 				      perm_string::literal("at_least")) == 0);

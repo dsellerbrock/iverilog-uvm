@@ -1,0 +1,15 @@
+{
+  "type": "normal",
+  "source": "issue1464_coverage_report_comments.v",
+  "iverilog-args": ["-g2023"],
+  "vvp-env": {"IVL_COVERAGE_REPORT": "-"},
+  "output-contains": [
+    "INSTANCE_COMMENT",
+    "TYPE_COMMENT",
+    "COVERPOINT_COMMENT",
+    "CROSS_COMMENT",
+    "TYPE_COVERPOINT_COMMENT",
+    "TYPE_CROSS_COMMENT",
+    "PASSED"
+  ]
+}

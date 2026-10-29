@@ -128,9 +128,13 @@ def compare_files(log_path, gold_path):
     return True
 
 
-def run_cmd(cmd: list) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list, env: dict = None) -> subprocess.CompletedProcess:
     '''Run the given command'''
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         check=False, env=run_env)
     return res
 
 def build_vpi_modules(options: dict, it_key: str) -> list:
@@ -357,7 +361,7 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     # run the vvp command
     vvp_cmd = assemble_vvp_cmd(options, cfg)
-    vvp_res = run_cmd(vvp_cmd)
+    vvp_res = run_cmd(vvp_cmd, options.get('vvp_env'))
     log_results(it_key, "vvp", vvp_res)
 
     log_list = ["iverilog-stdout", "iverilog-stderr",
