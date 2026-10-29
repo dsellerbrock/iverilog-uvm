@@ -42150,6 +42150,15 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       return cov_named_eval_(e, values, out);
 }
 
+static int64_t cov_with_item_value_(uint64_t value, unsigned width,
+				    bool is_signed)
+{
+      if (is_signed && width > 0 && width < 64
+		  && (value & (UINT64_C(1) << (width - 1))))
+		value |= (~UINT64_C(0) << width);
+      return (int64_t)value;
+}
+
 void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 {
       if (constraints_elaborated_ || constraints_elaborating_ || !pclass)
@@ -45601,7 +45610,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (uint64_t v = r.first; evalok; v++) {
 						  int64_t res = 0;
 						  int rc = cov_with_eval_(bin.with_expr,
-									  (int64_t)v, res);
+						  cov_with_item_value_(v,
+							cp_value_width,
+							cp_value_signed), res);
 						  if (rc < 0) { evalok = false; break; }
 						  if (res != 0)
 							keep.push_back(std::make_pair(v, v));

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1427_with_signed_item.sv",
+  "iverilog-args": ["-g2023", "-s", "issue1427_with_signed_item"],
+  "output-contains": ["PASSED"]
+}
