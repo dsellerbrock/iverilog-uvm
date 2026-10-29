@@ -59,6 +59,67 @@
 
 using namespace std;
 
+static void sva_destroy_match_items_(std::vector<sva_match_item_t>&items);
+
+static bool sva_step_has_assignment_(const sva_seq_step_t&step)
+{
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		&& step.items[i].lv_rhs) return true;
+      return false;
+}
+
+static bool sva_step_has_call_(const sva_seq_step_t&step)
+{
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
+		&& step.items[i].call) return true;
+      return false;
+}
+
+static bool sva_step_has_selected_assignment_(const sva_seq_step_t&step)
+{
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		&& step.items[i].lv_rhs && step.items[i].lv_selected) return true;
+      return false;
+}
+
+static vector<sva_match_item_t*> sva_step_assignments_(sva_seq_step_t&step)
+{
+      vector<sva_match_item_t*> out;
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		&& step.items[i].lv_rhs) out.push_back(&step.items[i]);
+      return out;
+}
+
+static vector<const sva_match_item_t*> sva_step_assignments_(
+	const sva_seq_step_t&step)
+{
+      vector<const sva_match_item_t*> out;
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		&& step.items[i].lv_rhs) out.push_back(&step.items[i]);
+      return out;
+}
+
+static vector<const sva_match_item_t*> sva_step_calls_(
+	const sva_seq_step_t&step)
+{
+      vector<const sva_match_item_t*> out;
+      for (size_t i = 0; i < step.items.size(); i += 1)
+	    if (step.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
+		&& step.items[i].call) out.push_back(&step.items[i]);
+      return out;
+}
+
+unsigned pform_sva_new_first_match_group_id()
+{
+      static unsigned next = 1;
+      return next++;
+}
+
 /*
  * The "// synthesis translate_on/off" meta-comments cause this flag
  * to be turned off or on. The pform_make_behavior and similar
@@ -8589,26 +8650,20 @@ static void sva_destroy_match_call_(PCallTask*call)
       delete call;
 }
 
-static void sva_destroy_match_calls_(std::vector<PCallTask*>&calls)
-{
-      for (size_t i = 0 ; i < calls.size() ; i += 1)
-	    sva_destroy_match_call_(calls[i]);
-      calls.clear();
-}
-
 static void sva_decl_sequence_forget_sampled_(
 				const std::vector<sva_seq_step_t>*seq)
 {
       if (!seq) return;
       for (size_t i = 0 ; i < seq->size() ; i += 1) {
 	    sva_expr_forget_sampled_((*seq)[i].expr);
-	    sva_expr_forget_sampled_((*seq)[i].lv_rhs);
 	    sva_expr_forget_sampled_((*seq)[i].delay_lo_expr);
 	    sva_expr_forget_sampled_((*seq)[i].delay_hi_expr);
 	    sva_expr_forget_sampled_((*seq)[i].rep_lo_expr);
 	    sva_expr_forget_sampled_((*seq)[i].rep_hi_expr);
-	    for (size_t c = 0 ; c < (*seq)[i].match_calls.size() ; c += 1)
-		  sva_match_call_forget_sampled_((*seq)[i].match_calls[c]);
+	    for (size_t j = 0; j < (*seq)[i].items.size(); j += 1) {
+		  sva_expr_forget_sampled_((*seq)[i].items[j].lv_rhs);
+		  sva_match_call_forget_sampled_((*seq)[i].items[j].call);
+	    }
       }
 }
 
@@ -9359,7 +9414,10 @@ static bool sva_validate_sequence_local_visibility_(
 			plain = sva_resolve_(sva_module_sequences, name);
 		  if (plain == sva_module_sequences.end() || !plain->second) continue;
 		  for (const sva_seq_step_t&step : *plain->second)
-			if (step.lv_name != perm_string()) child_locals[step.lv_name] = 0;
+			for (size_t m = 0; m < step.items.size(); m += 1)
+			      if (step.items[m].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+				  && step.items[m].lv_name != perm_string())
+				    child_locals[step.items[m].lv_name] = 0;
 	    }
 	    for (size_t j = 0; j < steps.size(); ++j) {
 		  if (j == i) continue;
@@ -9422,7 +9480,10 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 
       if (steps) {
 	    for (const sva_seq_step_t&step : *steps)
-		  if (step.lv_name != perm_string()) caller_locals[step.lv_name] = 0;
+		  for (size_t m = 0; m < step.items.size(); m += 1)
+			if (step.items[m].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+			    && step.items[m].lv_name != perm_string())
+			      caller_locals[step.items[m].lv_name] = 0;
 	    if (!sva_validate_sequence_local_visibility_(loc, *steps,
 							 caller_locals)) {
 		  pform_sva_destroy_sequence(steps);
@@ -10095,6 +10156,18 @@ void pform_sva_add_local_formal(const char*name)
       sva_local_formal_names_.insert(lex_strings.make(name));
 }
 
+bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
+				     perm_string name)
+{
+      if (sva_local_decl_types_.count(name)
+	  || sva_local_formal_names_.count(name)) return true;
+      cerr << loc << ": sorry: sequence match-item lvalue `"
+	   << name << "' must be an assertion local variable (IEEE 1800 16.6)."
+	   << endl;
+      error_count += 1;
+      return false;
+}
+
 static PExpr* sva_local_dimension_width_(const struct vlltype&loc,
 					 PExpr*left, PExpr*right)
 {
@@ -10224,11 +10297,18 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 }
 
 PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
-					  const char*name, PExpr*rhs)
+						  const char*name, PExpr*rhs,
+						  bool require_declared)
 {
+      perm_string key = lex_strings.make(name);
       std::map<perm_string,sva_local_decl_type_t>::const_iterator it =
-	    sva_local_decl_types_.find(lex_strings.make(name));
-      if (it == sva_local_decl_types_.end()) return rhs;
+	    sva_local_decl_types_.find(key);
+      if (it == sva_local_decl_types_.end()) {
+	    if (!require_declared) return rhs;
+	    if (pform_sva_match_lvalue_declared(loc, key)) return rhs;
+	    delete rhs;
+	    return nullptr;
+      }
       PExpr*width = sva_clone_expr_(it->second.width);
       if (!width) {
 	    cerr << loc << ": sorry: assertion local variable `" << name
@@ -10410,19 +10490,39 @@ static PCallTask* sva_clone_match_call_(
       return out;
 }
 
-static bool sva_clone_match_calls_(
-      const std::vector<PCallTask*>&source,
-      std::vector<PCallTask*>&out,
-      const std::map<perm_string,PExpr*>*subst = nullptr)
+static void sva_destroy_match_items_(std::vector<sva_match_item_t>&items)
+{
+      for (size_t i = 0; i < items.size(); i += 1) {
+	    sva_expr_forget_sampled_(items[i].lv_rhs);
+	    delete items[i].lv_rhs;
+	    sva_destroy_match_call_(items[i].call);
+	    items[i].lv_rhs = nullptr;
+	    items[i].call = nullptr;
+      }
+      items.clear();
+}
+
+static bool sva_clone_match_items_(
+	const std::vector<sva_match_item_t>&source,
+	std::vector<sva_match_item_t>&out,
+	const std::map<perm_string,PExpr*>*subst = nullptr)
 {
       out.clear();
-      for (size_t i = 0 ; i < source.size() ; i += 1) {
-	    PCallTask*copy = sva_clone_match_call_(source[i], subst);
-	    if (!copy) {
-		  sva_destroy_match_calls_(out);
+      for (size_t i = 0; i < source.size(); i += 1) {
+	    sva_match_item_t item = source[i];
+	    item.lv_rhs = source[i].lv_rhs
+		  ? sva_clone_subst_(source[i].lv_rhs, subst) : nullptr;
+	    item.call = source[i].call
+		  ? sva_clone_match_call_(source[i].call, subst) : nullptr;
+	    if ((source[i].lv_rhs && !item.lv_rhs)
+		|| (source[i].call && !item.call)) {
+		  sva_expr_forget_sampled_(item.lv_rhs);
+		  delete item.lv_rhs;
+		  sva_destroy_match_call_(item.call);
+		  sva_destroy_match_items_(out);
 		  return false;
 	    }
-	    out.push_back(copy);
+	    out.push_back(item);
       }
       return true;
 }
@@ -11548,17 +11648,18 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    FILE_NAME(typed, loc);
 	    sva_seq_step_t init;
 	    init.expr = sva_bit_(loc, 1);
-	    init.lv_name = local_name;
-	    init.lv_rhs = typed;
+	    sva_match_item_t item;
+	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	    item.lv_name = local_name;
+	    item.lv_rhs = typed;
+	    init.items.push_back(item);
 	    initializers.push_back(init);
       }
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
-	    st.match_calls.clear();
+	    st.items.clear();
 	    st.expr = sva_clone_subst_((*decl.body)[k].expr, &subst);
-	    st.lv_rhs = (*decl.body)[k].lv_rhs
-		? sva_clone_subst_((*decl.body)[k].lv_rhs, &subst) : nullptr;
 	    st.delay_lo_expr = (*decl.body)[k].delay_lo_expr
 		? sva_clone_subst_((*decl.body)[k].delay_lo_expr, &subst) : nullptr;
 	    st.delay_hi_expr = (*decl.body)[k].delay_hi_expr
@@ -11567,8 +11668,8 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		? sva_clone_subst_((*decl.body)[k].rep_lo_expr, &subst) : nullptr;
 	    st.rep_hi_expr = (*decl.body)[k].rep_hi_expr
 		? sva_clone_subst_((*decl.body)[k].rep_hi_expr, &subst) : nullptr;
-	    bool calls_ok = sva_clone_match_calls_(
-		  (*decl.body)[k].match_calls, st.match_calls, &subst);
+	    bool items_ok = sva_clone_match_items_(
+		  (*decl.body)[k].items, st.items, &subst);
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.8 permits `$` as an untyped actual when its
 	       substituted reference is a delay upper bound. Resolve formal-backed
@@ -11596,24 +11697,23 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		delay_range_resolved = true;
 	      }
 	    }
-	    if (!st.expr || ((*decl.body)[k].lv_rhs && !st.lv_rhs)
+	    if (!st.expr
 		|| (!delay_range_resolved
 		    && (((*decl.body)[k].delay_lo_expr && !st.delay_lo_expr)
 			|| ((*decl.body)[k].delay_hi_expr && !st.delay_hi_expr)))
 		|| ((*decl.body)[k].rep_lo_expr && !st.rep_lo_expr)
 		|| ((*decl.body)[k].rep_hi_expr && !st.rep_hi_expr)
-		|| !calls_ok) {
+		|| !items_ok) {
 		  cerr << loc << ": sorry: sequence `" << nm << "' has a body "
 		       << "expression that cannot be instantiated with "
 		       << "arguments; the assertion is dropped." << endl;
 		  error_count += 1;
 		  delete st.expr;
-		  delete st.lv_rhs;
 		  delete st.delay_lo_expr;
 		  delete st.delay_hi_expr;
 		  delete st.rep_lo_expr;
 		  delete st.rep_hi_expr;
-		  sva_destroy_match_calls_(st.match_calls);
+		  sva_destroy_match_items_(st.items);
 		  pform_sva_destroy_sequence(out);
 		  pform_sva_destroy_sequence(&initializers);
 		  for (PExpr*expr : owned_subst) delete expr;
@@ -11638,10 +11738,8 @@ sva_clone_steps_subst_(const struct vlltype&loc,
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
       for (size_t k = 0 ; k < in->size() ; k += 1) {
 	    sva_seq_step_t st = (*in)[k];
-	    st.match_calls.clear();
+	    st.items.clear();
 	    st.expr = sva_clone_subst_((*in)[k].expr, &subst);
-	    st.lv_rhs = (*in)[k].lv_rhs
-		? sva_clone_subst_((*in)[k].lv_rhs, &subst) : nullptr;
 	    st.delay_lo_expr = (*in)[k].delay_lo_expr
 		? sva_clone_subst_((*in)[k].delay_lo_expr, &subst) : nullptr;
 	    st.delay_hi_expr = (*in)[k].delay_hi_expr
@@ -11650,8 +11748,8 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		? sva_clone_subst_((*in)[k].rep_lo_expr, &subst) : nullptr;
 	    st.rep_hi_expr = (*in)[k].rep_hi_expr
 		? sva_clone_subst_((*in)[k].rep_hi_expr, &subst) : nullptr;
-	    bool calls_ok = sva_clone_match_calls_(
-		  (*in)[k].match_calls, st.match_calls, &subst);
+	    bool items_ok = sva_clone_match_items_(
+		  (*in)[k].items, st.items, &subst);
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.12 permits `$' as an untyped property
 	       actual when its substituted reference is a delay upper bound. */
@@ -11677,20 +11775,19 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		delay_range_resolved = true;
 	      }
 	    }
-	    if (!st.expr || ((*in)[k].lv_rhs && !st.lv_rhs)
+	    if (!st.expr
 		|| (!delay_range_resolved
 		    && (((*in)[k].delay_lo_expr && !st.delay_lo_expr)
 			|| ((*in)[k].delay_hi_expr && !st.delay_hi_expr)))
 		|| ((*in)[k].rep_lo_expr && !st.rep_lo_expr)
 		|| ((*in)[k].rep_hi_expr && !st.rep_hi_expr)
-		|| !calls_ok) {
+		|| !items_ok) {
 		  delete st.expr;
-		  delete st.lv_rhs;
 		  delete st.delay_lo_expr;
 		  delete st.delay_hi_expr;
 		  delete st.rep_lo_expr;
 		  delete st.rep_hi_expr;
-		  sva_destroy_match_calls_(st.match_calls);
+		  sva_destroy_match_items_(st.items);
 		  pform_sva_destroy_sequence(out);
 		  (void)loc;
 		  return nullptr;
@@ -15229,6 +15326,17 @@ void pform_flush_pending_sampled_calls()
       pform_make_sampled_history_process_(loc, evs, post, init);
 }
 
+static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
+{
+      std::map<unsigned,unsigned> remap;
+      for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    unsigned old = steps[i].fm_group;
+	    if (!steps[i].fm || old == 0) continue;
+	    if (!remap.count(old)) remap[old] = pform_sva_new_first_match_group_id();
+	    steps[i].fm_group = remap[old];
+      }
+}
+
 /* Substitute named sequence references: a step whose expression is a
    bare identifier naming a declared sequence splices that sequence's
    steps (first spliced delay adds the step's own delay). */
@@ -15266,14 +15374,14 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    sva_instantiate_seq_(loc, nm, pit->second,
 							 cf->get_parms());
 			      if (inst) {
+				sva_retag_first_match_groups_(*inst);
 				    if (!inst->empty()) {
 					  (*inst)[0].delay_lo += steps[i].delay_lo;
 					  (*inst)[0].delay_hi += steps[i].delay_hi;
-					  (*inst)[inst->size()-1].match_calls.insert(
-						(*inst)[inst->size()-1].match_calls.end(),
-						steps[i].match_calls.begin(),
-						steps[i].match_calls.end());
-					  steps[i].match_calls.clear();
+					  (*inst)[inst->size()-1].items.insert(
+						(*inst)[inst->size()-1].items.end(),
+						steps[i].items.begin(), steps[i].items.end());
+					  steps[i].items.clear();
 				    }
 				    sva_splice_sequences_(loc, *inst, scope);
                                     active.erase(pit->first);
@@ -15310,9 +15418,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    std::vector<sva_seq_step_t> body;
 	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
 		  sva_seq_step_t st = (*seq_it->second)[k];
-		  st.match_calls.clear();
+		  st.items.clear();
 		  PExpr*cp = sva_clone_expr_(st.expr);
-		  PExpr*lv_cp = st.lv_rhs ? sva_clone_expr_(st.lv_rhs) : nullptr;
 		  PExpr*dlo_cp = st.delay_lo_expr
 			? sva_clone_expr_(st.delay_lo_expr) : nullptr;
 		  PExpr*dhi_cp = st.delay_hi_expr
@@ -15321,27 +15428,24 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			? sva_clone_expr_(st.rep_lo_expr) : nullptr;
 		  PExpr*rhi_cp = st.rep_hi_expr
 			? sva_clone_expr_(st.rep_hi_expr) : nullptr;
-		  bool calls_ok = sva_clone_match_calls_(
-			(*seq_it->second)[k].match_calls, st.match_calls);
-		  bool had_lv = st.lv_name != perm_string();
-		  if (!cp || (had_lv && !lv_cp)
+		  bool items_ok = sva_clone_match_items_(
+			(*seq_it->second)[k].items, st.items);
+		  bool had_items = !(*seq_it->second)[k].items.empty();
+		  if (!cp || (had_items && !items_ok)
 		      || (st.delay_lo_expr && !dlo_cp)
 		      || (st.delay_hi_expr && !dhi_cp)
 		      || (st.rep_lo_expr && !rlo_cp)
-		      || (st.rep_hi_expr && !rhi_cp) || !calls_ok) {
+			  || (st.rep_hi_expr && !rhi_cp) || !items_ok) {
 			  /* consume-once: move the tree and drop the
 			     declaration so a second use is diagnosed */
 			delete cp;
-			delete lv_cp;
 			delete dlo_cp;
 			delete dhi_cp;
 			delete rlo_cp;
 			delete rhi_cp;
-			sva_destroy_match_calls_(st.match_calls);
+			sva_destroy_match_items_(st.items);
 			cp = st.expr;
 			(*seq_it->second)[k].expr = nullptr;
-			lv_cp = st.lv_rhs;
-			(*seq_it->second)[k].lv_rhs = nullptr;
 			dlo_cp = st.delay_lo_expr;
 			(*seq_it->second)[k].delay_lo_expr = nullptr;
 			dhi_cp = st.delay_hi_expr;
@@ -15350,14 +15454,14 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			(*seq_it->second)[k].rep_lo_expr = nullptr;
 			rhi_cp = st.rep_hi_expr;
 			(*seq_it->second)[k].rep_hi_expr = nullptr;
-			st.match_calls.swap((*seq_it->second)[k].match_calls);
-			calls_ok = true;
+			st.items.swap((*seq_it->second)[k].items);
+			items_ok = true;
 		  }
-		  if (!cp || (had_lv && !lv_cp)
+		  if (!cp || (had_items && !items_ok)
 		      || (st.delay_lo_expr && !dlo_cp)
 		      || (st.delay_hi_expr && !dhi_cp)
 		      || (st.rep_lo_expr && !rlo_cp)
-		      || (st.rep_hi_expr && !rhi_cp) || !calls_ok) {
+			  || (st.rep_hi_expr && !rhi_cp) || !items_ok) {
 			cerr << loc << ": error: sequence `"
 			     << seq_it->first.name << "' was already "
 			     << "instantiated and its body cannot be "
@@ -15366,8 +15470,6 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			error_count += 1;
 			i += 1;
 			cp = sva_bit_(loc, 1);
-			delete lv_cp;
-			lv_cp = nullptr;
 			delete dlo_cp;
 			delete dhi_cp;
 			dlo_cp = nullptr;
@@ -15376,11 +15478,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			delete rhi_cp;
 			rlo_cp = nullptr;
 			rhi_cp = nullptr;
-			sva_destroy_match_calls_(st.match_calls);
-			st.lv_name = perm_string();
+			sva_destroy_match_items_(st.items);
 		  }
 		  st.expr = cp;
-		  st.lv_rhs = lv_cp;
 		  st.delay_lo_expr = dlo_cp;
 		  st.delay_hi_expr = dhi_cp;
 		  st.rep_lo_expr = rlo_cp;
@@ -15391,10 +15491,11 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 		  body.push_back(st);
 	    }
-	    if (!body.empty() && !steps[i].match_calls.empty()) {
-		  body.back().match_calls.insert(body.back().match_calls.end(),
-			steps[i].match_calls.begin(), steps[i].match_calls.end());
-		  steps[i].match_calls.clear();
+	    sva_retag_first_match_groups_(body);
+	    if (!body.empty() && !steps[i].items.empty()) {
+		  body.back().items.insert(body.back().items.end(),
+			steps[i].items.begin(), steps[i].items.end());
+		  steps[i].items.clear();
 	    }
 	    // This body has no substituted actuals: its nested sequence names
             // belong to the alias declaration, not the caller's generate.
@@ -15437,7 +15538,7 @@ pform_sva_repeat(const struct vlltype&loc,
       }
 
       for (size_t i = 0 ; i < steps->size() ; i += 1)
-	    if (!(*steps)[i].match_calls.empty()) {
+	    if (sva_step_has_call_((*steps)[i])) {
 		  /* Keep the parsed call on the step, but mark the repeated shape
 		     unsupported so the 16.11 validator emits its one targeted
 		     diagnostic instead of letting expansion duplicate/drop it. */
@@ -15456,7 +15557,8 @@ pform_sva_repeat(const struct vlltype&loc,
 	   unsupported operand/property shapes retain a loud diagnostic. */
       if (symbolic) {
 	    bool plain_bool = steps->size() == 1
-		&& !(*steps)[0].lv_rhs && (*steps)[0].match_calls.empty()
+		&& !sva_step_has_assignment_((*steps)[0])
+		&& !sva_step_has_call_((*steps)[0])
 		&& (*steps)[0].rep_kind == 0
 		&& (*steps)[0].rep_tail == 0
 		&& (*steps)[0].delay_lo == 0 && (*steps)[0].delay_hi == 0;
@@ -15569,7 +15671,8 @@ pform_sva_repeat(const struct vlltype&loc,
 	   repetition of only its final term after ordinary chain expansion. */
 	if (!unbounded && hiv != lov) {
 	    bool plain_bool = steps->size() == 1
-		&& !(*steps)[0].lv_rhs && (*steps)[0].match_calls.empty()
+		&& !sva_step_has_assignment_((*steps)[0])
+		&& !sva_step_has_call_((*steps)[0])
 		&& (*steps)[0].rep_kind == 0
 		&& (*steps)[0].rep_tail == 0
 		&& (*steps)[0].delay_lo == 0 && (*steps)[0].delay_hi == 0;
@@ -15585,7 +15688,8 @@ pform_sva_repeat(const struct vlltype&loc,
 	   empty Boolean sequence and needs the same explicit representation. */
 	if (lov == 0) {
 	    bool plain_bool = steps->size() == 1
-		&& !(*steps)[0].lv_rhs && (*steps)[0].match_calls.empty()
+		&& !sva_step_has_assignment_((*steps)[0])
+		&& !sva_step_has_call_((*steps)[0])
 		&& (*steps)[0].rep_kind == 0
 		&& (*steps)[0].rep_tail == 0
 		&& (*steps)[0].delay_lo == 0 && (*steps)[0].delay_hi == 0;
@@ -15609,19 +15713,10 @@ pform_sva_repeat(const struct vlltype&loc,
 			(*steps)[0].delay_lo = -3;
 			return steps;
 		  }
-		    /* A local-variable assignment rides on the step as a
-		       raw owned pointer; the shallow copy above aliased it
-		       across every repetition and the local-var lowering
-		       then freed it once per alias -- a double-free
-		       SIGSEGV for `(a, v=d)[*2]' (recovery C5). Each
-		       repetition owns its own clone, so the assignment
-		       re-executes per iteration (16.9.2 expansion). */
-		  if (base[k].lv_rhs) {
-			st.lv_rhs = sva_clone_expr_(base[k].lv_rhs);
-			if (!st.lv_rhs) {
-			      (*steps)[0].delay_lo = -3;
-			      return steps;
-			}
+		  st.items.clear();
+		  if (!sva_clone_match_items_(base[k].items, st.items)) {
+			(*steps)[0].delay_lo = -3;
+			return steps;
 		  }
 		  if (k == 0) {
 			st.delay_lo = 1;
@@ -15669,8 +15764,8 @@ pform_sva_goto_repeat(const struct vlltype&loc,
 	/* Boolean-operand restriction: exactly one plain step, no local
 	   variable, no existing repetition/delay shape. */
       bool ok = (steps->size() == 1)
-		&& !(*steps)[0].lv_rhs
-		&& (*steps)[0].match_calls.empty()
+		&& !sva_step_has_assignment_((*steps)[0])
+		&& !sva_step_has_call_((*steps)[0])
 		&& (*steps)[0].rep_kind == 0
 		&& (*steps)[0].rep_tail == 0
 		&& (*steps)[0].delay_lo >= 0
@@ -15871,7 +15966,7 @@ static unsigned sva_chain_local_assignment_count_(
       unsigned count = 0;
       if (!seq) return count;
       for (size_t i = 0 ; i < seq->size() ; i += 1)
-	    if ((*seq)[i].lv_rhs) count += 1;
+	    count += sva_step_assignments_((*seq)[i]).size();
       return count;
 }
 
@@ -15915,19 +16010,22 @@ pform_sva_intersect(const struct vlltype&loc,
       PExpr*local_rhs = nullptr;
       bool local_selected = false;
       long local_offset = 0;
-      if (local_count == 1) {
+	    if (local_count == 1) {
 	    std::vector<sva_seq_step_t>*owner =
 		  sva_chain_local_assignment_count_(s1) ? s1 : s2;
 	    long offset = 0;
 	    for (size_t i = 0 ; i < owner->size() ; i += 1) {
 		  sva_seq_step_t&st = (*owner)[i];
 		  offset += st.delay_lo;
-		  if (!st.lv_rhs) continue;
-		  local_name = st.lv_name;
-		  local_rhs = st.lv_rhs;
-		  local_selected = st.lv_selected;
+		  vector<sva_match_item_t*> assignments = sva_step_assignments_(st);
+		  if (assignments.empty()) continue;
+		  sva_match_item_t*item = assignments.front();
+		  local_name = item->lv_name;
+		  local_rhs = item->lv_rhs;
+		  local_selected = item->lv_selected;
 		  local_offset = offset;
-		  st.lv_rhs = nullptr;
+		  item->lv_rhs = nullptr;
+		  item->lv_name = perm_string();
 		  break;
 	    }
       }
@@ -15971,9 +16069,12 @@ pform_sva_intersect(const struct vlltype&loc,
 	    st.rep_tail = 0;
 	    st.expr = ex;
 	    if ((long)k == local_offset && local_rhs) {
-		  st.lv_name = local_name;
-		  st.lv_rhs = local_rhs;
-		  st.lv_selected = local_selected;
+		  sva_match_item_t item;
+		  item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+		  item.lv_name = local_name;
+		  item.lv_rhs = local_rhs;
+		  item.lv_selected = local_selected;
+		  st.items.push_back(item);
 		  local_rhs = nullptr;
 	    }
 	    out->push_back(st);
@@ -16040,7 +16141,8 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 	  && !sub->ante_tree && sub->seq && sub->seq->size() == 1
 	  && (*sub->seq)[0].delay_lo == 0 && (*sub->seq)[0].delay_hi == 0
 	  && (*sub->seq)[0].rep_tail == 0 && (*sub->seq)[0].rep_kind == 0
-	  && !(*sub->seq)[0].lv_rhs && !sub->clk_evt && !sub->seq_clk_evt
+	  && !sva_step_has_assignment_((*sub->seq)[0])
+	  && !sub->clk_evt && !sub->seq_clk_evt
 	  && !sub->mc_prefix && sub->mc_boundary == -1
 	  && !sub->disable_iff_expr) {
 	    sva_seq_step_t&st = (*sub->seq)[0];
@@ -17213,10 +17315,11 @@ static bool sva_nfa_unique_wait_implication_(
       const sva_seq_step_t&term = ante[wi + 1];
       if (wait.delay_lo != 0 || wait.delay_hi != 0
 	  || wait.rep_kind != 3 || wait.rep_lo != 0 || wait.rep_hi != -1
-	  || wait.rep_tail != 0 || wait.lv_rhs || !wait.match_calls.empty()
+	  || wait.rep_tail != 0 || sva_step_has_assignment_(wait)
+	  || sva_step_has_call_(wait)
 	  || term.delay_lo != 1 || term.delay_hi != 1
-	  || term.rep_kind != 0 || term.rep_tail != 0 || term.lv_rhs
-	  || !term.match_calls.empty()
+	  || term.rep_kind != 0 || term.rep_tail != 0
+	  || sva_step_has_assignment_(term) || sva_step_has_call_(term)
 	  || !sva_simple_complements_(wait.expr, term.expr))
 	    return false;
 
@@ -17224,14 +17327,14 @@ static bool sva_nfa_unique_wait_implication_(
 	    const sva_seq_step_t&st = ante[i];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
 		|| st.rep_kind != 0 || st.rep_tail != 0
-		|| !st.match_calls.empty())
+		|| sva_step_has_call_(st))
 		  return false;
       }
 
       const sva_seq_step_t&cs = conseq.front();
       return cs.delay_lo == 0 && cs.delay_hi == 0
-	  && cs.rep_kind == 0 && cs.rep_tail == 0 && !cs.lv_rhs
-	  && cs.match_calls.empty();
+	  && cs.rep_kind == 0 && cs.rep_tail == 0
+	  && !sva_step_has_assignment_(cs) && !sva_step_has_call_(cs);
 }
 
 /* Would the legacy linear engine lower this chain without a sorry?
@@ -17289,7 +17392,7 @@ static bool sva_chain_has_match_calls_(
 {
       if (!steps) return false;
       for (size_t i = 0 ; i < steps->size() ; i += 1)
-	    if (!(*steps)[i].match_calls.empty()) return true;
+	    if (sva_step_has_call_((*steps)[i])) return true;
       return false;
 }
 
@@ -17358,12 +17461,23 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 		  "require a nonempty flat sequence");
 
       for (size_t i = 0 ; i + 1 < prop->seq->size() ; i += 1)
-	    if (!(*prop->seq)[i].match_calls.empty())
+	    if (sva_step_has_call_((*prop->seq)[i]))
 		  return sva_match_item_sorry_(loc,
 			"are currently supported only on the final sequence step");
-      if (prop->seq->back().match_calls.empty())
+	if (!sva_step_has_call_(prop->seq->back()))
 	    return sva_match_item_sorry_(loc,
 		  "outside the main sequence are not supported yet");
+
+	/* A ranged first_match needs to suppress calls attached to later
+	   endpoints. The NFA cut path does not gate those actions yet. */
+      for (size_t i = 0 ; i < prop->seq->size() ; i += 1) {
+	    const sva_seq_step_t&st = (*prop->seq)[i];
+	    if (sva_step_has_call_(st) && st.fm_group != 0
+		&& pform_sva_first_match_group_class(*prop->seq, st.fm_group)
+		   == SVA_FIRST_MATCH_CUT)
+		  return sva_match_item_sorry_(loc,
+			"on variable-length `first_match' operands are not supported yet");
+      }
 
 	/* Finite ranged delays are represented by distinct NFA paths, so the
 	   action can run at each accepting endpoint. Keep the current bounded
@@ -17371,18 +17485,19 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	   separate finite-attempt-pool limit. */
       for (size_t i = 0 ; i < prop->seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*prop->seq)[i];
-	    if (generation_flag < GN_VER2017 && st.delay_lo != st.delay_hi)
+	    if (st.delay_lo != st.delay_hi)
 		  return sva_match_item_sorry_(loc,
-			"currently require a fixed-length sequence with no repetition");
+			"on variable-length sequences are not supported yet");
 	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
 		|| st.rep_tail != 0 || st.rep_kind != 0)
 		  return sva_match_item_sorry_(loc,
 			"currently require finite delays with no repetition");
       }
 
-      const std::vector<PCallTask*>&calls = prop->seq->back().match_calls;
-      for (size_t i = 0 ; i < calls.size() ; i += 1)
-	    if (!sva_match_call_is_direct_(calls[i], kind == 2))
+	  const sva_seq_step_t&last = prop->seq->back();
+	  for (size_t i = 0 ; i < last.items.size() ; i += 1)
+	    if (last.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
+		&& !sva_match_call_is_direct_(last.items[i].call, kind == 2))
 		  return sva_match_item_sorry_(loc,
 			"currently support only direct $display calls or "
 			"zero-argument user calls in a cover property");
@@ -17403,18 +17518,16 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
 			  // Forget before free -- see the note in
 			  // sva_expr_forget_sampled_.
 			sva_expr_forget_sampled_((*t->chain)[k].expr);
-			sva_expr_forget_sampled_((*t->chain)[k].lv_rhs);
+			sva_destroy_match_items_((*t->chain)[k].items);
 			sva_expr_forget_sampled_((*t->chain)[k].delay_lo_expr);
 			sva_expr_forget_sampled_((*t->chain)[k].delay_hi_expr);
 			sva_expr_forget_sampled_((*t->chain)[k].rep_lo_expr);
 			sva_expr_forget_sampled_((*t->chain)[k].rep_hi_expr);
 			delete (*t->chain)[k].expr;
-			delete (*t->chain)[k].lv_rhs;
 			delete (*t->chain)[k].delay_lo_expr;
 			delete (*t->chain)[k].delay_hi_expr;
 			delete (*t->chain)[k].rep_lo_expr;
 			delete (*t->chain)[k].rep_hi_expr;
-			sva_destroy_match_calls_((*t->chain)[k].match_calls);
 		  }
 	    delete t->chain;
       }
@@ -17458,18 +17571,16 @@ void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq)
 	      // this tree BEFORE freeing it, or the endmodule flush will
 	      // read a dangling pointer.
 	    sva_expr_forget_sampled_((*seq)[k].expr);
-	    sva_expr_forget_sampled_((*seq)[k].lv_rhs);
+	    sva_destroy_match_items_((*seq)[k].items);
 	    sva_expr_forget_sampled_((*seq)[k].delay_lo_expr);
 	    sva_expr_forget_sampled_((*seq)[k].delay_hi_expr);
 	    sva_expr_forget_sampled_((*seq)[k].rep_lo_expr);
 	    sva_expr_forget_sampled_((*seq)[k].rep_hi_expr);
 	    delete (*seq)[k].expr;
-	    delete (*seq)[k].lv_rhs;
 	    delete (*seq)[k].delay_lo_expr;
 	    delete (*seq)[k].delay_hi_expr;
 	    delete (*seq)[k].rep_lo_expr;
 	    delete (*seq)[k].rep_hi_expr;
-	    sva_destroy_match_calls_((*seq)[k].match_calls);
       }
       delete seq;
 }
@@ -18820,7 +18931,8 @@ sva_property_t* pform_sva_seq_throughout(const struct vlltype&loc,
 	 name from the later ordinary sequence splicer and elaborate it as a wire. */
       if (seq->size() == 1 && (*seq)[0].delay_lo == 0
 	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0
-	  && (*seq)[0].rep_kind == 0 && !(*seq)[0].lv_rhs) {
+	  && (*seq)[0].rep_kind == 0
+	  && !sva_step_has_assignment_((*seq)[0])) {
 	    PEIdent*id = dynamic_cast<PEIdent*>((*seq)[0].expr);
 	    if (id && !id->path().package && id->path().name.size() == 1
 		&& id->path().name.front().index.empty()) {
@@ -19286,6 +19398,23 @@ static bool sva_nfa_dependent_rhs_substitutable_(
    SEQ_CONCAT topology might have a provable prefix. Keeping the admission
    rule syntactic and narrow prevents a branch-local write from overwriting a
    value already snapshotted by an earlier endpoint. */
+static bool sva_first_match_assign_ambiguous_(
+			       const std::vector<sva_seq_step_t>&steps)
+{
+      for (size_t i = 0; i < steps.size(); i += 1) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (!sva_step_has_assignment_(st) || !st.fm || st.fm_group == 0
+		|| pform_sva_first_match_group_class(steps, st.fm_group)
+		   != SVA_FIRST_MATCH_CUT)
+		  continue;
+	    for (size_t j = i + 1; j < steps.size(); j += 1)
+		  if (steps[j].fm_group == st.fm_group
+		      && steps[j].delay_lo != steps[j].delay_hi)
+			return true;
+      }
+      return false;
+}
+
 static bool sva_nfa_local_prefix_safe_(
 			       const sva_stree_t*tree,
 			       std::map<perm_string,unsigned>&assignments,
@@ -19305,7 +19434,8 @@ static bool sva_nfa_local_prefix_safe_(
 		  if (cur->kind == sva_stree_t::LEAF) {
 			if (!cur->chain) continue;
 			for (size_t i = 0 ; i < cur->chain->size() ; i += 1)
-			      if ((*cur->chain)[i].lv_rhs) return false;
+			      if (sva_step_has_assignment_((*cur->chain)[i]))
+				    return false;
 		  } else {
 			pending.push_back(cur->a);
 			pending.push_back(cur->b);
@@ -19321,10 +19451,23 @@ static bool sva_nfa_local_prefix_safe_(
 	    bool deterministic_step = st.delay_lo >= 0
 		  && st.delay_lo == st.delay_hi && st.rep_tail == 0
 		  && st.rep_kind == 0;
-	    if (st.lv_rhs) {
-		  if (!deterministic_prefix || !deterministic_step
-		      || (assignments.count(st.lv_name)
-			  && assignments[st.lv_name] != 0))
+	    bool cut_exit = st.fm && st.fm_group != 0
+		  && pform_sva_first_match_group_class(*tree->chain, st.fm_group)
+		     == SVA_FIRST_MATCH_CUT;
+	    if (cut_exit)
+		  for (size_t j = i + 1 ; j < tree->chain->size() ; j += 1)
+			if ((*tree->chain)[j].fm_group == st.fm_group) {
+			      cut_exit = false;
+			      break;
+			}
+	    std::map<perm_string,unsigned>assigned_here;
+	    for (size_t m = 0 ; m < st.items.size() ; m += 1) {
+		  const sva_match_item_t&item = st.items[m];
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || !item.lv_rhs) continue;
+		  if ((!deterministic_prefix || !deterministic_step) && !cut_exit
+		      || (assignments.count(item.lv_name)
+			  && assignments[item.lv_name] != 0))
 			return false;
 
 		  bool dependent_rhs = false;
@@ -19332,7 +19475,7 @@ static bool sva_nfa_local_prefix_safe_(
 			 locals.begin() ; it != locals.end(); ++it) {
 			std::map<perm_string,unsigned>one;
 			one[it->first] = 0;
-			if (!sva_expr_reads_lv_(st.lv_rhs, one)) continue;
+			if (!sva_expr_reads_lv_(item.lv_rhs, one)) continue;
 			dependent_rhs = true;
 			std::map<perm_string,unsigned>::const_iterator prior =
 			      assignments.find(it->first);
@@ -19342,29 +19485,28 @@ static bool sva_nfa_local_prefix_safe_(
 			}
 		  }
 		  if (dependent_rhs
-		      && !sva_nfa_dependent_rhs_substitutable_(st.lv_rhs,
+		      && !sva_nfa_dependent_rhs_substitutable_(item.lv_rhs,
 							  locals)) {
 			dependent_rhs_unsupported = true;
 			return false;
 		  }
-		  assignments[st.lv_name] = 1;
-
-		  /* Match-item assignments precede a following ##0 expression
-		     semantically, but the bitset advance computes every guard before
-		     it commits a local capture. Until that ordering is represented
-		     explicitly, refuse a same-edge continuation that can read the
-		     newly assigned local instead of silently observing its old value. */
-		  std::map<perm_string,unsigned>assigned_here;
-		  assigned_here[st.lv_name] = 0;
-		  for (size_t j = i + 1 ; j < tree->chain->size() ; j += 1) {
-			const sva_seq_step_t&next = (*tree->chain)[j];
-			if (next.delay_lo != 0) break;
-			if (sva_expr_reads_lv_(next.expr, assigned_here)
-			    || sva_expr_reads_lv_(next.lv_rhs, assigned_here)) {
+		  assignments[item.lv_name] = 1;
+		  assigned_here[item.lv_name] = 0;
+	    }
+	    for (size_t j = i + 1 ; !assigned_here.empty()
+		 && j < tree->chain->size() ; j += 1) {
+		  const sva_seq_step_t&next = (*tree->chain)[j];
+		  if (next.delay_lo != 0) break;
+		  if (sva_expr_reads_lv_(next.expr, assigned_here)) {
+			zero_inclusive_read = true;
+			return false;
+		  }
+		  for (size_t m = 0 ; m < next.items.size() ; m += 1)
+			if (next.items[m].kind == sva_match_item_t::LOCAL_ASSIGNMENT
+			    && sva_expr_reads_lv_(next.items[m].lv_rhs, assigned_here)) {
 			      zero_inclusive_read = true;
 			      return false;
 			}
-		  }
 	    }
 	    if (!deterministic_step) deterministic_prefix = false;
       }
@@ -19502,19 +19644,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	 Preponed expression now. If any argument cannot be represented, return
 	 before synthesizing state; the caller emits the one targeted fallback
 	 diagnostic instead of silently running the legacy engine. */
-      const std::vector<PCallTask*>*match_calls = nullptr;
+      std::vector<const sva_match_item_t*> match_calls;
       if (!have_tree && !implication && prop->seq
-	  && !prop->seq->empty() && !prop->seq->back().match_calls.empty())
-	    match_calls = &prop->seq->back().match_calls;
-      bool preserve_match_endpoints = match_calls != nullptr;
+	  && !prop->seq->empty())
+	    match_calls = sva_step_calls_(prop->seq->back());
+	  bool preserve_match_endpoints = !match_calls.empty();
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
       std::vector< std::vector<named_pexpr_t> > match_args;
-      if (match_calls) {
-	    match_args.resize(match_calls->size());
-	    for (size_t c = 0 ; c < match_calls->size() ; c += 1) {
+	  if (!match_calls.empty()) {
+	    match_args.resize(match_calls.size());
+	    for (size_t c = 0 ; c < match_calls.size() ; c += 1) {
 		  const std::vector<named_pexpr_t>&source =
-			(*match_calls)[c]->parms();
+			match_calls[c]->call->parms();
 		  for (size_t a = 0 ; a < source.size() ; a += 1) {
 			named_pexpr_t arg;
 			arg.name = source[a].name;
@@ -19551,6 +19693,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<perm_string> lv_list;
       std::vector<PExpr*> lv_rhs_expr;     // per lv: rhs (borrowed)
       std::vector<PExpr*> lv_gate_expr;    // per lv: assigning-step gate (borrowed)
+      bool lv_dup_in_chain = false;
+      bool fm_ambiguous_assignment = false;
       {
 	    std::vector<const std::vector<sva_seq_step_t>*> sources;
 	    if (have_tree) {
@@ -19564,18 +19708,37 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			sources.push_back(&chain);
 		  }
 	    }
-	    for (size_t vi = 0 ; vi < sources.size() ; vi += 1)
-	      for (size_t si = 0 ; si < sources[vi]->size() ; si += 1) {
+	    for (size_t vi = 0 ; vi < sources.size() ; vi += 1) {
+		  if (sva_first_match_assign_ambiguous_(*sources[vi]))
+			fm_ambiguous_assignment = true;
+		  std::set<perm_string> seen_in_source;
+		  for (size_t si = 0 ; si < sources[vi]->size() ; si += 1) {
 			const sva_seq_step_t&st = (*sources[vi])[si];
-			if (!st.lv_rhs) continue;
-			perm_string nm = st.lv_name;
-			if (!lv_index.count(nm)) {
-			      lv_index[nm] = (unsigned)lv_list.size();
-			      lv_list.push_back(nm);
-			      lv_rhs_expr.push_back(st.lv_rhs);
-			      lv_gate_expr.push_back(st.expr);
+			for (size_t m = 0 ; m < st.items.size() ; m += 1) {
+			      const sva_match_item_t&item = st.items[m];
+			      if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+				  || !item.lv_rhs) continue;
+			      perm_string nm = item.lv_name;
+			      if (!seen_in_source.insert(nm).second)
+				    lv_dup_in_chain = true;
+			      if (!lv_index.count(nm)) {
+				    lv_index[nm] = (unsigned)lv_list.size();
+				    lv_list.push_back(nm);
+				    lv_rhs_expr.push_back(item.lv_rhs);
+				    lv_gate_expr.push_back(st.expr);
+			      }
 			}
 	      }
+	    }
+      }
+      if (lv_dup_in_chain) {
+	    /* The NFA has one carrier per local, so later writes would be dropped. */
+	    prop->tree_sorry = 6;
+	    return false;
+      }
+      if (fm_ambiguous_assignment) {
+	    prop->tree_sorry = 10;
+	    return false;
       }
       bool has_lv = !lv_list.empty();
 	/* Declaration identity is broader than storage identity. `lv_index'
@@ -19864,9 +20027,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   ahead of the user's pass action; cover match calls run at their
 	   accepted sequence endpoints. */
       Statement*match_action = nullptr;
-      if (match_calls) {
+	if (!match_calls.empty()) {
 	    std::vector<Statement*>actions;
-	    for (size_t c = 0 ; c < match_calls->size() ; c += 1) {
+	    for (size_t c = 0 ; c < match_calls.size() ; c += 1) {
 		  std::list<named_pexpr_t>args;
 		  for (size_t a = 0 ; a < match_args[c].size() ; a += 1) {
 			named_pexpr_t arg = match_args[c][a];
@@ -19874,11 +20037,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 						 hist_idx, pre, post, init_zero);
 			args.push_back(arg);
 		  }
-		  PCallTask*call = new PCallTask((*match_calls)[c]->path(), args);
-		  if ((*match_calls)[c]->has_scoped_type_prefix())
+		  PCallTask*call = new PCallTask(match_calls[c]->call->path(), args);
+		  if (match_calls[c]->call->has_scoped_type_prefix())
 			call->set_scoped_type_prefix();
-		  call->set_lineno((*match_calls)[c]->get_lineno());
-		  call->set_file((*match_calls)[c]->get_file());
+		  call->set_lineno(match_calls[c]->call->get_lineno());
+		  call->set_file(match_calls[c]->call->get_file());
 		  actions.push_back(call);
 	    }
 	    match_action = sva_block_(loc, actions);
@@ -20040,6 +20203,30 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 << "hierarchical signals, including their bit- and "
 		 << "part-selects, ARE sampled correctly." << endl;
 	/* Per-slot local-variable copies retain that same exact packed type. */
+	/* The assignment cast fixes a local carrier's width and signedness, but
+	   a bare assertion-local read inside it is not a net when $bits() is
+	   elaborated for the carrier declaration. Probe the width with every
+	   assertion local replaced by a constant; the outer casts keep the
+	   declared type (IEEE 1800-2023 16.10). */
+	std::vector<PExpr*> lv_width_probe (lv_list.size(), nullptr);
+	{
+	      std::map<perm_string,PExpr*> zero;
+	      for (std::map<perm_string,unsigned>::const_iterator it =
+		     lv_analysis.begin() ; it != lv_analysis.end() ; ++it)
+		    zero[it->first] = new PENumber(new verinum((uint64_t)0, 32));
+	      for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+		    if (!lv_rhs_reads_local[li]) continue;
+		    lv_width_probe[li] = sva_clone_subst_(lv_rhs_expr[li], &zero);
+		    if (!lv_width_probe[li]) {
+			  cerr << loc << ": sorry: assertion local variable `"
+			       << lv_list[li] << "' assignment cannot be typed."
+			       << endl;
+			  error_count += 1;
+		    }
+	      }
+	      for (std::map<perm_string,PExpr*>::iterator it = zero.begin() ;
+		   it != zero.end() ; ++it) delete it->second;
+	}
       std::vector< std::vector<perm_string> > vk (K);
       for (long k = 0 ; k < K ; k += 1) {
 	    vk[k].resize(lv_list.size());
@@ -20047,7 +20234,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  char what[24];
 		  snprintf(what, sizeof what, "k%ldv%u", k, li);
 		  vk[k][li] = sva_make_reg_(loc, inst, what, 0, true, false,
-					   lv_rhs_expr[li],
+					   lv_width_probe[li] ? lv_width_probe[li]
+								      : lv_rhs_expr[li],
 					   sva_expr_signed_(lv_rhs_expr[li]));
 		  init_zero.push_back(sva_assign_(loc, vk[k][li],
 			new PENumber(new verinum((uint64_t)0, 32))));
@@ -20063,7 +20251,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  char what[24];
 		  snprintf(what, sizeof what, "o%ldv%u", k, li);
 		  ovk[k][li] = sva_make_reg_(loc, inst, what, 0, true, false,
-					    lv_rhs_expr[li],
+					    lv_width_probe[li] ? lv_width_probe[li]
+								       : lv_rhs_expr[li],
 					    sva_expr_signed_(lv_rhs_expr[li]));
 		  init_zero.push_back(sva_assign_(loc, ovk[k][li],
 			new PENumber(new verinum((uint64_t)0, 32))));
@@ -20209,6 +20398,66 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    FILE_NAME(add, loc);
 	    return sva_assign_(loc, reg, add);
       };
+      auto edge_condition = [&](const sva_nfa_edge_t&ed,
+				const std::vector<perm_string>&states,
+				std::map<perm_string,PExpr*>&lvmap,
+				const std::vector<PExpr*>&guards) -> PExpr* {
+	    PExpr*term = sva_id_(loc, states[ed.from]);
+	    for (size_t g = 0 ; g < guards.size() ; g += 1) {
+		  PExpr*gk = guards[g];
+		  if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
+			std::map<PExpr*,PExpr*>::iterator it = local_guard_expr.find(gk);
+			assert(it != local_guard_expr.end());
+			term = sva_logic_(loc, 'a', term,
+				  sva_clone_subst_(it->second, &lvmap));
+		  } else {
+			std::map<PExpr*,perm_string>::iterator it = guard_reg.find(gk);
+			assert(it != guard_reg.end());
+			term = sva_logic_(loc, 'a', term,
+				  sva_id_(loc, it->second));
+		  }
+	    }
+	    return term;
+      };
+      auto first_match_hit = [&](const sva_nfa_t&machine,
+				 const std::vector<perm_string>&states,
+				 std::map<perm_string,PExpr*>&lvmap)
+				 -> std::map<unsigned,PExpr*> {
+	    std::map<unsigned,PExpr*> hits;
+	    for (size_t i = 0 ; i < machine.edges.size() ; i += 1) {
+		  const sva_nfa_edge_t&ed = machine.edges[i];
+		  if (!ed.first_match_exit || ed.first_match_cut_group == 0) continue;
+		  PExpr*term = edge_condition(ed, states, lvmap,
+					      ed.first_match_guards);
+		  PExpr*&hit = hits[ed.first_match_cut_group];
+		  hit = hit ? sva_logic_(loc, 'o', hit, term) : term;
+	    }
+	    return hits;
+      };
+      auto next_state = [&](const sva_nfa_t&machine,
+			    const std::vector<perm_string>&states,
+			    unsigned to, std::map<perm_string,PExpr*>&lvmap,
+			    const std::map<unsigned,PExpr*>&exit_hits) -> PExpr* {
+	    PExpr*ordinary = nullptr;
+	    for (size_t i = 0 ; i < machine.edges.size() ; i += 1) {
+		  const sva_nfa_edge_t&ed = machine.edges[i];
+		  if (ed.to != to) continue;
+		  PExpr*term = edge_condition(ed, states, lvmap, ed.guards);
+		  if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
+			std::map<unsigned,PExpr*>::const_iterator hit =
+			      exit_hits.find(ed.first_match_cut_group);
+			if (hit != exit_hits.end()) {
+			      PExpr*copy = sva_clone_expr_(hit->second);
+			      assert(copy);
+			      term = sva_logic_(loc, 'a', term,
+					sva_not_(loc, copy));
+			}
+		  }
+		  ordinary = ordinary ? sva_logic_(loc, 'o', ordinary, term) : term;
+	    }
+	    if (!ordinary) ordinary = sva_bit_(loc, 0);
+	    return ordinary;
+      };
 
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
       auto clear_attempt_state = [&]() -> Statement* {
@@ -20349,34 +20598,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
 		  lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
+	    std::map<unsigned,PExpr*> exit_hits = first_match_hit(nfa, s[k], lvmap);
 	    for (unsigned j = 0 ; j < N ; j += 1) {
-		  PExpr*e = nullptr;
-		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
-			const sva_nfa_edge_t&ed = nfa.edges[i];
-			if (ed.to != j) continue;
-			PExpr*term = sva_id_(loc, s[k][ed.from]);
-			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
-			      PExpr*gk = ed.guards[g];
-			      if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
-				      /* Per-attempt: clone the already-Preponed
-					 nonlocal operands and replace lv -> vk. */
-				    std::map<PExpr*,PExpr*>::iterator it =
-					  local_guard_expr.find(gk);
-				    assert(it != local_guard_expr.end());
-				    PExpr*pc = sva_clone_subst_(it->second, &lvmap);
-				    term = sva_logic_(loc, 'a', term, pc);
-			      } else {
-				    std::map<PExpr*,perm_string>::iterator it =
-					  guard_reg.find(gk);
-				    assert(it != guard_reg.end());
-				    term = sva_logic_(loc, 'a', term,
-						      sva_id_(loc, it->second));
-			      }
-			}
-			e = e ? sva_logic_(loc, 'o', e, term) : term;
-		  }
-		  if (!e) e = sva_bit_(loc, 0);
-		  body.push_back(sva_assign_(loc, nx[j], e));
+		  body.push_back(sva_assign_(loc, nx[j],
+			    next_state(nfa, s[k], j, lvmap, exit_hits)));
 	    }
 	      /* LV-2: capture — a slot takes a local variable's rhs sample
 		 exactly when the ASSIGNING EDGE fires (the gate matched
@@ -20392,6 +20617,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      if (ed.guards[g] == lv_gate_expr[li]) is_assign = true;
 			if (!is_assign) continue;
 			PExpr*t = sva_id_(loc, s[k][ed.from]);
+			if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
+			      std::map<unsigned,PExpr*>::const_iterator hit =
+				    exit_hits.find(ed.first_match_cut_group);
+			      if (hit != exit_hits.end()) {
+				    PExpr*copy = sva_clone_expr_(hit->second);
+				    assert(copy);
+				    t = sva_logic_(loc, 'a', t, sva_not_(loc, copy));
+			      }
+			}
 			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
 			      PExpr*gk = ed.guards[g];
 			      if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
@@ -20425,6 +20659,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				    sva_assign_(loc, vk[k][li], rhs), nullptr));
 			}
 	    }
+	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
+		 it != exit_hits.end(); ++it) delete it->second;
 	    for (std::map<perm_string,PExpr*>::iterator it = lvmap.begin();
 		 it != lvmap.end() ; ++it)
 		  delete it->second;
@@ -20550,34 +20786,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
 		  lvmap[lv_list[li]] = sva_id_(loc, ovk[o][li]);
+	    std::map<unsigned,PExpr*> exit_hits =
+		  first_match_hit(consequence_nfa, os[o], lvmap);
 
 	    for (unsigned j = 0 ; j < ON ; j += 1) {
-		  PExpr*e = nullptr;
-		  for (size_t i = 0 ; i < consequence_nfa.edges.size() ; i += 1) {
-			const sva_nfa_edge_t&ed = consequence_nfa.edges[i];
-			if (ed.to != j) continue;
-			PExpr*term = sva_id_(loc, os[o][ed.from]);
-			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
-			      PExpr*gk = ed.guards[g];
-			      if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
-				    std::map<PExpr*,PExpr*>::iterator it =
-					  local_guard_expr.find(gk);
-				    assert(it != local_guard_expr.end());
-				    term = sva_logic_(loc, 'a', term,
-					      sva_clone_subst_(it->second, &lvmap));
-			      } else {
-				    std::map<PExpr*,perm_string>::iterator it =
-					  guard_reg.find(gk);
-				    assert(it != guard_reg.end());
-				    term = sva_logic_(loc, 'a', term,
-					      sva_id_(loc, it->second));
-			      }
-			}
-			e = e ? sva_logic_(loc, 'o', e, term) : term;
-		  }
-		  if (!e) e = sva_bit_(loc, 0);
-		  body.push_back(sva_assign_(loc, onx[j], e));
+		  body.push_back(sva_assign_(loc, onx[j],
+			    next_state(consequence_nfa, os[o], j, lvmap, exit_hits)));
 	    }
+	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
+		 it != exit_hits.end(); ++it) delete it->second;
 
 	      /* A match-item assignment in a consequence belongs to the one
 		 obligation executing that edge. */
@@ -20993,6 +21210,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sva_expr_forget_sampled_(local_rhs_expr[li]);
 	    delete local_rhs_expr[li];
       }
+	for (size_t li = 0 ; li < lv_width_probe.size() ; li += 1) {
+	      if (!lv_width_probe[li]) continue;
+	      sva_expr_forget_sampled_(lv_width_probe[li]);
+	      delete lv_width_probe[li];
+	}
 
       if (have_tree) {
 	    sva_tree_delete_(prop->ante_tree, false);
@@ -21000,8 +21222,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sva_tree_delete_(prop->tree, false);
 	    prop->tree = nullptr;
       }
-      if (match_calls && prop->seq && !prop->seq->empty())
-	    sva_destroy_match_calls_(prop->seq->back().match_calls);
+	if (!match_calls.empty() && prop->seq && !prop->seq->empty())
+	    sva_destroy_match_items_(prop->seq->back().items);
       delete prop->antecedent;
       delete prop->seq;
       delete prop;
@@ -21049,39 +21271,41 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 {
       bool has_lv = false;
       bool has_selected = false;
+      std::map<perm_string,unsigned>locals;
       for (size_t k = 0 ; k < steps.size() ; k += 1)
-	    if (steps[k].lv_rhs) {
+	    for (size_t m = 0 ; m < steps[k].items.size() ; m += 1) {
+		  sva_match_item_t&item = steps[k].items[m];
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || !item.lv_rhs) continue;
 		  has_lv = true;
-		  has_selected = has_selected || steps[k].lv_selected;
+		  has_selected = has_selected || item.lv_selected;
+		  locals[item.lv_name] = 0;
 	    }
       if (!has_lv) return 0;
 
-	/* IEEE 1800-2017/2023 16.10: an update expression has an implicit
-	   read of its target. Check source-order assignment state before
-	   lowering or routing variable-delay locals to the automaton engine. */
-      std::map<perm_string,unsigned>locals;
-      for (size_t k = 0 ; k < steps.size() ; k += 1)
-	    if (steps[k].lv_rhs) locals[steps[k].lv_name] = 0;
+	/* IEEE 1800-2017/2023 16.10: match items execute in source order. */
       std::map<perm_string,unsigned>assigned;
-      for (size_t k = 0 ; k < steps.size() ; k += 1) {
-	    if (!steps[k].lv_rhs) continue;
-	    for (std::map<perm_string,unsigned>::const_iterator it = locals.begin()
-		 ; it != locals.end() ; ++it) {
-		  if (steps[k].lv_selected
-		      && it->first == steps[k].lv_name) continue;
-		  std::map<perm_string,unsigned>one;
-		  one[it->first] = 0;
-		  if (sva_expr_reads_lv_(steps[k].lv_rhs, one)
-		      && !assigned.count(it->first)) {
-			cerr << loc << ": error: assertion local variable `"
-			     << it->first << "' is read before it is assigned."
-			     << endl;
-			error_count += 1;
-			return 1;
+      for (size_t k = 0 ; k < steps.size() ; k += 1)
+	    for (size_t m = 0 ; m < steps[k].items.size() ; m += 1) {
+		  const sva_match_item_t&item = steps[k].items[m];
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || !item.lv_rhs) continue;
+		  for (std::map<perm_string,unsigned>::const_iterator it = locals.begin()
+		       ; it != locals.end() ; ++it) {
+			if (item.lv_selected && it->first == item.lv_name) continue;
+			std::map<perm_string,unsigned>one;
+			one[it->first] = 0;
+			if (sva_expr_reads_lv_(item.lv_rhs, one)
+			    && !assigned.count(it->first)) {
+			      cerr << loc << ": error: assertion local variable `"
+				   << it->first << "' is read before it is assigned."
+				   << endl;
+			      error_count += 1;
+			      return 1;
+			}
 		  }
+		  assigned[item.lv_name] = 1;
 	    }
-	    assigned[steps[k].lv_name] = 1;
-      }
 
       long len = 0;
       if (!sva_chain_fixed_len_(steps, len)) {
@@ -21091,197 +21315,226 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 		  error_count += 1;
 		  return 1;
 	    }
-	      /* Variable delay: leave the assignments for LV-2 per-slot
-		 storage in the automaton engine. */
-	    (void)loc;
+	      /* The NFA carrier keeps only one assignment per local name. */
+	    std::map<perm_string,unsigned> written;
+	    for (size_t k = 0 ; k < steps.size() ; k += 1)
+		  for (size_t m = 0 ; m < steps[k].items.size() ; m += 1) {
+			const sva_match_item_t&item = steps[k].items[m];
+			if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+			    || !item.lv_rhs) continue;
+			if (written[item.lv_name]++) {
+			      cerr << loc << ": sorry: assertion local variable `"
+				   << item.lv_name << "' is assigned more than "
+				   << "once in a variable-length sequence; only "
+				   << "fixed-length sequences support repeated "
+				   << "assignment of one local." << endl;
+			      error_count += 1;
+			      return 1;
+			}
+		  }
+	      /* Variable delay: leave ordered assignments for the per-slot NFA. */
 	    return 2;
       }
 
-	/* Cumulative cycle offset of each step from the sequence start. */
-      std::vector<long> offs (steps.size(), 0);
+      std::vector<long>offs(steps.size(), 0);
       long acc = 0;
       for (size_t k = 0 ; k < steps.size() ; k += 1) {
 	    acc += steps[k].delay_lo;
 	    offs[k] = acc;
       }
 
-	/* Resolve each write against the local values established by earlier
-	   match items. Selected writes arrive as whole-value update expressions
-	   that read the previous value; this also preserves ordered repeated
-	   writes to the same local. */
-      if (has_selected) {
-      std::map<perm_string,PExpr*> current;
-      std::map<perm_string,long> current_offset;
-      for (size_t i = 0 ; i < steps.size() ; i += 1) {
-	    if (!steps[i].lv_rhs) continue;
-	    std::map<perm_string,PExpr*> subst;
+      std::map<perm_string,PExpr*>current;
+      std::map<perm_string,long>current_offset;
+      auto clear_values = [&]() {
+	    for (std::map<perm_string,PExpr*>::iterator it = current.begin()
+		 ; it != current.end() ; ++it) delete it->second;
+	    current.clear();
+      };
+      auto build_subst = [&](long at,
+			     std::map<perm_string,PExpr*>&subst) -> bool {
+	    subst.clear();
 	    for (std::map<perm_string,PExpr*>::const_iterator it = current.begin()
 		 ; it != current.end() ; ++it) {
 		  PExpr*value = sva_clone_expr_(it->second);
-		  if (!value) {
-			for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
-			     ; jt != subst.end() ; ++jt) delete jt->second;
-			for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
-			     ; jt != current.end() ; ++jt) delete jt->second;
-			cerr << loc << ": sorry: assertion local-variable assignment "
-			     << "cannot be copied for ordered update lowering." << endl;
-			error_count += 1;
-			return 1;
-		  }
-		  subst[it->first] = sva_past_(
-			loc, value, offs[i] - current_offset[it->first]);
+		  if (!value) return false;
+		  subst[it->first] = sva_past_(loc, value,
+					       at - current_offset[it->first]);
 	    }
-	    if (steps[i].lv_selected
-		&& !current.count(steps[i].lv_name)) {
-		  PExpr*initial = sva_local_default_value_(loc, steps[i].lv_rhs);
-		  if (!initial) {
-			for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
-			     ; jt != subst.end() ; ++jt) delete jt->second;
-			for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
-			     ; jt != current.end() ; ++jt) delete jt->second;
-			cerr << loc << ": sorry: assertion local-variable assignment "
-			     << "cannot preserve its initial value." << endl;
-			error_count += 1;
-			return 1;
-		  }
-		  subst[steps[i].lv_name] = initial;
-	    }
-	    PExpr*expanded = sva_clone_subst_(steps[i].lv_rhs, &subst);
-	    for (std::map<perm_string,PExpr*>::iterator jt = subst.begin()
-		 ; jt != subst.end() ; ++jt) delete jt->second;
-	    if (!expanded) {
-		  for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
-		       ; jt != current.end() ; ++jt) delete jt->second;
-		  cerr << loc << ": sorry: assertion local-variable update "
-		       << "expression cannot be copied." << endl;
-		  error_count += 1;
-		  return 1;
-	    }
-	    delete steps[i].lv_rhs;
-	    steps[i].lv_rhs = expanded;
-	    std::map<perm_string,PExpr*>::iterator old = current.find(steps[i].lv_name);
-	    if (old != current.end()) delete old->second;
-	    current[steps[i].lv_name] = sva_clone_expr_(expanded);
-	    current_offset[steps[i].lv_name] = offs[i];
-	    if (!current[steps[i].lv_name]) {
-		  for (std::map<perm_string,PExpr*>::iterator jt = current.begin()
-		       ; jt != current.end() ; ++jt) delete jt->second;
-		  cerr << loc << ": sorry: assertion local-variable update "
-		       << "expression cannot be copied." << endl;
-		  error_count += 1;
-		  return 1;
-	    }
-      }
-	  for (std::map<perm_string,PExpr*>::iterator it = current.begin()
-	       ; it != current.end() ; ++it) delete it->second;
-      }
-
-	/* Substitute reads. For step j, a local var assigned at an
-	   EARLIER step i (i < j) is visible as $past(rhs_i, offs[j]-offs[i]);
-	   a later assignment of the same name overrides an earlier one. */
-      for (size_t j = 0 ; j < steps.size() ; j += 1) {
-	    if (!steps[j].expr && !steps[j].lv_rhs) continue;
-	    std::map<perm_string,PExpr*> subst;
-	    for (size_t i = 0 ; i < j ; i += 1) {
-		  if (!steps[i].lv_rhs) continue;
-		  long d = offs[j] - offs[i];
-		  std::map<perm_string,PExpr*>::iterator it =
-			subst.find(steps[i].lv_name);
-		  if (it != subst.end()) { delete it->second; }
-		  subst[steps[i].lv_name] =
-			sva_past_(loc, sva_clone_expr_(steps[i].lv_rhs), d);
-	    }
-	    if (!subst.empty()) {
-		  if (steps[j].expr) {
-			PExpr*ne = sva_clone_subst_(steps[j].expr, &subst);
-			if (ne) { delete steps[j].expr; steps[j].expr = ne; }
-		  }
-		  if (steps[j].lv_rhs) {
-			PExpr*ne = sva_clone_subst_(steps[j].lv_rhs, &subst);
-			if (ne) { delete steps[j].lv_rhs; steps[j].lv_rhs = ne; }
-		  }
-		  for (std::map<perm_string,PExpr*>::iterator it = subst.begin();
-		       it != subst.end() ; ++it)
-			delete it->second;
-	    }
-      }
-
-	/* 16.11 match items run after the Boolean and after any assignment on
-	   the same step. Therefore a call on step j sees assignments through
-	   i == j (unlike the Boolean above, which sees only i < j). Rewrite a
-	   fresh $display call because PCallTask intentionally exposes its
-	   arguments read-only. The later NFA action sampler turns the resulting
-	   $past/current expressions into checker history/sample registers. */
-      for (size_t j = 0 ; j < steps.size() ; j += 1) {
-	    if (steps[j].match_calls.empty()) continue;
-	    std::map<perm_string,PExpr*> subst;
-	    for (size_t i = 0 ; i <= j ; i += 1) {
-		  if (!steps[i].lv_rhs) continue;
-		  long d = offs[j] - offs[i];
-		  std::map<perm_string,PExpr*>::iterator old =
-			subst.find(steps[i].lv_name);
-		  if (old != subst.end()) delete old->second;
-		  PExpr*rhs = sva_clone_expr_(steps[i].lv_rhs);
-		  subst[steps[i].lv_name] = sva_past_(loc, rhs, d);
-	    }
-	    std::vector<PCallTask*> rewritten;
-	    bool ok = sva_clone_match_calls_(steps[j].match_calls, rewritten,
-					     &subst);
+	    return true;
+      };
+      auto clear_subst = [](std::map<perm_string,PExpr*>&subst) {
 	    for (std::map<perm_string,PExpr*>::iterator it = subst.begin()
-		 ; it != subst.end() ; ++it)
-		  delete it->second;
-	    if (!ok) {
-		  sva_match_item_sorry_(loc,
-			"have an argument expression that cannot be sampled");
-		  return 1;
-	    }
-	    sva_destroy_match_calls_(steps[j].match_calls);
-	    steps[j].match_calls.swap(rewritten);
-      }
+		 ; it != subst.end() ; ++it) delete it->second;
+	    subst.clear();
+      };
+      auto fail_copy = [&](const char*message) {
+	    clear_values();
+	    cerr << loc << ": sorry: " << message << endl;
+	    error_count += 1;
+	    return 1;
+      };
 
-	/* The assignments are consumed; free the rhs and clear them. */
       for (size_t k = 0 ; k < steps.size() ; k += 1) {
-	    if (steps[k].lv_rhs) {
-		  delete steps[k].lv_rhs;
-		  steps[k].lv_rhs = nullptr;
-		  steps[k].lv_name = perm_string();
-		  steps[k].lv_selected = false;
+	    std::map<perm_string,PExpr*>subst;
+	    if (!build_subst(offs[k], subst)) {
+		  clear_subst(subst);
+		  return fail_copy("assertion local-variable assignment cannot be copied.");
+	    }
+	    if (steps[k].expr && !subst.empty()) {
+		  PExpr*expanded = sva_clone_subst_(steps[k].expr, &subst);
+		  if (!expanded) {
+			clear_subst(subst);
+			return fail_copy("assertion local-variable expression cannot be copied.");
+		  }
+		  delete steps[k].expr;
+		  steps[k].expr = expanded;
+	    }
+	    clear_subst(subst);
+
+	    for (size_t m = 0 ; m < steps[k].items.size() ; m += 1) {
+		  sva_match_item_t&item = steps[k].items[m];
+		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		      && item.lv_rhs) {
+			std::map<perm_string,PExpr*>item_subst;
+			if (!build_subst(offs[k], item_subst)) {
+			      clear_subst(item_subst);
+			      return fail_copy("assertion local-variable assignment cannot be copied.");
+			}
+			if (item.lv_selected && !current.count(item.lv_name)) {
+			      PExpr*initial = sva_local_default_value_(loc, item.lv_rhs);
+			      if (!initial) {
+				    clear_subst(item_subst);
+				    return fail_copy("assertion local-variable assignment cannot preserve its initial value.");
+			      }
+			      item_subst[item.lv_name] = initial;
+			}
+			PExpr*expanded = item_subst.empty()
+			      ? sva_clone_expr_(item.lv_rhs)
+			      : sva_clone_subst_(item.lv_rhs, &item_subst);
+			clear_subst(item_subst);
+			if (!expanded)
+			      return fail_copy("assertion local-variable update expression cannot be copied.");
+			sva_expr_forget_sampled_(item.lv_rhs);
+			delete item.lv_rhs;
+			item.lv_rhs = expanded;
+			std::map<perm_string,PExpr*>::iterator old = current.find(item.lv_name);
+			if (old != current.end()) delete old->second;
+			current[item.lv_name] = sva_clone_expr_(expanded);
+			current_offset[item.lv_name] = offs[k];
+			if (!current[item.lv_name])
+			      return fail_copy("assertion local-variable update expression cannot be copied.");
+		  } else if (item.kind == sva_match_item_t::SUBROUTINE_CALL
+			     && item.call && !current.empty()) {
+			std::map<perm_string,PExpr*>call_subst;
+			if (!build_subst(offs[k], call_subst)) {
+			      clear_subst(call_subst);
+			      return fail_copy("sequence match-item call cannot be copied.");
+			}
+			PCallTask*rewritten = sva_clone_match_call_(item.call,
+								&call_subst);
+			clear_subst(call_subst);
+			if (!rewritten)
+			      return fail_copy("sequence match-item call cannot be copied.");
+			sva_destroy_match_call_(item.call);
+			item.call = rewritten;
+		  }
+	    }
+      }
+      clear_values();
+
+	/* Assignments have become sampled expressions; keep only calls for the
+	   automaton action, in their original source order. */
+      for (size_t k = 0 ; k < steps.size() ; k += 1) {
+	    std::vector<sva_match_item_t>&items = steps[k].items;
+	    for (std::vector<sva_match_item_t>::iterator it = items.begin()
+		 ; it != items.end() ; ) {
+		  if (it->kind != sva_match_item_t::LOCAL_ASSIGNMENT) {
+			++it;
+			continue;
+		  }
+		  sva_expr_forget_sampled_(it->lv_rhs);
+		  delete it->lv_rhs;
+		  it = items.erase(it);
 	    }
       }
       return 0;
 }
 
-/* M9-NFA: expand a COMPOSED multi-length `first_match` (16.9.9) into a
-   disjoint OR of fixed chains, so the automaton engine lowers it
-   exactly. `first_match(a ##[m:n] b) ...` keeps only the EARLIEST b:
-   branch k (m<=k<=n) requires b at offset k AND !b at offsets m..k-1,
-   so the branches are mutually exclusive and their continuations are
-   independent — if the committed (shortest) match's tail fails, the
-   whole attempt fails, it does NOT fall back to a longer match, which
-   is exactly first_match. Supported shape: the wrapped region contains
-   exactly ONE bounded window and no local variable; returns a SEQ_OR
-   tree, or nullptr if the shape is outside this (caller diagnoses).
-   The chain `steps' is consumed on success (moved into the tree). */
+static bool sva_first_match_group_span_(
+	const std::vector<sva_seq_step_t>&steps, unsigned&group,
+	int&lo, int&hi)
+{
+      std::set<unsigned>groups;
+      lo = hi = -1;
+      for (size_t i = 0 ; i < steps.size() ; i += 1)
+	    if (steps[i].fm) {
+		  if (steps[i].fm_group == 0) return false;
+		  groups.insert(steps[i].fm_group);
+	    }
+      if (groups.size() != 1) return false;
+      group = *groups.begin();
+      for (size_t i = 0 ; i < steps.size() ; i += 1)
+	    if (steps[i].fm_group == group) {
+		  if (!steps[i].fm) return false;
+		  if (lo < 0) lo = (int)i;
+		  hi = (int)i;
+	    }
+      for (int i = lo ; i <= hi ; i += 1)
+	    if (!steps[i].fm || steps[i].fm_group != group) return false;
+      return lo >= 0;
+}
+
+/* Keep the parser admission check and NFA edge tagging on one classification. */
+static bool sva_first_match_supported_(
+	const std::vector<sva_seq_step_t>&steps)
+{
+      std::set<unsigned> groups;
+      bool found = false;
+      for (size_t i = 0; i < steps.size(); i += 1) {
+	    if (!steps[i].fm) continue;
+	    found = true;
+	    if (steps[i].fm_group == 0) return false;
+	    groups.insert(steps[i].fm_group);
+      }
+      if (!found) return true;
+      for (std::set<unsigned>::const_iterator it = groups.begin();
+	   it != groups.end(); ++it)
+	    if (pform_sva_first_match_group_class(steps, *it)
+		== SVA_FIRST_MATCH_UNSUPPORTED) return false;
+      return true;
+}
+
+/* A variable-length prefix can contain several first_match attempts in one
+   property slot, so a slot-wide NFA cut is not sound there. Keep this small
+   finite fallback only when the wrapped window is its terminal step. */
+/* M9-NFA: expand a finite terminal first_match window only when a variable
+   prefix prevents the per-slot NFA cut. The chain is consumed on success. */
 static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
 					    std::vector<sva_seq_step_t>&steps)
 {
       (void)loc;
-      int lo = -1, hi = -1;
+      unsigned group;
+      int lo, hi;
+      if (!sva_first_match_group_span_(steps, group, lo, hi)) return nullptr;
+
+	/* The validator rejects match calls on variable-length chains before
+	   expansion. Keep that invariant here: branches copy their expressions,
+	   but cannot safely duplicate the owned call list. */
       for (size_t i = 0 ; i < steps.size() ; i += 1)
-	    if (steps[i].fm) { if (lo < 0) lo = (int)i; hi = (int)i; }
-      if (lo < 0) return nullptr;
-	/* Find the single window inside the wrapper; reject lv, rep, or
-	   a second variable step. */
+	    if (sva_step_has_call_(steps[i])) return nullptr;
+
+	/* Find the single terminal bounded window inside the wrapper. */
       int w = -1;
       for (int i = lo ; i <= hi ; i += 1) {
-	    if (steps[i].lv_rhs) return nullptr;
+	    if (sva_step_has_selected_assignment_(steps[i])) return nullptr;
 	    bool var = (i > lo)
 		       && (steps[i].delay_lo != steps[i].delay_hi);
-	    if (steps[i].rep_tail != 0) return nullptr;
+	    if (steps[i].rep_tail != 0 || steps[i].rep_kind != 0
+		|| steps[i].grouped_repeat) return nullptr;
 	    if (steps[i].delay_lo < 0) return nullptr;   // unbounded: not here
 	    if (var) { if (w >= 0) return nullptr; w = i; }
       }
-      if (w < 0) return nullptr;
+      if (w < 0 || w != hi) return nullptr;
       long m = steps[w].delay_lo, n = steps[w].delay_hi;
       if (n < m || n - m > 64) return nullptr;       // keep the fan-out sane
       PExpr*awaited = steps[w].expr;
@@ -21295,9 +21548,12 @@ static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
 	      /* steps before the window: clone verbatim. */
 	    for (int i = 0 ; i < w && ok ; i += 1) {
 		  sva_seq_step_t st = steps[i];
-		  st.fm = false; st.lv_rhs = nullptr; st.lv_name = perm_string();
+		  st.fm = false;
+		  st.fm_group = 0;
+		  st.items.clear();
 		  st.expr = sva_clone_expr_(steps[i].expr);
-		  if (!st.expr && steps[i].expr) ok = false;
+		  if ((!st.expr && steps[i].expr)
+		      || !sva_clone_match_items_(steps[i].items, st.items)) ok = false;
 		  br->push_back(st);
 	    }
 	      /* window expansion: !awaited at offsets m..k-1, awaited at k. */
@@ -21312,6 +21568,12 @@ static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
 			st.expr = nb;
 		  } else {
 			st.expr = aw;
+			if (!sva_clone_match_items_(steps[w].items, st.items)) {
+			      sva_expr_forget_sampled_(st.expr);
+			      delete st.expr;
+			      ok = false;
+			      break;
+			}
 		  }
 		  br->push_back(st);
 	    }
@@ -21319,13 +21581,20 @@ static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
 		 to the awaited match, which the offset-k b reproduces). */
 	    for (int i = w + 1 ; i < (int)steps.size() && ok ; i += 1) {
 		  sva_seq_step_t st = steps[i];
-		  st.fm = false; st.lv_rhs = nullptr; st.lv_name = perm_string();
+		  st.fm = false;
+		  st.fm_group = 0;
+		  st.items.clear();
 		  st.expr = sva_clone_expr_(steps[i].expr);
-		  if (!st.expr && steps[i].expr) ok = false;
+		  if ((!st.expr && steps[i].expr)
+		      || !sva_clone_match_items_(steps[i].items, st.items)) ok = false;
 		  br->push_back(st);
 	    }
 	    if (!ok) {
-		  for (size_t i = 0 ; i < br->size() ; i += 1) delete (*br)[i].expr;
+		  for (size_t i = 0 ; i < br->size() ; i += 1) {
+			sva_expr_forget_sampled_((*br)[i].expr);
+			delete (*br)[i].expr;
+			sva_destroy_match_items_((*br)[i].items);
+		  }
 		  delete br;
 		  if (tree) sva_tree_delete_(tree, true);
 		  return nullptr;
@@ -21344,49 +21613,23 @@ static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
       }
 	/* Consume the source chain. */
       for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    sva_expr_forget_sampled_(steps[i].expr);
 	    delete steps[i].expr;
-	    delete steps[i].lv_rhs;
+	    sva_destroy_match_items_(steps[i].items);
       }
       steps.clear();
       return tree;
 }
 
-/* M9-NFA: `first_match` (IEEE 1800-2017 16.9.9) is transparent (its
-   inner sequence flows straight into the chain) — which is EXACT for a
-   standalone/existence position (a cover/assert of first_match(s)
-   matches iff s does, and slot-clear-on-accept already counts the first
-   match once per attempt). It is WRONG only when the wrapped sequence
-   has multiple match lengths AND its end feeds a continuation: then the
-   cut (keep only the shortest match) changes which match continues, and
-   the transparent lowering would silently OVER-match. That case needs a
-   sub-sequence node in the IR (the sequence-expression tree) to carry
-   the cut; until then it is a LOUD sorry rather than a silent
-   miscompile. Returns false (diagnosed) for the composed multi-length
-   case, true otherwise. tail_continues = something after this chain
-   depends on its match end (an implication antecedent). */
+/* Admit fixed wrappers and cut-eligible variable delay groups to the NFA. */
 static bool sva_check_first_match_(const struct vlltype&loc,
 				   const std::vector<sva_seq_step_t>&steps,
 				   bool tail_continues)
 {
-      int first_fm = -1, last_fm = -1;
-      for (size_t i = 0 ; i < steps.size() ; i += 1)
-	    if (steps[i].fm) { if (first_fm < 0) first_fm = (int)i; last_fm = (int)i; }
-      if (first_fm < 0) return true;
-	/* Variable length WITHIN the wrapper: a window/unbounded delay on
-	   a non-first wrapped step, or any range repetition. (The first
-	   wrapped step's incoming delay is the external gap to the
-	   first_match, not internal length variability.) */
-      bool fm_var = false;
-      for (int i = first_fm ; i <= last_fm ; i += 1) {
-	    if (i > first_fm && (steps[i].delay_lo != steps[i].delay_hi
-				 || steps[i].delay_lo < 0))
-		  fm_var = true;
-	    if (steps[i].rep_tail != 0) fm_var = true;
-      }
-      if (!fm_var) return true;
+	  if (sva_first_match_supported_(steps)) return true;
       (void)loc;
-      bool composed = (last_fm + 1 < (int)steps.size()) || tail_continues;
-      return !composed;   // false => composed multi-length: expand or diagnose
+      (void)tail_continues;
+      return false;       // caller tries the bounded terminal-window fallback
 }
 
 /* M9-NFA stage C.3: sequence endpoint methods `seq.triggered' /
@@ -21419,7 +21662,8 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
       for (size_t j = 0 ; j < body.size() && ok ; j += 1) {
 	    const sva_seq_step_t&st = body[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs)
+		|| st.rep_tail != 0 || st.rep_kind != 0
+		|| sva_step_has_assignment_(st))
 		  ok = false;
 	    else { L += st.delay_lo; off[j] = L; }
       }
@@ -21593,11 +21837,12 @@ static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
 						       failed);
 	    if (failed)
 		  return false;
-	    if (steps[i].lv_rhs) {
-		  steps[i].lv_rhs = sva_rewrite_endpoint_expr_(loc,
-				steps[i].lv_rhs, failed);
-		  if (failed)
-			return false;
+	    for (size_t m = 0 ; m < steps[i].items.size() ; m += 1) {
+		  sva_match_item_t&item = steps[i].items[m];
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || !item.lv_rhs) continue;
+		  item.lv_rhs = sva_rewrite_endpoint_expr_(loc, item.lv_rhs, failed);
+		  if (failed) return false;
 	    }
       }
       return true;
@@ -21797,6 +22042,9 @@ static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst
    silently discard legal later matches. */
 static bool sva_mc_expand_nested_exact_(std::vector<sva_seq_step_t>&steps)
 {
+      for (size_t i = 0; i < steps.size(); ++i)
+	    if (sva_step_has_assignment_(steps[i]) || sva_step_has_call_(steps[i]))
+		  return false;
       bool nested = false;
       for (const auto&st : steps)
             nested |= st.group_repeat_members.size() > 1;
@@ -21899,6 +22147,9 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
 {
       long off = 0;
       if (window) *window = 0;
+	for (size_t i = 0; i < steps.size(); ++i)
+	      if (sva_step_has_assignment_(steps[i]) || sva_step_has_call_(steps[i]))
+		    return false;
       if (!sva_mc_expand_nested_exact_(steps)) return false;
 
       /* A fixed prefix/consequent still uses the established linear
@@ -21962,7 +22213,7 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
 	    const sva_seq_step_t&st = steps[j];
 	    bool last = (j + 1 == steps.size());
-	    if (st.rep_kind || st.lv_rhs || st.fm) return false;
+	    if (st.rep_kind || sva_step_has_assignment_(st) || st.fm) return false;
 	    if (st.rep_tail && !(window && last)) return false;
 
 	    long lo = st.delay_lo;
@@ -22014,8 +22265,8 @@ static bool sva_mc_bounded_chain_nfa_(
 			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
 		|| (st.grouped_repeat && !st.group_repeat_start
 		    && !st.group_repeat_end && steps.size() == 1)
-		|| st.lv_rhs || (st.fm && !allow_first_match)
-		|| !st.match_calls.empty())
+		|| sva_step_has_assignment_(st) || (st.fm && !allow_first_match)
+		|| sva_step_has_call_(st))
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
@@ -22059,7 +22310,7 @@ static bool sva_mc_direct_first_match_(
 	    const sva_seq_step_t&st = steps[i];
 	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
 		|| st.rep_kind || st.rep_tail || st.grouped_repeat
-		|| st.lv_rhs || !st.match_calls.empty())
+		|| sva_step_has_assignment_(st) || sva_step_has_call_(st))
 		  return false;
 	    if (!st.fm) left_wrapper = true;
 	    else if (left_wrapper) return false;
@@ -25472,7 +25723,8 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<sva_seq_step_t>&s = *prop->seq;
 	    for (size_t j = 0 ; j < s.size() ; j += 1) {
 		  if (s[j].delay_lo != s[j].delay_hi || s[j].delay_lo < 0
-		      || s[j].rep_tail || s[j].rep_kind || s[j].lv_rhs
+		      || s[j].rep_tail || s[j].rep_kind
+		      || sva_step_has_assignment_(s[j])
 		      || s[j].fm) {
 			fast = false;
 			break;
@@ -25508,7 +25760,8 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    bool has_lv = false;
 	    for (size_t i = 0 ; i < xleaves.size() ; i += 1)
 		  for (size_t sj = 0 ; sj < xleaves[i]->size() ; sj += 1)
-			if ((*xleaves[i])[sj].lv_rhs) has_lv = true;
+			if (sva_step_has_assignment_((*xleaves[i])[sj]))
+			      has_lv = true;
 	    if (has_lv)
 		  why = "a sequence local variable in an `expect'";
 	    else {
@@ -26405,7 +26658,7 @@ static bool sva_parameter_repeat_try_assertion_(
 		  && repeat.delay_genvar.nil() && repeat.rep_tail == 0
 		  && repeat.rep_kind == 4 && repeat.rep_hi == 0
 		  && repeat.rep_lo_expr && !repeat.rep_hi_expr
-		  && !repeat.fm && !repeat.lv_rhs;
+		  && !repeat.fm && !sva_step_has_assignment_(repeat);
 	    if (exact_symbolic) {
 		  prop->antecedent = prop->seq;
 		  prop->seq = new std::vector<sva_seq_step_t>;
@@ -26469,17 +26722,21 @@ static bool sva_parameter_repeat_try_assertion_(
       bool prefix_ok = direct_repeat
 	    || (prefix->expr && prefix->delay_lo == 0 && prefix->delay_hi == 0
 		&& prefix->delay_genvar.nil() && prefix->rep_tail == 0
-		&& prefix->rep_kind == 0 && !prefix->fm && !prefix->lv_rhs);
+		&& prefix->rep_kind == 0 && !prefix->fm
+		&& !sva_step_has_assignment_(*prefix)
+		&& !sva_step_has_call_(*prefix));
       long repeat_delay = direct_repeat ? 0 : 1;
       if (!prefix_ok
 	  || !repeat.expr || repeat.delay_lo != repeat_delay
 	  || repeat.delay_hi != repeat_delay
 	  || !repeat.delay_genvar.nil() || repeat.rep_tail != 0
-	  || repeat.rep_kind != 4 || repeat.fm || repeat.lv_rhs
+	  || repeat.rep_kind != 4 || repeat.fm
+	  || sva_step_has_assignment_(repeat)
 	  || !repeat.rep_lo_expr
 	  || !cons.expr || (!fixed_cons && !windowed_cons)
 	  || !cons.delay_genvar.nil() || cons.rep_tail != 0
-	  || cons.rep_kind != 0 || cons.fm || cons.lv_rhs)
+	  || cons.rep_kind != 0 || cons.fm
+	  || sva_step_has_assignment_(cons))
 	    {
 	      restore_standalone_cover();
 	      return false;
@@ -27347,7 +27604,8 @@ static PExpr* sva_fixed_endpoint_match_(const struct vlltype&loc,
       for (size_t idx = 0 ; idx < work->size() ; idx += 1) {
 	    const sva_seq_step_t&st = (*work)[idx];
 	    if (!st.expr || st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs
+		|| st.rep_tail != 0 || st.rep_kind != 0
+		|| sva_step_has_assignment_(st)
 		|| !st.delay_genvar.nil()) {
 		  pform_sva_destroy_sequence(work);
 		  return nullptr;
@@ -27443,7 +27701,8 @@ static bool sva_parameter_window_try_assertion_(
           || cons.delay_hi != cons.delay_lo
 	  || !cons.delay_lo_expr || !cons.delay_hi_expr
 	  || !cons.delay_genvar.nil() || cons.rep_tail != 0
-	  || cons.rep_kind != 0 || cons.fm || cons.lv_rhs)
+	  || cons.rep_kind != 0 || cons.fm
+	  || sva_step_has_assignment_(cons))
 	    return false;
       long span = 0;
       PExpr*match = tree_form
@@ -27567,19 +27826,22 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
 	    return false;
       if (!ante.expr || ante.delay_lo != 0 || ante.delay_hi != 0
           || !ante.delay_genvar.nil() || ante.rep_kind != 0
-          || ante.rep_tail != 0 || ante.fm || ante.lv_rhs
-          || !ante.match_calls.empty() || ante.grouped_repeat
+	  || ante.rep_tail != 0 || ante.fm
+	  || sva_step_has_assignment_(ante) || sva_step_has_call_(ante)
+	  || ante.grouped_repeat
           || !keep.expr || keep.delay_lo != 0 || keep.delay_hi != 0
           || keep.delay_lo_expr || keep.delay_hi_expr
           || !keep.delay_genvar.nil() || keep.rep_kind != 4
           || keep.rep_hi != 0 || !keep.rep_lo_expr || keep.rep_hi_expr
-          || keep.rep_tail != 0 || keep.fm || keep.lv_rhs
-          || !keep.match_calls.empty() || keep.grouped_repeat
+	  || keep.rep_tail != 0 || keep.fm
+	  || sva_step_has_assignment_(keep) || sva_step_has_call_(keep)
+	  || keep.grouped_repeat
           || !finish.expr || finish.delay_lo != 1 || finish.delay_hi != 1
           || finish.delay_lo_expr || finish.delay_hi_expr
           || !finish.delay_genvar.nil() || finish.rep_kind != 0
-          || finish.rep_tail != 0 || finish.fm || finish.lv_rhs
-          || !finish.match_calls.empty() || finish.grouped_repeat)
+	  || finish.rep_tail != 0 || finish.fm
+	  || sva_step_has_assignment_(finish) || sva_step_has_call_(finish)
+	  || finish.grouped_repeat)
             return false;
 
       sva_parameter_preflight_t prepared;
@@ -27803,10 +28065,12 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       const sva_seq_step_t&cons = (*prop->seq)[0];
       if (!ante.expr || ante.delay_lo != 0 || ante.delay_hi != 0
 	  || !ante.delay_genvar.nil() || ante.rep_tail != 0
-	  || ante.rep_kind != 0 || ante.fm || ante.lv_rhs
+	  || ante.rep_kind != 0 || ante.fm
+	  || sva_step_has_assignment_(ante)
 	  || !cons.expr || cons.delay_lo != -4 || cons.delay_hi != -4
 	  || cons.delay_genvar.nil() || cons.rep_tail != 0
-	  || cons.rep_kind != 0 || cons.fm || cons.lv_rhs)
+	  || cons.rep_kind != 0 || cons.fm
+	  || sva_step_has_assignment_(cons))
 	    return false;
 
       /* Clock: explicit, else the module's default clocking marker.  The
@@ -28103,8 +28367,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    const sva_seq_step_t&ante = prop->antecedent->front();
 	    if (ante.delay_lo == 0 && ante.delay_hi == 0
 		&& ante.rep_kind == 3 && ante.rep_lo == 0 && ante.rep_hi == 0
-		&& ante.rep_tail == 0 && !ante.lv_rhs
-		&& ante.match_calls.empty()
+		&& ante.rep_tail == 0 && !sva_step_has_assignment_(ante)
+		&& !sva_step_has_call_(ante)
 		&& prop->seq->front().delay_lo >= 0
 		&& prop->seq->front().delay_hi >= -1) {
 		  pform_sva_destroy_sequence(prop->antecedent);
@@ -28773,17 +29037,23 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       bool prop_has_lv = false;
       bool prop_has_selected_lv = false;
       for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
-	    if ((*prop->seq)[si].lv_rhs) {
+	    for (size_t mi = 0 ; mi < (*prop->seq)[si].items.size() ; mi += 1) {
+		  const sva_match_item_t&item = (*prop->seq)[si].items[mi];
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || !item.lv_rhs) continue;
 		  prop_has_lv = true;
-		  prop_has_selected_lv = prop_has_selected_lv
-			|| (*prop->seq)[si].lv_selected;
+		  prop_has_selected_lv = prop_has_selected_lv || item.lv_selected;
 	    }
       if (prop->antecedent)
 	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
-		  if ((*prop->antecedent)[si].lv_rhs) {
+		  for (size_t mi = 0 ; mi < (*prop->antecedent)[si].items.size();
+		       mi += 1) {
+			const sva_match_item_t&item =
+			      (*prop->antecedent)[si].items[mi];
+			if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+			    || !item.lv_rhs) continue;
 			prop_has_lv = true;
-			prop_has_selected_lv = prop_has_selected_lv
-			      || (*prop->antecedent)[si].lv_selected;
+			prop_has_selected_lv = prop_has_selected_lv || item.lv_selected;
 		  }
       bool impl_lv = prop_has_lv
 		     && (prop->op_type == 1 || prop->op_type == 2);
@@ -29014,9 +29284,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   assertion, the legacy engine cannot lower it (the reads are
 	   unresolved identifiers) — diagnose rather than emit garbage. */
       if (slot_lv) {
-	    cerr << loc << ": sorry: this local-variable assertion shape is "
-		 << "not supported by the automaton engine yet; the "
-		 << "assertion is dropped." << endl;
+	    if (prop->tree_sorry == 6)
+		  cerr << loc << ": sorry: an NFA implication local-variable "
+		       << "assignment must occur exactly once on a deterministic "
+		       << "leaf prefix; branch-local, post-branch, repeated, and "
+		       << "duplicate assignments require per-path local state and "
+		       << "the assertion is dropped." << endl;
+	    else if (prop->tree_sorry == 10)
+		  cerr << loc << ": sorry: a local-variable match-item "
+		       << "assignment inside a first_match operand followed by "
+		       << "a variable-length step can have tied earliest matches "
+		       << "with different values; the assertion is dropped."
+		       << endl;
+	    else
+		  cerr << loc << ": sorry: this local-variable assertion shape is "
+		       << "not supported by the automaton engine yet; the "
+		       << "assertion is dropped." << endl;
 	    error_count += 1;
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;
