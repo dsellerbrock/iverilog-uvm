@@ -1,0 +1,4 @@
+ivltests/issue1415_covergroup_function_directions_fail.v:7: error: covergroup expression function call 'from_ref' has an output, inout, or non-const ref argument (IEEE 1800 19.5).
+ivltests/issue1415_covergroup_function_directions_fail.v:8: error: covergroup expression function call 'from_output' has an output, inout, or non-const ref argument (IEEE 1800 19.5).
+ivltests/issue1415_covergroup_function_directions_fail.v:9: error: covergroup expression function call 'from_inout' has an output, inout, or non-const ref argument (IEEE 1800 19.5).
+3 error(s) during elaboration.
