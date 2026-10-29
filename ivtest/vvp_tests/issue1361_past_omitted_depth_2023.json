@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1361_past_omitted_depth.v",
+    "iverilog-args" : [ "-g2023", "-gassertions", "-s", "issue1361_past_omitted_depth" ],
+    "gold"          : "issue1361_past_omitted_depth"
+}

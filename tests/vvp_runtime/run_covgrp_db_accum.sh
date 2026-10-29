@@ -299,6 +299,29 @@ for edition in 2017 2023; do
         failures=$((failures + 1))
     fi
 
+    legacy="$work_dir/state-v1-$edition.db"
+    legacy_out="$work_dir/v1-$edition.stdout"
+    legacy_err="$work_dir/v1-$edition.stderr"
+    if python3 "$script_dir/covgrp_db_corrupt.py" "$seed" "$legacy" legacy-v1; then
+        set +e
+        run_vvp "$image" "+DB=$legacy" "+LOADDB=$legacy" +QUERY_FIRST \
+            >"$legacy_out" 2>"$legacy_err"
+        legacy_rc=$?
+        set -e
+        if [ "$legacy_rc" -ne 0 ] || ! grep -Fxq 'PRE=41.67' "$legacy_out" ||
+           ! grep -Fxq 'COV=41.67' "$legacy_out" ||
+           grep -Fq 'ERROR: $load_coverage_db:' "$legacy_err"; then
+            echo "FAIL $edition legacy version-1 merged database load"
+            cat "$legacy_out" "$legacy_err"
+            failures=$((failures + 1))
+        else
+            echo "PASS $edition legacy version-1 merged database load"
+        fi
+    else
+        echo "FAIL $edition: could not create version-1 compatibility fixture"
+        failures=$((failures + 1))
+    fi
+
     run_corrupt() {
         case_source=$1
         case_name=$2
@@ -347,6 +370,179 @@ for edition in 2017 2023; do
         run_corrupt "$work_dir/state-trans-$edition.db" "$case_name" \
             "$trans_image" 100.00 +LO=0 +HI=1
     done
+done
+
+run_default_instance_case() {
+    label=$1
+    expected=$2
+    pre_expected=$3
+    image=$4
+    db=$5
+    shift 5
+    out="$work_dir/$label-default.stdout"
+    err="$work_dir/$label-default.stderr"
+    set +e
+    run_vvp "$image" "$@" >"$out" 2>"$err"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] || ! grep -Fxq "COV=$expected" "$out" ||
+       [ -s "$err" ] || { [ -n "$pre_expected" ] &&
+       ! grep -Fxq "PRE=$pre_expected" "$out"; } || [ ! -s "$db" ]; then
+        echo "FAIL $label default-instance database: rc=$rc expected=COV=$expected"
+        cat "$out" "$err"
+        failures=$((failures + 1))
+    else
+        echo "PASS $label default-instance database: COV=$expected"
+    fi
+}
+
+run_default_corrupt() {
+    seed=$1
+    case_name=$2
+    image=$3
+    bad="$work_dir/$edition-$case_name.db"
+    before="$work_dir/$edition-$case_name.before.db"
+    out="$work_dir/$edition-$case_name.stdout"
+    err="$work_dir/$edition-$case_name.stderr"
+    if ! python3 "$script_dir/covgrp_db_corrupt.py" "$seed" "$bad" "$case_name"; then
+        echo "FAIL $edition $case_name: could not construct malformed population"
+        failures=$((failures + 1))
+        return
+    fi
+    cp "$bad" "$before"
+    set +e
+    run_vvp "$image" "+DB=$bad" "+LOADDB=$bad" +QUERY_FIRST >"$out" 2>"$err"
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ] || ! grep -Fq 'ERROR: $load_coverage_db:' "$err" ||
+       ! grep -Fxq 'PRE=100.00' "$out" || ! grep -Fxq 'COV=100.00' "$out" ||
+       ! cmp -s "$before" "$bad"; then
+        echo "FAIL $edition $case_name: malformed population was applied or overwritten"
+        cat "$out" "$err"
+        failures=$((failures + 1))
+    else
+        echo "PASS $edition malformed population: $case_name"
+    fi
+}
+
+run_default_oracle() {
+    label=$1
+    expected=$2
+    image=$3
+    db="$work_dir/$label-oracle.db"
+    out="$work_dir/$label-oracle.stdout"
+    err="$work_dir/$label-oracle.stderr"
+    set +e
+    run_vvp "$image" "+DB=$db" +S0=0 +S1=1 +DROP +S2=2 +S3=3 >"$out" 2>"$err"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] || ! grep -Fxq 'FIRST=50.00' "$out" ||
+       ! grep -Fxq 'RETIRED=50.00' "$out" ||
+       ! grep -Fxq "COV=$expected" "$out" || [ -s "$err" ] || [ ! -s "$db" ]; then
+        echo "FAIL $label same-run population oracle: rc=$rc expected=COV=$expected"
+        cat "$out" "$err"
+        failures=$((failures + 1))
+    else
+        echo "PASS $label same-run population oracle: COV=$expected"
+    fi
+}
+
+run_default_write_case() {
+    label=$1
+    image=$2
+    db=$3
+    shift 3
+    out="$work_dir/$label-write.stdout"
+    err="$work_dir/$label-write.stderr"
+    set +e
+    run_vvp "$image" "$@" >"$out" 2>"$err"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] || [ ! -s "$db" ] || [ -s "$err" ]; then
+        echo "FAIL $label default-instance save: rc=$rc"
+        cat "$out" "$err"
+        failures=$((failures + 1))
+    else
+        echo "PASS $label default-instance save"
+    fi
+}
+
+for edition in 2017 2023; do
+    image="$work_dir/covgrp-db-default-$edition.vvp"
+    if ! "$iverilog" -g"$edition" -o "$image" \
+        "$script_dir/covgrp_db_default_instances.sv"; then
+        echo "FAIL: compile default-instance reducer -g$edition"
+        failures=$((failures + 1))
+        continue
+    fi
+    first="$work_dir/default-$edition-a.db"
+    second="$work_dir/default-$edition-b.db"
+    third="$work_dir/default-$edition-c.db"
+    run_default_instance_case "$edition-A" 50.00 "" "$image" "$first" \
+        "+DB=$first" +S0=0 +S1=1
+    if [ -s "$first" ]; then
+        for case_name in duplicate-pop missing-pop legacy-v1 merge-mismatch \
+            pop-nan pop-infinity pop-zero-weight-positive \
+            pop-item-zero-weight-positive \
+            pop-negative pop-over-100 pop-fractional-weight pop-vector-length \
+            pop-item-over-100 pop-invalid-bin-flag pop-invalid-at-least; do
+            run_default_corrupt "$first" "$case_name" "$image"
+        done
+        run_default_instance_case "$edition-B" 50.00 50.00 "$image" "$second" \
+            "+DB=$second" "+LOADDB=$first" +QUERY_FIRST +S0=2 +S1=3
+    fi
+    if [ -s "$second" ]; then
+        run_default_instance_case "$edition-C" 50.00 50.00 "$image" "$third" \
+            "+DB=$third" "+LOADDB=$second" +QUERY_FIRST
+    fi
+
+    retired="$work_dir/default-$edition-retired.db"
+    mixed="$work_dir/default-$edition-mixed.db"
+    mixed_again="$work_dir/default-$edition-mixed-again.db"
+    run_default_instance_case "$edition-retired-A" 50.00 "" "$image" "$retired" \
+        "+DB=$retired" +S0=0 +S1=1 +DROP
+    if [ -s "$retired" ]; then
+        run_default_instance_case "$edition-retired-B" 50.00 50.00 "$image" "$mixed" \
+            "+DB=$mixed" "+LOADDB=$retired" +QUERY_FIRST +S0=2 +S1=3
+    fi
+    if [ -s "$mixed" ]; then
+        run_default_instance_case "$edition-retired-C" 50.00 50.00 "$image" "$mixed_again" \
+            "+DB=$mixed_again" "+LOADDB=$mixed" +QUERY_FIRST
+    fi
+
+    weighted_a="$work_dir/default-$edition-weighted-a.db"
+    weighted_b="$work_dir/default-$edition-weighted-b.db"
+    weighted_c="$work_dir/default-$edition-weighted-c.db"
+    run_default_instance_case "$edition-weight-1" 25.00 "" "$image" "$weighted_a" \
+        "+DB=$weighted_a" +W=1 +S0=0
+    if [ -s "$weighted_a" ]; then
+        run_default_instance_case "$edition-weight-3" 62.50 25.00 "$image" "$weighted_b" \
+            "+DB=$weighted_b" "+LOADDB=$weighted_a" +QUERY_FIRST +W=3 \
+            +S0=1 +S1=2 +S2=3
+    fi
+    if [ -s "$weighted_b" ]; then
+        run_default_instance_case "$edition-weighted-C" 62.50 62.50 "$image" "$weighted_c" \
+            "+DB=$weighted_c" "+LOADDB=$weighted_b" +QUERY_FIRST
+    fi
+
+    zero_a="$work_dir/default-$edition-zero-weight-a.db"
+    zero_b="$work_dir/default-$edition-zero-weight-b.db"
+    run_default_write_case "$edition-zero-weight-A" "$image" "$zero_a" \
+        "+DB=$zero_a" +W=0 +S0=0 +S1=1
+    if [ -s "$zero_a" ]; then
+        run_default_write_case "$edition-zero-weight-B" "$image" "$zero_b" \
+            "+DB=$zero_b" "+LOADDB=$zero_a" +QUERY_FIRST
+    fi
+
+    run_default_oracle "$edition-default" 50.00 "$image"
+    merged_image="$work_dir/covgrp-db-class-merged-$edition.vvp"
+    if "$iverilog" -g"$edition" -DMERGE_ON -o "$merged_image" \
+        "$script_dir/covgrp_db_default_instances.sv"; then
+        run_default_oracle "$edition-merged" 100.00 "$merged_image"
+    else
+        echo "FAIL: compile merged class coverage oracle -g$edition"
+        failures=$((failures + 1))
+    fi
 done
 
 if [ "$failures" -ne 0 ]; then

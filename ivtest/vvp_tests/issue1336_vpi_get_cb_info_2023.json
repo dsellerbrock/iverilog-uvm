@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1336_vpi_get_cb_info.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1336_vpi_get_cb_info"],
+  "vpi-sources": ["vpi/issue1336_vpi_get_cb_info.c"],
+  "output-contains": ["PASSED"]
+}

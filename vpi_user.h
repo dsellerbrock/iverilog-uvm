@@ -274,7 +274,10 @@ typedef struct t_vpi_delay  {
 #define vpiHiZ          0x01
 
 /* OBJECT CODES */
+#define vpiAssignStmt    2 /* quasi-continuous assignment */
 #define vpiConstant     7
+#define vpiCase         5 /* case statement */
+#define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
@@ -293,9 +296,11 @@ typedef struct t_vpi_delay  {
 #define vpiNamedFork   35
 #define vpiWait        69
 #define vpiElseStmt    73
+#define vpiExpectStmt  674
 #define vpiForeachStmt 675
 #define vpiOrderedWait 671
 #define vpiWaitFork    672
+#define vpiDisableFork 673
 #define vpiNet         36
 #define vpiNetBit      37
 #define vpiNettypeDecl 523
@@ -333,6 +338,11 @@ typedef struct t_vpi_delay  {
 #define vpiVariables   100
 #define vpiExpr        102
 
+/* IEEE 1800-2017/2023 Annex M pattern object types. */
+#define vpiAnyPattern     667
+#define vpiTaggedPattern  668
+#define vpiStructPattern  669
+
 /********************** object types added with 1364-2001 *********************/
 
 #define vpiCallback   107
@@ -350,6 +360,9 @@ typedef struct t_vpi_delay  {
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
+#define vpiCaseType      42 /* case statement subtype */
+#define vpiCaseX          2 /* ignore X's */
+#define vpiCaseZ          3 /* ignore Z's */
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -579,6 +592,7 @@ typedef struct t_cb_data {
 #endif
 
 extern vpiHandle vpi_register_cb(p_cb_data data);
+extern void vpi_get_cb_info(vpiHandle object, p_cb_data cb_data_p);
 extern PLI_INT32 vpi_remove_cb(vpiHandle ref);
 
 /*

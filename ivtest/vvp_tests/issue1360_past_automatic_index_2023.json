@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1360_past_automatic_index.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1360_past_automatic_index"
+}

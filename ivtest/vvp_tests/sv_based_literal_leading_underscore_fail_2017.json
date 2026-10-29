@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_based_literal_leading_underscore_fail.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "sv_based_literal_leading_underscore_fail"
+}
