@@ -19836,6 +19836,28 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@1, "qualified if statement");
 	$$ = pform_make_quality_if(@1, $1, $4, $6, $8);
       }
+  | if_qualifier K_if '(' pattern_condition ')' statement_or_null %prec less_than_K_else
+      { pform_requires_sv(@1, "qualified pattern-matching conditional");
+	assert(!current_pattern_blocks.empty());
+	PEMatches*condition = dynamic_cast<PEMatches*>($4);
+	assert(condition);
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	Statement*if_true = pform_pattern_finish_scope(
+	      @2, block, $6, condition->subject(), condition->pattern());
+	$$ = pform_make_quality_if(@2, $1, condition, if_true, nullptr);
+      }
+  | if_qualifier K_if '(' pattern_condition ')' statement_or_null K_else statement_or_null
+      { pform_requires_sv(@1, "qualified pattern-matching conditional");
+	assert(!current_pattern_blocks.empty());
+	PEMatches*condition = dynamic_cast<PEMatches*>($4);
+	assert(condition);
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	Statement*if_true = pform_pattern_finish_scope(
+	      @2, block, $6, condition->subject(), condition->pattern());
+	$$ = pform_make_quality_if(@2, $1, condition, if_true, $8);
+      }
   | K_if '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");
 	$$ = $5;
