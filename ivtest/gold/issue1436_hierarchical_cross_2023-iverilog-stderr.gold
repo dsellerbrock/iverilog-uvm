@@ -1,0 +1,2 @@
+ivltests/issue1436_hierarchical_cross_2023.v:5: error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).
+ivltests/issue1436_hierarchical_cross_2023.v:5: error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).

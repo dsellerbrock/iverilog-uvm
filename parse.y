@@ -5460,13 +5460,16 @@ bins_item
 	yyerrok; $$ = nullptr; }
   ;
 
-/* IEEE 1800-2017 19.6: a cross item is either a coverpoint label or a
-   variable expression, for which an implicit coverpoint is created. Preserve
-   the full hierarchical path instead of flattening it to its first name. */
+/* IEEE 1800-2017 19.6: a cross item is a coverpoint or variable identifier.
+   Retain the historical hierarchical-expression extension in older language
+   modes, but reject it in editions that specify the identifier-only syntax. */
 cross_item_list
   : hierarchy_identifier
       { $$ = new std::list<class_type_t::pform_cross_t::item_t>();
 	class_type_t::pform_cross_t::item_t item;
+	if (generation_flag >= GN_VER2017 && $1->size() != 1) {
+	      yyerror(@1, "error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).");
+	}
 	const name_component_t&root = $1->front();
 	if ($1->size() == 1 && root.index.empty() && !root.local_scope) {
 	      item.label = root.name;
@@ -5479,9 +5482,12 @@ cross_item_list
 	}
 	$$->push_back(item);
 	delete $1;
-      }
+	}
   | cross_item_list ',' hierarchy_identifier
       { class_type_t::pform_cross_t::item_t item;
+	if (generation_flag >= GN_VER2017 && $3->size() != 1) {
+	      yyerror(@3, "error: A cross item shall be a coverpoint or variable identifier (IEEE 1800-2017/2023 19.6).");
+	}
 	const name_component_t&root = $3->front();
 	if ($3->size() == 1 && root.index.empty() && !root.local_scope) {
 	      item.label = root.name;
