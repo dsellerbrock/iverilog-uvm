@@ -8,6 +8,7 @@ vpi_fopen
 vpi_free_object
 vpi_get
 vpi_get64
+vpi_get_data
 vpi_get_delays
 vpi_get_file
 vpi_get_str
@@ -28,6 +29,7 @@ vpi_mcd_open
 vpi_mcd_printf
 vpi_mcd_vprintf
 vpi_printf
+vpi_put_data
 vpi_put_delays
 vpi_put_userdata
 vpi_put_value

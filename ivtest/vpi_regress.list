@@ -25,6 +25,9 @@
 # For testing with other simulators
 #==========
 
+issue1583_vpi_get_data_2017 normal,-g2017 issue1583_vpi_get_data.c issue1583_vpi_get_data_2017.gold
+issue1583_vpi_get_data_2023 normal,-g2023 issue1583_vpi_get_data.c issue1583_vpi_get_data_2023.gold
+
 issue1276_vpi_range_2017 normal,-g2017 issue1276_vpi_range.c issue1276_vpi_range_2017.gold
 issue1276_vpi_range_2023 normal,-g2023 issue1276_vpi_range.c issue1276_vpi_range_2023.gold
 issue1287_vpi_waiting_event_2017 normal,-g2017 issue1287_vpi_waiting_event.c issue1287_vpi_waiting_event_2017.log

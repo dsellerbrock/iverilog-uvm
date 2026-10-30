@@ -1,0 +1,2 @@
+issue1583_vpi_get_data_2017 normal,-g2017 issue1583_vpi_get_data.c issue1583_vpi_get_data_2017.gold
+issue1583_vpi_get_data_2023 normal,-g2023 issue1583_vpi_get_data.c issue1583_vpi_get_data_2023.gold
