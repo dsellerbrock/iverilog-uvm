@@ -21,10 +21,10 @@ module main;
   initial begin
     #5 a3 = 1;
     #1 b3 = 1; // An in-limit data event cancels the timer.
-    #4 a1 = 1; // No data event: timer reports at t=13.
-    #10 a2 = 1; // Late data does not delay the timer report at t=23.
+    #4 a1 = 1; // No data event: timer reports at t=12.
+    #10 a2 = 1; // Late data does not delay the timer report at t=22.
     #10 b2 = 1;
-    #10 a4 = 1; // $fullskew also reports without a data event.
+    #10 a4 = 1; // $fullskew reports at its t=42 limit without a data event.
     #10 a0 = 1; // $skew remains event-based and silent without data.
     #10 $display("notifiers %b%b%b%b%b", n1, n2, n3, n4, n0);
     #10 mode5 = 1; a5 = 1;

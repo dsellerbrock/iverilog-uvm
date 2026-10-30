@@ -6367,3 +6367,4 @@ issue1554_checker_in_program_2017 normal,-g2017,-s,issue1554_checker_in_program 
 issue1554_checker_in_program_2023 normal,-g2023,-s,issue1554_checker_in_program ivltests gold=issue1554_checker_in_program_2023.gold
 issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
+issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
