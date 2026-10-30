@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sdf_interconnect_primitive_pin.v",
+  "iverilog-args": ["-g2023", "-Ttyp", "-ginterconnect", "-gspecify", "-s", "sdf_interconnect_primitive_pin"],
+  "gold": "sdf_interconnect_primitive_pin"
+}
