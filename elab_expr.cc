@@ -22716,15 +22716,57 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 	    const netranges_t&dims = uarray->static_dimensions();
 	    if (dims.size() == 1) {
 		  unsigned count = dims[0].width();
-		  if (count != parms_.size()) {
+		  ivl_type_t target_element = uarray->element_type();
+		  vector<const PEIdent*> splice_items(parms_.size(), nullptr);
+		  vector<const netuarray_t*> splice_types(parms_.size(), nullptr);
+		  size_t result_count = 0;
+		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+			const PEIdent*ident =
+			      dynamic_cast<const PEIdent*>(parms_[idx]);
+			ivl_type_t item_type = ident
+			      ? ident->test_type_of_ident(des, scope) : nullptr;
+			const netuarray_t*fixed =
+			      dynamic_cast<const netuarray_t*>(item_type);
+			if (fixed && !fixed->static_dimensions().empty()
+			    && !unpacked_concat_value_type_matches_(
+				 target_element, item_type)) {
+			      const netranges_t&source_dims = fixed->static_dimensions();
+			      ivl_type_t source_element = fixed->element_type();
+			      if (source_dims.size() > 1) {
+				netranges_t remaining(source_dims.begin() + 1,
+					      source_dims.end());
+				netuarray_t source_suffix(remaining,
+					      fixed->element_type());
+				if (unpacked_concat_value_type_matches_(
+				      target_element, &source_suffix)) {
+				      splice_items[idx] = ident;
+				      splice_types[idx] = fixed;
+				      result_count += source_dims[0].width();
+				} else {
+				      result_count += 1;
+				}
+			      } else if (unpacked_concat_value_type_matches_(
+					 target_element, source_element)) {
+				    splice_items[idx] = ident;
+				    splice_types[idx] = fixed;
+				    result_count += source_dims[0].width();
+			      } else {
+				    result_count += 1;
+			      }
+			} else {
+			      result_count += 1;
+			}
+		  }
+		  if (count != result_count) {
 			cerr << get_fileline() << ": error: unpacked array concatenation "
 			     << "expects " << count << " element(s), found "
-			     << parms_.size() << "." << endl;
+			     << result_count << "." << endl;
 			des->errors += 1;
 			return nullptr;
 		  }
-		  vector<NetExpr*>elems(parms_.size());
+		  vector<NetExpr*>elems(result_count);
 		  bool ascending = dims[0].get_msb() < dims[0].get_lsb();
+		  size_t result_idx = 0;
 		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
 			if (dynamic_cast<const PEAssignPattern*>(parms_[idx])) {
 			  cerr << parms_[idx]->get_fileline()
@@ -22737,10 +22779,39 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 				      delete previous;
 			  return nullptr;
 			}
-			NetExpr*item = elaborate_rval_expr(
-			      des, scope, uarray->element_type(),
-			      parms_[idx], false);
-			elems[ascending ? idx : (parms_.size() - 1 - idx)] = item;
+			if (splice_items[idx]) {
+			      const netranges_t&source_dims =
+				    splice_types[idx]->static_dimensions();
+			      long source_index = source_dims[0].get_msb();
+			      long source_end = source_dims[0].get_lsb();
+			      long source_step = source_index <= source_end ? 1 : -1;
+			      for (;;) {
+				    index_component_t select;
+				    select.sel = index_component_t::SEL_BIT;
+				    select.msb = new PENumber(
+					  new verinum((int64_t)source_index, 32U));
+				    select.msb->set_line(*splice_items[idx]);
+				    PEIdent*element = aggregate_operand_with_(
+					  splice_items[idx], nullptr, &select,
+					  *splice_items[idx]);
+				    NetExpr*item = elaborate_rval_expr(
+					  des, scope, target_element, element, false);
+				    delete element;
+				    elems[ascending ? result_idx
+					    : (result_count - 1 - result_idx)] = item;
+				    result_idx += 1;
+				    if (source_index == source_end)
+					  break;
+				    source_index += source_step;
+			      }
+			} else {
+			      NetExpr*item = elaborate_rval_expr(
+				    des, scope, target_element,
+				    parms_[idx], false);
+			      elems[ascending ? result_idx
+				    : (result_count - 1 - result_idx)] = item;
+			      result_idx += 1;
+			}
 		  }
 		  NetEArrayPattern*res = new NetEArrayPattern(ntype, elems);
 		  res->set_line(*this);
