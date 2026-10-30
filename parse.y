@@ -5772,7 +5772,15 @@ cross_bins_unary
   ;
 
 cross_bins_primary
-  : K_binsof '(' IDENTIFIER ')'
+  : hierarchy_identifier attribute_list_opt argument_list_parens
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_SET;
+	s->set_expr = pform_make_call_function(@1, *$1, *$3);
+	delete $1;
+	pform_discard_call_attributes($2);
+	delete $3;
+	$$ = s; }
+  | K_binsof '(' IDENTIFIER ')'
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
 	s->cp_name = lex_strings.make($3);

@@ -810,12 +810,13 @@ struct class_type_t : public data_type_t {
 	      // The select tree is a boolean combination of
 	      // binsof(cp[.bin]) [intersect {ranges}] leaves.
 	    struct select_t {
-		  enum op_t { SEL_BINSOF, SEL_AND, SEL_OR, SEL_NOT, SEL_WITH } op;
+		  enum op_t { SEL_BINSOF, SEL_AND, SEL_OR, SEL_NOT, SEL_WITH, SEL_SET } op;
 		  perm_string cp_name;   // SEL_BINSOF: coverpoint label
 		  perm_string bin_name;  // SEL_BINSOF: bin label (may be nil)
 		  std::vector<std::pair<PExpr*, PExpr*>> intersect_ranges;
 		  // SEL_WITH: predicate applied to child a's selected tuples.
 		  PExpr* with_expr = nullptr;
+		  PExpr* set_expr = nullptr;
 		  PExpr* matches_expr = nullptr;
 		  bool matches_all = false;
 		  select_t* a = nullptr;

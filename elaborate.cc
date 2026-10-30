@@ -47328,6 +47328,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      reject_shadowed_covgrp_expr(select->matches_expr,
 						  cross_decl_class,
 						  "cross bin matches expression for " + cross_item);
+				      reject_shadowed_covgrp_expr(select->set_expr,
+								  cross_decl_class,
+								  "cross bin set expression for " + cross_item);
 			      check_select(select->a);
 			      check_select(select->b);
 			};
@@ -47620,6 +47623,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						}
 						return true;
 					  }
+					  case sel_t::SEL_WITH:
+					  case sel_t::SEL_SET:
+						return false;
 				      }
 				      return false;
 				};
@@ -47798,6 +47804,53 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  return s && (s->op == sel_t::SEL_WITH
 						|| select_has_with(s->a) || select_has_with(s->b));
 			  };
+			  std::map<sel_t*, std::vector<std::vector<uint64_t>>> set_select_values;
+			  std::function<void(sel_t*, size_t)> prepare_set_selects;
+			  prepare_set_selects = [&](sel_t*s, size_t ub) {
+				  if (!s) return;
+				  if (s->op == sel_t::SEL_SET && s->set_expr) {
+					unsigned errors_before = des->errors;
+					unique_ptr<NetExpr> value(elab_and_eval(
+					      des, class_scope_, s->set_expr, -1, true, false));
+					const NetEArrayPattern* queue =
+					      dynamic_cast<const NetEArrayPattern*>(value.get());
+					if (!queue && !dynamic_cast<const NetENull*>(value.get())) {
+					      if (des->errors == errors_before) {
+						cerr << s->set_expr->get_fileline() << ": error: cross bin '"
+						     << cross.bins[ub].name
+						     << "' set expression must evaluate to a constant CrossQueueType value." << endl;
+						des->errors += 1;
+					      }
+					      ubin_sorried[ub] = true;
+					} else if (queue) {
+					      auto& tuples = set_select_values[s];
+					      for (size_t qi = 0; qi < queue->item_size(); ++qi) {
+						    const NetEArrayPattern* tuple = dynamic_cast<const NetEArrayPattern*>(queue->item(qi));
+						    if (!tuple || tuple->item_size() != cp_indexes.size()) {
+							  cerr << s->set_expr->get_fileline() << ": error: cross bin '" << cross.bins[ub].name << "' contains a CrossValType value with the wrong number of cross fields." << endl;
+							  des->errors += 1; ubin_sorried[ub] = true; break;
+						    }
+						    std::vector<uint64_t> fields;
+						    bool valid = true;
+						    for (size_t dim = 0; dim < cp_indexes.size(); ++dim) {
+							  const NetEConst* field = dynamic_cast<const NetEConst*>(tuple->item(dim));
+							  unsigned width = cp_value_widths[cp_indexes[dim]];
+							  if (!field || !field->value().is_defined() || width == 0 || width > 64) { valid = false; break; }
+							  verinum bits = cast_to_width(field->value(), width);
+							  uint64_t raw = bits.as_ulong64();
+							  if (width < 64) raw &= (UINT64_C(1) << width) - 1;
+							  fields.push_back(raw);
+						    }
+						    if (!valid) { cerr << s->set_expr->get_fileline() << ": error: cross bin '" << cross.bins[ub].name << "' CrossValType fields must be defined integral values no wider than 64 bits." << endl; des->errors += 1; ubin_sorried[ub] = true; break; }
+						    tuples.push_back(std::move(fields));
+					      }
+				}
+				  }
+				  prepare_set_selects(s->a, ub);
+				  prepare_set_selects(s->b, ub);
+			  };
+			  for (size_t ub = 0; ub < cross.bins.size(); ++ub)
+				  prepare_set_selects(cross.bins[ub].select, ub);
 			  std::function<int(sel_t*, const std::vector<unsigned>&, size_t)> eval_sel =
 			      [&](sel_t*s, const std::vector<unsigned>&tup, size_t ub) -> int {
 				if (!s) return -1;
@@ -47826,6 +47879,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  if (policy == select_matches.end()) return -1;
 				  return eval_with(s->with_expr, tup, ub, policy->second);
 			    }
+				    case sel_t::SEL_SET: {
+					  auto found = set_select_values.find(s);
+					  if (found == set_select_values.end()) return -1;
+					  for (const auto& values : found->second) {
+						    bool match = true;
+						    for (size_t dim = 0; dim < values.size(); ++dim) {
+							  const auto& descs = cp_value_bins[cp_indexes[dim]];
+							  unsigned bi = tup[dim];
+							  bool contained = false;
+							  for (const auto& range : descs[bi].ranges)
+								if (range.first <= values[dim] && values[dim] <= range.second) { contained = true; break; }
+							  if (!contained) { match = false; break; }
+						    }
+						    if (match) return 1;
+					  }
+					  return 0;
+				    }
 				    case sel_t::SEL_BINSOF: {
 					  int k = -1;
 					  for (size_t i = 0; i < cross.cp_labels.size(); i++)
