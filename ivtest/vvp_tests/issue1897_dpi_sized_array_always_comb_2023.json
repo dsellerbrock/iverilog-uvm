@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "issue1897_dpi_sized_array_always_comb.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue1897_dpi_sized_array_always_comb" ],
+    "gold"   : "issue1897_dpi_sized_array_always_comb"
+}
