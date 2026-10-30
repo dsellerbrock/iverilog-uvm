@@ -41084,11 +41084,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                     unroll(d + 1, env);
                                     return;
                               }
-                              long lo = min(dim.get_msb(), dim.get_lsb());
-                              long hi = max(dim.get_msb(), dim.get_lsb());
-                              for (long idx = lo; idx <= hi && ok; idx += 1) {
+                              long left = dim.get_msb();
+                              long right = dim.get_lsb();
+                              bool up = left < right;
+                              long idx = left;
+                              while (ok && (up ? idx <= right : idx >= right)) {
                                     env[cfe->loop_vars()[d]] = (uint64_t)idx;
                                     unroll(d + 1, env);
+                                    if (!ok || idx == right) break;
+                                    idx += up ? 1 : -1;
                               }
                               env.erase(cfe->loop_vars()[d]);
                         };
