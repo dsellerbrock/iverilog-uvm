@@ -40,6 +40,8 @@ issue1497_qualified_if_else_fail_2017 CE,-g2017,-s,top ivltests
 issue1497_qualified_if_else_fail_2023 CE,-g2023,-s,top ivltests
 issue1513_nettype_multiple_delay_2017 CE,-g2017,-s,issue1513_nettype_multiple_delay ivltests
 issue1513_nettype_multiple_delay_2023 CE,-g2023,-s,issue1513_nettype_multiple_delay ivltests
+issue1580_implicit_return_import_2017 CE,-g2017,-s,top ivltests
+issue1580_implicit_return_import_2023 CE,-g2023,-s,top ivltests
 issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_force_select_2017.gold
 issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
