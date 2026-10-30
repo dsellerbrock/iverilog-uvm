@@ -179,7 +179,7 @@ static vpiHandle get_port_handle(char* port_name, const int sdf_lineno)
       while (submodules--) {
 	    scope = vpi_handle_by_name(token, scope);
 
-	    if (!scope) vpi_printf("SDF ERROR: %s:%d: Submodule %s in port path not found!\n", sdf_fname, sdf_lineno, token);
+	    if (!scope) return NULL;
 
 	      // Extract next token
 	    token = strtok(NULL, ".");
@@ -309,7 +309,8 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 		  vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath!\n", sdf_fname, sdf_lineno);
 	    }
       } else {
-	    vpi_printf("SDF ERROR: %s:%d: Could not find handles for both ports!\n", sdf_fname, sdf_lineno);
+	    vpi_printf("SDF WARNING: %s:%d: Cannot annotate interconnect; both endpoints must be module ports.\n",
+	               sdf_fname, sdf_lineno);
       }
 }
 
