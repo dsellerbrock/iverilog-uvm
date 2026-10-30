@@ -1,0 +1,4 @@
+SDF WARNING: ivltests/issue1571_sdf_interconnect_source_direction.sdf:11: INTERCONNECT source port u0.a is not an output or inout port; skipping annotation.
+SDF WARNING: ivltests/issue1571_sdf_interconnect_source_direction.sdf:13: INTERCONNECT load port u0.load_bad_y is not an input or inout port; skipping annotation.
+PASS: invalid source/load rejected; valid output source delayed
+ivltests/issue1571_sdf_interconnect_source_direction.v:46: $finish called at 14000 (1ps)

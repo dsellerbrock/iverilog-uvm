@@ -1,0 +1,2 @@
+PASS: invalid source/load rejected; valid output source delayed
+./ivltests/issue1571_sdf_interconnect_source_direction.v:46: $finish called at 14000 (1ps)

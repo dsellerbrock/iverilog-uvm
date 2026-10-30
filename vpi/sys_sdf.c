@@ -212,12 +212,53 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 
 	// Get handles for both ports
 	// After calling get_port_handle, the name is invalid
+      char *port1_name = strdup(port1.name);
+      char *port2_name = strdup(port2.name);
       vpiHandle port1_handle = get_port_handle(port1.name, sdf_lineno);
       vpiHandle port2_handle = get_port_handle(port2.name, sdf_lineno);
 
       if (!port1_handle && sdf_flag_warning)
 	    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s not found; annotating load port anyway.\n",
 	               sdf_fname, sdf_lineno, port1.name);
+
+	// The INTERCONNECT source must be an output or inout module port.
+	// Do not turn an existing port with the wrong direction into a valid
+	// source by passing it to vpi_handle_multi.
+      if (port1_handle) {
+	    int direction = vpi_get(vpiDirection, port1_handle);
+	    if (direction != vpiOutput && direction != vpiInout) {
+		  if (sdf_flag_warning) {
+			const char *name = port1_name;
+			if (!name) name = vpi_get_str(vpiFullName, port1_handle);
+			if (!name) name = vpi_get_str(vpiName, port1_handle);
+			vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s is not an output or inout port; skipping annotation.\n",
+			           sdf_fname, sdf_lineno, name);
+		  }
+		  free(port1_name);
+		  free(port2_name);
+		  return;
+	    }
+      }
+
+	// The load must be an input or inout module port.
+      if (port2_handle) {
+	    int direction = vpi_get(vpiDirection, port2_handle);
+	    if (direction != vpiInput && direction != vpiInout) {
+		  if (sdf_flag_warning) {
+			const char *name = port2_name;
+			if (!name) name = vpi_get_str(vpiFullName, port2_handle);
+			if (!name) name = vpi_get_str(vpiName, port2_handle);
+			vpi_printf("SDF WARNING: %s:%d: INTERCONNECT load port %s is not an input or inout port; skipping annotation.\n",
+			           sdf_fname, sdf_lineno, name);
+		  }
+		  free(port1_name);
+		  free(port2_name);
+		  return;
+	    }
+      }
+
+      free(port1_name);
+      free(port2_name);
 
 	// Check whether we have a single bit of a port for port1
       if (port1.has_index && port1_handle) {

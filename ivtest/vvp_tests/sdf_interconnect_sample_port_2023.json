@@ -9,5 +9,6 @@
         "-s",
         "top"
     ],
+    "vvp-args-extended": ["-sdf-warn"],
     "gold": "sdf_interconnect_sample_port"
 }
