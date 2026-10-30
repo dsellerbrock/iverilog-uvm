@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1709_array_slice_snapshot_2023.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "issue1709_array_slice_snapshot_2023"
+}
