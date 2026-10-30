@@ -13490,10 +13490,25 @@ static void tc_pair_synth_(const struct vlltype&loc,
       PExpr*cmp = new PEBComp(violation_if_greater? '>' : '<',
 			      delta, limit);
       PExpr*cond = new PEBLogic('a', guard, cmp);
-      PCondit*chk = new PCondit(cond,
+      if (strcmp(check_name, "$setup") == 0) {
+	    /* The separate $setup window excludes its end point. */
+	    PExpr*after_stamp = new PEBComp('>', delta, tc_real_(loc, 0.0));
+	    cond = new PEBLogic('a', cond, after_stamp);
+      }
+	  Statement*chk = new PCondit(cond,
 				tc_violation_(loc, check_name, notifier),
 				nullptr);
       FILE_NAME(chk, loc);
+      if (strcmp(check_name, "$setup") == 0
+	  || strcmp(check_name, "$hold") == 0) {
+	    /* Separate checks use their own window endpoints. Defer the
+	       timecheck to the inactive region so a timestamp event in the
+	       same timestep is visible independent of process ordering. */
+	    PDelayStatement*defer = new PDelayStatement(
+		  new PENumber(new verinum(uint64_t(0), 32)), chk);
+	    FILE_NAME(defer, loc);
+	    chk = defer;
+      }
       tc_always_at_(loc, check_ev, chk);
 }
 

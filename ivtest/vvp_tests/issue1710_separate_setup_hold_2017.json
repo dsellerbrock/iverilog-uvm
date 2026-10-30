@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1710_separate_setup_hold_2017.v",
+  "iverilog-args": ["-g2017", "-gspecify"],
+  "gold": "issue1710_separate_setup_hold_2017"
+}
