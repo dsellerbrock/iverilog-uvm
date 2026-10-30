@@ -828,6 +828,7 @@ struct class_type_t : public data_type_t {
 		  kind_t kind = BIN_NORMAL;
 		  select_t* select = nullptr;
 		  PExpr* set_expr = nullptr;
+		  bool set_expr_is_literal = false;
 		  perm_string with_cross;
 		  PExpr* with_expr = nullptr;
 		  PExpr* matches_expr = nullptr;
