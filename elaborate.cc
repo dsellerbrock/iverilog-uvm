@@ -36587,6 +36587,10 @@ static string constraint_fixed_locator_count_ir_(
       int pid = cls->property_idx_from_name(path.front().name);
       const netuarray_t*array = pid < 0 ? nullptr
 	    : dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)pid));
+      const netdarray_t*darray = pid < 0 ? nullptr
+	    : dynamic_cast<const netdarray_t*>(cls->get_prop_type((size_t)pid));
+      const netqueue_t*queue = pid < 0 ? nullptr
+	    : dynamic_cast<const netqueue_t*>(cls->get_prop_type((size_t)pid));
       ivl_type_t element_type = nullptr;
       vector<netrange_t>dimensions;
       unsigned long canonical_base = 0;
@@ -36604,7 +36608,12 @@ static string constraint_fixed_locator_count_ir_(
 	    canonical_base = carrier->fixed_object_word;
 	    source_property = carrier->fixed_source_property;
 	    source_indices = carrier->fixed_source_indices;
-      } else if (array) {
+	  } else if (darray && !queue && path.front().index.empty()) {
+	    property_qualifier_t qual = cls->get_prop_qual((size_t)pid);
+	    if (!qual.test_rand() && !qual.test_randc()) return "";
+	    element_type = darray->element_type();
+	    source_property = path.front().name;
+	  } else if (array) {
 	    source_property = path.front().name;
 	    element_type = array->element_type();
 	    dimensions.assign(array->static_dimensions().begin(),
@@ -36631,7 +36640,7 @@ static string constraint_fixed_locator_count_ir_(
 		  dimensions.erase(dimensions.begin());
 	    }
       } else return "";
-      if (dimensions.empty()) return "";
+	      if (dimensions.empty() && !(darray && !queue)) return "";
       const vector<PExpr*>&with = locator->with_constraints();
       if (with.size() != 1 || !with.front()) return "";
       const vector<named_pexpr_t>&parms = locator->get_parms();
@@ -36649,6 +36658,50 @@ static string constraint_fixed_locator_count_ir_(
       if (!object_type && (!element_type
 	  || (element_type->base_type() != IVL_VT_BOOL
 	      && element_type->base_type() != IVL_VT_LOGIC) || !width)) return "";
+	/* A random dynamic array has no fixed leaves until its size pass has
+	 * completed. Reuse the dynamic reduction lowering and sum the Boolean
+	 * locator predicate as 0/1 for each solved element. */
+	      if (darray && !queue) {
+	    if (object_type || width > 64 || !dimensions.empty()) return "";
+	    NetScope*mutable_scope = const_cast<NetScope*>(scope);
+	    if (!mutable_scope || !constraint_ir_design_ctx_) return "";
+	    NetNet*iter_net = new NetNet(mutable_scope,
+		  mutable_scope->local_symbol(), NetNet::REG, element_type);
+	    iter_net->set_line(*locator);
+	    iter_net->local_flag(true);
+	    NetNet*index_net = new NetNet(mutable_scope,
+		  mutable_scope->local_symbol(), NetNet::REG,
+		  &netvector_t::atom2s32);
+	    index_net->set_line(*locator);
+	    index_net->local_flag(true);
+	    NetNet*previous = mutable_scope->set_signal_alias(iterator, iter_net);
+	    push_array_method_iter_ctx(iter_net, index_net);
+	    PExpr*with_expr = with.front();
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned result_width = with_expr->test_width(
+		  constraint_ir_design_ctx_, mutable_scope, mode);
+	    ivl_variable_type_t result_base = with_expr->expr_type();
+	    pop_array_method_iter_ctx();
+	    mutable_scope->restore_signal_alias(iterator, previous);
+	    if ((result_base != IVL_VT_BOOL && result_base != IVL_VT_LOGIC)
+		|| result_width == 0) return "";
+	    string suffix = element_type->get_signed() ? ":s" : "";
+	    constraint_reduction_iter_ctx_t ctx;
+	    ctx.name = iterator;
+	    ctx.value_ir = "(delem " + to_string(pid) + ":"
+		  + to_string(width) + suffix + " L)";
+	    ctx.index_ir = "L";
+	    ctx.value_type = element_type;
+	    ctx.parent = constraint_reduction_iter_ctx_;
+	    const constraint_reduction_iter_ctx_t*saved = constraint_reduction_iter_ctx_;
+	    constraint_reduction_iter_ctx_ = &ctx;
+	    string predicate = pexpr_to_constraint_ir(
+		  with.front(), cls, value_slots, scope, loop_env);
+	    constraint_reduction_iter_ctx_ = saved;
+	    if (predicate.empty()) return "";
+	    string term = "(ite " + predicate + " c:1:32:s c:0:32:s)";
+	    return "(dsumw " + to_string(pid) + ":32:s add " + term + ")";
+      }
       string suffix = element_type->get_signed() ? ":s" : "";
       const netrange_t&range = dimensions.front();
       long low = std::min(range.get_msb(), range.get_lsb());

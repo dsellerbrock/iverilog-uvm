@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1796_dynamic_locator_count_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue1796_dynamic_locator_count"
+}
