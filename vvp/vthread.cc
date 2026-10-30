@@ -9766,6 +9766,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&bin_guards)
 {
       const class_type*defn = cobj->get_defn();
+      defn->covgrp_db_note_sample();
       size_t nbins = defn->covgrp_bin_count();
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 	    covgrp_dyn_states_(defn, cobj);
