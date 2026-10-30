@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1580_implicit_return_import_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "top" ],
+    "gold"          : "issue1580_implicit_return_import_2017"
+}

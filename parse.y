@@ -8266,7 +8266,7 @@ dpi_function_import_property_opt
 
 dpi_import_export_declaration
   : K_import STRING dpi_function_import_property_opt K_function
-    data_type_or_implicit_or_void function_identifier
+    data_type_or_void function_identifier
       { assert(current_function == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
@@ -8284,7 +8284,7 @@ dpi_import_export_declaration
 	delete[] $6;
       }
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_function
-    data_type_or_implicit_or_void function_identifier
+    data_type_or_void function_identifier
       { assert(current_function == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
