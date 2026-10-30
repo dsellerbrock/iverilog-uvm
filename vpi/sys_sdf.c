@@ -190,7 +190,7 @@ static vpiHandle get_port_handle(char* port_name, const int sdf_lineno)
       vpiHandle port;
       vpiHandle port_handle = NULL;
 
-      while ((port=vpi_scan(port_i)) != NULL) {
+      while (port_i && (port=vpi_scan(port_i)) != NULL) {
 	    const char *port_name_ = vpi_get_str(vpiName, port) ;
 
 	    if (strcmp(port_name_, token) == 0) {
@@ -215,8 +215,12 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
       vpiHandle port1_handle = get_port_handle(port1.name, sdf_lineno);
       vpiHandle port2_handle = get_port_handle(port2.name, sdf_lineno);
 
+      if (!port1_handle && sdf_flag_warning)
+	    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s not found; annotating load port anyway.\n",
+	               sdf_fname, sdf_lineno, port1.name);
+
 	// Check whether we have a single bit of a port for port1
-      if (port1.has_index) {
+      if (port1.has_index && port1_handle) {
 	    vpiHandle iter, vpi_port_bit;
 	    iter = vpi_iterate(vpiBit, port1_handle);
 
@@ -244,7 +248,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
       }
 
 	// Check whether we have a single bit of a port for port2
-      if (port2.has_index) {
+      if (port2.has_index && port2_handle) {
 	    vpiHandle iter, vpi_port_bit;
 	    iter = vpi_iterate(vpiBit, port2_handle);
 
@@ -271,7 +275,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 	    }
       }
 
-      if (port1_handle && port2_handle) {
+      if (port2_handle) {
 	      // Get interModPath for the two ports
 	    vpiHandle intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
 
