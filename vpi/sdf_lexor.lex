@@ -142,6 +142,8 @@ static struct {
       { "HOLD",         K_HOLD },
       { "INCREMENT",    K_INCREMENT },
       { "INTERCONNECT", K_INTERCONNECT },
+      { "NETDELAY",     K_NETDELAY },
+      { "PORT",         K_PORT },
       { "INSTANCE",     K_INSTANCE },
       { "IOPATH",       K_IOPATH },
       { "PATHPULSE",    K_PATHPULSE },

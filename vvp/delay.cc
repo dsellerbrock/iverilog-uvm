@@ -1662,10 +1662,11 @@ static vpiHandle intermodpath_iterate(int code, vpiHandle ref)
 	// For now intermodpaths only support exactly two ports
       switch (code) {
 	  case vpiPort: {
-	    vpiHandle*args = static_cast<vpiHandle*>(calloc(2, sizeof(vpiHandle*)));
-	    args[0] = rfp->port1;
-	    args[1] = rfp->port2;
-	    return vpip_make_iterator(2, args, true);
+	    unsigned count = rfp->port1 ? 2 : 1;
+	    vpiHandle*args = static_cast<vpiHandle*>(calloc(count, sizeof(vpiHandle*)));
+	    if (rfp->port1) args[0] = rfp->port1;
+	    args[count-1] = rfp->port2;
+	    return vpip_make_iterator(count, args, true);
 	  }
       }
       return 0;

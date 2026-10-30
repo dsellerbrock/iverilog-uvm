@@ -23,6 +23,11 @@
 # include  <string.h>
 # include  <assert.h>
 
+extern int vpip_interconnect_through_net(vpiHandle net, vpiHandle source,
+                                         vpiHandle load);
+extern int vpip_interconnect_ports_connected(vpiHandle source, vpiHandle load);
+extern vpiHandle vpip_interconnect_net_to_load(vpiHandle net, vpiHandle load);
+
 /*
  * These are static context
  */
@@ -204,6 +209,145 @@ static vpiHandle get_port_handle(char* port_name, const int sdf_lineno)
       return port_handle;
 }
 
+static void sdf_put_interconnect_delays(vpiHandle intermodpath,
+                                        const struct sdf_delval_list_s*delval_list,
+                                        const int sdf_lineno)
+{
+      s_vpi_delay delays;
+      struct t_vpi_time delay_vals[12];
+
+      delays.da = delay_vals;
+      delays.no_of_delays = delval_list->count;
+      delays.time_type = vpiScaledRealTime;
+      delays.mtm_flag = 0;
+      delays.append_flag = 0;
+      delays.pulsere_flag = 0;
+      vpi_get_delays(intermodpath, &delays);
+
+      for (int idx = 0 ; idx < delval_list->count ; idx += 1) {
+	    delay_vals[idx].type = vpiScaledRealTime;
+	    if (delval_list->val[idx].defined) {
+		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
+		                                  sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
+		  delay_vals[idx].real = delval_list->val[idx].value;
+	    }
+      }
+
+      vpi_put_delays(intermodpath, &delays);
+}
+
+static int sdf_apply_to_port(vpiHandle source, vpiHandle load,
+                              const struct sdf_delval_list_s*delval_list,
+                              const int sdf_lineno)
+{
+      vpiHandle intermodpath = vpi_handle_multi(vpiInterModPath, source, load);
+      if (intermodpath) {
+	    sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
+            return 1;
+      }
+      return 0;
+}
+
+static int sdf_apply_port_sources(vpiHandle scope, vpiHandle load, vpiHandle net,
+                                  const struct sdf_delval_list_s*delval_list,
+                                  const int sdf_lineno)
+{
+      int count = 0;
+      vpiHandle iter = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (iter && (port = vpi_scan(iter))) {
+	    int direction = vpi_get(vpiDirection, port);
+	    if ((direction == vpiOutput || direction == vpiInout) &&
+	        (net ? vpip_interconnect_through_net(net, port, load) :
+	               vpip_interconnect_ports_connected(port, load)))
+		  count += sdf_apply_to_port(port, load, delval_list, sdf_lineno);
+      }
+
+      iter = vpi_iterate(vpiModule, scope);
+      while (iter && (scope = vpi_scan(iter)))
+            count += sdf_apply_port_sources(scope, load, net, delval_list, sdf_lineno);
+      return count;
+}
+
+static int sdf_apply_nets_to_port(vpiHandle scope, vpiHandle load,
+                                  const struct sdf_delval_list_s*delval_list,
+                                  const int sdf_lineno)
+{
+      vpiHandle iter = vpi_iterate(vpiNet, scope);
+      vpiHandle net;
+      while (iter && (net = vpi_scan(iter))) {
+	    vpiHandle intermodpath = vpip_interconnect_net_to_load(net, load);
+	    if (intermodpath) {
+		  sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
+		  return 1;
+	    }
+      }
+
+      iter = vpi_iterate(vpiModule, scope);
+      while (iter && (scope = vpi_scan(iter)))
+	    if (sdf_apply_nets_to_port(scope, load, delval_list, sdf_lineno))
+		  return 1;
+      return 0;
+}
+
+static void sdf_apply_port_loads(vpiHandle scope, vpiHandle net,
+                                 const struct sdf_delval_list_s*delval_list,
+                                 const int sdf_lineno)
+{
+      vpiHandle iter = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (iter && (port = vpi_scan(iter))) {
+	    int direction = vpi_get(vpiDirection, port);
+	    if (direction == vpiInput || direction == vpiInout) {
+		  int count = sdf_apply_port_sources(sdf_scope, port, net,
+						     delval_list, sdf_lineno);
+		  if (count == 0) {
+			vpiHandle intermodpath = vpip_interconnect_net_to_load(net, port);
+			if (intermodpath)
+			      sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
+		  }
+	    }
+      }
+
+      iter = vpi_iterate(vpiModule, scope);
+      while (iter && (scope = vpi_scan(iter)))
+	    sdf_apply_port_loads(scope, net, delval_list, sdf_lineno);
+}
+
+void sdf_port_delays(struct interconnect_port_s port,
+                     const struct sdf_delval_list_s*delval_list,
+                     const int sdf_lineno)
+{
+      char* name = strdup(port.name);
+      vpiHandle load = get_port_handle(name, sdf_lineno);
+      free(name);
+
+      if (!load) {
+	    vpi_printf("SDF ERROR: %s:%d: Could not find load port %s.\n",
+	               sdf_fname, sdf_lineno, port.name);
+	    return;
+      }
+      if (sdf_apply_port_sources(sdf_scope, load, 0, delval_list, sdf_lineno) == 0)
+	    sdf_apply_nets_to_port(sdf_scope, load, delval_list, sdf_lineno);
+}
+
+void sdf_netdelay_delays(struct interconnect_port_s net,
+                         const struct sdf_delval_list_s*delval_list,
+                         const int sdf_lineno)
+{
+      vpiHandle target = vpi_handle_by_name(net.name, sdf_cur_cell);
+      if (target && vpi_get(vpiType, target) == vpiPort) {
+	    sdf_port_delays(net, delval_list, sdf_lineno);
+	    return;
+      }
+      if (!target || vpi_get(vpiType, target) != vpiNet) {
+	    vpi_printf("SDF ERROR: %s:%d: Could not find NETDELAY port or net %s.\n",
+	               sdf_fname, sdf_lineno, net.name);
+	    return;
+      }
+      sdf_apply_port_loads(sdf_cur_cell, target, delval_list, sdf_lineno);
+}
+
 
 void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconnect_port_s port2,
                              const struct sdf_delval_list_s*delval_list,
@@ -277,30 +421,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 
 	    if (intermodpath) {
 		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Created a vpiInterModPath\n", sdf_fname, sdf_lineno);
-
-		  s_vpi_delay delays;
-		  struct t_vpi_time delay_vals[12];
-
-		    // Initialize delay structure
-		  delays.da = delay_vals;
-		  delays.no_of_delays = delval_list->count;
-		  delays.time_type = vpiScaledRealTime;
-		  delays.mtm_flag = 0;
-		  delays.append_flag = 0;
-		  delays.pulsere_flag = 0;
-		  vpi_get_delays(intermodpath, &delays);
-
-		  for (int idx = 0 ; idx < delval_list->count ; idx += 1) {
-			delay_vals[idx].type = vpiScaledRealTime;
-			if (delval_list->val[idx].defined) {
-			      if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
-			                                      sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-			      delay_vals[idx].real = delval_list->val[idx].value;
-			}
-		  }
-
-		    // Put the new delays
-		  vpi_put_delays(intermodpath, &delays);
+		  sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
 	    } else {
 		  vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath!\n", sdf_fname, sdf_lineno);
 	    }

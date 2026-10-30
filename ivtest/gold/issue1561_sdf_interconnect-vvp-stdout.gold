@@ -1,0 +1,4 @@
+t=0 port=0 net=0,0 netport=0 multiport=0 multinet=0,0 unrelated=0
+t=10000 port=0 net=0,0 netport=0 multiport=0 multinet=0,0 unrelated=1
+t=13000 port=1 net=1,1 netport=1 multiport=1 multinet=1,1 unrelated=1
+ivltests/issue1561_sdf_interconnect.v:49: $finish called at 20000 (1ps)

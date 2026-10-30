@@ -77,5 +77,13 @@ extern void sdf_interconnect_delays(struct interconnect_port_s port1,
                                     const struct sdf_delval_list_s*delval_list,
                                     const int sdf_lineno);
 
+extern void sdf_port_delays(struct interconnect_port_s port,
+                            const struct sdf_delval_list_s*delval_list,
+                            const int sdf_lineno);
+
+extern void sdf_netdelay_delays(struct interconnect_port_s net,
+                                const struct sdf_delval_list_s*delval_list,
+                                const int sdf_lineno);
+
 #endif /* IVL_sdf_priv_h */
 

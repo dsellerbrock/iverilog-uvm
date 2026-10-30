@@ -1,0 +1,13 @@
+(DELAYFILE
+  (SDFVERSION "4.0")
+  (DESIGN "top")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "top")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (PORT u2.a (3))
+      (PORT u12.a (3))
+    ))
+  )
+)

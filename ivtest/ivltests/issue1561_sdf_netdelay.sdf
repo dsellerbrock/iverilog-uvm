@@ -1,0 +1,14 @@
+(DELAYFILE
+  (SDFVERSION "4.0")
+  (DESIGN "top")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "top")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (NETDELAY net_link (3))
+      (NETDELAY u9.a (3))
+      (NETDELAY multi_net_link (3))
+    ))
+  )
+)

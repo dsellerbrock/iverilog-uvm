@@ -2356,6 +2356,92 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
       return nullptr;
 }
 
+static int interconnect_ports_connected(vpiHandle source_handle,
+                                        vpiHandle load_handle,
+                                        vvp_net_t* target_net)
+{
+      vpiPortInfo* source = dynamic_cast<vpiPortInfo*>(source_handle);
+      vpiPortInfo* load = dynamic_cast<vpiPortInfo*>(load_handle);
+      if (!source || !load)
+	    return 0;
+
+      vvp_net_t* source_net = source->get_port();
+      vvp_net_t* load_net = load->get_port();
+      if (!source_net || !load_net)
+	    return 0;
+
+      bool passed_target_net = target_net == nullptr || source_net == target_net;
+      vvp_net_ptr_t cur = source_net->out_;
+      while (cur.ptr()) {
+	    if (cur.ptr() == target_net)
+		  passed_target_net = true;
+	    if (cur.ptr() == load_net)
+		  return passed_target_net;
+	    cur = cur.ptr()->port[cur.port()];
+      }
+      return false;
+}
+
+extern "C" int vpip_interconnect_ports_connected(vpiHandle source_handle,
+                                                   vpiHandle load_handle)
+{
+      return interconnect_ports_connected(source_handle, load_handle, nullptr);
+}
+
+extern "C" int vpip_interconnect_through_net(vpiHandle net_handle,
+                                               vpiHandle source_handle,
+                                               vpiHandle load_handle)
+{
+      __vpiSignal* net_signal = dynamic_cast<__vpiSignal*>(net_handle);
+      if (!net_signal || !net_signal->node)
+	    return 0;
+      return interconnect_ports_connected(source_handle, load_handle,
+					  net_signal->node);
+}
+
+extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net_handle,
+                                                     vpiHandle load_handle)
+{
+      __vpiSignal* net_signal = dynamic_cast<__vpiSignal*>(net_handle);
+      vpiPortInfo* load = dynamic_cast<vpiPortInfo*>(load_handle);
+      if (!net_signal || !net_signal->node || !load)
+	    return nullptr;
+
+      vvp_net_t* net = net_signal->node;
+      vvp_net_t* load_net = load->get_port();
+      if (!load_net)
+	    return nullptr;
+
+      vvp_net_ptr_t cur = net->out_;
+      vvp_net_ptr_t prev(nullptr, 0);
+      while (cur.ptr() && cur.ptr() != load_net) {
+	    prev = cur;
+	    cur = cur.ptr()->port[cur.port()];
+      }
+      if (!cur.ptr())
+	    return nullptr;
+
+      vvp_net_t* new_net = new vvp_net_t;
+      vvp_fun_intermodpath* obj = new vvp_fun_intermodpath(new_net,
+								    load->get_width());
+      new_net->fun = obj;
+      new_net->out_ = cur;
+      if (prev.ptr()) {
+	    prev.ptr()->port[prev.port()] = vvp_net_ptr_t(new_net, 0);
+	    new_net->port[0] = cur.ptr()->port[cur.port()];
+	    cur.ptr()->port[cur.port()] = vvp_net_ptr_t(nullptr, 0);
+      } else {
+	    net->out_ = vvp_net_ptr_t(new_net, 0);
+	    new_net->port[0] = cur.ptr()->port[cur.port()];
+	    cur.ptr()->port[cur.port()] = vvp_net_ptr_t(nullptr, 0);
+      }
+
+      __vpiInterModPath* intermodpath = vpip_make_intermodpath(new_net,
+								      nullptr, load);
+      intermodpath->intermodpath = obj;
+      return intermodpath;
+}
+
 /*
   We increment the two vpi methods to enable the
   read/write of SDF delay values from/into

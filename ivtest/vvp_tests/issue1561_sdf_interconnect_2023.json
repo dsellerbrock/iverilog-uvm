@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1561_sdf_interconnect.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "top"],
+  "gold": "issue1561_sdf_interconnect"
+}

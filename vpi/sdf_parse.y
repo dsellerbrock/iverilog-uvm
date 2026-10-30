@@ -48,7 +48,7 @@ char sdf_use_hchar = '.';
 
 %token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE
 %token K_DELAY K_DESIGN K_DIVIDER K_HOLD K_INCREMENT K_INSTANCE
-%token K_INTERCONNECT K_IOPATH K_NEGEDGE K_PATHPULSE K_PATHPULSEPERCENT
+%token K_INTERCONNECT K_IOPATH K_NETDELAY K_NEGEDGE K_PATHPULSE K_PATHPULSEPERCENT K_PORT
 %token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM
 %token K_RECREM K_RECOVERY K_REMOVAL K_SDFVERSION K_SETUP K_SETUPHOLD
 %token K_TEMPERATURE K_TIMESCALE K_TIMINGCHECK K_VENDOR K_VERSION
@@ -381,6 +381,14 @@ del_def
   | '(' K_INTERCONNECT error ')'
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed INTERCONNECT\n",
 	           sdf_parse_path, @2.first_line);
+      }
+  | '(' K_PORT port_interconnect delval_list ')'
+      { sdf_port_delays($3, &$4, @2.first_line);
+	free($3.name);
+      }
+  | '(' K_NETDELAY port_interconnect delval_list ')'
+      { sdf_netdelay_delays($3, &$4, @2.first_line);
+	free($3.name);
       }
   ;
 
