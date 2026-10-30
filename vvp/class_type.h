@@ -567,6 +567,8 @@ class class_type : public __vpiHandle {
       static bool covgrp_db_save(const std::string&path, std::string&err);
       static bool covgrp_db_load(const std::string&path, std::string&err,
                                  bool&missing);
+      void covgrp_db_note_sample() const
+      { covgrp_sampled_ = true; covgrp_db_live_suppressed_ = false; }
 
 	// M11-3: all live covergroup instances are registered for cumulative
 	// option semantics. For event-driven class-embedded covergroups, the
@@ -630,6 +632,9 @@ class class_type : public __vpiHandle {
       std::vector<cov_item_t> covgrp_items_;
       mutable std::vector<uint32_t> type_counts_;
       mutable bool covgrp_db_loaded_ = false;
+      mutable bool covgrp_sampled_ = false;
+      // Loaded population is authoritative until this type is sampled again.
+      mutable bool covgrp_db_live_suppressed_ = false;
       mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>
 	    covgrp_dyn_type_counts_;
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
