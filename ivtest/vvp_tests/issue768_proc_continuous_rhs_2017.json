@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue768_proc_continuous_rhs.v",
+  "iverilog-args": ["-g2017", "-s", "issue768_proc_continuous_rhs"],
+  "output-contains": ["ISSUE768_PROC_CONTINUOUS_RHS_PASSED"]
+}

@@ -636,6 +636,16 @@ bool dll_target::proc_cassign(const NetCAssign*net)
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
+      const NetExpr*link_rval = net->cassign_link_rval();
+      assert(link_rval);
+      if (link_rval == rval) {
+	    stmt_cur_->u_.assign_.force_link_rval_ = stmt_cur_->u_.assign_.rval_;
+      } else {
+	    link_rval->expr_scan(this);
+	    stmt_cur_->u_.assign_.force_link_rval_ = expr_;
+	    expr_ = 0;
+      }
+
       return true;
 }
 

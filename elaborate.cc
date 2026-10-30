@@ -21974,6 +21974,11 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
       return true;
 }
 
+static bool force_rhs_needs_structural_net_(const NetExpr*expr);
+static NetScope* force_rhs_structural_scope_(NetScope*scope);
+static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
+				       const LineInfo&loc);
+
 /*
  * Elaborate a procedural continuous assign. This really looks very
  * much like other procedural assignments, at this point, but there
@@ -22021,7 +22026,28 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      dev = new NetCAssign(lval, rexp);
+      NetExpr*link_rexp = 0;
+
+      /* A procedural continuous assignment needs both the expression's
+       * immediate value and a structural source whose changes can trigger
+       * the existing VVP cassign link. Keep the initial expression intact
+       * for activation-time evaluation. */
+      if (force_rhs_needs_structural_net_(rexp)) {
+	    NetScope*source_scope = force_rhs_structural_scope_(scope);
+	    NetExpr*structural_rexp = rexp->dup_expr();
+	    NetNet*source = structural_rexp->synthesize(des, source_scope,
+						       structural_rexp);
+	    source = force_rhs_static_alias_(source, source_scope,
+					     *structural_rexp);
+	    if (source) {
+		  NetESignal*continuous = new NetESignal(source);
+		  continuous->set_line(*structural_rexp);
+		  link_rexp = continuous;
+	    }
+	    delete structural_rexp;
+      }
+
+      dev = new NetCAssign(lval, rexp, link_rexp);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate cassign,"
@@ -26226,9 +26252,9 @@ NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 }
 
 /* Return true when EXPR can be lowered to the existing structural expression
- * netlist without changing its meaning. This deliberately starts with the
- * signal/select/concatenation cluster used by Caliptra's memory-injection
- * forces. Other procedural expressions retain the target's explicit
+ * netlist without changing its meaning. This covers signal/select/concat
+ * expressions, bitwise operators, and the supported subtract-constant force
+ * form. Other procedural expressions retain the target's explicit
  * one-evaluation warning until they have an equally precise lowering. */
 static bool force_rhs_is_structural_(const NetExpr*expr)
 {
@@ -26264,6 +26290,10 @@ static bool force_rhs_is_structural_(const NetExpr*expr)
 		&& force_rhs_is_structural_(sub->left())
 		&& dynamic_cast<const NetEConst*>(sub->right());
       }
+
+      if (const NetEBBits*bits = dynamic_cast<const NetEBBits*>(expr))
+	    return force_rhs_is_structural_(bits->left())
+		&& force_rhs_is_structural_(bits->right());
 
       return false;
 }

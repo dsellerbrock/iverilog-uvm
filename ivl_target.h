@@ -2429,6 +2429,10 @@ extern unsigned ivl_stmt_lineno(ivl_statement_t net);
  *    remains the expression evaluated when the statement executes. When no
  *    distinct structural link source exists, this returns ivl_stmt_rval.
  *
+ * ivl_stmt_cassign_link_rval
+ *    For an IVL_ST_CASSIGN, return the expression used to keep the
+ *    procedural continuous assignment live after initial activation.
+ *
  * ivl_stmt_sub_stmt
  *    Some statements contain a single, subordinate statement. An
  *    example is the IVL_ST_WAIT, which contains the statement to be
@@ -2616,6 +2620,7 @@ extern unsigned    ivl_stmt_vif_methods(ivl_statement_t net);
 extern ivl_expr_t ivl_stmt_rval(ivl_statement_t net);
   /* IVL_ST_FORCE */
 extern ivl_expr_t ivl_stmt_force_link_rval(ivl_statement_t net);
+extern ivl_expr_t ivl_stmt_cassign_link_rval(ivl_statement_t net);
   /* IVL_ST_STASK */
 extern ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net);
   /* IVL_ST_DELAY, IVL_ST_DELAYX, IVL_ST_FOREVER, IVL_ST_FORLOOP,

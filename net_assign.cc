@@ -649,13 +649,19 @@ const NetExpr*NetAssignNB::get_count() const
       return count_;
 }
 
-NetCAssign::NetCAssign(NetAssign_*lv, NetExpr*rv)
-: NetAssignBase(lv, rv)
+NetCAssign::NetCAssign(NetAssign_*lv, NetExpr*rv, NetExpr*link_rv)
+: NetAssignBase(lv, rv), cassign_link_rval_(link_rv)
 {
 }
 
 NetCAssign::~NetCAssign()
 {
+      delete cassign_link_rval_;
+}
+
+const NetExpr* NetCAssign::cassign_link_rval() const
+{
+      return cassign_link_rval_ ? cassign_link_rval_ : rval();
 }
 
 NetDeassign::NetDeassign(NetAssign_*l)

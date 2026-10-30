@@ -4041,12 +4041,17 @@ class NetCase  : public NetProc {
 class NetCAssign  : public NetAssignBase {
 
     public:
-      explicit NetCAssign(NetAssign_*lv, NetExpr*rv);
+      explicit NetCAssign(NetAssign_*lv, NetExpr*rv, NetExpr*link_rv = 0);
       ~NetCAssign() override;
+
+      const NetExpr* cassign_link_rval() const;
 
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       virtual bool check_synth(ivl_process_type_t pr_type, const NetScope*scope) const override;
+
+    private:
+      NetExpr*cassign_link_rval_;
 
     private: // not implemented
       NetCAssign(const NetCAssign&);
