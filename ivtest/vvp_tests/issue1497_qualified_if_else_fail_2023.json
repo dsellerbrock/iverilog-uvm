@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1497_qualified_if_else_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1497_qualified_if_else_fail_2023"
+}
