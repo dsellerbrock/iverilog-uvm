@@ -1041,7 +1041,7 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       }
 
       // shortcut: pulse filtering covers scalar paths until vector path events are modeled per bit.
-      if (bit.size() == 1 && pulse_at[use_edge]) {
+      if (bit.size() == 1) {
 	    schedule_pulse_transition_(use_delay, reject_at[use_edge],
 				       error_at[use_edge], bit);
 	    return;
@@ -1542,11 +1542,89 @@ vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, unsigned width)
 	    delay_[idx] = 0;
 
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
+      pending_pulse_ = 0;
       schedule_init_propagate(net_, cur_vec4_);
 }
 
 vvp_fun_intermodpath::~vvp_fun_intermodpath()
 {
+      for (pulse_event_map_t::iterator bucket = pulse_events_.begin();
+	   bucket != pulse_events_.end(); ++bucket) {
+	    for (pulse_event_list_t::iterator pos = bucket->second.begin();
+		 pos != bucket->second.end(); ++pos)
+		  delete *pos;
+      }
+}
+
+vvp_fun_intermodpath::pulse_event_*
+vvp_fun_intermodpath::enqueue_pulse_event_(vvp_time64_t time,
+						  const vvp_vector4_t& from,
+						  const vvp_vector4_t& to)
+{
+      std::pair<pulse_event_map_t::iterator, bool> ins =
+	    pulse_events_.insert(std::make_pair(time, pulse_event_list_t()));
+      pulse_event_*event = new pulse_event_(time, from, to);
+      ins.first->second.push_back(event);
+      event->bucket = ins.first;
+      event->position = --ins.first->second.end();
+      return event;
+}
+
+void vvp_fun_intermodpath::cancel_pulse_event_(pulse_event_*event)
+{
+      pulse_event_map_t::iterator bucket = event->bucket;
+      bucket->second.erase(event->position);
+      if (pending_pulse_ == event)
+	    pending_pulse_ = 0;
+      delete event;
+      if (bucket->second.empty())
+	    pulse_events_.erase(bucket);
+}
+
+void vvp_fun_intermodpath::schedule_pulse_transition_(vvp_time64_t delay,
+						      const vvp_vector4_t&bit)
+{
+      vvp_vector4_t from = cur_vec4_;
+      cur_vec4_ = bit;
+      vvp_time64_t due = schedule_simtime() + delay;
+
+      if (pending_pulse_ && bit.eeq(pending_pulse_->from)) {
+	    vvp_time64_t width = due > pending_pulse_->sim_time ?
+		  due - pending_pulse_->sim_time : 0;
+	    vvp_time64_t reject = delay;
+	    vvp_time64_t error = delay;
+	    if (width < reject) {
+		  cancel_pulse_event_(pending_pulse_);
+		  return;
+	    }
+	    if (width < error)
+		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
+      }
+
+      pending_pulse_ = enqueue_pulse_event_(due, from, bit);
+      schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
+}
+
+void vvp_fun_intermodpath::pulse_wakeup_::run_run()
+{
+      owner_->run_pulse_events_();
+}
+
+void vvp_fun_intermodpath::run_pulse_events_()
+{
+      vvp_time64_t now = schedule_simtime();
+      while (!pulse_events_.empty() && pulse_events_.begin()->first <= now) {
+	    pulse_event_map_t::iterator bucket = pulse_events_.begin();
+	    for (pulse_event_list_t::iterator pos = bucket->second.begin();
+		 pos != bucket->second.end(); ++pos) {
+		  pulse_event_*event = *pos;
+		  if (pending_pulse_ == event)
+			pending_pulse_ = 0;
+		  net_->send_vec4(event->to, 0);
+		  delete event;
+	    }
+	    pulse_events_.erase(bucket);
+      }
 }
 
 void vvp_fun_intermodpath::get_delay12(vvp_time64_t val[12]) const
@@ -1594,6 +1672,11 @@ void vvp_fun_intermodpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 	       * is needed for this bit. */
 	    if (cur_vec4_.value(idx) == bit.value(idx)) continue;
 	    assert(tmp == use_delay);
+      }
+
+      if (bit.size() == 1) {
+	    schedule_pulse_transition_(use_delay, bit);
+	    return;
       }
 
       cur_vec4_ = bit;
