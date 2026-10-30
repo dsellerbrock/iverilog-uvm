@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1613_cross_function_and_binsof.v",
+  "iverilog-args": ["-g2023", "-DISSUE1613_2023"],
+  "gold": "issue1613_cross_function_and_binsof"
+}
