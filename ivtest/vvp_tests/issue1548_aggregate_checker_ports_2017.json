@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1548_aggregate_checker_ports.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue1548_aggregate_checker_ports_2017"
+}

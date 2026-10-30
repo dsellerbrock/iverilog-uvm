@@ -1,0 +1,4 @@
+ivltests/issue1548_aggregate_checker_ports.v:2: error: Checker default and initial values are only allowed for singular ports (IEEE 1800-2017/2023 17.2).
+ivltests/issue1548_aggregate_checker_ports.v:3: error: Checker default and initial values are only allowed for singular ports (IEEE 1800-2017/2023 17.2).
+ivltests/issue1548_aggregate_checker_ports.v:4: error: Checker default and initial values are only allowed for singular ports (IEEE 1800-2017/2023 17.2).
+ivltests/issue1548_aggregate_checker_ports.v:5: error: Checker default and initial values are only allowed for singular ports (IEEE 1800-2017/2023 17.2).
