@@ -7277,22 +7277,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  }
 
-		    /* Input to module. Here we elaborate the source expression
-		       using its self-determined width. This allows us to check
-		       for and warn about port width mismatches. But in the
-		       special case that the source expression is a SV unbased
-		       unsized literal, we need to force the expression width
-		       to match the destination.
+		    /* Input to module. This is an assignment-like context
+		       (IEEE 1800-2017/2023 10.8), so elaborate the source
+		       expression using the width of the formal port. In
+		       particular, this allows the port width to propagate
+		       through context-determined operators such as addition.
 
 		       NOTE that this also handles the case that the
 		       port is actually empty on the inside. We assume
 		       in that case that the port is input. */
 
 		  int context_width = -1;
-		  if (const PENumber*literal = dynamic_cast<PENumber*>(pins[idx])) {
-			if (literal->value().is_single())
-			      context_width = prts_vector_width;
-		  }
+		  /* Leaf identifiers have no operands to size. Keep their declared
+		     width for port conversion diagnostics and implicit type checks. */
+		  if (!pins_implicit[idx]
+		      && !dynamic_cast<const PEIdent*>(pins[idx]))
+			context_width = prts_vector_width / instance.size();
 		    // FIXME: The default value is getting the wrong value for
 		    //        an array instance since only one scope is used
 		    //        and the value can be different for each scope.

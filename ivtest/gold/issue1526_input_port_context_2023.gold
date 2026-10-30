@@ -1,0 +1,2 @@
+PORT_INPUT_VALUE 8 08
+./ivltests/issue1526_input_port_context_2023.v:9: $finish called at 2 (1s)

@@ -10,6 +10,8 @@ issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2st
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
 issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
+issue1526_input_port_context_2017 normal,-g2017,-s,main ivltests gold=issue1526_input_port_context_2017.gold
+issue1526_input_port_context_2023 normal,-g2023,-s,main ivltests gold=issue1526_input_port_context_2023.gold
 
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
 issue1491_proc_cont_assign_expr_2017 CE,-g2017,-s,issue1491_proc_cont_assign_expr ivltests
