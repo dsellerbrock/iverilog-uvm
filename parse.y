@@ -14633,6 +14633,51 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  /* IEEE 1800-2023 13.4.1: a select may follow a member of a function
+     result used as an implicit variable. */
+  | expr_primary '.' IDENTIFIER '[' expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = $5;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression ':' expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_PART;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression K_PO_POS expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_UP;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression K_PO_NEG expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_DO;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
   | expr_primary K_with '[' expression ']'
       {
 	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_INDEX,
