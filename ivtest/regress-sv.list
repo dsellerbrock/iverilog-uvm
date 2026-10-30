@@ -42,6 +42,8 @@ issue1513_nettype_multiple_delay_2017 CE,-g2017,-s,issue1513_nettype_multiple_de
 issue1513_nettype_multiple_delay_2023 CE,-g2023,-s,issue1513_nettype_multiple_delay ivltests
 issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_force_select_2017.gold
 issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
+issue1532_untyped_pattern_concat_2017 CE,-g2017,-s,issue1532_untyped_pattern_concat ivltests
+issue1532_untyped_pattern_concat_2023 CE,-g2023,-s,issue1532_untyped_pattern_concat ivltests
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
