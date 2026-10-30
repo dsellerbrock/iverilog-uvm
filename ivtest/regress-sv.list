@@ -32,6 +32,8 @@ issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue146
 issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 issue1541_checker_sva_formals_2017 normal,-g2017,-s,issue1541_checker_sva_formals_2017 ivltests gold=issue1541_checker_sva_formals.gold
 issue1541_checker_sva_formals_2023 normal,-g2023,-s,issue1541_checker_sva_formals_2023 ivltests gold=issue1541_checker_sva_formals.gold
+issue1555_checker_initial_delay_fail_2017 CE,-g2017 ivltests gold=issue1555_checker_initial_delay_fail_2017.gold
+issue1555_checker_initial_delay_fail_2023 CE,-g2023 ivltests gold=issue1555_checker_initial_delay_fail_2023.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
