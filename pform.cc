@@ -8810,7 +8810,7 @@ struct sva_param_seq_t {
       std::vector<sva_seq_step_t>* body = nullptr;
 };
 struct sva_param_prop_t {
-      std::vector<perm_string> formals;
+      std::vector<sva_sequence_formal_t> formals;
       sva_property_t* body = nullptr;
 };
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
@@ -9751,7 +9751,7 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
 
 /* M9D: parameterized named property/sequence declarations. */
 void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
-				  std::list<perm_string>*formals,
+				  std::list<sva_sequence_formal_t>*formals,
 				  sva_property_t*prop)
 {
       sva_attach_local_declarations_(prop);
@@ -9762,12 +9762,16 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
+	    if (formals) for (sva_sequence_formal_t&f : *formals)
+		  delete f.default_expr;
 	    delete formals;
 	    pform_sva_destroy_property(prop);
 	    return;
       }
       sva_param_prop_t rec;
-      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      if (formals) {
+	    for (sva_sequence_formal_t f : *formals) rec.formals.push_back(f);
+      }
       sva_decl_property_forget_sampled_(prop);
       rec.body = prop;
       sva_param_properties[sva_decl_key_(use_name)] = rec;
@@ -9820,8 +9824,11 @@ void pform_sva_module_done(void)
 	    pform_sva_destroy_sequence(it->second.body);
       for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
 		sva_param_properties.begin() ;
-	   it != sva_param_properties.end() ; ++it)
+	   it != sva_param_properties.end() ; ++it) {
 	    pform_sva_destroy_property(it->second.body);
+	    for (sva_sequence_formal_t&f : it->second.formals)
+		  delete f.default_expr;
+	   }
       sva_module_properties.clear();
       sva_module_sequences.clear();
       sva_property_shaped_sequences.clear();
@@ -11723,29 +11730,91 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       return t;
 }
 
-/* M9D: build a formal->actual substitution map from a call's arguments,
-   checking arity. Returns false (diagnosed) on a mismatch or empty arg. */
-static bool sva_build_subst_(const struct vlltype&loc, const char*what,
-			     perm_string nm,
-			     const std::vector<perm_string>&formals,
-			     const std::vector<named_pexpr_t>&parms,
-			     std::map<perm_string,PExpr*>&subst)
+/* Bind named-property formals. Local input arguments become private
+   assertion locals initialized by a zero-delay prefix, so each evaluation
+   attempt snapshots its actual before the property body reads it. */
+static bool sva_build_property_subst_(const struct vlltype&loc,
+				      perm_string nm,
+				      const std::vector<sva_sequence_formal_t>&formals,
+				      const std::vector<named_pexpr_t>&parms,
+				      std::map<perm_string,PExpr*>&subst,
+				      std::vector<sva_seq_step_t>&initializers,
+				      std::vector<perm_string>&local_names,
+				      std::vector<PExpr*>&owned_actuals)
 {
-      if (parms.size() != formals.size()) {
-	    cerr << loc << ": error: " << what << " `" << nm << "' expects "
-		 << formals.size() << " argument(s), got " << parms.size()
-		 << "." << endl;
-	    error_count += 1;
-	    return false;
-      }
-      for (size_t k = 0 ; k < formals.size() ; k += 1) {
-	    if (!parms[k].parm) {
-		  cerr << loc << ": error: " << what << " `" << nm
-		       << "' argument " << (k+1) << " is empty." << endl;
+      std::vector<const named_pexpr_t*> actuals(formals.size(), nullptr);
+      size_t positional = 0;
+      for (size_t k = 0 ; k < parms.size() ; k += 1) {
+	    size_t idx = formals.size();
+	    if (parms[k].name.nil()) {
+		  idx = positional++;
+	    } else {
+		  for (size_t j = 0 ; j < formals.size() ; j += 1)
+			if (formals[j].name == parms[k].name) { idx = j; break; }
+	    }
+	    if (idx >= formals.size()) {
+		  cerr << loc << ": error: property `" << nm
+		       << "' has too many or unknown actual arguments." << endl;
 		  error_count += 1;
 		  return false;
 	    }
-	    subst[formals[k]] = parms[k].parm;
+	    if (actuals[idx]) {
+		  cerr << loc << ": error: property `" << nm
+		       << "' formal argument `" << formals[idx].name
+		       << "' is specified more than once." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    actuals[idx] = &parms[k];
+      }
+
+      std::map<perm_string,PExpr*> actual_subst;
+      for (size_t k = 0 ; k < formals.size() ; k += 1) {
+	    const sva_sequence_formal_t&formal = formals[k];
+	    PExpr*actual = actuals[k] && actuals[k]->parm
+		  ? sva_clone_subst_(actuals[k]->parm, nullptr) : nullptr;
+	    if (!actual && formal.default_expr)
+		  actual = sva_clone_subst_(formal.default_expr, &actual_subst);
+	    if (!actual) {
+		  cerr << loc << ": error: property `" << nm
+		       << "' is missing required argument `" << formal.name
+		       << "'." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    owned_actuals.push_back(actual);
+	    actual_subst[formal.name] = actual;
+	    if (!formal.local_input) {
+		  subst[formal.name] = actual;
+		  continue;
+	    }
+
+	    char name_buf[64];
+	    snprintf(name_buf, sizeof name_buf, "_ivl_sva_property_arg_%u",
+		     sva_gensym_counter++);
+	    perm_string local_name = lex_strings.make(name_buf);
+	    PExpr*local_ref = sva_id_(loc, local_name);
+	    subst[formal.name] = local_ref;
+	    owned_actuals.push_back(local_ref);
+	    local_names.push_back(local_name);
+
+	    PExpr*init_actual = sva_clone_subst_(actual, nullptr);
+	    if (!init_actual) {
+		  cerr << loc << ": sorry: property `" << nm
+		       << "' local input argument cannot be copied." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    PECastType*typed = new PECastType(formal.type, init_actual);
+	    FILE_NAME(typed, loc);
+	    sva_seq_step_t init;
+	    init.expr = sva_bit_(loc, 1);
+	    sva_match_item_t item;
+	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	    item.lv_name = local_name;
+	    item.lv_rhs = typed;
+	    init.items.push_back(item);
+	    initializers.push_back(init);
       }
       return true;
 }
@@ -29105,13 +29174,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    fatal = true;
 			      }
 			      std::map<perm_string,PExpr*> subst;
-			      if (!fatal && !sva_build_subst_(loc, "property", nm,
-					pit->second.formals, cf->get_parms(), subst))
+			      std::vector<PExpr*> owned_actuals;
+			      std::vector<sva_seq_step_t> initializers;
+			      std::vector<perm_string> formal_local_names;
+			      if (!fatal && !sva_build_property_subst_(loc, nm,
+					pit->second.formals, cf->get_parms(), subst,
+					initializers, formal_local_names, owned_actuals))
 				    fatal = true;
 			      sva_property_t*inst = nullptr;
 			      if (!fatal) {
 				    inst = new sva_property_t;
 				    inst->local_names = decl->local_names;
+				    inst->local_names.insert(inst->local_names.end(),
+						    formal_local_names.begin(),
+						    formal_local_names.end());
 				    inst->op_type = decl->op_type;
 				    inst->mc_boundary = decl->mc_boundary;
 				    inst->strength = decl->strength;
@@ -29176,6 +29252,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						loc, decl->mc_prefix, subst);
 					  if (!inst->mc_prefix) ok = false;
 				    }
+				    if (ok && !initializers.empty()) {
+					  std::vector<sva_seq_step_t>*entry =
+						inst->antecedent ? inst->antecedent : inst->seq;
+					  if (!entry) {
+						ok = false;
+					  } else {
+						entry->insert(entry->begin(), initializers.begin(),
+							      initializers.end());
+						initializers.clear();
+					  }
+				    }
 				    if (!ok) {
 					  cerr << loc << ": sorry: property `" << nm
 					       << "' has a body expression that cannot "
@@ -29187,6 +29274,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  fatal = true;
 				    }
 			      }
+			      for (size_t j = 0 ; j < initializers.size() ; ++j) {
+				    delete initializers[j].expr;
+				    sva_destroy_match_items_(initializers[j].items);
+			      }
+			      for (PExpr*expr : owned_actuals) delete expr;
 			      delete (*prop->seq)[0].expr;
 			      delete prop->seq;
 			      delete prop;

@@ -166,6 +166,7 @@ struct sva_sequence_formal_t {
       perm_string name;
       bool local_input = false;
       data_type_t* type = nullptr;
+      PExpr* default_expr = nullptr;
 };
 
 /*

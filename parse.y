@@ -2741,8 +2741,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <identifiers> list_of_identifiers
 %type <perm_strings> loop_variables foreach_selector_prefixes
 %type <perm_strings> randomize_with_identifier_tail
-%type <perm_strings> sva_formal_list
-%type <sva_formals> sva_sequence_formal_list
+%type <sva_formals> sva_sequence_formal_list sva_property_formal_list
 %destructor { delete $$; } <sva_formals>
 %type <perm_strings> sva_local_ident_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
@@ -8050,24 +8049,42 @@ property_declaration
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty
-      { pform_sva_declare_property_p(@2, $2, $4, $7);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@11, "property", $2, $11);
-	pform_sva_declare_property_p(@2, $2, $4, $7);
-	delete[] $2;
-      }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
-      sva_int_local_declarations property_spec ';' K_endproperty
+  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
+      property_spec ';' K_endproperty
       { pform_sva_declare_property_p(@2, $2, $4, $8);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
-      sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
+  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
+      property_spec ';' K_endproperty ':' IDENTIFIER
       { check_end_label(@12, "property", $2, $12);
 	pform_sva_declare_property_p(@2, $2, $4, $8);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
+      sva_int_local_declarations property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $9);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it)
+	  pform_sva_add_local_formal(it->name.str()); }
+      sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
+      { check_end_label(@13, "property", $2, $13);
+	pform_sva_declare_property_p(@2, $2, $4, $9);
 	delete[] $2;
       }
   ;
@@ -9050,17 +9067,6 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       }
   ;
 
-  /* M9D: formal-argument name list for a parameterized property or
-     sequence declaration (plain identifiers only — typed formals fall
-     to the error-recovery declaration rule). */
-sva_formal_list
-  : sva_formal_list ',' IDENTIFIER
-      { $1->push_back(lex_strings.make($3)); delete[]$3; $$ = $1; }
-  | IDENTIFIER
-      { std::list<perm_string>*l = new std::list<perm_string>;
-	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
-  ;
-
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input
    arguments. Preserve the existing untyped substitution formals. */
 sva_sequence_formal_list
@@ -9118,6 +9124,69 @@ sva_sequence_formal_list
 	l->push_back(formal);
 	delete[]$3;
 	$$ = l; }
+  ;
+
+
+
+/* Property local-input formals share the sequence-formal representation,
+   with property-only defaults kept out of the sequence parser. */
+sva_property_formal_list
+  : sva_property_formal_list ',' IDENTIFIER
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($3);
+	if (!$1->empty() && $1->back().local_input) {
+	      formal.local_input = true; formal.type = $1->back().type;
+	}
+	$1->push_back(formal); delete[]$3; $$ = $1; }
+  | sva_property_formal_list ',' IDENTIFIER '=' expression
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($3);
+	if (!$1->empty() && $1->back().local_input) {
+	      formal.local_input = true; formal.type = $1->back().type;
+	}
+	formal.default_expr = $5; $1->push_back(formal); delete[]$3; $$ = $1; }
+  | sva_property_formal_list ',' K_local K_input data_type IDENTIFIER
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($6);
+	formal.local_input = true; formal.type = $5;
+	$1->push_back(formal); delete[]$6; $$ = $1; }
+  | sva_property_formal_list ',' K_local K_input data_type IDENTIFIER '=' expression
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($6);
+	formal.local_input = true; formal.type = $5; formal.default_expr = $8;
+	$1->push_back(formal); delete[]$6; $$ = $1; }
+  | sva_property_formal_list ',' K_local data_type IDENTIFIER
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($5);
+	formal.local_input = true; formal.type = $4;
+	$1->push_back(formal); delete[]$5; $$ = $1; }
+  | sva_property_formal_list ',' K_local data_type IDENTIFIER '=' expression
+      { sva_sequence_formal_t formal; formal.name = lex_strings.make($5);
+	formal.local_input = true; formal.type = $4; formal.default_expr = $7;
+	$1->push_back(formal); delete[]$5; $$ = $1; }
+  | IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($1);
+	l->push_back(formal); delete[]$1; $$ = l; }
+  | IDENTIFIER '=' expression
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($1);
+	formal.default_expr = $3; l->push_back(formal); delete[]$1; $$ = l; }
+  | K_local K_input data_type IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($4);
+	formal.local_input = true; formal.type = $3;
+	l->push_back(formal); delete[]$4; $$ = l; }
+  | K_local K_input data_type IDENTIFIER '=' expression
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($4);
+	formal.local_input = true; formal.type = $3; formal.default_expr = $6;
+	l->push_back(formal); delete[]$4; $$ = l; }
+  | K_local data_type IDENTIFIER
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($3);
+	formal.local_input = true; formal.type = $2;
+	l->push_back(formal); delete[]$3; $$ = l; }
+  | K_local data_type IDENTIFIER '=' expression
+      { std::list<sva_sequence_formal_t>*l = new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal; formal.name = lex_strings.make($3);
+	formal.local_input = true; formal.type = $2; formal.default_expr = $5;
+	l->push_back(formal); delete[]$3; $$ = l; }
   ;
 
   /* Comma-separated identifiers sharing one assertion-local declaration
