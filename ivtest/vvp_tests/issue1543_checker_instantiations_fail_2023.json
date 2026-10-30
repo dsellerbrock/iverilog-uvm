@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1543_checker_instantiations_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue1543_top"],
+  "gold": "issue1543_checker_instantiations_fail"
+}
