@@ -50,6 +50,7 @@ extern void lex_end_table();
 static data_type_t* param_data_type = 0;
 static bool param_is_local = false;
 static bool param_is_type = false;
+static bool checker_initial_context = false;
 static type_parameter_restriction_t param_type_restriction =
 	type_parameter_restriction_t::NONE;
 static bool in_gen_region = false;
@@ -17024,8 +17025,11 @@ module_item
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
-  | attribute_list_opt K_initial statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_INITIAL, $3, $1);
+  | attribute_list_opt K_initial
+      { checker_initial_context = pform_module_is_checker(); }
+    statement_item
+      { checker_initial_context = false;
+        PProcess*tmp = pform_make_behavior(IVL_PR_INITIAL, $4, $1);
 	FILE_NAME(tmp, @2);
       }
   | attribute_list_opt K_final statement_item
@@ -20127,6 +20131,9 @@ statement_item /* This is roughly statement_item in the LRM */
       { PExpr*del = $1->front();
 	assert($1->size() == 1);
 	delete $1;
+	if (checker_initial_context) {
+	      yyerror(@1, "error: delay control is not allowed in a checker initial procedure.");
+	}
 	PDelayStatement*tmp = new PDelayStatement(del, $2);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
