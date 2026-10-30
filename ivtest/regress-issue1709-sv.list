@@ -1,0 +1,2 @@
+issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
+issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
