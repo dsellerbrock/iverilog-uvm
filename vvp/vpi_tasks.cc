@@ -34,6 +34,8 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <map>
+# include  <vector>
 # include  "ivl_alloc.h"
 
 using namespace std;
@@ -1080,4 +1082,41 @@ void* vpi_get_userdata(vpiHandle ref)
       assert(rfp);
 
       return rfp->userdata;
+}
+
+/* Application data is indexed by the application-defined save/restart ID. */
+static map<PLI_INT32, vector<PLI_BYTE8> > saved_application_data;
+static map<PLI_INT32, size_t> saved_application_data_read_offset;
+
+PLI_INT32 vpi_put_data(PLI_INT32 id, PLI_BYTE8* dataLoc,
+                       PLI_INT32 numOfBytes)
+{
+      if (!dataLoc || numOfBytes <= 0)
+	    return 0;
+
+      vector<PLI_BYTE8>& data = saved_application_data[id];
+      data.insert(data.end(), dataLoc, dataLoc + numOfBytes);
+      saved_application_data_read_offset[id] = 0;
+      return numOfBytes;
+}
+
+PLI_INT32 vpi_get_data(PLI_INT32 id, PLI_BYTE8* dataLoc,
+                       PLI_INT32 numOfBytes)
+{
+      if (!dataLoc || numOfBytes <= 0)
+	    return 0;
+
+      map<PLI_INT32, vector<PLI_BYTE8> >::const_iterator entry =
+	    saved_application_data.find(id);
+	  if (entry == saved_application_data.end())
+	    return 0;
+
+      size_t& offset = saved_application_data_read_offset[id];
+      if (entry->second.size() - offset < (size_t)numOfBytes)
+	    return 0;
+
+      copy(entry->second.begin() + offset,
+	   entry->second.begin() + offset + numOfBytes, dataLoc);
+      offset += numOfBytes;
+      return numOfBytes;
 }

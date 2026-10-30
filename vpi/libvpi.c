@@ -148,6 +148,16 @@ PLI_INT32 vpi_put_userdata(vpiHandle obj, void*data)
       assert(vpip_routines);
       return vpip_routines->put_userdata(obj, data);
 }
+PLI_INT32 vpi_get_data(PLI_INT32 id, PLI_BYTE8*dataLoc, PLI_INT32 numOfBytes)
+{
+      assert(vpip_routines);
+      return vpip_routines->get_data(id, dataLoc, numOfBytes);
+}
+PLI_INT32 vpi_put_data(PLI_INT32 id, PLI_BYTE8*dataLoc, PLI_INT32 numOfBytes)
+{
+      assert(vpip_routines);
+      return vpip_routines->put_data(id, dataLoc, numOfBytes);
+}
 
 // I/O routines
 

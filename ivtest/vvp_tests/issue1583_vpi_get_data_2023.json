@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1583_vpi_get_data.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1583_vpi_get_data"],
+  "vpi-sources": ["vpi/issue1583_vpi_get_data.c"],
+  "output-contains": ["PASSED"]
+}
