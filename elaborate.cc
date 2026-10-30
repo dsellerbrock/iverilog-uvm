@@ -6178,6 +6178,36 @@ static NetScope* selected_interface_instance_scope_(Design*des,
  * the parameters. This is done with BUFZ gates so that they look just
  * like continuous assignment connections.
  */
+/* IEEE 1800-2017/2023 17.3: a const cast in a checker input actual is
+ * forbidden when its formal is consumed by procedural or continuous code in
+ * the checker. The parser represents const'(expr) as this internal function
+ * call. */
+static bool checker_actual_has_const_cast_(const PExpr*expr)
+{
+      return expr && expr->refs_name(
+	    perm_string::literal("$ivl_const_cast"));
+}
+
+static bool checker_formal_used_in_code_(const Module*checker,
+						 perm_string formal_name)
+{
+      for (PProcess*process : checker->behaviors) {
+	    if (process && !process->is_generated_verification()
+		&& process->statement()
+		&& process->statement()->refs_name(formal_name))
+		  return true;
+      }
+      for (PGate*gate : checker->get_gates()) {
+	    const PGAssign*assign = dynamic_cast<const PGAssign*>(gate);
+	    if (!assign)
+		  continue;
+	    const std::vector<PExpr*>&pins = assign->get_pins();
+	    if (pins.size() > 1 && pins[1] && pins[1]->refs_name(formal_name))
+		  return true;
+      }
+      return false;
+}
+
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 {
 
@@ -6303,6 +6333,28 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    }
 
 	    std::copy(get_pins().begin(), get_pins().end(), pins.begin());
+      }
+
+	// IEEE 1800-2017/2023 17.3 restricts const-cast actuals only when the
+	// corresponding checker input formal is used in procedural or continuous
+	// code. Check the source checker body here, before its formals are
+	// elaborated and connected to these actuals.
+      if (rmod->is_checker) {
+	    for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+		  if (!pins[idx] || !checker_actual_has_const_cast_(pins[idx]))
+			continue;
+		  perm_string formal_name = rmod->get_port_name(idx);
+		  PWire*formal = rmod->wires_find(formal_name);
+		  if (!formal || formal->get_port_type() != NetNet::PINPUT
+		      || !checker_formal_used_in_code_(rmod, formal_name))
+			continue;
+
+		  cerr << pins[idx]->get_fileline() << ": error: Checker input `"
+		       << formal_name << "' is used in procedural or continuous code, "
+			  "but its actual contains a const cast "
+			  "(IEEE 1800-2017/2023 17.3)." << endl;
+		  des->errors += 1;
+	    }
       }
 
 	// Elaborate these instances of the module. The recursive

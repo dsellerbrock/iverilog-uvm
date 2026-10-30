@@ -183,6 +183,8 @@ class PGAssign  : public PGate {
       explicit PGAssign(std::list<PExpr*>*pins, std::list<PExpr*>*dels);
       ~PGAssign() override;
 
+      const std::vector<PExpr*>& get_pins() const { return PGate::get_pins(); }
+
       void dump(std::ostream&out, unsigned ind =4) const override;
       virtual void elaborate(Design*des, NetScope*scope) const override;
 
