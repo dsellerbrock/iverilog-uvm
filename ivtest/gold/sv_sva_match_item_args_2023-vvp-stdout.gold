@@ -1,0 +1,6 @@
+MATCH 3
+COVER 9
+COVER 9
+MATCH 9
+PASSED
+ivltests/sv_sva_match_item_args.v:69: $finish called at 7 (1s)
