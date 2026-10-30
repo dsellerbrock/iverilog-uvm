@@ -10428,6 +10428,42 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Type-level forms carry the covergroup dispatch prefix, so they can query
+ * the definition without manufacturing or selecting an instance handle. */
+bool of_COVGRP_GET_COVERAGE_TYPE(vthread_t thr, vvp_code_t code)
+{
+      const class_type*type = code->text
+	    ? class_type_from_dispatch_prefix(code->text) : nullptr;
+      thr->push_real(type && type->is_covergroup()
+	    ? type->type_coverage(nullptr) : 0.0);
+      return true;
+}
+
+bool of_COVGRP_ITEM_GET_COVERAGE_TYPE(vthread_t thr, vvp_code_t code)
+{
+      const class_type*type = nullptr;
+      unsigned item = 0;
+      double result = 0.0;
+	// VVP operand fields share storage, so keep the type identity and item
+	// index in one string operand.
+      const char*separator = code->text ? strrchr(code->text, '|') : nullptr;
+      if (separator && separator != code->text && separator[1]) {
+	    char*end = nullptr;
+	    unsigned long parsed = strtoul(separator + 1, &end, 10);
+	    if (end && *end == 0 && parsed <= INT_MAX) {
+		  std::string prefix(code->text, separator - code->text);
+		  type = class_type_from_dispatch_prefix(prefix);
+		  item = static_cast<unsigned>(parsed);
+	    }
+      }
+      if (type && type->is_covergroup() && item < type->covgrp_item_count()) {
+	    result = type->type_coverage(nullptr, nullptr,
+				  static_cast<int>(item));
+	  }
+      thr->push_real(result);
+      return true;
+}
+
 /* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
  * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)

@@ -516,6 +516,27 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    return;
       }
 
+      /* Static covergroup type/item coverage carries the class dispatch
+       * prefix in its internal function name, since no object is available. */
+      {
+	    const char*name = ivl_expr_name(expr);
+	    const char*type_prefix = "$ivl_class_method$covgrp_type_get_coverage|";
+	    const char*item_prefix = "$ivl_class_method$covgrp_type_item_get_coverage|";
+	    if (ivl_expr_value(expr) == IVL_VT_REAL && name
+		&& strncmp(name, type_prefix, strlen(type_prefix)) == 0) {
+		  fprintf(vvp_out, "    %%covgrp/get_coverage/type \"%s\";\n",
+			  name + strlen(type_prefix));
+		  return;
+	    }
+	    if (ivl_expr_value(expr) == IVL_VT_REAL && name
+		&& strncmp(name, item_prefix, strlen(item_prefix)) == 0) {
+		  fprintf(vvp_out,
+			  "    %%covgrp/item/get_coverage/type \"%s\";\n",
+			  name + strlen(item_prefix));
+		  return;
+	    }
+      }
+
       /* Named coverpoint coverage uses the enclosing covergroup object
        * and a compile-time item index. The method name distinguishes
        * cumulative type coverage from this receiver's instance score. */

@@ -4176,9 +4176,11 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 		  if (selected_item >= 0 && instance_contributes)
 		    item_has_bins = true;
 		  if (!instance_contributes && selected_item < 0) continue;
-                  unsigned weight = selected_item >= 0
-			? covgrp_item_weight(obj, item)
-			: covgrp_weight(obj);
+		  // A selected coverage item reports its own score, independent of
+		  // option.weight (which only affects the containing covergroup's
+		  // weighted average). Use the instance weight when averaging that
+		  // item's score across the covergroup type.
+		  unsigned weight = covgrp_weight(obj);
                   weights += weight;
                   weighted += (long double)weight * score;
             }
