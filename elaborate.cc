@@ -6305,6 +6305,23 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    std::copy(get_pins().begin(), get_pins().end(), pins.begin());
       }
 
+	  if (rmod->is_checker) {
+	    bool required_actual_missing = false;
+	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
+		  if (pins[idx] || rmod->get_port_default_value(idx))
+			continue;
+
+		  cerr << get_fileline() << ": error: checker port `"
+		       << rmod->get_port_name(idx) << "' of instance `"
+		       << get_name() << "' requires an actual argument."
+		       << " (IEEE 1800-2017/2023 16.8, 17.3)." << endl;
+		  des->errors += 1;
+		  required_actual_missing = true;
+	    }
+	    if (required_actual_missing)
+		  return;
+	  }
+
 	// Elaborate these instances of the module. The recursive
 	// elaboration causes the module to generate a netlist with
 	// the ports represented by NetNet objects. I will find them
