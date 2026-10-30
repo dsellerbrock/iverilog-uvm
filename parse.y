@@ -950,8 +950,8 @@ static void pform_check_attribute_instance(const YYLTYPE&loc)
  * These are some common strength pairs that are used as defaults when
  * the user is not otherwise specific.
  */
-static const struct str_pair_t pull_strength = { IVL_DR_PULL,  IVL_DR_PULL };
-static const struct str_pair_t str_strength = { IVL_DR_STRONG, IVL_DR_STRONG };
+static const struct str_pair_t pull_strength = { IVL_DR_PULL,  IVL_DR_PULL, false };
+static const struct str_pair_t str_strength = { IVL_DR_STRONG, IVL_DR_STRONG, false };
 
 static std::list<pform_port_t>* make_port_list(char*id, unsigned idn,
 					       std::list<pform_range_t>*udims,
@@ -12163,26 +12163,32 @@ drive_strength
   : '(' dr_strength0 ',' dr_strength1 ')'
       { $$.str0 = $2.str0;
 	$$.str1 = $4.str1;
+	$$.specified = true;
       }
   | '(' dr_strength1 ',' dr_strength0 ')'
       { $$.str0 = $4.str0;
 	$$.str1 = $2.str1;
+	$$.specified = true;
       }
   | '(' dr_strength0 ',' K_highz1 ')'
       { $$.str0 = $2.str0;
 	$$.str1 = IVL_DR_HiZ;
+	$$.specified = true;
       }
   | '(' dr_strength1 ',' K_highz0 ')'
       { $$.str0 = IVL_DR_HiZ;
 	$$.str1 = $2.str1;
+	$$.specified = true;
       }
   | '(' K_highz1 ',' dr_strength0 ')'
       { $$.str0 = $4.str0;
 	$$.str1 = IVL_DR_HiZ;
+	$$.specified = true;
       }
   | '(' K_highz0 ',' dr_strength1 ')'
       { $$.str0 = IVL_DR_HiZ;
 	$$.str1 = $4.str1;
+	$$.specified = true;
       }
   ;
 
@@ -12190,7 +12196,8 @@ drive_strength_opt
   : drive_strength
       { $$ = $1; }
   |
-      { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG; }
+      { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG;
+	$$.specified = false; }
   ;
 
 dr_strength0

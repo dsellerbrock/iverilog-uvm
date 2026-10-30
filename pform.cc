@@ -2270,7 +2270,7 @@ void pform_make_var(const struct vlltype&loc,
 		    data_type_t*data_type, std::list<named_pexpr_t>*attr,
 		    bool is_const)
 {
-      static const struct str_pair_t str = { IVL_DR_STRONG, IVL_DR_STRONG };
+      static const struct str_pair_t str = { IVL_DR_STRONG, IVL_DR_STRONG, false };
 
       pform_makewire(loc, 0, str, assign_list, NetNet::REG, data_type, attr,
 		     is_const);
@@ -5318,6 +5318,7 @@ static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
 
       cur->strength0(str.str0);
       cur->strength1(str.str1);
+      cur->strength_specified(str.specified);
 
       if (pform_cur_generate)
 	    pform_cur_generate->add_gate(cur);

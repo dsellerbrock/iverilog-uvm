@@ -3984,6 +3984,21 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* IEEE 1800-2017/2023 10.3.4 restricts explicitly specified
+	 * continuous-assignment strengths to scalar nets, except supply nets. */
+      if (strength_specified() && lval->vector_width() > 1
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY0
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY1) {
+	    cerr << get_fileline() << ": error: A drive strength may only be "
+		 "specified for a scalar net or a supply0/supply1 net "
+		 "(IEEE 1800-2017/2023 10.3.4)." << endl;
+	    des->errors += 1;
+	    if (lval->local_flag())
+		  delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
 	/* IEEE 1800-2017/2023 10.3.3 permits only one delay for a
 	 * continuous assignment to a user-defined nettype, including an
 	 * unpacked array of such nets. */

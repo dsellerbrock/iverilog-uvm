@@ -131,13 +131,13 @@ PNamedItem::SymbolType PGate::symbol_type() const
 }
 
 PGAssign::PGAssign(list<PExpr*>*pins)
-: PGate(perm_string(), pins)
+: PGate(perm_string(), pins), strength_specified_(false)
 {
       ivl_assert(*this, pin_count() == 2);
 }
 
 PGAssign::PGAssign(list<PExpr*>*pins, list<PExpr*>*dels)
-: PGate(perm_string(), pins, dels)
+: PGate(perm_string(), pins, dels), strength_specified_(false)
 {
       ivl_assert(*this, pin_count() == 2);
 }

@@ -1,0 +1,2 @@
+ivltests/issue1515_vector_strength.sv:6: error: A drive strength may only be specified for a scalar net or a supply0/supply1 net (IEEE 1800-2017/2023 10.3.4).
+1 error(s) during elaboration.

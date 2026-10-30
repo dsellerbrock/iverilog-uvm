@@ -183,10 +183,14 @@ class PGAssign  : public PGate {
       explicit PGAssign(std::list<PExpr*>*pins, std::list<PExpr*>*dels);
       ~PGAssign() override;
 
+      void strength_specified(bool value) { strength_specified_ = value; }
+      bool strength_specified() const { return strength_specified_; }
+
       void dump(std::ostream&out, unsigned ind =4) const override;
       virtual void elaborate(Design*des, NetScope*scope) const override;
 
     private:
+      bool strength_specified_;
       void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
 				     NetExpr*rise_time = 0,
 				     NetExpr*fall_time = 0,
