@@ -37672,7 +37672,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (indices.empty()) return value;
 			if (indices.size() == 1)
 			      return packed_typed_select_ir_(
-				    value, netvector_t::integer_type(),
+				    value, &netvector_t::atom2s32,
 				    indices.front(), cls, value_slots, scope, loop_env);
 			return "";
 		  }
@@ -37710,7 +37710,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return packed_typed_select_ir_(
 			      token, dynforeach_emit_ctx_->index_type
 				? dynforeach_emit_ctx_->index_type
-				: netvector_t::integer_type(),
+				: &netvector_t::atom2s32,
 			      indices.front(), cls, value_slots, scope, loop_env);
 		  return "";
 	    }

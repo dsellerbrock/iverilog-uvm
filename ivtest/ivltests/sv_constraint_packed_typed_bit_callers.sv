@@ -1,5 +1,5 @@
-// Foreach indices are signed four-state int values; packed structs preserve
-// their logic/bit classification through iterator and local constraints.
+// Fixed/dynamic-array foreach indices are signed two-state int values;
+// associative keys and packed structs retain their declared state kind.
 typedef struct packed { logic [1:0] v; } logic_word_t;
 typedef struct packed { bit [1:0] v; } bit_word_t;
 class fixed_foreach_index;
@@ -49,9 +49,9 @@ module test;
     ab.state_map[2'b01] = 7;
     al.state_map[2'b01] = 7;
     if (!f.randomize() with { idx == 1; }) $fatal(1, "fixed valid");
-    if (f.randomize() with { idx == 32; }) $fatal(1, "fixed oob");
+    if (!f.randomize() with { idx == 32; }) $fatal(1, "fixed oob zero");
     if (!d.randomize() with { idx == 1; }) $fatal(1, "dynamic valid");
-    if (d.randomize() with { idx == 32; }) $fatal(1, "dynamic oob");
+    if (!d.randomize() with { idx == 32; }) $fatal(1, "dynamic oob zero");
     if (!l.randomize() with { idx == 1; }) $fatal(1, "struct valid");
     if (l.randomize() with { idx == 2; }) $fatal(1, "struct oob");
     if (!b.randomize() with { idx == 2; }) $fatal(1, "bit struct oob zero");
