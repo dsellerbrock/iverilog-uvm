@@ -2357,6 +2357,30 @@ static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+/* An unpacked union member is represented as an object property expression,
+ * which cannot be synthesized into a structural RHS. Keep continuous
+ * assignments that read one on the procedural continuous-assignment path. */
+static bool reads_unpacked_union_member_(const LineInfo*li, Design*des,
+                                         NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netstruct_t*record = sr.net
+		  ? dynamic_cast<const netstruct_t*>(sr.net->net_type()) : nullptr;
+	    if (record && record->union_flag() && !record->packed()
+		&& !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
@@ -3663,6 +3687,109 @@ static bool elaborate_unpacked_struct_variable_continuous_(
       return true;
 }
 
+static bool elaborate_unpacked_union_read_continuous_(
+      Design*des, NetScope*scope, const PGAssign*assignment,
+      NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+      bool default_strength)
+{
+      if (!reads_unpacked_union_member_(assignment, des, scope,
+					 const_cast<PExpr*>(assignment->pin(1))))
+	    return false;
+
+      bool selected = false;
+      NetNet*signal = direct_identifier_net_(assignment, des, scope,
+						assignment->pin(0), selected);
+      if (!signal || selected || signal->unpacked_dimensions() > 0
+	  || signal->pin_count() != 1 || signal->type() != NetNet::REG
+	  || !type_is_vectorable(signal->data_type())) {
+	    cerr << assignment->get_fileline() << ": sorry: A continuous assignment "
+		 << "from an unpacked union member currently requires one packed "
+		    "variable destination." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+
+      bool unsupported_delay = assignment->delay_count() > 0
+	    && !(is_defined_zero_delay_(rise_time)
+		 && is_defined_zero_delay_(fall_time)
+		 && is_defined_zero_delay_(decay_time));
+      if (unsupported_delay || !default_strength) {
+	    cerr << assignment->get_fileline() << ": sorry: Nonzero/dynamic delay and "
+		    "non-default drive strength on a continuous assignment from an "
+		    "unpacked union member are not currently supported." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+      delete_unique_delays_(rise_time, fall_time, decay_time);
+
+      if (signal->test_part_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have multiple continuous drivers." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      if (signal->test_part_procedurally_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have continuous and procedural drivers on the "
+		    "same value." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      PAssign store(const_cast<PExpr*>(assignment->pin(0)),
+		    const_cast<PExpr*>(assignment->pin(1)));
+      store.set_continuous_lval();
+      store.set_line(*assignment);
+      NetProc*initial_assignment = store.elaborate(des, scope);
+      store.replace_lval_rval(0, 0);
+      if (!initial_assignment) {
+	    cerr << assignment->get_fileline() << ": error: Unable to elaborate "
+		    "continuous assignment from an unpacked union member." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      PEventStatement wait(true);
+      wait.set_line(*assignment);
+      NetProc*body = wait.elaborate_st(des, scope, initial_assignment);
+      if (!body) {
+	    delete initial_assignment;
+	    cerr << assignment->get_fileline() << ": error: Unable to derive "
+		    "sensitivity for continuous assignment from an unpacked union "
+		    "member." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      bool overlap = signal->test_and_set_part_driver(0, 0, 0);
+      ivl_assert(*assignment, !overlap);
+      pending_variable_continuous_driver_t pending = { signal, assignment };
+      pending_variable_continuous_drivers_.push_back(pending);
+
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(*assignment);
+      top->attribute(perm_string::literal("_ivl_function_background_ok"),
+		     verinum(1));
+      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	    if (event_wait->nevents() == 1) {
+		  NetEvent*event = event_wait->event(0);
+		  bool anyedge = event->nprobe() != 0;
+		  for (unsigned idx = 0; anyedge && idx < event->nprobe(); idx += 1)
+			if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
+			      anyedge = false;
+		  if (anyedge)
+			top->attribute(perm_string::literal("_ivl_schedule_push"),
+				       verinum(1));
+	    }
+      }
+      des->add_process(top);
+      return true;
+}
+
 /* Join the aliased nets with always-on bidirectional switches. */
 void PGAlias::elaborate(Design*des, NetScope*scope) const
 {
@@ -3968,6 +4095,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  const_cast<PExpr*>(pin(1)), proxy);
 	    return;
       }
+
+	/* An unpacked-union member is a property read with no structural
+	   expression net. Use the variable continuous-assignment process path. */
+      if (elaborate_unpacked_union_read_continuous_(
+		des, scope, this, rise_time, fall_time, decay_time,
+		var_allowed_in_sv))
+	    return;
 
 	/* Keep an unpacked-struct variable as a REG. elaborate_lnet() coerces
 	 * SystemVerilog variable l-values to UWIRE for structural assignments,
