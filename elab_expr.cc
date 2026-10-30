@@ -22658,21 +22658,85 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
       if (const netuarray_t*uarray = dynamic_cast<const netuarray_t*>(ntype)) {
 	    const netranges_t&dims = uarray->static_dimensions();
 	    if (dims.size() == 1) {
+		  /* A fixed-array item contributes all of its elements to the
+		   * result (IEEE 1800-2017/2023 10.10). Count and expand those
+		   * items before building the positional pattern; counting only
+		   * comma-separated operands rejects legal mixed concatenations. */
+		  vector<stream_uarray_op_info_t> collections(parms_.size());
+		  vector<bool> is_collection(parms_.size(), false);
+		  size_t item_count = 0;
+		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+			int collection = stream_uarray_operand_(
+			      des, scope, parms_[idx], collections[idx]);
+			if (collection < 0)
+			      return nullptr;
+			if (collection > 0) {
+			      is_collection[idx] = true;
+			      if (!unpacked_concat_value_type_matches_(
+					 uarray->element_type(),
+					 collections[idx].elem_type)) {
+				    cerr << parms_[idx]->get_fileline()
+					 << ": error: fixed unpacked array concatenation "
+					    "operand has incompatible elements "
+					    "(IEEE 1800-2017/2023 10.10)." << endl;
+				    des->errors += 1;
+				    return nullptr;
+			      }
+			      item_count += collections[idx].elem_count;
+			} else {
+			      item_count += 1;
+			}
+		  }
 		  unsigned count = dims[0].width();
-		  if (count != parms_.size()) {
+		  if (count != item_count) {
 			cerr << get_fileline() << ": error: unpacked array concatenation "
 			     << "expects " << count << " element(s), found "
-			     << parms_.size() << "." << endl;
+			     << item_count << "." << endl;
 			des->errors += 1;
 			return nullptr;
 		  }
-		  vector<NetExpr*>elems(parms_.size());
+		  vector<NetExpr*>elems(item_count);
 		  bool ascending = dims[0].get_msb() < dims[0].get_lsb();
+		  size_t output_idx = 0;
 		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
-			NetExpr*item = elaborate_rval_expr(
-			      des, scope, uarray->element_type(),
-			      parms_[idx], false);
-			elems[ascending ? idx : (parms_.size() - 1 - idx)] = item;
+			if (is_collection[idx]) {
+			      const stream_uarray_op_info_t&info = collections[idx];
+			      long step = info.left <= info.right ? 1 : -1;
+			      long declared_left =
+				    info.ua->static_dimensions()[0].get_msb();
+			      long declared_right =
+				    info.ua->static_dimensions()[0].get_lsb();
+			      long lo = std::min(declared_left, declared_right);
+			      for (unsigned word = 0; word < info.elem_count; word += 1) {
+				    long value = info.left + step * (long)word;
+				    NetExpr*canon = nullptr;
+				    NetExpr*item = nullptr;
+				    if (info.net) {
+					  std::list<long> index;
+					  index.push_back(value);
+					  canon = normalize_variable_unpacked(info.net, index);
+					  if (canon) item = new NetESignal(info.net, canon);
+				    } else {
+					  NetESignal*base = new NetESignal(info.base);
+					  NetEConst*index = new NetEConst(
+						verinum((uint64_t)(value - lo), 32u));
+					  item = new NetEProperty(base, (size_t)info.pidx, index);
+				    }
+				    if (!item) {
+					  for (NetExpr*prev : elems) delete prev;
+					  return nullptr;
+				    }
+				    item->set_line(*this);
+				    size_t dest = output_idx++;
+				    elems[ascending ? dest : (item_count - 1 - dest)] = item;
+			      }
+			} else {
+			      NetExpr*item = elaborate_rval_expr(
+				    des, scope, uarray->element_type(),
+				    parms_[idx], false);
+			      size_t dest = output_idx++;
+			      elems[ascending ? dest : (item_count - 1 - dest)] = item;
+			}
 		  }
 		  NetEArrayPattern*res = new NetEArrayPattern(ntype, elems);
 		  res->set_line(*this);

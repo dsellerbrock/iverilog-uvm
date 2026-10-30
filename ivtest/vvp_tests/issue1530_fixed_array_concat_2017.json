@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1530_fixed_array_concat.v",
+  "iverilog-args": ["-g2017", "-s", "issue1530_fixed_array_concat"],
+  "gold": "issue1530_fixed_array_concat"
+}
