@@ -1748,6 +1748,12 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 	    uint64_t carrier_off = ivl_lval_part_carrier_off(lval);
 	    ivl_expr_t dynamic_carrier = ivl_lval_dynamic_part_carrier(lval);
 
+	    /* Each leaf of a concatenation assignment is converted to its
+	       destination type independently.  In particular, a bit l-value
+	       discards X/Z bits even when its value came from a split vec4. */
+	    if (lsig && ivl_signal_data_type(lsig) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2; assignment to two-state l-value\n");
+
 	    if (word_ex) {
 		    /* Handle index into an array */
 		  int word_index = allocate_word();

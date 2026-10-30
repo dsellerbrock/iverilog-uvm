@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1708_concat_2state_assign_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1708_concat_2state_assign"],
+  "gold": "issue1708_concat_2state_assign"
+}

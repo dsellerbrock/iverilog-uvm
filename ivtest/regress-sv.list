@@ -48,6 +48,8 @@ issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_f
 issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
 issue1532_untyped_pattern_concat_2017 CE,-g2017,-s,issue1532_untyped_pattern_concat ivltests
 issue1532_untyped_pattern_concat_2023 CE,-g2023,-s,issue1532_untyped_pattern_concat ivltests
+issue1708_concat_2state_assign_2017 normal,-g2017,-s,issue1708_concat_2state_assign ivltests gold=issue1708_concat_2state_assign.gold
+issue1708_concat_2state_assign_2023 normal,-g2023,-s,issue1708_concat_2state_assign ivltests gold=issue1708_concat_2state_assign.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
