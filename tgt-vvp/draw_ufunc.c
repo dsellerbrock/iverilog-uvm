@@ -393,7 +393,14 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    break;
 	  case IVL_VT_NO_TYPE:
-	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    /* Unpacked structs and unions are aggregate values. Copy their
+	     * object representation before storing it in an input formal so a
+	     * write in the subroutine cannot modify the caller's variable
+	     * (IEEE 1800-2017/2023 13.5.1). */
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%swap/obj; place formal below argument\n");
+	    fprintf(vvp_out, "    %%scopy; pass by value (IEEE 13.5.1)\n");
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    break;
 	  default:
 	    if (!warned_unsupported_send_type) {
