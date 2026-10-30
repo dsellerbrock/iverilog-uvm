@@ -301,6 +301,11 @@ static int compare_types(int code, int type, bool is_typedef = false)
       if (code == type)
 	    return 1;
 
+      // SystemVerilog variable arrays use vpiRegArray for iteration,
+      // while the current array handle implementation reports vpiMemory.
+      if (code == vpiRegArray && type == vpiMemory)
+	    return 1;
+
       if ( code == vpiInternalScope &&
 	     (type == vpiModule ||
 	     type == vpiGenScope ||
