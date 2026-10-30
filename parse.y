@@ -183,8 +183,9 @@ static struct {
       bool interconnect;
       bool is_const;
       bool is_ref_static;
+      bool checker_formals;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false, false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -1376,6 +1377,7 @@ void reset_parser_file_state(void)
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.checker_formals = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -16003,6 +16005,23 @@ port_declaration
   | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { $$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
       }
+  /* A checker property_formal_type may be sequence or property. These
+     assertion types are not data_type productions, but checker declarations
+     use this module-like port grammar. */
+  | K_sequence IDENTIFIER dimensions_opt initializer_opt
+      { if (!port_declaration_context.checker_formals)
+	      yyerror(@1, "error: Sequence formal type is only valid in a checker.");
+	pform_requires_sv(@2, "Sequence-typed checker formal");
+	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+      }
+  | K_property IDENTIFIER dimensions_opt initializer_opt
+      { if (!port_declaration_context.checker_formals)
+	      yyerror(@1, "error: Property formal type is only valid in a checker.");
+	pform_requires_sv(@2, "Property-typed checker formal");
+	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+      }
   | net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@3, "Partial ANSI port declaration");
 	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
@@ -16268,6 +16287,8 @@ module
         port_declaration_context_init();
 	  // Checker formals without an explicit direction are INPUTS
 	  // (IEEE 1800-2017 17.4); module ports default to inout.
+	if ($2 == K_checker)
+	      port_declaration_context.checker_formals = true;
 	if ($2 == K_checker)
 	      port_declaration_context.port_type = NetNet::PINPUT;
       }
