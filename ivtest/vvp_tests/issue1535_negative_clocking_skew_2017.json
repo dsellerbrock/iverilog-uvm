@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1535_negative_clocking_skew_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1535_negative_clocking_skew"],
+  "gold": "issue1535_negative_clocking_skew_2017"
+}
