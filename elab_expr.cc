@@ -5876,6 +5876,15 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
                                      unsigned expr_wid,
                                      unsigned flags) const
 {
+      if (flags & PROC_CONT_ASSIGN_EXPR) {
+            cerr << get_fileline() << ": error: Assignment operator is not"
+                 << " allowed in an expression within a procedural"
+                 << " continuous assignment (IEEE 1800-2017/2023 11.3.6)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+
       flags &= ~SYS_TASK_ARG;
 
       const unsigned l_width = left_->expr_width();
