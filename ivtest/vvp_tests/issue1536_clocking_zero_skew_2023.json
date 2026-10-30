@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1536_clocking_zero_skew_2023.v",
+    "iverilog-args": ["-g2023", "-s", "issue1536_clocking_zero_skew_2023"],
+    "gold": "issue1536_clocking_zero_skew_2023"
+}

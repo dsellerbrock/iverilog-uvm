@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue1536_clocking_zero_skew_2023.v:11: $finish called at 0 (1ps)
