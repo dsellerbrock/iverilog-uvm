@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1521_attribute_value_nested.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue1521_attribute_value_nested"
+}

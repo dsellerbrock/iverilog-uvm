@@ -30,6 +30,8 @@ issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=iss
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
+issue1521_attribute_value_nested_2017 CE,-g2017,-s,top ivltests
+issue1521_attribute_value_nested_2023 CE,-g2023,-s,top ivltests
 issue1480_assoc_real_index_fail_2017 CE,-g2017,-s,top ivltests
 issue1480_assoc_real_index_fail_2023 CE,-g2023,-s,top ivltests
 issue1486_assoc_wildcard_traversal_fail_2017 CE,-g2017,-s,top ivltests
