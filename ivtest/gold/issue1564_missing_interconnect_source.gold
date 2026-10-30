@@ -1,0 +1,2 @@
+LOAD 13000 1
+./ivltests/issue1564_missing_interconnect_source.v:22: $finish called at 20000 (1ps)
