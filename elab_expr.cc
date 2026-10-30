@@ -25903,6 +25903,38 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	  // IEEE 1800-2017/2023 24.3: program signals may only be referenced
+	  // from within a program block. Hierarchical references from modules
+	  // (and other design scopes) must not expose program-local state.
+	  bool target_in_program = false;
+	  if (sr.net && sr.net->scope()) {
+	        for (NetScope*ancestor = sr.net->scope(); ancestor;
+	             ancestor = ancestor->parent()) {
+	              if (ancestor->program_block()) {
+	                    target_in_program = true;
+	                    break;
+	              }
+	        }
+	  }
+	  if (gn_system_verilog() && path_.name.size() >= 2
+	      && target_in_program) {
+	        bool in_program = false;
+	        for (NetScope*ancestor = scope; ancestor;
+	             ancestor = ancestor->parent()) {
+	              if (ancestor->program_block()) {
+	                    in_program = true;
+	                    break;
+	              }
+	        }
+	        if (!in_program) {
+	              cerr << get_fileline() << ": error: Reference to program signal `"
+	                   << path_ << "' from outside any program block is illegal "
+	                      "(IEEE 1800-2017/2023 24.3)." << endl;
+	              des->errors += 1;
+	              return nullptr;
+	        }
+	  }
+
 	  if (sr.genvar_outside_loop)
 	    return nullptr;
 

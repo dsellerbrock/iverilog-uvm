@@ -24,6 +24,8 @@ issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gol
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1535_negative_clocking_skew_2017 CE,-g2017,-s,issue1535_negative_clocking_skew ivltests
 issue1535_negative_clocking_skew_2023 CE,-g2023,-s,issue1535_negative_clocking_skew ivltests
+issue1557_program_signal_escape_2017 CE,-g2017,-s,tb ivltests
+issue1557_program_signal_escape_2023 CE,-g2023,-s,tb ivltests
 issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
 issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
