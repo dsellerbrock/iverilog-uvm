@@ -7179,22 +7179,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  }
 
-		    /* Input to module. Here we elaborate the source expression
-		       using its self-determined width. This allows us to check
-		       for and warn about port width mismatches. But in the
-		       special case that the source expression is a SV unbased
-		       unsized literal, we need to force the expression width
-		       to match the destination.
+		    /* Input to module. The formal port width supplies the
+		       assignment-like size context for a packed actual expression
+		       (IEEE 1800-2017/2023 10.8). Ports without a formal signal or
+		       with a non-vector type use a self-determined expression.
 
 		       NOTE that this also handles the case that the
 		       port is actually empty on the inside. We assume
 		       in that case that the port is input. */
 
-		  int context_width = -1;
-		  if (const PENumber*literal = dynamic_cast<PENumber*>(pins[idx])) {
-			if (literal->value().is_single())
-			      context_width = prts_vector_width;
-		  }
 		    // FIXME: The default value is getting the wrong value for
 		    //        an array instance since only one scope is used
 		    //        and the value can be different for each scope.
@@ -7217,6 +7210,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			elab_scope = elab_scope_inst[0];
 		  }
 		  NetExpr*tmp_expr;
+		  int context_width = -1;
+		  if (!prts.empty()
+		      && type_is_vectorable(prts[0]->data_type()))
+			context_width = prts[0]->vector_width();
 		  if (!prts.empty()
 		      && dynamic_cast<PEAssignPattern*>(pins[idx]))
 			tmp_expr = elab_and_eval(des, elab_scope, pins[idx],

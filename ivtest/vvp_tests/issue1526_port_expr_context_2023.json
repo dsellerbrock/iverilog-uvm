@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1526_port_expr_context.v",
+  "iverilog-args": ["-g2023", "-s", "issue1526_port_expr_context"],
+  "gold": "issue1526_port_expr_context"
+}
