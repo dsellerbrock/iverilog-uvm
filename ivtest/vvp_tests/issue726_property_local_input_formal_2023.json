@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue726_property_local_input_formal.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue726_property_local_input_formal"],
+  "gold": "issue726_property_local_input_formal"
+}

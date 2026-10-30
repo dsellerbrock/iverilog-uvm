@@ -469,7 +469,7 @@ extern void pform_sva_declare_sequence_spec(const struct vlltype&loc,
    the ordered list of formal-argument names (may be null/empty). */
 extern void pform_sva_declare_property_p(const struct vlltype&loc,
 					 const char*name,
-					 std::list<perm_string>*formals,
+					 std::list<sva_sequence_formal_t>*formals,
 					 sva_property_t*prop);
 extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,

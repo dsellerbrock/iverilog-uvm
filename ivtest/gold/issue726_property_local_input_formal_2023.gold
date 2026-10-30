@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue726_property_local_input_formal.v:27: $finish called at 21 (1s)
