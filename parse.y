@@ -5663,6 +5663,17 @@ cross_body_opt
 	delete $7;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
+  /* IEEE 1800-2017/2023 19.6.1.4: an array literal can provide a
+     CrossQueueType set expression directly, without a function call. */
+  | cross_body_opt K_bins bins_name '=' assignment_pattern bins_iff_opt ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.set_expr = $5;
+	cb.set_expr_is_literal = true;
+	cb.iff_expr = $6;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   /* IEEE 1800-2017 19.6.1: filter cross tuples with a predicate over the
      contributing coverpoint values. Keep the source cross name so a typo
      cannot silently select tuples from the surrounding declaration. */
