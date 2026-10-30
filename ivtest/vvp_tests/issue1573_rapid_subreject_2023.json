@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1573_rapid_subreject.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "issue1573_rapid_subreject"],
+  "gold": "issue1573_rapid_subreject"
+}

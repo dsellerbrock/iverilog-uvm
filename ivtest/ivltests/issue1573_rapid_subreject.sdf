@@ -1,0 +1,15 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue1573_rapid_subreject")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "issue1573_rapid_subreject")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (INTERCONNECT s.q l.d (10:10:10) (10:10:10))
+      )
+    )
+  )
+)

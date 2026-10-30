@@ -1,0 +1,2 @@
+PASS: specify and interconnect sub-reject pulses suppressed
+ivltests/issue1573_rapid_subreject.v:48: $finish called at 106000 (1ps)

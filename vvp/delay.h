@@ -314,6 +314,26 @@ class vvp_fun_modpath_edge  : public vvp_fun_modpath_src {
 */
 class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
+      struct pulse_event_;
+      typedef std::list<pulse_event_*> pulse_event_list_t;
+      typedef std::map<vvp_time64_t, pulse_event_list_t> pulse_event_map_t;
+      struct pulse_event_ {
+	    pulse_event_(vvp_time64_t time, const vvp_vector4_t& from,
+			 const vvp_vector4_t& to)
+	    : sim_time(time), from(from), to(to) { }
+	    vvp_time64_t sim_time;
+	    vvp_vector4_t from;
+	    vvp_vector4_t to;
+	    pulse_event_map_t::iterator bucket;
+	    pulse_event_list_t::iterator position;
+      };
+
+      struct pulse_wakeup_ : vvp_gen_event_s {
+	    explicit pulse_wakeup_(vvp_fun_intermodpath*owner) : owner_(owner) { }
+	    void run_run() override;
+	    vvp_fun_intermodpath* owner_;
+      };
+
     public:
       vvp_fun_intermodpath(vvp_net_t*net, unsigned width);
       ~vvp_fun_intermodpath() override;
@@ -326,6 +346,13 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
     private:
       void run_run() override;
+      pulse_event_* enqueue_pulse_event_(vvp_time64_t time,
+						 const vvp_vector4_t& from,
+						 const vvp_vector4_t& to);
+      void cancel_pulse_event_(pulse_event_*event);
+      void schedule_pulse_transition_(vvp_time64_t delay,
+					      const vvp_vector4_t&bit);
+      void run_pulse_events_();
 
     private:
       vvp_net_t*net_;
@@ -333,6 +360,8 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_vector4_t cur_vec4_;
 
       vvp_time64_t delay_[12];
+      pulse_event_map_t pulse_events_;
+      pulse_event_*pending_pulse_;
 
     private: // not implemented
       vvp_fun_intermodpath(const vvp_fun_intermodpath&);
