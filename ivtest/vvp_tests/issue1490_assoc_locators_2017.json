@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1490_assoc_locators.v",
+  "iverilog-args": ["-g2017", "-s", "issue1490_assoc_locators"],
+  "gold": "issue1490_assoc_locators"
+}

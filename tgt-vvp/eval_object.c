@@ -1611,7 +1611,12 @@ static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
  * ordinals are not associative-array indices. */
 static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int traversal)
 {
-      const char*kind = traversal > 0 ? "find_first_index"
+      const char*raw_kind = ivl_expr_name(expr) + 24;
+      int return_element = strncmp(raw_kind, "find", 4) == 0
+	    && strstr(raw_kind, "index") == 0;
+      const char*kind = return_element
+	    ? traversal > 0 ? "find_first" : traversal < 0 ? "find_last" : "find"
+	    : traversal > 0 ? "find_first_index"
 	    : traversal < 0 ? "find_last_index" : "find_index";
       unsigned parm_count = ivl_expr_parms(expr);
       if (parm_count != 6 && parm_count != 7) {
@@ -1702,7 +1707,9 @@ static int draw_assoc_index_locator_expr_(ivl_expr_t expr, int traversal)
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", pred_flag);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 	      thread_count, lab_skip, pred_flag);
-      errors += draw_unique_append_queue_(key_arg, result_sig, key_type);
+      errors += draw_unique_append_queue_(return_element ? element : key_arg,
+					  result_sig,
+					  return_element ? iter_type : key_type);
       if (traversal != 0)
 	    fprintf(vvp_out, "    %%jmp T_%u.%u; first matching key in traversal order\n",
 		    thread_count, lab_end);
@@ -3300,10 +3307,19 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strcmp(name, "$ivl_queue_method$assoc_find_index") == 0)
 	    return draw_assoc_index_locator_expr_(expr, 0);
 
+      if (strcmp(name, "$ivl_queue_method$assoc_find") == 0)
+	    return draw_assoc_index_locator_expr_(expr, 0);
+
       if (strcmp(name, "$ivl_queue_method$assoc_find_first_index") == 0)
 	    return draw_assoc_index_locator_expr_(expr, 1);
 
+      if (strcmp(name, "$ivl_queue_method$assoc_find_first") == 0)
+	    return draw_assoc_index_locator_expr_(expr, 1);
+
       if (strcmp(name, "$ivl_queue_method$assoc_find_last_index") == 0)
+	    return draw_assoc_index_locator_expr_(expr, -1);
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_last") == 0)
 	    return draw_assoc_index_locator_expr_(expr, -1);
 
       if (strncmp(name, "$ivl_queue_method$assoc_minmax|", 31) == 0)

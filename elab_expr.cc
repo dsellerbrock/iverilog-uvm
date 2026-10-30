@@ -1211,6 +1211,9 @@ static NetExpr* make_assoc_index_locator_expr_(
       ivl_type_t element_type, const char*kind,
       perm_string iter_name, perm_string index_name)
 {
+      const bool return_element = strcmp(kind, "find") == 0
+            || strcmp(kind, "find_first") == 0
+            || strcmp(kind, "find_last") == 0;
       ivl_type_t key_type = container_type->assoc_index_type();
       if (container_type->assoc_wildcard()) {
             cerr << call->get_fileline() << ": sorry: " << kind << "() on "
@@ -1264,7 +1267,8 @@ static NetExpr* make_assoc_index_locator_expr_(
       if (!pred)
             return nullptr;
 
-      ivl_type_t result_type = array_locator_queue_type_(key_type);
+      ivl_type_t result_type = array_locator_queue_type_(
+            return_element ? element_type : key_type);
       NetNet*result_net = new NetNet(scope, scope->local_symbol(),
                                      NetNet::REG, result_type);
       result_net->set_line(*call);
@@ -1662,6 +1666,12 @@ static NetExpr* make_queue_locator_with_expr_(
 		  if (strcmp(kind, "find_index") == 0
 		      || strcmp(kind, "find_first_index") == 0
 		      || strcmp(kind, "find_last_index") == 0)
+			return make_assoc_index_locator_expr_(
+			      call, des, scope, queue_expr, queue, element_type,
+			      kind, iter_name, index_name);
+		  if (strcmp(kind, "find") == 0
+		      || strcmp(kind, "find_first") == 0
+		      || strcmp(kind, "find_last") == 0)
 			return make_assoc_index_locator_expr_(
 			      call, des, scope, queue_expr, queue, element_type,
 			      kind, iter_name, index_name);
