@@ -1,0 +1,3 @@
+ivltests/issue1535_negative_clocking_skew_2023.v:6: error: A clocking skew must be a non-negative value.
+ivltests/issue1535_negative_clocking_skew_2023.v:7: error: A clocking skew must be a non-negative value.
+2 error(s) during elaboration.
