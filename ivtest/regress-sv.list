@@ -9,6 +9,8 @@ issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_n
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
 issue1491_proc_cont_assign_expr_2017 CE,-g2017,-s,issue1491_proc_cont_assign_expr ivltests
 issue1491_proc_cont_assign_expr_2023 CE,-g2023,-s,issue1491_proc_cont_assign_expr ivltests
+issue1556_checker_initial_assignment_2017 CE,-g2017 ivltests gold=issue1556_checker_initial_assignment_2017.gold
+issue1556_checker_initial_assignment_2023 CE,-g2023 ivltests gold=issue1556_checker_initial_assignment_2023.gold
 issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold

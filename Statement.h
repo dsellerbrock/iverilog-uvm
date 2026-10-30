@@ -515,6 +515,7 @@ class PRandCase : public Statement {
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
       bool contains_detached_fork() const override;
+      std::vector<PCase::Item*>* mutable_items() const { return items_; }
 
     private:
       friend class pform_constructor_order_audit_t;
@@ -549,6 +550,7 @@ class PCaseMatches : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      std::vector<Item*>* mutable_items() const { return items_; }
 
     private:
       friend class pform_constructor_order_audit_t;
@@ -723,6 +725,7 @@ class PDelayStatement  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       bool contains_detached_fork() const override;
+      Statement* statement() const { return statement_; }
 
     private:
       friend class pform_constructor_order_audit_t;
@@ -750,6 +753,7 @@ class PCycleDelay : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       bool contains_detached_fork() const override;
+      Statement* statement() const { return statement_; }
 
     private:
       friend class pform_constructor_order_audit_t;
