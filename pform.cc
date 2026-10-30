@@ -8810,7 +8810,7 @@ struct sva_param_seq_t {
       std::vector<sva_seq_step_t>* body = nullptr;
 };
 struct sva_param_prop_t {
-      std::vector<perm_string> formals;
+      std::vector<sva_property_formal_t> formals;
       sva_property_t* body = nullptr;
 };
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
@@ -9751,7 +9751,7 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
 
 /* M9D: parameterized named property/sequence declarations. */
 void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
-				  std::list<perm_string>*formals,
+				  std::list<sva_property_formal_t>*formals,
 				  sva_property_t*prop)
 {
       sva_attach_local_declarations_(prop);
@@ -9762,12 +9762,19 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
-	    delete formals;
+	    if (formals) {
+		  for (sva_property_formal_t&formal : *formals)
+			delete formal.default_expr;
+		  delete formals;
+	    }
 	    pform_sva_destroy_property(prop);
 	    return;
       }
       sva_param_prop_t rec;
-      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      if (formals) {
+	    for (sva_property_formal_t f : *formals) rec.formals.push_back(f);
+	    formals->clear();
+      }
       sva_decl_property_forget_sampled_(prop);
       rec.body = prop;
       sva_param_properties[sva_decl_key_(use_name)] = rec;
@@ -9820,8 +9827,11 @@ void pform_sva_module_done(void)
 	    pform_sva_destroy_sequence(it->second.body);
       for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
 		sva_param_properties.begin() ;
-	   it != sva_param_properties.end() ; ++it)
+	   it != sva_param_properties.end() ; ++it) {
+	    for (sva_property_formal_t&formal : it->second.formals)
+		  delete formal.default_expr;
 	    pform_sva_destroy_property(it->second.body);
+	   }
       sva_module_properties.clear();
       sva_module_sequences.clear();
       sva_property_shaped_sequences.clear();
@@ -11723,29 +11733,82 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       return t;
 }
 
-/* M9D: build a formal->actual substitution map from a call's arguments,
-   checking arity. Returns false (diagnosed) on a mismatch or empty arg. */
-static bool sva_build_subst_(const struct vlltype&loc, const char*what,
-			     perm_string nm,
-			     const std::vector<perm_string>&formals,
-			     const std::vector<named_pexpr_t>&parms,
-			     std::map<perm_string,PExpr*>&subst)
+/* Bind property actuals using their retained formal types and defaults. */
+static bool sva_build_property_subst_(const struct vlltype&loc,
+				      perm_string nm,
+				      const std::vector<sva_property_formal_t>&formals,
+				      const std::vector<named_pexpr_t>&parms,
+				      std::map<perm_string,PExpr*>&subst,
+				      std::vector<PExpr*>&owned)
 {
-      if (parms.size() != formals.size()) {
-	    cerr << loc << ": error: " << what << " `" << nm << "' expects "
-		 << formals.size() << " argument(s), got " << parms.size()
-		 << "." << endl;
-	    error_count += 1;
-	    return false;
-      }
-      for (size_t k = 0 ; k < formals.size() ; k += 1) {
-	    if (!parms[k].parm) {
-		  cerr << loc << ": error: " << what << " `" << nm
-		       << "' argument " << (k+1) << " is empty." << endl;
+      std::vector<const named_pexpr_t*> actuals(formals.size(), nullptr);
+      size_t positional = 0;
+      bool named_seen = false;
+      for (const named_pexpr_t&actual : parms) {
+	    size_t idx = formals.size();
+	    if (actual.name.nil()) {
+		  if (named_seen) {
+			cerr << loc << ": error: positional actual follows a named actual in property `"
+			     << nm << "'." << endl;
+			error_count += 1;
+			return false;
+		  }
+		  while (positional < formals.size() && actuals[positional])
+			++positional;
+		  idx = positional++;
+	    } else {
+		  named_seen = true;
+		  for (size_t k = 0; k < formals.size(); ++k)
+			if (formals[k].name == actual.name) { idx = k; break; }
+	    }
+	    if (idx >= formals.size()) {
+		  cerr << loc << ": error: too many or unknown actuals for property `"
+		       << nm << "'." << endl;
 		  error_count += 1;
 		  return false;
 	    }
-	    subst[formals[k]] = parms[k].parm;
+	    if (actuals[idx]) {
+		  cerr << loc << ": error: property `" << nm
+		       << "' formal argument `" << formals[idx].name
+		       << "' is specified more than once." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    actuals[idx] = &actual;
+      }
+
+      for (size_t k = 0; k < formals.size(); ++k) {
+	    const sva_property_formal_t&formal = formals[k];
+	    PExpr*value = nullptr;
+	    if (actuals[k] && actuals[k]->parm) {
+		  if (formal.type) {
+			value = sva_clone_subst_(actuals[k]->parm, nullptr);
+			if (value) {
+			      PECastType*cast = new PECastType(formal.type, value);
+			      FILE_NAME(cast, loc);
+			      value = cast;
+			}
+		  } else {
+			value = actuals[k]->parm;
+		  }
+	    } else if (formal.default_expr) {
+		  value = sva_clone_subst_(formal.default_expr, nullptr);
+		  if (value && formal.type) {
+			PECastType*cast = new PECastType(formal.type, value);
+			FILE_NAME(cast, loc);
+			value = cast;
+		  }
+	    }
+	    if (!value) {
+		  cerr << loc << ": error: property `" << nm
+		       << "' is missing required argument `" << formal.name << "'." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    if (formal.type || !actuals[k] || !actuals[k]->parm) {
+		  owned.push_back(value);
+	    }
+	    subst[formal.name] = value;
       }
       return true;
 }
@@ -29105,8 +29168,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    fatal = true;
 			      }
 			      std::map<perm_string,PExpr*> subst;
-			      if (!fatal && !sva_build_subst_(loc, "property", nm,
-					pit->second.formals, cf->get_parms(), subst))
+			      std::vector<PExpr*> owned_subst;
+			      if (!fatal && !sva_build_property_subst_(loc, nm,
+				    pit->second.formals, cf->get_parms(), subst,
+				    owned_subst))
 				    fatal = true;
 			      sva_property_t*inst = nullptr;
 			      if (!fatal) {
@@ -29176,6 +29241,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						loc, decl->mc_prefix, subst);
 					  if (!inst->mc_prefix) ok = false;
 				    }
+				      for (PExpr*value : owned_subst) delete value;
+				      owned_subst.clear();
 				    if (!ok) {
 					  cerr << loc << ": sorry: property `" << nm
 					       << "' has a body expression that cannot "
@@ -29187,6 +29254,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  fatal = true;
 				    }
 			      }
+			      for (PExpr*value : owned_subst) delete value;
 			      delete (*prop->seq)[0].expr;
 			      delete prop->seq;
 			      delete prop;
