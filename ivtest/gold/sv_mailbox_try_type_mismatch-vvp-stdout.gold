@@ -1,0 +1,6 @@
+try_peek(int): result=-1 num=1
+try_get(int): result=-1 num=1
+try_peek(string): result=1 num=1 value=typed at runtime
+try_get(string): result=1 num=0 value=typed at runtime
+PASS mailbox clause 15.4 dynamic type
+ivltests/sv_mailbox_try_type_mismatch.v:54: $finish called at 0 (1s)

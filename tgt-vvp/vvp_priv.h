@@ -26,6 +26,22 @@
 # include  <stdio.h>
 # include  <string.h>
 
+/* Runtime mailbox tags for the scalar message representations boxed by
+ * the VVP target. Zero leaves object/legacy receivers unchecked. */
+static inline unsigned mailbox_receiver_kind_(ivl_lval_t lval)
+{
+      ivl_type_t type = lval ? ivl_lval_net_type(lval) : 0;
+      if (!type)
+	    return 0;
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_STRING: return 1;
+	  case IVL_VT_REAL: return 2;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: return 3;
+	  default: return 0;
+      }
+}
+
 extern int debug_draw;
 
 extern ivl_design_t vvp_get_saved_design(void);
