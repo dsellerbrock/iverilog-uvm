@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1528_assignment_pattern_lvalue.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1528_assignment_pattern_lvalue"
+}

@@ -380,6 +380,11 @@ class PEAssignPattern : public PExpr {
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid,
                                      unsigned flags) const override;
+      virtual NetAssign_* elaborate_lval(Design*des, NetScope*scope,
+					 bool is_cassign,
+					 bool is_force,
+					 bool is_init = false,
+					 bool read_only_ref = false) const override;
       void reloc_lexical_pos_bind(bool parameter_context) override;
       const std::vector<PExpr*>& parms() const { return parms_; }
       const std::vector<perm_string>& parm_names() const { return parm_names_; }

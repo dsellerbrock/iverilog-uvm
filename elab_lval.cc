@@ -515,6 +515,66 @@ NetAssign_* PEConcat::elaborate_lval(Design*des,
       return res;
 }
 
+/* An assignment pattern on the left of an assignment-like context is
+ * positional by IEEE 1800-2017/2023 10.9. Its expressions are therefore
+ * ordinary l-value members in declaration/array order, with the same
+ * concatenation ordering used to map the source bit stream. Keyed patterns,
+ * and replication syntax that is not a positional member list, are not
+ * valid on this side. */
+NetAssign_* PEAssignPattern::elaborate_lval(Design*des, NetScope*scope,
+					   bool is_cassign,
+					   bool is_force,
+					   bool is_init,
+					   bool read_only_ref) const
+{
+      if (read_only_ref) {
+	cerr << get_fileline() << ": error: A const ref actual must be a variable."
+	     << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      if (!parm_names_.empty() || !keys_.empty() || replication_) {
+	cerr << get_fileline() << ": error: Only positional assignment patterns "
+	     << "are allowed as assignment-pattern l-values (IEEE "
+	     << "1800-2017/2023 10.9)." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+      if (parms_.empty()) {
+	cerr << get_fileline() << ": error: Empty assignment patterns are not "
+	     << "allowed as l-values." << endl;
+	des->errors += 1;
+	return nullptr;
+      }
+
+      NetAssign_*res = nullptr;
+      for (PExpr*parm : parms_) {
+	if (!parm) {
+	      cerr << get_fileline() << ": error: Empty expressions not allowed "
+		   << "in assignment-pattern l-values." << endl;
+	      des->errors += 1;
+	      continue;
+	}
+	if (report_concat_clocking_lvalue_(parm, des, scope))
+	      continue;
+	NetAssign_*tmp = parm->elaborate_lval(
+	      des, scope, is_cassign, is_force, is_init);
+	if (!tmp) continue;
+	if (tmp->expr_type() == IVL_VT_REAL) {
+	      cerr << parm->get_fileline() << ": error: assignment-pattern l-value "
+		   << "member can not be real: " << *parm << endl;
+	      des->errors += 1;
+	      continue;
+	}
+	tmp->set_signed(false);
+	NetAssign_*last = tmp;
+	while (last->more) last = last->more;
+	last->more = res;
+	res = tmp;
+      }
+      return res;
+}
+
 enum scoped_lvalue_class_name_kind_t {
       SCOPED_LVALUE_CLASS_NONE,
       SCOPED_LVALUE_CLASS_DIRECT,

@@ -20100,6 +20100,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* IEEE 1800-2017/2023 10.9 allows positional assignment patterns on
+     the left of an assignment-like context. Spell these statement forms
+     directly, as for concatenation l-values below, because assignment
+     patterns are also expressions and routing them through lpvalue adds a
+     reduce/reduce conflict. */
+  | K_LP expression_list_proper '}' '=' expression ';'
+      { PEAssignPattern*lhs = new PEAssignPattern(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PAssign*tmp = new PAssign(lhs, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_LP expression_list_proper '}' K_LE expression ';'
+      { PEAssignPattern*lhs = new PEAssignPattern(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PAssignNB*tmp = new PAssignNB(lhs, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   /* Streaming-concatenation l-value assignment (IEEE 1800-2017
      11.4.14.4).  Rewrite `{op N {lvals}} = rhs` at parse time into
      `{lvals} = {op N {rhs}}` (lval-context streaming node) so the
