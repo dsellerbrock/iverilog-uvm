@@ -12273,16 +12273,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 				    des->errors += 1;
 				    return 0;
 			      }
-			      if (dynamic_cast<const netuarray_t*>(
-					  walk->get_prop_type(obuf_idx))
-				  && sig_c->index.empty()) {
-				    cerr << loc.get_fileline() << ": sorry: a whole-array "
-				 << "clocking-output drive is not yet supported; "
-				 << "select one array element." << endl;
-				    des->errors += 1;
-				    return 0;
-			      }
-
 			      pform_name_t suffix(sel_c, csr.path_tail.cend());
 			      pform_name_t receiver_path = path;
 			      for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
@@ -12365,12 +12355,60 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      unique_ptr<NetAssign> store(
 				    new NetAssign(obuf_lv.release(), rv.release()));
 			      store->set_line(loc);
-			      verinum one_v (verinum::V1, opend_lv->lwidth());
-			      unique_ptr<NetEConst> one(new NetEConst(one_v));
-			      one->set_line(loc);
-			      unique_ptr<NetAssign> mark(
+			      unique_ptr<NetBlock> blk(
+				    new NetBlock(NetBlock::SEQU, 0));
+			      blk->set_line(loc);
+			      for (NetProc*save : selector_prefix)
+				    blk->append(save);
+			      blk->append(store.release());
+			      const netuarray_t*opend_type = dynamic_cast<const netuarray_t*>(
+				    walk->get_prop_type(opend_idx));
+			      if (opend_type && sig_c->index.empty() && suffix.empty()) {
+				    const netranges_t&dims = opend_type->static_dimensions();
+				    unsigned count = 1;
+				    for (const netrange_t&range : dims)
+					  count *= range.width();
+				    for (unsigned word = 0; word < count; ++word) {
+					  unsigned offset = word;
+					  pform_name_t word_path = opend_path;
+					  for (size_t dim = dims.size(); dim > 0; --dim) {
+						const netrange_t&range = dims[dim - 1];
+						long low = min(range.get_msb(), range.get_lsb());
+						long index = range.get_msb() < range.get_lsb()
+						      ? low + offset % (range.get_lsb() - range.get_msb() + 1)
+						      : range.get_lsb() - offset % (range.get_msb() - range.get_lsb() + 1);
+						offset /= range.get_msb() < range.get_lsb()
+						      ? range.get_lsb() - range.get_msb() + 1
+						      : range.get_msb() - range.get_lsb() + 1;
+						index_component_t ic;
+						ic.sel = index_component_t::SEL_BIT;
+						ic.msb = new PENumber(new verinum((int64_t)index));
+						ic.lsb = nullptr;
+						word_path.back().index.push_back(ic);
+					  }
+					  PEIdent word_id(word_path, lid->lexical_pos());
+					  word_id.set_line(loc);
+					  word_id.set_clocking_access(cb_c->name);
+					  unique_ptr<NetAssign_> word_lv(word_id.elaborate_lval(
+						  des, scope, false, false, false));
+					  if (!word_lv) return 0;
+					  verinum one_v (verinum::V1, word_lv->lwidth());
+					  unique_ptr<NetEConst> one(new NetEConst(one_v));
+					  one->set_line(loc);
+					  unique_ptr<NetAssign> mark_word(new NetAssign(
+						  word_lv.release(), one.release()));
+					  mark_word->set_line(loc);
+					  blk->append(mark_word.release());
+				    }
+			      } else {
+				    verinum one_v (verinum::V1, opend_lv->lwidth());
+				    unique_ptr<NetEConst> one(new NetEConst(one_v));
+				    one->set_line(loc);
+				    unique_ptr<NetAssign> mark(
 					  new NetAssign(opend_lv.release(), one.release()));
-			      mark->set_line(loc);
+				    mark->set_line(loc);
+				    blk->append(mark.release());
+			      }
 
 			      PEIdent pfx_id (prefix, lid->lexical_pos());
 			      pfx_id.set_line(loc);
@@ -12410,13 +12448,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      unique_ptr<NetCondit> cond(
 					  new NetCondit(chg.release(), kick_now.release(), 0));
 			      cond->set_line(loc);
-			      unique_ptr<NetBlock> blk(
-					  new NetBlock(NetBlock::SEQU, 0));
-			      blk->set_line(loc);
-			      for (NetProc*save : selector_prefix)
-				    blk->append(save);
-			      blk->append(store.release());
-			      blk->append(mark.release());
 			      blk->append(cond.release());
 				    return blk.release();
 			}
