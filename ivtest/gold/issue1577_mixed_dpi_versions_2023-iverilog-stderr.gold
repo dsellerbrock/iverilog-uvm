@@ -1,0 +1,2 @@
+ivltests/issue1577_mixed_dpi_versions.v:2: warning: "DPI" is deprecated and should be replaced with "DPI-C". Use of the "DPI-C" string may require changes in the DPI application's C code. (IEEE 1800-2017/2023 35.5.4).
+ivltests/issue1577_mixed_dpi_versions.v:6: error: DPI linkage identifier 'shared' uses both "DPI" and "DPI-C" version string syntax (IEEE 1800-2017/2023 35.4).
