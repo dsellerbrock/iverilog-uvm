@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue642_class_static_continuous.sv",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}
