@@ -25724,6 +25724,38 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	  if (sr.genvar_outside_loop)
 	    return nullptr;
 
+	  // IEEE 1800-2017/2023 17.2 prohibits a checker from referencing
+	  // elements of dynamic variables in the scope enclosing its declaration.
+	  if (gn_system_verilog() && sr.net && !path_.name.empty()
+	      && !path_.name.front().index.empty()
+	      && dynamic_cast<const netdarray_t*>(sr.net->net_type())) {
+	        NetScope*checker_scope = nullptr;
+	        for (NetScope*cur = scope; cur; cur = cur->parent()) {
+	              const Module*owner = cur->module_definition();
+	              if (owner) {
+	                    if (owner->is_checker) checker_scope = cur;
+	                    break;
+	              }
+	        }
+	        bool declared_in_checker = false;
+	        if (checker_scope) {
+	              for (NetScope*cur = sr.scope; cur; cur = cur->parent()) {
+	                    if (cur == checker_scope) {
+	                          declared_in_checker = true;
+	                          break;
+	                    }
+	              }
+	        }
+	        if (checker_scope && !declared_in_checker) {
+	              cerr << get_fileline() << ": error: Reference to element of "
+	                   << "enclosing dynamic variable `" << path_.name.front().name
+	                   << "' is illegal in a checker (IEEE 1800-2017/2023 17.2)."
+	                   << endl;
+	              des->errors += 1;
+	              return nullptr;
+	        }
+	  }
+
 	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
 	  // references to checker variables, including reads in expressions.
 	  if (gn_system_verilog() && path_.name.size() >= 2) {
