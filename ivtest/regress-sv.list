@@ -2778,6 +2778,8 @@ sv_vthread_zero_time_callf_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_t
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
 
 # IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
+issue1754_net_output_variable_pull_2017 normal,-g2017 ivltests gold=issue1754_net_output_variable_pull.gold
+issue1754_net_output_variable_pull_2023 normal,-g2023 ivltests gold=issue1754_net_output_variable_pull.gold
 sv_net_decl_delay_corpus normal,-g2012 ivltests gold=sv_net_decl_delay_corpus.gold
 sv_net_decl_delay_inertial normal,-g2012 ivltests gold=sv_net_decl_delay_inertial.gold
 sv_net_decl_delay_vector normal,-g2012 ivltests gold=sv_net_decl_delay_vector.gold
