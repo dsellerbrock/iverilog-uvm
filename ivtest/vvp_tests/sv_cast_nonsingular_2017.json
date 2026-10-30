@@ -1,0 +1,6 @@
+{
+    "type"   : "CE",
+    "source" : "sv_cast_nonsingular.v",
+    "gold"   : "sv_cast_nonsingular_2017",
+    "iverilog-args" : [ "-g2017" ]
+}

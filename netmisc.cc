@@ -2959,6 +2959,44 @@ NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
       return tmp;
 }
 
+bool sv_cast_args_singular(const NetExpr*dest, const NetExpr*src)
+{
+      auto singular = [](const NetExpr*expr) {
+	    if (!expr) return false;
+	    ivl_type_t type = expr->net_type();
+	    if (type) {
+		  if (type->packed() || type->base_type() == IVL_VT_CLASS)
+			return true;
+		  return false;
+	    }
+	    switch (expr->expr_type()) {
+	      case IVL_VT_BOOL:
+	      case IVL_VT_LOGIC:
+	      case IVL_VT_REAL:
+	      case IVL_VT_STRING:
+	      case IVL_VT_CLASS:
+		  return true;
+	      default:
+		  return false;
+	    }
+      };
+      return singular(dest) && singular(src);
+}
+
+bool sv_cast_args_assignment_compatible(const NetExpr*dest,
+                                        const NetExpr*src)
+{
+      if (!dest || !src) return false;
+	  // Singular $cast compatibility may depend on an enum value or dynamic
+	  // class type and remains the existing runtime check's responsibility.
+	  if (sv_cast_args_singular(dest, src)) return true;
+      ivl_type_t dest_type = dest->net_type();
+      ivl_type_t src_type = src->net_type();
+      if (dest_type && src_type)
+	    return dest_type->type_compatible(src_type);
+      return sv_cast_args_singular(dest, src);
+}
+
 static bool mailbox_numeric_type_(ivl_type_t type)
 {
       if (!type || !(type->packed() || type->base_type() == IVL_VT_REAL))

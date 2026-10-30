@@ -15132,6 +15132,22 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
       }
 
+      if (name == "$cast" && parm_count == 2
+	  && eparms[0] && eparms[1]
+	  && !sv_cast_args_singular(eparms[0], eparms[1])) {
+	    if (generation_flag < GN_VER2023) {
+		  cerr << get_fileline() << ": error: $cast destination and source "
+		       << "must be singular under IEEE 1800-2017 6.24.2." << endl;
+		  des->errors += 1;
+	    } else {
+		  NetEConst*compatible = new NetEConst(verinum(
+			  sv_cast_args_assignment_compatible(eparms[0], eparms[1])
+			  ? verinum::V1 : verinum::V0, 1));
+		  compatible->set_line(*this);
+		  eparms.push_back(compatible);
+	    }
+      }
+
       /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
        * is a variable_lvalue. Ordinary system-task argument elaboration
        * preserves signal l-values, but does not distinguish variables
@@ -15247,6 +15263,21 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  NetEConst*finish_number = new NetEConst(verinum((uint64_t)1, 32));
 		  finish_number->set_line(*this);
 		  eparms.insert(eparms.begin(), finish_number);
+	    }
+      }
+
+      if (name == "$cast" && generation_flag >= GN_VER2023
+	  && eparms.size() >= 3) {
+	    const NetEConst*compatible =
+		  dynamic_cast<const NetEConst*>(eparms[2]);
+	    if (compatible && compatible->value().is_zero()) {
+		  for (NetExpr*arg : eparms) delete arg;
+		  vector<NetExpr*>no_args;
+		  NetSTask*error = new NetSTask("$ivl_cast_error",
+					       IVL_SFUNC_AS_TASK_ERROR,
+					       no_args);
+		  error->set_line(*this);
+		  return error;
 	    }
       }
 
