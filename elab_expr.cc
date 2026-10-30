@@ -4947,6 +4947,27 @@ static bool assignment_pattern_types_equivalent_(ivl_type_t lhs,
 	  || (lhs->type_equivalent(rhs) && rhs->type_equivalent(lhs));
 }
 
+/* Recursive descent retains only type and default keys. Index and member
+ * keys apply at the level where they were written (IEEE 1800-2017 10.9.1
+ * and 10.9.2), while these keys are reapplied to unmatched aggregates. */
+static unique_ptr<PEAssignPattern> assignment_pattern_recursive_keys_(
+		const PEAssignPattern&pattern)
+{
+	      list<assignment_pattern_item_t> recursive_keys;
+	      const auto&keys = pattern.keys();
+	      const auto&values = pattern.parms();
+	      for (size_t idx = 0; idx < keys.size() && idx < values.size(); ++idx) {
+		    if (keys[idx].kind == assignment_pattern_key_t::TYPE
+			|| keys[idx].kind == assignment_pattern_key_t::DEFAULT) {
+			  assignment_pattern_item_t item;
+			  item.key = keys[idx];
+			  item.value = values[idx];
+			  recursive_keys.push_back(item);
+		    }
+	      }
+	      return unique_ptr<PEAssignPattern>(new PEAssignPattern(recursive_keys));
+}
+
 /* Resolve a keyed pattern against one fixed array dimension. Explicit
  * declared-index setters have highest precedence, followed by the last
  * matching type setter, followed by default (IEEE 1800-2017 10.9.1).
@@ -4955,7 +4976,8 @@ static bool assignment_pattern_types_equivalent_(ivl_type_t lhs,
 bool PEAssignPattern::resolve_keyed_dimension_(Design*des, NetScope*scope,
 					       const netrange_t&range,
 					       ivl_type_t element_type,
-					       vector<PExpr*>&out) const
+					       vector<PExpr*>&out,
+					       bool allow_unmatched) const
 {
       if (keys_.empty())
 	    return expand_replication_(des, scope, out);
@@ -5047,7 +5069,7 @@ bool PEAssignPattern::resolve_keyed_dimension_(Design*des, NetScope*scope,
 	    out[idx] = explicit_values[idx]
 		  ? explicit_values[idx]
 		  : (type_value ? type_value : default_value);
-	    if (!out[idx]) {
+	    if (!out[idx] && !allow_unmatched) {
 		  long declared_index = left <= right
 			? left + static_cast<long>(idx)
 			: left - static_cast<long>(idx);
@@ -5205,8 +5227,18 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 		  remaining, uarray_type->element_type()));
 	    keyed_element_type = keyed_element_view.get();
       }
-      if (!resolve_keyed_dimension_(des, scope, dims[cur_dim],
-				     keyed_element_type, pv))
+	bool has_recursive_keys = false;
+	for (const auto&key : keys_)
+	      if (key.kind == assignment_pattern_key_t::TYPE
+		  || key.kind == assignment_pattern_key_t::DEFAULT) {
+		    has_recursive_keys = true;
+		    break;
+	      }
+	bool aggregate_element = dynamic_cast<const netuarray_t*>(keyed_element_type)
+	      || dynamic_cast<const netstruct_t*>(keyed_element_type);
+	if (!resolve_keyed_dimension_(des, scope, dims[cur_dim],
+				       keyed_element_type, pv,
+				       has_recursive_keys && aggregate_element))
 	    return nullptr;
 
       if (dims[cur_dim].width() != pv.size()) {
@@ -5229,8 +5261,16 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    vector<NetExpr*> elem_exprs(pv.size());
 	    size_t elem_idx = up ? 0 : pv.size() - 1;
 	    for (size_t idx = 0 ; idx < pv.size() ; idx += 1) {
-		  elem_exprs[elem_idx] = elaborate_rval_expr(
-			des, scope, elem_type, pv[idx], need_const);
+		  if (pv[idx]) {
+			elem_exprs[elem_idx] = elaborate_rval_expr(
+			      des, scope, elem_type, pv[idx], need_const);
+		  } else {
+			unique_ptr<PEAssignPattern> recursive_pattern =
+			      assignment_pattern_recursive_keys_(*this);
+			elem_exprs[elem_idx] = recursive_pattern->elaborate_expr(
+			      des, scope, elem_type,
+			      need_const ? NEED_CONST : NO_FLAGS);
+		  }
 		  if (up) elem_idx += 1;
 		  else elem_idx -= 1;
 	    }
@@ -5251,6 +5291,11 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    if (const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx])) {
 		  expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
 						    dims, cur_dim, need_const);
+	    } else if (!pv[idx]) {
+		  unique_ptr<PEAssignPattern> recursive_pattern =
+			assignment_pattern_recursive_keys_(*this);
+		  expr = recursive_pattern->elaborate_expr_uarray_(
+			des, scope, uarray_type, dims, cur_dim, need_const);
 	    } else if (const auto str = dynamic_cast<PEString*>(pv[idx])) {
 		  expr = str->elaborate_expr_uarray_(des, scope, uarray_type,
 						     dims, cur_dim);
@@ -5586,6 +5631,18 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 			      }
 		  }
 		  if (!src) {
+			const netstruct_t*member_struct =
+			      dynamic_cast<const netstruct_t*>(members[idx].net_type);
+			const netuarray_t*member_array =
+			      dynamic_cast<const netuarray_t*>(members[idx].net_type);
+			if (!type_values.empty() && (member_struct || member_array)) {
+			      unique_ptr<PEAssignPattern> recursive_pattern =
+				    assignment_pattern_recursive_keys_(*this);
+			      items[idx] = recursive_pattern->elaborate_expr(
+				    des, scope, members[idx].net_type,
+				    need_const ? NEED_CONST : NO_FLAGS);
+			      continue;
+			}
 			src = dflt;
 			default_value = src != nullptr;
 		  }

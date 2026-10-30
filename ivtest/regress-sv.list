@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold
+issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
+
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
 issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
