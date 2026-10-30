@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1556_checker_initial_assignment_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1556_checker_initial_assignment_2023"
+}
