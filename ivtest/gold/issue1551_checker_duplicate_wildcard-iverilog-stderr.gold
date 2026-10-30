@@ -1,0 +1,1 @@
+ivltests/issue1551_checker_duplicate_wildcard.v:6: error: Checker instantiation `duplicate_wildcard' has more than one wildcard port connection.

@@ -40,6 +40,10 @@
 # include  <iostream>
 # include  <climits>
 
+#ifndef vpiCoverageMerge
+# define vpiCoverageMerge 754
+#endif
+
 using namespace std;
 
 /* Packed and queue slice bounds can be arbitrary-width signed or unsigned
@@ -2136,11 +2140,49 @@ check_connected_through_part_pv(vvp_net_ptr_t cur, vvp_net_t*net2)
       return {false, vvp_net_ptr_t(nullptr, 0), false};
 }
 
+static bool quiet_intermodpath_lookup = false;
+
+static vpiHandle find_intermodpath_from_scope(vpiHandle scope, vpiHandle load)
+{
+      vpiHandle ports = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (ports && (port = vpi_scan(ports))) {
+	    int dir = vpi_get(vpiDirection, port);
+	    if (dir != vpiOutput && dir != vpiInout) continue;
+	    vpiHandle path = vpi_handle_multi(vpiInterModPath, port, load);
+	    if (path) {
+		  vpi_free_object(ports);
+		  return path;
+	    }
+      }
+
+      vpiHandle modules = vpi_iterate(vpiModule, scope);
+      vpiHandle module;
+      while (modules && (module = vpi_scan(modules))) {
+	    vpiHandle path = find_intermodpath_from_scope(module, load);
+	    if (path) {
+		  vpi_free_object(modules);
+		  return path;
+	    }
+      }
+      return nullptr;
+}
+
 // Used to get intermodpath for two ports
 vpiHandle vpi_handle_multi(PLI_INT32 type,
                            vpiHandle ref1,
                            vpiHandle ref2)
 {
+      if (type == vpiInterModPath && !ref1 && ref2) {
+	    vpiHandle scope = vpi_handle(vpiScope, ref2);
+	    while (scope && vpi_handle(vpiScope, scope))
+		  scope = vpi_handle(vpiScope, scope);
+	    quiet_intermodpath_lookup = true;
+	    vpiHandle path = scope ? find_intermodpath_from_scope(scope, ref2) : nullptr;
+	    quiet_intermodpath_lookup = false;
+	    return path;
+      }
+
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_handle_multi(%d, %p, %p) -->\n",
 	            type, ref1, ref2);
@@ -2181,7 +2223,7 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
       vpiPortInfo* port1 = dynamic_cast<vpiPortInfo*>(ref1);
 
       if (!port1) {
-	    fprintf(stderr, "sorry: second argument of vpi_handle_multi"
+	    if (!quiet_intermodpath_lookup) fprintf(stderr, "sorry: second argument of vpi_handle_multi"
 		    "must be a vpiPort\n");
 	    return nullptr;
       }
@@ -2189,7 +2231,7 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
       vpiPortInfo* port2 = dynamic_cast<vpiPortInfo*>(ref2);
 
       if (!port2) {
-	    fprintf(stderr, "sorry: third argument of vpi_handle_multi"
+	    if (!quiet_intermodpath_lookup) fprintf(stderr, "sorry: third argument of vpi_handle_multi"
 		    "must be a vpiPort\n");
 	    return nullptr;
       }
@@ -2221,17 +2263,17 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    }
       }
 
-      vvp_net_t* net1 = port1->get_port();
       vvp_net_t* net2 = port2->get_port();
+      vvp_net_t* net1 = port1->get_port();
 
       if (net1 == nullptr || net2 == nullptr) {
-	    fprintf(stderr, "Error: Could not find net. "
+	    if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: Could not find net. "
 		    "Did you run iverilog with '-ginterconnect'?\n");
 	    return nullptr;
       }
 
       if (net1 == net2) {
-	    fprintf(stderr, "Error: Net for both ports is the same. "
+	    if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: Net for both ports is the same. "
 		    "Did you pass the same port twice?\n");
 	    return nullptr;
       }
@@ -2243,12 +2285,12 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	       dynamic_cast<vvp_fun_sample*>(fun);
       };
       if (!is_port_boundary(net1->fun)) {
-	fprintf(stderr, "Error: functor of net1 must be a port buffer or sampler\n");
+	if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: functor of net1 must be a port buffer or sampler\n");
 	return nullptr;
       }
 
       if (!is_port_boundary(net2->fun)) {
-	fprintf(stderr, "Error: functor of net2 must be a port buffer or sampler\n");
+	if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: functor of net2 must be a port buffer or sampler\n");
 	return nullptr;
       }
 
@@ -2350,9 +2392,11 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    cur = cur.ptr()->port[cur.port()]; // Next net in linked list
       }
 
-      fprintf(stderr, "VPI error: Could not insert intermodpath!\n");
-      fprintf(stderr, "\tport1 = %s, port1_has_index = %d, port1_bit_index = %d\n", port1_name.c_str(), port1_has_index, port1_bit_index);
-      fprintf(stderr, "\tport2 = %s, port2_has_index = %d, port2_bit_index = %d\n", port2_name.c_str(), port2_has_index, port2_bit_index);
+      if (!quiet_intermodpath_lookup) {
+	    fprintf(stderr, "VPI error: Could not insert intermodpath!\n");
+	    fprintf(stderr, "\tport1 = %s, port1_has_index = %d, port1_bit_index = %d\n", port1_name.c_str(), port1_has_index, port1_bit_index);
+	    fprintf(stderr, "\tport2 = %s, port2_has_index = %d, port2_bit_index = %d\n", port2_name.c_str(), port2_has_index, port2_bit_index);
+      }
       return nullptr;
 }
 
@@ -2436,6 +2480,11 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
       long diag_msg;
 
       switch (operation) {
+	  case vpiCoverageMerge:
+	    /* Code coverage has no database backend, so match the result of
+	       $coverage_merge() for this unavailable operation. */
+	    return -1;
+
 	  case vpiFinish:
 	  case __ivl_legacy_vpiFinish:
             diag_msg = va_arg(ap, PLI_INT32);

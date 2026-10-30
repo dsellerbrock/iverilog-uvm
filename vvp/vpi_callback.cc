@@ -812,10 +812,20 @@ static struct __vpiCallback* make_at_start_of_sim_time(p_cb_data data)
 
       vvp_time64_t tv = get_sync_cb_time(obj);
       vvp_time64_t cur = schedule_simtime();
-      if (cur > tv) {
+	  if (tv == 0 && schedule_in_start_of_simtime()) {
+	    // IEEE 1800-2017/2023 38.36.2 permits zero-delay recursion
+	    // from cbAtStartOfSimTime during the same time slice.
 	    tv = 0;
-	    assert(0);
+	  } else if (cur > tv) {
+	    fprintf(stderr, "VPI error: cbAtStartOfSimTime callback time has already passed\n");
+	    delete obj;
+	    return 0;
       } else if (cur == tv) {
+	    if (!schedule_in_start_of_simtime()) {
+		  fprintf(stderr, "VPI error: zero-delay cbAtStartOfSimTime callback is only valid from cbAtStartOfSimTime\n");
+		  delete obj;
+		  return 0;
+	    }
 	    tv = 0;
       } else {
 	    tv -= cur;

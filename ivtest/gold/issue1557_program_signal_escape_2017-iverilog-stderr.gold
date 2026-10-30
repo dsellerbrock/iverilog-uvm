@@ -1,0 +1,2 @@
+ivltests/issue1557_program_signal_escape_2017.v:7: error: Reference to program signal `pi.secret' from outside any program block is illegal (IEEE 1800-2017/2023 24.3).
+1 error(s) during elaboration.

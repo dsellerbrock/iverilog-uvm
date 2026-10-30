@@ -1,0 +1,16 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "sdf_interconnect_primitive_pin")
+  (DIVIDER /)
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "sdf_interconnect_primitive_pin")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (INTERCONNECT u1/y g1/A (3))
+        (INTERCONNECT u1/y u2/a (3))
+      )
+    )
+  )
+)

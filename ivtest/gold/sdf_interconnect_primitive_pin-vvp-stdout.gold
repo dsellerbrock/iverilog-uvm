@@ -1,0 +1,4 @@
+SDF WARNING: ivltests/sdf_interconnect_primitive_pin.sdf:11: Cannot annotate interconnect; both endpoints must be module ports.
+t=0 result=0
+t=13000 result=1
+ivltests/sdf_interconnect_primitive_pin.v:24: $finish called at 20000 (1ps)

@@ -24,12 +24,16 @@ issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gol
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1535_negative_clocking_skew_2017 CE,-g2017,-s,issue1535_negative_clocking_skew ivltests
 issue1535_negative_clocking_skew_2023 CE,-g2023,-s,issue1535_negative_clocking_skew ivltests
+issue1557_program_signal_escape_2017 CE,-g2017,-s,tb ivltests
+issue1557_program_signal_escape_2023 CE,-g2023,-s,tb ivltests
 issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
 issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 issue1541_checker_sva_formals_2017 normal,-g2017,-s,issue1541_checker_sva_formals_2017 ivltests gold=issue1541_checker_sva_formals.gold
 issue1541_checker_sva_formals_2023 normal,-g2023,-s,issue1541_checker_sva_formals_2023 ivltests gold=issue1541_checker_sva_formals.gold
+issue1555_checker_initial_delay_fail_2017 CE,-g2017 ivltests gold=issue1555_checker_initial_delay_fail_2017.gold
+issue1555_checker_initial_delay_fail_2023 CE,-g2023 ivltests gold=issue1555_checker_initial_delay_fail_2023.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
@@ -6340,6 +6344,7 @@ issue1442_detect_overlap_transition normal,-g2017 ivltests gold=issue1442_detect
 issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
 issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
 issue1559_macro_string_continuation_2017 normal,-g2017,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2017.gold
+issue1551_checker_duplicate_wildcard CE,-g2017,-s,issue1551_top ivltests
 issue1559_macro_string_continuation_2023 normal,-g2023,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2023.gold
 issue1550_checker_missing_actual_2017 CE,-g2017,-s,issue1550_checker_missing_actual ivltests gold=issue1550_checker_missing_actual_2017.gold
 issue1550_checker_missing_actual_2023 CE,-g2023,-s,issue1550_checker_missing_actual ivltests gold=issue1550_checker_missing_actual_2023.gold
@@ -6347,3 +6352,5 @@ issue1558_multiline_comment_macro_2017 normal,-g2017,-s,issue1558_multiline_comm
 issue1558_multiline_comment_macro_2023 normal,-g2023,-s,issue1558_multiline_comment_macro ivltests gold=issue1558_multiline_comment_macro.gold
 issue1554_checker_in_program_2017 normal,-g2017,-s,issue1554_checker_in_program ivltests gold=issue1554_checker_in_program_2017.gold
 issue1554_checker_in_program_2023 normal,-g2023,-s,issue1554_checker_in_program ivltests gold=issue1554_checker_in_program_2023.gold
+issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
+issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold

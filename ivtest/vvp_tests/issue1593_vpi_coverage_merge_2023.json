@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1593_vpi_coverage_merge.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1593_vpi_coverage_merge"],
+  "vpi-sources": ["vpi/issue1593_vpi_coverage_merge.c"],
+  "output-contains": ["coverage_merge=-1", "PASSED"]
+}

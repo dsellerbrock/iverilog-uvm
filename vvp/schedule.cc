@@ -834,6 +834,12 @@ static int region_assert_enabled_(void)
  * LRM forbids (4.4.2.10).
  */
 static event_queue_t sched_current_region = SEQ_START;
+static bool sched_in_start_of_simtime = false;
+
+bool schedule_in_start_of_simtime(void)
+{
+      return sched_in_start_of_simtime;
+}
 
 static void region_check_schedule_(event_queue_t target, vvp_time64_t delay)
 {
@@ -1863,7 +1869,8 @@ void schedule_simulate(void)
 		  vvp_named_event_triggered_time_advance();
 
 		  vpiNextSimTime();
-		    // Process the cbAtStartOfSimTime callbacks.
+	    // Process the cbAtStartOfSimTime callbacks.
+		  sched_in_start_of_simtime = true;
 		  while (ctim->start) {
 			struct event_s*cur = ctim->start->next;
 			if (cur->next == cur) {
@@ -1875,6 +1882,7 @@ void schedule_simulate(void)
 			cur->run_run();
 			delete (cur);
 		  }
+		  sched_in_start_of_simtime = false;
 
 		    /* Preponed region (IEEE 1800-2017 4.4.2.1): sampling
 		       for concurrent assertions and clocking blocks runs

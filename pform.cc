@@ -30756,6 +30756,42 @@ static void pform_check_checker_instantiations_(const std::list<PGate*>&gates)
       }
 }
 
+static void pform_check_checker_wildcard_connections_(
+	const std::list<PGate*>&gates)
+{
+      for (PGate*gate : gates) {
+	    PGModule*instance = dynamic_cast<PGModule*>(gate);
+	    if (!instance || !instance->has_duplicate_wildcard_port_connections())
+		  continue;
+
+	    map<perm_string,Module*>::const_iterator target
+		  = pform_modules.find(instance->get_type());
+	    if (target != pform_modules.end() && target->second->is_checker) {
+		  cerr << instance->get_fileline() << ": error: Checker instantiation `"
+		       << instance->get_name()
+		       << "' has more than one wildcard port connection."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
+}
+
+static void pform_check_checker_wildcard_generate_(PGenerate*generate)
+{
+      pform_check_checker_wildcard_connections_(generate->gates);
+      for (PGenerate*child : generate->generate_schemes)
+	    pform_check_checker_wildcard_generate_(child);
+}
+
+static void pform_check_checker_wildcard_module_(Module*module)
+{
+      pform_check_checker_wildcard_connections_(module->get_gates());
+      for (PGenerate*generate : module->generate_schemes)
+	    pform_check_checker_wildcard_generate_(generate);
+      for (map<perm_string,Module*>::value_type&nested : module->nested_modules)
+	    pform_check_checker_wildcard_module_(nested.second);
+}
+
 static void pform_check_checker_generate_instantiations_(PGenerate*generate)
 {
       pform_check_checker_instantiations_(generate->gates);
@@ -30804,6 +30840,11 @@ int pform_finish()
       // elements have been parsed so forward references are classified too.
       for (const pair<const perm_string,Module*>&module : pform_modules)
 	    pform_check_checker_module_instantiations_(module.second);
+
+      // Syntax 17-2 permits at most one wildcard connection in any checker
+      // instance's port-connection list.
+      for (const pair<const perm_string,Module*>&module : pform_modules)
+	    pform_check_checker_wildcard_module_(module.second);
 
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.

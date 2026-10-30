@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1564_missing_interconnect_source.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect", "-s", "tb"],
+  "vvp-args-extended": ["-sdf-warn"],
+  "gold": "issue1564_missing_interconnect_source"
+}
