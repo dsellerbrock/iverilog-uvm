@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1737_unpacked_union_contassign_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1737_unpacked_union_contassign"],
+  "gold": "issue1737_unpacked_union_contassign_2023"
+}

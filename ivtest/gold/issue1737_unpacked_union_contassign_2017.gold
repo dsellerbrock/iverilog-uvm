@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1737_unpacked_union_contassign_2017.v:18: $finish called at 2 (1s)
