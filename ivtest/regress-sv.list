@@ -11,6 +11,8 @@ issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gol
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
 issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
+issue1541_checker_sva_formals_2017 normal,-g2017,-s,issue1541_checker_sva_formals_2017 ivltests gold=issue1541_checker_sva_formals.gold
+issue1541_checker_sva_formals_2023 normal,-g2023,-s,issue1541_checker_sva_formals_2023 ivltests gold=issue1541_checker_sva_formals.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
