@@ -297,6 +297,9 @@ class PGModule  : public PGate {
 	// permallocated string.
       perm_string get_type() const;
 
+      // Checker port lists use named_pexpr_t entries for named connections.
+      bool has_duplicate_wildcard_port_connections() const;
+
 	// When this instantiation was created by a bind directive that
 	// targets specific instances (bind top.u1 ... / bind mod : u1,
 	// u2 ...), these structured filters restrict which instances of

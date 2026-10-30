@@ -317,3 +317,13 @@ perm_string PGModule::get_type() const
 {
       return type_;
 }
+
+bool PGModule::has_duplicate_wildcard_port_connections() const
+{
+      unsigned wildcard_count = 0;
+      for (unsigned idx = 0; idx < npins_; idx += 1) {
+            if (pins_[idx].name == "*" && ++wildcard_count > 1)
+                  return true;
+      }
+      return false;
+}
