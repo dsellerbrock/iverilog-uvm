@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1589_zero_start_callback.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1589_zero_start_callback"],
+  "vpi-sources": ["vpi/issue1589_zero_start_callback.c"],
+  "output-contains": ["START_ZERO count=2", "ISSUE1589_PASSED"]
+}
