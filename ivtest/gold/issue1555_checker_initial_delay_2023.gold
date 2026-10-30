@@ -1,2 +1,2 @@
 ./ivltests/issue1555_checker_initial_delay_2023.v:2: error: delay control is not allowed in a checker initial procedure.
-Elaboration failed
+1 error(s) during elaboration.
