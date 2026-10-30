@@ -52,7 +52,7 @@ char sdf_use_hchar = '.';
 %token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM
 %token K_RECREM K_RECOVERY K_REMOVAL K_SDFVERSION K_SETUP K_SETUPHOLD
 %token K_TEMPERATURE K_TIMESCALE K_TIMINGCHECK K_VENDOR K_VERSION
-%token K_VOLTAGE K_WIDTH
+%token K_TIMINGENV K_VOLTAGE K_WIDTH
 %token K_01 K_10 K_0Z K_Z1 K_1Z K_Z0
 %token K_EQ K_NE K_CEQ K_CNE K_LOGICAL_ONE K_LOGICAL_ZERO
 %token K_LAND K_LOR
@@ -298,6 +298,7 @@ timing_spec
   | '(' K_TIMINGCHECK error ')'
       { vpi_printf("SDF ERROR: %s:%d: Syntax error in TIMINGCHECK SPEC\n",
 	           sdf_parse_path, @2.first_line); }
+  | '(' K_TIMINGENV ')'
   ;
 
 deltype_list
