@@ -75,6 +75,96 @@ extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
 
+/* IEEE 1800-2017/2023 17.3: a checker input actual containing a const cast
+ * cannot be substituted into procedural code or a continuous assignment in
+ * the checker. */
+static bool checker_expr_has_const_cast_(const PExpr*expr)
+{
+      if (!expr) return false;
+
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    if (peek_tail_name(call->path()) == perm_string::literal("$ivl_const_cast"))
+		  return true;
+	    if (checker_expr_has_const_cast_(call->receiver_expr()))
+		  return true;
+	    for (const named_pexpr_t&parm : call->get_parms())
+		  if (checker_expr_has_const_cast_(parm.parm)) return true;
+	    return false;
+      }
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+	    return checker_expr_has_const_cast_(unary->get_expr());
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+	    return checker_expr_has_const_cast_(binary->get_left())
+		  || checker_expr_has_const_cast_(binary->get_right());
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	    return checker_expr_has_const_cast_(ternary->get_cond())
+		  || checker_expr_has_const_cast_(ternary->get_true())
+		  || checker_expr_has_const_cast_(ternary->get_false());
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    if (checker_expr_has_const_cast_(concat->repeat_expr())) return true;
+	    for (const PExpr*part : concat->stream_parms())
+		  if (checker_expr_has_const_cast_(part)) return true;
+	    return false;
+      }
+      if (const PEAssignPattern*pattern =
+	  dynamic_cast<const PEAssignPattern*>(expr)) {
+	    if (checker_expr_has_const_cast_(pattern->replication())) return true;
+	    for (const PExpr*part : pattern->parms())
+		  if (checker_expr_has_const_cast_(part)) return true;
+	    return false;
+      }
+      if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr))
+	    return checker_expr_has_const_cast_(stream->get_inner());
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return checker_expr_has_const_cast_(cast->cast_size())
+		  || checker_expr_has_const_cast_(cast->cast_base());
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return checker_expr_has_const_cast_(cast->cast_base());
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	    return checker_expr_has_const_cast_(cast->cast_base());
+      if (const PEMemberAccess*member =
+	  dynamic_cast<const PEMemberAccess*>(expr))
+	    return checker_expr_has_const_cast_(member->base());
+      if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(expr)) {
+	    const index_component_t&index = select->index();
+	    return checker_expr_has_const_cast_(select->base())
+		  || checker_expr_has_const_cast_(index.msb)
+		  || checker_expr_has_const_cast_(index.lsb);
+      }
+      if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    if (checker_expr_has_const_cast_(inside->get_expr())) return true;
+	    for (const inside_range_t&range : inside->get_ranges())
+		  if (checker_expr_has_const_cast_(range.lo)
+		      || checker_expr_has_const_cast_(range.hi)) return true;
+	    return false;
+      }
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    for (const name_component_t&component : ident->path().name)
+		  for (const index_component_t&index : component.index)
+			if (checker_expr_has_const_cast_(index.msb)
+			    || checker_expr_has_const_cast_(index.lsb)) return true;
+	    return false;
+      }
+      return false;
+}
+
+static bool checker_formal_used_in_code_(Module*checker,
+						  perm_string formal)
+{
+      for (PProcess*process : checker->behaviors) {
+	    if (!process->is_generated_verification()
+		&& process->statement()->refs_name(formal))
+		  return true;
+      }
+
+      for (const PGate*gate : checker->get_gates()) {
+	    const PGAssign*assign = dynamic_cast<const PGAssign*>(gate);
+	    if (assign && assign->pin(1)->refs_name(formal))
+		  return true;
+      }
+      return false;
+}
+
 static Module* find_module_type_(perm_string type, const NetScope*scope)
 {
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
@@ -6309,6 +6399,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	  if (rmod->is_checker) {
 	    bool required_actual_missing = false;
+	    bool invalid_const_cast_actual = false;
 	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
 		  if (pins[idx] || rmod->get_port_default_value(idx))
 			continue;
@@ -6321,6 +6412,26 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  required_actual_missing = true;
 	    }
 	    if (required_actual_missing)
+		  return;
+
+	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
+		  if (!pins[idx]
+		      || !checker_expr_has_const_cast_(pins[idx]))
+			continue;
+		  perm_string formal = rmod->get_port_name(idx);
+		  PWire*wire = rmod->wires_find(formal);
+		  if (!wire || wire->get_port_type() != NetNet::PINPUT
+		      || !checker_formal_used_in_code_(rmod, formal))
+			continue;
+
+		  cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+		       << formal << "' has a const-cast actual but is used in procedural "
+			  "code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
+		       << endl;
+		  des->errors += 1;
+		  invalid_const_cast_actual = true;
+	    }
+	    if (invalid_const_cast_actual)
 		  return;
 	  }
 

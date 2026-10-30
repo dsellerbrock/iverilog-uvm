@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1552_checker_const_cast.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1552_checker_const_cast_2023"
+}
