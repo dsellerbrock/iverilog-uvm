@@ -1,0 +1,2 @@
+ys 1 at 11
+ivltests/issue1714_modpath_condition_x.v:25: $finish called at 11 (1ns)
