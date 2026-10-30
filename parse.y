@@ -5685,6 +5685,17 @@ cross_body_opt
 	delete $7;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
+  /* IEEE 1800-2017/2023 19.6.1.4: an array literal can provide a
+     CrossQueueType set expression directly, without a function call. */
+  | cross_body_opt K_bins bins_name '=' assignment_pattern bins_iff_opt ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.set_expr = $5;
+	cb.set_expr_is_literal = true;
+	cb.iff_expr = $6;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   /* IEEE 1800-2017 19.6.1: filter cross tuples with a predicate over the
      contributing coverpoint values. Keep the source cross name so a typo
      cannot silently select tuples from the surrounding declaration. */
@@ -14620,6 +14631,51 @@ expr_primary
 	      tmp->set_with_constraints(std::move(wc));
 	}
 	delete $4;
+	$$ = tmp;
+      }
+  /* IEEE 1800-2023 13.4.1: a select may follow a member of a function
+     result used as an implicit variable. */
+  | expr_primary '.' IDENTIFIER '[' expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = $5;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression ':' expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_PART;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression K_PO_POS expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_UP;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER '[' expression K_PO_NEG expression ']'
+      { index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_DO;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEMemberAccess*member = new PEMemberAccess($1, lex_strings.make($3));
+	PEPostSelect*tmp = new PEPostSelect(member, idx);
+	FILE_NAME(tmp, @2);
+	delete[]$3;
 	$$ = tmp;
       }
   | expr_primary K_with '[' expression ']'

@@ -96,6 +96,7 @@ class class_type : public __vpiHandle {
       bool property_is_static(size_t idx) const;
       bool property_is_const(size_t idx) const;
       bool property_is_enum(size_t idx) const;
+      bool property_is_virtual_interface(size_t idx) const;
       unsigned property_qualifier(size_t idx) const;
       const std::vector<vvp_vector4_t>&property_enum_values(size_t idx) const;
 
@@ -237,6 +238,7 @@ class class_type : public __vpiHandle {
 	    unsigned qualifier = 0;
 	    bool rand_flag  = false;
 	    bool randc_flag = false;
+	    bool virtual_interface = false;
 	    std::string base_type;
 	    std::vector<vvp_vector4_t> enum_values;
 	    vpiHandle declared_class_type = 0;

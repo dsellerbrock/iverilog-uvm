@@ -1472,6 +1472,11 @@ bool class_type::property_is_enum(size_t idx) const
       return idx < properties_.size() && !properties_[idx].enum_values.empty();
 }
 
+bool class_type::property_is_virtual_interface(size_t idx) const
+{
+      return idx < properties_.size() && properties_[idx].virtual_interface;
+}
+
 const vector<vvp_vector4_t>&class_type::property_enum_values(size_t idx) const
 {
       static const vector<vvp_vector4_t> empty;
@@ -2050,6 +2055,12 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    properties_[idx].rand_flag = true;
 	    properties_[idx].qualifier |= 8;
 	    base_type = encoded_type.substr(1);
+      }
+	// Preserve the declared VPI object kind for virtual-interface properties
+	// while retaining the same object storage representation as class handles.
+      if (base_type.compare(0, 7, "vif:oh:") == 0) {
+	    properties_[idx].virtual_interface = true;
+	    base_type.erase(0, 4);
       }
 
 	// An enum property is stored through the same bit/logic property class

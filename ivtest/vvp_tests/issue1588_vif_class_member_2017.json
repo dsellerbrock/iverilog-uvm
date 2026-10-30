@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1588_vif_class_member.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1588_vif_class_member"],
+  "vpi-sources": ["vpi/issue1588_vif_class_member.c"],
+  "output-contains": ["vpiVirtualInterfaceVar"]
+}

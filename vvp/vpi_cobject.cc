@@ -1117,6 +1117,10 @@ class __vpiClassMember : public __vpiDarrayVar {
 		  kind_ = 'S'; type_code_ = vpiStringVar; width_ = 8;
 		  return;
 	    }
+	    if (defn_->property_is_virtual_interface(idx_)) {
+		  kind_ = 'o'; type_code_ = vpiVirtualInterfaceVar; width_ = 64;
+		  return;
+	    }
 	    if (bt == "o" || bt.compare(0, 3, "oc:") == 0) {
 		  kind_ = 'o'; type_code_ = vpiClassVar; width_ = 64;
 		  return;

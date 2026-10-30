@@ -48303,8 +48303,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				xbin_t&cb = cross.bins[ub];
 				if (!cb.set_expr) continue;
 				unsigned errors_before = des->errors;
-				unique_ptr<NetExpr>set_value(elab_and_eval(
-				      des, class_scope_, cb.set_expr, -1, true, false));
+				std::unique_ptr<netqueue_t> literal_queue_type;
+				unique_ptr<NetExpr>set_value;
+				if (cb.set_expr_is_literal && cross.value_type) {
+				      ivl_type_t value_type =
+					    cross.value_type->elaborate_type(des, class_scope_);
+				      literal_queue_type.reset(new netqueue_t(value_type, -1));
+				      set_value.reset(cb.set_expr->elaborate_expr(
+					    des, class_scope_, literal_queue_type.get(),
+					    PExpr::NEED_CONST));
+				} else {
+				      set_value.reset(elab_and_eval(
+					    des, class_scope_, cb.set_expr, -1, true, false));
+				}
 				const NetEArrayPattern*queue = dynamic_cast<const NetEArrayPattern*>(
 				      set_value.get());
 				if (!queue && !dynamic_cast<const NetENull*>(set_value.get())) {

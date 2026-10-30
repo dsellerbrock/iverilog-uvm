@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue636_function_call_implicit_var_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue636_function_call_implicit_var"],
+  "gold": "issue636_function_call_implicit_var"
+}
