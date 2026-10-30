@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1467_covergroup_item_start_stop.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "output-contains": ["PASSED"]
+}

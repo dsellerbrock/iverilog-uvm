@@ -7593,6 +7593,29 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* Named coverpoint/cross start() and stop() carry the enclosing
+       * covergroup receiver plus the item's compile-time index. */
+      {
+	    const char*name = stmt_name;
+	    const char*start_prefix = "$ivl_class_method$covgrp_item_start|";
+	    const char*stop_prefix = "$ivl_class_method$covgrp_item_stop|";
+	    const char*index = 0;
+	    const char*opcode = 0;
+	    if (strncmp(name, start_prefix, strlen(start_prefix)) == 0) {
+		  index = name + strlen(start_prefix);
+		  opcode = "%covgrp/item/start";
+	    } else if (strncmp(name, stop_prefix, strlen(stop_prefix)) == 0) {
+		  index = name + strlen(stop_prefix);
+		  opcode = "%covgrp/item/stop";
+	    }
+	    if (opcode) {
+		  ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+		  if (obj_arg) draw_eval_object(obj_arg);
+		  fprintf(vvp_out, "    %s %s;\n", opcode, index);
+		  return 0;
+	    }
+      }
+
       /* $ivl_ref_bind(<formal>, <actual>) — point a `ref' formal at the
        * caller's variable (IEEE 1800-2017 13.5.2). The core emits this
        * where the copy-in used to be, which puts it between the
