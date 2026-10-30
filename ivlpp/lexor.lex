@@ -2042,15 +2042,10 @@ static void do_define(void)
     }
 
     if (define_comment_flag) {
-	if (raw_len && (yytext[raw_len-1] == '\\')) {
-	    *put++ = '\\';
-	} else {
-	    define_comment_flag = 0;
-	    define_invalid_flag = 1;
-	    emit_pathline(istack);
-	    fprintf(stderr, "error: unterminated comment in macro definition.\n");
-	    error_count += 1;
-	}
+	/* A physical newline inside a block comment does not end the macro
+	 * definition. The comment is removed, so any backslash still inside it
+	 * is not part of the replacement text. */
+	define_continue_flag = 1;
     }
     *put = 0;
 

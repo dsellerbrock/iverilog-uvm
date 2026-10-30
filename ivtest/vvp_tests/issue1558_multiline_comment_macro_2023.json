@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1558_multiline_comment_macro_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1558_multiline_comment_macro"],
+  "output-contains": ["PASS multiline comment in macro"]
+}
