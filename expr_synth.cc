@@ -29,6 +29,7 @@
 # include  "netvector.h"
 # include  "netparray.h"
 # include  "netmisc.h"
+# include  "PTask.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -1902,7 +1903,31 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  errors = true;
 		  continue;
 	    }
-	    NetNet*tmp = parms_[idx]->synthesize(des, scope, root);
+	    NetNet*tmp = nullptr;
+	    const NetFuncDef*def = func_->func_def();
+	    const PFunction*pfunc = func_->func_pform();
+	    if (idx == 0 && dynamic_cast<NetENull*>(parms_[idx]) && def
+		&& def->port(idx)
+		&& def->port(idx)->name() == perm_string::literal(THIS_TOKEN)
+		&& pfunc && pfunc->method_qualifiers().test_static()
+		&& def->port(idx)->net_type()
+		&& def->port(idx)->net_type()->base_type() == IVL_VT_CLASS) {
+		  /* Static class methods have no receiver. The internal function
+		   * signature retains a hidden receiver formal, so connect its
+		   * required null value as a one-bit class net. */
+		  NetNet*formal = func_->func_def()->port(idx);
+		  tmp = new NetNet(scope, scope->local_symbol(), NetNet::IMPLICIT,
+				   formal->net_type());
+		  tmp->set_line(*this);
+		  tmp->local_flag(true);
+		  NetConst*constant = new NetConst(scope, scope->local_symbol(),
+					     verinum(verinum::V0, 1));
+		  constant->set_line(*this);
+		  des->add_node(constant);
+		  connect(tmp->pin(0), constant->pin(0));
+	    } else {
+		  tmp = parms_[idx]->synthesize(des, scope, root);
+	    }
 	    if (tmp == 0) {
 		  cerr << get_fileline() << ": error: Unable to synthesize "
 		          "port " << idx << " of call to "
