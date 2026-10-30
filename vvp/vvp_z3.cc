@@ -12132,7 +12132,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       z3_object_graph_t*graph = nullptr,
                       map<vvp_cobject*, unique_ptr<z3_rng_stream_t> >*streams = nullptr,
                       const vector<vvp_object_t>*object_vals = nullptr,
-                      bool row_pass = false)
+                      bool row_pass = false,
+                      const vector<map<pair<unsigned,unsigned>,uint64_t> >*
+                            excluded_dyn_sizes = nullptr)
 {
       if (z3_solve_trace(defn)) {
 	    fprintf(stderr,
@@ -12329,6 +12331,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             fprintf(stderr, "ERROR: constraint state read: %s.\n",
                     builder.state_errors.front().c_str());
             return fail_joint(nullptr);
+      }
+      // A deferred dynamic foreach is checked after choosing its container
+      // size. If that expansion is infeasible, let the next size pass choose
+      // another size tuple rather than treating the first sample as a proof
+      // that randomize() is infeasible (IEEE 1800-2017/2023 18.6.3).
+      if (!dyn_sizes && excluded_dyn_sizes) {
+            for (const auto&excluded : *excluded_dyn_sizes) {
+                  vector<Z3_ast> differs;
+                  for (const auto&sv : builder.size_vars) {
+                        auto found = excluded.find(make_pair(sv.idx, sv.leaf));
+                        if (found == excluded.end()) continue;
+                        Z3_ast value = Z3_mk_unsigned_int64(ctx, found->second,
+                              Z3_mk_bv_sort(ctx, 32));
+                        differs.push_back(Z3_mk_not(ctx,
+                              Z3_mk_eq(ctx, sv.var, value)));
+                  }
+                  if (differs.empty()) continue;
+                  Z3_ast clause = differs.size() == 1 ? differs.front()
+                        : Z3_mk_or(ctx, (unsigned)differs.size(), differs.data());
+                  Z3_optimize_assert(ctx, opt, clause);
+                  Z3_solver_assert(ctx, base, clause);
+            }
       }
       bool active_real_property = any_of(builder.prop_vars.begin(),
 	    builder.prop_vars.end(), [&](const Z3Builder::PropVar&pv) {
@@ -16622,16 +16646,23 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       static const vector<vvp_vector4_t> no_class_slots;
       const vector<vvp_vector4_t>&class_slots = class_slot_vals
 	    ? *class_slot_vals : no_class_slots;
-      int r1 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
+	// Deferred foreach bodies can reject one sampled size while another size
+	// satisfies the complete constraint set. Exclude each failed size tuple in
+	// subsequent size passes. Keep the retry work bounded; a wide or sparse
+	// size domain is not exhaustively searched by repeatedly solving the whole
+	// class problem.
+      vector<map<pair<unsigned,unsigned>,uint64_t> > excluded_sizes;
+      const unsigned MAX_DEFERRED_SIZE_RETRIES = 32;
+      for (unsigned attempt = 0; attempt < MAX_DEFERRED_SIZE_RETRIES; ++attempt) {
+	    rng.rewind();
+	    int r1 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      nullptr, &dyn, prop_active,
-			      include_class_constraints, nullptr, nullptr, object_vals);
-      if (dyn.empty())
-	    return r1 != Z3PASS_FAILED;
-	// A failed size pass has no valid size state to expand. Avoid a second
-	// pass over its pre-filled/writeback remnants; the caller restores the
-	// complete value snapshot and discards the randc transaction.
-      if (r1 == Z3PASS_FAILED)
-	    return false;
+			      include_class_constraints, nullptr, nullptr, object_vals,
+			      false, &excluded_sizes);
+	    if (dyn.empty()) return r1 != Z3PASS_FAILED;
+	    // A failed size pass has no valid size state to expand. The caller
+	    // restores the complete value snapshot and discards randc history.
+	    if (r1 == Z3PASS_FAILED) return false;
 
 	// Element pass (IEEE 1800-2017 18.5.8.2): expand each foreach
 	// to the now-current element count of its array and re-solve
@@ -16657,7 +16688,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 				    class_slots, &outer, nullptr, prop_active,
 				    include_class_constraints, nullptr, nullptr,
 				    object_vals, true);
-	    if (rr == Z3PASS_FAILED) return false;
+	    if (rr == Z3PASS_FAILED) {
+		  excluded_sizes.push_back(sizes);
+		  continue;
+	    }
 	    for (const auto& d : dyn) {
 		  if (!d.rows) continue;
 		  uint64_t rows = outer[make_pair(d.pidx, 0u)];
@@ -16673,7 +16707,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      &sizes, nullptr, prop_active,
 			      include_class_constraints, nullptr, nullptr, object_vals);
-      return r2 != Z3PASS_FAILED;
+      if (r2 != Z3PASS_FAILED) return true;
+      excluded_sizes.push_back(sizes);
+      }
+      return false;
 }
 
 /* Validate the selected graph before scalar/container prefills can reach
@@ -17635,15 +17672,22 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       static const vector<string> no_extra;
       static const vector<uint64_t> no_slots;
       static const vector<vvp_vector4_t> no_class_slots;
-      int result = z3_solve_pass_(root.object->get_defn(), root.object,
-            root_rng, no_extra, no_slots, no_class_slots, nullptr, &dyn, root.selection(),
-            true, &graph, &streams);
-      if (result == Z3PASS_FAILED || dyn.empty()) return result != Z3PASS_FAILED;
-      map<pair<unsigned,unsigned>, uint64_t> sizes;
-      for (const auto&loop : dyn) {
-            const auto&property = graph.properties.at(loop.pidx);
-            sizes[make_pair(loop.pidx, loop.leaf)] = cobj_darray_size(
-		  property.object, property.pid, loop.leaf);
+      vector<map<pair<unsigned,unsigned>,uint64_t> > excluded_sizes;
+      const unsigned MAX_DEFERRED_SIZE_RETRIES = 32;
+      for (unsigned attempt = 0; attempt < MAX_DEFERRED_SIZE_RETRIES; ++attempt) {
+	    root_rng.rewind();
+	    for (auto&stream : streams) stream.second->rewind();
+	    int result = z3_solve_pass_(root.object->get_defn(), root.object,
+		  root_rng, no_extra, no_slots, no_class_slots, nullptr, &dyn,
+		  root.selection(), true, &graph, &streams, nullptr, false,
+		  &excluded_sizes);
+	    if (result == Z3PASS_FAILED || dyn.empty())
+		  return result != Z3PASS_FAILED;
+	    map<pair<unsigned,unsigned>, uint64_t> sizes;
+	    for (const auto&loop : dyn) {
+		  const auto&property = graph.properties.at(loop.pidx);
+		  sizes[make_pair(loop.pidx, loop.leaf)] = cobj_darray_size(
+			property.object, property.pid, loop.leaf);
       }
 	// Rand dynamic arrays of dynamic arrays: after the outer size, solve
 	// the row sizes, then expand the elements over the rows.
@@ -17663,7 +17707,10 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
                   root_rng, no_extra, no_slots, no_class_slots, &outer,
                   nullptr, root.selection(), true, &graph, &streams,
                   nullptr, true);
-            if (rr == Z3PASS_FAILED) return false;
+            if (rr == Z3PASS_FAILED) {
+		  excluded_sizes.push_back(sizes);
+		  continue;
+	    }
             for (const auto&loop : dyn) {
                   if (!loop.rows) continue;
                   const auto&property = graph.properties.at(loop.pidx);
@@ -17677,9 +17724,13 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       }
       root_rng.rewind();
       for (auto&stream : streams) stream.second->rewind();
-      return z3_solve_pass_(root.object->get_defn(), root.object,
+      int final_result = z3_solve_pass_(root.object->get_defn(), root.object,
             root_rng, no_extra, no_slots, no_class_slots, &sizes, nullptr, root.selection(),
-            true, &graph, &streams) != Z3PASS_FAILED;
+            true, &graph, &streams);
+      if (final_result != Z3PASS_FAILED) return true;
+      excluded_sizes.push_back(sizes);
+      }
+      return false;
 }
 
 bool vvp_z3_randomize_scope(const string&ir,
