@@ -1,0 +1,20 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "top")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "bad_dut")
+    (INSTANCE bad)
+    (DELAY (ABSOLUTE
+      (INTERCONNECT a u2.a (3.0) (3.0))
+    ))
+  )
+  (CELL
+    (CELLTYPE "good_dut")
+    (INSTANCE good)
+    (DELAY (ABSOLUTE
+      (INTERCONNECT u1.y u2.a (3.0) (3.0))
+    ))
+  )
+)

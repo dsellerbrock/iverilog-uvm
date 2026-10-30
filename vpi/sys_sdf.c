@@ -272,6 +272,13 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
       }
 
       if (port1_handle && port2_handle) {
+	      int direction = vpi_get(vpiDirection, port1_handle);
+	      if (direction != vpiOutput && direction != vpiInout) {
+		    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port is not an output or inout port; delay not annotated.\n",
+		               sdf_fname, sdf_lineno);
+		    return;
+	      }
+
 	      // Get interModPath for the two ports
 	    vpiHandle intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
 

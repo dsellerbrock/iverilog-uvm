@@ -1,0 +1,6 @@
+SDF WARNING: ivltests/sdf_interconnect_source_direction.sdf:10: INTERCONNECT source port is not an output or inout port; delay not annotated.
+t=0 bad=0 good=x
+t=3000 bad=0 good=0
+t=10000 bad=1 good=0
+t=13000 bad=1 good=1
+ivltests/sdf_interconnect_source_direction.v:29: $finish called at 15000 (1ps)
