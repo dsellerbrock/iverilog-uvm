@@ -9212,6 +9212,7 @@ unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       expr_width_  = left_->test_width(des, scope, l_mode);
       expr_type_   = left_->expr_type();
       signed_flag_ = left_->has_sign();
+      left_signed_flag_ = signed_flag_;
 
       if (expr_type_ == IVL_VT_CLASS || right_->expr_type() == IVL_VT_CLASS) {
 	      // Compile-progress leniency for stubbed class-typed
@@ -9371,7 +9372,7 @@ NetExpr*PEBLeftWidth::elaborate_expr(Design*des, NetScope*scope,
 
         // The left operand is always context determined, so propagate
         // down the expression type (signed/unsigned).
-      left_->cast_signed(signed_flag_);
+      left_->cast_signed(op_ == 'p' ? signed_flag_ : left_signed_flag_);
 
       unsigned r_width = right_->expr_width();
 
@@ -9566,7 +9567,7 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
       }
 
 	// Fallback, handle the general case.
-      tmp = new NetEBShift(op_, lp, rp, expr_wid, signed_flag_);
+      tmp = new NetEBShift(op_, lp, rp, expr_wid, left_signed_flag_);
       tmp->set_line(*this);
 
       return tmp;
@@ -33019,6 +33020,7 @@ unsigned PEUnary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// Evaluate the expression width to get the correct type information
       expr_width_  = expr_->test_width(des, scope, mode);
+      operand_signed_flag_ = expr_->has_sign();
 
       if (expr_->expr_type() == IVL_VT_CLASS) {
 	      // Compile-progress fallback: the sub-expression resolved
@@ -33132,7 +33134,8 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
             // Other operators have context determined operands, so propagate
             // the expression type (signed/unsigned) down to the operands.
 	  default:
-            expr_->cast_signed(signed_flag_);
+	            if (op_ != '+' && op_ != '~')
+	                  expr_->cast_signed(signed_flag_);
 	    break;
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
@@ -33256,7 +33259,8 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		break;
 
 	  default:
-	    tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+	    tmp = new NetEUnary(op_, ip, expr_wid,
+	                        op_ == '~' ? operand_signed_flag_ : signed_flag_);
 	    tmp->set_line(*this);
 	    break;
 
@@ -33279,13 +33283,18 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		  delete ip;
 
 	    } else {
-		  tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+		  tmp = new NetEUnary(op_, ip, expr_wid, operand_signed_flag_);
 		  tmp->set_line(*this);
 	    }
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	    if (operand_signed_flag_) {
+		  tmp = new NetEUnary(op_, ip, expr_wid, operand_signed_flag_);
+		  tmp->set_line(*this);
+	    } else {
+		  tmp = ip;
+	    }
 	    break;
 
 	  case '!': // Logical NOT
@@ -33386,6 +33395,7 @@ NetExpr* PEUnary::elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const
 	      // unary not (~).
 	    ivl_assert(*this, op_ == '~');
 	    value = ~value;
+	    value.has_sign(operand_signed_flag_);
 
 	    ctmp = new NetEConst(value);
 	    ctmp->set_line(*this);
@@ -33393,7 +33403,8 @@ NetExpr* PEUnary::elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const
 	    return ctmp;
       }
 
-      NetEUBits*tmp = new NetEUBits(op_, operand, expr_wid, signed_flag_);
+      NetEUBits*tmp = new NetEUBits(op_, operand, expr_wid,
+	                                operand_signed_flag_);
       tmp->set_line(*this);
       return tmp;
 }

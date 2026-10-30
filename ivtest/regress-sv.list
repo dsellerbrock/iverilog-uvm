@@ -4935,6 +4935,8 @@ sv_enum_unbased_fill_context_2017 normal,-g2017,-s,main ivltests
 sv_enum_unbased_fill_context_2023 normal,-g2023,-s,main ivltests
 issue1233_signed_x_bitwise_2017 normal,-g2017,-s,main ivltests gold=issue1233_signed_x_bitwise_2017.gold
 issue1233_signed_x_bitwise_2023 normal,-g2023,-s,main ivltests gold=issue1233_signed_x_bitwise_2023.gold
+issue1790_signed_x_nonlogical_2017 normal,-g2017,-s,main ivltests gold=issue1790_signed_x_nonlogical_2017.gold
+issue1790_signed_x_nonlogical_2023 normal,-g2023,-s,main ivltests gold=issue1790_signed_x_nonlogical_2023.gold
 sv_enum_bare_num_string_fail CE,-g2017,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
 

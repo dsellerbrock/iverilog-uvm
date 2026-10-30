@@ -247,10 +247,11 @@ NetEConst* NetEBBits::eval_arguments_(const NetExpr*l, const NetExpr*r) const
       const NetEConst*rc = dynamic_cast<const NetEConst*>(r);
       if (lc == 0 || rc == 0) return 0;
 
-	/* IEEE 1800-2017 11.8.4: a bitwise operation involving a signed
-	 * X/Z value produces an all-X result, even when the other operand
-	 * would otherwise mask the unknown bits. */
-      if ((op() == '&')
+	/* IEEE 1800-2017 11.8.4: a nonlogical bitwise operation involving
+	 * a signed X/Z value produces an all-X result, even when the other
+	 * operand would otherwise mask the unknown bits. */
+	      if (((op() == '&') || (op() == '|') || (op() == '^')
+	           || (op() == 'X'))
 	  && ((lc->value().has_sign() && !lc->value().is_defined())
 	      || (rc->value().has_sign() && !rc->value().is_defined()))) {
 	    verinum res (verinum::Vx, expr_width());
@@ -1541,6 +1542,17 @@ NetExpr* NetEUnary::eval_arguments_(const NetExpr*ex) const
       if (rval == 0) return 0;
 
       verinum val = rval->value();
+
+      /* IEEE 1800-2017 11.8.4: a nonlogical operation on a signed
+       * value containing X/Z produces an all-X result. */
+      if (op_ == '+' && has_sign() && !val.is_defined()) {
+	    val = verinum(verinum::Vx, expr_width());
+	    val.has_sign(has_sign());
+	    NetEConst *res = new NetEConst(val);
+	    ivl_assert(*this, res);
+	    eval_debug(this, res, false);
+	    return res;
+      }
 
       switch (op_) {
 

@@ -1292,6 +1292,7 @@ class PEUnary : public PExpr {
     private:
       char op_;
       PExpr*expr_;
+      bool operand_signed_flag_ = false;
       bool concurrent_assertion_expr_ = false;
 };
 
@@ -1416,6 +1417,9 @@ class PEBLeftWidth  : public PEBinary {
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid,
                                      unsigned flags) const override;
+
+    protected:
+      bool left_signed_flag_ = false;
 };
 
 class PEBPower  : public PEBLeftWidth {

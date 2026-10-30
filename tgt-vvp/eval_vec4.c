@@ -218,19 +218,19 @@ static void draw_binary_vec4_bitwise(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%and%s;\n", sx);
 	    break;
 	  case '|':
-	    fprintf(vvp_out, "    %%or;\n");
+	    fprintf(vvp_out, "    %%or%s;\n", sx);
 	    break;
 	  case '^':
-	    fprintf(vvp_out, "    %%xor;\n");
+	    fprintf(vvp_out, "    %%xor%s;\n", sx);
 	    break;
 	  case 'A': /* ~& */
-	    fprintf(vvp_out, "    %%nand;\n");
+	    fprintf(vvp_out, "    %%nand%s;\n", sx);
 	    break;
 	  case 'O': /* ~| */
-	    fprintf(vvp_out, "    %%nor;\n");
+	    fprintf(vvp_out, "    %%nor%s;\n", sx);
 	    break;
 	  case 'X': /* ~^ */
-	    fprintf(vvp_out, "    %%xnor;\n");
+	    fprintf(vvp_out, "    %%xnor%s;\n", sx);
 	    break;
 	  default:
 	    assert(0);
@@ -819,7 +819,8 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
 	// the stack and replace it with the result of the shift.
       switch (ivl_expr_opcode(expr)) {
 	  case 'l': /* << */
-	    fprintf(vvp_out, "    %%shiftl %d;\n", use_index_reg);
+	    fprintf(vvp_out, "    %%shiftl%s %d;\n",
+	            ivl_expr_signed(le) ? "/s" : "", use_index_reg);
 	    break;
 	  case 'r': /* >> */
 	    fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
@@ -3336,6 +3337,12 @@ static void draw_unary_vec4(ivl_expr_t expr)
       }
 
       switch (ivl_expr_opcode(expr)) {
+	  case '+':
+	    draw_eval_vec4(sub);
+	    if (ivl_expr_signed(expr))
+	      fprintf(vvp_out, "    %%pos/s;\n");
+	    break;
+
 	  case '&':
 	    draw_eval_vec4(sub);
 	    fprintf(vvp_out, "    %%and/r;\n");
@@ -3359,7 +3366,8 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	         expression width before the operation so the bytecode stack
 	         contains the width promised by ivl_expr_width(expr). */
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
-	    fprintf(vvp_out, "    %%inv;\n");
+	    fprintf(vvp_out, "    %%inv%s;\n",
+	            ivl_expr_signed(expr) ? "/s" : "");
 	    break;
 
 	  case '!':

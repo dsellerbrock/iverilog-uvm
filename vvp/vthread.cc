@@ -13676,6 +13676,67 @@ bool of_AND_S(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_OR_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz())
+            vala = vvp_vector4_t(vala.size(), BIT4_X);
+      else
+            vala |= valb;
+      return true;
+}
+
+bool of_XOR_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz())
+            vala = vvp_vector4_t(vala.size(), BIT4_X);
+      else
+            vala ^= valb;
+      return true;
+}
+
+bool of_NAND_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz())
+            vala = vvp_vector4_t(vala.size(), BIT4_X);
+      else {
+            vala &= valb;
+            vala.invert();
+      }
+      return true;
+}
+
+bool of_NOR_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz())
+            vala = vvp_vector4_t(vala.size(), BIT4_X);
+      else {
+            vala |= valb;
+            vala.invert();
+      }
+      return true;
+}
+
+bool of_XNOR_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t valb = thr->pop_vec4();
+      vvp_vector4_t& vala = thr->peek_vec4();
+      if (vala.has_xz() || valb.has_xz())
+            vala = vvp_vector4_t(vala.size(), BIT4_X);
+      else {
+            vala ^= valb;
+            vala.invert();
+      }
+      return true;
+}
+
 /*
  * This function must ALWAYS be called with the val set to the right
  * size, and initialized with BIT4_0 bits. Certain optimizations rely
@@ -20686,6 +20747,24 @@ bool of_INV(vthread_t thr, vvp_code_t)
 {
       vvp_vector4_t&val = thr->peek_vec4();
       val.invert();
+      return true;
+}
+
+bool of_INV_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t& val = thr->peek_vec4();
+      if (val.has_xz())
+            val = vvp_vector4_t(val.size(), BIT4_X);
+      else
+            val.invert();
+      return true;
+}
+
+bool of_POS_S(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t& val = thr->peek_vec4();
+      if (val.has_xz())
+            val = vvp_vector4_t(val.size(), BIT4_X);
       return true;
 }
 
@@ -31888,6 +31967,16 @@ bool of_SHIFTL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_SHIFTL_S(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t& val = thr->peek_vec4();
+      if (val.has_xz()) {
+            val = vvp_vector4_t(val.size(), BIT4_X);
+            return true;
+      }
+      return of_SHIFTL(thr, cp);
+}
+
 /*
  * %shiftr <idx>
  * This is an unsigned right shift. The <idx> is a number that selects
@@ -31929,6 +32018,11 @@ bool of_SHIFTR_S(vthread_t thr, vvp_code_t cp)
 
       vvp_vector4_t val = thr->pop_vec4();
       unsigned wid  = val.size();
+
+      if (val.has_xz()) {
+            thr->push_vec4(vvp_vector4_t(wid, BIT4_X));
+            return true;
+      }
 
       vvp_bit4_t sign_bit = val.value(val.size()-1);
 
