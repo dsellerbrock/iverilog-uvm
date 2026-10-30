@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1586_vpi_regarray_iteration.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1586_vpi_regarray_iteration_2017"],
+  "vpi-sources": ["vpi/issue1586_vpi_regarray_iteration.c"],
+  "output-contains": ["PASSED"]
+}
