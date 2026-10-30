@@ -3517,6 +3517,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", pred_flag);
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 		    thread_count, lab_skip, pred_flag);
+	    /* Predicate evaluation can use ix5 for a fixed-array element
+	     * bound. Restore the unbounded result-queue limit before replacing
+	     * or appending to the locator result. */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
 
 	      /* Canonical fixed-array storage can run opposite the declared
 	       * direction. When the requested edge is reached last in this
