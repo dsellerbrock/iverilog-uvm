@@ -367,6 +367,13 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
       ivl_variable_type_t data_type = ivl_type_base(base_ptype);
       unsigned packed_dimensions = ivl_type_packed_dimensions(base_ptype);
 
+      /* Interface handles are represented as class-like types in the
+       * frontend, but VPI must retain their virtual-interface identity. */
+      if (ivl_type_is_interface(base_ptype)) {
+	    fprintf(vvp_out, "\"%sI\"", rand_prefix ? rand_prefix : "");
+	    return;
+      }
+
       switch (data_type) {
 	  case IVL_VT_VOID:
 	    fprintf(vvp_out, "\"%sV\"", rand_prefix ? rand_prefix : "");

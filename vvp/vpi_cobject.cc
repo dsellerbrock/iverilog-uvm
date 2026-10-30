@@ -1121,6 +1121,10 @@ class __vpiClassMember : public __vpiDarrayVar {
 		  kind_ = 'o'; type_code_ = vpiClassVar; width_ = 64;
 		  return;
 	    }
+	    if (bt == "I") {
+		  kind_ = 'o'; type_code_ = vpiVirtualInterfaceVar; width_ = 64;
+		  return;
+	    }
 	    if (bt.size() >= 1 && (t[0] == 'Q' || t[0] == 'M')) {
 		  kind_ = 'q'; type_code_ = vpiArrayVar; width_ = 0;
 		  declared_array_type_ = t[0] == 'M'
