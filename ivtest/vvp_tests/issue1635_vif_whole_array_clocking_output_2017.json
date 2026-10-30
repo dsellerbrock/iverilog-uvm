@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1635_vif_whole_array_clocking_output.v",
+  "iverilog-args": ["-g2017", "-s", "issue1635_vif_whole_array_clocking_output"],
+  "vvp-args": [],
+  "gold": "issue1635_vif_whole_array_clocking_output"
+}
