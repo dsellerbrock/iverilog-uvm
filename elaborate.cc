@@ -50229,6 +50229,27 @@ Design* elaborate(list<perm_string>roots)
 		  return 0;
 	    }
 
+	      /* Root modules have no parent instance to provide actuals for their
+	       * ports. An interface port therefore cannot be left as the null
+	       * handle created for an unconnected root port (IEEE 1800-2017/2023
+	       * 23.3.3.4). Diagnose it after elaborate_sig has created the port
+	       * NetNet and resolved its interface type. */
+	    if (!rmod->is_interface) {
+		  for (unsigned idx = 0; idx < rmod->port_count(); ++idx) {
+			perm_string port_name = rmod->get_port_name(idx);
+			NetNet*port = scope->find_signal(port_name);
+			const netclass_t*type = port
+			      ? dynamic_cast<const netclass_t*>(port->net_type()) : nullptr;
+			if (!type || !type->is_interface())
+			      continue;
+			cerr << rmod->get_fileline() << ": error: Interface port `"
+			     << port_name << "' of top-level module `" << rmod->mod_name()
+			     << "' cannot be left unconnected (IEEE 1800-2017/2023 "
+				"23.3.3.4)." << endl;
+			des->errors += 1;
+		  }
+	    }
+
 	      // Some of the generators need to have the ports correctly
 	      // defined for the root modules. This code does that.
 	    for (unsigned idx = 0; idx < rmod->port_count(); idx += 1) {
