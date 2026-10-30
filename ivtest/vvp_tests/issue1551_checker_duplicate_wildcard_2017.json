@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1551_checker_duplicate_wildcard.v",
+  "iverilog-args": ["-g2017", "-s", "issue1551_top"],
+  "gold": "issue1551_checker_duplicate_wildcard"
+}
