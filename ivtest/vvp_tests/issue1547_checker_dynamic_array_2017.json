@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1547_checker_dynamic_array.v",
+    "iverilog-args": ["-g2017", "-s", "issue1547_checker_dynamic_array"],
+    "gold": "issue1547_checker_dynamic_array_2017"
+}

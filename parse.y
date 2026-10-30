@@ -32,6 +32,7 @@
 # include  "Statement.h"
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
+# include  "pform_types.h"
 # include  "PPackage.h"
 # include  <stack>
 # include  <set>
@@ -182,8 +183,9 @@ static struct {
       bool interconnect;
       bool is_const;
       bool is_ref_static;
+      bool checker_formals;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false, false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -1375,6 +1377,7 @@ void reset_parser_file_state(void)
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.checker_formals = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -2129,6 +2132,32 @@ static void port_declaration_context_init(void)
       port_declaration_context.is_ref_static = false;
 }
 
+/* IEEE 1800-2017/2023 6.4: unpacked arrays and unpacked structures are
+ * aggregate types. Resolve typedef chains because a checker formal can name
+ * an aggregate through a typedef instead of declaring its dimensions here. */
+static bool pform_checker_port_type_is_aggregate_(
+	const data_type_t*type, set<const typedef_t*>&seen)
+{
+	while (type) {
+	      if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
+		    const typedef_t*td = ref->typedef_ref();
+		    if (!td || !seen.insert(td).second)
+			  return false;
+		    type = td->get_data_type();
+		    continue;
+	      }
+
+	      if (dynamic_cast<const uarray_type_t*>(type))
+		    return true;
+	      if (const struct_type_t*st =
+			  dynamic_cast<const struct_type_t*>(type))
+		    return !st->packed_flag;
+
+	      return false;
+	}
+	return false;
+}
+
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 			            NetNet::PortType port_type,
 				    NetNet::Type net_type,
@@ -2141,6 +2170,18 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       delete[] id;
 
       Module::port_t *port = pform_module_port_reference(loc, name.first);
+
+      if (default_value && pform_module_is_checker()) {
+	    set<const typedef_t*>seen;
+	    bool aggregate = unpacked_dims != nullptr
+		  || pform_checker_port_type_is_aggregate_(data_type, seen);
+	    if (aggregate) {
+		  yyerror(loc, "error: Checker default and initial values are only "
+			  "allowed for singular ports (IEEE 1800-2017/2023 17.2).");
+		  delete default_value;
+		  default_value = nullptr;
+	    }
+      }
 
       switch (port_type) {
 	  case NetNet::PINOUT:
@@ -8017,6 +8058,12 @@ clocking_item
 		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT,
 					    0, 0);
 	    delete $2;
+      }
+  | K_inout IDENTIFIER '=' expression ';'
+      {
+	    pform_add_clocking_signal(@2, lex_strings.make($2),
+				      NetNet::PINOUT, 0, 0, $4);
+	    delete[] $2;
       }
   /* IEEE 1800-2017 A.6.11 clocking_decl_assign: `input a = expr;`
      declares a clockvar sampling an arbitrary (typically
@@ -15958,6 +16005,23 @@ port_declaration
   | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { $$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
       }
+  /* A checker property_formal_type may be sequence or property. These
+     assertion types are not data_type productions, but checker declarations
+     use this module-like port grammar. */
+  | K_sequence IDENTIFIER dimensions_opt initializer_opt
+      { if (!port_declaration_context.checker_formals)
+	      yyerror(@1, "error: Sequence formal type is only valid in a checker.");
+	pform_requires_sv(@2, "Sequence-typed checker formal");
+	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+      }
+  | K_property IDENTIFIER dimensions_opt initializer_opt
+      { if (!port_declaration_context.checker_formals)
+	      yyerror(@1, "error: Property formal type is only valid in a checker.");
+	pform_requires_sv(@2, "Property-typed checker formal");
+	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+      }
   | net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@3, "Partial ANSI port declaration");
 	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
@@ -16223,6 +16287,8 @@ module
         port_declaration_context_init();
 	  // Checker formals without an explicit direction are INPUTS
 	  // (IEEE 1800-2017 17.4); module ports default to inout.
+	if ($2 == K_checker)
+	      port_declaration_context.checker_formals = true;
 	if ($2 == K_checker)
 	      port_declaration_context.port_type = NetNet::PINPUT;
       }

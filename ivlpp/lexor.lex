@@ -2066,7 +2066,9 @@ static void do_define(void)
 
     /* Detect the continuation sequence. If I find it, remove it
      * and the white space that precedes it, then replace all that
-     * with a single newline.
+     * with a single newline. Inside a string literal the escaped
+     * newline is part of the string syntax and is ignored instead
+     * (IEEE 1800-2017 5.9).
      */
     if ((cp > yytext) && (cp[-1] == '\\')
 	&& !define_triple_string_flag) {
@@ -2078,7 +2080,7 @@ static void do_define(void)
 	    *cp = 0;
 	}
 
-	*cp++ = '\n';
+	if (!define_string_flag) *cp++ = '\n';
 	*cp = 0;
 
 	define_continue_flag = 1;

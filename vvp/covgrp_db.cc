@@ -354,8 +354,9 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 	    class_type::covgrp_population_t population;
 	    if (!ct->covgrp_options_.merge_instances) {
 		  population = ct->covgrp_retired_population_;
-		  for (vvp_cobject*obj : ct->covgrp_live_)
-			ct->covgrp_accumulate_instance_(population, obj);
+		  if (!ct->covgrp_db_live_suppressed_)
+			for (vvp_cobject*obj : ct->covgrp_live_)
+			      ct->covgrp_accumulate_instance_(population, obj);
 	    }
 	    population.item_weight.resize(ct->covgrp_items_.size(), 0);
 	    population.item_weighted.resize(ct->covgrp_items_.size(), 0);
@@ -1294,6 +1295,8 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 				  make_pair(family.first, id)], bin.second);
 		  }
 	    ct->covgrp_db_loaded_ = true;
+	    ct->covgrp_db_live_suppressed_ = !entry.merge_instances
+		  && !ct->covgrp_sampled_;
 	  }
       return true;
 }

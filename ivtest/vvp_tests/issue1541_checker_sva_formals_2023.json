@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1541_checker_sva_formals.sv",
+  "iverilog-args": ["-g2023", "-s", "issue1541_checker_sva_formals"],
+  "gold": "issue1541_checker_sva_formals"
+}

@@ -1,0 +1,2 @@
+ivltests/issue1547_checker_dynamic_array.v:4: error: Reference to element of enclosing dynamic variable `values' is illegal in a checker (IEEE 1800-2017/2023 17.2).
+1 error(s) during elaboration.

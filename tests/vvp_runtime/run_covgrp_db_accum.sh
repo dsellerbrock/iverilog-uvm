@@ -545,6 +545,35 @@ for edition in 2017 2023; do
     fi
 done
 
+for edition in 2017 2023; do
+    image="$work_dir/covgrp-db-module-default-$edition.vvp"
+    first="$work_dir/module-default-$edition-a.db"
+    second="$work_dir/module-default-$edition-b.db"
+    third="$work_dir/module-default-$edition-c.db"
+    sampled="$work_dir/module-default-$edition-sampled.db"
+    pre_sampled="$work_dir/module-default-$edition-pre-sampled.db"
+    if ! "$iverilog" -g"$edition" -o "$image" \
+        "$script_dir/covgrp_db_module_default_instances.sv"; then
+        echo "FAIL: compile module default-instance reducer -g$edition"
+        failures=$((failures + 1))
+        continue
+    fi
+    run_default_instance_case "$edition-module-A" 50.00 "" "$image" "$first" \
+        "+DB=$first" +SAMPLE=0
+    if [ -s "$first" ]; then
+        run_default_instance_case "$edition-module-B" 50.00 50.00 "$image" "$second" \
+            "+DB=$second" "+LOADDB=$first" +QUERY_FIRST
+    fi
+    if [ -s "$second" ]; then
+        run_default_instance_case "$edition-module-C" 50.00 50.00 "$image" "$third" \
+            "+DB=$third" "+LOADDB=$second" +QUERY_FIRST
+    fi
+    run_default_instance_case "$edition-module-sampled" 75.00 50.00 "$image" "$sampled" \
+        "+DB=$sampled" "+LOADDB=$first" +QUERY_FIRST +SAMPLE=0 +SAMPLE2=1
+    run_default_instance_case "$edition-module-pre-sampled" 75.00 75.00 "$image" "$pre_sampled" \
+        "+DB=$pre_sampled" "+LOADDB=$first" +QUERY_FIRST +PRE_SAMPLE=0 +PRE_SAMPLE2=1
+done
+
 if [ "$failures" -ne 0 ]; then
     echo "FAIL functional coverage database persistence ($failures checks)"
     exit 1

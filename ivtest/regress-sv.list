@@ -13,10 +13,14 @@ issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
+issue1535_negative_clocking_skew_2017 CE,-g2017,-s,issue1535_negative_clocking_skew ivltests
+issue1535_negative_clocking_skew_2023 CE,-g2023,-s,issue1535_negative_clocking_skew ivltests
 issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
 issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
+issue1541_checker_sva_formals_2017 normal,-g2017,-s,issue1541_checker_sva_formals_2017 ivltests gold=issue1541_checker_sva_formals.gold
+issue1541_checker_sva_formals_2023 normal,-g2023,-s,issue1541_checker_sva_formals_2023 ivltests gold=issue1541_checker_sva_formals.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
@@ -42,6 +46,8 @@ issue1513_nettype_multiple_delay_2017 CE,-g2017,-s,issue1513_nettype_multiple_de
 issue1513_nettype_multiple_delay_2023 CE,-g2023,-s,issue1513_nettype_multiple_delay ivltests
 issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_force_select_2017.gold
 issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
+issue1532_untyped_pattern_concat_2017 CE,-g2017,-s,issue1532_untyped_pattern_concat ivltests
+issue1532_untyped_pattern_concat_2023 CE,-g2023,-s,issue1532_untyped_pattern_concat ivltests
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
@@ -1939,6 +1945,8 @@ sv_scope_randomize_null_fail CE,-g2017 ivltests gold=sv_scope_randomize_null_fai
 sv_scope_randomize_null_fail CE,-g2023 ivltests gold=sv_scope_randomize_null_fail.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_sampled_value_missing_clock CE,-g2017 ivltests
+issue1495_let_sampled_clock_2017 normal,-g2017,-gassertions,-s,issue1495_let_sampled_clock ivltests
+issue1495_let_sampled_clock_2023 normal,-g2023,-gassertions,-s,issue1495_let_sampled_clock ivltests
 sv_sampled_value_clocking_input normal,-g2017 ivltests
 sv_sampled_clocking_event_mismatch_fail CE,-g2017 ivltests gold=sv_sampled_clocking_event_mismatch_fail.gold
 sv_sampled_clocking_event_mismatch_fail_2023 CE,-g2023 ivltests gold=sv_sampled_clocking_event_mismatch_fail.gold
@@ -6316,3 +6324,5 @@ issue1442_detect_overlap_transition normal,-g2017 ivltests gold=issue1442_detect
 # IEEE 1800-2017/2023 7.8.7: passing a missing associative element by ref allocates it.
 issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
 issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
+issue1559_macro_string_continuation_2017 normal,-g2017,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2017.gold
+issue1559_macro_string_continuation_2023 normal,-g2023,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2023.gold

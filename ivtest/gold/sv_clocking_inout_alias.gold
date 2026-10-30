@@ -1,0 +1,2 @@
+PASS
+./ivltests/sv_clocking_inout_alias.v:25: $finish called at 4000 (1ps)

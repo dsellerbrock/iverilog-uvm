@@ -22669,6 +22669,17 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  vector<NetExpr*>elems(parms_.size());
 		  bool ascending = dims[0].get_msb() < dims[0].get_lsb();
 		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+			if (dynamic_cast<const PEAssignPattern*>(parms_[idx])) {
+			  cerr << parms_[idx]->get_fileline()
+			       << ": error: unpacked array concatenation item "
+			       << (idx + 1) << " has no self-determined type "
+			       << "(IEEE 1800-2017/2023 10.10)." << endl;
+			  des->errors += 1;
+			  for (NetExpr*previous : elems)
+				if (previous)
+				      delete previous;
+			  return nullptr;
+			}
 			NetExpr*item = elaborate_rval_expr(
 			      des, scope, uarray->element_type(),
 			      parms_[idx], false);
@@ -22799,6 +22810,16 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  vector<NetExpr*> elem_exprs;
 		  elem_exprs.reserve(parms_.size());
 		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+			if (dynamic_cast<const PEAssignPattern*>(parms_[idx])) {
+			  cerr << parms_[idx]->get_fileline()
+			       << ": error: unpacked array concatenation item "
+			       << (idx + 1) << " has no self-determined type "
+			       << "(IEEE 1800-2017/2023 10.10)." << endl;
+			  des->errors += 1;
+			  for (NetExpr*previous : elem_exprs)
+				delete previous;
+			  return nullptr;
+			}
 			ivl_type_t want_type = elem_type;
 			unsigned item_flags = flags;
 			/* A multidimensional fixed-array operand contributes one
@@ -25756,6 +25777,38 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	  if (sr.genvar_outside_loop)
 	    return nullptr;
+
+	  // IEEE 1800-2017/2023 17.2 prohibits a checker from referencing
+	  // elements of dynamic variables in the scope enclosing its declaration.
+	  if (gn_system_verilog() && sr.net && !path_.name.empty()
+	      && !path_.name.front().index.empty()
+	      && dynamic_cast<const netdarray_t*>(sr.net->net_type())) {
+	        NetScope*checker_scope = nullptr;
+	        for (NetScope*cur = scope; cur; cur = cur->parent()) {
+	              const Module*owner = cur->module_definition();
+	              if (owner) {
+	                    if (owner->is_checker) checker_scope = cur;
+	                    break;
+	              }
+	        }
+	        bool declared_in_checker = false;
+	        if (checker_scope) {
+	              for (NetScope*cur = sr.scope; cur; cur = cur->parent()) {
+	                    if (cur == checker_scope) {
+	                          declared_in_checker = true;
+	                          break;
+	                    }
+	              }
+	        }
+	        if (checker_scope && !declared_in_checker) {
+	              cerr << get_fileline() << ": error: Reference to element of "
+	                   << "enclosing dynamic variable `" << path_.name.front().name
+	                   << "' is illegal in a checker (IEEE 1800-2017/2023 17.2)."
+	                   << endl;
+	              des->errors += 1;
+	              return nullptr;
+	        }
+	  }
 
 	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
 	  // references to checker variables, including reads in expressions.

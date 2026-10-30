@@ -1,0 +1,2 @@
+S=[leftright]
+./ivltests/issue1559_macro_string_continuation_2023.v:6: $finish called at 0 (1s)

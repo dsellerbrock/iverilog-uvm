@@ -8988,6 +8988,13 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 	   units, and return an adjusted NetEConst. */
 
       if (NetECReal*tmp = dynamic_cast<NetECReal*>(dex)) {
+	    if (clocking_skew && tmp->value().as_double() < 0.0) {
+		  cerr << expr->get_fileline() << ": error: A clocking skew must be "
+		       << "a non-negative value." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
 	    uint64_t delay = get_scaled_time_from_real(des, scope, tmp);
 
 	    delete tmp;
@@ -8999,6 +9006,13 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 
       if (NetEConst*tmp = dynamic_cast<NetEConst*>(dex)) {
 	    verinum fn = tmp->value();
+	    if (clocking_skew && fn.is_negative()) {
+		  cerr << expr->get_fileline() << ": error: A clocking skew must be "
+		       << "a non-negative value." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
 	    uint64_t delay = des->scale_to_precision(fn.as_ulong64(), scope);
 
 	    delete tmp;

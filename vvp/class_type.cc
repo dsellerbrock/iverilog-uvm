@@ -4168,6 +4168,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    bool item_has_bins = selected_item >= 0
 		  && item < retired.item_has_bins.size()
 		  && retired.item_has_bins[item];
+            if (!covgrp_db_live_suppressed_)
             for (vvp_cobject*obj : covgrp_live_) {
                   bool instance_contributes = false;
                   double score = vvp_covgrp_instance_coverage(
