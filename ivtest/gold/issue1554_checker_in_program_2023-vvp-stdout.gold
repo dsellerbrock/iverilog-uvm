@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue1554_checker_in_program_2023.v:12: $finish called at 2 (1s)

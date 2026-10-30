@@ -3998,7 +3998,11 @@ void pform_make_modgates(const struct vlltype&loc,
 
 	// Detect some more realistic errors.
 
-      if (pform_cur_module.front()->program_block) {
+      map<perm_string,Module*>::const_iterator instance_type
+	    = pform_modules.find(type);
+      bool checker_instance = instance_type != pform_modules.end()
+	    && instance_type->second->is_checker;
+      if (pform_cur_module.front()->program_block && !checker_instance) {
 	    cerr << loc << ": error: Module instantiations are not allowed in "
 		 << "program blocks." << endl;
 	    error_count += 1;
