@@ -44,22 +44,40 @@ bool vvp_mailbox::try_put(const vvp_object_t& item)
       return true;
 }
 
-bool vvp_mailbox::try_get(vvp_object_t& item)
+static bool mailbox_item_matches_receiver_(const vvp_object_t& item,
+					   unsigned receiver_kind)
+{
+      if (receiver_kind == 0)
+	    return true;
+      if (receiver_kind == 1)
+	    return item.peek<vvp_boxed_string>() != 0;
+      if (receiver_kind == 2)
+	    return item.peek<vvp_boxed_real>() != 0;
+      if (receiver_kind == 3)
+	    return item.peek<vvp_boxed_vec4>() != 0;
+      return false;
+}
+
+int vvp_mailbox::try_get(vvp_object_t& item, unsigned receiver_kind)
 {
       if (empty())
-	    return false;
+	    return 0;
+      if (!mailbox_item_matches_receiver_(items_.front(), receiver_kind))
+	    return -1;
       item = items_.front();
       items_.pop_front();
       resume_put_waiters_();
-      return true;
+      return 1;
 }
 
-bool vvp_mailbox::try_peek(vvp_object_t& item)
+int vvp_mailbox::try_peek(vvp_object_t& item, unsigned receiver_kind)
 {
       if (empty())
-	    return false;
+	    return 0;
+      if (!mailbox_item_matches_receiver_(items_.front(), receiver_kind))
+	    return -1;
       item = items_.front();
-      return true;
+      return 1;
 }
 
 bool vvp_mailbox::put(vthread_t thr, const vvp_object_t& self,

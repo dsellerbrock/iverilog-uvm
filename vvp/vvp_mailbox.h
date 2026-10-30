@@ -46,8 +46,10 @@ class vvp_mailbox : public vvp_object {
 
       /* Non-blocking operations.  Return true on success. */
       bool try_put(const vvp_object_t& item);
-      bool try_get(vvp_object_t& item);
-      bool try_peek(vvp_object_t& item);
+      /* Return 1 on success, 0 when empty, and -1 when the queued
+       * message's runtime representation does not match the receiver. */
+      int try_get(vvp_object_t& item, unsigned receiver_kind = 0);
+      int try_peek(vvp_object_t& item, unsigned receiver_kind = 0);
 
       /*
        * Blocking operations: return true if the operation completed

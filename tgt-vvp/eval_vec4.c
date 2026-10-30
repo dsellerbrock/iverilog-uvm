@@ -2426,11 +2426,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  draw_capture_lval_ref(ref_lval);
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
-	    fprintf(vvp_out, "    %s;\n", is_peek ? "%mbx/try_peek" : "%mbx/try_get");
-	    /* Preserve the expression result while using a duplicate to gate
-	       ref-output writeback. A failed try leaves the actual unchanged. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; test mailbox result\n",
+	    fprintf(vvp_out, "    %s %u;\n",
+		    is_peek ? "%mbx/try_peek" : "%mbx/try_get",
+		    mailbox_receiver_kind_(ref_lval));
+	    /* The runtime supplies a separate success flag so a negative status
+	       remains the expression result without triggering ref writeback. */
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; test mailbox success\n",
 		    success_flag);
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed mailbox try\n",
 		    thread_count, lab_fail, success_flag);
