@@ -1897,12 +1897,22 @@ void draw_store_vec4_lval(ivl_lval_t lval)
 
 static void store_vec4_to_lval(ivl_statement_t net)
 {
+	  ivl_variable_type_t rval_type = ivl_expr_value(ivl_stmt_rval(net));
+
       for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net,lidx);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
 	    unsigned lwid = ivl_lval_width(lval);
 
 	    if (lidx+1 < ivl_stmt_lvals(net))
 		  fprintf(vvp_out, "    %%split/vec4 %u;\n", lwid);
+
+	    /* A 4-state RHS assigned to a 2-state variable maps X/Z to zero
+	     * (IEEE 1800-2017/2023 6.11.2). Keep real-to-integer conversion on
+	     * its separate path. */
+	    if (sig && ivl_signal_data_type(sig) == IVL_VT_BOOL
+		&& rval_type == IVL_VT_LOGIC)
+		  fprintf(vvp_out, "    %%cast2; two-state assignment destination\n");
 
 	    store_vec4_to_one_lval(lval);
       }

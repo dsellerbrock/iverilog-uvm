@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1708_concat_bit_2state.v",
+  "iverilog-args": ["-g2023", "-s", "issue1708_concat_bit_2state"],
+  "output-contains": ["ISSUE1708_CONCAT_BIT_2STATE_PASSED"]
+}
