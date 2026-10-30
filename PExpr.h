@@ -400,7 +400,8 @@ class PEAssignPattern : public PExpr {
       bool resolve_keyed_dimension_(Design*des, NetScope*scope,
 				    const netrange_t&range,
 				    ivl_type_t element_type,
-				    std::vector<PExpr*>&out) const;
+				    std::vector<PExpr*>&out,
+				    bool allow_unmatched = false) const;
       PExpr* replication() const { return replication_; }
     private:
 	// decl_type is the DECLARED type the dims were flattened from,
