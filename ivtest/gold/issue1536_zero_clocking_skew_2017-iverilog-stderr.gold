@@ -1,0 +1,3 @@
+ivltests/issue1536_zero_clocking_skew.v:4: error: A clocking skew must be a positive value in this language generation.
+ivltests/issue1536_zero_clocking_skew.v:5: error: A clocking skew must be a positive value in this language generation.
+2 error(s) during elaboration.

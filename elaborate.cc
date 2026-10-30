@@ -8995,6 +8995,14 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 		  delete tmp;
 		  return 0;
 	    }
+	    if (clocking_skew && generation_flag < GN_VER2023
+		  && tmp->value().as_double() == 0.0) {
+		  cerr << expr->get_fileline() << ": error: A clocking skew must be "
+		       << "a positive value in this language generation." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
 	    uint64_t delay = get_scaled_time_from_real(des, scope, tmp);
 
 	    delete tmp;
@@ -9009,6 +9017,14 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 	    if (clocking_skew && fn.is_negative()) {
 		  cerr << expr->get_fileline() << ": error: A clocking skew must be "
 		       << "a non-negative value." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
+	    if (clocking_skew && generation_flag < GN_VER2023
+		  && fn.as_ulong64() == 0) {
+		  cerr << expr->get_fileline() << ": error: A clocking skew must be "
+		       << "a positive value in this language generation." << endl;
 		  des->errors += 1;
 		  delete tmp;
 		  return 0;
