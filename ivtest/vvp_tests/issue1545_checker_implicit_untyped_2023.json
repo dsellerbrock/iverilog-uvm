@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1545_checker_implicit_untyped_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue1545_checker_implicit_untyped_top" ],
+    "gold"           : "issue1545_checker_implicit_untyped"
+}
