@@ -42,11 +42,13 @@ static int yywrap(void)
 
 
 # define yylval sdflval
+static unsigned sdf_timingenv_depth;
 %}
 
 %x CCOMMENT
 %x COND_EDGE_ID
 %x EDGE_ID
+%x TIMINGENV
 
 %%
 
@@ -60,6 +62,23 @@ static int yywrap(void)
 <CCOMMENT>"*/" { BEGIN(0); }
 
 [ \m\t] { /* Skip white space. */; }
+
+  /* TIMINGENV is not related to SystemVerilog timing. Skip its complete
+     parenthesized SDF expression without interpreting its contents. */
+[tT][iI][mM][iI][nN][gG][eE][nN][vV] { sdf_timingenv_depth = 0; BEGIN(TIMINGENV); return K_TIMINGENV; }
+
+<TIMINGENV>"(" { sdf_timingenv_depth += 1; }
+<TIMINGENV>")" {
+      if (sdf_timingenv_depth > 0)
+            sdf_timingenv_depth -= 1;
+      else {
+            BEGIN(0);
+            return ')';
+      }
+}
+<TIMINGENV>"\""[^\"]*"\"" { /* Ignore quoted data, including parentheses. */; }
+<TIMINGENV>\n { sdflloc.first_line += 1; }
+<TIMINGENV>. { /* Ignore all other TIMINGENV content. */; }
 
   /* Count lines so that the parser can assign line numbers. */
 \n { sdflloc.first_line += 1; }
