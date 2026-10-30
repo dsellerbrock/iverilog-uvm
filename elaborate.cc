@@ -8019,7 +8019,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the delay being applied to other drivers of
 		    // the external signal.
 		  if ((ptype == NetNet::POUTPUT
-		       && (is_variable_output_port_(prts[0]) || rmod->is_checker)) ||
+		       && (is_variable_output_port_(prts[0]) || rmod->is_checker
+			   || sig->coerced_to_uwire())) ||
 		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
