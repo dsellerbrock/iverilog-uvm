@@ -8005,6 +8005,12 @@ clocking_item
 					    0, 0);
 	    delete $2;
       }
+  | K_inout IDENTIFIER '=' expression ';'
+      {
+	    pform_add_clocking_signal(@2, lex_strings.make($2),
+				      NetNet::PINOUT, 0, 0, $4);
+	    delete[] $2;
+      }
   /* IEEE 1800-2017 A.6.11 clocking_decl_assign: `input a = expr;`
      declares a clockvar sampling an arbitrary (typically
      hierarchical) signal. Single-name form; the signal-path shape is
