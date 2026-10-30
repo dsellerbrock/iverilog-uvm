@@ -12619,9 +12619,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		      && builder.type(sv.idx)->property_is_dyn2(
 			    builder.local_index(sv.idx))) continue;
 		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
-		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
-			cobj_darray_size(builder.object(sv.idx),
-			      builder.local_index(sv.idx), sv.leaf), s32);
+		  auto selected = dyn_sizes->find(make_pair(sv.idx, sv.leaf));
+		  uint64_t size = selected == dyn_sizes->end()
+			? cobj_darray_size(builder.object(sv.idx),
+			      builder.local_index(sv.idx), sv.leaf)
+			: selected->second;
+		  Z3_ast cur = Z3_mk_unsigned_int64(ctx, size, s32);
 		  Z3_ast eq = Z3_mk_eq(ctx, sv.var, cur);
 		  Z3_optimize_assert(ctx, opt, eq);
 		  Z3_solver_assert(ctx, base, eq);
@@ -13322,6 +13325,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    // its chosen index names an X/Z leaf or lies outside the declaration.
 	    if (!builder.state_checks.empty()) precheck = Z3_L_FALSE;
 	    if (!uniform_joint_components.empty()) precheck = Z3_L_FALSE;
+	    // A retry may expand a deferred foreach at a candidate size different
+	    // from the currently materialized array. The current-value fast path
+	    // cannot satisfy that prospective size without applying the model.
+	    if (dyn_sizes)
+	          for (const auto&selected : *dyn_sizes) {
+			if (cobj_darray_size(builder.object(selected.first.first),
+			      builder.local_index(selected.first.first),
+			      selected.first.second) != selected.second)
+			      precheck = Z3_L_FALSE;
+	          }
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
 		  // The candidate check included every active explicit `soft`
@@ -16673,7 +16686,31 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      &sizes, nullptr, prop_active,
 			      include_class_constraints, nullptr, nullptr, object_vals);
-      return r2 != Z3PASS_FAILED;
+      if (r2 != Z3PASS_FAILED) return true;
+
+	// The size pass defers dynamic foreach bodies, so its selected size can
+	// make the expanded element constraints infeasible even when another
+	// permitted size satisfies the complete constraint set. For a single
+	// deferred size, try each representable container size with the complete
+	// second pass before reporting randomize failure (18.6.3).
+      if (dyn.size() == 1) {
+	    const Z3Builder::DynForeach&loop = dyn.front();
+	    string container_type =
+	          cobj->get_defn()->property_base_type(loop.pidx);
+	    uint64_t cap = random_container_size_cap_(container_type);
+	    pair<unsigned,unsigned> key = make_pair(loop.pidx, loop.leaf);
+	    uint64_t selected = sizes[key];
+	    for (uint64_t candidate = 0; candidate <= cap; ++candidate) {
+	          if (candidate == selected) continue;
+	          sizes[key] = candidate;
+	          rng.rewind();
+	          int retry = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
+	                class_slots, &sizes, nullptr, prop_active,
+	                include_class_constraints, nullptr, nullptr, object_vals);
+	          if (retry != Z3PASS_FAILED) return true;
+	    }
+      }
+      return false;
 }
 
 /* Validate the selected graph before scalar/container prefills can reach
@@ -17677,9 +17714,33 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       }
       root_rng.rewind();
       for (auto&stream : streams) stream.second->rewind();
-      return z3_solve_pass_(root.object->get_defn(), root.object,
+      result = z3_solve_pass_(root.object->get_defn(), root.object,
             root_rng, no_extra, no_slots, no_class_slots, &sizes, nullptr, root.selection(),
-            true, &graph, &streams) != Z3PASS_FAILED;
+            true, &graph, &streams);
+      if (result != Z3PASS_FAILED) return true;
+
+	// Dynamic foreach bodies are deferred until the first pass selects array
+	// sizes. Retry the full constraint set at other supported sizes when that
+	// selected size makes the expanded body infeasible (18.6.3).
+      if (dyn.size() == 1 && !have_rows) {
+	    const Z3Builder::DynForeach&loop = dyn.front();
+	    const auto&property = graph.properties.at(loop.pidx);
+	    uint64_t cap = random_container_size_cap_(
+	          property.object->get_defn()->property_base_type(property.pid));
+	    pair<unsigned,unsigned> key = make_pair(loop.pidx, loop.leaf);
+	    uint64_t selected = sizes[key];
+	    for (uint64_t candidate = 0; candidate <= cap; ++candidate) {
+	          if (candidate == selected) continue;
+	          sizes[key] = candidate;
+	          root_rng.rewind();
+	          for (auto&stream : streams) stream.second->rewind();
+	          int retry = z3_solve_pass_(root.object->get_defn(), root.object,
+	                root_rng, no_extra, no_slots, no_class_slots, &sizes, nullptr,
+	                root.selection(), true, &graph, &streams);
+	          if (retry != Z3PASS_FAILED) return true;
+	    }
+      }
+      return false;
 }
 
 bool vvp_z3_randomize_scope(const string&ir,
