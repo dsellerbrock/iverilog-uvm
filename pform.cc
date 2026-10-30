@@ -30513,6 +30513,42 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
 
 }
 
+static void pform_check_checker_instantiations_(const std::list<PGate*>&gates)
+{
+      for (PGate*gate : gates) {
+	    PGModule*instance = dynamic_cast<PGModule*>(gate);
+	    if (!instance) continue;
+
+	    map<perm_string,Module*>::const_iterator target
+		  = pform_modules.find(instance->get_type());
+	    if (target != pform_modules.end() && !target->second->is_checker) {
+		  cerr << instance->get_fileline() << ": error: Module, interface, "
+		       << "and program instantiations are not allowed in checkers."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
+}
+
+static void pform_check_checker_generate_instantiations_(PGenerate*generate)
+{
+      pform_check_checker_instantiations_(generate->gates);
+      for (PGenerate*child : generate->generate_schemes)
+	    pform_check_checker_generate_instantiations_(child);
+}
+
+static void pform_check_checker_module_instantiations_(Module*module)
+{
+      if (module->is_checker) {
+	    pform_check_checker_instantiations_(module->get_gates());
+	    for (PGenerate*generate : module->generate_schemes)
+		  pform_check_checker_generate_instantiations_(generate);
+      }
+
+      for (map<perm_string,Module*>::value_type&nested : module->nested_modules)
+	    pform_check_checker_module_instantiations_(nested.second);
+}
+
 int pform_finish()
 {
 	// Any errors counted here were already reported by pform_parse
@@ -30536,6 +30572,12 @@ int pform_finish()
        * are reached recursively through their dedicated owned collections. */
       for (const pair<const perm_string,Module*>&module : pform_modules)
             pform_validate_nettype_resolvers_(module.second, validated_scopes);
+
+      // Checker bodies permit other checker instantiations, but not module,
+      // interface, or program instances. Defer this check until all design
+      // elements have been parsed so forward references are classified too.
+      for (const pair<const perm_string,Module*>&module : pform_modules)
+	    pform_check_checker_module_instantiations_(module.second);
 
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.

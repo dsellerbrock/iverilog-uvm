@@ -1,0 +1,3 @@
+ivltests/issue1543_checker_instantiations_fail.v:8: error: Module, interface, and program instantiations are not allowed in checkers.
+ivltests/issue1543_checker_instantiations_fail.v:9: error: Module, interface, and program instantiations are not allowed in checkers.
+ivltests/issue1543_checker_instantiations_fail.v:10: error: Module, interface, and program instantiations are not allowed in checkers.
