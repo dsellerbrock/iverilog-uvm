@@ -1324,6 +1324,42 @@ static int eval_object_ternary(ivl_expr_t expr)
       ivl_expr_t true_ex  = ivl_expr_oper2(expr);
       ivl_expr_t false_ex = ivl_expr_oper3(expr);
 
+      ivl_type_t result_type = ivl_expr_net_type(expr);
+      ivl_type_t true_type = ivl_expr_net_type(true_ex);
+      ivl_type_t false_type = ivl_expr_net_type(false_ex);
+      if (!true_type && ivl_expr_signal(true_ex))
+	    true_type = ivl_signal_net_type(ivl_expr_signal(true_ex));
+      if (!false_type && ivl_expr_signal(false_ex))
+	    false_type = ivl_signal_net_type(ivl_expr_signal(false_ex));
+      if ((result_type && ivl_type_base(result_type) == IVL_VT_QUEUE)
+	  || (true_type && ivl_type_base(true_type) == IVL_VT_QUEUE)
+	  || (false_type && ivl_type_base(false_type) == IVL_VT_QUEUE)) {
+	    if (!result_type) result_type = true_type;
+	    ivl_type_t element_type = result_type
+		  ? ivl_type_element(result_type) : 0;
+	    char element_enc[64];
+	    container_element_enc_(element_type, element_enc, sizeof element_enc);
+	    unsigned lab_false = local_count++;
+	    unsigned lab_true = local_count++;
+	    unsigned lab_out = local_count++;
+	    int use_flag = draw_eval_condition(cond);
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n", thread_count, lab_false, use_flag);
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n", thread_count, lab_true, use_flag);
+	    /* Only an ambiguous condition evaluates both operands. */
+	    draw_eval_object(true_ex);
+	    draw_eval_object(false_ex);
+	    fprintf(vvp_out, "    %%queue/cond %d, \"%s\";\n", use_flag, element_enc);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_true);
+	    draw_eval_object(true_ex);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_false);
+	    draw_eval_object(false_ex);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    clr_flag(use_flag);
+	    return 0;
+      }
+
       unsigned lab_false = local_count++;
       unsigned lab_out   = local_count++;
 
