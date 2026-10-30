@@ -2350,6 +2350,51 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    cur = cur.ptr()->port[cur.port()]; // Next net in linked list
       }
 
+      // An SDF INTERCONNECT with an existing source that is not connected
+      // to the load still annotates the load port. Insert the delay on the
+      // load port's input boundary so it applies to whichever net drives it.
+      if (port2->get_direction() == vpiInput ||
+	  port2->get_direction() == vpiInout) {
+	    vpiHandle load_scope = vpi_handle(vpiScope, ref2);
+	    vpiHandle parent_scope = load_scope
+		  ? vpi_handle(vpiScope, load_scope) : nullptr;
+	    vpiHandle net_iter = parent_scope
+		  ? vpi_iterate(vpiNet, parent_scope) : nullptr;
+	    vpiHandle candidate;
+	    while (net_iter && (candidate = vpi_scan(net_iter))) {
+		  __vpiSignal* signal = dynamic_cast<__vpiSignal*>(candidate);
+		  if (!signal || !signal->node) continue;
+		  vvp_net_t* input_net = signal->node;
+		  vvp_net_ptr_t load(nullptr, 0);
+		  vvp_net_ptr_t predecessor(nullptr, 0);
+		  for (vvp_net_ptr_t sink = input_net->out_; sink.ptr();
+		       sink = sink.ptr()->port[sink.port()]) {
+			if (sink.ptr() == net2) {
+			      load = sink;
+			      break;
+			}
+			predecessor = sink;
+		  }
+		  if (load.ptr()) {
+			fprintf(stderr, "VPI warning: INTERCONNECT source and load are not on the same net; annotating load port\n");
+			vvp_net_t* new_net = new vvp_net_t;
+			vvp_fun_intermodpath* obj = new vvp_fun_intermodpath(new_net, 1);
+			new_net->fun = obj;
+			new_net->out_ = load;
+			new_net->port[0] = load.ptr()->port[load.port()];
+			load.ptr()->port[load.port()] = vvp_net_ptr_t(nullptr, 0);
+			if (predecessor.ptr())
+			      predecessor.ptr()->port[predecessor.port()] = vvp_net_ptr_t(new_net, 0);
+			else
+			      input_net->out_ = vvp_net_ptr_t(new_net, 0);
+			__vpiInterModPath* intermodpath =
+			      vpip_make_intermodpath(new_net, port1, port2);
+			intermodpath->intermodpath = obj;
+			return intermodpath;
+		  }
+	    }
+      }
+
       fprintf(stderr, "VPI error: Could not insert intermodpath!\n");
       fprintf(stderr, "\tport1 = %s, port1_has_index = %d, port1_bit_index = %d\n", port1_name.c_str(), port1_has_index, port1_bit_index);
       fprintf(stderr, "\tport2 = %s, port2_has_index = %d, port2_bit_index = %d\n", port2_name.c_str(), port2_has_index, port2_bit_index);

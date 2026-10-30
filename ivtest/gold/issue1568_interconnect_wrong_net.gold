@@ -1,0 +1,5 @@
+VPI warning: INTERCONNECT source and load are not on the same net; annotating load port
+t=0 good=0 wrong=0 load=0 result=0
+t=10000 good=1 wrong=1 load=1 result=0
+t=13000 good=1 wrong=1 load=1 result=1
+./ivltests/issue1568_interconnect_wrong_net.v:25: $finish called at 30000 (1ps)

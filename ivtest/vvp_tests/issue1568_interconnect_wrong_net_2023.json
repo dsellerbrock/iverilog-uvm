@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1568_interconnect_wrong_net.v",
+    "iverilog-args": ["-g2023", "-Ttyp", "-ginterconnect", "-gspecify", "-s", "tb"],
+    "gold": "issue1568_interconnect_wrong_net"
+}
