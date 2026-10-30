@@ -1,0 +1,4 @@
+PASS disable fork in task includes caller children
+PASS wait fork in task includes caller children
+PASSED
+./ivltests/issue1801_task_process_fork_control.v:29: $finish called at 7 (1s)

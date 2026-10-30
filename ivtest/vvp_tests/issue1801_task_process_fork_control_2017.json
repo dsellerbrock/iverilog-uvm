@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue1801_task_process_fork_control.v",
+  "iverilog-args": ["-g2017", "-s", "issue1801_task_process_fork_control"],
+  "output-contains": [
+    "PASS wait fork in task includes caller children",
+    "PASS disable fork in task includes caller children"
+  ]
+}
