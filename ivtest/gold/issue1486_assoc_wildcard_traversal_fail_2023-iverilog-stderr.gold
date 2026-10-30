@@ -1,0 +1,5 @@
+ivltests/issue1486_assoc_wildcard_traversal_fail_2023.v:6: error: The associative array method 'first' is not allowed for wildcard-index associative arrays (IEEE 1800-2017/2023 7.9.4).
+ivltests/issue1486_assoc_wildcard_traversal_fail_2023.v:7: error: The associative array method 'last' is not allowed for wildcard-index associative arrays (IEEE 1800-2017/2023 7.9.5).
+ivltests/issue1486_assoc_wildcard_traversal_fail_2023.v:8: error: The associative array method 'next' is not allowed for wildcard-index associative arrays (IEEE 1800-2017/2023 7.9.6).
+ivltests/issue1486_assoc_wildcard_traversal_fail_2023.v:9: error: The associative array method 'prev' is not allowed for wildcard-index associative arrays (IEEE 1800-2017/2023 7.9.7).
+4 error(s) during elaboration.
