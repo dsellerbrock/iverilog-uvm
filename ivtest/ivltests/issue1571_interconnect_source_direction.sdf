@@ -1,0 +1,15 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue1571_interconnect_source_direction")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "issue1571_interconnect_source_direction")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (INTERCONNECT u0.a u0.u2.a (3.0) (3.0))
+      )
+    )
+  )
+)

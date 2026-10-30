@@ -1,0 +1,3 @@
+SDF WARNING: ivltests/issue1571_interconnect_source_direction.sdf:11: INTERCONNECT source port u0 is not an output or inout port; annotation ignored.
+PASS: invalid input INTERCONNECT source ignored
+ivltests/issue1571_interconnect_source_direction.v:24: $finish called at 12000 (1ps)

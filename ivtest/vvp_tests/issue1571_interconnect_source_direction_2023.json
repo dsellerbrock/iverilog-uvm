@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1571_interconnect_source_direction.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "issue1571_interconnect_source_direction"],
+  "vvp-args-extended": ["-sdf-warn"],
+  "gold": "issue1571_interconnect_source_direction"
+}

@@ -219,6 +219,24 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 	    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s not found; annotating load port anyway.\n",
 	               sdf_fname, sdf_lineno, port1.name);
 
+      /* INTERCONNECT describes a path from a source to a load port. */
+      if (port1_handle) {
+            int direction = vpi_get(vpiDirection, port1_handle);
+            if (direction != vpiOutput && direction != vpiInout) {
+		  vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s is not an output or inout port; annotation ignored.\n",
+		             sdf_fname, sdf_lineno, port1.name);
+		  return;
+            }
+      }
+      if (port2_handle) {
+            int direction = vpi_get(vpiDirection, port2_handle);
+            if (direction != vpiInput && direction != vpiInout) {
+		  vpi_printf("SDF WARNING: %s:%d: INTERCONNECT load port %s is not an input or inout port; annotation ignored.\n",
+		             sdf_fname, sdf_lineno, port2.name);
+		  return;
+            }
+      }
+
 	// Check whether we have a single bit of a port for port1
       if (port1.has_index && port1_handle) {
 	    vpiHandle iter, vpi_port_bit;
