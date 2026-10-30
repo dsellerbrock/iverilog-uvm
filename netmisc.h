@@ -622,6 +622,11 @@ extern NetExpr* elab_sys_task_arg(Design*des, NetScope*scope,
                                   PExpr*pe, bool need_const =false,
                                   unsigned extra_flags = 0);
 
+// IEEE 1800-2017/2023 6.24.2 argument classification for $cast.
+extern bool sv_cast_args_singular(const NetExpr*dest, const NetExpr*src);
+extern bool sv_cast_args_assignment_compatible(const NetExpr*dest,
+                                                const NetExpr*src);
+
 /* Elaborate a typed-mailbox input without losing the dynamic string category.
  * Generic system-task arguments intentionally lower a string literal through
  * the width-based packed-constant path; mailbox#(string) instead needs a

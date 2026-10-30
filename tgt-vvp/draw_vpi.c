@@ -1497,7 +1497,10 @@ static int draw_sv_cast_class_func(ivl_expr_t fnet)
       const char*name = ivl_expr_name(fnet);
       if (!(name && strcmp(name, "$cast") == 0))
             return 0;
-      if (ivl_expr_parms(fnet) != 2)
+      /* 2023 $cast carries a trailing compiler-derived assignment-
+         compatibility argument. The class-specific lowering consumes only
+         the two source arguments and keeps its dynamic class check. */
+      if (ivl_expr_parms(fnet) < 2 || ivl_expr_parms(fnet) > 4)
             return 0;
 
       return draw_sv_cast_class_common_(ivl_expr_parm(fnet, 0),

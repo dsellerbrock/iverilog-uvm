@@ -114,11 +114,50 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
 
       vpiHandle dest_h = vpi_scan(argv);
       vpiHandle src_h  = vpi_scan(argv);
-      vpiHandle enum_ts = src_h ? vpi_scan(argv) : 0;
-      if (!enum_ts)
-            argv = 0;      /* iterator auto-freed by the final vpi_scan */
+      vpiHandle hidden_arg = src_h ? vpi_scan(argv) : 0;
+      vpiHandle enum_ts = 0;
+      vpiHandle compatibility_arg = 0;
+      if (hidden_arg) {
+	    if (vpi_get(vpiType, hidden_arg) == vpiEnumTypespec)
+		  enum_ts = hidden_arg;
+	    else
+		  compatibility_arg = hidden_arg;
+	    vpiHandle extra_arg = vpi_scan(argv);
+	    if (extra_arg) {
+		  if (vpi_get(vpiType, extra_arg) == vpiEnumTypespec)
+			 enum_ts = extra_arg;
+		  else if (!compatibility_arg)
+			 compatibility_arg = extra_arg;
+	    } else {
+		  argv = 0;  /* iterator auto-freed by the final vpi_scan */
+	    }
+      } else {
+	    argv = 0;    /* iterator auto-freed by the final vpi_scan */
+      }
       if (argv)
             vpi_free_object(argv);
+
+      if (dest_h && src_h && compatibility_arg) {
+	    s_vpi_value compat;
+	    compat.format = vpiIntVal;
+	    vpi_get_value(compatibility_arg, &compat);
+	    if (!compat.value.integer) {
+		  if (vpi_get(vpiType, callh) == vpiSysTaskCall) {
+			const char*file = vpi_get_str(vpiFile, callh);
+			int line = (int)vpi_get(vpiLineNo, callh);
+			vpi_printf("%s:%d: error: $cast failed: the source expression is "
+			           "not assignment compatible with the destination type "
+			           "(IEEE 1800-2023 6.24.2). The destination is unchanged.\n",
+			           file ? file : "<unknown>", line);
+		  }
+		  s_vpi_value rv;
+		  rv.format = vpiIntVal;
+		  rv.value.integer = 0;
+		  if (vpi_get(vpiType, callh) == vpiSysFuncCall)
+			vpi_put_value(callh, &rv, 0, vpiNoDelay);
+		  return 0;
+	    }
+      }
 
       int ok = 1;
 
@@ -331,7 +370,7 @@ static PLI_INT32 sys_cast_error_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
 
       vpi_printf("%s:%d: error: $cast failed: the source object is not "
                  "assignment compatible with the destination type "
-                 "(IEEE 1800-2017 6.24.2). The destination is unchanged.\n",
+                 "(IEEE 1800 6.24.2). The destination is unchanged.\n",
                  file ? file : "<unknown>", line);
       return 0;
 }
