@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1715_modpath_condition.v:28: $finish called at 11000 (1ps)
