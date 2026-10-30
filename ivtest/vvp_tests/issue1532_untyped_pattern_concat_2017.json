@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1532_untyped_pattern_concat_2017.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue1532_untyped_pattern_concat_2017"
+}

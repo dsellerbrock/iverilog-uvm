@@ -22636,6 +22636,17 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  vector<NetExpr*>elems(parms_.size());
 		  bool ascending = dims[0].get_msb() < dims[0].get_lsb();
 		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+			if (dynamic_cast<const PEAssignPattern*>(parms_[idx])) {
+			  cerr << parms_[idx]->get_fileline()
+			       << ": error: unpacked array concatenation item "
+			       << (idx + 1) << " has no self-determined type "
+			       << "(IEEE 1800-2017/2023 10.10)." << endl;
+			  des->errors += 1;
+			  for (NetExpr*previous : elems)
+				if (previous)
+				      delete previous;
+			  return nullptr;
+			}
 			NetExpr*item = elaborate_rval_expr(
 			      des, scope, uarray->element_type(),
 			      parms_[idx], false);
@@ -22766,6 +22777,16 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  vector<NetExpr*> elem_exprs;
 		  elem_exprs.reserve(parms_.size());
 		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+			if (dynamic_cast<const PEAssignPattern*>(parms_[idx])) {
+			  cerr << parms_[idx]->get_fileline()
+			       << ": error: unpacked array concatenation item "
+			       << (idx + 1) << " has no self-determined type "
+			       << "(IEEE 1800-2017/2023 10.10)." << endl;
+			  des->errors += 1;
+			  for (NetExpr*previous : elem_exprs)
+				delete previous;
+			  return nullptr;
+			}
 			ivl_type_t want_type = elem_type;
 			unsigned item_flags = flags;
 			/* A multidimensional fixed-array operand contributes one

@@ -1,0 +1,2 @@
+ivltests/issue1532_untyped_pattern_concat_2023.v:3: error: unpacked array concatenation item 1 has no self-determined type (IEEE 1800-2017/2023 10.10).
+Elaboration failed
