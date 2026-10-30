@@ -32,6 +32,7 @@
 # include  "Statement.h"
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
+# include  "pform_types.h"
 # include  "PPackage.h"
 # include  <stack>
 # include  <set>
@@ -2129,6 +2130,32 @@ static void port_declaration_context_init(void)
       port_declaration_context.is_ref_static = false;
 }
 
+/* IEEE 1800-2017/2023 6.4: unpacked arrays and unpacked structures are
+ * aggregate types. Resolve typedef chains because a checker formal can name
+ * an aggregate through a typedef instead of declaring its dimensions here. */
+static bool pform_checker_port_type_is_aggregate_(
+	const data_type_t*type, set<const typedef_t*>&seen)
+{
+	while (type) {
+	      if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
+		    const typedef_t*td = ref->typedef_ref();
+		    if (!td || !seen.insert(td).second)
+			  return false;
+		    type = td->get_data_type();
+		    continue;
+	      }
+
+	      if (dynamic_cast<const uarray_type_t*>(type))
+		    return true;
+	      if (const struct_type_t*st =
+			  dynamic_cast<const struct_type_t*>(type))
+		    return !st->packed_flag;
+
+	      return false;
+	}
+	return false;
+}
+
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 			            NetNet::PortType port_type,
 				    NetNet::Type net_type,
@@ -2141,6 +2168,18 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       delete[] id;
 
       Module::port_t *port = pform_module_port_reference(loc, name.first);
+
+      if (default_value && pform_module_is_checker()) {
+	    set<const typedef_t*>seen;
+	    bool aggregate = unpacked_dims != nullptr
+		  || pform_checker_port_type_is_aggregate_(data_type, seen);
+	    if (aggregate) {
+		  yyerror(loc, "error: Checker default and initial values are only "
+			  "allowed for singular ports (IEEE 1800-2017/2023 17.2).");
+		  delete default_value;
+		  default_value = nullptr;
+	    }
+      }
 
       switch (port_type) {
 	  case NetNet::PINOUT:

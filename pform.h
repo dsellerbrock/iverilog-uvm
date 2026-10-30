@@ -162,6 +162,7 @@ extern void pform_startmodule(const struct vlltype&loc, const char*name,
 			      LexicalScope::lifetime_t lifetime,
 			      std::list<named_pexpr_t>*attr);
 extern void pform_module_set_ports(std::vector<Module::port_t*>*);
+extern bool pform_module_is_checker(void);
 extern void pform_set_scope_timescale(const struct vlltype&loc);
 
 /* These functions are used when we have a complete port definition, either

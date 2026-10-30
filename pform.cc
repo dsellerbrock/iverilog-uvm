@@ -2784,6 +2784,11 @@ void pform_module_set_ports(vector<Module::port_t*>*ports)
       }
 }
 
+bool pform_module_is_checker(void)
+{
+      return !pform_cur_module.empty() && pform_cur_module.front()->is_checker;
+}
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
