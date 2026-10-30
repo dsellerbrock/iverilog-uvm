@@ -47963,6 +47963,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    cross.bins[ub].matches_all, ub);
 				      if (!bin_matches[ub].valid) ubin_sorried[ub] = true;
 				}
+				if (cross.bins[ub].set_expr) {
+				      bin_matches[ub] = make_match_policy(
+					    cross.bins[ub].matches_expr,
+					    cross.bins[ub].matches_all, ub);
+				      if (!bin_matches[ub].valid) ubin_sorried[ub] = true;
+				}
 			  }
 			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t,
 					    const match_policy_t&)> eval_with;
@@ -48290,7 +48296,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					? (satisfying_tuples == value_tuple_count ? 1 : 0)
 					: 0;
 			  };
-			  std::vector<std::set<std::vector<unsigned>>> set_bin_tuples(
+			  std::vector<std::map<std::vector<unsigned>, uint64_t>> set_bin_tuples(
 				cross.bins.size());
 			  bool set_bins_ok = true;
 			  for (size_t ub = 0; ub < cross.bins.size(); ub += 1) {
@@ -48388,7 +48394,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    std::vector<unsigned>cross_tuple;
 					    for (size_t dim = 0; dim < dimensions.size(); dim += 1)
 						  cross_tuple.push_back(dimensions[dim][selected[dim]]);
-					    set_bin_tuples[ub].insert(std::move(cross_tuple));
+					    set_bin_tuples[ub][cross_tuple] += 1;
 					    if (set_bin_tuples[ub].size() > cross_bin_limit) {
 						  cerr << cb.set_expr->get_fileline()
 						       << ": error: cross bin '" << cb.name
@@ -48477,7 +48483,47 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      int m = -1;
 				      bool has_with = cb.with_expr || select_has_with(cb.select);
 				      if (cb.set_expr) {
-					m = set_bin_tuples[ub].count(idx) ? 1 : 0;
+					uint64_t count = set_bin_tuples[ub][idx];
+					const match_policy_t&policy = bin_matches[ub];
+					if (policy.all) {
+					      uint64_t all_count = 1;
+					      for (size_t dim = 0; dim < idx.size(); dim++) {
+						    std::vector<std::pair<uint64_t,uint64_t>> ranges =
+							  cp_value_bins[cp_indexes[dim]][idx[dim]].ranges;
+						    std::sort(ranges.begin(), ranges.end());
+						    uint64_t dim_count = 0, lo = 0, hi = 0;
+						    bool have_range = false;
+						    for (const auto&range : ranges) {
+							  if (!have_range) {
+								lo = range.first; hi = range.second;
+								have_range = true;
+							  } else if (range.first <= hi
+								     || (hi != UINT64_MAX && range.first == hi + 1)) {
+								if (range.second > hi) hi = range.second;
+							  } else {
+								uint64_t span = hi - lo;
+								dim_count = span >= cross_bin_limit
+								      ? cross_bin_limit + 1
+								      : dim_count + span + 1;
+								lo = range.first; hi = range.second;
+							  }
+						    }
+						    if (have_range) {
+							  uint64_t span = hi - lo;
+							  dim_count = span >= cross_bin_limit
+								? cross_bin_limit + 1
+								: dim_count + span + 1;
+						    }
+						    if (dim_count == 0 || all_count > cross_bin_limit / dim_count) {
+							  all_count = cross_bin_limit + 1;
+							  break;
+						    }
+						    all_count *= dim_count;
+					      }
+					      m = count >= all_count;
+					} else {
+					      m = count >= policy.required;
+					}
 				      } else if (cb.with_expr) {
 					int sel_m = cb.select
 					      ? eval_sel(cb.select, idx, ub)

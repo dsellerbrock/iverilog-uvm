@@ -5653,11 +5653,13 @@ cross_body_opt
 	cb.iff_expr = $6;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
-  | cross_body_opt K_bins bins_name '=' hierarchy_identifier attribute_list_opt argument_list_parens ';'
+  | cross_body_opt K_bins bins_name '=' hierarchy_identifier attribute_list_opt argument_list_parens cross_matches_opt ';'
       { class_type_t::pform_cross_t::cross_bin_t cb;
 	cb.name = lex_strings.make($3);
 	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
 	cb.set_expr = pform_make_call_function(@5, *$5, *$7);
+	if ($8) { cb.matches_expr = $8->expr; $8->expr = nullptr;
+	  cb.matches_all = $8->all; delete $8; }
 	delete $5;
 	pform_discard_call_attributes($6);
 	delete $7;
