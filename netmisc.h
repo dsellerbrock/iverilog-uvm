@@ -899,7 +899,11 @@ extern bool collapse_checked_packed_property_indices(
 
 extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				      const LineInfo*loc,
-				      NetNet*lval, NetNet*rval);
+				       NetNet*lval, NetNet*rval,
+				       const NetExpr*rise_time = 0,
+				       const NetExpr*fall_time = 0,
+				       const NetExpr*decay_time = 0,
+				       bool whole_value_delay = false);
 
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 
