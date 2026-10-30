@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1714_modpath_condition_x.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue1714_modpath_condition_x"],
+  "vvp-args": [],
+  "gold": "issue1714_modpath_condition_x"
+}
