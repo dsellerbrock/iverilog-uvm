@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1754_net_output_variable_pull.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue1754_net_output_variable_pull"
+}
