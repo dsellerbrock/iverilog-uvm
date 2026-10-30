@@ -13429,8 +13429,24 @@ static Statement* tc_violation_(const struct vlltype&loc,
       if (notifier == 0)
 	    return disp;
 
-      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier),
-				new PEUnary('~', tc_name_id_(loc, *notifier)));
+      /* IEEE 1800-2017/2023 Table 31-13: x becomes either 0 or 1,
+         known 0/1 values toggle, and z remains z. */
+      PExpr*is_z = new PEBComp('E', tc_name_id_(loc, *notifier),
+			       new PENumber(new verinum(verinum::Vz, 1)));
+      PExpr*is_one = new PEBComp('E', tc_name_id_(loc, *notifier),
+				 new PENumber(new verinum(verinum::V1, 1)));
+      PExpr*is_zero = new PEBComp('E', tc_name_id_(loc, *notifier),
+				  new PENumber(new verinum(verinum::V0, 1)));
+      PETernary*toggle_known = new PETernary(is_one,
+			       new PENumber(new verinum(verinum::V0, 1)),
+			       new PENumber(new verinum(verinum::V1, 1)));
+      PETernary*toggle = new PETernary(is_zero,
+			       new PENumber(new verinum(verinum::V1, 1)),
+			       toggle_known);
+      PETernary*notifier_value = new PETernary(is_z,
+			       new PENumber(new verinum(verinum::Vz, 1)),
+			       toggle);
+      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier), notifier_value);
       FILE_NAME(tog, loc);
 
       std::vector<Statement*> stmts;
