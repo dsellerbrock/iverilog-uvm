@@ -16168,6 +16168,17 @@ lpvalue
 	$$ = tmp;
       }
 
+  /* Positional assignment patterns are also valid l-values (IEEE 1800
+     2017/2023 10.9).  Their members are the corresponding destinations in
+     a bit-stream assignment, so use the established concatenation l-value
+     lowering.  Keyed patterns are intentionally absent from lpvalue. */
+  | K_LP expression_list_proper '}'
+      { PEConcat*tmp = new PEConcat(*$2);
+	FILE_NAME(tmp, @1);
+	delete $2;
+	$$ = tmp;
+      }
+
   | streaming_concatenation
       { /* Phase 63a/A3: streaming-concatenation l-value reachable
 	   only via this fallback; the dedicated statement-level rules
