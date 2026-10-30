@@ -1,6 +1,6 @@
-ivltests/sv_skew_timer_default.v:13: Timing violation: $timeskew check in main at time 13
-ivltests/sv_skew_timer_default.v:14: Timing violation: $timeskew check in main at time 23
-ivltests/sv_skew_timer_default.v:16: Timing violation: $fullskew check in main at time 43
+ivltests/sv_skew_timer_default.v:13: Timing violation: $timeskew check in main at time 12
+ivltests/sv_skew_timer_default.v:14: Timing violation: $timeskew check in main at time 22
+ivltests/sv_skew_timer_default.v:16: Timing violation: $fullskew check in main at time 42
 notifiers 11010
 conditioned notifier 0
 PASSED

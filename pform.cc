@@ -13552,7 +13552,7 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
 
       PExpr*delta = new PEBinary('-', tc_realtime_(loc),
 					 sva_id_(loc, stamp_var));
-      PExpr*over_limit = new PEBComp('>', delta, limit);
+      PExpr*over_limit = new PEBComp('G', delta, limit);
       PExpr*active = new PEBComp('>', sva_id_(loc, active_var),
 					 tc_real_(loc, 0.0));
       PExpr*expired = new PEBLogic('a', active, over_limit);
@@ -13563,18 +13563,11 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
       PCondit*timer_check = new PCondit(expired,
 						 sva_block_(loc, timer_body), nullptr);
       FILE_NAME(timer_check, loc);
-      double step_delay = pow(10.0,
-		       (double)(pform_get_timeprec() - pform_get_timeunit()));
-	  PEFNumber*step_expr = new PEFNumber(new verireal(step_delay));
-	  FILE_NAME(step_expr, loc);
 	  PDelayStatement*yield_delta = new PDelayStatement(
-		new PENumber(new verinum(uint64_t(0), 32)), timer_check);
+	      new PENumber(new verinum(uint64_t(0), 32)), timer_check);
 	  FILE_NAME(yield_delta, loc);
-	  PDelayStatement*precision_step = new PDelayStatement(step_expr,
-							   yield_delta);
-      FILE_NAME(precision_step, loc);
-      PDelayStatement*limit_delay = new PDelayStatement(timer_limit,
-						       precision_step);
+	  PDelayStatement*limit_delay = new PDelayStatement(timer_limit,
+						       yield_delta);
       FILE_NAME(limit_delay, loc);
       PBlock*timer = new PBlock(PBlock::BL_JOIN_NONE);
       FILE_NAME(timer, loc);
@@ -13636,9 +13629,6 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 	    return;
       }
 
-      double step_delay = pow(10.0,
-		       (double)(pform_get_timeprec() - pform_get_timeunit()));
-
       auto start_window = [&](PExpr*limit, double origin) -> Statement* {
 	    std::vector<Statement*> start;
 	    start.push_back(sva_assign_(loc, stamp_var, tc_realtime_(loc)));
@@ -13648,7 +13638,7 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 
 	    PExpr*delta = new PEBinary('-', tc_realtime_(loc),
 					   sva_id_(loc, stamp_var));
-	    PExpr*over_limit = new PEBComp('>', delta, sva_id_(loc, limit_var));
+	    PExpr*over_limit = new PEBComp('G', delta, sva_id_(loc, limit_var));
 	    PExpr*active = new PEBComp('>', sva_id_(loc, active_var),
 					   tc_real_(loc, 0.0));
 	    PExpr*expired = new PEBLogic('a', active, over_limit);
@@ -13659,16 +13649,11 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 	    PCondit*timer_check = new PCondit(expired,
 					      sva_block_(loc, timer_body), nullptr);
 	    FILE_NAME(timer_check, loc);
-	    PEFNumber*step_expr = new PEFNumber(new verireal(step_delay));
-	    FILE_NAME(step_expr, loc);
 	    PDelayStatement*yield_delta = new PDelayStatement(
 		new PENumber(new verinum(uint64_t(0), 32)), timer_check);
 	    FILE_NAME(yield_delta, loc);
-	    PDelayStatement*after_step = new PDelayStatement(step_expr,
-							      yield_delta);
-	    FILE_NAME(after_step, loc);
 	    PDelayStatement*after_limit = new PDelayStatement(
-		sva_id_(loc, limit_var), after_step);
+		sva_id_(loc, limit_var), yield_delta);
 	    FILE_NAME(after_limit, loc);
 	    PBlock*timer = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(timer, loc);

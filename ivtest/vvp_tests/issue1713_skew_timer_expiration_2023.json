@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1713_skew_timer_expiration.v",
+    "iverilog-args": ["-g2023", "-gspecify"],
+    "gold": "issue1713_skew_timer_expiration"
+}

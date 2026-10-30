@@ -1,0 +1,4 @@
+./ivltests/issue1713_skew_timer_expiration.v:9: Timing violation: $timeskew check in main at time 12
+./ivltests/issue1713_skew_timer_expiration.v:10: Timing violation: $fullskew check in main at time 22
+notifiers 11
+./ivltests/issue1713_skew_timer_expiration.v:17: $finish called at 25 (1ns)
