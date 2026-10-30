@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1495_let_sampled_clock_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1495_let_sampled_clock"],
+  "output-contains": ["ISSUE1495_LET_SAMPLED_CLOCK_PASSED"]
+}

@@ -6738,11 +6738,16 @@ void pform_set_defparam(const pform_name_t&name, PExpr*expr)
             pform_cur_module.front()->defparms.push_back(make_pair(name,expr));
 }
 
+static void sva_expr_forget_sampled_(PExpr*e);
+
 void pform_make_let(const struct vlltype&loc,
                     perm_string name,
                     list<PLet::let_port*>*ports,
                     PExpr*expr)
 {
+      /* A sampled call in the template has no clock until a use site
+	 selects one. Do not leave it in the module's standalone-call queue. */
+      sva_expr_forget_sampled_(expr);
       LexicalScope*scope =  pform_peek_scope();
 	if (scope->lets.count(name)) {
 	      PPackage*package = dynamic_cast<PPackage*>(scope);
@@ -12383,6 +12388,8 @@ static PExpr* sva_logic_reduce_(const struct vlltype&loc, char op,
       return terms.front();
 }
 
+static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found);
+
 static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   unsigned inst, unsigned&hist_idx,
 				   std::vector<Statement*>&pre,
@@ -13919,6 +13926,32 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (!e) return e;
 
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    bool is_let = false;
+	    PExpr*expanded = sva_expand_sampled_let_(cf, is_let);
+	    if (is_let) {
+		  sva_expr_forget_sampled_(cf);
+		  if (!expanded) {
+			cerr << loc.get_fileline()
+			     << ": sorry: cannot preserve sampled-value semantics "
+				"while expanding this let in an assertion." << endl;
+			error_count += 1;
+			return e;
+		  }
+		  static unsigned let_depth = 0;
+		  if (let_depth >= 64) {
+			cerr << loc.get_fileline()
+			     << ": error: recursive let expansion while binding "
+				"a sampled-value function to an assertion clock."
+			     << endl;
+			error_count += 1;
+			return e;
+		  }
+		  ++let_depth;
+		  PExpr*result = sva_rewrite_sampled_(loc, expanded, inst,
+				hist_idx, pre, post, init, cur_live);
+		  --let_depth;
+		  return result;
+	    }
 	      /* $stable/$changed over a parameter-sized unpacked array is a
 		 comparison between a current Preponed snapshot and a one-tick
 		 history snapshot.  Lower both to equally-shaped symbolic arrays;
@@ -14596,6 +14629,77 @@ bool pform_is_sampled_value_function(const char*name)
       return !strcmp(name, "$past")   || !strcmp(name, "$rose")
 	  || !strcmp(name, "$fell")   || !strcmp(name, "$stable")
 	  || !strcmp(name, "$changed");
+}
+
+/* Sampled-value calls in a let body are elaborated only after the parser
+   has lowered the assertion which instantiates the let. Expand that let
+   here, while the assertion's clock and history-register context are
+   available, so the sampled call is rewritten exactly like a direct call.
+   Ordinary let elaboration remains responsible for every other use. */
+static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
+{
+      found = false;
+      if (!call || call->receiver_expr() || call->path().package
+	  || call->path().name.size() != 1)
+	    return nullptr;
+      perm_string name = call->path().name.front().name;
+      PLet*let = nullptr;
+      for (LexicalScope*scope = lexical_scope; scope && !let;
+	   scope = scope->parent_scope()) {
+	    std::map<perm_string,PLet*>::const_iterator it =
+		  scope->lets.find(name);
+	    if (it != scope->lets.end()
+		&& it->second->lexical_pos() < call->lexical_pos())
+		  let = it->second;
+      }
+      if (!let) return nullptr;
+      found = true;
+
+      const std::list<PLet::let_port_t*>*ports = let->let_ports();
+      std::vector<PLet::let_port_t*> formals;
+      if (ports) formals.assign(ports->begin(), ports->end());
+      const std::vector<named_pexpr_t>&args = call->get_parms();
+      bool empty_call = args.size() == 1 && args[0].parm == nullptr
+	    && args[0].name.nil();
+      if (!empty_call && args.size() > formals.size()) return nullptr;
+
+      std::map<perm_string,PExpr*> binding;
+      bool seen_named = false;
+      for (size_t idx = 0; !empty_call && idx < args.size(); ++idx) {
+	    if (args[idx].name.nil()) {
+		  if (seen_named) return nullptr;
+		  if (args[idx].parm) {
+			PExpr*value = sva_clone_expr_(args[idx].parm);
+			if (!value) return nullptr;
+			if (formals[idx]->type_)
+			      value = new PECastType(formals[idx]->type_, value);
+			binding[formals[idx]->name_] = value;
+		  }
+	    } else {
+		  seen_named = true;
+		  size_t formal_idx = 0;
+		  while (formal_idx < formals.size()
+			 && formals[formal_idx]->name_ != args[idx].name)
+			++formal_idx;
+		  if (formal_idx == formals.size() || !args[idx].parm)
+			return nullptr;
+		  PExpr*value = sva_clone_expr_(args[idx].parm);
+		  if (!value) return nullptr;
+		  if (formals[formal_idx]->type_)
+			value = new PECastType(formals[formal_idx]->type_, value);
+		  binding[formals[formal_idx]->name_] = value;
+	    }
+      }
+      for (size_t idx = 0; idx < formals.size(); ++idx) {
+	    if (binding.count(formals[idx]->name_)) continue;
+	    if (!formals[idx]->def_) return nullptr;
+	    PExpr*value = sva_clone_subst_(formals[idx]->def_, &binding);
+	    if (!value) return nullptr;
+	    if (formals[idx]->type_)
+		  value = new PECastType(formals[idx]->type_, value);
+	    binding[formals[idx]->name_] = value;
+      }
+      return sva_clone_subst_(let->let_expr(), &binding);
 }
 
 /* Capture automatic-operand classification while the parser still has the
