@@ -278,6 +278,12 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
       if (port2_handle) {
 	      // Get interModPath for the two ports
 	    vpiHandle intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
+	    if (!intermodpath && port1_handle) {
+		  if (sdf_flag_warning)
+			vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s and load port %s are not on the same net; annotating load port anyway.\n",
+			           sdf_fname, sdf_lineno, port1.name, port2.name);
+		  intermodpath = vpi_handle_multi(vpiInterModPath, NULL, port2_handle);
+	    }
 
 	    if (intermodpath) {
 		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Created a vpiInterModPath\n", sdf_fname, sdf_lineno);

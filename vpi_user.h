@@ -707,6 +707,12 @@ extern PLI_INT32 vpi_compare_objects(vpiHandle obj1, vpiHandle obj2);
 extern PLI_INT32 vpi_put_userdata(vpiHandle obj, void*data);
 extern void*vpi_get_userdata(vpiHandle obj);
 
+/* Save and retrieve application data using a save/restart ID. */
+extern PLI_INT32 vpi_put_data(PLI_INT32 id, PLI_BYTE8* dataLoc,
+                              PLI_INT32 numOfBytes);
+extern PLI_INT32 vpi_get_data(PLI_INT32 id, PLI_BYTE8* dataLoc,
+                              PLI_INT32 numOfBytes);
+
 /*
  * Support for handling errors.
  */
@@ -901,7 +907,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 13;
+static const PLI_UINT32 vpip_routines_version = 14;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -924,6 +930,8 @@ typedef struct {
     void        (*get_time)(vpiHandle, s_vpi_time*);
     void*       (*get_userdata)(vpiHandle);
     PLI_INT32   (*put_userdata)(vpiHandle, void*);
+    PLI_INT32   (*get_data)(PLI_INT32, PLI_BYTE8*, PLI_INT32);
+    PLI_INT32   (*put_data)(PLI_INT32, PLI_BYTE8*, PLI_INT32);
     PLI_UINT32  (*mcd_open)(char *);
     PLI_UINT32  (*mcd_close)(PLI_UINT32);
     PLI_INT32   (*mcd_flush)(PLI_UINT32);

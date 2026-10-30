@@ -1,8 +1,21 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
+issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
+issue1614_cross_set_special_bins_2017 normal,-g2017,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins.gold
+issue1614_cross_set_special_bins_2023 normal,-g2023,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins_2023.gold
+issue1710_separate_setup_hold_2017 normal,-g2017,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2017-vvp-stdout
+issue1710_separate_setup_hold_2023 normal,-g2023,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2023-vvp-stdout
+issue1825_foreach_index_bit_select_2017 normal,-g2017,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
+issue1825_foreach_index_bit_select_2023 normal,-g2023,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
+
 issue1537_clocking_concat_2017 normal,-g2017,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2017.gold
 issue1537_clocking_concat_2023 normal,-g2023,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2023.gold
+issue1711_timing_notifier_x_2017 normal,-g2017,-gspecify,-s,issue1711_timing_notifier_x ivltests gold=issue1711_timing_notifier_x_2017.gold
+issue1711_timing_notifier_x_2023 normal,-g2023,-gspecify,-s,issue1711_timing_notifier_x ivltests gold=issue1711_timing_notifier_x_2023.gold
+issue1613_cross_function_and_binsof_2017 normal,-g2017,-s,test ivltests gold=issue1613_cross_function_and_binsof.gold
+issue1613_cross_function_and_binsof_2023 normal,-g2023,-DISSUE1613_2023,-s,test ivltests gold=issue1613_cross_function_and_binsof.gold
 issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
 
@@ -743,6 +756,8 @@ sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array
 sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
 sv_array_find_last_fixed_base normal,-g2012	ivltests gold=sv_array_find_last_fixed_base.gold
 sv_array_locator_multidim normal,-g2012 ivltests gold=sv_array_locator_multidim.gold
+issue1758_find_index_multidim_2017 normal,-g2017,-I./ivltests ivltests gold=issue1758_find_index_multidim.gold
+issue1758_find_index_multidim_2023 normal,-g2023,-I./ivltests ivltests gold=issue1758_find_index_multidim.gold
 sv_array_locator_aggregate normal,-g2012 ivltests gold=sv_array_locator_aggregate.gold
 sv_array_locator_wrapper_type_fail CE,-g2012 ivltests gold=sv_array_locator_wrapper_type_fail.gold
 sv_locator_fixed_nonintegral normal,-g2012	ivltests gold=sv_locator_fixed_nonintegral.gold
@@ -2159,6 +2174,8 @@ sv_always_comb_partsel_sens normal,-g2012 ivltests
 sv_always_comb_precise_select_sens normal,-g2012 ivltests
 sv_always_comb_func_local_interval normal,-g2017,-s,sv_always_comb_func_local_interval ivltests gold=sv_always_comb_func_local_interval.gold
 sv_always_comb_func_local_interval_2023 normal,-g2023,-s,sv_always_comb_func_local_interval ivltests gold=sv_always_comb_func_local_interval.gold
+issue1897_dpi_sized_array_always_comb_2017 normal,-g2017,-s,issue1897_dpi_sized_array_always_comb ivltests gold=issue1897_dpi_sized_array_always_comb.gold
+issue1897_dpi_sized_array_always_comb_2023 normal,-g2023,-s,issue1897_dpi_sized_array_always_comb ivltests gold=issue1897_dpi_sized_array_always_comb.gold
 sv_uarray_const_ternary normal,-g2012 ivltests
 sv_default_disable_iff normal,-g2012 ivltests
 sv_disable_iff_past_sampling_unconditional normal,-g2012 ivltests
@@ -2782,6 +2799,8 @@ sv_vthread_zero_time_callf_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_t
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
 
 # IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
+issue1754_net_output_variable_pull_2017 normal,-g2017 ivltests gold=issue1754_net_output_variable_pull.gold
+issue1754_net_output_variable_pull_2023 normal,-g2023 ivltests gold=issue1754_net_output_variable_pull.gold
 sv_net_decl_delay_corpus normal,-g2012 ivltests gold=sv_net_decl_delay_corpus.gold
 sv_net_decl_delay_inertial normal,-g2012 ivltests gold=sv_net_decl_delay_inertial.gold
 sv_net_decl_delay_vector normal,-g2012 ivltests gold=sv_net_decl_delay_vector.gold
@@ -6354,3 +6373,8 @@ issue1554_checker_in_program_2017 normal,-g2017,-s,issue1554_checker_in_program 
 issue1554_checker_in_program_2023 normal,-g2023,-s,issue1554_checker_in_program ivltests gold=issue1554_checker_in_program_2023.gold
 issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
+issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
+issue1757_enum2_wide_2017 normal,-g2017,-s,tb ivltests gold=issue1757_enum2_wide.gold
+issue1757_enum2_wide_2023 normal,-g2023,-s,tb ivltests gold=issue1757_enum2_wide.gold
+sv_covergroup_cross_set_matches_2017 normal,-g2017,-s,tb ivltests gold=sv_covergroup_cross_set_matches.gold
+sv_covergroup_cross_set_matches_2023 normal,-g2023,-s,tb ivltests gold=sv_covergroup_cross_set_matches.gold

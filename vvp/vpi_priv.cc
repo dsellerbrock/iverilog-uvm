@@ -2392,11 +2392,9 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    cur = cur.ptr()->port[cur.port()]; // Next net in linked list
       }
 
-      if (!quiet_intermodpath_lookup) {
-	    fprintf(stderr, "VPI error: Could not insert intermodpath!\n");
-	    fprintf(stderr, "\tport1 = %s, port1_has_index = %d, port1_bit_index = %d\n", port1_name.c_str(), port1_has_index, port1_bit_index);
-	    fprintf(stderr, "\tport2 = %s, port2_has_index = %d, port2_bit_index = %d\n", port2_name.c_str(), port2_has_index, port2_bit_index);
-      }
+      if (!quiet_intermodpath_lookup && vpi_trace)
+	    fprintf(vpi_trace, "vpi_handle_multi(vpiInterModPath, %s, %s) found no connected path\n",
+	            port1_name.c_str(), port2_name.c_str());
       return nullptr;
 }
 
@@ -2721,6 +2719,8 @@ vpip_routines_s vpi_routines = {
     .get_time                   = vpi_get_time,
     .get_userdata               = vpi_get_userdata,
     .put_userdata               = vpi_put_userdata,
+    .get_data                   = vpi_get_data,
+    .put_data                   = vpi_put_data,
     .mcd_open                   = vpi_mcd_open,
     .mcd_close                  = vpi_mcd_close,
     .mcd_flush                  = vpi_mcd_flush,

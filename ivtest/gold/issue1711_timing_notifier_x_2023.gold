@@ -1,0 +1,6 @@
+./ivltests/issue1711_timing_notifier_x_2023.v:4: Timing violation: $setup check in issue1711_timing_notifier_x.uz at time 11000
+./ivltests/issue1711_timing_notifier_x_2023.v:4: Timing violation: $setup check in issue1711_timing_notifier_x.ux at time 11000
+./ivltests/issue1711_timing_notifier_x_2023.v:4: Timing violation: $setup check in issue1711_timing_notifier_x.u1 at time 11000
+./ivltests/issue1711_timing_notifier_x_2023.v:4: Timing violation: $setup check in issue1711_timing_notifier_x.u0 at time 11000
+notifiers=110z
+./ivltests/issue1711_timing_notifier_x_2023.v:28: $finish called at 12000 (1ps)

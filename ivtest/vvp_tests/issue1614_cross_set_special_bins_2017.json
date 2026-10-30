@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1614_cross_set_special_bins_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1614_cross_set_special_bins"],
+  "gold": "issue1614_cross_set_special_bins"
+}

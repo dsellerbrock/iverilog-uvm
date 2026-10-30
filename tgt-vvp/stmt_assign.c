@@ -1897,12 +1897,22 @@ void draw_store_vec4_lval(ivl_lval_t lval)
 
 static void store_vec4_to_lval(ivl_statement_t net)
 {
+	  ivl_variable_type_t rval_type = ivl_expr_value(ivl_stmt_rval(net));
+
       for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net,lidx);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
 	    unsigned lwid = ivl_lval_width(lval);
 
 	    if (lidx+1 < ivl_stmt_lvals(net))
 		  fprintf(vvp_out, "    %%split/vec4 %u;\n", lwid);
+
+	    /* A 4-state RHS assigned to a 2-state variable maps X/Z to zero
+	     * (IEEE 1800-2017/2023 6.11.2). Keep real-to-integer conversion on
+	     * its separate path. */
+	    if (sig && ivl_signal_data_type(sig) == IVL_VT_BOOL
+		&& rval_type == IVL_VT_LOGIC)
+		  fprintf(vvp_out, "    %%cast2; two-state assignment destination\n");
 
 	    store_vec4_to_one_lval(lval);
       }
@@ -1919,6 +1929,86 @@ static unsigned int array_pattern_base_(ivl_lval_t lval)
 	    return 0;
       assert(ivl_expr_type(idx) == IVL_EX_NUMBER);
       return (unsigned int) get_number_immediate(idx);
+}
+
+/* A slice assignment pattern reads the old array while building its complete
+ * right-hand side. Evaluate every leaf before storing any of them, then pop
+ * the saved values in reverse order as the class-property slice paths do. */
+static unsigned int draw_array_pattern_values_(ivl_expr_t rval,
+					       ivl_variable_type_t elem_kind)
+{
+      unsigned int count = 0;
+      for (unsigned idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  count += draw_array_pattern_values_(expr, elem_kind);
+		  continue;
+	    }
+	    switch (elem_kind) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC: draw_eval_vec4(expr); break;
+		case IVL_VT_REAL: draw_eval_real(expr); break;
+		case IVL_VT_STRING: draw_eval_string(expr); break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE: draw_eval_object(expr); break;
+		default: assert(0); break;
+	    }
+	    count += 1;
+      }
+      return count;
+}
+
+static unsigned int draw_array_pattern_stores_(ivl_signal_t var,
+					      ivl_expr_t rval,
+					      unsigned int next_idx,
+					      ivl_variable_type_t elem_kind)
+{
+      for (unsigned idx = ivl_expr_parms(rval); idx > 0; idx -= 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx - 1);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  next_idx = draw_array_pattern_stores_(var, expr, next_idx,
+							 elem_kind);
+		  continue;
+	    }
+	    assert(next_idx > 0);
+	    next_idx -= 1;
+	    fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", next_idx);
+	    fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    switch (elem_kind) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		      fprintf(vvp_out, "    %%store/vec4a v%p, 3, 0;\n", var);
+		      break;
+		case IVL_VT_REAL:
+		      fprintf(vvp_out, "    %%store/reala v%p, 3;\n", var);
+		      break;
+		case IVL_VT_STRING:
+		      fprintf(vvp_out, "    %%store/stra v%p, 3;\n", var);
+		      break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		      fprintf(vvp_out, "    %%store/obja v%p, 3;\n", var);
+		      break;
+		default: assert(0); break;
+	    }
+      }
+      return next_idx;
+}
+
+static void draw_array_pattern_snapshot(ivl_signal_t var, ivl_expr_t rval,
+					unsigned int array_idx,
+					ivl_type_t elem_type)
+{
+      ivl_variable_type_t elem_kind = ivl_type_base(elem_type);
+      unsigned int count = draw_array_pattern_values_(rval, elem_kind);
+      unsigned int store_idx = draw_array_pattern_stores_(var, rval,
+								     array_idx + count,
+								     elem_kind);
+      assert(store_idx == array_idx);
 }
 
 static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
@@ -2286,7 +2376,11 @@ static int show_stmt_assign_vector(ivl_statement_t net)
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, 0);
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
+	    if (ivl_lval_is_array_slice(lval))
+		  draw_array_pattern_snapshot(sig, rval, array_pattern_base_(lval),
+					      ivl_lval_net_type(lval));
+	    else
+		  draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -2768,7 +2862,11 @@ static int show_stmt_assign_sig_real(ivl_statement_t net)
       ivl_expr_t rval = ivl_stmt_rval(net);
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
+	    if (ivl_lval_is_array_slice(lval))
+		  draw_array_pattern_snapshot(sig, rval, array_pattern_base_(lval),
+					      ivl_lval_net_type(lval));
+	    else
+		  draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -2880,7 +2978,11 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       }
 
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
-	    draw_array_pattern(var, rval, array_pattern_base_(lval));
+	    if (ivl_lval_is_array_slice(lval))
+		  draw_array_pattern_snapshot(var, rval, array_pattern_base_(lval),
+					      ivl_lval_net_type(lval));
+	    else
+		  draw_array_pattern(var, rval, array_pattern_base_(lval));
 	    return 0;
       }
 

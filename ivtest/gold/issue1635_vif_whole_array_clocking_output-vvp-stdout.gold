@@ -1,0 +1,2 @@
+q aa bb
+ivltests/issue1635_vif_whole_array_clocking_output.v:20: $finish called at 6 (1s)

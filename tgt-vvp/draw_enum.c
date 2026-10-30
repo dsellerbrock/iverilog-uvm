@@ -41,7 +41,12 @@ static void draw_enum2_value(ivl_enumtype_t enumtype, unsigned idx)
 
 // HERE: If this doesn't fit then write it as a enum4 and modify the run
 //       time to deal with the conversion.
-      assert(len <= sizeof(uint64_t)*8);
+      if (len > sizeof(uint64_t)*8) {
+	    fprintf(vvp_out, "%u'b", ivl_enum_width(enumtype));
+	    for (bit = bits+len ; bit > bits ; bit -= 1)
+		  fputc(bit[-1], vvp_out);
+	    return;
+      }
       val = 0;
       for (bit = bits, mask = 1 ; *bit != 0 ; bit += 1, mask <<= 1) {
 	    if (*bit == '1')

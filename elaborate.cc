@@ -2447,6 +2447,30 @@ static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+/* An unpacked union member is represented as an object property expression,
+ * which cannot be synthesized into a structural RHS. Keep continuous
+ * assignments that read one on the procedural continuous-assignment path. */
+static bool reads_unpacked_union_member_(const LineInfo*li, Design*des,
+                                         NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netstruct_t*record = sr.net
+		  ? dynamic_cast<const netstruct_t*>(sr.net->net_type()) : nullptr;
+	    if (record && record->union_flag() && !record->packed()
+		&& !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
@@ -3753,6 +3777,109 @@ static bool elaborate_unpacked_struct_variable_continuous_(
       return true;
 }
 
+static bool elaborate_unpacked_union_read_continuous_(
+      Design*des, NetScope*scope, const PGAssign*assignment,
+      NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+      bool default_strength)
+{
+      if (!reads_unpacked_union_member_(assignment, des, scope,
+					 const_cast<PExpr*>(assignment->pin(1))))
+	    return false;
+
+      bool selected = false;
+      NetNet*signal = direct_identifier_net_(assignment, des, scope,
+						assignment->pin(0), selected);
+      if (!signal || selected || signal->unpacked_dimensions() > 0
+	  || signal->pin_count() != 1 || signal->type() != NetNet::REG
+	  || !type_is_vectorable(signal->data_type())) {
+	    cerr << assignment->get_fileline() << ": sorry: A continuous assignment "
+		 << "from an unpacked union member currently requires one packed "
+		    "variable destination." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+
+      bool unsupported_delay = assignment->delay_count() > 0
+	    && !(is_defined_zero_delay_(rise_time)
+		 && is_defined_zero_delay_(fall_time)
+		 && is_defined_zero_delay_(decay_time));
+      if (unsupported_delay || !default_strength) {
+	    cerr << assignment->get_fileline() << ": sorry: Nonzero/dynamic delay and "
+		    "non-default drive strength on a continuous assignment from an "
+		    "unpacked union member are not currently supported." << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+      delete_unique_delays_(rise_time, fall_time, decay_time);
+
+      if (signal->test_part_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have multiple continuous drivers." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+      if (signal->test_part_procedurally_driven(0, 0, 0)) {
+	    cerr << assignment->get_fileline() << ": error: Variable '"
+		 << signal->name()
+		 << "' cannot have continuous and procedural drivers on the "
+		    "same value." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      PAssign store(const_cast<PExpr*>(assignment->pin(0)),
+		    const_cast<PExpr*>(assignment->pin(1)));
+      store.set_continuous_lval();
+      store.set_line(*assignment);
+      NetProc*initial_assignment = store.elaborate(des, scope);
+      store.replace_lval_rval(0, 0);
+      if (!initial_assignment) {
+	    cerr << assignment->get_fileline() << ": error: Unable to elaborate "
+		    "continuous assignment from an unpacked union member." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      PEventStatement wait(true);
+      wait.set_line(*assignment);
+      NetProc*body = wait.elaborate_st(des, scope, initial_assignment);
+      if (!body) {
+	    delete initial_assignment;
+	    cerr << assignment->get_fileline() << ": error: Unable to derive "
+		    "sensitivity for continuous assignment from an unpacked union "
+		    "member." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      bool overlap = signal->test_and_set_part_driver(0, 0, 0);
+      ivl_assert(*assignment, !overlap);
+      pending_variable_continuous_driver_t pending = { signal, assignment };
+      pending_variable_continuous_drivers_.push_back(pending);
+
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(*assignment);
+      top->attribute(perm_string::literal("_ivl_function_background_ok"),
+		     verinum(1));
+      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	    if (event_wait->nevents() == 1) {
+		  NetEvent*event = event_wait->event(0);
+		  bool anyedge = event->nprobe() != 0;
+		  for (unsigned idx = 0; anyedge && idx < event->nprobe(); idx += 1)
+			if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
+			      anyedge = false;
+		  if (anyedge)
+			top->attribute(perm_string::literal("_ivl_schedule_push"),
+				       verinum(1));
+	    }
+      }
+      des->add_process(top);
+      return true;
+}
+
 /* Join the aliased nets with always-on bidirectional switches. */
 void PGAlias::elaborate(Design*des, NetScope*scope) const
 {
@@ -4058,6 +4185,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  const_cast<PExpr*>(pin(1)), proxy);
 	    return;
       }
+
+	/* An unpacked-union member is a property read with no structural
+	   expression net. Use the variable continuous-assignment process path. */
+      if (elaborate_unpacked_union_read_continuous_(
+		des, scope, this, rise_time, fall_time, decay_time,
+		var_allowed_in_sv))
+	    return;
 
 	/* Keep an unpacked-struct variable as a REG. elaborate_lnet() coerces
 	 * SystemVerilog variable l-values to UWIRE for structural assignments,
@@ -7885,7 +8019,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the delay being applied to other drivers of
 		    // the external signal.
 		  if ((ptype == NetNet::POUTPUT
-		       && (is_variable_output_port_(prts[0]) || rmod->is_checker)) ||
+		       && (is_variable_output_port_(prts[0]) || rmod->is_checker
+			   || sig->coerced_to_uwire())) ||
 		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
@@ -12384,16 +12519,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 				    des->errors += 1;
 				    return 0;
 			      }
-			      if (dynamic_cast<const netuarray_t*>(
-					  walk->get_prop_type(obuf_idx))
-				  && sig_c->index.empty()) {
-				    cerr << loc.get_fileline() << ": sorry: a whole-array "
-				 << "clocking-output drive is not yet supported; "
-				 << "select one array element." << endl;
-				    des->errors += 1;
-				    return 0;
-			      }
-
 			      pform_name_t suffix(sel_c, csr.path_tail.cend());
 			      pform_name_t receiver_path = path;
 			      for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
@@ -12476,12 +12601,60 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      unique_ptr<NetAssign> store(
 				    new NetAssign(obuf_lv.release(), rv.release()));
 			      store->set_line(loc);
-			      verinum one_v (verinum::V1, opend_lv->lwidth());
-			      unique_ptr<NetEConst> one(new NetEConst(one_v));
-			      one->set_line(loc);
-			      unique_ptr<NetAssign> mark(
+			      unique_ptr<NetBlock> blk(
+				    new NetBlock(NetBlock::SEQU, 0));
+			      blk->set_line(loc);
+			      for (NetProc*save : selector_prefix)
+				    blk->append(save);
+			      blk->append(store.release());
+			      const netuarray_t*opend_type = dynamic_cast<const netuarray_t*>(
+				    walk->get_prop_type(opend_idx));
+			      if (opend_type && sig_c->index.empty() && suffix.empty()) {
+				    const netranges_t&dims = opend_type->static_dimensions();
+				    unsigned count = 1;
+				    for (const netrange_t&range : dims)
+					  count *= range.width();
+				    for (unsigned word = 0; word < count; ++word) {
+					  unsigned offset = word;
+					  pform_name_t word_path = opend_path;
+					  for (size_t dim = dims.size(); dim > 0; --dim) {
+						const netrange_t&range = dims[dim - 1];
+						long low = min(range.get_msb(), range.get_lsb());
+						long index = range.get_msb() < range.get_lsb()
+						      ? low + offset % (range.get_lsb() - range.get_msb() + 1)
+						      : range.get_lsb() - offset % (range.get_msb() - range.get_lsb() + 1);
+						offset /= range.get_msb() < range.get_lsb()
+						      ? range.get_lsb() - range.get_msb() + 1
+						      : range.get_msb() - range.get_lsb() + 1;
+						index_component_t ic;
+						ic.sel = index_component_t::SEL_BIT;
+						ic.msb = new PENumber(new verinum((int64_t)index));
+						ic.lsb = nullptr;
+						word_path.back().index.push_back(ic);
+					  }
+					  PEIdent word_id(word_path, lid->lexical_pos());
+					  word_id.set_line(loc);
+					  word_id.set_clocking_access(cb_c->name);
+					  unique_ptr<NetAssign_> word_lv(word_id.elaborate_lval(
+						  des, scope, false, false, false));
+					  if (!word_lv) return 0;
+					  verinum one_v (verinum::V1, word_lv->lwidth());
+					  unique_ptr<NetEConst> one(new NetEConst(one_v));
+					  one->set_line(loc);
+					  unique_ptr<NetAssign> mark_word(new NetAssign(
+						  word_lv.release(), one.release()));
+					  mark_word->set_line(loc);
+					  blk->append(mark_word.release());
+				    }
+			      } else {
+				    verinum one_v (verinum::V1, opend_lv->lwidth());
+				    unique_ptr<NetEConst> one(new NetEConst(one_v));
+				    one->set_line(loc);
+				    unique_ptr<NetAssign> mark(
 					  new NetAssign(opend_lv.release(), one.release()));
-			      mark->set_line(loc);
+				    mark->set_line(loc);
+				    blk->append(mark.release());
+			      }
 
 			      PEIdent pfx_id (prefix, lid->lexical_pos());
 			      pfx_id.set_line(loc);
@@ -12521,13 +12694,6 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			      unique_ptr<NetCondit> cond(
 					  new NetCondit(chg.release(), kick_now.release(), 0));
 			      cond->set_line(loc);
-			      unique_ptr<NetBlock> blk(
-					  new NetBlock(NetBlock::SEQU, 0));
-			      blk->set_line(loc);
-			      for (NetProc*save : selector_prefix)
-				    blk->append(save);
-			      blk->append(store.release());
-			      blk->append(mark.release());
 			      blk->append(cond.release());
 				    return blk.release();
 			}
@@ -37506,7 +37672,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (indices.empty()) return value;
 			if (indices.size() == 1)
 			      return packed_typed_select_ir_(
-				    value, netvector_t::integer_type(),
+				    value, &netvector_t::atom2s32,
 				    indices.front(), cls, value_slots, scope, loop_env);
 			return "";
 		  }
@@ -37544,7 +37710,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return packed_typed_select_ir_(
 			      token, dynforeach_emit_ctx_->index_type
 				? dynforeach_emit_ctx_->index_type
-				: netvector_t::integer_type(),
+				: &netvector_t::atom2s32,
 			      indices.front(), cls, value_slots, scope, loop_env);
 		  return "";
 	    }
@@ -47328,6 +47494,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      reject_shadowed_covgrp_expr(select->matches_expr,
 						  cross_decl_class,
 						  "cross bin matches expression for " + cross_item);
+				      reject_shadowed_covgrp_expr(select->set_expr,
+								  cross_decl_class,
+								  "cross bin set expression for " + cross_item);
 			      check_select(select->a);
 			      check_select(select->b);
 			};
@@ -47620,6 +47789,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						}
 						return true;
 					  }
+					  case sel_t::SEL_WITH:
+					  case sel_t::SEL_SET:
+						return false;
 				      }
 				      return false;
 				};
@@ -47791,6 +47963,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    cross.bins[ub].matches_all, ub);
 				      if (!bin_matches[ub].valid) ubin_sorried[ub] = true;
 				}
+				if (cross.bins[ub].set_expr) {
+				      bin_matches[ub] = make_match_policy(
+					    cross.bins[ub].matches_expr,
+					    cross.bins[ub].matches_all, ub);
+				      if (!bin_matches[ub].valid) ubin_sorried[ub] = true;
+				}
 			  }
 			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t,
 					    const match_policy_t&)> eval_with;
@@ -47798,6 +47976,53 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  return s && (s->op == sel_t::SEL_WITH
 						|| select_has_with(s->a) || select_has_with(s->b));
 			  };
+			  std::map<sel_t*, std::vector<std::vector<uint64_t>>> set_select_values;
+			  std::function<void(sel_t*, size_t)> prepare_set_selects;
+			  prepare_set_selects = [&](sel_t*s, size_t ub) {
+				  if (!s) return;
+				  if (s->op == sel_t::SEL_SET && s->set_expr) {
+					unsigned errors_before = des->errors;
+					unique_ptr<NetExpr> value(elab_and_eval(
+					      des, class_scope_, s->set_expr, -1, true, false));
+					const NetEArrayPattern* queue =
+					      dynamic_cast<const NetEArrayPattern*>(value.get());
+					if (!queue && !dynamic_cast<const NetENull*>(value.get())) {
+					      if (des->errors == errors_before) {
+						cerr << s->set_expr->get_fileline() << ": error: cross bin '"
+						     << cross.bins[ub].name
+						     << "' set expression must evaluate to a constant CrossQueueType value." << endl;
+						des->errors += 1;
+					      }
+					      ubin_sorried[ub] = true;
+					} else if (queue) {
+					      auto& tuples = set_select_values[s];
+					      for (size_t qi = 0; qi < queue->item_size(); ++qi) {
+						    const NetEArrayPattern* tuple = dynamic_cast<const NetEArrayPattern*>(queue->item(qi));
+						    if (!tuple || tuple->item_size() != cp_indexes.size()) {
+							  cerr << s->set_expr->get_fileline() << ": error: cross bin '" << cross.bins[ub].name << "' contains a CrossValType value with the wrong number of cross fields." << endl;
+							  des->errors += 1; ubin_sorried[ub] = true; break;
+						    }
+						    std::vector<uint64_t> fields;
+						    bool valid = true;
+						    for (size_t dim = 0; dim < cp_indexes.size(); ++dim) {
+							  const NetEConst* field = dynamic_cast<const NetEConst*>(tuple->item(dim));
+							  unsigned width = cp_value_widths[cp_indexes[dim]];
+							  if (!field || !field->value().is_defined() || width == 0 || width > 64) { valid = false; break; }
+							  verinum bits = cast_to_width(field->value(), width);
+							  uint64_t raw = bits.as_ulong64();
+							  if (width < 64) raw &= (UINT64_C(1) << width) - 1;
+							  fields.push_back(raw);
+						    }
+						    if (!valid) { cerr << s->set_expr->get_fileline() << ": error: cross bin '" << cross.bins[ub].name << "' CrossValType fields must be defined integral values no wider than 64 bits." << endl; des->errors += 1; ubin_sorried[ub] = true; break; }
+						    tuples.push_back(std::move(fields));
+					      }
+				}
+				  }
+				  prepare_set_selects(s->a, ub);
+				  prepare_set_selects(s->b, ub);
+			  };
+			  for (size_t ub = 0; ub < cross.bins.size(); ++ub)
+				  prepare_set_selects(cross.bins[ub].select, ub);
 			  std::function<int(sel_t*, const std::vector<unsigned>&, size_t)> eval_sel =
 			      [&](sel_t*s, const std::vector<unsigned>&tup, size_t ub) -> int {
 				if (!s) return -1;
@@ -47826,6 +48051,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  if (policy == select_matches.end()) return -1;
 				  return eval_with(s->with_expr, tup, ub, policy->second);
 			    }
+				    case sel_t::SEL_SET: {
+					  auto found = set_select_values.find(s);
+					  if (found == set_select_values.end()) return -1;
+					  for (const auto& values : found->second) {
+						    bool match = true;
+						    for (size_t dim = 0; dim < values.size(); ++dim) {
+							  const auto& descs = cp_value_bins[cp_indexes[dim]];
+							  unsigned bi = tup[dim];
+							  bool contained = false;
+							  for (const auto& range : descs[bi].ranges)
+								if (range.first <= values[dim] && values[dim] <= range.second) { contained = true; break; }
+							  if (!contained) { match = false; break; }
+						    }
+						    if (match) return 1;
+					  }
+					  return 0;
+				    }
 				    case sel_t::SEL_BINSOF: {
 					  int k = -1;
 					  for (size_t i = 0; i < cross.cp_labels.size(); i++)
@@ -48054,7 +48296,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					? (satisfying_tuples == value_tuple_count ? 1 : 0)
 					: 0;
 			  };
-			  std::vector<std::set<std::vector<unsigned>>> set_bin_tuples(
+			  std::vector<std::map<std::vector<unsigned>, uint64_t>> set_bin_tuples(
 				cross.bins.size());
 			  bool set_bins_ok = true;
 			  for (size_t ub = 0; ub < cross.bins.size(); ub += 1) {
@@ -48152,7 +48394,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    std::vector<unsigned>cross_tuple;
 					    for (size_t dim = 0; dim < dimensions.size(); dim += 1)
 						  cross_tuple.push_back(dimensions[dim][selected[dim]]);
-					    set_bin_tuples[ub].insert(std::move(cross_tuple));
+					    set_bin_tuples[ub][cross_tuple] += 1;
 					    if (set_bin_tuples[ub].size() > cross_bin_limit) {
 						  cerr << cb.set_expr->get_fileline()
 						       << ": error: cross bin '" << cb.name
@@ -48241,7 +48483,47 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      int m = -1;
 				      bool has_with = cb.with_expr || select_has_with(cb.select);
 				      if (cb.set_expr) {
-					m = set_bin_tuples[ub].count(idx) ? 1 : 0;
+					uint64_t count = set_bin_tuples[ub][idx];
+					const match_policy_t&policy = bin_matches[ub];
+					if (policy.all) {
+					      uint64_t all_count = 1;
+					      for (size_t dim = 0; dim < idx.size(); dim++) {
+						    std::vector<std::pair<uint64_t,uint64_t>> ranges =
+							  cp_value_bins[cp_indexes[dim]][idx[dim]].ranges;
+						    std::sort(ranges.begin(), ranges.end());
+						    uint64_t dim_count = 0, lo = 0, hi = 0;
+						    bool have_range = false;
+						    for (const auto&range : ranges) {
+							  if (!have_range) {
+								lo = range.first; hi = range.second;
+								have_range = true;
+							  } else if (range.first <= hi
+								     || (hi != UINT64_MAX && range.first == hi + 1)) {
+								if (range.second > hi) hi = range.second;
+							  } else {
+								uint64_t span = hi - lo;
+								dim_count = span >= cross_bin_limit
+								      ? cross_bin_limit + 1
+								      : dim_count + span + 1;
+								lo = range.first; hi = range.second;
+							  }
+						    }
+						    if (have_range) {
+							  uint64_t span = hi - lo;
+							  dim_count = span >= cross_bin_limit
+								? cross_bin_limit + 1
+								: dim_count + span + 1;
+						    }
+						    if (dim_count == 0 || all_count > cross_bin_limit / dim_count) {
+							  all_count = cross_bin_limit + 1;
+							  break;
+						    }
+						    all_count *= dim_count;
+					      }
+					      m = count >= all_count;
+					} else {
+					      m = count >= policy.required;
+					}
 				      } else if (cb.with_expr) {
 					int sel_m = cb.select
 					      ? eval_sel(cb.select, idx, ub)

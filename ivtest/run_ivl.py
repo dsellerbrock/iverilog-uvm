@@ -8,6 +8,10 @@ import os
 import sys
 import re
 
+# Seconds one iverilog or vvp run may take. A hung test fails on its own
+# instead of stalling the whole suite; IVTEST_TIMEOUT overrides it (e.g. valgrind).
+TIMEOUT = int(os.environ.get('IVTEST_TIMEOUT', '600'))
+
 def assemble_iverilog_cmd(options: dict, cfg: dict, outfile: str) -> list:
     '''Build the iverilog command line'''
     res = []
@@ -133,9 +137,23 @@ def run_cmd(cmd: list, env: dict = None) -> subprocess.CompletedProcess:
     run_env = os.environ.copy()
     if env:
         run_env.update(env)
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         check=False, env=run_env)
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             check=False, env=run_env, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired as err:
+        # 256 makes CE/RE report an execution error; callers check timed_out
+        # so expected-fail (EF/TE) tests do not pass on a hang.
+        res = subprocess.CompletedProcess(cmd, 256, err.stdout or b'',
+                                          (err.stderr or b'') +
+                                          f'\nTIMEOUT: killed after {TIMEOUT} s\n'.encode())
+        res.timed_out = True
     return res
+
+def timed_out(res: subprocess.CompletedProcess, what: str) -> list:
+    '''Return a failure if the run was killed by the timeout.'''
+    if getattr(res, 'timed_out', False):
+        return [1, f"Failed - {what} timed out after {TIMEOUT} s."]
+    return []
 
 def build_vpi_modules(options: dict, it_key: str) -> list:
     '''Build optional VPI modules into the test work directory.'''
@@ -355,7 +373,8 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
     else:
         log_results(it_key, "iverilog", ivl_res)
 
-    ivl_rtn = build_ivl_return(translation_fail, ivl_res)
+    ivl_rtn = timed_out(ivl_res, "iverilog") or \
+        build_ivl_return(translation_fail, ivl_res)
     if ivl_rtn:
         return ivl_rtn
 
@@ -363,8 +382,11 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
     vvp_cmd = assemble_vvp_cmd(options, cfg)
     vvp_res = run_cmd(vvp_cmd, options.get('vvp_env'))
     log_results(it_key, "vvp", vvp_res)
+    vvp_rtn = timed_out(vvp_res, "vvp")
+    if vvp_rtn:
+        return vvp_rtn
 
-    log_list = ["iverilog-stdout", "iverilog-stderr",
+    log_list =["iverilog-stdout", "iverilog-stderr",
                 "vvp-stdout", "vvp-stderr"]
     if cfg['vlog95']:
         log_list[2:2] = ["iverilog-vlog95-stdout", "iverilog-vlog95-stderr"]

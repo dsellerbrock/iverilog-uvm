@@ -13429,8 +13429,24 @@ static Statement* tc_violation_(const struct vlltype&loc,
       if (notifier == 0)
 	    return disp;
 
-      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier),
-				new PEUnary('~', tc_name_id_(loc, *notifier)));
+      /* IEEE 1800-2017/2023 Table 31-13: x becomes either 0 or 1,
+         known 0/1 values toggle, and z remains z. */
+      PExpr*is_z = new PEBComp('E', tc_name_id_(loc, *notifier),
+			       new PENumber(new verinum(verinum::Vz, 1)));
+      PExpr*is_one = new PEBComp('E', tc_name_id_(loc, *notifier),
+				 new PENumber(new verinum(verinum::V1, 1)));
+      PExpr*is_zero = new PEBComp('E', tc_name_id_(loc, *notifier),
+				  new PENumber(new verinum(verinum::V0, 1)));
+      PETernary*toggle_known = new PETernary(is_one,
+			       new PENumber(new verinum(verinum::V0, 1)),
+			       new PENumber(new verinum(verinum::V1, 1)));
+      PETernary*toggle = new PETernary(is_zero,
+			       new PENumber(new verinum(verinum::V1, 1)),
+			       toggle_known);
+      PETernary*notifier_value = new PETernary(is_z,
+			       new PENumber(new verinum(verinum::Vz, 1)),
+			       toggle);
+      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier), notifier_value);
       FILE_NAME(tog, loc);
 
       std::vector<Statement*> stmts;
@@ -13490,10 +13506,25 @@ static void tc_pair_synth_(const struct vlltype&loc,
       PExpr*cmp = new PEBComp(violation_if_greater? '>' : '<',
 			      delta, limit);
       PExpr*cond = new PEBLogic('a', guard, cmp);
-      PCondit*chk = new PCondit(cond,
+      if (strcmp(check_name, "$setup") == 0) {
+	    /* The separate $setup window excludes its end point. */
+	    PExpr*after_stamp = new PEBComp('>', delta, tc_real_(loc, 0.0));
+	    cond = new PEBLogic('a', cond, after_stamp);
+      }
+	  Statement*chk = new PCondit(cond,
 				tc_violation_(loc, check_name, notifier),
 				nullptr);
       FILE_NAME(chk, loc);
+      if (strcmp(check_name, "$setup") == 0
+	  || strcmp(check_name, "$hold") == 0) {
+	    /* Separate checks use their own window endpoints. Defer the
+	       timecheck to the inactive region so a timestamp event in the
+	       same timestep is visible independent of process ordering. */
+	    PDelayStatement*defer = new PDelayStatement(
+		  new PENumber(new verinum(uint64_t(0), 32)), chk);
+	    FILE_NAME(defer, loc);
+	    chk = defer;
+      }
       tc_always_at_(loc, check_ev, chk);
 }
 
@@ -13536,7 +13567,7 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
 
       PExpr*delta = new PEBinary('-', tc_realtime_(loc),
 					 sva_id_(loc, stamp_var));
-      PExpr*over_limit = new PEBComp('>', delta, limit);
+      PExpr*over_limit = new PEBComp('G', delta, limit);
       PExpr*active = new PEBComp('>', sva_id_(loc, active_var),
 					 tc_real_(loc, 0.0));
       PExpr*expired = new PEBLogic('a', active, over_limit);
@@ -13547,18 +13578,11 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
       PCondit*timer_check = new PCondit(expired,
 						 sva_block_(loc, timer_body), nullptr);
       FILE_NAME(timer_check, loc);
-      double step_delay = pow(10.0,
-		       (double)(pform_get_timeprec() - pform_get_timeunit()));
-	  PEFNumber*step_expr = new PEFNumber(new verireal(step_delay));
-	  FILE_NAME(step_expr, loc);
 	  PDelayStatement*yield_delta = new PDelayStatement(
-		new PENumber(new verinum(uint64_t(0), 32)), timer_check);
+	      new PENumber(new verinum(uint64_t(0), 32)), timer_check);
 	  FILE_NAME(yield_delta, loc);
-	  PDelayStatement*precision_step = new PDelayStatement(step_expr,
-							   yield_delta);
-      FILE_NAME(precision_step, loc);
-      PDelayStatement*limit_delay = new PDelayStatement(timer_limit,
-						       precision_step);
+	  PDelayStatement*limit_delay = new PDelayStatement(timer_limit,
+						       yield_delta);
       FILE_NAME(limit_delay, loc);
       PBlock*timer = new PBlock(PBlock::BL_JOIN_NONE);
       FILE_NAME(timer, loc);
@@ -13620,9 +13644,6 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 	    return;
       }
 
-      double step_delay = pow(10.0,
-		       (double)(pform_get_timeprec() - pform_get_timeunit()));
-
       auto start_window = [&](PExpr*limit, double origin) -> Statement* {
 	    std::vector<Statement*> start;
 	    start.push_back(sva_assign_(loc, stamp_var, tc_realtime_(loc)));
@@ -13632,7 +13653,7 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 
 	    PExpr*delta = new PEBinary('-', tc_realtime_(loc),
 					   sva_id_(loc, stamp_var));
-	    PExpr*over_limit = new PEBComp('>', delta, sva_id_(loc, limit_var));
+	    PExpr*over_limit = new PEBComp('G', delta, sva_id_(loc, limit_var));
 	    PExpr*active = new PEBComp('>', sva_id_(loc, active_var),
 					   tc_real_(loc, 0.0));
 	    PExpr*expired = new PEBLogic('a', active, over_limit);
@@ -13643,16 +13664,11 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 	    PCondit*timer_check = new PCondit(expired,
 					      sva_block_(loc, timer_body), nullptr);
 	    FILE_NAME(timer_check, loc);
-	    PEFNumber*step_expr = new PEFNumber(new verireal(step_delay));
-	    FILE_NAME(step_expr, loc);
 	    PDelayStatement*yield_delta = new PDelayStatement(
 		new PENumber(new verinum(uint64_t(0), 32)), timer_check);
 	    FILE_NAME(yield_delta, loc);
-	    PDelayStatement*after_step = new PDelayStatement(step_expr,
-							      yield_delta);
-	    FILE_NAME(after_step, loc);
 	    PDelayStatement*after_limit = new PDelayStatement(
-		sva_id_(loc, limit_var), after_step);
+		sva_id_(loc, limit_var), yield_delta);
 	    FILE_NAME(after_limit, loc);
 	    PBlock*timer = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(timer, loc);
