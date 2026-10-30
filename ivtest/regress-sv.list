@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1853_uninstantiated_interface_root_2017 normal,-g2017 ivltests gold=issue1853_uninstantiated_interface_root_2017.gold
+issue1853_uninstantiated_interface_root_2023 normal,-g2023 ivltests gold=issue1853_uninstantiated_interface_root_2023.gold
+
 issue1537_clocking_concat_2017 normal,-g2017,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2017.gold
 issue1537_clocking_concat_2023 normal,-g2023,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2023.gold
 issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold

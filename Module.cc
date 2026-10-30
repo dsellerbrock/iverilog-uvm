@@ -254,5 +254,23 @@ bool Module::can_be_toplevel() const
 		  return false;
       }
 
-      return true;
+      for (vector<port_t*>::const_iterator port = ports.begin()
+		 ; port != ports.end() ; ++port) {
+	    if (!*port)
+		  continue;
+
+	    map<perm_string,PWire*>::const_iterator wire =
+		  wires.find((*port)->name);
+	    if (wire == wires.end())
+		  continue;
+
+	    const interface_type_t*type =
+		  dynamic_cast<const interface_type_t*>(wire->second->data_type());
+	    /* IEEE 1800-2017/2023 23.3.3.4 requires every interface port
+	       instance to be connected. */
+	    if (type && !type->virtual_type)
+		  return false;
+      }
+
+	return true;
 }

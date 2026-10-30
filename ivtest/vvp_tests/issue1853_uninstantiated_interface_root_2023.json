@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1853_uninstantiated_interface_root.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue1853_uninstantiated_interface_root"
+}
