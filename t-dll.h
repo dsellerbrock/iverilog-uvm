@@ -718,6 +718,7 @@ struct ivl_net_logic_s {
       unsigned width_;
       unsigned is_cassign;
       unsigned is_port_buffer;
+      unsigned is_reactive_output;
       unsigned event_synchronous;
       unsigned delay_is_per_bit = 0;
       unsigned delay_is_whole_vector = 0;

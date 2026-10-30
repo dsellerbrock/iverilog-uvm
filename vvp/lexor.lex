@@ -232,6 +232,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".export"       { return K_EXPORT; }
 ".extend/s"     { return K_EXTEND_S; }
 ".sample"       { return K_SAMPLE; }
+".reactive"     { return K_REACTIVE; }
 ".functor"      { return K_FUNCTOR; }
 ".vifproxy"     { return K_VIF_PROXY; }
 ".eventvalid"   { return K_EVENT_VALID; }

@@ -134,6 +134,7 @@ ivl_logic_udp
 ivl_logic_width
 ivl_logic_event_synchronous
 ivl_logic_port_buffer
+ivl_logic_reactive_output
 
 ivl_lpm_array
 ivl_lpm_aset_value

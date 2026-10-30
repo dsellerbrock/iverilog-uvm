@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1553_checker_output_reactive_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1553_checker_output_reactive_2017"],
+  "gold": "issue1553_checker_output_reactive_2017"
+}

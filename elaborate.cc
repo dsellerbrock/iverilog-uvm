@@ -5154,13 +5154,15 @@ static void convert_net(Design*des, const LineInfo *line,
 }
 
 static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
-				NetNet*port, NetNet*sig, NetNet::PortType ptype, int idx = -1)
+				NetNet*port, NetNet*sig, NetNet::PortType ptype, int idx = -1,
+				bool reactive_output = false)
 {
       switch (ptype) {
 	  case NetNet::POUTPUT:
 	    {
 		  NetBUFZ*tmp = new NetBUFZ(scope, scope->local_symbol(),
 					    sig->vector_width(), true, idx);
+		  tmp->reactive_output(reactive_output);
 		  tmp->set_line(*mod);
 		  des->add_node(tmp);
 		  connect(tmp->pin(1), port->pin(0));
@@ -6305,6 +6307,23 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    std::copy(get_pins().begin(), get_pins().end(), pins.begin());
       }
 
+	  if (rmod->is_checker) {
+	    bool required_actual_missing = false;
+	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
+		  if (pins[idx] || rmod->get_port_default_value(idx))
+			continue;
+
+		  cerr << get_fileline() << ": error: checker port `"
+		       << rmod->get_port_name(idx) << "' of instance `"
+		       << get_name() << "' requires an actual argument."
+		       << " (IEEE 1800-2017/2023 16.8, 17.3)." << endl;
+		  des->errors += 1;
+		  required_actual_missing = true;
+	    }
+	    if (required_actual_missing)
+		  return;
+	  }
+
 	// Elaborate these instances of the module. The recursive
 	// elaboration causes the module to generate a netlist with
 	// the ports represented by NetNet objects. I will find them
@@ -7258,22 +7277,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  }
 
-		    /* Input to module. Here we elaborate the source expression
-		       using its self-determined width. This allows us to check
-		       for and warn about port width mismatches. But in the
-		       special case that the source expression is a SV unbased
-		       unsized literal, we need to force the expression width
-		       to match the destination.
+		    /* Input to module. This is an assignment-like context
+		       (IEEE 1800-2017/2023 10.8), so elaborate the source
+		       expression using the width of the formal port. In
+		       particular, this allows the port width to propagate
+		       through context-determined operators such as addition.
 
 		       NOTE that this also handles the case that the
 		       port is actually empty on the inside. We assume
 		       in that case that the port is input. */
 
 		  int context_width = -1;
-		  if (const PENumber*literal = dynamic_cast<PENumber*>(pins[idx])) {
-			if (literal->value().is_single())
-			      context_width = prts_vector_width;
-		  }
+		  /* Leaf identifiers have no operands to size. Keep their declared
+		     width for port conversion diagnostics and implicit type checks. */
+		  if (!pins_implicit[idx]
+		      && !dynamic_cast<const PEIdent*>(pins[idx]))
+			context_width = prts_vector_width / instance.size();
 		    // FIXME: The default value is getting the wrong value for
 		    //        an array instance since only one scope is used
 		    //        and the value can be different for each scope.
@@ -7755,7 +7774,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the delay being applied to other drivers of
 		    // the external signal.
 		  if ((ptype == NetNet::POUTPUT
-		       && is_variable_output_port_(prts[0])) ||
+		       && (is_variable_output_port_(prts[0]) || rmod->is_checker)) ||
 		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
@@ -7764,7 +7783,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 			isolate_and_connect(des, inner_scope, this, prts[0], sig,
 			                    ptype, ptype == NetNet::PINOUT ? idx :
-			                    (gn_interconnect_flag ? idx : -1));
+			                    (gn_interconnect_flag ? idx : -1),
+			                    rmod->is_checker && ptype == NetNet::POUTPUT);
 		  } else {
 			NetNet*formal = prts[0];
 			if (ptype != NetNet::PREF
@@ -7793,7 +7813,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			if ((ptype == NetNet::POUTPUT
 			     && is_variable_output_port_(prts[ldx]))
 			    || prts[ldx]->delay_paths() > 0) {
-			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
+			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype,
+			                         -1, rmod->is_checker);
 			} else {
 			      NetNet*formal = prts[ldx];
 			      if (connect_dominated_wire_port(des, *this,
@@ -12039,6 +12060,27 @@ static NetAssign_* clone_clocking_selected_lval_(NetNet*target,
 		  shape->dynamic_part_carrier()->dup_expr(),
 		  shape->part_carrier_width());
       return res;
+}
+
+static const NetAssign_* clocking_lval_single_leaf_(const NetAssign_*shape)
+{
+      if (!shape) return nullptr;
+      if (shape->sig()) return shape;
+      if (shape->nest()) return clocking_lval_single_leaf_(shape->nest());
+      if (shape->more) return clocking_lval_single_leaf_(shape->more);
+      return nullptr;
+}
+
+static void clocking_register_lval_variables_(const NetAssign_*shape,
+					      perm_string cb_name)
+{
+      if (!shape) return;
+      NetNet*target = shape->sig();
+      if (target && (target->type() == NetNet::REG
+		     || target->type() == NetNet::IMPLICIT_REG))
+	    ivl_register_clocking_output_variable(target, cb_name);
+      clocking_register_lval_variables_(shape->nest(), cb_name);
+      clocking_register_lval_variables_(shape->more, cb_name);
 }
 
 static std::vector<NetNet*> capture_clocking_selectors_(
@@ -29328,18 +29370,34 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  auto da = cb->decl_assigns.find(*sig_it);
 		  if (da != cb->decl_assigns.end()) {
 			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+			const PEConcat*concat = dynamic_cast<const PEConcat*>(da->second);
 			if (id && !id->path().name.empty()
 			    && !id->path().name.back().index.empty()
 			    && !raw->coerced_to_uwire())
 			      target_shape.reset(id->elaborate_lval(
 				    des, scope, false, false, false));
+			else if (concat && concat->stream_parms().size() == 1)
+			      target_shape.reset(concat->stream_parms().front()->elaborate_lval(
+				    des, scope, false, true, false));
 			else
-			      target_shape.reset(new NetAssign_(raw));
+			      target_shape.reset(da->second->elaborate_lval(
+				    des, scope, false, true, false));
 		  } else {
 			target_shape.reset(new NetAssign_(raw));
 		  }
 		  if (!target_shape)
 			continue;
+		  bool concat_target = da != cb->decl_assigns.end()
+			&& dynamic_cast<const PEConcat*>(da->second);
+		  const PEConcat*concat_expr = concat_target
+			? dynamic_cast<const PEConcat*>(da->second) : nullptr;
+		  bool single_concat_target = concat_expr
+			&& concat_expr->stream_parms().size() == 1;
+		  const NetAssign_*single_leaf = single_concat_target
+			? clocking_lval_single_leaf_(target_shape.get()) : nullptr;
+		  if (single_leaf && single_leaf->sig())
+			raw = single_leaf->sig();
+		  clocking_register_lval_variables_(target_shape.get(), cb->name);
 		    /* A clocking output to a net is an additional driver of the
 		       net (IEEE 1800-2017/2023 14.16), resolved with its other
 		       drivers; a procedural write into the net would instead
@@ -29348,10 +29406,12 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       variable holds 'z until the first clocking drive. A
 		       variable, including one with a continuous assignment that was
 		       coerced to UNRESOLVED_WIRE, keeps the procedural clocking write. */
+		  concat_target = concat_target && !single_leaf;
 		  std::vector<NetNet*> array_net_drives;
-		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
+		  if (!concat_target
+		      && (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
 		      && (raw->type() != NetNet::UNRESOLVED_WIRE
-			  || !raw->coerced_to_uwire())) {
+			  || !raw->coerced_to_uwire()))) {
 			string vname = string("_ivl_odrv$") + cb->name.str()
 			      + "$" + sig_it->str();
 		if (raw->unpacked_dimensions() > 0) {
@@ -29399,10 +29459,13 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  unsigned words = obuf->unpacked_count();
 		  for (unsigned word = 0; word < words; ++word) {
 		    std::unique_ptr<NetAssign_> target;
-		    if (!array_net_drives.empty())
+		    if (concat_target)
+			  target.reset(target_shape->dup_lval());
+		    else if (!array_net_drives.empty())
 			  target.reset(new NetAssign_(array_net_drives[word]));
 		    else
-			  target.reset(clone_clocking_selected_lval_(raw, target_shape.get()));
+			  target.reset(clone_clocking_selected_lval_(raw,
+				single_leaf ? single_leaf : target_shape.get()));
 		    if (array_net_drives.empty() && obuf->unpacked_dimensions() && !target->word())
 			  target->set_word(make_const_val_s(word));
 		    out_targets.push_back(std::move(target));

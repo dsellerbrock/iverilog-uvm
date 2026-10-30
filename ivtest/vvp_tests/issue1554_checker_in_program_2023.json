@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1554_checker_in_program_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1554_checker_in_program"],
+  "gold": "issue1554_checker_in_program_2023"
+}

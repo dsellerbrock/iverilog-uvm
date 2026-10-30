@@ -3073,6 +3073,8 @@ class NetBUFZ  : public NetNode {
 
       unsigned width() const;
       bool transparent() const { return transparent_; }
+      void reactive_output(bool flag) { reactive_output_ = flag; }
+      bool reactive_output() const { return reactive_output_; }
       int port_info_index() const { return port_info_index_; }
       void per_bit_delay(bool flag) { per_bit_delay_ = flag; }
       bool per_bit_delay() const { return per_bit_delay_; }
@@ -3085,6 +3087,7 @@ class NetBUFZ  : public NetNode {
     private:
       unsigned width_;
       bool transparent_;
+      bool reactive_output_ = false;
       bool per_bit_delay_ = false;
       bool whole_vector_delay_ = false;
       int port_info_index_;

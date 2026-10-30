@@ -1884,8 +1884,8 @@ void intermodpath_delete()
 }
 #endif
 
-vvp_fun_sample::vvp_fun_sample(vvp_net_t*net)
-: net_(net), scheduled_(false), sent_valid_(false)
+vvp_fun_sample::vvp_fun_sample(vvp_net_t*net, bool reactive)
+: net_(net), scheduled_(false), sent_valid_(false), reactive_(reactive)
 {
 }
 
@@ -1899,7 +1899,7 @@ void vvp_fun_sample::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
       value_ = bit;
         // Initialization values propagate as they always have; only
         // procedural writes during simulation are settled.
-      if (!schedule_simulation_started()) {
+      if (!schedule_simulation_started() && !reactive_) {
             sent_ = value_;
             sent_valid_ = true;
             net_->send_vec4(sent_, 0);
@@ -1907,7 +1907,10 @@ void vvp_fun_sample::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
       }
       if (!scheduled_) {
             scheduled_ = true;
-            schedule_functor(this);
+            if (reactive_)
+                  schedule_at_reactive(this, 0);
+            else
+                  schedule_functor(this);
       }
 }
 

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1526_input_port_context_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "issue1526_input_port_context_2017"
+}

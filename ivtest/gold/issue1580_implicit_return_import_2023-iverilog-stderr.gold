@@ -1,0 +1,4 @@
+ivltests/issue1580_implicit_return_import_2023.v:2: syntax error
+ivltests/issue1580_implicit_return_import_2023.v:2: error: Invalid module item.
+ivltests/issue1580_implicit_return_import_2023.v:3: syntax error
+ivltests/issue1580_implicit_return_import_2023.v:3: error: Invalid module item.

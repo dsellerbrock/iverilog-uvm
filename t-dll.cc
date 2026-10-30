@@ -1452,6 +1452,7 @@ bool dll_target::bufz(const NetBUFZ*net)
       obj->width_= net->width();
       obj->is_cassign = 0;
       obj->is_port_buffer = net->port_info_index() >= 0;
+      obj->is_reactive_output = net->reactive_output();
       obj->delay_is_per_bit = net->per_bit_delay();
       obj->delay_is_whole_vector = net->whole_vector_delay();
       ivl_assert(*net, !(obj->delay_is_per_bit

@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue1577_mixed_dpi_versions.v",
+    "iverilog-args": [ "-g2023", "-s", "issue1577_top" ],
+    "gold": "issue1577_mixed_dpi_versions_2023"
+}

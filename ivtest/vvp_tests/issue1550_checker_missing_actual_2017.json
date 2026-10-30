@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1550_checker_missing_actual_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1550_checker_missing_actual"],
+  "gold": "issue1550_checker_missing_actual_2017"
+}

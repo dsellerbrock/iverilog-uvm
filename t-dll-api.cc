@@ -1372,6 +1372,12 @@ extern "C" unsigned ivl_logic_port_buffer(ivl_net_logic_t net)
       return net->is_port_buffer;
 }
 
+extern "C" unsigned ivl_logic_reactive_output(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->is_reactive_output;
+}
+
 extern "C" int  ivl_udp_sequ(ivl_udp_t net)
 {
       assert(net);

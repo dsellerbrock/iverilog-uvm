@@ -2779,6 +2779,29 @@ void pform_module_set_ports(vector<Module::port_t*>*ports)
       }
 
       if (ports != 0) {
+	    /* A checker port list declares its formals directly. In particular,
+	       the first formal may omit both direction and type, in which case
+	       it is an input untyped formal (IEEE 1800-2017/2023 17.2). The
+	       module-style port machinery otherwise expects a separate signal
+	       declaration and rejects this legal checker form. */
+	    if (pform_cur_module.front()->is_checker) {
+		  for (Module::port_t* port : *ports) {
+			if (!port || port->expr.size() != 1)
+			      continue;
+			const pform_name_t& path = port->expr.front()->path().name;
+			if (path.size() != 1)
+			      continue;
+			perm_string name = peek_tail_name(path);
+			PWire* wire = pform_get_wire_in_scope(name);
+			if (!wire) {
+			      wire = new PWire(name, 0,
+				       NetNet::IMPLICIT, NetNet::PINPUT, SR_BOTH);
+			      pform_put_wire_in_scope(name, wire);
+			} else if (wire->get_port_type() == NetNet::NOT_A_PORT) {
+			      wire->set_port_type(NetNet::PINPUT);
+			}
+		  }
+	    }
 	    pform_cur_module.front()->ports = *ports;
 	    delete ports;
       }
@@ -4003,7 +4026,11 @@ void pform_make_modgates(const struct vlltype&loc,
 
 	// Detect some more realistic errors.
 
-      if (pform_cur_module.front()->program_block) {
+      map<perm_string,Module*>::const_iterator instance_type
+	    = pform_modules.find(type);
+      bool checker_instance = instance_type != pform_modules.end()
+	    && instance_type->second->is_checker;
+      if (pform_cur_module.front()->program_block && !checker_instance) {
 	    cerr << loc << ": error: Module instantiations are not allowed in "
 		 << "program blocks." << endl;
 	    error_count += 1;
@@ -7139,9 +7166,83 @@ static void pform_mark_generated_verification_process_(PProcess*process)
       process->generated_verification();
 }
 
+/* IEEE 1800-2017/2023 17.7.1 prohibits assigning checker variables from
+ * an initial procedure. Check assignment LHSs (rather than all references,
+ * since reading a checker variable in an initial procedure is permitted). */
+static bool pform_checker_initial_assignment_(Statement*st,
+					      LexicalScope*scope)
+{
+      if (!st) return false;
+      if (PAssign_*as = dynamic_cast<PAssign_*>(st)) {
+	    for (std::map<perm_string,PWire*>::const_iterator it = scope->wires.begin();
+		 it != scope->wires.end(); ++it) {
+		  NetNet::Type type = it->second->get_wire_type();
+		  if ((type == NetNet::REG || type == NetNet::IMPLICIT_REG)
+		      && as->lval() && as->lval()->refs_name(it->first))
+			return true;
+	    }
+	    return false;
+      }
+      if (PBlock*block = dynamic_cast<PBlock*>(st)) {
+	    const std::vector<Statement*>&items = block->statements();
+	    for (size_t i = 0; i < items.size(); ++i)
+		  if (pform_checker_initial_assignment_(items[i], scope)) return true;
+	    return false;
+      }
+      if (PCondit*cond = dynamic_cast<PCondit*>(st))
+	    return pform_checker_initial_assignment_(cond->if_clause(), scope)
+		  || pform_checker_initial_assignment_(cond->else_clause(), scope);
+      if (PEventStatement*event = dynamic_cast<PEventStatement*>(st))
+	    return pform_checker_initial_assignment_(event->statement(), scope);
+      if (PDelayStatement*delay = dynamic_cast<PDelayStatement*>(st))
+	    return pform_checker_initial_assignment_(delay->statement(), scope);
+      if (PCycleDelay*delay = dynamic_cast<PCycleDelay*>(st))
+	    return pform_checker_initial_assignment_(delay->statement(), scope);
+      if (PDoWhile*loop = dynamic_cast<PDoWhile*>(st))
+	    return pform_checker_initial_assignment_(loop->body(), scope);
+      if (PForeach*loop = dynamic_cast<PForeach*>(st))
+	    return pform_checker_initial_assignment_(loop->body(), scope);
+      if (PForever*loop = dynamic_cast<PForever*>(st))
+	    return pform_checker_initial_assignment_(loop->body(), scope);
+      if (PForStatement*loop = dynamic_cast<PForStatement*>(st))
+	    return pform_checker_initial_assignment_(loop->initialization(), scope)
+		  || pform_checker_initial_assignment_(loop->step_stmt(), scope)
+		  || pform_checker_initial_assignment_(loop->body(), scope);
+      if (PRepeat*loop = dynamic_cast<PRepeat*>(st))
+	    return pform_checker_initial_assignment_(loop->body(), scope);
+      if (PWhile*loop = dynamic_cast<PWhile*>(st))
+	    return pform_checker_initial_assignment_(loop->body(), scope);
+      if (PCase*cs = dynamic_cast<PCase*>(st)) {
+	    std::vector<PCase::Item*>*items = cs->mutable_items();
+	    for (size_t i = 0; items && i < items->size(); ++i)
+		  if (pform_checker_initial_assignment_((*items)[i]->stat, scope)) return true;
+	    return false;
+      }
+      if (PCaseMatches*cs = dynamic_cast<PCaseMatches*>(st)) {
+	    std::vector<PCaseMatches::Item*>*items = cs->mutable_items();
+	    for (size_t i = 0; items && i < items->size(); ++i)
+		  if (pform_checker_initial_assignment_((*items)[i]->stat, scope)) return true;
+	    return false;
+      }
+      if (PRandCase*cs = dynamic_cast<PRandCase*>(st)) {
+	    std::vector<PCase::Item*>*items = cs->mutable_items();
+	    for (size_t i = 0; items && i < items->size(); ++i)
+		  if (pform_checker_initial_assignment_((*items)[i]->stat, scope)) return true;
+	    return false;
+      }
+      return false;
+}
+
 PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 			      list<named_pexpr_t>*attr)
 {
+      if (type == IVL_PR_INITIAL && !pform_cur_module.empty()
+	  && pform_cur_module.front()->is_checker
+	  && pform_generated_verification_depth_ == 0
+	  && pform_checker_initial_assignment_(st, lexical_scope)) {
+	    cerr << st->get_fileline() << ": error: checker variable shall not be assigned in an initial procedure (IEEE 1800-2017/2023 17.7.1)." << endl;
+	    error_count += 1;
+      }
       pform_bind_procedural_sampled_(type, st);
       pform_bind_checker_ff_sampled_(type, st);
 
