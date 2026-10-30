@@ -1,0 +1,2 @@
+ivltests/issue1853_orphan_interface_port_2023.v:6: error: Interface port `bus' of top-level module `orphan' cannot be left unconnected (IEEE 1800-2017/2023 23.3.3.4).
+1 error(s) during elaboration.
