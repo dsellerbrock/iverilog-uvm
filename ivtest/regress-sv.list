@@ -6326,3 +6326,5 @@ issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_
 issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
 issue1559_macro_string_continuation_2017 normal,-g2017,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2017.gold
 issue1559_macro_string_continuation_2023 normal,-g2023,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2023.gold
+issue1550_checker_missing_actual_2017 CE,-g2017,-s,issue1550_checker_missing_actual ivltests gold=issue1550_checker_missing_actual_2017.gold
+issue1550_checker_missing_actual_2023 CE,-g2023,-s,issue1550_checker_missing_actual ivltests gold=issue1550_checker_missing_actual_2023.gold

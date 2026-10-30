@@ -1,0 +1,2 @@
+ivltests/issue1550_checker_missing_actual_2017.v:4: error: checker port `b' of instance `missing_b' requires an actual argument. (IEEE 1800-2017/2023 16.8, 17.3).
+1 error(s) during elaboration.
