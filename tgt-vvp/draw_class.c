@@ -405,7 +405,8 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	       * the runtime metadata, just like containers and vectors. Keep
 	       * its declared class too, so a base-typed VPI view does not
 	       * expose a derived hidden member from the live object. */
-	    fprintf(vvp_out, "\"%soh:C%p\"", rand_prefix ? rand_prefix : "",
+	    fprintf(vvp_out, "\"%s%soh:C%p\"", rand_prefix ? rand_prefix : "",
+		    ivl_type_is_interface(base_ptype) ? "vif:" : "",
 		    base_ptype);
 	    if (packed_dimensions > 0) {
 		  unsigned idx;
