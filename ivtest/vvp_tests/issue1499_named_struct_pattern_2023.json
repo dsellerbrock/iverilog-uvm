@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1499_named_struct_pattern.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1499_named_struct_pattern"
+}

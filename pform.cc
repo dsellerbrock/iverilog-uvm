@@ -1194,9 +1194,14 @@ static void collect_pattern_bindings_(const PMatchPattern*pattern,
             break;
           case PMatchPattern::STRUCTURE:
             for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
-                  path.push_back(pform_pattern_path_component_t((unsigned)idx));
-                  collect_pattern_bindings_(pattern->children()[idx], path,
-                                            bindings);
+                  const PMatchPattern*child = pattern->children()[idx];
+                  if (child->has_member_name())
+                        path.push_back(pform_pattern_path_component_t(
+                              child->member_name()));
+                  else
+                        path.push_back(pform_pattern_path_component_t(
+                              (unsigned)idx));
+                  collect_pattern_bindings_(child, path, bindings);
                   path.pop_back();
             }
             break;

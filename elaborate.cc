@@ -453,7 +453,22 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   des->errors += 1;
                   return nullptr;
             }
-            if (pattern->children().size() != structure->members().size()) {
+            bool named_members = false;
+            bool positional_members = false;
+            for (const PMatchPattern*child : pattern->children()) {
+                  named_members = named_members || child->has_member_name();
+                  positional_members = positional_members
+                        || !child->has_member_name();
+            }
+            if (named_members && positional_members) {
+                  cerr << pattern->get_fileline() << ": error: Structure "
+                       << "pattern cannot mix named and positional members."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            if (!named_members
+                && pattern->children().size() != structure->members().size()) {
                   cerr << pattern->get_fileline()
                        << ": error: Structure pattern has "
                        << pattern->children().size() << " element(s), but the "
@@ -463,12 +478,43 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   return nullptr;
             }
             NetExpr*result = nullptr;
+            vector<bool> member_seen(structure->members().size(), false);
             for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
+                  const PMatchPattern*child_pattern =
+                        pattern->children()[idx];
+                  size_t member_index = idx;
+                  if (named_members) {
+                        pform_pattern_path_component_t component(
+                              child_pattern->member_name());
+                        const netstruct_t::member_t*member =
+                              resolve_pattern_member_(loc, structure,
+                                                      component, member_index,
+                                                      des);
+                        if (!member) {
+                              delete result;
+                              return nullptr;
+                        }
+                        if (member_seen[member_index]) {
+                              cerr << child_pattern->get_fileline()
+                                   << ": error: Structure pattern has multiple "
+                                   << "patterns for member '" << member->name
+                                   << "'." << endl;
+                              des->errors += 1;
+                              delete result;
+                              return nullptr;
+                        }
+                  }
+                  member_seen[member_index] = true;
                   pform_pattern_path_t child_path = path;
-                  child_path.push_back(
-                        pform_pattern_path_component_t((unsigned)idx));
+                  if (named_members)
+                        child_path.push_back(
+                              pform_pattern_path_component_t(
+                                    child_pattern->member_name()));
+                  else
+                        child_path.push_back(
+                              pform_pattern_path_component_t((unsigned)idx));
                   NetExpr*child = elaborate_pattern_node_(
-                        loc, subject, pattern->children()[idx], child_path,
+                        loc, subject, child_pattern, child_path,
                         case_type, des, scope);
                   if (!child) {
                         delete result;
