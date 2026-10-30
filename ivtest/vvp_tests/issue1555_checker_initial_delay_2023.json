@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1555_checker_initial_delay.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue1555_checker_initial_delay_top" ],
+    "gold"          : "issue1555_checker_initial_delay_2023"
+}

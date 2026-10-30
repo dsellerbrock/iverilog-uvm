@@ -21848,6 +21848,21 @@ NetProc* PDelayStatement::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+      bool in_checker = false;
+      for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	    const Module*module = owner->module_definition();
+	    if (module) {
+		  in_checker = module->is_checker;
+		  break;
+	    }
+      }
+      if (current_procedural_process_type == IVL_PR_INITIAL && in_checker) {
+	    cerr << get_fileline() << ": error: delay control is not allowed "
+	            "in a checker initial procedure." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       if (scope->in_func()) {
 	    cerr << get_fileline() << ": error: functions cannot have "
 	            "delay statements." << endl;
