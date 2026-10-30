@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1479_assoc_wildcard_foreach_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue1479_assoc_wildcard_foreach_fail"],
+  "gold": "issue1479_assoc_wildcard_foreach_fail_2023"
+}

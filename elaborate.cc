@@ -26472,6 +26472,14 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(ptype)) {
+		  if (aq->assoc_compat() && aq->assoc_wildcard()) {
+			delete array_expr;
+			cerr << get_fileline() << ": error: associative arrays with a "
+			     << "wildcard index type cannot be used in a foreach loop."
+			     << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
 		  /* A selector-prefixed target into an associative array
 		     (a class property/virtual-interface member that
 		     find_signal() can't resolve as a plain NetNet, or --
@@ -26768,6 +26776,14 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 					   NetNet*array_sig) const
 {
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
+	    if (aq->assoc_compat() && aq->assoc_wildcard()
+		&& array_sig->unpacked_dimensions() == 0) {
+		  cerr << get_fileline() << ": error: associative arrays with a "
+		       << "wildcard index type cannot be used in a foreach loop."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
 	    if (aq->assoc_compat() && array_sig->unpacked_dimensions() == 0) {
 		    /* This method is only reached for a plain foreach with
 		       no selector prefix: PForeach::elaborate's hier_sig
