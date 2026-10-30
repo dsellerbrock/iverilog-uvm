@@ -30393,6 +30393,7 @@ static const map<perm_string,string>*scope_randomize_emit_ctx_ = nullptr;
 static const map<perm_string,ivl_type_t>*scope_randomize_type_ctx_ = nullptr;
 static vector<NetNet*>*scope_randomize_signal_slots_ = nullptr;
 static vector<NetExpr*>*scope_randomize_object_slots_ = nullptr;
+static vector<NetExpr*>*scope_randomize_prebuilt_value_slots_ = nullptr;
 static Design*scope_randomize_design_ctx_ = nullptr;
 /* When std::randomize(h) receives a class handle, inline constraints retain
  * the lexical handle prefix (`h.member`). Class randomization IR is rooted
@@ -31255,6 +31256,7 @@ string pexpr_to_scope_constraint_ir(
       vector<const PExpr*>*value_slots,
       vector<NetNet*>*signal_slots,
       vector<NetExpr*>*object_slots,
+      vector<NetExpr*>*prebuilt_value_slots,
       Design*des, const NetScope*scope)
 {
       Design*save_ir_design = constraint_ir_design_ctx_;
@@ -31264,11 +31266,13 @@ string pexpr_to_scope_constraint_ir(
       const map<perm_string,ivl_type_t>*save_types = scope_randomize_type_ctx_;
       vector<NetNet*>*save_signals = scope_randomize_signal_slots_;
       vector<NetExpr*>*save_objects = scope_randomize_object_slots_;
+      vector<NetExpr*>*save_prebuilt = scope_randomize_prebuilt_value_slots_;
       Design*save_design = scope_randomize_design_ctx_;
       scope_randomize_emit_ctx_ = &random_tokens;
       scope_randomize_type_ctx_ = &random_types;
       scope_randomize_signal_slots_ = signal_slots;
       scope_randomize_object_slots_ = object_slots;
+      scope_randomize_prebuilt_value_slots_ = prebuilt_value_slots;
       scope_randomize_design_ctx_ = des;
       constraint_ir_design_ctx_ = des;
 	/* Diagnose forbidden randc constructs from the complete source tree
@@ -31283,6 +31287,7 @@ string pexpr_to_scope_constraint_ir(
       scope_randomize_type_ctx_ = save_types;
       scope_randomize_signal_slots_ = save_signals;
       scope_randomize_object_slots_ = save_objects;
+      scope_randomize_prebuilt_value_slots_ = save_prebuilt;
       scope_randomize_design_ctx_ = save_design;
       constraint_ir_design_ctx_ = save_ir_design;
       stateforeach_emit_ctx_ = save_foreach;
@@ -34157,12 +34162,88 @@ static string scope_randomize_value_slot_(const PExpr*expr,
 	    constraint_inline_prebuilt_value_slots_->push_back(nullptr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
+	  if (scope_randomize_prebuilt_value_slots_)
+	    scope_randomize_prebuilt_value_slots_->push_back(nullptr);
 	// Slots wider than 64 bits keep their width; the runtime substitutes
 	// them from their complete value instead of the 64-bit slot word.
       if (width == 0)
 	    width = 32;
       return string(function_result ? "fv:" : "v:")
 	    + to_string(slot) + ":" + to_string(width);
+}
+
+/* A module/package fixed unpacked array is caller state, not a solver
+ * property. Capture its leaves as ordinary value slots, then build a
+ * symbolic select from the index expression so a scope-randomized index is
+ * evaluated by the solver rather than at the call site. */
+static string scope_randomize_fixed_array_select_ir_(
+      const PEIdent*id, const PExpr*expr, NetNet*sig,
+      vector<const PExpr*>*value_slots,
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
+{
+      const netsarray_t*array = sig
+	    ? dynamic_cast<const netsarray_t*>(sig->array_type()) : nullptr;
+      if (!array || !id || id->path().back().index.empty()
+	  || !scope_randomize_prebuilt_value_slots_
+	  || !scope_randomize_signal_slots_)
+	    return "";
+      const netranges_t&dims = array->static_dimensions();
+      if (dims.size() != id->path().back().index.size()
+	  || dims.empty()) return "";
+      ivl_type_t element_type = sig->net_type();
+      if (!element_type || !element_type->packed()
+	  || (element_type->base_type() != IVL_VT_BOOL
+	      && element_type->base_type() != IVL_VT_LOGIC
+	      && !dynamic_cast<const netenum_t*>(element_type))) return "";
+      unsigned width = element_type->packed_width();
+      if (width == 0 || width > 65536) return "";
+
+      vector<string> indices;
+      uint64_t elements = 1;
+      std::list<index_component_t>::const_iterator component =
+	    id->path().back().index.begin();
+      for (size_t dim = 0; dim < dims.size(); ++dim, ++component) {
+	    const index_component_t&ic = *component;
+	    if (ic.sel != index_component_t::SEL_BIT || !ic.msb || ic.lsb
+		|| !dims[dim].defined() || dims[dim].width() == 0
+		|| elements > UINT_MAX / dims[dim].width()) return "";
+	    string index = pexpr_to_constraint_ir(
+		  ic.msb, nullptr, value_slots, scope, loop_env);
+	    if (index.empty()) return "";
+	    indices.push_back(index);
+	    elements *= dims[dim].width();
+      }
+
+      string result = "c:0:" + to_string(width);
+      for (uint64_t ordinal = 0; ordinal < elements; ++ordinal) {
+	    uint64_t remaining = ordinal;
+	    vector<uint64_t> digits(dims.size());
+	    string match = "c:1:1";
+	    for (size_t dim = dims.size(); dim-- > 0;) {
+		  unsigned long span = dims[dim].width();
+		  digits[dim] = remaining % span;
+		  remaining /= span;
+	    }
+	    for (size_t dim = 0; dim < dims.size(); ++dim) {
+		  int64_t low = min(dims[dim].get_msb(), dims[dim].get_lsb());
+		  int64_t declared = low + (int64_t)digits[dim];
+		  string equal = "(idxeq " + indices[dim] + " c:"
+			+ to_string(declared) + ":64:s)";
+		  if (dim == 0) match = equal;
+		  else match = "(and " + match + " " + equal + ")";
+	    }
+	    uint64_t flat = ordinal;
+	    NetEConst*word = new NetEConst(verinum((unsigned long)flat));
+	    NetESignal*leaf = new NetESignal(sig, word);
+	    unsigned slot = (unsigned)value_slots->size();
+	    value_slots->push_back(expr);
+	    scope_randomize_signal_slots_->push_back(nullptr);
+	    scope_randomize_prebuilt_value_slots_->push_back(leaf);
+	    string leaf_ir = "v:" + to_string(slot) + ":" + to_string(width)
+		  + (element_type->get_signed() ? ":s" : "");
+	    result = "(ite " + match + " " + leaf_ir + " " + result + ")";
+      }
+      return result;
 }
 
 static string scope_randomize_select_ir_(
@@ -38639,6 +38720,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		       index's pre-randomize value. */
 		  if (!id->path().back().index.empty()) {
 			NetNet*sig = scope_randomize_find_signal_(scope, name);
+			if (scope_randomize_prebuilt_value_slots_ && sig
+			    && dynamic_cast<const netsarray_t*>(sig->array_type())) {
+			      return scope_randomize_fixed_array_select_ir_(
+				    id, expr, sig, value_slots, scope, loop_env);
+			}
 			  /* A dynamic array or queue has no unpacked dimension on
 			     its net but its index selects an element, not a bit of
 			     one packed vector. */
