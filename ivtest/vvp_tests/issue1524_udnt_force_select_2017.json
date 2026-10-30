@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1524_udnt_force_select_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue1524_udnt_force_select_2017"
+}

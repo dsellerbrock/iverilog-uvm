@@ -1262,6 +1262,19 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    return nullptr;
       }
 
+	// IEEE 1800-2017/2023 10.6.2: unlike ordinary nets, a net with a
+	// user-defined nettype cannot be force/released through a bit/part
+	// select. Keep whole-net force/release legal and reject only selects
+	// that identify part of the user-defined net.
+      if (gn_system_verilog() && is_force && reg->user_nettype()
+	  && procedural_continuous_var_select_(reg, name_tail, tail_path)) {
+	    cerr << get_fileline() << ": error: force/release target shall not be "
+		 << "a bit-select or part-select of a net with a user-defined "
+		 << "nettype (IEEE 1800-2017/2023 10.6.2)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
 	// Use the last index to determine what kind of select
 	// (bit/part/etc) we are processing. For example, the Verilog
 	// may be "a.b.c[1][2][<index>]". All but the last index must
