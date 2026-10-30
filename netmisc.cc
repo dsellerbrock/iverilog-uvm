@@ -2794,7 +2794,24 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 		    des->errors += 1;
 		    return nullptr;
 	      }
-	      if (index_type && index_type->packed()
+	      /* IEEE 1800-2017/2023 7.8.1 treats a string literal used as a
+	       * wildcard index as a bit vector of the literal's equivalent size.
+	       * Elaborating it in its native string type would create a string key,
+	       * which cannot match the same value written as an integral index. */
+	      if (queue->assoc_wildcard()) {
+		    if (const PEString*literal = dynamic_cast<const PEString*>(expr)) {
+			  NetExpr*value = literal->elaborate_expr(
+				des, scope, static_cast<ivl_type_t>(nullptr), 0);
+			  if (!value)
+				return nullptr;
+			  NetECast*packed = new NetECast(
+				'v', value, literal->expr_width(), false);
+			  packed->set_line(*literal);
+			  return packed;
+		    }
+	      }
+	      if (!queue->assoc_wildcard()
+		  && index_type && index_type->packed()
 		  && source_base == IVL_VT_REAL) {
 		    cerr << expr->get_fileline() << ": error: an integral "
 			 "associative-array index cannot implicitly cast a real or "
@@ -2860,7 +2877,8 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 		  delete key;
 		  return nullptr;
 	    }
-	    if (index_type && index_type->packed()) {
+	    if (!queue->assoc_wildcard()
+		&& index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
 		  ivl_variable_type_t cast_type = index_type->base_type();
 		  /* Keep X/Z until the associative access can warn and ignore it. */
