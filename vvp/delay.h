@@ -354,7 +354,7 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 class vvp_fun_sample  : public vvp_net_fun_t, private vvp_gen_event_s {
 
     public:
-      explicit vvp_fun_sample(vvp_net_t*net);
+      explicit vvp_fun_sample(vvp_net_t*net, bool reactive = false);
       ~vvp_fun_sample() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -370,6 +370,7 @@ class vvp_fun_sample  : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_vector4_t sent_;
       bool scheduled_;
       bool sent_valid_;
+      bool reactive_;
 };
 
 #endif /* IVL_delay_H */

@@ -1,0 +1,2 @@
+PASS result=1 sampled=0
+./ivltests/issue1553_checker_output_reactive_2017.v:17: $finish called at 6 (1s)

@@ -5154,13 +5154,15 @@ static void convert_net(Design*des, const LineInfo *line,
 }
 
 static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
-				NetNet*port, NetNet*sig, NetNet::PortType ptype, int idx = -1)
+				NetNet*port, NetNet*sig, NetNet::PortType ptype, int idx = -1,
+				bool reactive_output = false)
 {
       switch (ptype) {
 	  case NetNet::POUTPUT:
 	    {
 		  NetBUFZ*tmp = new NetBUFZ(scope, scope->local_symbol(),
 					    sig->vector_width(), true, idx);
+		  tmp->reactive_output(reactive_output);
 		  tmp->set_line(*mod);
 		  des->add_node(tmp);
 		  connect(tmp->pin(1), port->pin(0));
@@ -7755,7 +7757,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the delay being applied to other drivers of
 		    // the external signal.
 		  if ((ptype == NetNet::POUTPUT
-		       && is_variable_output_port_(prts[0])) ||
+		       && (is_variable_output_port_(prts[0]) || rmod->is_checker)) ||
 		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
@@ -7764,7 +7766,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 			isolate_and_connect(des, inner_scope, this, prts[0], sig,
 			                    ptype, ptype == NetNet::PINOUT ? idx :
-			                    (gn_interconnect_flag ? idx : -1));
+			                    (gn_interconnect_flag ? idx : -1),
+			                    rmod->is_checker && ptype == NetNet::POUTPUT);
 		  } else {
 			NetNet*formal = prts[0];
 			if (ptype != NetNet::PREF
@@ -7793,7 +7796,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			if ((ptype == NetNet::POUTPUT
 			     && is_variable_output_port_(prts[ldx]))
 			    || prts[ldx]->delay_paths() > 0) {
-			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
+			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype,
+			                         -1, rmod->is_checker);
 			} else {
 			      NetNet*formal = prts[ldx];
 			      if (connect_dominated_wire_port(des, *this,
