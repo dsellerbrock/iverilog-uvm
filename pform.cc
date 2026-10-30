@@ -2779,6 +2779,29 @@ void pform_module_set_ports(vector<Module::port_t*>*ports)
       }
 
       if (ports != 0) {
+	    /* A checker port list declares its formals directly. In particular,
+	       the first formal may omit both direction and type, in which case
+	       it is an input untyped formal (IEEE 1800-2017/2023 17.2). The
+	       module-style port machinery otherwise expects a separate signal
+	       declaration and rejects this legal checker form. */
+	    if (pform_cur_module.front()->is_checker) {
+		  for (Module::port_t* port : *ports) {
+			if (!port || port->expr.size() != 1)
+			      continue;
+			const pform_name_t& path = port->expr.front()->path().name;
+			if (path.size() != 1)
+			      continue;
+			perm_string name = peek_tail_name(path);
+			PWire* wire = pform_get_wire_in_scope(name);
+			if (!wire) {
+			      wire = new PWire(name, 0,
+				       NetNet::IMPLICIT, NetNet::PINPUT, SR_BOTH);
+			      pform_put_wire_in_scope(name, wire);
+			} else if (wire->get_port_type() == NetNet::NOT_A_PORT) {
+			      wire->set_port_type(NetNet::PINPUT);
+			}
+		  }
+	    }
 	    pform_cur_module.front()->ports = *ports;
 	    delete ports;
       }
