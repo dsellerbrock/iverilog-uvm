@@ -1,0 +1,1 @@
+ivltests/issue1497_qualified_if_else_fail_2023.v:6: error: a unique, unique0, or priority qualifier cannot appear after else in a qualified if-else-if series.

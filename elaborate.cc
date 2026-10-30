@@ -453,7 +453,22 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   des->errors += 1;
                   return nullptr;
             }
-            if (pattern->children().size() != structure->members().size()) {
+            bool named_members = false;
+            bool positional_members = false;
+            for (const PMatchPattern*child : pattern->children()) {
+                  named_members = named_members || child->has_member_name();
+                  positional_members = positional_members
+                        || !child->has_member_name();
+            }
+            if (named_members && positional_members) {
+                  cerr << pattern->get_fileline() << ": error: Structure "
+                       << "pattern cannot mix named and positional members."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            if (!named_members
+                && pattern->children().size() != structure->members().size()) {
                   cerr << pattern->get_fileline()
                        << ": error: Structure pattern has "
                        << pattern->children().size() << " element(s), but the "
@@ -463,12 +478,43 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   return nullptr;
             }
             NetExpr*result = nullptr;
+            vector<bool> member_seen(structure->members().size(), false);
             for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
+                  const PMatchPattern*child_pattern =
+                        pattern->children()[idx];
+                  size_t member_index = idx;
+                  if (named_members) {
+                        pform_pattern_path_component_t component(
+                              child_pattern->member_name());
+                        const netstruct_t::member_t*member =
+                              resolve_pattern_member_(loc, structure,
+                                                      component, member_index,
+                                                      des);
+                        if (!member) {
+                              delete result;
+                              return nullptr;
+                        }
+                        if (member_seen[member_index]) {
+                              cerr << child_pattern->get_fileline()
+                                   << ": error: Structure pattern has multiple "
+                                   << "patterns for member '" << member->name
+                                   << "'." << endl;
+                              des->errors += 1;
+                              delete result;
+                              return nullptr;
+                        }
+                  }
+                  member_seen[member_index] = true;
                   pform_pattern_path_t child_path = path;
-                  child_path.push_back(
-                        pform_pattern_path_component_t((unsigned)idx));
+                  if (named_members)
+                        child_path.push_back(
+                              pform_pattern_path_component_t(
+                                    child_pattern->member_name()));
+                  else
+                        child_path.push_back(
+                              pform_pattern_path_component_t((unsigned)idx));
                   NetExpr*child = elaborate_pattern_node_(
-                        loc, subject, pattern->children()[idx], child_path,
+                        loc, subject, child_pattern, child_path,
                         case_type, des, scope);
                   if (!child) {
                         delete result;
@@ -3938,12 +3984,40 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* IEEE 1800-2017/2023 10.3.3 permits only one delay for a
+	 * continuous assignment to a user-defined nettype, including an
+	 * unpacked array of such nets. */
+      if (lval->user_nettype() && delay_count() > 1) {
+	    cerr << get_fileline() << ": error: A continuous assignment to a "
+		 << "user-defined nettype may specify only one delay "
+		    "(IEEE 1800 10.3.3)." << endl;
+	    des->errors += 1;
+	    if (lval->local_flag())
+		  delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
 	// If this turns out to be an assignment to an unpacked array,
 	// then handle that special case elsewhere. Test the declared shape,
 	// not the physical pin count: a one-element unpacked array has one pin
 	// but still uses array assignment-pattern and compatibility semantics.
       if (lval->unpacked_dimensions() > 0) {
-	    elaborate_unpacked_array_(des, scope, lval);
+	    if (lval->user_nettype()) {
+		  if (delay_count() > 1) {
+			cerr << get_fileline() << ": error: An array of nets with "
+			     << "a user-defined nettype may have only one "
+			     << "continuous-assignment delay (IEEE 1800-2017/2023 "
+			     << "10.3.3)." << endl;
+			des->errors += 1;
+			delete_unique_delays_(rise_time, fall_time, decay_time);
+			return;
+		  }
+	    }
+	    elaborate_unpacked_array_(des, scope, lval,
+			      lval->user_nettype() ? rise_time : 0,
+			      lval->user_nettype() ? fall_time : 0,
+			      lval->user_nettype() ? decay_time : 0);
 	    return;
       }
 
@@ -4184,11 +4258,16 @@ NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &l
       return expr_net;
 }
 
-void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval) const
+void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
+					NetExpr*rise_time,
+					NetExpr*fall_time,
+					NetExpr*decay_time) const
 {
       NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
       if (rval_net)
-	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net);
+	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
+			      rise_time, fall_time, decay_time,
+			      lval->user_nettype() && delay_count() > 0);
 }
 
 void PGBuiltin::calculate_gate_and_lval_count_(unsigned&gate_count,
@@ -18103,6 +18182,44 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+	      // A named coverpoint or cross is not a class property. Lower its
+	      // start()/stop() task using the item's stable covergroup index.
+	      if (class_type && class_type->is_covergroup()
+		  && (method_name == "start" || method_name == "stop")) {
+		    if (sr.path_tail.size() != 1 || !comp.index.empty()) {
+			  cerr << get_fileline()
+			       << ": error: A named coverage item cannot be indexed."
+			       << endl;
+			  des->errors += 1;
+			  delete obj_expr;
+			  return 0;
+		    }
+		    if (!parms_.empty()) {
+			  cerr << get_fileline() << ": error: " << method_name
+			       << "() takes no arguments on a coverage item." << endl;
+			  des->errors += 1;
+			  delete obj_expr;
+			  return 0;
+		    }
+		    for (size_t item = 0; item < class_type->covgrp_item_count();
+			 item += 1) {
+			  if (class_type->covgrp_item(item).name != comp.name)
+				continue;
+			  vector<NetExpr*>argv;
+			  argv.push_back(obj_expr);
+			  NetEConst*item_arg = new NetEConst(
+				verinum((uint64_t)item, 32));
+			  item_arg->set_line(*this);
+			  argv.push_back(item_arg);
+			  string task_name = "$ivl_class_method$covgrp_item_";
+			  task_name += method_name.str();
+			  task_name += "|" + to_string(item);
+			  NetSTask*sys = new NetSTask(task_name.c_str(),
+				IVL_SFUNC_AS_TASK_IGNORE, argv);
+			  sys->set_line(*this);
+			  return sys;
+		    }
+	      }
 
 		    // An UNPACKED-STRUCT hop in the method-target path
 		    // (`a.q.push_back(...)`, `a.h.method(...)` with a a
@@ -20036,6 +20153,28 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
+	      /* A ref actual that selects an associative element must retain its
+	       * declared key type; the ordinary element binding is positional. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
+		&& lv->sig()->queue_type()
+		&& lv->sig()->queue_type()->assoc_index_type() != 0) {
+	      NetESignal*formal_e = new NetESignal(port);
+	      formal_e->set_line(*this);
+	      NetESignal*cont_e = new NetESignal(lv->sig());
+	      cont_e->set_line(*this);
+	      vector<NetExpr*> argv(3);
+	      argv[0] = formal_e;
+	      argv[1] = cont_e;
+	      argv[2] = lv->word()->dup_expr();
+	      NetSTask*bind = new NetSTask("$ivl_ref_bind_assoc_elem",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+	      bind->set_line(*this);
+	      delete lv;
+	      return bind;
+	    }
+
 	      /* An element of a dynamic array or queue: da[i], q[i]. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0
@@ -21543,7 +21682,9 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       ivl_variable_type_t ltype = lval->expr_type();
 
       PExprProceduralContextGuard procedural_context(false);
-      NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
+      NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype,
+                                        lwid, expr_, false, false,
+                                        PExpr::PROC_CONT_ASSIGN_EXPR);
       if (rexp == 0)
 	    return 0;
 
@@ -26353,6 +26494,14 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(ptype)) {
+		  if (aq->assoc_compat() && aq->assoc_wildcard()) {
+			delete array_expr;
+			cerr << get_fileline() << ": error: associative arrays with a "
+			     << "wildcard index type cannot be used in a foreach loop."
+			     << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
 		  /* A selector-prefixed target into an associative array
 		     (a class property/virtual-interface member that
 		     find_signal() can't resolve as a plain NetNet, or --
@@ -26649,6 +26798,14 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 					   NetNet*array_sig) const
 {
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
+	    if (aq->assoc_compat() && aq->assoc_wildcard()
+		&& array_sig->unpacked_dimensions() == 0) {
+		  cerr << get_fileline() << ": error: associative arrays with a "
+		       << "wildcard index type cannot be used in a foreach loop."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
 	    if (aq->assoc_compat() && array_sig->unpacked_dimensions() == 0) {
 		    /* This method is only reached for a plain foreach with
 		       no selector prefix: PForeach::elaborate's hier_sig

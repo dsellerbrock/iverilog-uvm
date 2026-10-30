@@ -1211,6 +1211,9 @@ static NetExpr* make_assoc_index_locator_expr_(
       ivl_type_t element_type, const char*kind,
       perm_string iter_name, perm_string index_name)
 {
+      const bool return_element = strcmp(kind, "find") == 0
+            || strcmp(kind, "find_first") == 0
+            || strcmp(kind, "find_last") == 0;
       ivl_type_t key_type = container_type->assoc_index_type();
       if (container_type->assoc_wildcard()) {
             cerr << call->get_fileline() << ": sorry: " << kind << "() on "
@@ -1264,7 +1267,8 @@ static NetExpr* make_assoc_index_locator_expr_(
       if (!pred)
             return nullptr;
 
-      ivl_type_t result_type = array_locator_queue_type_(key_type);
+      ivl_type_t result_type = array_locator_queue_type_(
+            return_element ? element_type : key_type);
       NetNet*result_net = new NetNet(scope, scope->local_symbol(),
                                      NetNet::REG, result_type);
       result_net->set_line(*call);
@@ -1662,6 +1666,12 @@ static NetExpr* make_queue_locator_with_expr_(
 		  if (strcmp(kind, "find_index") == 0
 		      || strcmp(kind, "find_first_index") == 0
 		      || strcmp(kind, "find_last_index") == 0)
+			return make_assoc_index_locator_expr_(
+			      call, des, scope, queue_expr, queue, element_type,
+			      kind, iter_name, index_name);
+		  if (strcmp(kind, "find") == 0
+		      || strcmp(kind, "find_first") == 0
+		      || strcmp(kind, "find_last") == 0)
 			return make_assoc_index_locator_expr_(
 			      call, des, scope, queue_expr, queue, element_type,
 			      kind, iter_name, index_name);
@@ -5866,6 +5876,15 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
                                      unsigned expr_wid,
                                      unsigned flags) const
 {
+      if (flags & PROC_CONT_ASSIGN_EXPR) {
+            cerr << get_fileline() << ": error: Assignment operator is not"
+                 << " allowed in an expression within a procedural"
+                 << " continuous assignment (IEEE 1800-2017/2023 11.3.6)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+
       flags &= ~SYS_TASK_ARG;
 
       const unsigned l_width = left_->expr_width();
@@ -9728,6 +9747,22 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	  || method_name == "last"
 	  || method_name == "next"
 	  || method_name == "prev") {
+	    const netqueue_t*queue =
+		  dynamic_cast<const netqueue_t*>(container_type);
+	    if (queue && queue->assoc_compat()
+		&& queue->assoc_wildcard()) {
+		  const char*clause = method_name == "first" ? "7.9.4"
+			: method_name == "last" ? "7.9.5"
+			: method_name == "next" ? "7.9.6" : "7.9.7";
+		  cerr << li->get_fileline() << ": error: The associative array "
+		       << "method '" << method_name
+		       << "' is not allowed for wildcard-index associative arrays "
+		       << "(IEEE 1800-2017/2023 " << clause << ")." << endl;
+		  des->errors += 1;
+		  delete sub_expr;
+		  return 0;
+	    }
+
 	    NetExpr*key_expr = 0;
 	    if ((parms.size() != 1) || (parms[0].parm == 0)) {
 		    // M1B-3 audit, finding C: silently returned const-0
@@ -9748,8 +9783,6 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    const netqueue_t*queue =
-		  dynamic_cast<const netqueue_t*>(container_type);
 	    ivl_type_t expected = queue && queue->assoc_compat()
 		  ? queue->assoc_index_type() : nullptr;
 	    ivl_type_t actual = key_expr->net_type();

@@ -7593,6 +7593,29 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* Named coverpoint/cross start() and stop() carry the enclosing
+       * covergroup receiver plus the item's compile-time index. */
+      {
+	    const char*name = stmt_name;
+	    const char*start_prefix = "$ivl_class_method$covgrp_item_start|";
+	    const char*stop_prefix = "$ivl_class_method$covgrp_item_stop|";
+	    const char*index = 0;
+	    const char*opcode = 0;
+	    if (strncmp(name, start_prefix, strlen(start_prefix)) == 0) {
+		  index = name + strlen(start_prefix);
+		  opcode = "%covgrp/item/start";
+	    } else if (strncmp(name, stop_prefix, strlen(stop_prefix)) == 0) {
+		  index = name + strlen(stop_prefix);
+		  opcode = "%covgrp/item/stop";
+	    }
+	    if (opcode) {
+		  ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+		  if (obj_arg) draw_eval_object(obj_arg);
+		  fprintf(vvp_out, "    %s %s;\n", opcode, index);
+		  return 0;
+	    }
+      }
+
       /* $ivl_ref_bind(<formal>, <actual>) — point a `ref' formal at the
        * caller's variable (IEEE 1800-2017 13.5.2). The core emits this
        * where the copy-in used to be, which puts it between the
@@ -7641,6 +7664,50 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  draw_eval_vec4(idx);
 		  fprintf(vvp_out, "    %%ref/bind/el v%p_0, v%p_0;\n",
 			  fsig, csig);
+	    }
+	    return 0;
+      }
+
+      /* $ivl_ref_bind_assoc_elem(<formal>, <container>, <key>) -- bind a
+       * ref formal to an associative-array element. The value kind is
+       * pushed separately because VVP's second operand union is shared by
+       * its second net pointer and immediate bit fields. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_assoc_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t cont = ivl_stmt_parm(net, 1);
+	    ivl_expr_t key = ivl_stmt_parm(net, 2);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    ivl_signal_t csig = cont ? ivl_expr_signal(cont) : 0;
+	    if (fsig && csig && key) {
+	      const char*key_kind;
+	      unsigned value_kind = 0; /* vvp_lvalue_ref::VALUE_VEC4 */
+	      ivl_type_t formal_type = ivl_signal_net_type(fsig);
+	      switch (ivl_type_base(formal_type)) {
+	          case IVL_VT_REAL:
+	            value_kind = 1; /* VALUE_REAL */
+	            break;
+	          case IVL_VT_STRING:
+	            value_kind = 2; /* VALUE_STRING */
+	            break;
+	          case IVL_VT_CLASS:
+	            value_kind = 3; /* VALUE_OBJECT */
+	            break;
+	          default:
+	            break;
+	      }
+	      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n", value_kind);
+	      if (expr_is_string_assoc_key_(key)) {
+		key_kind = "str";
+		draw_eval_string(key);
+	      } else if (expr_is_object_assoc_key_(key)) {
+		key_kind = "obj";
+		draw_eval_object(key);
+	      } else {
+		key_kind = "v";
+		draw_eval_vec4(key);
+	      }
+	      fprintf(vvp_out, "    %%ref/bind/aa/%s v%p_0, v%p_0;\n",
+		      key_kind, fsig, csig);
 	    }
 	    return 0;
       }

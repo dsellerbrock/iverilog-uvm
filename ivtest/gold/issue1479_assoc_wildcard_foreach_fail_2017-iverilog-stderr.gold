@@ -1,0 +1,2 @@
+ivltests/issue1479_assoc_wildcard_foreach_fail.v:7: error: associative arrays with a wildcard index type cannot be used in a foreach loop.
+1 error(s) during elaboration.

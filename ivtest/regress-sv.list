@@ -3,14 +3,20 @@
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
+issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
+issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 
 issue1431_illegal_unbounded_transition CE,-g2017,-s,issue1431_illegal_unbounded_transition ivltests
+issue1491_proc_cont_assign_expr_2017 CE,-g2017,-s,issue1491_proc_cont_assign_expr ivltests
+issue1491_proc_cont_assign_expr_2023 CE,-g2023,-s,issue1491_proc_cont_assign_expr ivltests
 issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1517_quoted_string_newline_2017 CE,-g2017 ivltests
 issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
+issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
+issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 
 #
 # Copyright (c) 1999-2021 Guy Hutchison (ghutchis@pacbell.net)
@@ -24,8 +30,18 @@ issue1517_quoted_string_newline_2023 CE,-g2023 ivltests
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
+issue1521_attribute_value_nested_2017 CE,-g2017,-s,top ivltests
+issue1521_attribute_value_nested_2023 CE,-g2023,-s,top ivltests
 issue1480_assoc_real_index_fail_2017 CE,-g2017,-s,top ivltests
 issue1480_assoc_real_index_fail_2023 CE,-g2023,-s,top ivltests
+issue1486_assoc_wildcard_traversal_fail_2017 CE,-g2017,-s,top ivltests
+issue1486_assoc_wildcard_traversal_fail_2023 CE,-g2023,-s,top ivltests
+issue1497_qualified_if_else_fail_2017 CE,-g2017,-s,top ivltests
+issue1497_qualified_if_else_fail_2023 CE,-g2023,-s,top ivltests
+issue1513_nettype_multiple_delay_2017 CE,-g2017,-s,issue1513_nettype_multiple_delay ivltests
+issue1513_nettype_multiple_delay_2023 CE,-g2023,-s,issue1513_nettype_multiple_delay ivltests
+issue1524_udnt_force_select_2017 CE,-g2017,-s,top ivltests gold=issue1524_udnt_force_select_2017.gold
+issue1524_udnt_force_select_2023 CE,-g2023,-s,top ivltests gold=issue1524_udnt_force_select_2023.gold
 issue1367_unclocked_disable_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_disable_2023 CE,-g2023,-s,top ivltests
 issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
@@ -1430,6 +1446,8 @@ sv_std_randomize_with_solver normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
 sv_constraint_small_domain_probe normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
+sv_assoc_wildcard_string_index_2017 normal,-g2017,-s,sv_assoc_wildcard_string_index ivltests gold=sv_assoc_wildcard_string_index.gold
+sv_assoc_wildcard_string_index_2023 normal,-g2023,-s,sv_assoc_wildcard_string_index ivltests gold=sv_assoc_wildcard_string_index.gold
 sv_process_status_transitions normal,-g2012 ivltests
 sv_display_p_signed normal,-g2012 ivltests
 sv_array_handle_const_index_method normal,-g2012 ivltests
@@ -5346,6 +5364,8 @@ sv_assoc_find_first_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_first_
 sv_assoc_find_first_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_first_index ivltests gold=sv_assoc_find_first_index.gold
 sv_assoc_find_last_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_last_index ivltests gold=sv_assoc_find_last_index.gold
 sv_assoc_find_last_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_last_index ivltests gold=sv_assoc_find_last_index.gold
+issue1490_assoc_locators_2017 normal,-g2017,-I./ivltests,-sissue1490_assoc_locators ivltests gold=issue1490_assoc_locators.gold
+issue1490_assoc_locators_2023 normal,-g2023,-I./ivltests,-sissue1490_assoc_locators ivltests gold=issue1490_assoc_locators.gold
 sv_assoc_find_index_unsupported_2017 CE,-g2017,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported.gold
 sv_assoc_find_index_unsupported_2023 CE,-g2023,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported_2023.gold
 sv_class_event_multi_object_list_2017 normal,-g2017,-I./ivltests,-ssv_class_event_multi_object_list ivltests gold=sv_class_event_multi_object_list.gold
@@ -6293,3 +6313,6 @@ issue1420_real_bin_dollar_2023 normal,-g2023,-DISSUE1420_2023,-s,issue1420_real_
 sv_bitstream_class_local_source_fail_2017 CE,-g2017,-s,sv_bitstream_class_local_source_fail ivltests
 sv_bitstream_class_local_source_fail_2023 CE,-g2023,-s,sv_bitstream_class_local_source_fail ivltests
 issue1442_detect_overlap_transition normal,-g2017 ivltests gold=issue1442_detect_overlap_transition.gold
+# IEEE 1800-2017/2023 7.8.7: passing a missing associative element by ref allocates it.
+issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
+issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold

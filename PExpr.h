@@ -43,9 +43,7 @@ struct symbol_search_results;
 
 /* Parse-form pattern tree shared by case-matches, pattern conditionals and
  * the matches predicate of a conditional expression (IEEE 1800-2017 12.6).
- * A structure pattern is ordered in this first complete slice; the node shape
- * deliberately leaves the matching engine reusable for named structure
- * patterns and filters without another parser-specific representation. */
+ * Structure children may be positional or carry their named member key. */
 class PMatchPattern : public LineInfo {
     public:
       enum kind_t { CONSTANT, VARIABLE, WILDCARD, TAGGED, STRUCTURE };
@@ -56,10 +54,14 @@ class PMatchPattern : public LineInfo {
       kind_t kind() const { return kind_; }
       PExpr* expression() const { return expression_; }
       perm_string name() const { return name_; }
+      bool has_member_name() const { return has_member_name_; }
+      perm_string member_name() const { return member_name_; }
       const std::vector<PMatchPattern*>& children() const { return children_; }
 
       void expression(PExpr*expr) { expression_ = expr; }
       void name(perm_string name) { name_ = name; }
+      void member_name(perm_string name)
+      { member_name_ = name; has_member_name_ = true; }
       void children(std::vector<PMatchPattern*>*children);
 
       void declare_implicit_nets(LexicalScope*scope, NetNet::Type type);
@@ -71,6 +73,8 @@ class PMatchPattern : public LineInfo {
       kind_t kind_;
       PExpr*expression_ = nullptr;
       perm_string name_;
+      bool has_member_name_ = false;
+      perm_string member_name_;
       std::vector<PMatchPattern*>children_;
 };
 
@@ -98,6 +102,9 @@ class PExpr : public LineInfo {
       static const unsigned NEED_CONST   = 0x1;
       static const unsigned SYS_TASK_ARG = 0x2;
       static const unsigned SYS_TASK_ARG_OUTPUT = 0x1000;
+      // Assignment operators are forbidden in expressions within a
+      // procedural continuous assignment (IEEE 1800-2017/2023 11.3.6).
+      static const unsigned PROC_CONT_ASSIGN_EXPR = 0x2000;
       static const unsigned ANNOTATABLE  = 0x4;
       // Permit the symbolic unbounded value only while evaluating a value
       // parameter assignment or the argument of $isunbounded().

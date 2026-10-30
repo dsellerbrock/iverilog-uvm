@@ -1194,9 +1194,14 @@ static void collect_pattern_bindings_(const PMatchPattern*pattern,
             break;
           case PMatchPattern::STRUCTURE:
             for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
-                  path.push_back(pform_pattern_path_component_t((unsigned)idx));
-                  collect_pattern_bindings_(pattern->children()[idx], path,
-                                            bindings);
+                  const PMatchPattern*child = pattern->children()[idx];
+                  if (child->has_member_name())
+                        path.push_back(pform_pattern_path_component_t(
+                              child->member_name()));
+                  else
+                        path.push_back(pform_pattern_path_component_t(
+                              (unsigned)idx));
+                  collect_pattern_bindings_(child, path, bindings);
                   path.pop_back();
             }
             break;
@@ -2202,6 +2207,17 @@ Statement* pform_make_quality_if(const struct vlltype&loc,
             tail = next->release_else_clause();
             delete next;
             append_condition(next_cond, next_if);
+      }
+
+      // A qualified if applies to the complete direct else-if chain. A
+      // second qualified if at the end of that chain is therefore illegal;
+      // a qualified if inside an explicit begin-end block remains opaque as
+      // the default statement and is not rejected here.
+      if (PCase*next = dynamic_cast<PCase*>(tail)) {
+            if (next->is_quality_if()) {
+                  cerr << next->get_fileline() << ": error: a unique, unique0, or priority qualifier cannot appear after else in a qualified if-else-if series." << endl;
+                  error_count += 1;
+            }
       }
 
       if (tail) {

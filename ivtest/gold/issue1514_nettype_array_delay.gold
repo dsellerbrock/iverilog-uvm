@@ -1,0 +1,3 @@
+nettype array remains unchanged before delay
+nettype array changed after assignment delay
+./ivltests/issue1514_nettype_array_delay.v:23: $finish called at 7000 (1ps)

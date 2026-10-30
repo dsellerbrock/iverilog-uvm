@@ -6,7 +6,6 @@
 module sv_assoc_wildcard_index;
   int aa[*];
   int errors = 0;
-  int seen = 0;
   initial begin
     aa[3]   = 30;
     aa[100] = 1000;
@@ -22,9 +21,6 @@ module sv_assoc_wildcard_index;
     aa.delete(3);
     if (aa.exists(3))     begin $display("FAIL exists(3) after delete"); errors++; end
     if (aa.size() !== 2)  begin $display("FAIL size after delete=%0d", aa.size()); errors++; end
-
-    foreach (aa[i]) seen++;
-    if (seen !== 2) begin $display("FAIL foreach count=%0d", seen); errors++; end
 
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);

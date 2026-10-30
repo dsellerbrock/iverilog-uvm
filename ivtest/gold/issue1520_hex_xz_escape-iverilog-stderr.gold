@@ -1,0 +1,4 @@
+ivltests/issue1520_hex_xz_escape.sv:2: error: x and z are not allowed as hexadecimal digits in string escape.
+ivltests/issue1520_hex_xz_escape.sv:3: error: x and z are not allowed as hexadecimal digits in string escape.
+ivltests/issue1520_hex_xz_escape.sv:4: error: x and z are not allowed as hexadecimal digits in string escape.
+ivltests/issue1520_hex_xz_escape.sv:5: error: x and z are not allowed as hexadecimal digits in string escape.

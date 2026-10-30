@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1491_proc_cont_assign_expr_2017.sv",
+    "iverilog-args" : [ "-g2017", "-s", "issue1491_proc_cont_assign_expr" ],
+    "gold"          : "issue1491_proc_cont_assign_expr_2017"
+}

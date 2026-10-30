@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue1520_hex_xz_escape.sv",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"           : "issue1520_hex_xz_escape"
+}

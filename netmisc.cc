@@ -2794,7 +2794,24 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 		    des->errors += 1;
 		    return nullptr;
 	      }
-	      if (index_type && index_type->packed()
+	      /* IEEE 1800-2017/2023 7.8.1 treats a string literal used as a
+	       * wildcard index as a bit vector of the literal's equivalent size.
+	       * Elaborating it in its native string type would create a string key,
+	       * which cannot match the same value written as an integral index. */
+	      if (queue->assoc_wildcard()) {
+		    if (const PEString*literal = dynamic_cast<const PEString*>(expr)) {
+			  NetExpr*value = literal->elaborate_expr(
+				des, scope, static_cast<ivl_type_t>(nullptr), 0);
+			  if (!value)
+				return nullptr;
+			  NetECast*packed = new NetECast(
+				'v', value, literal->expr_width(), false);
+			  packed->set_line(*literal);
+			  return packed;
+		    }
+	      }
+	      if (!queue->assoc_wildcard()
+		  && index_type && index_type->packed()
 		  && source_base == IVL_VT_REAL) {
 		    cerr << expr->get_fileline() << ": error: an integral "
 			 "associative-array index cannot implicitly cast a real or "
@@ -2860,7 +2877,8 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 		  delete key;
 		  return nullptr;
 	    }
-	    if (index_type && index_type->packed()) {
+	    if (!queue->assoc_wildcard()
+		&& index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
 		  ivl_variable_type_t cast_type = index_type->base_type();
 		  /* Keep X/Z until the associative access can warn and ignore it. */
@@ -4095,6 +4113,10 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 					  const LineInfo *loc,
 					  NetNet *lval, NetNet *rval,
 					  const std::vector<long> &stride,
+					  const NetExpr *rise_time,
+					  const NetExpr *fall_time,
+					  const NetExpr *decay_time,
+					  bool whole_value_delay,
 					  unsigned int dim = 0,
 					  unsigned int idx_l = 0,
 					  unsigned int idx_r = 0)
@@ -4134,13 +4156,19 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 		  NetBUFZ *driver = new NetBUFZ(scope, scope->local_symbol(),
 						lval->vector_width(), false);
 		  driver->set_line(*loc);
+		  driver->whole_vector_delay(whole_value_delay);
 		  des->add_node(driver);
 
 		  connect(lval->pin(idx_l), driver->pin(0));
 		  connect(driver->pin(1), rval->pin(idx_r));
+		  if (rise_time || fall_time || decay_time)
+			driver->pin(0).drivers_delays(rise_time, fall_time,
+							     decay_time);
 	    } else {
 		  assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval,
-						stride, dim + 1, idx_l, idx_r);
+						stride, rise_time, fall_time,
+						decay_time, whole_value_delay,
+						dim + 1, idx_l, idx_r);
 	    }
 
 	    idx_l += inc_l;
@@ -4150,7 +4178,11 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 
 void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 			       const LineInfo*loc,
-			       NetNet*lval, NetNet*rval)
+			       NetNet*lval, NetNet*rval,
+			       const NetExpr*rise_time,
+			       const NetExpr*fall_time,
+			       const NetExpr*decay_time,
+			       bool whole_value_delay)
 {
       ivl_assert(*loc, lval->pin_count()==rval->pin_count());
 
@@ -4158,7 +4190,9 @@ void assign_unpacked_with_bufz(Design*des, NetScope*scope,
       vector<long> stride(dims.size());
 
       make_strides(dims, stride);
-      assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval, stride);
+      assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval, stride,
+				    rise_time, fall_time, decay_time,
+				    whole_value_delay);
 }
 
 /*

@@ -31,6 +31,7 @@
 # include  <cassert>
 
 class class_type;
+class vvp_assoc_base;
 
 #ifdef HAVE_IOSFWD
 # include  <iosfwd>
@@ -559,6 +560,15 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid);
       void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
                      int64_t index);
+      void bind_assoc_elem(vvp_net_t*formal, vvp_assoc_base*container,
+                           const std::string&key,
+                           unsigned kind);
+      void bind_assoc_elem(vvp_net_t*formal, vvp_assoc_base*container,
+                           const vvp_object_t&key,
+                           unsigned kind);
+      void bind_assoc_elem(vvp_net_t*formal, vvp_assoc_base*container,
+                           const vvp_vector4_t&key,
+                           unsigned kind);
       void bind_word(vvp_net_t*formal, struct __vpiArray*arr, unsigned index);
 
 	// vvp_net_fun_t: forward everything to the bound net.
@@ -630,6 +640,8 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       static void operator delete(void*obj);
 
     private:
+      void bind_assoc_element_ref_(vvp_net_t*formal,
+                                   const vvp_object_t&element);
       __vpiScope*context_scope_;
       unsigned context_idx_;
       void*static_slot_;

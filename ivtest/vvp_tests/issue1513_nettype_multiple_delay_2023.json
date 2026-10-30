@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1513_nettype_multiple_delay_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1513_nettype_multiple_delay"],
+  "gold": "issue1513_nettype_multiple_delay_2023"
+}

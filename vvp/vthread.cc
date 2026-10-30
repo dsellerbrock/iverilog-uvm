@@ -9784,6 +9784,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// Cross iff is an item-local gate. A false/X guard suppresses the
 	// cross item only; its contributing coverpoints remain sampled.
       auto item_enabled = [&](unsigned item) -> bool {
+	    if (!cobj->cov_item_enabled(item)) return false;
 	    if (item < ncp) return true;
 	    unsigned gi = item - ncp;
 	    return gi >= cross_guards.size() || cross_guards[gi] != 0;
@@ -9885,7 +9886,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// matcher as ordinary transition bins, but report before normal routing.
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
-	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)) continue;
+	    if (!state.valid || !state.meta || !(state.meta->kind & 1024)
+		|| !item_enabled(state.meta->item_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp]) continue;
 	    std::vector<const class_type::cov_bin_t*> records;
@@ -9905,6 +9907,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 2
+		|| !item_enabled(state.meta->item_idx)
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -10095,7 +10098,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_trans_states) {
 	    const covgrp_dyn_trans_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || state.records.empty()
-		|| (state.meta->kind & 1024)) continue;
+		|| (state.meta->kind & 1024)
+		|| !item_enabled(state.meta->item_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    if (cp >= ncp || !cp_sampled[cp]
 		|| (cp_suppressed[cp] && !cp_illegal_value[cp])) continue;
@@ -10123,6 +10127,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
 	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 0
+		|| !item_enabled(state.meta->item_idx)
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -10344,6 +10349,34 @@ bool of_COVGRP_STOP(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
       if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
 	    cobj->set_cov_enabled(false);
+      return true;
+}
+
+/* %covgrp/item/start and %covgrp/item/stop (19.8): per-item collection
+ * enable. Stack on entry: obj-stack top = cg_obj. */
+bool of_COVGRP_ITEM_START(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    const class_type*defn = cobj->get_defn();
+	    if (defn && defn->is_covergroup()
+		&& cp->number < defn->covgrp_item_count())
+		  cobj->set_cov_item_enabled((unsigned)cp->number, true);
+      }
+      return true;
+}
+
+bool of_COVGRP_ITEM_STOP(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    const class_type*defn = cobj->get_defn();
+	    if (defn && defn->is_covergroup()
+		&& cp->number < defn->covgrp_item_count())
+		  cobj->set_cov_item_enabled((unsigned)cp->number, false);
+      }
       return true;
 }
 
@@ -30462,6 +30495,122 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
             container = fun->peek_object();
       formal->bind_elem(cp->net, container, use_index);
       return true;
+}
+
+template <class ASSOC, class KEY, class VALUE>
+static bool ref_assoc_allocate_value_(ASSOC*assoc, const KEY&key,
+				      unsigned width)
+{
+      if (!assoc || assoc->exists_key(key)) return false;
+      VALUE value;
+      dq_default(value, width);
+      assoc->get(key, value);
+      assoc->set(key, assoc_value_copy_element_(value));
+      return true;
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_vec4*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_vec4, KEY,
+					       vvp_vector4_t>(assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_real*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_real, KEY, double>(
+	    assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_string*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_string, KEY, string>(
+	    assoc, key, width);
+}
+
+template <class KEY>
+static bool ref_assoc_allocate_(vvp_assoc_object*assoc, const KEY&key,
+				unsigned width)
+{
+      return ref_assoc_allocate_value_<vvp_assoc_object, KEY,
+					       vvp_object_t>(assoc, key, width);
+}
+
+template <class ASSOC, class KEY>
+static void ref_bind_assoc_kind_(vthread_t thr, vvp_code_t cp,
+				 const KEY&key, vvp_ref_signal_aa*formal,
+				 unsigned value_kind)
+{
+      ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, cp->net2,
+						       "ref-assoc-bind");
+      if (assoc && !aa_index_has_xz_(key)
+	  && ref_assoc_allocate_(assoc, key, formal->value_size()))
+	    notify_mutated_object_signal_(thr, cp->net2, "ref-aa-allocate");
+      formal->bind_assoc_elem(cp->net, assoc, key, value_kind);
+}
+
+template <class KEY>
+static bool ref_bind_assoc_(vthread_t thr, vvp_code_t cp, const KEY&key)
+{
+      vvp_vector4_t kindv = thr->pop_vec4();
+      int64_t value_kind = 0;
+      vector4_to_value(kindv, value_kind, true, false);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/aa error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      switch (value_kind) {
+	  case vvp_lvalue_ref::VALUE_VEC4:
+	    ref_bind_assoc_kind_<vvp_assoc_vec4>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_REAL:
+	    ref_bind_assoc_kind_<vvp_assoc_real>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_STRING:
+	    ref_bind_assoc_kind_<vvp_assoc_string>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  case vvp_lvalue_ref::VALUE_OBJECT:
+	    ref_bind_assoc_kind_<vvp_assoc_object>(thr, cp, key, formal,
+						   value_kind);
+	    break;
+	  default:
+	    cerr << "%ref/bind/aa error: invalid value kind "
+		 << value_kind << "." << endl;
+	    break;
+      }
+      return true;
+}
+
+/* %ref/bind/aa/{str,obj,v} <formal>, <container-var> -- key and value kind
+ * are on their typed value stacks. */
+bool of_REF_BIND_AA_STR(vthread_t thr, vvp_code_t cp)
+{
+      string key = thr->pop_str();
+      return ref_bind_assoc_(thr, cp, key);
+}
+
+bool of_REF_BIND_AA_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      return ref_bind_assoc_(thr, cp, key);
+}
+
+bool of_REF_BIND_AA_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      return ref_bind_assoc_(thr, cp, key);
 }
 
 /* %ref/bind/el/o <formal> -- bind to an element of the container object

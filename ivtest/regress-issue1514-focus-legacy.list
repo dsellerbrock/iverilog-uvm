@@ -1,0 +1,2 @@
+issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
+issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
