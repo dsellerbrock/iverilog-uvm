@@ -1265,6 +1265,7 @@ extern unsigned    ivl_logic_width(ivl_net_logic_t net);
 extern unsigned    ivl_logic_event_synchronous(ivl_net_logic_t net);
 extern unsigned    ivl_logic_is_cassign(ivl_net_logic_t net);
 extern unsigned    ivl_logic_port_buffer(ivl_net_logic_t net);
+extern unsigned    ivl_logic_reactive_output(ivl_net_logic_t net);
 
   /* DEPRECATED */
 extern const char* ivl_logic_attr(ivl_net_logic_t net, const char*key);
