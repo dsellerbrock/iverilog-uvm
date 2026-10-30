@@ -5239,8 +5239,11 @@ NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 	    return scope->find_signal(sig_name);
 
       const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
-      if (!id)
-	    return nullptr;
+	  if (!id) {
+	    string proxy = string("_ivl_cexpr$") + cb->name.str()
+		  + "$" + sig_name.str();
+	    return scope->find_signal(lex_strings.make(proxy.c_str()));
+	  }
 	  if (id->path().name.empty())
 	    return nullptr;
       symbol_search_results sr;

@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1537_clocking_concat.v",
+  "iverilog-args": ["-g2023", "-s", "issue1537_clocking_concat"],
+  "vvp-args": [],
+  "gold": "issue1537_clocking_concat"
+}

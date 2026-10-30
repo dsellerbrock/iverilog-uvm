@@ -794,8 +794,15 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 			cb->decl_assigns.find(*sig_it);
 		  if (da != cb->decl_assigns.end()) {
 			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
-			if (!id || id->path().name.empty())
+			if (!id) {
+			      PExpr::width_mode_t mode = PExpr::SIZED;
+			      unsigned width = da->second->test_width(
+				    des, member_scope, mode);
+			      if (width)
+				    rt = new netvector_t(IVL_VT_LOGIC, width-1, 0, false);
+			} else if (id->path().name.empty()) {
 			      continue;
+			} else {
 			map<perm_string,perm_string>::const_iterator alias =
 			      aliases.find(*sig_it);
 			map<perm_string,PWire*>::const_iterator wt =
@@ -811,6 +818,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 					  rt = wt->second->elaborate_sig_type(
 						des, member_scope);
 			      }
+			}
 			}
 		  } else {
 			map<perm_string,PWire*>::const_iterator wt =
