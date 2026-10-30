@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1711_timing_notifier_x.v",
+    "iverilog-args": ["-g2017", "-gspecify", "-s", "issue1711_timing_notifier_x"],
+    "gold": "issue1711_timing_notifier_x"
+}

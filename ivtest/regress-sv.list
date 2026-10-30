@@ -6,6 +6,8 @@ issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue170
 
 issue1537_clocking_concat_2017 normal,-g2017,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2017.gold
 issue1537_clocking_concat_2023 normal,-g2023,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2023.gold
+issue1711_timing_notifier_x_2017 normal,-g2017,-gspecify,-s,issue1711_timing_notifier_x ivltests gold=issue1711_timing_notifier_x_2017.gold
+issue1711_timing_notifier_x_2023 normal,-g2023,-gspecify,-s,issue1711_timing_notifier_x ivltests gold=issue1711_timing_notifier_x_2023.gold
 issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
 
