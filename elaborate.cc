@@ -12027,6 +12027,27 @@ static NetAssign_* clone_clocking_selected_lval_(NetNet*target,
       return res;
 }
 
+static const NetAssign_* clocking_lval_single_leaf_(const NetAssign_*shape)
+{
+      if (!shape) return nullptr;
+      if (shape->sig()) return shape;
+      if (shape->nest()) return clocking_lval_single_leaf_(shape->nest());
+      if (shape->more) return clocking_lval_single_leaf_(shape->more);
+      return nullptr;
+}
+
+static void clocking_register_lval_variables_(const NetAssign_*shape,
+					      perm_string cb_name)
+{
+      if (!shape) return;
+      NetNet*target = shape->sig();
+      if (target && (target->type() == NetNet::REG
+		     || target->type() == NetNet::IMPLICIT_REG))
+	    ivl_register_clocking_output_variable(target, cb_name);
+      clocking_register_lval_variables_(shape->nest(), cb_name);
+      clocking_register_lval_variables_(shape->more, cb_name);
+}
+
 static std::vector<NetNet*> capture_clocking_selectors_(
 		NetScope*scope, const LineInfo&loc, NetAssign_*lval,
 		std::vector<NetProc*>&prefix)
@@ -29314,18 +29335,34 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  auto da = cb->decl_assigns.find(*sig_it);
 		  if (da != cb->decl_assigns.end()) {
 			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+			const PEConcat*concat = dynamic_cast<const PEConcat*>(da->second);
 			if (id && !id->path().name.empty()
 			    && !id->path().name.back().index.empty()
 			    && !raw->coerced_to_uwire())
 			      target_shape.reset(id->elaborate_lval(
 				    des, scope, false, false, false));
+			else if (concat && concat->stream_parms().size() == 1)
+			      target_shape.reset(concat->stream_parms().front()->elaborate_lval(
+				    des, scope, false, true, false));
 			else
-			      target_shape.reset(new NetAssign_(raw));
+			      target_shape.reset(da->second->elaborate_lval(
+				    des, scope, false, true, false));
 		  } else {
 			target_shape.reset(new NetAssign_(raw));
 		  }
 		  if (!target_shape)
 			continue;
+		  bool concat_target = da != cb->decl_assigns.end()
+			&& dynamic_cast<const PEConcat*>(da->second);
+		  const PEConcat*concat_expr = concat_target
+			? dynamic_cast<const PEConcat*>(da->second) : nullptr;
+		  bool single_concat_target = concat_expr
+			&& concat_expr->stream_parms().size() == 1;
+		  const NetAssign_*single_leaf = single_concat_target
+			? clocking_lval_single_leaf_(target_shape.get()) : nullptr;
+		  if (single_leaf && single_leaf->sig())
+			raw = single_leaf->sig();
+		  clocking_register_lval_variables_(target_shape.get(), cb->name);
 		    /* A clocking output to a net is an additional driver of the
 		       net (IEEE 1800-2017/2023 14.16), resolved with its other
 		       drivers; a procedural write into the net would instead
@@ -29334,10 +29371,12 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		       variable holds 'z until the first clocking drive. A
 		       variable, including one with a continuous assignment that was
 		       coerced to UNRESOLVED_WIRE, keeps the procedural clocking write. */
+		  concat_target = concat_target && !single_leaf;
 		  std::vector<NetNet*> array_net_drives;
-		  if (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
+		  if (!concat_target
+		      && (raw->type() != NetNet::REG && raw->type() != NetNet::IMPLICIT_REG
 		      && (raw->type() != NetNet::UNRESOLVED_WIRE
-			  || !raw->coerced_to_uwire())) {
+			  || !raw->coerced_to_uwire()))) {
 			string vname = string("_ivl_odrv$") + cb->name.str()
 			      + "$" + sig_it->str();
 		if (raw->unpacked_dimensions() > 0) {
@@ -29385,10 +29424,13 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  unsigned words = obuf->unpacked_count();
 		  for (unsigned word = 0; word < words; ++word) {
 		    std::unique_ptr<NetAssign_> target;
-		    if (!array_net_drives.empty())
+		    if (concat_target)
+			  target.reset(target_shape->dup_lval());
+		    else if (!array_net_drives.empty())
 			  target.reset(new NetAssign_(array_net_drives[word]));
 		    else
-			  target.reset(clone_clocking_selected_lval_(raw, target_shape.get()));
+			  target.reset(clone_clocking_selected_lval_(raw,
+				single_leaf ? single_leaf : target_shape.get()));
 		    if (array_net_drives.empty() && obuf->unpacked_dimensions() && !target->word())
 			  target->set_word(make_const_val_s(word));
 		    out_targets.push_back(std::move(target));

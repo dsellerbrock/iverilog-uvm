@@ -1,0 +1,2 @@
+issue1537 clocking concatenation passed
+./ivltests/issue1537_clocking_concat.v:20: $finish called at 6 (1s)

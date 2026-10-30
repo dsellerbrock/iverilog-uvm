@@ -964,6 +964,14 @@ static bool clocking_output_expr_is_lvalue_(const PExpr*expr)
       return true;
 }
 
+static perm_string clocking_expr_proxy_name_(const Module::PClocking*cb,
+						      perm_string sig_name)
+{
+      string name = string("_ivl_cexpr$") + cb->name.str()
+		    + "$" + sig_name.str();
+      return lex_strings.make(name.c_str());
+}
+
 static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
@@ -998,6 +1006,25 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      des->errors += 1;
 			      continue;
 			}
+		  }
+
+		  /* A non-identifier declaration expression needs a stable net
+		     representation for the clocking sampler and its hidden storage.
+		     Synthesize the expression into a private per-instance net so the
+		     existing preponed-history sampler captures the whole value. */
+		  std::map<perm_string,PExpr*>::const_iterator decl_expr =
+			cb->decl_assigns.find(*sig_it);
+		  if (decl_expr != cb->decl_assigns.end()
+		      && !dynamic_cast<const PEIdent*>(decl_expr->second)) {
+			PExpr::width_mode_t mode = PExpr::SIZED;
+			unsigned width = decl_expr->second->test_width(des, scope, mode);
+			NetExpr*expr = decl_expr->second->elaborate_expr(
+			      des, scope, width, PExpr::NO_FLAGS);
+			NetNet*expr_net = expr ? expr->synthesize(des, scope, expr) : nullptr;
+			delete expr;
+			if (expr_net)
+			      scope->set_signal_alias(clocking_expr_proxy_name_(cb, *sig_it),
+						     expr_net);
 		  }
 
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);

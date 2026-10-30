@@ -97,9 +97,9 @@ class Module : public PScopeExtra, public PNamedItem {
 	    std::map<perm_string,NetNet::PortType>directions;
 	    std::map<perm_string,pform_clocking_skew_t>in_skews;
 	    std::map<perm_string,pform_clocking_skew_t>out_skews;
-	      /* clocking_decl_assign (A.6.11): clockvars sampling an
-		 arbitrary expression. The signal-path form is
-		 supported; other shapes are diagnosed. */
+	      /* clocking_decl_assign (A.6.11): clockvars associated with an
+		 arbitrary expression. Non-identifier expressions are lowered to a
+		 per-instance synthesized net for sampling and storage sizing. */
 	    std::map<perm_string,PExpr*>decl_assigns;
 	    pform_clocking_skew_t default_in, default_out;
 	    bool default_in_set = false, default_out_set = false;
