@@ -40,6 +40,10 @@
 # include  <iostream>
 # include  <climits>
 
+#ifndef vpiCoverageMerge
+# define vpiCoverageMerge 754
+#endif
+
 using namespace std;
 
 /* Packed and queue slice bounds can be arbitrary-width signed or unsigned
@@ -2436,6 +2440,11 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
       long diag_msg;
 
       switch (operation) {
+	  case vpiCoverageMerge:
+	    /* Code coverage has no database backend, so match the result of
+	       $coverage_merge() for this unavailable operation. */
+	    return -1;
+
 	  case vpiFinish:
 	  case __ivl_legacy_vpiFinish:
             diag_msg = va_arg(ap, PLI_INT32);
