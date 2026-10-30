@@ -515,8 +515,8 @@ static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 	}
 	for (unsigned idx = 0; idx < func->port_count(); idx++) {
 	      NetNet *net = func->port(idx);
-	      assert(net->pin_count() == 1);
-	      own.insert(net->pin(0).nexus());
+	      for (unsigned pin = 0; pin < net->pin_count(); pin += 1)
+		    own.insert(net->pin(pin).nexus());
 	}
 	for (size_t idx = 0; idx < tmp->size(); idx += 1) {
 	      NexusSet::elem_t&item = tmp->at(idx);
