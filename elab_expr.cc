@@ -7872,11 +7872,35 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 			}
 
 			if (is_array_sig) {
+			      /* The array is traversed into singular elements by the
+			       * inside operator (IEEE 1800-2017/2023 11.4.13). Size
+			       * the subject to the element width before the runtime
+			       * helper compares it. Otherwise the helper resizes each
+			       * element to the subject width and can truncate values. */
+			      const netarray_t*array_type =
+				    dynamic_cast<const netarray_t*>(item->net_type());
+			      NetExpr*array_base = base->dup_expr();
+			      if (array_type && array_type->element_type()
+				  && type_is_vectorable(array_base->expr_type())
+				  && type_is_vectorable(
+					array_type->element_type()->base_type())) {
+				    ivl_type_t element_type = array_type->element_type();
+				    long element_width = element_type->packed_width();
+				    if (element_width > 0
+					&& static_cast<unsigned>(element_width)
+					     > array_base->expr_width()) {
+					  bool signed_operands = array_base->has_sign()
+						&& element_type->get_signed();
+					  array_base = pad_to_width(array_base,
+							    element_width,
+							    signed_operands, *this);
+				    }
+			      }
 			      NetESFunc*sys = new NetESFunc("$ivl_inside_arr",
 							    &netvector_t::atom2u32, 2);
 			      sys->set_line(*this);
 			      sys->parm(0, item);
-			      sys->parm(1, base->dup_expr());
+			      sys->parm(1, array_base);
 			      term = condition_reduce(sys);
 			} else {
 			      // Integral set members use wildcard equality: X/Z/? bits in
