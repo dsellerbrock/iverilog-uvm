@@ -6322,3 +6322,5 @@ issue1442_detect_overlap_transition normal,-g2017 ivltests gold=issue1442_detect
 # IEEE 1800-2017/2023 7.8.7: passing a missing associative element by ref allocates it.
 issue1485_ref_assoc_alloc_2017 normal,-g2017,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
 issue1485_ref_assoc_alloc_2023 normal,-g2023,-s,top ivltests gold=issue1485_ref_assoc_alloc.gold
+issue1559_macro_string_continuation_2017 normal,-g2017,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2017.gold
+issue1559_macro_string_continuation_2023 normal,-g2023,-s,issue1559_macro_string_continuation ivltests gold=issue1559_macro_string_continuation_2023.gold

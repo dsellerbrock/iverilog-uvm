@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1559_macro_string_continuation.v",
+  "iverilog-args": ["-g2017", "-s", "issue1559_macro_string_continuation"],
+  "gold": "issue1559_macro_string_continuation"
+}
