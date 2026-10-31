@@ -129,6 +129,7 @@ extern string pexpr_to_scope_constraint_ir(
       vector<const PExpr*>*value_slots,
       vector<NetNet*>*signal_slots,
       vector<NetExpr*>*object_slots,
+      vector<NetExpr*>*prebuilt_value_slots,
       Design*des, const NetScope*scope);
 extern string pexpr_to_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
@@ -750,11 +751,12 @@ NetESFunc* make_std_randomize_with_expr(
       vector<const PExpr*> value_slots;
       vector<NetNet*> signal_slots;
       vector<NetExpr*> object_slots;
+      vector<NetExpr*> prebuilt_value_slots;
       for (const PExpr*wc : with_constraints) {
 	    if (!wc) continue;
 	    string ir = pexpr_to_scope_constraint_ir(
 		  wc, random_tokens, random_types, &value_slots, &signal_slots,
-		  &object_slots, des, scope);
+		  &object_slots, &prebuilt_value_slots, des, scope);
 	    if (ir.empty()) {
 		  cerr << loc->get_fileline() << ": sorry: constraint form in "
 		       << "std::randomize() with-clause is not representable by "
@@ -780,7 +782,9 @@ NetESFunc* make_std_randomize_with_expr(
       for (unsigned i = 0 ; i < n_rand ; i += 1)
 	    fun->parm(i, random_vars[i]);
       for (unsigned i = 0 ; i < n_vals ; i += 1) {
-	    NetExpr*slot = signal_slots[i]
+	    NetExpr*slot = i < prebuilt_value_slots.size()
+		  && prebuilt_value_slots[i] ? prebuilt_value_slots[i]
+		  : signal_slots[i]
 		  ? static_cast<NetExpr*>(new NetESignal(signal_slots[i]))
 		  : elab_and_eval(des, scope,
 			  const_cast<PExpr*>(value_slots[i]), -1, false);
