@@ -6382,3 +6382,5 @@ sv_covergroup_cross_set_matches_2017 normal,-g2017,-s,tb ivltests gold=sv_coverg
 sv_covergroup_cross_set_matches_2023 normal,-g2023,-s,tb ivltests gold=sv_covergroup_cross_set_matches.gold
 issue636_function_call_implicit_var_2017 normal,-g2017,-s,issue636_function_call_implicit_var ivltests gold=issue636_function_call_implicit_var.gold
 issue636_function_call_implicit_var_2023 normal,-g2023,-s,issue636_function_call_implicit_var ivltests gold=issue636_function_call_implicit_var.gold
+issue1816_function_ref_array_element_2017 normal,-g2017,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
+issue1816_function_ref_array_element_2023 normal,-g2023,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
