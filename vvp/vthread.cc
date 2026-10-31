@@ -3810,6 +3810,7 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 /* The constructor lives with %new/queue much later in this file, but typed
  * queue-slice operations also need it for empty and nil-source results. */
 static vvp_object_t make_queue_for_enc_(const char*text);
+static bool container_opcode_runtime_fatal_();
 
 /* Phase 63b/Q-methods: expression-form q.unique() returns a fresh queue
  * containing one representative per distinct value. */
@@ -16630,6 +16631,99 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
                     eq ? 1 : 0);
       }
       return true;
+}
+
+/* %queue/cond <condition-flag>, <element-encoding>
+ *
+ * IEEE 1800-2017/2023 11.4.11: build the ambiguous-condition result for a
+ * queue conditional. The target emits this only for X/Z conditions, after
+ * evaluating both operands. */
+bool of_QUEUE_COND(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t false_obj, true_obj;
+      thr->pop_object(false_obj);
+      thr->pop_object(true_obj);
+      const vvp_bit4_t condition = thr->flags[cp->bit_idx[0]];
+      vvp_darray*true_array = true_obj.peek<vvp_darray>();
+      vvp_darray*false_array = false_obj.peek<vvp_darray>();
+      vvp_object_t result_obj = make_queue_for_enc_(cp->text);
+      vvp_queue*result = result_obj.peek<vvp_queue>();
+
+      if (!result || (condition != BIT4_X && condition != BIT4_Z)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed %queue/cond operands or condition."
+		 << endl;
+	    thr->push_object(result_obj);
+	    return container_opcode_runtime_fatal_();
+      }
+
+      if (true_array && false_array
+	  && true_array->get_size() == false_array->get_size()) {
+	    if (vvp_queue_vec4*dst = dynamic_cast<vvp_queue_vec4*>(result)) {
+		  vvp_queue_vec4*ta = dynamic_cast<vvp_queue_vec4*>(true_array);
+		  vvp_queue_vec4*fa = dynamic_cast<vvp_queue_vec4*>(false_array);
+		  if (!ta || !fa) goto bad_queue_cond;
+		  for (size_t idx = 0; idx < ta->get_size(); ++idx) {
+			vvp_vector4_t tv, fv;
+			ta->get_word(idx, tv);
+			fa->get_word(idx, fv);
+			if (tv.eeq(fv)) dst->push_back(tv, 0);
+			else dst->push_back(vvp_vector4_t(tv.size(), BIT4_0), 0);
+		  }
+	    } else if (vvp_queue_real*dst_real = dynamic_cast<vvp_queue_real*>(result)) {
+		  vvp_queue_real*ta = dynamic_cast<vvp_queue_real*>(true_array);
+		  vvp_queue_real*fa = dynamic_cast<vvp_queue_real*>(false_array);
+		  if (!ta || !fa) goto bad_queue_cond;
+		  for (size_t idx = 0; idx < ta->get_size(); ++idx) {
+			double tv, fv;
+			ta->get_word(idx, tv); fa->get_word(idx, fv);
+			dst_real->push_back(tv == fv ? tv : 0.0, 0);
+		  }
+	    } else if (vvp_queue_string*dst_string = dynamic_cast<vvp_queue_string*>(result)) {
+		  vvp_queue_string*ta = dynamic_cast<vvp_queue_string*>(true_array);
+		  vvp_queue_string*fa = dynamic_cast<vvp_queue_string*>(false_array);
+		  if (!ta || !fa) goto bad_queue_cond;
+		  for (size_t idx = 0; idx < ta->get_size(); ++idx) {
+			string tv, fv;
+			ta->get_word(idx, tv); fa->get_word(idx, fv);
+			dst_string->push_back(tv == fv ? tv : string(), 0);
+		  }
+	    } else if (vvp_queue_object*dst_object = dynamic_cast<vvp_queue_object*>(result)) {
+		  vvp_queue_object*ta = dynamic_cast<vvp_queue_object*>(true_array);
+		  vvp_queue_object*fa = dynamic_cast<vvp_queue_object*>(false_array);
+		  if (!ta || !fa) goto bad_queue_cond;
+		  for (size_t idx = 0; idx < ta->get_size(); ++idx) {
+			vvp_object_t tv, fv;
+			ta->get_word(idx, tv); fa->get_word(idx, fv);
+			bool same = tv == fv;
+			vvp_object_t default_value;
+			vvp_cobject*true_struct = tv.peek<vvp_cobject>();
+			vvp_cobject*false_struct = fv.peek<vvp_cobject>();
+			if (!same && true_struct && false_struct
+			    && true_struct->get_defn() == false_struct->get_defn()
+			    && true_struct->get_defn()->is_struct_type()) {
+			      default_value = vvp_object_t(
+				    new vvp_cobject(true_struct->get_defn()));
+			      if (!true_struct->get_defn()->is_union_type()) {
+				    vvp_bit4_t logical, exact;
+				    struct_equality_(true_struct, false_struct,
+						     logical, exact);
+				    same = logical == BIT4_1;
+			      }
+			}
+			dst_object->push_back(same ? tv : default_value, 0);
+		  }
+	    } else goto bad_queue_cond;
+      }
+
+      thr->push_object(result_obj);
+      return true;
+
+bad_queue_cond:
+      cerr << thr->get_fileline()
+	   << "VVP error: %queue/cond queue element type mismatch." << endl;
+      thr->push_object(result_obj);
+      return container_opcode_runtime_fatal_();
 }
 
 /* Element-wise equality of two dynamic arrays or queues (IEEE

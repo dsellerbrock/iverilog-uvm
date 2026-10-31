@@ -624,6 +624,7 @@ static const struct opcode_table_s opcode_table[] = {
 	{ "%qsort/o",    of_QSORT_O, 1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
 	{ "%qsort/r/o",  of_QSORT_R_O,1,{OA_BIT1,OA_NONE,OA_NONE} },
+      { "%queue/cond", of_QUEUE_COND, 2, {OA_BIT1, OA_CONTAINER_STRING, OA_NONE} },
       { "%queue/to/darray", of_QUEUE_TO_DARRAY, 1,
 	                                      {OA_CONTAINER_STRING,OA_NONE,OA_NONE} },
       { "%queue/trim/o", of_QUEUE_TRIM_O, 1,

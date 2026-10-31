@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "issue1759_queue_conditional_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "issue1759_queue_conditional"
+}
