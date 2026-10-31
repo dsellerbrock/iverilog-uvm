@@ -2824,6 +2824,7 @@ void compile_modpath_src(struct __vpiModPath*dst, char edge,
 {
       struct __vpiModPathSrc*obj =
 	    make_modpath_src(dst, edge, src, vals, false);
+      dst->modpath->set_has_conditional_paths();
       input_connect(obj->net, 1, condit_src.text);
       compile_vpi_lookup(&obj->path_term_in.expr, path_term_in.text);
 }
