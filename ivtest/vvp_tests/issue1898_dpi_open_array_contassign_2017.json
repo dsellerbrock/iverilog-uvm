@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1898_dpi_open_array_contassign.sv",
+  "iverilog-args": ["-g2017", "-s", "issue1898_dpi_open_array_contassign"],
+  "vpi-modules": ["issue1898_dpi_open_array_contassign"],
+  "vpi-sources": ["vpi/issue1898_dpi_open_array_contassign.c"],
+  "output-contains": ["ISSUE1898_PASS", "PASSED"]
+}
