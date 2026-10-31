@@ -1,0 +1,2 @@
+issue627_type_coverage_2017 normal,-g2017,-s,top ivltests gold=issue627_type_coverage.gold
+issue627_type_coverage_2023 normal,-g2023,-s,top ivltests gold=issue627_type_coverage.gold

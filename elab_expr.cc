@@ -4155,6 +4155,44 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       return method_scope;
 }
 
+/* Resolve the built-in static coverage queries, which are scoped to a
+ * covergroup type (and optionally one of its named coverage items) rather
+ * than represented by ordinary class function declarations. */
+static const netclass_t* resolve_scoped_covgrp_coverage_(
+		Design*des, NetScope*scope, const pform_scoped_name_t&path,
+		int&item)
+{
+      item = -1;
+      if (!gn_system_verilog() || path.name.size() < 2
+	  || path.name.size() > 3
+	  || peek_tail_name(path.name) != perm_string::literal("get_coverage"))
+	    return nullptr;
+      for (const auto&comp : path.name)
+	    if (!comp.index.empty()) return nullptr;
+      NetScope*search_scope = path.package
+	    ? des->find_package(path.package->pscope_name()) : scope;
+      if (!search_scope) return nullptr;
+      scoped_class_name_result_t resolved = resolve_scoped_class_type_name_(
+	    des, search_scope, path.name.front().name);
+      const netclass_t*type = resolved.class_type;
+      if (!type || !type->is_covergroup()) return nullptr;
+      if (path.name.size() == 3) {
+	    pform_name_t::const_iterator item_comp = path.name.begin();
+	    ++item_comp;
+	    perm_string item_name = item_comp->name;
+	    bool found = false;
+	    for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+		  if (type->covgrp_item(idx).name == item_name) {
+			item = static_cast<int>(idx);
+			found = true;
+			break;
+		  }
+	    }
+	    if (!found) return nullptr;
+      }
+      return type;
+}
+
 /*
  * Look at the signal to see if there is already a branch that
  * connects the sig to the gnd. If there is, then return it. If not,
@@ -12045,6 +12083,26 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
+	// Built-in covergroup type/item coverage is a static real-valued
+	// function and has no object receiver.
+      int cov_item = -1;
+      if (resolve_scoped_covgrp_coverage_(des, scope, path_, cov_item)) {
+	    if (!parms_.empty()) {
+		  cerr << get_fileline() << ": error: Covergroup type get_coverage() "
+		       "currently accepts no arguments (IEEE 1800-2017/2023 19.8)."
+		       << endl;
+		  des->errors += 1;
+		  expr_width_ = 0;
+		  min_width_ = 0;
+		  return 0;
+	    }
+	    expr_type_ = IVL_VT_REAL;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+
       // Search for the symbol. This should turn up a scope.
       symbol_search_results search_results;
       bool search_flag = symbol_search(this, des, scope, path_, UINT_MAX, &search_results);
@@ -17594,6 +17652,28 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					 unsigned flags) const
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
+
+	// Type-level coverage queries identify the covergroup definition
+	// directly; item calls additionally carry the named item index.
+      if (!receiver_) {
+	    int item = -1;
+	    const netclass_t*type = resolve_scoped_covgrp_coverage_(
+		  des, scope, path_, item);
+	    if (type) {
+		  if (!parms_.empty()) return nullptr; // diagnosed by test_width.
+		  std::string name = item < 0
+			? "$ivl_class_method$covgrp_type_get_coverage|"
+			: "$ivl_class_method$covgrp_type_item_get_coverage|";
+		  std::ostringstream dispatch;
+		  dispatch << scope_path(type->class_scope());
+		  name += dispatch.str();
+		  if (item >= 0) name += "|" + to_string(item);
+		  NetESFunc*sys = new NetESFunc(name.c_str(),
+						 &netreal_t::type_real, 0);
+		  sys->set_line(*this);
+		  return sys;
+	    }
+      }
 
 	// Method call on an arbitrary receiver expression, e.g.
 	// f().method(). Elaborate the receiver and dispatch the method
