@@ -4070,6 +4070,7 @@ class NetCondit  : public NetProc {
 
       NetProc* if_clause();
       NetProc* else_clause();
+      void set_else_clause_borrowed(NetProc*);
       const NetProc* if_clause() const;
       const NetProc* else_clause() const;
 	// Transfer the if-clause without deleting it. Synthesis uses this to
@@ -4121,6 +4122,7 @@ class NetCondit  : public NetProc {
       NetExpr* expr_;
       NetProc*if_;
       NetProc*else_;
+      bool owns_else_;
       bool immediate_assertion_;
 };
 
