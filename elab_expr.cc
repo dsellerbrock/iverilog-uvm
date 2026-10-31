@@ -21442,6 +21442,9 @@ NetExpr* PECastSize::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(tmp, expr_wid, signed_flag_, *this);
 }
 
+static bool stream_struct_target_supported_(ivl_type_t type);
+static unsigned stream_struct_min_width_(ivl_type_t type);
+
 unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
 {
       target_type_ = target_->elaborate_type(des, scope);
@@ -21463,6 +21466,10 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
       } else if (const netstring_t*use_string = dynamic_cast<const netstring_t*>(target_type_)) {
 	    expr_type_  = use_string->base_type();
 	    expr_width_ = 8;
+
+	  } else if (stream_struct_target_supported_(target_type_)) {
+	    expr_type_ = IVL_VT_NO_TYPE;
+	    expr_width_ = stream_struct_min_width_(target_type_);
 
       } else {
 	    expr_type_  = target_type_->base_type();
@@ -21576,6 +21583,53 @@ static unsigned fixed_struct_stream_width_(ivl_type_t type)
       return width;
 }
 
+/* The VVP object-stream conversion currently materializes unpacked structs
+ * whose members are packed integral values or dynamic packed-integral arrays.
+ * Keep this predicate aligned with the runtime property-layout handling. */
+static bool stream_struct_target_supported_(ivl_type_t type)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (!record || record->packed() || record->union_flag())
+	    return false;
+      for (const netstruct_t::member_t&member : record->members()) {
+	    ivl_type_t mt = member.net_type;
+	    if (mt->packed() && type_is_vectorable(mt->base_type())
+		&& mt->packed_width() > 0)
+		  continue;
+	    if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(mt)) {
+		  ivl_type_t elem = array->element_type();
+		  if (elem && elem->packed() && type_is_vectorable(elem->base_type())
+		      && elem->packed_width() > 0)
+			continue;
+	    }
+	    return false;
+      }
+      return true;
+}
+
+static unsigned stream_struct_min_width_(ivl_type_t type)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (!record) return 0;
+      unsigned width = 0;
+      for (const netstruct_t::member_t&member : record->members()) {
+	    if (!member.net_type->packed()) continue;
+	    long member_width = member.net_type->packed_width();
+	    if (member_width <= 0
+		|| static_cast<unsigned long>(member_width) > UINT_MAX - width)
+		  return 0;
+	    width += static_cast<unsigned>(member_width);
+      }
+      return width;
+}
+
+class NetEStreamStructCast : public NetESFunc {
+    public:
+      explicit NetEStreamStructCast(ivl_type_t type)
+	    : NetESFunc("$ivl_stream$structcast$r$1", type, 1)
+	    { expr_width(0); }
+};
+
 static bool positional_container_integral_elements_(ivl_type_t type)
 {
       const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
@@ -21585,6 +21639,19 @@ static bool positional_container_integral_elements_(ivl_type_t type)
       ivl_type_t element = container->element_type();
       return element && element->packed() && element->packed_width() > 0
 	    && type_is_vectorable(element->base_type());
+}
+
+static bool stream_struct_source_supported_(const NetExpr*source)
+{
+      if (!source) return false;
+      ivl_type_t type = source->net_type();
+      if (!type)
+	    return type_is_vectorable(source->expr_type());
+      if (type->packed())
+	    return type_is_vectorable(type->base_type());
+      if (dynamic_cast<const netstring_t*>(type))
+	    return true;
+      return positional_container_integral_elements_(type);
 }
 
 static bool positional_container_byte_elements_(ivl_type_t type)
@@ -22235,6 +22302,17 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 				signed_flag_, *this, target_type_);
       }
 
+      if (stream_struct_target_supported_(target_type_)
+	  && bitstream_cast_type_(target_type_, true)
+	  && (sub->net_type()
+	      ? bitstream_cast_type_(sub->net_type(), false)
+	      : type_is_vectorable(sub->expr_type()))
+	  && stream_struct_source_supported_(sub)) {
+	    NetESFunc*cast = new NetEStreamStructCast(target_type_);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
       // L37: a non-packed target (unpacked struct/array/queue/etc.) is a
       // legal IEEE 1800-2017/2023 6.24.3 bit-stream cast target -- but
       // `return sub unchanged' hands codegen a vector-shaped NetExpr where

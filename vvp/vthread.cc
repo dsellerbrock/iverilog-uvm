@@ -27670,6 +27670,155 @@ bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t cp)
       return do_stream_to_container(thr, cp, true);
 }
 
+/* Materialize a bit stream as an unpacked struct cobject. The class
+ * definition carries the ordered member widths and dynamic-container element
+ * encodings. For a dynamic member the first such member greedily receives
+ * the bits left after all fixed members; later dynamic members are empty. */
+bool of_STREAM_TO_STRUCT(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t bits = thr->pop_vec4();
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_cobject*record = object.peek<vvp_cobject>();
+      if (!record || !record->get_defn()->is_struct_type()) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %stream/to/struct requires an unpacked struct object."
+		 << endl;
+	    thr->push_object(object);
+	    vpip_set_return_value(1);
+	    if (!schedule_finished()) schedule_finish(0);
+	    return false;
+      }
+
+      const class_type*defn = record->get_defn();
+      size_t fixed_width = 0;
+      size_t first_dynamic = defn->property_count();
+      for (size_t prop = 0 ; prop < defn->property_count() ; prop += 1) {
+	    const string&type = defn->property_base_type(prop);
+	    if (!type.empty() && (type[0] == 'D' || type[0] == 'Q')) {
+		  if (first_dynamic == defn->property_count())
+			first_dynamic = prop;
+		  continue;
+	    }
+	    unsigned width = defn->property_vec4_width(prop);
+	    uint64_t count = defn->property_array_size(prop);
+	    if (!width || count > (SIZE_MAX-fixed_width)/width) {
+		  fixed_width = SIZE_MAX;
+		  break;
+	    }
+	    fixed_width += width * count;
+      }
+
+      size_t stream_width = bits.size();
+      bool size_error = fixed_width == SIZE_MAX || stream_width < fixed_width
+	    || (first_dynamic == defn->property_count()
+		&& stream_width != fixed_width);
+      size_t dynamic_bits = size_error ? 0 : stream_width - fixed_width;
+      size_t first_dynamic_width = 0;
+      if (first_dynamic < defn->property_count()) {
+	    const string&type = defn->property_base_type(first_dynamic);
+	    size_t pos = 1;
+	    if (pos < type.size() && type[pos] == 's') ++pos;
+	    if (pos < type.size() && (type[pos] == 'b' || type[pos] == 'v')) {
+		  char*end = 0;
+		  unsigned long parsed = strtoul(type.c_str()+pos+1, &end, 10);
+		  if (!end || *end || parsed == 0 || parsed > UINT_MAX)
+			first_dynamic_width = 0;
+		  else first_dynamic_width = (size_t)parsed;
+	    }
+	    if (!first_dynamic_width || dynamic_bits % first_dynamic_width)
+		  size_error = true;
+      }
+      if (size_error) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: bit-stream cast source size " << stream_width
+		 << " does not fit the struct destination." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished()) schedule_finish(0);
+	    thr->push_object(object);
+	    return false;
+      }
+
+      size_t offset = 0;
+      bool dynamic_used = false;
+      for (size_t prop = 0 ; prop < defn->property_count() ; prop += 1) {
+	    const string&type = defn->property_base_type(prop);
+	    if (!type.empty() && (type[0] == 'D' || type[0] == 'Q')) {
+		  size_t pos = 1;
+		  bool two_state = false;
+		  if (pos < type.size() && type[pos] == 's') { two_state = true; ++pos; }
+		  if (pos >= type.size() || (type[pos] != 'b' && type[pos] != 'v')) {
+			  size_error = true; break;
+		  }
+		  two_state = two_state || type[pos] == 'b';
+		  char*end = 0;
+		  unsigned long width_ul = strtoul(type.c_str()+pos+1, &end, 10);
+		  if (!end || *end || width_ul == 0 || width_ul > UINT_MAX) {
+			  size_error = true; break;
+		  }
+		  unsigned width = (unsigned)width_ul;
+		  size_t count = (!dynamic_used && prop == first_dynamic)
+			? dynamic_bits / width : 0;
+		  dynamic_used = dynamic_used || prop == first_dynamic;
+		  if (type[0] == 'D') {
+			  vvp_darray*array = two_state
+				? static_cast<vvp_darray*>(new vvp_darray_vec2(count, width))
+				: static_cast<vvp_darray*>(new vvp_darray_vec4(count, width));
+			  for (size_t idx = 0 ; idx < count ; idx += 1) {
+				  size_t begin = stream_width - offset - width;
+				  vvp_vector4_t value = bits.subvalue(begin, width);
+				  if (two_state) value = vector2_to_vector4(vvp_vector2_t(value), width);
+				  array->set_word((unsigned)idx, value);
+				  offset += width;
+			  }
+			  record->set_object(prop, vvp_object_t(array), 0);
+		  } else {
+			  uint64_t max_size = defn->property_queue_max_size(prop);
+			  if (max_size && count > max_size) { size_error = true; break; }
+			  vvp_queue_vec4*queue = new vvp_queue_vec4;
+			  queue->set_declared_container_layout(vvp_make_container_layout(
+				VVP_CONTAINER_QUEUE, true, max_size, vvp_container_layout_t()));
+			  for (size_t idx = 0 ; idx < count ; idx += 1) {
+				  size_t begin = stream_width - offset - width;
+				  vvp_vector4_t value = bits.subvalue(begin, width);
+				  if (two_state) value = vector2_to_vector4(vvp_vector2_t(value), width);
+				  queue->push_back(value, max_size);
+				  offset += width;
+			  }
+			  record->set_object(prop, vvp_object_t(queue), 0);
+		  }
+		  continue;
+	    }
+	    unsigned width = defn->property_vec4_width(prop);
+	    uint64_t count = defn->property_array_size(prop);
+	    const string&field_type = defn->property_base_type(prop);
+	    size_t type_pos = field_type.find_last_of(':');
+	    type_pos = type_pos == string::npos ? 0 : type_pos + 1;
+	    if (type_pos < field_type.size() && field_type[type_pos] == 's')
+		  ++type_pos;
+	    bool two_state = type_pos < field_type.size()
+		  && field_type[type_pos] == 'b';
+	    for (uint64_t idx = 0 ; idx < count ; idx += 1) {
+		  size_t begin = stream_width - offset - width;
+		  vvp_vector4_t field = bits.subvalue(begin, width);
+		  if (two_state)
+			field = vector2_to_vector4(vvp_vector2_t(field), width);
+		  record->set_vec4(prop, field, idx);
+		  offset += width;
+	    }
+      }
+      thr->push_object(object);
+      if (size_error) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: bit-stream cast destination member layout is unsupported."
+		 << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished()) schedule_finish(0);
+	    return false;
+      }
+      return true;
+}
+
 bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t cp)
 {
       return do_stream_to_container(thr, cp, false);
