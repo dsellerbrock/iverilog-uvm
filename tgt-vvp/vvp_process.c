@@ -7255,8 +7255,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
-	    fprintf(vvp_out, "    %%mbx/try_get;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+	    fprintf(vvp_out, "    %%mbx/try_get %u;\n",
+		    mailbox_receiver_kind_(ivl_stmt_ref_lval(net)));
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context success\n",
 		    success_flag);
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_get leaves output unchanged\n",
 		    thread_count, lab_fail, success_flag);
@@ -7286,8 +7287,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
-	    fprintf(vvp_out, "    %%mbx/try_peek;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+	    fprintf(vvp_out, "    %%mbx/try_peek %u;\n",
+		    mailbox_receiver_kind_(ivl_stmt_ref_lval(net)));
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context success\n",
 		    success_flag);
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_peek leaves output unchanged\n",
 		    thread_count, lab_fail, success_flag);

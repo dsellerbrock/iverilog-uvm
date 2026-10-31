@@ -20637,15 +20637,18 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 					delete sub_expr;
 					return 0;
 				  }
-				  // Returns bit (1=success, 0=fail)
+				  // try_get/try_peek return int: negative on type mismatch,
+				  // zero when empty, positive when successful.
 				  const char*sname =
 				      method_name==perm_string::literal("try_get")
 				      ? "$ivl_mailbox$try_get"
 				      : (method_name==perm_string::literal("try_peek")
 				         ? "$ivl_mailbox$try_peek"
 				         : "$ivl_mailbox$try_put");
-			      NetESFunc*sys = new NetESFunc(sname,
-						       &netvector_t::atom2u32,
+				  NetESFunc*sys = new NetESFunc(sname,
+							       (method_name == perm_string::literal("try_put"))
+							       ? &netvector_t::atom2u32
+							       : &netvector_t::atom2s32,
 						       2);
 			      sys->set_line(*this);
 			      sys->parm(0, sub_expr);

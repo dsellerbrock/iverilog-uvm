@@ -36432,17 +36432,21 @@ bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
  * result (1=got item, 0=empty) onto vec4 stack.
  * If empty, push null onto obj stack and push 0 onto vec4 stack.
  */
-bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
+bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t code)
 {
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_get(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      int status = mbx ? mbx->try_get(item, code->number) : 0;
+      thr->push_object(status > 0 ? item : vvp_object_t());
+      vvp_vector4_t res(32);
+      uint32_t value = static_cast<uint32_t>(status);
+      for (unsigned idx = 0; idx < 32; ++idx)
+	    res.set_bit(idx, (value >> idx) & 1 ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
+      thr->push_vec4(vvp_vector4_t(1, status > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 
@@ -36452,17 +36456,21 @@ bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
  * Non-blocking peek. If successful, push item onto obj stack; push
  * result (1=item present, 0=empty) onto vec4 stack.
  */
-bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
+bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t code)
 {
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_peek(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      int status = mbx ? mbx->try_peek(item, code->number) : 0;
+      thr->push_object(status > 0 ? item : vvp_object_t());
+      vvp_vector4_t res(32);
+      uint32_t value = static_cast<uint32_t>(status);
+      for (unsigned idx = 0; idx < 32; ++idx)
+	    res.set_bit(idx, (value >> idx) & 1 ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
+      thr->push_vec4(vvp_vector4_t(1, status > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 
