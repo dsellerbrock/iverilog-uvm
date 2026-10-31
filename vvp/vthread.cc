@@ -21478,7 +21478,9 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
 		  if (sv) args[idx].r = sv->real_value();
 	    } else if (letter == 's') {
 		  vvp_fun_signal_string*ss =
-			vvp_fil_as_signal_string(net->fil);
+			vvp_fun_as_signal_string(net->fun);
+		  if (!ss)
+			ss = vvp_fil_as_signal_string(net->fil);
 		  if (ss) {
 			string_arg_hold[idx] = ss->get_string();
 			args[idx].s = string_arg_hold[idx].c_str();
