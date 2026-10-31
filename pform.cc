@@ -10637,30 +10637,30 @@ PExpr* pform_sva_selected_local_assignment(const struct vlltype&loc,
       return pform_sva_coerce_local_assignment(loc, name, updated);
 }
 
-/* Keep cloning and validation on the same direct-call subset. A user
-   subroutine with no actual arguments needs no sampled-argument or ref
-   carrier; argument-bearing user calls still fail closed. */
-static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
+/* Match-item calls are rebuilt as procedural calls after the sequence has
+   matched. Preserve the complete call target while cloning its value
+   arguments so local-variable substitution and sampled-value rewriting can
+   be applied before the call is scheduled. */
+static bool sva_match_call_is_direct_(const PCallTask*call)
 {
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
 
       const pform_name_t&path = call->path();
-      return (path.size() == 1 && path.front().index.empty()
-	      && (path.front().name == perm_string::literal("$display")
-		  || (cover && call->parms().empty())))
-	     || (!call->receiver_expr() && !call->package()
-		 && !call->has_scoped_type_prefix()
-		 && path.size() == 2 && path.front().index.empty()
-		 && path.back().index.empty() && call->parms().empty());
+      if (path.empty()) return false;
+      for (pform_name_t::const_iterator it = path.begin() ; it != path.end()
+	   ; ++it)
+	    if (!it->index.empty()) return false;
+      if (call->receiver_expr()) return path.size() == 1;
+      return true;
 }
 
 static PCallTask* sva_clone_match_call_(
       const PCallTask*source,
       const std::map<perm_string,PExpr*>*subst = nullptr)
 {
-      if (!sva_match_call_is_direct_(source, true)) return nullptr;
+      if (!sva_match_call_is_direct_(source)) return nullptr;
       std::list<named_pexpr_t> parms;
       const std::vector<named_pexpr_t>&src = source->parms();
       for (size_t i = 0 ; i < src.size() ; i += 1) {
@@ -10676,7 +10676,21 @@ static PCallTask* sva_clone_match_call_(
 	    }
 	    parms.push_back(arg);
       }
-      PCallTask*out = new PCallTask(source->path(), parms);
+      PCallTask*out = nullptr;
+      if (source->receiver_expr()) {
+	    PExpr*receiver = sva_clone_subst_(source->receiver_expr(), subst);
+	    if (!receiver) {
+		  for (std::list<named_pexpr_t>::iterator it = parms.begin()
+		       ; it != parms.end() ; ++it)
+			delete it->parm;
+		  return nullptr;
+	    }
+	    out = new PCallTask(receiver, source->path().back().name, parms);
+      } else if (source->package()) {
+	    out = new PCallTask(source->package(), source->path(), parms);
+      } else {
+	    out = new PCallTask(source->path(), parms);
+      }
       if (source->has_scoped_type_prefix())
 	    out->set_scoped_type_prefix();
       out->set_lineno(source->get_lineno());
@@ -17743,7 +17757,7 @@ static int sva_match_item_sorry_(const struct vlltype&loc,
    sequence splicing: a reference step itself carries no calls, while its
    declaration body does. */
 static int sva_validate_match_items_(const struct vlltype&loc,
-				     const sva_property_t*prop, int kind)
+				     const sva_property_t*prop)
 {
       if (!prop) return 0;
       bool tree_calls = sva_tree_has_match_calls_(prop->ante_tree)
@@ -17807,10 +17821,9 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	  const sva_seq_step_t&last = prop->seq->back();
 	  for (size_t i = 0 ; i < last.items.size() ; i += 1)
 	    if (last.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
-		&& !sva_match_call_is_direct_(last.items[i].call, kind == 2))
+		&& !sva_match_call_is_direct_(last.items[i].call))
 		  return sva_match_item_sorry_(loc,
-			"currently support only direct $display calls or "
-			"zero-argument user calls in a cover property");
+			"have an unsupported call target or call form");
       if (!pform_sva_nfa_enabled())
 	    return sva_match_item_sorry_(loc,
 		  "require the automaton engine (unset IVL_SVA_LEGACY)");
@@ -28629,7 +28642,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       /* Catch directly visible 16.11 calls before any specialized property
 	 engine can consume their surrounding sequence while ignoring the
 	 action. A named reference is checked again after its body is exposed. */
-      if (sva_validate_match_items_(loc, prop, kind) < 0) {
+      if (sva_validate_match_items_(loc, prop) < 0) {
 	    delete fail_stmt;
 	    delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -29254,7 +29267,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       /* Named sequence calls become visible only after splicing. This is
 	 intentionally the same validator, so every unsupported shape emits one
 	 stable diagnostic whether written inline or through a declaration. */
-      int match_item_state = sva_validate_match_items_(loc, prop, kind);
+      int match_item_state = sva_validate_match_items_(loc, prop);
       if (match_item_state < 0) {
 	    delete fail_stmt;
 	    delete pass_stmt;
