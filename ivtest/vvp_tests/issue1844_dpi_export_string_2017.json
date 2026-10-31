@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1844_dpi_export_string.sv",
+  "iverilog-args": ["-g2017"],
+  "vvp-args": ["-n"],
+  "dpi-sources": ["dpi/issue1844_dpi_export_string.c"],
+  "output-contains": ["PASSED: dpi!"]
+}
