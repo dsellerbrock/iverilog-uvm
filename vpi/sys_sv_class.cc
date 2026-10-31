@@ -99,16 +99,18 @@ static std::string class_cast_key_(vpiHandle ref)
 /*
  * $cast(dest, src)
  */
-static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
+static PLI_INT32 sys_cast_impl_(bool task_form)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
 
       if (!argv) {
-            s_vpi_value rv;
-            rv.format = vpiIntVal;
-            rv.value.integer = 0;
-            vpi_put_value(callh, &rv, 0, vpiNoDelay);
+            if (!task_form) {
+                  s_vpi_value rv;
+                  rv.format = vpiIntVal;
+                  rv.value.integer = 0;
+                  vpi_put_value(callh, &rv, 0, vpiNoDelay);
+            }
             return 0;
       }
 
@@ -225,11 +227,21 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
                   v.format = vpiObjTypeVal;
                   vpi_get_value(src_h, &v);
                   vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+            } else if (task_form) {
+                  const char*file = vpi_get_str(vpiFile, callh);
+                  int line = (int) vpi_get(vpiLineNo, callh);
+                  vpi_printf("%s:%d: error: $cast failed: the source value "
+                             "is not a member of the destination enum type "
+                             "(IEEE 1800-2017/2023 6.24.2). The destination "
+                             "is unchanged.\n",
+                             file ? file : "<unknown>", line);
             }
-            s_vpi_value rv2;
-            rv2.format = vpiIntVal;
-            rv2.value.integer = ok;
-            vpi_put_value(callh, &rv2, 0, vpiNoDelay);
+            if (!task_form) {
+                  s_vpi_value rv2;
+                  rv2.format = vpiIntVal;
+                  rv2.value.integer = ok;
+                  vpi_put_value(callh, &rv2, 0, vpiNoDelay);
+            }
             return 0;
       }
 
@@ -276,11 +288,27 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
             }
       }
 
-      s_vpi_value rv;
-      rv.format = vpiIntVal;
-      rv.value.integer = ok;
-      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      if (!task_form) {
+            s_vpi_value rv;
+            rv.format = vpiIntVal;
+            rv.value.integer = ok;
+            vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      }
       return 0;
+}
+
+static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
+{
+      return sys_cast_impl_(false);
+}
+
+/* The VPI callback for the standard $cast function cannot distinguish a
+   discarded function result from a task call. The compiler routes task-form
+   calls through this private task entry point, which enables the required
+   run-time diagnostic when an enum assignment fails. */
+static PLI_INT32 sys_cast_task_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
+{
+      return sys_cast_impl_(true);
 }
 
 static PLI_INT32 sys_cast_compiletf(ICARUS_VPI_CONST PLI_BYTE8*)
@@ -392,6 +420,17 @@ extern "C" void sys_sv_class_register(void)
       };
       vpiHandle cast_h = vpi_register_systf(&cast_data);
       vpip_make_systf_system_defined(cast_h);
+
+      static const struct t_vpi_systf_data cast_task_data = {
+            vpiSysTask, 0,
+            (PLI_BYTE8*)"$ivl_cast_task",
+            sys_cast_task_calltf,
+            sys_cast_compiletf,
+            0,
+            0
+      };
+      vpiHandle cast_task_h = vpi_register_systf(&cast_task_data);
+      vpip_make_systf_system_defined(cast_task_h);
 
       static const struct t_vpi_systf_data typename_data = {
             vpiSysFunc, vpiStringFunc,

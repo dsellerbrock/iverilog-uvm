@@ -1375,9 +1375,17 @@ void draw_vpi_task_call(ivl_statement_t tnet)
 {
       unsigned parm_count = ivl_stmt_parm_count(tnet);
       const char *command = "error";
+      const char *task_name = ivl_stmt_name(tnet);
 
       if (draw_sv_cast_class_task(tnet))
             return;
+
+      /* VPI exposes $cast as a system function even when its return value is
+         discarded. Route statement-form calls through a private task callback
+         so the runtime can report an invalid assignment without diagnosing
+         function-form failures. */
+      if (task_name && strcmp(task_name, "$cast") == 0)
+            task_name = "$ivl_cast_task";
 
       switch (ivl_stmt_sfunc_as_task(tnet)) {
 	  case IVL_SFUNC_AS_TASK_ERROR:
@@ -1394,14 +1402,14 @@ void draw_vpi_task_call(ivl_statement_t tnet)
       if (parm_count == 0) {
             fprintf(vvp_out, "    %s %u %u \"%s\" {0 0 0 0};\n", command,
                     ivl_file_table_index(ivl_stmt_file(tnet)),
-                    ivl_stmt_lineno(tnet), ivl_stmt_name(tnet));
+                    ivl_stmt_lineno(tnet), task_name);
       } else {
 	    char call_string[1024];
 	    snprintf(call_string, sizeof(call_string),
 		     "    %s %u %u \"%s\"", command,
 		     ivl_file_table_index(ivl_stmt_file(tnet)),
-		     ivl_stmt_lineno(tnet), ivl_stmt_name(tnet));
-	    draw_vpi_taskfunc_args(call_string, tnet, 0, 0, 0, 0, 0);
+                     ivl_stmt_lineno(tnet), task_name);
+	    draw_vpi_taskfunc_args(call_string, tnet, 0, 0, task_name, 0, 0);
       }
 }
 
