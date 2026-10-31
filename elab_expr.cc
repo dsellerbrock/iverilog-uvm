@@ -25862,52 +25862,6 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(result, expr_wid, signed_flag_, *this);
 }
 
-/* Keep compile-progress warnings for unresolved frontend-stub names
- * (clocking members, macro-collapsed names), but not for package-qualified
- * names or hierarchical paths rooted in a real design scope. */
-static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
-					    const pform_scoped_name_t&path)
-{
-      if (path.package != nullptr)
-	    return true;
-      if (path.name.size() < 2)
-	    return false;
-      std::list<hname_t> prefix;
-      for (pform_name_t::const_iterator cur = path.name.begin()
-		 ; std::next(cur) != path.name.end() ; ++cur) {
-	    if (! cur->index.empty())
-		  return false;
-	    prefix.push_back(hname_t(cur->name));
-	    // An inactive generate block leaves this full prefix absent, but a
-	    // real ancestor scope still makes the rest a hard unresolved path.
-	    if (des->find_scope(scope, prefix))
-		  return true;
-      }
-      return false;
-}
-
-/* A foreach index is visible only in its implicit loop scope (IEEE
- * 1800-2017/2023 12.7.3). Unresolved names normally retain a compile-progress
- * warning for frontend constructs that are not modeled yet, but that
- * recovery must not turn a reference to an escaped foreach index into a
- * successful simulation with a fabricated value. */
-static bool unresolved_foreach_index_is_out_of_scope_(NetScope*scope,
-						       perm_string name)
-{
-      const perm_string foreach_attr =
-		perm_string::literal("_ivl_vpi_foreach_scope");
-      for (NetScope*ancestor = scope; ancestor;
-	   ancestor = ancestor->parent()) {
-	    for (const auto&child : ancestor->children()) {
-		  NetScope*loop_scope = child.second;
-		  if (loop_scope->attribute(foreach_attr).as_ulong() != 0
-		      && loop_scope->find_signal(name))
-			return true;
-	    }
-      }
-      return false;
-}
-
 NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
@@ -27392,23 +27346,10 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  return r;
 	    if (handled_method) return 0;
 
-	      // strict_bind_ marks identifiers that came out of a
-	      // concurrent assertion. The compile-progress warning keeps
-	      // UVM-heavy code building, but in an assertion it leaves a
-	      // property that compiles, never evaluates, and reports
-	      // nothing -- the check silently does not exist. Those take
-	      // the error branch.
-	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
-		&& !sr.decl_after_use
-		&& !unresolved_foreach_index_is_out_of_scope_(
-		      scope, path_.name.front().name)
-		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
-		  // Compile-progress: clocking blocks, interface constructs.
-		  cerr << get_fileline() << ": warning: Unable to bind "
-		       << "wire/reg/memory `" << path_ << "' in `"
-		       << scope_path(scope) << "'"
-		       << " (compile-progress: unresolved reference)." << endl;
-	    } else {
+	      // An unresolved identifier is an error even when it came from a
+	      // construct that cannot be fully elaborated yet. Returning a null
+	      // expression after a warning silently drops the user's reference.
+	    {
 		  cerr << get_fileline() << ": error: Unable to bind "
 		       << ((NEED_CONST & flags) ? "parameter" : "wire/reg/memory")
 		       << " `" << path_ << "' in `" << scope_path(scope) << "'"
@@ -27566,10 +27507,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       }
 
 	// I cannot interpret this identifier. Error message.
-	// In SV mode, clocking blocks and other interface constructs may
-	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
-	// unless the reference is package-scoped or its prefix names a
-	// real scope (see unresolved_prefix_is_real_scope above).
+	// An unresolved identifier is an error in every language mode. In
+	// particular, do not let compile-progress warnings turn a missing
+	// signal reference into an empty expression in generated code.
 	// Compiler-generated bookkeeping reference: stay silent, the
 	// user's own reference to the same name reports it.
       if (quiet_bind_) return 0;
@@ -27584,17 +27524,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	if (handled_method) return 0;
 
 
-	// strict_bind_: see the companion site above. An identifier that
-	// came out of a concurrent assertion must not degrade to a
-	// warning here either.
-      if (gn_system_verilog() && !strict_bind_ && !sr.decl_after_use
-	  && !unresolved_foreach_index_is_out_of_scope_(
-		scope, path_.name.front().name)
-	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
-	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
-		    "`" << path_ << "' in `" << scope_path(scope) << "'"
-		    " (compile-progress: unresolved reference)." << endl;
-      } else {
+	// A failed identifier lookup must not degrade to a warning here either.
+	{
 	    cerr << get_fileline() << ": error: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'" << endl;
 	    if (sr.decl_after_use) {
