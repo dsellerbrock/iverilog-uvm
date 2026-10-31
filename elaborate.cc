@@ -39801,12 +39801,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      else if (mname == perm_string::literal("xor")) op = "bxor";
 
 			      if (!op.empty()) {
-				    int pidx = cls->property_idx_from_name(prop->name);
+				    const constraint_reduction_iter_ctx_t*receiver_ctx =
+					  constraint_array_iter_ctx_find_(prop->name);
+				    int pidx = receiver_ctx
+					  ? receiver_ctx->fixed_object_property
+					  : cls->property_idx_from_name(prop->name);
 				    ivl_type_t ptype = pidx >= 0
 					  ? cls->get_prop_type((size_t)pidx) : nullptr;
 				    const netuarray_t*ua =
 					  dynamic_cast<const netuarray_t*>(ptype);
-				    if (!ua)
+				    if (!ua && !receiver_ctx)
 					  return "";
 
 				    auto reduction_error = [&](const string&detail) -> string {
@@ -39842,12 +39846,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  return reduction_error(
 						"requires a nonempty with expression.");
 
-				    ivl_type_t etype = ua ? ua->element_type() : nullptr;
+				    ivl_type_t etype = receiver_ctx
+					  ? receiver_ctx->fixed_object_type
+					  : ua ? ua->element_type() : nullptr;
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
-				    const netranges_t&dimensions =
-					  ua->static_dimensions();
-				    if (dimensions.size() != prop->index.size() + 1) {
+				    netranges_t dimensions;
+				    if (receiver_ctx)
+					  dimensions = receiver_ctx->fixed_remaining_dimensions;
+				    else
+					  dimensions.assign(ua->static_dimensions().begin(),
+						ua->static_dimensions().end());
+				    if ((!receiver_ctx
+					 && dimensions.size() != prop->index.size() + 1
+					 && (with_exprs.empty()
+					     || dimensions.size() < prop->index.size() + 2))) {
 					  if (prop->index.empty())
 						return reduction_error(
 						      "requires a one-dimensional unpacked array "
@@ -39859,8 +39872,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						"after constant prefix selection.");
 				    }
 				    unsigned long canonical_base = 0;
+				    if (receiver_ctx)
+					  canonical_base = receiver_ctx->fixed_object_word;
 				    size_t dim = 0;
-				    for (const index_component_t&select : prop->index) {
+				    if (!receiver_ctx) for (const index_component_t&select : prop->index) {
 					  if (!select.msb || select.lsb
 					      || select.sel != index_component_t::SEL_BIT)
 						return reduction_error(
@@ -39953,10 +39968,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  result_signed = with_expr->has_sign();
 					  ivl_variable_type_t result_type =
 						with_expr->expr_type();
+					      /* The ordinary expression typer sees the iterator alias as
+					       * its scalar leaf type. A reduction directly on a row has
+					       * that same leaf type as its result. */
+					      const PECallFunction*nested_reduction =
+						    dynamic_cast<const PECallFunction*>(with_expr);
+					      bool row_reduction = receiver_ctx == nullptr
+						    && dimensions.size() > prop->index.size() + 1
+						    && nested_reduction
+						    && !nested_reduction->receiver_expr()
+						    && nested_reduction->path().name.size() == 2
+						    && nested_reduction->path().name.front().name
+							  == iter_name;
+					      if (row_reduction) {
+						    result_type = etype->base_type();
+						    result_width = ewid;
+						    result_signed = etype->get_signed();
+					      }
 					  pop_array_method_iter_ctx();
 					  mutable_scope->restore_signal_alias(iter_name,
 								      previous);
-					  if ((result_type != IVL_VT_BOOL
+					      if ((!row_reduction && result_type != IVL_VT_BOOL
 					       && result_type != IVL_VT_LOGIC)
 					      || result_width == 0)
 						return reduction_error(
@@ -39964,11 +39996,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      "(IEEE 1800-2017 7.12.3).");
 				    }
 
-				    const netrange_t&range = dimensions.back();
+				    /* A multidimensional reduction with a with-expression reduces
+			     * the outer dimension. The iterator then denotes the remaining
+			     * subarray, whose own reduction is handled recursively below. */
+			    size_t reduction_dim = receiver_ctx ? 0 : prop->index.size();
+			    const netrange_t&range = dimensions[reduction_dim];
 				    long range_lo = std::min(range.get_msb(),
 							     range.get_lsb());
 				    unsigned long count = range.width();
-				    if (count && canonical_base > ULONG_MAX - (count - 1))
+			    unsigned long stride = 1;
+			    for (size_t tail = reduction_dim + 1;
+				 tail < dimensions.size(); ++tail) {
+				  unsigned long width = dimensions[tail].width();
+				  if (width && stride > ULONG_MAX / width)
+					return reduction_error(
+					  "has fixed-array dimensions too large to canonicalize.");
+				  stride *= width;
+			    }
+			    if (count > 1 && stride > ULONG_MAX / (count - 1))
+				  return reduction_error(
+					"has fixed-array dimensions too large to canonicalize.");
+			    unsigned long span = count ? (count - 1) * stride : 0;
+			    if (count && canonical_base > ULONG_MAX - span)
 					  return reduction_error(
 						"has a fixed-array row too large to canonicalize.");
 				    string reduction;
@@ -39976,7 +40025,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					 elem += 1) {
 					  string leaf = "e:" + to_string(pidx)
 						+ ":" + to_string(ewid) + ":"
-						+ to_string(canonical_base + elem) + esfx;
+						+ to_string(canonical_base + elem * stride) + esfx;
 					  string value = leaf;
 					  if (!with_exprs.empty()) {
 						long declared_index = range_lo + (long)elem;
@@ -39986,6 +40035,39 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						iter_ctx.index_ir = "c:"
 						      + to_string(declared_index) + ":32:s";
 						iter_ctx.value_type = etype;
+						if (dimensions.size() > reduction_dim + 1) {
+						      iter_ctx.fixed_object_property = pidx;
+						      iter_ctx.fixed_object_word = canonical_base
+							    + elem * stride;
+						      iter_ctx.fixed_object_type = etype;
+						      iter_ctx.fixed_remaining_dimensions.assign(
+							    dimensions.begin() + reduction_dim + 1,
+							    dimensions.end());
+					      iter_ctx.fixed_source_property = receiver_ctx
+						    ? receiver_ctx->fixed_source_property : prop->name;
+					      if (receiver_ctx)
+						    iter_ctx.fixed_source_indices =
+							  receiver_ctx->fixed_source_indices;
+					      else
+						    iter_ctx.fixed_source_indices = {};
+					      iter_ctx.fixed_source_indices.reserve(
+						    iter_ctx.fixed_source_indices.size()
+						    + (receiver_ctx ? 0 : prop->index.size()) + 1);
+			    if (!receiver_ctx) for (const index_component_t&select : prop->index) {
+							    constraint_const_ir_t selected;
+							    string index_ir = pexpr_to_constraint_ir(
+								  select.msb, cls, value_slots, scope,
+								  loop_env);
+							    if (constraint_parse_const_ir_(index_ir,
+									  selected)
+								&& selected.width <= 64)
+								  iter_ctx.fixed_source_indices.push_back(
+									(long)constraint_resize_const_bits_(
+									  selected, 64, selected.is_signed));
+						      }
+						      iter_ctx.fixed_source_indices.push_back(
+							    range_lo + (long)elem);
+						}
 						const constraint_reduction_iter_ctx_t*saved =
 						      constraint_reduction_iter_ctx_;
 						iter_ctx.parent = saved;

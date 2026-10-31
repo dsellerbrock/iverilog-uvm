@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1807_constraint_nested_sum_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1807_constraint_nested_sum"
+}
