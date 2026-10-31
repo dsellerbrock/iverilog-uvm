@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1827_packed_foreach_2023.v",
+    "iverilog-args": ["-g2023", "-s", "test"],
+    "gold": "issue1827_packed_foreach"
+}
