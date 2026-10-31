@@ -2839,6 +2839,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <citems> case_items case_inside_items
 %type <cmitem>  case_matches_item
 %type <cmitems> case_matches_items
+%type <expr> case_matches_filter_opt
 %type <match_pattern> match_pattern
 %type <match_pattern> match_pattern_item
 %type <match_patterns> match_pattern_list
@@ -11881,20 +11882,27 @@ match_pattern_list
   ;
 
 case_matches_item
-  : match_pattern ':'
+  : match_pattern
       { assert(!current_case_match_subjects.empty());
 	PBlock*block = pform_pattern_push_scope(
 	      @1, current_case_match_subjects.top(), $1);
 	current_pattern_blocks.push(block);
       }
-    statement_or_null
+	case_matches_filter_opt ':' statement_or_null
       { PCaseMatches::Item*it = new PCaseMatches::Item;
 	assert(!current_pattern_blocks.empty());
 	PBlock*block = current_pattern_blocks.top();
 	current_pattern_blocks.pop();
 	it->pattern = $1;
+	it->has_filter = $3 != nullptr;
+	Statement*body = $5;
+	if ($3) {
+	      PCondit*guard = new PCondit($3, body, nullptr);
+	      FILE_NAME(guard, @3);
+	      body = guard;
+	}
 	it->stat = pform_pattern_finish_scope(
-	      @1, block, $4, current_case_match_subjects.top(), $1);
+	      @1, block, body, current_case_match_subjects.top(), $1);
 	$$ = it;
       }
   | K_default ':' statement_or_null
@@ -11909,6 +11917,13 @@ case_matches_item
 	it->stat = $2;
 	$$ = it;
       }
+  ;
+
+case_matches_filter_opt
+  : %empty
+      { $$ = nullptr; }
+  | K_TAND expression
+      { $$ = $2; }
   ;
 
 case_matches_items

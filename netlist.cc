@@ -2730,7 +2730,7 @@ unsigned NetCaseCmp::width() const
 }
 
 NetCondit::NetCondit(NetExpr*ex, NetProc*i, NetProc*e)
-: expr_(ex), if_(i), else_(e), immediate_assertion_(false)
+: expr_(ex), if_(i), else_(e), owns_else_(true), immediate_assertion_(false)
 {
 }
 
@@ -2738,7 +2738,8 @@ NetCondit::~NetCondit()
 {
       delete expr_;
       delete if_;
-      delete else_;
+      if (owns_else_)
+            delete else_;
 }
 
 const NetExpr* NetCondit::expr() const
@@ -2765,6 +2766,14 @@ NetProc* NetCondit::if_clause()
 NetProc* NetCondit::else_clause()
 {
       return else_;
+}
+
+void NetCondit::set_else_clause_borrowed(NetProc*proc)
+{
+      if (owns_else_)
+            delete else_;
+      else_ = proc;
+      owns_else_ = false;
 }
 
 NetProc* NetCondit::release_if_clause()

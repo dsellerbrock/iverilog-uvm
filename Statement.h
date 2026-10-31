@@ -535,8 +535,10 @@ class PCaseMatches : public Statement {
       struct Item {
             PMatchPattern*pattern;
             bool is_default;
+            bool has_filter;
             Statement *stat;
-            Item() : pattern(nullptr), is_default(false), stat(nullptr) {}
+            Item() : pattern(nullptr), is_default(false), has_filter(false),
+                     stat(nullptr) {}
             ~Item();
       };
 
