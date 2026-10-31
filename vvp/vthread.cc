@@ -22009,7 +22009,19 @@ extern "C" const char*svGetNameFromScope(void*scope)
 {
       if (scope == 0)
 	    return 0;
-      return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
+	  // VPI string results use a shared rotating buffer. DPI callers may keep
+	  // several scope names live at once (for example as printf arguments), so
+	  // retain a name for each scope handle instead of returning that buffer.
+	  static map<vpiHandle,string> names;
+	  vpiHandle handle = reinterpret_cast<vpiHandle>(scope);
+	  map<vpiHandle,string>::iterator entry = names.find(handle);
+	  if (entry == names.end()) {
+		const char*name = vpi_get_str(vpiFullName, handle);
+		if (name == 0)
+		      return 0;
+		entry = names.insert(make_pair(handle, string(name))).first;
+	  }
+	  return entry->second.c_str();
 }
 
 extern "C" const char*svGetFullNameFromScope(void*scope)

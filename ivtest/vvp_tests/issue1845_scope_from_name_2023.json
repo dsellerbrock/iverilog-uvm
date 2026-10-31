@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue1845_scope_from_name.sv",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "vvp-args": ["-d", "work/issue1845_scope_from_name.vpi"],
+  "vpi-modules": ["issue1845_scope_from_name"],
+  "vpi-sources": ["vpi/issue1845_scope_from_name.c"],
+  "output-contains": ["PASSED"]
+}
