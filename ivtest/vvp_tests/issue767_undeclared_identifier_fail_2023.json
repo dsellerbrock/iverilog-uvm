@@ -1,0 +1,5 @@
+{
+    "type"          : "CE",
+    "source"        : "issue767_undeclared_identifier_fail.v",
+    "iverilog-args" : [ "-g2023" ]
+}
