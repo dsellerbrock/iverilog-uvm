@@ -829,6 +829,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/to/dar/with",of_STREAM_TO_DAR_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STREAM_QUEUE_STRING, OA_NONE, OA_NONE} },
       { "%stream/to/queue/with",of_STREAM_TO_QUEUE_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
+      { "%stream/to/struct", of_STREAM_TO_STRUCT, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%stream/unpack/l", of_STREAM_UNPACK_L, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/unpack/r", of_STREAM_UNPACK_R, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%sub",    of_SUB,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },

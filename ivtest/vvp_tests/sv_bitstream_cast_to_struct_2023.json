@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bitstream_cast_to_struct_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_bitstream_cast_to_struct",
+    "vlog95"        : { "type" : "NI" }
+}

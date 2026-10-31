@@ -152,6 +152,8 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
       int unpack = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
 	    tail += 5;
+	  } else if (strncmp(tail, "structcast$", 11) == 0) {
+	    tail += 11;
       } else if (strncmp(tail, "cast$", 5) == 0) {
 	    /* A 6.24.3 bit-stream cast has the same source flattening and
 	       left-to-right order as a right-stream with slice size 1. The
@@ -2586,7 +2588,16 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_type_t net_type = ivl_expr_net_type(expr);
 	    char elem_text[32];
 	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
+	    int struct_cast = strncmp(name, "$ivl_stream$structcast$", 23) == 0;
 	    assert(net_type);
+	    if (struct_cast) {
+		  ensure_class_type_emitted(net_type);
+		  draw_stream_pack_pieces(expr, 0);
+		  fprintf(vvp_out, "    %%new/cobj C%p; bit-stream struct cast\n",
+			  net_type);
+		  fprintf(vvp_out, "    %%stream/to/struct;\n");
+		  return 0;
+	    }
 	    stream_elem_type_text(ivl_type_element(net_type),
 				  elem_text, sizeof elem_text);
 	    draw_stream_pack_pieces(expr, 0);
