@@ -12137,7 +12137,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       z3_object_graph_t*graph = nullptr,
                       map<vvp_cobject*, unique_ptr<z3_rng_stream_t> >*streams = nullptr,
                       const vector<vvp_object_t>*object_vals = nullptr,
-                      bool row_pass = false)
+                      bool row_pass = false,
+                      vector<map<pair<unsigned,unsigned>,uint64_t> >*
+			    size_candidates_out = nullptr,
+                      bool size_candidates_only = false)
 {
       if (z3_solve_trace(defn)) {
 	    fprintf(stderr,
@@ -12551,6 +12554,37 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, le);
 	    Z3_solver_assert(ctx, base, le);
       }
+	/* If the selected size makes a deferred dynamic foreach infeasible,
+	 * retry only sizes that satisfy the size-only constraints. Keep this
+	 * enumeration lazy: the first expanded solve is still the common path. */
+      if (size_candidates_only) {
+	    if (size_candidates_out) size_candidates_out->clear();
+	    bool eligible = !builder.row_pass && builder.dyn_foreach.size() == 1
+		  && !builder.dyn_foreach.front().nested
+		  && !builder.dyn_foreach.front().rows
+		  && builder.size_vars.size() == 1
+		  && builder.dyn_foreach.front().pidx == builder.size_vars.front().idx
+		  && builder.dyn_foreach.front().leaf == builder.size_vars.front().leaf;
+	    if (eligible && size_candidates_out) {
+		  vector<vector<uint64_t> > values;
+		  const char*reason = nullptr;
+		  Z3_lbool result = z3_enumerate_joint_(ctx, base,
+			vector<Z3_ast>(1, builder.size_vars.front().var),
+			(size_t)RANDOM_CONTAINER_SIZE_CAP + 1, values, reason);
+		  if (result == Z3_L_TRUE) {
+			for (const vector<uint64_t>&tuple : values) {
+			      map<pair<unsigned,unsigned>,uint64_t> candidate;
+			      candidate[make_pair(builder.size_vars.front().idx,
+				    builder.size_vars.front().leaf)] = tuple.front();
+			      size_candidates_out->push_back(candidate);
+			}
+		  }
+	    }
+	    bool have_candidates = size_candidates_out
+		  && !size_candidates_out->empty();
+	    Z3_optimize_dec_ref(ctx, opt);
+	    return have_candidates ? Z3PASS_SAT_CURRENT : Z3PASS_FAILED;
+      }
       // Element pass: sizes were solved (and written back) in the size
       // pass — pin them so the re-solve cannot move them.
       map<pair<unsigned,unsigned>, uint64_t> uniform_dynamic_sizes;
@@ -12624,9 +12658,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		      && builder.type(sv.idx)->property_is_dyn2(
 			    builder.local_index(sv.idx))) continue;
 		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
-		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
-			cobj_darray_size(builder.object(sv.idx),
-			      builder.local_index(sv.idx), sv.leaf), s32);
+		  auto selected_size = dyn_sizes->find(make_pair(sv.idx, sv.leaf));
+		  uint64_t value = selected_size != dyn_sizes->end()
+			? selected_size->second
+			: cobj_darray_size(builder.object(sv.idx),
+			      builder.local_index(sv.idx), sv.leaf);
+		  Z3_ast cur = Z3_mk_unsigned_int64(ctx, value, s32);
 		  Z3_ast eq = Z3_mk_eq(ctx, sv.var, cur);
 		  Z3_optimize_assert(ctx, opt, eq);
 		  Z3_solver_assert(ctx, base, eq);
@@ -13254,6 +13291,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    for (auto& sv : builder.size_vars) {
 		  uint64_t cur = cobj_darray_size(builder.object(sv.idx),
 			builder.local_index(sv.idx), sv.leaf);
+		  if (dyn_sizes) {
+			auto selected = dyn_sizes->find(make_pair(sv.idx, sv.leaf));
+			if (selected != dyn_sizes->end()) cur = selected->second;
+		  }
 		  Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, cur, sort);
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, sv.var, cv));
@@ -13270,6 +13311,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
+	    if (dyn_sizes)
+		  for (const auto&sv : builder.size_vars) {
+			auto selected = dyn_sizes->find(make_pair(sv.idx, sv.leaf));
+			if (selected != dyn_sizes->end()
+			    && selected->second != cobj_darray_size(
+				  builder.object(sv.idx),
+				  builder.local_index(sv.idx), sv.leaf))
+			      precheck = Z3_L_FALSE;
+		  }
 
 	      // solve...before present: always run the staged solve so
 	      // the ordered variables get their stage-local diversity
@@ -16678,7 +16728,29 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      &sizes, nullptr, prop_active,
 			      include_class_constraints, nullptr, nullptr, object_vals);
-      return r2 != Z3PASS_FAILED;
+      if (r2 != Z3PASS_FAILED) return true;
+	// A failed expanded foreach may only reflect the initially chosen size.
+	// For the single-array case, enumerate the size-only feasible set once
+	// and try each remaining size. A fixed infeasible size therefore costs
+	// one expanded solve rather than a scan of the allocation limit.
+      if (dyn.size() != 1 || dyn.front().nested || dyn.front().rows)
+	    return false;
+      vector<map<pair<unsigned,unsigned>,uint64_t> > candidates;
+      rng.rewind();
+      int candidate_status = z3_solve_pass_(defn, cobj, rng, extra_ir,
+	    slot_vals, class_slots, nullptr, nullptr, prop_active,
+	    include_class_constraints, nullptr, nullptr, object_vals, false,
+	    &candidates, true);
+      if (candidate_status == Z3PASS_FAILED) return false;
+      for (const auto&candidate : candidates) {
+	    if (candidate == sizes) continue;
+	    rng.rewind();
+	    int retry = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
+		  class_slots, &candidate, nullptr, prop_active,
+		  include_class_constraints, nullptr, nullptr, object_vals);
+	    if (retry != Z3PASS_FAILED) return true;
+      }
+      return false;
 }
 
 /* Validate the selected graph before scalar/container prefills can reach
@@ -17682,9 +17754,32 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       }
       root_rng.rewind();
       for (auto&stream : streams) stream.second->rewind();
-      return z3_solve_pass_(root.object->get_defn(), root.object,
+      int final_result = z3_solve_pass_(root.object->get_defn(), root.object,
             root_rng, no_extra, no_slots, no_class_slots, &sizes, nullptr, root.selection(),
-            true, &graph, &streams) != Z3PASS_FAILED;
+            true, &graph, &streams);
+      if (final_result != Z3PASS_FAILED) return true;
+      if (objects.size() != 1 || dyn.size() != 1
+          || dyn.front().nested || dyn.front().rows)
+            return false;
+      vector<map<pair<unsigned,unsigned>,uint64_t> > candidates;
+      root_rng.rewind();
+      for (auto&stream : streams) stream.second->rewind();
+      int candidate_status = z3_solve_pass_(root.object->get_defn(),
+            root.object, root_rng, no_extra, no_slots, no_class_slots,
+            nullptr, nullptr, root.selection(), true, &graph, &streams,
+            nullptr, false, &candidates, true);
+      if (candidate_status == Z3PASS_FAILED) return false;
+      for (const auto&candidate : candidates) {
+            if (candidate == sizes) continue;
+            root_rng.rewind();
+            for (auto&stream : streams) stream.second->rewind();
+            int retry = z3_solve_pass_(root.object->get_defn(),
+                  root.object, root_rng, no_extra, no_slots, no_class_slots,
+                  &candidate, nullptr, root.selection(), true, &graph,
+                  &streams);
+            if (retry != Z3PASS_FAILED) return true;
+      }
+      return false;
 }
 
 bool vvp_z3_randomize_scope(const string&ir,
