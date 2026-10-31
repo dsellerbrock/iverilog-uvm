@@ -13664,8 +13664,12 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    }
       }
 
+      const bool cast_compat_metadata = strcmp(name, "$cast") == 0
+	    && nparms == 2 && generation_flag >= GN_VER2023;
+
       NetESFunc*fun = new NetESFunc(name, expr_type_, expr_width_,
-				    nparms + (cast_enum_type ? 1 : 0),
+				    nparms + (cast_enum_type ? 1 : 0)
+				    + (cast_compat_metadata ? 1 : 0),
 				    is_overridden_);
       fun->set_line(*this);
       if (cast_enum_type) {
@@ -13793,6 +13797,24 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    } else {
 		  missing_parms += 1;
 		  fun->parm(idx, 0);
+	    }
+      }
+
+      if (strcmp(name, "$cast") == 0 && nparms == 2
+	  && fun->parm(0) && fun->parm(1)) {
+	    if (generation_flag < GN_VER2023) {
+		  if (!sv_cast_args_singular(fun->parm(0), fun->parm(1))) {
+			cerr << get_fileline() << ": error: $cast destination and source "
+			     << "must be singular under IEEE 1800-2017 6.24.2." << endl;
+			des->errors += 1;
+		  }
+	    } else {
+		  unsigned idx = nparms + (cast_enum_type ? 1 : 0);
+		  NetEConst*compatible = new NetEConst(verinum(
+			  sv_cast_args_assignment_compatible(fun->parm(0), fun->parm(1))
+			  ? verinum::V1 : verinum::V0, 1));
+		  compatible->set_line(*this);
+		  fun->parm(idx, compatible);
 	    }
       }
 
