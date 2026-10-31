@@ -1145,6 +1145,15 @@ static void draw_property_vec4(ivl_expr_t expr)
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2;\n");
 	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	      } else if (idx_expr && declared_prop_type
+			 && ivl_type_base(declared_prop_type) == IVL_VT_STRING
+			 && !property_selects_fixed_uarray_slot_(expr)) {
+		    /* A scalar string property is indexed by character. The same
+	     * property-index operand is used for fixed unpacked arrays, so keep
+	     * those on the element-load path above/below. */
+	    fprintf(vvp_out, "    %%prop/str %u; string property character read\n", pidx);
+	    fprintf(vvp_out, "    %%substr/vec4 %d, 8; string property character\n", idx_word);
+	    fprintf(vvp_out, "    %%pop/str 1; discard property string\n");
 	      } else if (queue_indexed) {
 		    if (!emit_property_queue_last_index_(expr, pidx, 3))
 			  draw_eval_expr_into_integer(idx_expr, 3);
@@ -3441,8 +3450,16 @@ static void draw_unary_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%cvt/vr %u;\n", ivl_expr_width(expr));
 		  break;
 		case IVL_VT_STRING:
-		  draw_eval_string(sub);
-		  fprintf(vvp_out, "    %%cast/vec4/str %u;\n", ivl_expr_width(expr));
+		  if (ivl_expr_type(sub) == IVL_EX_PROPERTY
+		      && ivl_expr_oper1(sub)
+		      && property_expr_type_(sub)
+		      && ivl_type_base(property_expr_type_(sub)) == IVL_VT_STRING
+		      && !property_selects_fixed_uarray_slot_(sub))
+			draw_property_vec4(sub);
+		  else {
+			draw_eval_string(sub);
+			fprintf(vvp_out, "    %%cast/vec4/str %u;\n", ivl_expr_width(expr));
+		  }
 		  break;
 		case IVL_VT_DARRAY:
 		  draw_eval_object(sub);
@@ -3470,8 +3487,16 @@ static void draw_unary_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%cvt/vr %u;\n", ivl_expr_width(expr));
 		  break;
 		case IVL_VT_STRING:
-		  draw_eval_string(sub);
-		  fprintf(vvp_out, "    %%cast/vec4/str %u;\n", ivl_expr_width(expr));
+		  if (ivl_expr_type(sub) == IVL_EX_PROPERTY
+		      && ivl_expr_oper1(sub)
+		      && property_expr_type_(sub)
+		      && ivl_type_base(property_expr_type_(sub)) == IVL_VT_STRING
+		      && !property_selects_fixed_uarray_slot_(sub))
+			draw_property_vec4(sub);
+		  else {
+			draw_eval_string(sub);
+			fprintf(vvp_out, "    %%cast/vec4/str %u;\n", ivl_expr_width(expr));
+		  }
 		  break;
 		case IVL_VT_DARRAY:
 		  draw_eval_object(sub);

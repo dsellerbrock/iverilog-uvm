@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue735_class_string_property_index.v",
+  "iverilog-args": ["-g2017", "-s", "issue735_class_string_property_index"],
+  "output-contains": ["ISSUE735_CLASS_STRING_PROPERTY_INDEX_PASSED", "PASSED"]
+}
