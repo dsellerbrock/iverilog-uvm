@@ -2312,6 +2312,8 @@ extern int         ivl_signal_const(ivl_signal_t net);
 extern int         ivl_signal_ref_static(ivl_signal_t net);
 extern int         ivl_signal_signed(ivl_signal_t net);
 extern int         ivl_signal_integer(ivl_signal_t net);
+/* True when a variable is declared with the SystemVerilog `time` type. */
+extern int         ivl_signal_is_time(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);
 /* True when an always_comb or always_latch process assigns this variable. */
 extern int         ivl_signal_comb_driven(ivl_signal_t net);

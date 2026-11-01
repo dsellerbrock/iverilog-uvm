@@ -1309,26 +1309,13 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
       case vpiIntVar:
       case vpiLongIntVar:
       case vpiIntegerVar:
+      case vpiTimeVar:
       case vpiMemoryWord:
       case vpiPartSelect:
         width = get_numeric(&result, info, item);
         rtn = realloc(rtn, (size+width)*sizeof(char));
         memcpy(rtn+size-1, result, width);
         free(result);
-        break;
-
-      /* It appears that this is not currently used! A time variable is
-         passed as an integer and processed above. Hence this code has
-         only been visually checked. */
-      case vpiTimeVar:
-        value.format = vpiDecStrVal;
-        vpi_get_value(item, &value);
-        get_time(buf, value.value.str, timeformat_info.prec,
-                 vpi_get(vpiTimeUnit, info->scope));
-        width = strlen(buf);
-        if (width  < timeformat_info.width) width = timeformat_info.width;
-        rtn = realloc(rtn, (size+width)*sizeof(char));
-        sprintf(rtn+size-1, "%*s", width, buf);
         break;
 
       /* Realtime variables are also processed here. */

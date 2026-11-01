@@ -585,6 +585,9 @@ void compile_variable(char*label, char*name,
 	     case vpiIntegerVar:
 	       obj = vpip_make_int4(name, msb, lsb, net, use_auto);
 	       break;
+	     case vpiTimeVar:
+	       obj = vpip_make_time_var(name, msb, lsb, net, use_auto);
+	       break;
 	     case vpiIntVar: // This handles all the atom2 int types
 	       obj = vpip_make_int2(name, msb, lsb, signed_flag, net,
                                     use_auto);
