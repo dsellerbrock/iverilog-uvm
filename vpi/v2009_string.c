@@ -21,6 +21,7 @@
 # include  <assert.h>
 # include  <ctype.h>
 # include  <math.h>
+# include  <stdint.h>
 # include  <stdlib.h>
 # include  <string.h>
 
@@ -466,6 +467,38 @@ static void value_to_text_base(char*text, long val, long base)
       char* ptr;
 
       assert(base <= 16);
+
+      /* The non-decimal conversion methods represent the integer's bits,
+       * not a signed magnitude. The argument to these methods is a 32-bit
+       * integer, so preserve exactly that bit pattern. */
+      if (base != 10) {
+	    uint32_t uval = (uint32_t) val;
+	    if (uval == 0) {
+		  text[0] = '0';
+		  text[1] = 0;
+		  return;
+	    }
+
+	    ptr = text;
+	    while (uval != 0) {
+		  uint32_t digit = uval % base;
+		  uval /= base;
+		  *(ptr++) = digit_map[digit];
+		  *ptr = 0;
+	    }
+
+	    /* Now the text string is valid, but digits are reversed. */
+	    ptr -= 1;
+	    while (text < ptr) {
+		  char tmp = *ptr;
+		  *ptr = *text;
+		  *text = tmp;
+		  ptr -= 1;
+		  text += 1;
+	    }
+	    return;
+      }
+
       if (val == 0) {
 	    text[0] = '0';
 	    text[1] = 0;

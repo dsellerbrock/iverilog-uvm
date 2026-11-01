@@ -4497,6 +4497,8 @@ sv_const_string_format_fail CE,-g2017,-s,sv_const_string_format_fail ivltests go
 sv_const_string_format_fail_2023 CE,-g2023,-s,sv_const_string_format_fail ivltests gold=sv_const_string_format_fail.gold
 sv_const_string_format_argument_fail CE,-g2017,-s,sv_const_string_format_argument_fail ivltests gold=sv_const_string_format_argument_fail.gold
 sv_const_string_format_argument_fail_2023 CE,-g2023,-s,sv_const_string_format_argument_fail ivltests gold=sv_const_string_format_argument_fail.gold
+issue730_string_toa_2017 normal,-g2017,-s,issue730_string_toa ivltests gold=issue730_string_toa.gold
+issue730_string_toa_2023 normal,-g2023,-s,issue730_string_toa ivltests gold=issue730_string_toa.gold
 sv_const_string_real_format_argument_fail CE,-g2017,-s,sv_const_string_real_format_argument_fail ivltests gold=sv_const_string_real_format_argument_fail.gold
 sv_const_string_real_format_argument_fail_2023 CE,-g2023,-s,sv_const_string_real_format_argument_fail ivltests gold=sv_const_string_real_format_argument_fail.gold
 
