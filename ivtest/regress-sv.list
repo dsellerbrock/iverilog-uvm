@@ -6421,3 +6421,5 @@ issue794_nested_dynamic_array_queries_2023 normal,-g2023,-s,test ivltests gold=i
 
 issue767_undeclared_ref CE,-g2017,-s,issue767_undeclared_ref ivltests
 issue767_generate_implicit_scope CE,-g2017,-s,issue767_generate_implicit_scope ivltests
+issue2120_class_handle_collections normal,-g2017,-s,main ivltests gold=issue2120_class_handle_collections.gold
+issue2120_class_handle_collections_2023 normal,-g2023,-s,main ivltests gold=issue2120_class_handle_collections.gold

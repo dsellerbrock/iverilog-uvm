@@ -37209,6 +37209,60 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (!expr) return "";
 
+	/* A scalar member of an element selected from a random queue or
+	 * associative array of class handles is a solver leaf of that live
+	 * object, not an integral array element. Keep the selected key/index in
+	 * qmelem IR so runtime graph collection retains handle identity. */
+	if (cls && !value_slots) {
+	      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+	      if (id && !id->path().package && !id->has_scoped_type_prefix()
+	          && id->path().size() == 2) {
+	            const name_component_t&root = id->path().name.front();
+	            const name_component_t&field = id->path().name.back();
+	            int property = !root.local_scope
+	                  ? cls->property_idx_from_name(root.name) : -1;
+	            const netarray_t*array = property >= 0
+	                  ? dynamic_cast<const netarray_t*>(
+	                        cls->get_prop_type((size_t)property)) : nullptr;
+	            const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array);
+	            property_qualifier_t qual = property >= 0
+	                  ? cls->get_prop_qual((size_t)property) : property_qualifier_t();
+	            const netclass_t*element = array && !array->packed()
+	                  ? dynamic_cast<const netclass_t*>(array->element_type()) : nullptr;
+	            if (element && root.index.size() == 1
+	                && (dynamic_cast<const netdarray_t*>(array)
+	                    || (queue && !queue->assoc_compat())
+	                    || (queue && queue->assoc_compat()
+	                        && queue->assoc_index_type()
+	                        && queue->assoc_index_type()->packed()
+	                        && queue->assoc_index_type()->packed_width() <= 64))) {
+	                  int member = field.index.empty() && !field.local_scope
+	                        ? element->property_idx_from_name(field.name) : -1;
+	                  ivl_type_t type = member >= 0
+	                        ? element->get_prop_type((size_t)member) : nullptr;
+	                  unsigned width = type && type->packed()
+	                        ? type->packed_width() : 0;
+	                  const index_component_t&select = root.index.front();
+	                  if ((qual.test_rand() || qual.test_randc()) && member >= 0
+	                      && constraint_state_member_visible_(element, member,
+	                            scope, expr)
+	                      && width > 0 && width <= 64
+	                      && (type->base_type() == IVL_VT_BOOL
+	                          || type->base_type() == IVL_VT_LOGIC)
+	                      && select.msb && !select.lsb
+	                      && select.sel == index_component_t::SEL_BIT) {
+	                        string index = pexpr_to_constraint_ir(
+	                              select.msb, cls, value_slots, scope, loop_env);
+	                        if (!index.empty())
+	                              return "(qmelem " + to_string(property) + ":"
+	                                    + to_string(member) + ":" + to_string(width)
+	                                    + (type->get_signed() ? ":s" : "")
+	                                    + " " + index + ")";
+	                  }
+	            }
+	      }
+	}
+
 	/* Let declarations are semantic expression substitutions. Reuse the
 	 * cached expansion before classifying identifiers/calls so legal let
 	 * constraints lower normally and forbidden randc use is not hidden by a

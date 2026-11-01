@@ -1754,6 +1754,34 @@ static bool constraint_object_element_(vvp_cobject*owner, unsigned pid,
       if (base == "o")
             return constraint_object_property_(owner, pid, value, error, index,
                                                true, failure);
+      if (base == "Mo") {
+            vvp_object_t collection;
+            owner->get_object(pid, collection, 0);
+            vvp_assoc_base*assoc = collection.peek<vvp_assoc_base>();
+            if (!assoc || index > UINT_MAX) {
+                  error = "invalid class-handle associative array metadata";
+                  if (failure) *failure = HANDLE_FAILURE_STRUCTURAL;
+                  return false;
+            }
+            for (size_t position = 0; position < assoc->size(); ++position) {
+                  int key_kind = -1;
+                  string string_key;
+                  const vvp_object*object_key = nullptr;
+                  vvp_vector4_t key;
+                  vvp_object_t element;
+                  if (!assoc->peek_entry_identity(position, key_kind,
+                        string_key, object_key, key, element)) break;
+                  uint64_t key_value = 0;
+                  if (key_kind == 2 && vec4_to_uint64_(key, key_value)
+                      && key_value == index) {
+                        value = element;
+                        return true;
+                  }
+            }
+            error = "associative class-handle constraint key does not exist";
+            if (failure) *failure = HANDLE_FAILURE_ACCESS;
+            return false;
+      }
       if ((base != "Do" && base != "Qo")
           || type->property_array_size(pid) != 1) {
             error = "unsupported class-handle collection metadata";
