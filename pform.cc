@@ -9761,6 +9761,37 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_attach_local_declarations_(prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
+
+      bool bad_local_direction = false;
+      if (formals) {
+	    for (const sva_property_formal_t&formal : *formals) {
+		  if (!formal.local_bad_direction) continue;
+		  cerr << loc << ": error: local variable formal argument `"
+		       << formal.name << "' of property `" << use_name
+		       << "' shall have direction input (IEEE 1800-2017/2023 "
+		       << "16.12.19)." << endl;
+		  error_count += 1;
+		  bad_local_direction = true;
+	    }
+      }
+      if (bad_local_direction) {
+	    if (formals) {
+		  for (sva_property_formal_t&formal : *formals)
+			delete formal.default_expr;
+		  delete formals;
+	    }
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+
+      if (prop && formals) {
+	    for (const sva_property_formal_t&formal : *formals) {
+		  if (!formal.local_input) continue;
+		  if (std::find(prop->local_names.begin(), prop->local_names.end(),
+				formal.name) == prop->local_names.end())
+			prop->local_names.push_back(formal.name);
+	    }
+      }
       if (sva_param_properties.count(sva_decl_key_(use_name))
 	  || sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
@@ -11778,13 +11809,22 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       return t;
 }
 
-/* Bind property actuals using their retained formal types and defaults. */
+static bool sva_expr_reads_lv_(PExpr*e,
+			       const std::map<perm_string,unsigned>&lv);
+
+/* Bind property actuals using their retained formal types and defaults.
+   Local input formals map to generated local names and separate initializer
+   match items, so each property attempt snapshots its actual. */
 static bool sva_build_property_subst_(const struct vlltype&loc,
 				      perm_string nm,
 				      const std::vector<sva_property_formal_t>&formals,
 				      const std::vector<named_pexpr_t>&parms,
 				      std::map<perm_string,PExpr*>&subst,
-				      std::vector<PExpr*>&owned)
+				      std::vector<PExpr*>&owned,
+				      std::vector<sva_seq_step_t>&initializers,
+				      std::map<perm_string,perm_string>&local_carriers,
+				      const std::vector<perm_string>&caller_locals,
+				      std::vector<perm_string>&actual_local_reads)
 {
       std::vector<const named_pexpr_t*> actuals(formals.size(), nullptr);
       size_t positional = 0;
@@ -11850,12 +11890,117 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 		  error_count += 1;
 		  return false;
 	    }
+	    if (formal.local_input) {
+		  if (!formal.type) {
+			cerr << loc << ": error: local input formal argument `"
+			     << formal.name << "' of property `" << nm
+			     << "' requires an explicit type (IEEE 1800-2017/2023 "
+			     << "16.8.2)." << endl;
+			error_count += 1;
+			delete value;
+			return false;
+		  }
+		  if (actuals[k] && actuals[k]->parm) {
+			for (perm_string local : caller_locals) {
+			      std::map<perm_string,unsigned>one_local;
+			      one_local[local] = 0;
+			      if (sva_expr_reads_lv_(actuals[k]->parm, one_local)
+				  && std::find(actual_local_reads.begin(),
+					      actual_local_reads.end(), local)
+				     == actual_local_reads.end())
+				    actual_local_reads.push_back(local);
+			}
+		  }
+		  char name_buf[64];
+		  snprintf(name_buf, sizeof name_buf,
+			   "_ivl_sva_property_local_arg_%u", sva_gensym_counter++);
+		  perm_string carrier = lex_strings.make(name_buf);
+		  PExpr*local_id = sva_id_(loc, carrier);
+		  if (!local_id) {
+			delete value;
+			return false;
+		  }
+		  subst[formal.name] = local_id;
+		  owned.push_back(local_id);
+		  local_carriers[formal.name] = carrier;
+		  sva_seq_step_t init;
+		  init.expr = sva_bit_(loc, 1);
+		  sva_match_item_t item;
+		  item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+		  item.lv_name = carrier;
+		  item.lv_rhs = value;
+		  init.items.push_back(item);
+		  initializers.push_back(init);
+		  continue;
+	    }
 	    if (formal.type || !actuals[k] || !actuals[k]->parm) {
 		  owned.push_back(value);
 	    }
 	    subst[formal.name] = value;
       }
       return true;
+}
+
+static bool sva_prepend_property_formal_init_tree_(
+				const struct vlltype&loc,
+				sva_stree_t**root,
+				const std::vector<sva_seq_step_t>&initializers,
+				const std::map<perm_string,PExpr*>&no_subst)
+{
+	if (!root || !*root) return false;
+	std::vector<sva_seq_step_t>*copies =
+	      sva_clone_steps_subst_(loc, &initializers, no_subst);
+	if (!copies) return false;
+	/* Keep formal initialization outside branching/product nodes. Putting a
+	   copy in every leaf evaluates an actual once per branch instead of once
+	   for the property attempt. A same-tick concatenation makes the single
+	   initializer prefix common to the whole property tree. */
+	sva_stree_t*prefix = new sva_stree_t;
+	prefix->chain = copies;
+	sva_stree_t*combined = new sva_stree_t;
+	combined->kind = sva_stree_t::SEQ_CONCAT;
+	combined->a = prefix;
+	combined->b = *root;
+	combined->concat_overlap = true;
+	*root = combined;
+      return true;
+}
+
+static bool sva_prepend_property_formal_inits_(
+				const struct vlltype&loc,
+				sva_property_t*prop,
+				const std::vector<sva_seq_step_t>&initializers)
+{
+      if (initializers.empty()) return true;
+	    std::map<perm_string,PExpr*>no_subst;
+	    auto prepend = [&](std::vector<sva_seq_step_t>*steps) -> bool {
+	    if (!steps || steps->empty()) return false;
+	    std::vector<sva_seq_step_t>*copies =
+		  sva_clone_steps_subst_(loc, &initializers, no_subst);
+	    if (!copies) return false;
+	    steps->insert(steps->begin(), copies->begin(), copies->end());
+	    delete copies;
+	    return true;
+      };
+      if (prop->mc_prefix && !prop->mc_prefix->empty())
+	    return prepend(prop->mc_prefix);
+      if (prop->mc_more && !prop->mc_more->empty()
+	  && (*prop->mc_more)[0].chain)
+	    return prepend((*prop->mc_more)[0].chain);
+      if (prop->ante_tree)
+	    return sva_prepend_property_formal_init_tree_(
+		loc, &prop->ante_tree, initializers, no_subst);
+      if (prop->antecedent && !prop->antecedent->empty()
+	  && (prop->op_type == 1 || prop->op_type == 2))
+	    return prepend(prop->antecedent);
+      if (prop->tree)
+	    return sva_prepend_property_formal_init_tree_(
+		loc, &prop->tree, initializers, no_subst);
+      if (prop->seq && !prop->seq->empty())
+	    return prepend(prop->seq);
+      if (prop->antecedent && !prop->antecedent->empty())
+	    return prepend(prop->antecedent);
+      return false;
 }
 
 /* M9D: instantiate a parameterized sequence — clone its body with the
@@ -12307,7 +12452,7 @@ static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 	    }
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
       if (signed_value && w) w->set_signed(true);
       return name;
@@ -12329,7 +12474,7 @@ static perm_string sva_make_genvar_pipe_(const struct vlltype&loc,
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    FILE_NAME(r.second, loc);
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
       return name;
 }
@@ -12351,7 +12496,7 @@ static perm_string sva_make_parameter_pipe_(const struct vlltype&loc,
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    FILE_NAME(r.second, loc);
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       } else {
 	    delete top;
       }
@@ -21727,7 +21872,8 @@ static PExpr* sva_local_default_value_(const struct vlltype&loc,
 }
 
 static int sva_lower_local_vars_(const struct vlltype&loc,
-				 std::vector<sva_seq_step_t>&steps)
+				 std::vector<sva_seq_step_t>&steps,
+				 const std::vector<perm_string>&initial_locals)
 {
       bool has_lv = false;
       bool has_selected = false;
@@ -21741,6 +21887,7 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
 		  has_selected = has_selected || item.lv_selected;
 		  locals[item.lv_name] = 0;
 	    }
+      for (perm_string local : initial_locals) locals[local] = 0;
       if (!has_lv) return 0;
 
 	/* IEEE 1800-2017/2023 16.10: match items execute in source order. */
@@ -22798,7 +22945,7 @@ static perm_string sva_make_assoc_reg_(const struct vlltype&loc,
 	    range.push_back(pform_range_t(
 		  new PENumber(new verinum((uint64_t)value_width-1, 32)),
 		  new PENumber(new verinum((uint64_t)0, 32))));
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
 
       std::list<pform_range_t>*key_range = new std::list<pform_range_t>;
@@ -29130,6 +29277,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    bool ok = true;
 				    inst = new sva_property_t;
 				    inst->local_names = named->local_names;
+			    inst->local_input_actual_names =
+				  named->local_input_actual_names;
 				    inst->op_type = named->op_type;
 				    inst->mc_boundary = named->mc_boundary;
 				    inst->strength = named->strength;
@@ -29256,14 +29405,37 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      }
 			      std::map<perm_string,PExpr*> subst;
 			      std::vector<PExpr*> owned_subst;
+			      std::vector<sva_seq_step_t>*formal_initializers =
+				    new std::vector<sva_seq_step_t>;
+			      std::map<perm_string,perm_string> local_carriers;
+			      std::vector<perm_string> caller_locals = prop->local_names;
+			      for (perm_string local : prop->local_input_actual_names)
+				    if (std::find(caller_locals.begin(), caller_locals.end(),
+						  local) == caller_locals.end())
+					  caller_locals.push_back(local);
+			      std::vector<perm_string> actual_local_reads =
+				    prop->local_input_actual_names;
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
 				    pit->second.formals, cf->get_parms(), subst,
-				    owned_subst))
+				    owned_subst, *formal_initializers, local_carriers,
+				    caller_locals, actual_local_reads))
 				    fatal = true;
 			      sva_property_t*inst = nullptr;
 			      if (!fatal) {
 				    inst = new sva_property_t;
 				    inst->local_names = decl->local_names;
+				    for (perm_string&local : inst->local_names) {
+					  std::map<perm_string,perm_string>::const_iterator carrier =
+						local_carriers.find(local);
+					  if (carrier != local_carriers.end())
+						local = carrier->second;
+				    }
+				    inst->local_input_actual_names = actual_local_reads;
+				    for (perm_string local : actual_local_reads)
+					  if (std::find(inst->local_names.begin(),
+							inst->local_names.end(), local)
+					      == inst->local_names.end())
+						inst->local_names.push_back(local);
 				    inst->op_type = decl->op_type;
 				    inst->mc_boundary = decl->mc_boundary;
 				    inst->strength = decl->strength;
@@ -29328,6 +29500,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						loc, decl->mc_prefix, subst);
 					  if (!inst->mc_prefix) ok = false;
 				    }
+				    if (ok && !sva_prepend_property_formal_inits_(
+					  loc, inst, *formal_initializers))
+					  ok = false;
 				      for (PExpr*value : owned_subst) delete value;
 				      owned_subst.clear();
 				    if (!ok) {
@@ -29341,6 +29516,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  fatal = true;
 				    }
 			      }
+			      pform_sva_destroy_sequence(formal_initializers);
+			      formal_initializers = nullptr;
 			      for (PExpr*value : owned_subst) delete value;
 			      delete (*prop->seq)[0].expr;
 			      delete prop->seq;
@@ -29533,9 +29710,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
       bool slot_lv = impl_lv;
       if (!impl_lv) {
-	    int lv_s = sva_lower_local_vars_(loc, *prop->seq);
+	    int lv_s = sva_lower_local_vars_(loc, *prop->seq,
+					      prop->local_input_actual_names);
 	    int lv_a = prop->antecedent
-		       ? sva_lower_local_vars_(loc, *prop->antecedent) : 0;
+		       ? sva_lower_local_vars_(loc, *prop->antecedent,
+					       prop->local_input_actual_names) : 0;
 	    if (lv_s == 1 || lv_a == 1) {
 		  delete fail_stmt;
 		  delete pass_stmt;

@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue804_readmem_enum.v",
+    "gold" : "issue804_readmem_enum",
+    "iverilog-args" : [ "-g2017" ]
+}

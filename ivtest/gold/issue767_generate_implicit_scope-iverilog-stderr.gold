@@ -1,0 +1,2 @@
+ivltests/issue767_generate_implicit_scope.v:9: error: Unable to bind wire/reg/memory `w2' in `issue767_generate_implicit_scope'
+1 error(s) during elaboration.

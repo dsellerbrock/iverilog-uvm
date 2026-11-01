@@ -13605,6 +13605,77 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    perm_string pname = lex_strings.make(name);
 	    NetExpr*sub = elab_sys_task_arg(des, scope, pname, 0,
 					    parms_[0].parm, false);
+	      // Array query dimensions on a declaration can be nested around a
+	      // dynamic dimension (for example int a[3][][5]). Walk the unpacked
+	      // type layers so queries number every declared dimension, rather
+	      // than treating only the outermost array type as the whole shape.
+	      if (sub && !dynamic_cast<const netdarray_t*>(sub->net_type())
+		  && (strcmp(name, "$unpacked_dimensions") == 0
+		  || strcmp(name, "$size") == 0 || strcmp(name, "$high") == 0
+		  || strcmp(name, "$low") == 0 || strcmp(name, "$left") == 0
+		  || strcmp(name, "$right") == 0
+		  || strcmp(name, "$increment") == 0)) {
+		    struct unpacked_dimension_t {
+			  bool dynamic;
+			  netrange_t range;
+		    };
+		    std::vector<unpacked_dimension_t> dims;
+		    for (ivl_type_t cur = sub->net_type(); cur ; ) {
+			  if (const netuarray_t*ua =
+			      dynamic_cast<const netuarray_t*>(cur)) {
+				for (const netrange_t&range : ua->static_dimensions())
+				      dims.push_back({false, range});
+				cur = ua->element_type();
+			  } else if (const netdarray_t*da =
+				     dynamic_cast<const netdarray_t*>(cur)) {
+				dims.push_back({true, netrange_t()});
+				cur = da->element_type();
+			  } else break;
+		    }
+		    if (strcmp(name, "$unpacked_dimensions") == 0) {
+			  delete sub;
+			  NetExpr*res = make_const_val((long)dims.size());
+			  res->set_line(*this);
+			  return cast_to_width_(res, expr_wid);
+		    }
+		    long dim = 1;
+		    if (nparms == 2 && parms_[1].parm) {
+			  NetExpr*dim_expr = elab_sys_task_arg(des, scope, pname, 1,
+						       parms_[1].parm, false);
+			  const NetEConst*dim_const = dynamic_cast<const NetEConst*>(dim_expr);
+			  if (dim_const) dim = dim_const->value().as_long();
+			  else dim = 0;
+			  delete dim_expr;
+		    }
+		    if (dim > 0 && (size_t)dim <= dims.size()) {
+			  if (dims[dim-1].dynamic && dim > 1) {
+				cerr << get_fileline() << ": error: " << name
+				     << " cannot query variable-sized dimension " << dim
+				     << " of an array." << endl;
+				des->errors += 1;
+				delete sub;
+				return 0;
+			  }
+			  if (!dims[dim-1].dynamic) {
+				long left = dims[dim-1].range.get_msb();
+				long right = dims[dim-1].range.get_lsb();
+				long low = (left < right) ? left : right;
+				long high = (left < right) ? right : left;
+				long value = strcmp(name, "$size") == 0
+				      ? (long)dims[dim-1].range.width()
+				      : strcmp(name, "$left") == 0 ? left
+				      : strcmp(name, "$right") == 0 ? right
+				      : strcmp(name, "$low") == 0 ? low
+				      : strcmp(name, "$high") == 0 ? high
+				      : strcmp(name, "$increment") == 0
+					    ? (left >= right ? 1 : -1) : 0;
+				delete sub;
+				NetExpr*res = make_const_val_s(value);
+				res->set_line(*this);
+				return cast_to_width_(res, expr_wid);
+			  }
+		    }
+	      }
 	    if (sub && dynamic_cast<const netdarray_t*>(sub->net_type())) {
 		    // The runtime object may be an open-array copy of a fixed
 		    // actual. Such an object carries the actual's declared
@@ -27603,7 +27674,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // property that compiles, never evaluates, and reports
 	      // nothing -- the check silently does not exist. Those take
 	      // the error branch.
-	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
+	    if (gn_system_verilog() && path_.size() > 1
+		&& !(NEED_CONST & flags) && !strict_bind_
 		&& !sr.decl_after_use
 		&& !unresolved_foreach_index_is_out_of_scope_(
 		      scope, path_.name.front().name)
@@ -27792,7 +27864,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// strict_bind_: see the companion site above. An identifier that
 	// came out of a concurrent assertion must not degrade to a
 	// warning here either.
-      if (gn_system_verilog() && !strict_bind_ && !sr.decl_after_use
+	if (gn_system_verilog() && path_.size() > 1 && !strict_bind_
+	    && !sr.decl_after_use
 	  && !unresolved_foreach_index_is_out_of_scope_(
 		scope, path_.name.front().name)
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {

@@ -1,0 +1,6 @@
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+PASSED: two-state empty pop default
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+PASSED: four-state empty pop default

@@ -1,0 +1,5 @@
+./ivltests/issue765_vector_range_unknown_2017.v:4: error: Packed range bounds must not contain any unknown (x) or high-impedance (z) bits.
+./ivltests/issue765_vector_range_unknown_2017.v:5: error: Packed range bounds must not contain any unknown (x) or high-impedance (z) bits.
+./ivltests/issue765_vector_range_unknown_2017.v:2: error: Packed range bounds must not contain any unknown (x) or high-impedance (z) bits.
+./ivltests/issue765_vector_range_unknown_2017.v:3: error: Packed range bounds must not contain any unknown (x) or high-impedance (z) bits.
+4 error(s) during elaboration.

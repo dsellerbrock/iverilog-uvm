@@ -1,4 +1,4 @@
-./ivltests/sv_covergroup_ctor_bin_ranges_unresolved.v:6: warning: Unable to bind wire/reg/memory `missing_bound' in `top.cg' (compile-progress: unresolved reference).
+./ivltests/sv_covergroup_ctor_bin_ranges_unresolved.v:6: error: Unable to bind wire/reg/memory `missing_bound' in `top.cg'
 sorry: covergroup bin 'unresolved' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: covergroup bin 'unsupported_sibling' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: covergroup bin 'unsupported_nested' has a runtime range expression that cannot be represented; the bin is dropped.
@@ -11,4 +11,4 @@ sorry: covergroup bin 'unsupported_select' has a runtime range expression that c
 sorry: covergroup bin 'unsupported_open_sibling' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: constructor-dependent covergroup bin 'unsupported_with' uses a 'with' filter that cannot yet be evaluated at construction; the bin is dropped.
 sorry: covergroup bin 'unsupported_ctor_set' set expression cannot yet capture a constructor-formal container; the bin is dropped.
-PASSED
+1 error(s) during elaboration.

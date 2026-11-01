@@ -1,0 +1,2 @@
+ivltests/issue767_undeclared_ref.v:4: error: Unable to bind wire/reg/memory `w2' in `issue767_undeclared_ref'
+1 error(s) during elaboration.

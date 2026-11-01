@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue794_nested_dynamic_array_queries_2023.v",
+  "iverilog-args": [ "-g2023", "-s", "test" ],
+  "gold": "issue794_nested_dynamic_array_queries"
+}

@@ -1,0 +1,2 @@
+./ivltests/issue726_property_local_direction_fail.v:2: error: local variable formal argument `value' of property `bad_inout' shall have direction input (IEEE 1800-2017/2023 16.12.19).
+./ivltests/issue726_property_local_direction_fail.v:6: error: local variable formal argument `value' of property `bad_output' shall have direction input (IEEE 1800-2017/2023 16.12.19).

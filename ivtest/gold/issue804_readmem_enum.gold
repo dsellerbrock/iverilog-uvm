@@ -1,0 +1,3 @@
+ERROR: ./ivltests/issue804_readmem_enum.v:9: $readmemh(ivltests/issue804_readmem_enum.mem): value is not a valid enumerated value; stopping read.
+PASS: enum readmem stopped at the invalid value
+./ivltests/issue804_readmem_enum.v:14: $finish called at 0 (1s)

@@ -17246,7 +17246,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 							      delete obj_expr;
 							      obj_expr = nullptr;
 							      field_diagnostic = true;
-							    }
+								}
 						      }
 						}
 					  }
@@ -19712,6 +19712,34 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 			      }
 			      {
+					auto parent_property_guard = [&](PExpr*expr) -> NetExpr* {
+					      const PEIdent*id =
+						    dynamic_cast<const PEIdent*>(expr);
+					      if (!parent_cls || !id) return nullptr;
+					      const pform_scoped_name_t&path = id->path();
+					      if (path.size() != 1 || path.name.front().local_scope
+						  || !path.name.front().index.empty())
+						    return nullptr;
+					      symbol_search_results search;
+					      bool found = symbol_search(id, des, cp_scope, path,
+						    id->lexical_pos(), &search);
+					      bool parent_scope = !found && !search.decl_after_use;
+					      if (found && search.scope)
+						    for (const netclass_t*cls = parent_cls;
+							 cls; cls = cls->get_super())
+							  if (cls->class_scope() == search.scope) {
+								parent_scope = true;
+								break;
+							  }
+				      if (!parent_scope) return nullptr;
+				      int prop = parent_cls->property_idx_from_name(
+					    path.name.front().name);
+				      if (prop < 0) return nullptr;
+				      NetEProperty*value = new NetEProperty(
+					    make_parent_expr(), prop, nullptr);
+				      value->set_line(*expr);
+				      return value;
+				};
 				    // Coverpoint VALUES. Prefer the parent-
 				    // class property read (class-embedded
 				    // covergroups); otherwise elaborate the
@@ -19759,23 +19787,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, cp_scope, gexpr, -1,
-								     false, false);
+						gval = parent_property_guard(gexpr);
 						if (!gval)
-						if (const PEIdent*gid =
-						      dynamic_cast<const PEIdent*>(gexpr)) {
-						      perm_string gnm = peek_head_name(gid->path());
-						      int gp = parent_cls
-							    ? parent_cls->property_idx_from_name(gnm)
-							    : -1;
-						      if (gp >= 0) {
-							    NetEProperty*gprop =
-								  new NetEProperty(make_parent_expr(),
-										   gp, nullptr);
-							    gprop->set_line(*this);
-							    gval = gprop;
-						      }
-						}
+						      gval = elab_and_eval(des, cp_scope, gexpr, -1,
+								     false, false);
 						if (!gval)
 						      gval = elab_and_eval(des, cp_scope,
 									   gexpr, -1,
@@ -19803,22 +19818,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_item_guard(item);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, cp_scope, gexpr, -1,
-							     false, false);
+						gval = parent_property_guard(gexpr);
 						if (!gval)
-						if (const PEIdent*gid =
-						      dynamic_cast<const PEIdent*>(gexpr)) {
-						      perm_string gnm = peek_head_name(gid->path());
-						      int gp = parent_cls
-							    ? parent_cls->property_idx_from_name(gnm)
-							    : -1;
-						      if (gp >= 0) {
-							    NetEProperty*gprop = new NetEProperty(
-								  make_parent_expr(), gp, nullptr);
-							    gprop->set_line(*this);
-							    gval = gprop;
-						      }
-						}
+						      gval = elab_and_eval(des, cp_scope, gexpr, -1,
+							     false, false);
 						if (!gval)
 						      cerr << get_fileline()
 							   << ": sorry: cross iff guard for '"
@@ -19842,22 +19845,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    for (unsigned gi = 0; gi < nbinguards; gi++) {
 					  PExpr*gexpr = cgtype->covgrp_bin_guard(gi);
 					  NetExpr*gval = gexpr
-						? elab_and_eval(des, cp_scope, gexpr,
-								-1, false, false)
-						: nullptr;
+						? parent_property_guard(gexpr) : nullptr;
 					  if (!gval && gexpr)
-					  if (const PEIdent*gid =
-						dynamic_cast<const PEIdent*>(gexpr)) {
-						perm_string gnm = peek_head_name(gid->path());
-						int gp = parent_cls
-						      ? parent_cls->property_idx_from_name(gnm) : -1;
-						if (gp >= 0) {
-						      NetEProperty*gprop = new NetEProperty(
-							make_parent_expr(), gp, nullptr);
-						      gprop->set_line(*this);
-						      gval = gprop;
-						}
-					  }
+						gval = elab_and_eval(des, cp_scope, gexpr,
+								 -1, false, false);
 					  if (!gval) {
 						if (gexpr)
 						      cerr << get_fileline()
@@ -39064,6 +39055,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  bool packed_scalar = constraint_state_prop_ok_(ptype, false);
 		  bool packed_select = packed_scalar
 		    && id->path().back().index.size() == 1;
+		  bool packed_multi_select = false;
+		  if (packed_scalar && id->path().back().index.size() > 1) {
+		    const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
+		    const netvector_t*pvec = dynamic_cast<const netvector_t*>(
+			  penum ? penum->base_type_obj() : ptype);
+		    packed_multi_select = pvec
+			  && pvec->packed_dims().size()
+			       == id->path().back().index.size();
+		  }
 		    // A property that is not `rand` is a STATE VARIABLE
 		    // (IEEE 1800-2017 18.3): it takes part in the
 		    // constraint at the value it holds when randomize()
@@ -39079,7 +39079,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // The pin needs a real value, so a state variable
 		    // whose type has no bitvector image is still dropped
 		    // by the representability check below.
-		  if (!q.test_rand() && !packed_select
+		  if (!q.test_rand() && !packed_select && !packed_multi_select
 		      && !constraint_state_prop_ok_(ptype,
 						    !id->path().back().index.empty()))
 			return "";
@@ -39104,6 +39104,50 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return packed_typed_select_ir_(
 				    base, ptype, id->path().back().index.front(),
 				    cls, value_slots, scope, loop_env);
+			}
+			if (packed_multi_select) {
+			      const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
+			      const netvector_t*pvec = dynamic_cast<const netvector_t*>(
+				    penum ? penum->base_type_obj() : ptype);
+			      const netranges_t&dims = pvec->packed_dims();
+			      uint64_t offset = 0;
+			      uint64_t long_width = 1;
+			      auto select = id->path().back().index.begin();
+			      for (size_t dim = 0; dim < dims.size(); ++dim) {
+				    const netrange_t&range = dims[dim];
+				    const index_component_t&component = *select++;
+				    if (!range.defined() || !range.width()
+					|| component.sel != index_component_t::SEL_BIT
+					|| !component.msb || component.lsb)
+					  return "";
+				    string index_ir = pexpr_to_constraint_ir(
+					  component.msb, cls, value_slots, scope, loop_env);
+				    constraint_const_ir_t index;
+				    uint64_t digit = 0;
+				    if (!constraint_parse_const_ir_(index_ir, index)
+					|| index.width > 64
+					|| !constraint_fixed_index_offset_(
+					      index, min(range.get_msb(), range.get_lsb()),
+					      range.width(), digit))
+					  return "";
+				    uint64_t position = range.get_msb() >= range.get_lsb()
+					  ? range.width() - 1 - digit : digit;
+				    if (position > UINT_MAX
+					|| offset > (UINT_MAX - position) / range.width())
+					  return "";
+				    offset = offset * range.width() + position;
+				    if (range.width() > UINT64_MAX / long_width)
+					  return "";
+				    long_width *= range.width();
+			      }
+			      if (long_width != (uint64_t)pvec->packed_width())
+				    return "";
+			      string base = "p:" + to_string(idx) + ":"
+				    + to_string(ptype->packed_width())
+				    + (ptype->get_signed() ? ":s" : "");
+			      return string(ptype->base_type() == IVL_VT_LOGIC
+				    ? "(bit4 " : "(bit ") + base + " c:"
+				    + to_string(offset) + ")";
 			}
 			  if (id->path().size() == 1) {
 		    string nested = constraint_class_fixed_queue_element_ir_(
@@ -45796,7 +45840,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  }
 	    };
 
-			    // IEEE 1800-2017 19.5.7 / 1800-2023 19.5.7: a transition sequence
+			    // IEEE 1800-2017/2023 19.5.5: a transition sequence
 			    // listed in ignore_bins is removed from the sequences of the
 			    // coverpoint's other transition bins. Resolve every fixed
 			    // ignored sequence to value sets once; the regular bins below
@@ -46052,7 +46096,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						       << "terms; the bin is dropped." << endl;
 						  bad = true;
 						  break;
-					    }
+								    }
 					    std::vector<trans_term_t> terms;
 					    unsigned __int128 sequence_variants = 1;
 					    for (auto&source_term : source_terms) {
@@ -46243,48 +46287,64 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      if (t.dynamic || t.repeat != (unsigned)class_type_t::
 								  pform_cov_trans_term_t::TRANS_ONCE)
 								    plain = false;
-							if (piece.size() != ignored.size()) {
+							if (ignored.size() > piece.size()) {
 							      next_pieces.push_back(std::move(piece));
 							      continue;
 							}
-							if (!plain) {
-							      cerr << "sorry: covergroup '" << cgdef->name
-								   << "': an ignore_bins transition cannot be "
-								   << "subtracted from repeated or constructor-"
-								   << "dependent bin '" << bin.name
-								   << "'; the bin is dropped." << endl;
-							      bad = true;
-							      break;
-							}
-							std::vector<trans_ranges_t> common;
-							bool overlaps = true;
-							for (size_t k = 0; k < piece.size(); k++) {
-							      common.push_back(trans_ranges_intersect(
-								    piece[k].ranges, ignored[k]));
-							      if (common.back().empty()) overlaps = false;
-							}
-							if (!overlaps) {
-							      next_pieces.push_back(std::move(piece));
-							      continue;
-							}
-							pieces_changed = true;
-							for (size_t k = 0; k < piece.size(); k++) {
-							      trans_ranges_t rest = trans_ranges_subtract(
-								    piece[k].ranges, ignored[k]);
-							      if (rest.empty()) continue;
-							      std::vector<trans_term_t> variant;
-							      for (size_t j = 0; j < piece.size(); j++) {
-								    trans_term_t t = piece[j];
-								    t.ranges = j < k ? common[j]
-									  : j == k ? rest : piece[j].ranges;
-								    uint64_t alt = 0;
-								    for (auto&r : t.ranges)
-									  alt += r.second - r.first + 1;
-								    t.alternatives = alt;
-								    variant.push_back(std::move(t));
+							std::vector<std::vector<trans_term_t>> offset_pieces;
+							offset_pieces.push_back(std::move(piece));
+							for (size_t offset = 0;
+							     !offset_pieces.empty()
+							     && offset + ignored.size() <= offset_pieces[0].size();
+							     ++offset) {
+							      std::vector<std::vector<trans_term_t>> next_offset_pieces;
+							      for (auto&candidate : offset_pieces) {
+								    std::vector<trans_ranges_t> common;
+								    bool overlaps = true;
+								    for (size_t k = 0; k < ignored.size(); k++) {
+									  common.push_back(trans_ranges_intersect(
+										candidate[offset + k].ranges, ignored[k]));
+									  if (common.back().empty()) overlaps = false;
+								    }
+								    if (!overlaps) {
+									  next_offset_pieces.push_back(std::move(candidate));
+									  continue;
+								    }
+								    if (!plain) {
+									  cerr << "sorry: covergroup '" << cgdef->name
+									       << "': an ignore_bins transition cannot be "
+									       << "subtracted from repeated or constructor-"
+									       << "dependent bin '" << bin.name
+									       << "'; the bin is dropped." << endl;
+									  bad = true;
+									  break;
+								    }
+								    pieces_changed = true;
+								    for (size_t k = 0; k < ignored.size(); k++) {
+									  trans_ranges_t rest = trans_ranges_subtract(
+										candidate[offset + k].ranges, ignored[k]);
+									  if (rest.empty()) continue;
+									  std::vector<trans_term_t> variant;
+									  for (size_t j = 0; j < candidate.size(); j++) {
+										trans_term_t t = candidate[j];
+										if (j >= offset && j < offset + k)
+										      t.ranges = common[j - offset];
+										else if (j == offset + k)
+										      t.ranges = rest;
+										uint64_t alt = 0;
+										for (auto&r : t.ranges)
+										      alt += r.second - r.first + 1;
+										t.alternatives = alt;
+										variant.push_back(std::move(t));
+									  }
+									  next_offset_pieces.push_back(std::move(variant));
+								    }
 							      }
-							      next_pieces.push_back(std::move(variant));
+							      if (bad) break;
+							      offset_pieces = std::move(next_offset_pieces);
 							}
+							for (auto&candidate : offset_pieces)
+							      next_pieces.push_back(std::move(candidate));
 						  }
 						  if (bad) break;
 						  pieces = std::move(next_pieces);
