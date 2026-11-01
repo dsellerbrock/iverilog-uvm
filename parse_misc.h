@@ -168,6 +168,16 @@ struct sva_sequence_formal_t {
       data_type_t* type = nullptr;
 };
 
+/* Property formals retain the declaration information needed when the
+ * named property is instantiated. */
+struct sva_property_formal_t {
+      enum formal_type_t { UNTYPED, DATA_TYPE, PROPERTY, SEQUENCE, EVENT };
+      perm_string name;
+      formal_type_t formal_type = UNTYPED;
+      data_type_t* type = nullptr;
+      PExpr* default_expr = nullptr;
+};
+
 /*
  * M9-NFA stage B: sequence-combinator tree over linear chains. A leaf
  * wraps a chain; interior nodes are the regular-language combinators

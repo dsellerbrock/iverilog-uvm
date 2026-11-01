@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue725_property_typed_formals.v:28: $finish called at 14 (1s)
