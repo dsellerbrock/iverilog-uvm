@@ -246,19 +246,50 @@ static vvp_fun_signal_object::init_obj_kind_t queue_init_kind_from_text_(const c
 	      || type[2] == '!'))
             return init_t::INIT_OBJ_QUEUE_OBJECT;
       if (strncmp(type, "Mr", 2) == 0
-	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'
+	      || type[2] == 'I'))
             return init_t::INIT_OBJ_ASSOC_REAL;
       if (strncmp(type, "MS", 2) == 0
-	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'
+	      || type[2] == 'I'))
             return init_t::INIT_OBJ_ASSOC_STRING;
       if (strncmp(type, "Mv", 2) == 0
-	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'
+	      || type[2] == 'I'))
             return init_t::INIT_OBJ_ASSOC_VEC4;
       if (strncmp(type, "Mo", 2) == 0
-	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'
+	      || type[2] == 'I'))
             return init_t::INIT_OBJ_ASSOC_OBJECT;
 
       return init_t::INIT_OBJ_NONE;
+}
+
+static bool assoc_index_type_from_text_(const char*type,
+					unsigned&width, bool&is_signed,
+					size_t&base_length)
+{
+      width = 0;
+      is_signed = false;
+      base_length = 2;
+	  if (!type || type[0] != 'M' || type[1] == '\0' || type[2] != 'I')
+	    return true;
+
+      char*end = 0;
+      errno = 0;
+      unsigned long parsed = strtoul(type+3, &end, 10);
+      if (end == type+3 || errno || parsed == 0 || parsed > UINT_MAX)
+	    return false;
+      if (*end != 's' && *end != 'u')
+	    return false;
+
+      is_signed = *end == 's';
+      ++end;
+      if (*end && *end != '!' && *end != '@' && *end != '#')
+	    return false;
+      width = static_cast<unsigned>(parsed);
+      base_length = static_cast<size_t>(end - type);
+      return true;
 }
 
 static void __compile_var_real(char*label, char*name,
@@ -387,6 +418,8 @@ void compile_var_queue(char*label, char*name, unsigned size,
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
+      unsigned assoc_index_width = 0;
+      bool assoc_index_signed = false;
 
       if (use_auto) {
 	    vvp_fun_signal_object_aa*tmp = new vvp_fun_signal_object_aa(size);
@@ -408,15 +441,21 @@ void compile_var_queue(char*label, char*name, unsigned size,
 			queue_init_kind_from_text_(type);
 		  const bool is_queue = type[0] == 'Q';
 		  const bool is_assoc = type[0] == 'M';
+		  size_t expected_base_length = 2;
+		  const bool valid_assoc_index = !is_assoc
+			|| assoc_index_type_from_text_(type, assoc_index_width,
+						       assoc_index_signed,
+						       expected_base_length);
 		  vvp_container_layout_t layout;
 		  size_t base_length = 0;
 		  if (init_kind == vvp_fun_signal_object::INIT_OBJ_NONE
 		      || (!is_queue && !is_assoc)
+		      || !valid_assoc_index
 		      || !vvp_parse_container_layout_type(
 			    type, is_queue ? VVP_CONTAINER_QUEUE
 					   : VVP_CONTAINER_ASSOC,
 			    layout, base_length)
-		      || base_length != 2) {
+		      || base_length != expected_base_length) {
 			yyerror("malformed container-layout suffix in .var/queue "
 				"type encoding");
 			compile_errors += 1;
@@ -438,7 +477,9 @@ void compile_var_queue(char*label, char*name, unsigned size,
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_queue_var(name, net, use_auto,
-                                          element_signed);
+					  element_signed, size,
+					  assoc_index_width,
+					  assoc_index_signed);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);

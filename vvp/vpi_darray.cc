@@ -33,6 +33,8 @@
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
+# include  <algorithm>
+# include  <cstdint>
 # include  <cassert>
 # include  "ivl_alloc.h"
 
@@ -565,6 +567,180 @@ const vvp_assoc_base*__vpiDarrayVar::get_vvp_assoc() const
       return obj.peek<vvp_assoc_base>();
 }
 
+bool __vpiDarrayVar::assoc_readmem_legal() const
+{
+      return readmem_element_width_ > 0 && readmem_index_width_ > 0
+	    && dynamic_cast<const vvp_assoc_vec4*>(get_vvp_assoc()) != 0;
+}
+
+static vvp_vector4_t assoc_readmem_int_key_(int value, unsigned width)
+{
+      vvp_vector4_t key(width, BIT4_0);
+      const uint32_t bits = static_cast<uint32_t>(value);
+      for (unsigned idx = 0 ; idx < width ; idx += 1) {
+	    const bool set = idx < 32 ? ((bits >> idx) & 1) != 0 : value < 0;
+	    if (set) key.set_bit(idx, BIT4_1);
+      }
+      return key;
+}
+
+static int assoc_readmem_compare_(const vvp_vector4_t&left,
+				  const vvp_vector4_t&right,
+				  bool signed_order)
+{
+      const unsigned width = std::min(left.size(), right.size());
+      if (signed_order && width) {
+	    const vvp_bit4_t lsign = left.value(width-1);
+	    const vvp_bit4_t rsign = right.value(width-1);
+	    if (lsign != rsign)
+		  return lsign == BIT4_1 ? -1 : 1;
+      }
+      for (unsigned idx = width ; idx > 0 ; idx -= 1) {
+	    const vvp_bit4_t lbit = left.value(idx-1);
+	    const vvp_bit4_t rbit = right.value(idx-1);
+	    if (lbit == rbit) continue;
+	    if (lbit != BIT4_0 && lbit != BIT4_1)
+		  return 0;
+	    if (rbit != BIT4_0 && rbit != BIT4_1)
+		  return 0;
+	    return lbit == BIT4_1 ? 1 : -1;
+      }
+      return 0;
+}
+
+int __vpiDarrayVar::assoc_readmem_in_range(
+      const struct t_vpi_vecval*key_value, unsigned key_width,
+      int start, int stop, bool has_start, bool has_stop) const
+{
+      if (!assoc_readmem_legal() || !key_value)
+	    return -1;
+
+      vvp_vector4_t key(readmem_index_width_, BIT4_0);
+      for (unsigned idx = 0 ; idx < readmem_index_width_ && idx < key_width ; idx += 1) {
+	    const unsigned word = idx / 32;
+	    const unsigned bit = idx % 32;
+	    const bool a = (key_value[word].aval >> bit) & 1;
+	    const bool b = (key_value[word].bval >> bit) & 1;
+	    key.set_bit(idx, b ? (a ? BIT4_X : BIT4_Z)
+			    : (a ? BIT4_1 : BIT4_0));
+      }
+	  for (unsigned idx = 0 ; idx < key.size() ; idx += 1)
+	    if (key.value(idx) != BIT4_0 && key.value(idx) != BIT4_1)
+		  return -1;
+
+      if (!has_start && !has_stop)
+	    return 1;
+
+      vvp_vector4_t start_key = assoc_readmem_int_key_(start,
+							  readmem_index_width_);
+      vvp_vector4_t stop_key = assoc_readmem_int_key_(stop,
+							 readmem_index_width_);
+      const int cmp_start = assoc_readmem_compare_(key, start_key,
+							   readmem_index_signed_);
+      if (has_start && cmp_start < 0)
+	    return 0;
+      if (!has_stop)
+	    return 1;
+
+      const int cmp_stop = assoc_readmem_compare_(key, stop_key,
+							  readmem_index_signed_);
+      return cmp_stop <= 0;
+}
+
+bool __vpiDarrayVar::assoc_readmem_put(const struct t_vpi_vecval*key_value,
+				       unsigned key_width,
+				       p_vpi_value value)
+{
+      if (!assoc_readmem_legal() || !key_value || !value
+	  || value->format != vpiVectorVal || !value->value.vector)
+	    return false;
+
+      vvp_assoc_vec4*assoc = const_cast<vvp_assoc_vec4*>(
+	    dynamic_cast<const vvp_assoc_vec4*>(get_vvp_assoc()));
+      if (!assoc) return false;
+
+      vvp_vector4_t key(readmem_index_width_, BIT4_0);
+      for (unsigned idx = 0 ; idx < readmem_index_width_ && idx < key_width ; idx += 1) {
+	    const unsigned word = idx / 32;
+	    const unsigned bit = idx % 32;
+	    const bool a = (key_value[word].aval >> bit) & 1;
+	    const bool b = (key_value[word].bval >> bit) & 1;
+	    key.set_bit(idx, b ? (a ? BIT4_X : BIT4_Z)
+			    : (a ? BIT4_1 : BIT4_0));
+      }
+
+      vvp_vector4_t element(readmem_element_width_, BIT4_0);
+      for (unsigned idx = 0 ; idx < readmem_element_width_ ; idx += 1) {
+	    const unsigned word = idx / 32;
+	    const unsigned bit = idx % 32;
+	    const bool a = (value->value.vector[word].aval >> bit) & 1;
+	    const bool b = (value->value.vector[word].bval >> bit) & 1;
+	    element.set_bit(idx, b ? (a ? BIT4_X : BIT4_Z)
+			       : (a ? BIT4_1 : BIT4_0));
+      }
+
+      assoc->set(key, element);
+      assoc->touch();
+      if (vvp_fun_signal_base*fun = get_callback_functor())
+	    fun->run_sv_vpi_callbacks();
+      return true;
+}
+
+int __vpiDarrayVar::assoc_writemem_key(unsigned position, int start,
+				       int stop, bool has_start,
+				       bool has_stop, char*buffer,
+				       unsigned buffer_size) const
+{
+      if (!assoc_readmem_legal() || !buffer)
+	    return -1;
+
+      const vvp_assoc_base*assoc = get_vvp_assoc();
+      int key_kind = -1;
+      std::string str_key;
+      const vvp_object*obj_key = 0;
+      vvp_vector4_t vec_key;
+      vvp_object_t obj_val;
+      if (!assoc->peek_entry_identity(position, key_kind, str_key,
+					      obj_key, vec_key, obj_val)
+	  || key_kind != 2)
+	    return -1;
+
+      struct t_vpi_vecval*key_value = new t_vpi_vecval[(readmem_index_width_+31)/32]();
+      for (unsigned idx = 0 ; idx < readmem_index_width_ ; idx += 1) {
+	    const vvp_bit4_t bit_value = vec_key.value(idx);
+	    if (bit_value == BIT4_X || bit_value == BIT4_Z) {
+		  delete[] key_value;
+		  return -1;
+	    }
+	    const unsigned bit = idx % 32;
+	    if (bit_value == BIT4_1)
+		  key_value[idx/32].aval |= (PLI_UINT32)1 << bit;
+      }
+
+      const int in_range = assoc_readmem_in_range(
+	    key_value, readmem_index_width_, start, stop, has_start, has_stop);
+      delete[] key_value;
+      if (in_range <= 0)
+	    return in_range;
+
+      const unsigned digits = (readmem_index_width_ + 3) / 4;
+      if (buffer_size <= digits)
+	    return -1;
+      static const char hex_digits[] = "0123456789abcdef";
+      for (unsigned digit = 0 ; digit < digits ; digit += 1) {
+	    unsigned value = 0;
+	    for (unsigned bit = 0 ; bit < 4 ; bit += 1) {
+		  unsigned bit_index = digit*4 + bit;
+		  if (bit_index < readmem_index_width_
+		      && vec_key.value(bit_index) == BIT4_1)
+			value |= 1U << bit;
+	    }
+	    buffer[digits-digit-1] = hex_digits[value];
+      }
+      buffer[digits] = 0;
+      return 1;
+}
+
 vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
 			       bool automatic_storage,
                                bool element_signed)
@@ -584,24 +760,84 @@ vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
  * element-access machinery; the array kind is detected from the live
  * object. */
 __vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
-                             bool automatic_storage)
+                             bool automatic_storage, unsigned element_width,
+                             unsigned assoc_index_width,
+                             bool assoc_index_signed)
 : __vpiDarrayVar(sc, na, ne, automatic_storage)
 {
       default_array_type_ = vpiQueueArray;
+      set_assoc_readmem_type(element_width, assoc_index_width,
+			     assoc_index_signed);
 }
 
 vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
 			      bool automatic_storage,
-                              bool element_signed)
+                              bool element_signed,
+                              unsigned element_width,
+                              unsigned assoc_index_width,
+                              bool assoc_index_signed)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
       __vpiQueueVar*obj = new __vpiQueueVar(scope, use_name, net,
-                                            automatic_storage);
+					    automatic_storage, element_width,
+					    assoc_index_width,
+					    assoc_index_signed);
       obj->set_element_signed(element_signed);
 
       return obj;
+}
+
+extern "C" int vpip_assoc_readmem_legal(vpiHandle array)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj && obj->vpi_get(vpiArrayType) == vpiAssocArray
+	    && obj->assoc_readmem_legal();
+}
+
+extern "C" unsigned vpip_assoc_readmem_width(vpiHandle array)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj && obj->assoc_readmem_legal()
+	    ? obj->assoc_readmem_element_width() : 0;
+}
+
+extern "C" unsigned vpip_assoc_readmem_index_width(vpiHandle array)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj && obj->assoc_readmem_legal()
+	    ? obj->assoc_readmem_index_width() : 0;
+}
+
+extern "C" int vpip_assoc_readmem_in_range(
+      vpiHandle array, const struct t_vpi_vecval*key, unsigned key_width,
+      int start, int stop, int has_start, int has_stop)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj ? obj->assoc_readmem_in_range(key, key_width, start, stop,
+						       has_start != 0,
+						       has_stop != 0) : -1;
+}
+
+extern "C" int vpip_assoc_readmem_put(vpiHandle array,
+				      const struct t_vpi_vecval*key,
+				      unsigned key_width, p_vpi_value value)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj && obj->assoc_readmem_put(key, key_width, value);
+}
+
+extern "C" int vpip_assoc_writemem_key(vpiHandle array, unsigned position,
+				       int start, int stop,
+				       int has_start, int has_stop,
+				       char*buffer, unsigned buffer_size)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj ? obj->assoc_writemem_key(position, start, stop,
+						   has_start != 0,
+						   has_stop != 0,
+						   buffer, buffer_size) : -1;
 }
 
 #ifdef CHECK_WITH_VALGRIND
