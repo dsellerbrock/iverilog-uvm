@@ -12262,7 +12262,7 @@ static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 	    }
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
       if (signed_value && w) w->set_signed(true);
       return name;
@@ -12284,7 +12284,7 @@ static perm_string sva_make_genvar_pipe_(const struct vlltype&loc,
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    FILE_NAME(r.second, loc);
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
       return name;
 }
@@ -12306,7 +12306,7 @@ static perm_string sva_make_parameter_pipe_(const struct vlltype&loc,
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    FILE_NAME(r.second, loc);
 	    range.push_back(r);
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       } else {
 	    delete top;
       }
@@ -22711,7 +22711,7 @@ static perm_string sva_make_assoc_reg_(const struct vlltype&loc,
 	    range.push_back(pform_range_t(
 		  new PENumber(new verinum((uint64_t)value_width-1, 32)),
 		  new PENumber(new verinum((uint64_t)0, 32))));
-	    w->set_range(range, SR_NET);
+	    w->set_range(range, SR_NET, false);
       }
 
       std::list<pform_range_t>*key_range = new std::list<pform_range_t>;

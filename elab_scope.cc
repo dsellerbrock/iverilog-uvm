@@ -3492,6 +3492,12 @@ static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
       return cache_value_parameter_is_deferred_(des, scope, expr, seen);
 }
 
+bool value_parameter_is_deferred(Design*des, NetScope*scope,
+				 const PExpr*expr)
+{
+      return cache_value_parameter_is_deferred_(des, scope, expr);
+}
+
 static std::vector<perm_string> overridable_parameters_(const PClass*pclass)
 {
       std::vector<perm_string> formals;

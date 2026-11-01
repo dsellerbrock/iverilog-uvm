@@ -3036,8 +3036,15 @@ bool typed_mailbox_put_compatible(const netclass_t*mailbox, const NetExpr*actual
 	  || (actual_type && msg_type->type_compatible(actual_type));
 }
 
+static bool range_bound_has_unknown(const NetExpr*expr)
+{
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+      return constant && !constant->value().is_defined();
+}
+
 bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
-		    const pform_range_t&range, long&index_l, long&index_r)
+		    const pform_range_t&range, long&index_l, long&index_r,
+		    bool reject_unknown)
 {
       bool dimension_ok = true;
 
@@ -3057,7 +3064,15 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
       } else {
             unsigned errors_before = des->errors;
             NetExpr*texpr = elab_and_eval(des, scope, range.first, -1, true);
-            if (! eval_as_long(index_l, texpr)) {
+            if (reject_unknown
+		&& !value_parameter_is_deferred(des, scope, range.first)
+		&& range_bound_has_unknown(texpr)) {
+                  cerr << range.first->get_fileline() << ": error: "
+                       << "Packed range bounds must not contain any unknown "
+                       << "(x) or high-impedance (z) bits." << endl;
+                  des->errors += 1;
+                  dimension_ok = false;
+            } else if (! eval_as_long(index_l, texpr)) {
                   if (des->errors == errors_before) {
                         cerr << range.first->get_fileline() << ": error: "
                                 "Dimensions must be constant." << endl;
@@ -3092,7 +3107,16 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
             } else {
                   errors_before = des->errors;
                   texpr = elab_and_eval(des, scope, range.second, -1, true);
-                  if (! eval_as_long(index_r, texpr)) {
+                  if (reject_unknown
+		      && !value_parameter_is_deferred(des, scope, range.second)
+		      && range_bound_has_unknown(texpr)) {
+                        cerr << range.second->get_fileline() << ": error: "
+                             << "Packed range bounds must not contain any "
+                             << "unknown (x) or high-impedance (z) bits."
+                             << endl;
+                        des->errors += 1;
+                        dimension_ok = false;
+                  } else if (! eval_as_long(index_r, texpr)) {
                         if (des->errors == errors_before) {
                               cerr << range.second->get_fileline() << ": error: "
                                       "Dimensions must be constant." << endl;
@@ -3117,14 +3141,16 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
 }
 
 bool evaluate_ranges(Design*des, NetScope*scope, const LineInfo*li,
-		     netranges_t&llist, const list<pform_range_t>&rlist)
+		     netranges_t&llist, const list<pform_range_t>&rlist,
+		     bool reject_unknown)
 {
       bool dimensions_ok = true;
 
       for (list<pform_range_t>::const_iterator cur = rlist.begin()
 		 ; cur != rlist.end() ; ++cur) {
             long index_l, index_r;
-            dimensions_ok &= evaluate_range(des, scope, li, *cur, index_l, index_r);
+            dimensions_ok &= evaluate_range(des, scope, li, *cur,
+					    index_l, index_r, reject_unknown);
             llist.push_back(netrange_t(index_l, index_r));
       }
 
