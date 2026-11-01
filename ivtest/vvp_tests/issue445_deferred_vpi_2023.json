@@ -1,0 +1,18 @@
+{
+  "type": "normal",
+  "source": "issue445_deferred_vpi.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue445_deferred_vpi_2023"],
+  "vpi-sources": ["vpi/issue445_deferred_vpi.c"],
+  "output-contains": [
+    "REGISTERED=7",
+    "OBSERVED_PASS_ACTION",
+    "OBSERVED_FAIL_ACTION",
+    "FINAL_PASS_ACTION",
+    "FINAL_FAIL_ACTION",
+    "OBSERVED_TASK_ACTION",
+    "RESULTS success=3 failure=2 disable=14 enable=14 reset=7",
+    "IDENTITY_ERRORS=0 RESULT_ERRORS=0",
+    "PASSED: deferred assertion VPI results"
+  ]
+}

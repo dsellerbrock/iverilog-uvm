@@ -7305,15 +7305,17 @@ static unsigned deferred_assertion_source_id_ = 0;
 
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
- * selected call. The first arguments are mode (0 = #0, 1 = final), source id,
- * assertion kind (assert=1, cover=2, assume=4), and action kind (0 = null,
- * 1 = `$error', 2 = `$display'). Action markers then carry any original
- * positional action arguments; the VVP target evaluates those expressions
- * before queueing the report and snapshots their typed stack values. */
+ * selected call and result. The first arguments are mode (0 = #0, 1 = final),
+ * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = no
+ * result, 1 = pass, 2 = fail), and action kind (0 = null, 1 = `$error',
+ * 2 = `$display'). Action markers then carry any original positional action
+ * arguments; the VVP target evaluates those expressions before queueing the
+ * report and snapshots their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
 					    unsigned assertion_kind,
+					    unsigned result,
 					    unsigned kind,
 					    const std::vector<named_pexpr_t>*action_args = 0)
 {
@@ -7336,6 +7338,11 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 	    new verinum((uint64_t)assertion_kind, 32));
       FILE_NAME(assertion_kind_arg.parm, loc);
       args.push_back(assertion_kind_arg);
+
+      named_pexpr_t result_arg;
+      result_arg.parm = new PENumber(new verinum((uint64_t)result, 32));
+      FILE_NAME(result_arg.parm, loc);
+      args.push_back(result_arg);
 
       named_pexpr_t kind_arg;
       kind_arg.parm = new PENumber(new verinum((uint64_t)kind, 32));
@@ -7363,15 +7370,21 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 static Statement* deferred_final_task_action_(const struct vlltype&loc,
                                                unsigned source_id,
                                                PCallTask*call,
-                                               bool is_final)
+                                               bool is_final,
+                                               bool is_failure)
 {
-      auto make_marker = [&loc, source_id](const char*name) -> Statement* {
+      auto make_marker = [&loc, source_id, is_failure](const char*name) -> Statement* {
             std::list<named_pexpr_t> args;
             named_pexpr_t source_arg;
             source_arg.parm = new PENumber(
                   new verinum((uint64_t)source_id, 32));
             FILE_NAME(source_arg.parm, loc);
             args.push_back(source_arg);
+            named_pexpr_t result_arg;
+            result_arg.parm = new PENumber(
+                  new verinum((uint64_t)(is_failure ? 2 : 1), 32));
+            FILE_NAME(result_arg.parm, loc);
+            args.push_back(result_arg);
             PCallTask*marker = new PCallTask(lex_strings.make(name), args);
             FILE_NAME(marker, loc);
             return marker;
@@ -7410,18 +7423,18 @@ static bool deferred_action_marker_(const struct vlltype&loc,
       if (source == 0) {
 	    if (default_error)
 		  marker = deferred_enqueue_marker_(loc, is_final,
-						   source_id, assertion_kind, 1);
-	    else if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id,
-						    assertion_kind, 0);
+						   source_id, assertion_kind, 2, 1);
+	    else
+		  marker = deferred_enqueue_marker_(loc, is_final, source_id,
+						    assertion_kind, 1, 0);
 	    return true;
       }
 
       if (dynamic_cast<PNoop*>(source)) {
 	    delete source;
-	    if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id,
-					    assertion_kind, 0);
+	    marker = deferred_enqueue_marker_(loc, is_final, source_id,
+					    assertion_kind,
+					    default_error ? 2 : 1, 0);
 	    return true;
       }
 
@@ -7458,7 +7471,8 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 		  positional = positional && parm.name.nil();
 	    if (positional) {
 		  marker = deferred_enqueue_marker_(
-			loc, is_final, source_id, assertion_kind, 1,
+			loc, is_final, source_id, assertion_kind,
+			default_error ? 2 : 1, 1,
 			&parms);
 		  delete source;
 		  return true;
@@ -7471,7 +7485,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 		  positional = positional && parm.name.nil();
 	    if (positional) {
 		  marker = deferred_enqueue_marker_(loc, is_final, source_id,
-					  assertion_kind, 2,
+					  assertion_kind, default_error ? 2 : 1, 2,
 					  &parms);
 		  delete source;
 		  return true;
@@ -7483,7 +7497,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
           && call->leading_type_args() == 0
           && call->with_constraints().empty()) {
             marker = deferred_final_task_action_(loc, source_id, call,
-                                                 is_final);
+                                                 is_final, default_error);
             return true;
       }
 
@@ -7565,13 +7579,13 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
       }
 
       if (!pass_marker && !is_final)
-	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 0);
+	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 1, 0);
 
       /* A false final cover selection replaces an earlier true pin from the
 	 same source assertion and logical process. For #0, a false evaluation
 	 simply adds no report; normal process flush points handle reactivation. */
       Statement*false_marker = is_final
-	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0) : 0;
+	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0, 0) : 0;
 
       PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();
