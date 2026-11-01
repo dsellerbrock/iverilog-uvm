@@ -364,6 +364,10 @@ class PCallTask  : public Statement {
             { delete receiver_; receiver_ = expr; }
       const std::vector<named_pexpr_t>& parms() const { return parms_; }
       std::vector<named_pexpr_t>& mutable_parms() { return parms_; }
+      void set_match_item_original_args(std::vector<named_pexpr_t> args)
+	    { match_item_original_args_ = std::move(args); }
+      const std::vector<named_pexpr_t>& match_item_original_args() const
+	    { return match_item_original_args_; }
 
       /* Phase 63b/Q-methods: with-clause predicate for sort/rsort/
          unique task-form calls (`q.sort with (item.key);`).  Empty
@@ -443,6 +447,9 @@ class PCallTask  : public Statement {
       PPackage*package_;
       pform_name_t path_;
       std::vector<named_pexpr_t> parms_;
+      /* Sequence match-item calls need their unsampled actuals if a formal
+	 is ref/const ref; input formals use the sampled expressions in parms_. */
+      std::vector<named_pexpr_t> match_item_original_args_;
       struct parmvalue_t*leading_type_args_ = 0;
       bool scoped_type_prefix_ = false;
       bool void_cast_ = false;
