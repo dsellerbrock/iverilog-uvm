@@ -6402,3 +6402,5 @@ issue1796_dynamic_locator_count_2017 normal,-g2017,-s,test ivltests gold=issue17
 issue1796_dynamic_locator_count_2023 normal,-g2023,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
 issue1816_function_ref_array_element_2017 normal,-g2017,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
 issue1816_function_ref_array_element_2023 normal,-g2023,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
+issue802_enum_p_2017 normal,-g2017,-s,test ivltests gold=issue802_enum_p_2017.gold
+issue802_enum_p_2023 normal,-g2023,-s,test ivltests gold=issue802_enum_p_2023.gold
