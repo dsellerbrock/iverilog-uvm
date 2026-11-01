@@ -38924,6 +38924,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  bool packed_scalar = constraint_state_prop_ok_(ptype, false);
 		  bool packed_select = packed_scalar
 		    && id->path().back().index.size() == 1;
+		  bool packed_multi_select = false;
+		  if (packed_scalar && id->path().back().index.size() > 1) {
+		    const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
+		    const netvector_t*pvec = dynamic_cast<const netvector_t*>(
+			  penum ? penum->base_type_obj() : ptype);
+		    packed_multi_select = pvec
+			  && pvec->packed_dims().size()
+			       == id->path().back().index.size();
+		  }
 		    // A property that is not `rand` is a STATE VARIABLE
 		    // (IEEE 1800-2017 18.3): it takes part in the
 		    // constraint at the value it holds when randomize()
@@ -38939,7 +38948,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // The pin needs a real value, so a state variable
 		    // whose type has no bitvector image is still dropped
 		    // by the representability check below.
-		  if (!q.test_rand() && !packed_select
+		  if (!q.test_rand() && !packed_select && !packed_multi_select
 		      && !constraint_state_prop_ok_(ptype,
 						    !id->path().back().index.empty()))
 			return "";
@@ -38964,6 +38973,50 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return packed_typed_select_ir_(
 				    base, ptype, id->path().back().index.front(),
 				    cls, value_slots, scope, loop_env);
+			}
+			if (packed_multi_select) {
+			      const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
+			      const netvector_t*pvec = dynamic_cast<const netvector_t*>(
+				    penum ? penum->base_type_obj() : ptype);
+			      const netranges_t&dims = pvec->packed_dims();
+			      uint64_t offset = 0;
+			      uint64_t long_width = 1;
+			      auto select = id->path().back().index.begin();
+			      for (size_t dim = 0; dim < dims.size(); ++dim) {
+				    const netrange_t&range = dims[dim];
+				    const index_component_t&component = *select++;
+				    if (!range.defined() || !range.width()
+					|| component.sel != index_component_t::SEL_BIT
+					|| !component.msb || component.lsb)
+					  return "";
+				    string index_ir = pexpr_to_constraint_ir(
+					  component.msb, cls, value_slots, scope, loop_env);
+				    constraint_const_ir_t index;
+				    uint64_t digit = 0;
+				    if (!constraint_parse_const_ir_(index_ir, index)
+					|| index.width > 64
+					|| !constraint_fixed_index_offset_(
+					      index, min(range.get_msb(), range.get_lsb()),
+					      range.width(), digit))
+					  return "";
+				    uint64_t position = range.get_msb() >= range.get_lsb()
+					  ? range.width() - 1 - digit : digit;
+				    if (position > UINT_MAX
+					|| offset > (UINT_MAX - position) / range.width())
+					  return "";
+				    offset = offset * range.width() + position;
+				    if (range.width() > UINT64_MAX / long_width)
+					  return "";
+				    long_width *= range.width();
+			      }
+			      if (long_width != (uint64_t)pvec->packed_width())
+				    return "";
+			      string base = "p:" + to_string(idx) + ":"
+				    + to_string(ptype->packed_width())
+				    + (ptype->get_signed() ? ":s" : "");
+			      return string(ptype->base_type() == IVL_VT_LOGIC
+				    ? "(bit4 " : "(bit ") + base + " c:"
+				    + to_string(offset) + ")";
 			}
 			  if (id->path().size() == 1) {
 		    string nested = constraint_class_fixed_queue_element_ir_(
