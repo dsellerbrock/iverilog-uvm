@@ -32136,6 +32136,35 @@ static bool constraint_nested_element_is_random_(const char*path,
 	    }
 	    if (*end != '.') return false;
 	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    /* Indexed fixed arrays of unpacked struct properties encode the
+	     * flattened element word between the class property and its member
+	     * path (r:property.word.member:width). The selected member's own rand
+	     * qualifier, as well as the containing property's qualifier, is needed
+	     * for the leaf to be a random variable. */
+	    const netuarray_t*array = owner
+		  ? dynamic_cast<const netuarray_t*>(type) : nullptr;
+	    const netstruct_t*array_record = array && !array->packed()
+		  ? dynamic_cast<const netstruct_t*>(array->element_type()) : nullptr;
+	    if (array_record && !array_record->packed()
+		&& !array_record->union_flag() && array->static_dimensions().size()) {
+		  char*word_end = nullptr;
+		  unsigned long word = strtoul(end + 1, &word_end, 10);
+		  if (word_end == end + 1 || *word_end != '.') return false;
+		  uint64_t count = 1;
+		  for (const netrange_t&dim : array->static_dimensions()) {
+			if (!dim.width()) return false;
+			if (count <= UINT_MAX
+			    && dim.width() > (uint64_t)UINT_MAX / count)
+			      count = (uint64_t)UINT_MAX + 1;
+			else if (count <= UINT_MAX)
+			      count *= dim.width();
+		  }
+		  if (word >= count) return false;
+		  record = array_record;
+		  owner = nullptr;
+		  cur = word_end + 1;
+		  continue;
+	    }
 	    owner = dynamic_cast<const netclass_t*>(type);
 	    record = dynamic_cast<const netstruct_t*>(type);
 	    if (record && (record->packed() || record->union_flag())) record = nullptr;
