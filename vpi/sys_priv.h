@@ -69,6 +69,22 @@ extern vpiHandle sys_func_module(vpiHandle obj);
 
 extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 
+/* Private runtime support for associative-array $readmem/$writemem. */
+extern int vpip_assoc_readmem_legal(vpiHandle array);
+extern unsigned vpip_assoc_readmem_width(vpiHandle array);
+extern unsigned vpip_assoc_readmem_index_width(vpiHandle array);
+extern int vpip_assoc_readmem_in_range(vpiHandle array,
+				      const struct t_vpi_vecval*key,
+				      unsigned key_width, int start, int stop,
+				      int has_start, int has_stop);
+extern int vpip_assoc_readmem_put(vpiHandle array,
+				 const struct t_vpi_vecval*key,
+				 unsigned key_width, p_vpi_value value);
+extern int vpip_assoc_writemem_key(vpiHandle array, unsigned position,
+				  int start, int stop,
+				  int has_start, int has_stop,
+				  char*buffer, unsigned buffer_size);
+
 /*
  * The standard compiletf routines.
  */

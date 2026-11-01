@@ -64,11 +64,30 @@ static vpiHandle call_handle = 0;
 static int too_many_digits_warning = 0;
 
 static unsigned word_width = 0;
+static unsigned address_width = 32;
 static struct t_vpi_vecval*vecval = 0;
 
 static void make_addr(void)
 {
-      sscanf(yytext+1, "%x", (unsigned int*)&vecval->aval);
+      char*beg = yytext + 1;
+      char*end = beg + strlen(beg);
+      unsigned width = 0;
+      unsigned words = (address_width + 31) / 32;
+
+      for (unsigned idx = 0 ; idx < words ; idx += 1) {
+	    vecval[idx].aval = 0;
+	    vecval[idx].bval = 0;
+      }
+
+      while (end > beg && width < address_width) {
+	    int digit;
+	    end -= 1;
+	    if (*end >= '0' && *end <= '9') digit = *end - '0';
+	    else if (*end >= 'a' && *end <= 'f') digit = *end - 'a' + 10;
+	    else digit = *end - 'A' + 10;
+	    vecval[width/32].aval |= (PLI_UINT32)digit << (width % 32);
+	    width += 4;
+      }
 }
 
 static void make_hex_value(void)
@@ -230,13 +249,15 @@ static void make_bin_value(void)
 }
 
 void sys_readmem_start_file(vpiHandle callh, FILE*in, int bin_flag,
-			    unsigned width, struct t_vpi_vecval *vv)
+			    unsigned width, unsigned key_width,
+			    struct t_vpi_vecval *vv)
 {
       call_handle = callh;
       too_many_digits_warning = 0;
       yyrestart(in);
       BEGIN(bin_flag? BIN : HEX);
       word_width = width;
+      address_width = key_width;
       vecval = vv;
 }
 

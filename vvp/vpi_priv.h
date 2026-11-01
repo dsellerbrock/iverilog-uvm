@@ -1182,6 +1182,29 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// correctly instead of as large unsigned numbers.
       void set_element_signed(bool flag) { element_signed_ = flag; }
       bool element_signed() const { return element_signed_; }
+      void set_assoc_readmem_type(unsigned element_width,
+				  unsigned index_width,
+				  bool index_signed)
+      {
+	    readmem_element_width_ = element_width;
+	    readmem_index_width_ = index_width;
+	    readmem_index_signed_ = index_signed;
+      }
+      bool assoc_readmem_legal() const;
+      unsigned assoc_readmem_element_width() const
+      { return readmem_element_width_; }
+      unsigned assoc_readmem_index_width() const
+      { return readmem_index_width_; }
+      bool assoc_readmem_index_signed() const
+      { return readmem_index_signed_; }
+      bool assoc_readmem_put(const struct t_vpi_vecval*key,
+			     unsigned key_width, p_vpi_value value);
+      int assoc_readmem_in_range(const struct t_vpi_vecval*key,
+				 unsigned key_width, int start, int stop,
+				 bool has_start, bool has_stop) const;
+      int assoc_writemem_key(unsigned position, int start, int stop,
+				 bool has_start, bool has_stop,
+				 char*buffer, unsigned buffer_size) const;
 
       int get_type_code() const override { return vpiArrayVar; }
       unsigned get_size() const override;
@@ -1214,6 +1237,9 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// queue-declared variables.
       int default_array_type_ = vpiDynamicArray;
       bool element_signed_ = false;
+      unsigned readmem_element_width_ = 0;
+      unsigned readmem_index_width_ = 0;
+      bool readmem_index_signed_ = false;
 };
 
 extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
@@ -1226,12 +1252,16 @@ class __vpiQueueVar : public __vpiDarrayVar {
 
     public:
       __vpiQueueVar(__vpiScope*scope, const char*name, vvp_net_t*net,
-                    bool automatic_storage);
+                    bool automatic_storage, unsigned element_width,
+                    unsigned assoc_index_width, bool assoc_index_signed);
 };
 
 extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
                                      bool automatic_storage,
-                                     bool element_signed = false);
+				     bool element_signed = false,
+				     unsigned element_width = 0,
+				     unsigned assoc_index_width = 0,
+				     bool assoc_index_signed = false);
 
 class __vpiCobjectVar : public __vpiBaseVar {
 

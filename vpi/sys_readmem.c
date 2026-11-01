@@ -21,6 +21,7 @@
 # include  <ctype.h>
 # include  <string.h>
 # include  <stdlib.h>
+# include  <stdint.h>
 # include  <stdio.h>
 # include  <assert.h>
 # include  "sys_readmem_lex.h"
@@ -83,6 +84,12 @@ static void get_mem_params(vpiHandle argv, vpiHandle callh, const char *name,
       }
 }
 
+static int is_assoc_memory(vpiHandle mitem)
+{
+      return vpi_get(vpiType, mitem) == vpiArrayVar
+	    && vpi_get(vpiArrayType, mitem) == vpiAssocArray;
+}
+
 static int process_params(vpiHandle mitem,
                           vpiHandle start_item, vpiHandle stop_item,
                           vpiHandle callh, const char *name,
@@ -91,6 +98,27 @@ static int process_params(vpiHandle mitem,
 {
       s_vpi_value val;
       int left_addr, right_addr;
+
+	/* Associative arrays have no declared left/right bounds. Their optional
+	 * readmem/writemem address arguments select a range of integral keys. */
+      if (is_assoc_memory(mitem)) {
+	    val.format = vpiIntVal;
+	    if (start_item) vpi_get_value(start_item, &val);
+	    else val.value.integer = 0;
+	    *start_addr = val.value.integer;
+	    if (stop_item) vpi_get_value(stop_item, &val);
+	    else val.value.integer = 0;
+	    *stop_addr = val.value.integer;
+	    *addr_incr = stop_item && *start_addr > *stop_addr ? -1 : 1;
+	    if (stop_item) {
+		  *min_addr = *start_addr < *stop_addr ? *start_addr : *stop_addr;
+		  *max_addr = *start_addr < *stop_addr ? *stop_addr : *start_addr;
+	    } else {
+		  *min_addr = *start_addr;
+		  *max_addr = *start_addr;
+	    }
+	    return 0;
+      }
 
 	/* Empty dynamic arrays and queues have no valid memory index. */
       if (vpi_get(vpiType, mitem) == vpiArrayVar &&
@@ -212,6 +240,44 @@ static int process_params(vpiHandle mitem,
       return 0;
 }
 
+static void assoc_key_from_int(struct t_vpi_vecval*key, unsigned width,
+			       int value)
+{
+      unsigned words = (width + 31) / 32;
+      uint32_t bits = (uint32_t)value;
+      unsigned idx;
+      for (idx = 0; idx < words; idx += 1) {
+	    key[idx].aval = idx == 0 ? bits : value < 0 ? 0xffffffffU : 0;
+	    key[idx].bval = 0;
+      }
+      if (width % 32)
+	    key[words-1].aval &= ((uint32_t)1 << (width % 32)) - 1;
+}
+
+static void assoc_key_increment(struct t_vpi_vecval*key, unsigned width,
+				int direction)
+{
+      unsigned idx;
+      for (idx = 0; idx < width; idx += 1) {
+	    unsigned word = idx / 32;
+	    unsigned bit = idx % 32;
+	    if (direction >= 0) {
+		  if ((key[word].aval >> bit) & 1) {
+			key[word].aval &= ~((uint32_t)1 << bit);
+			continue;
+		  }
+		  key[word].aval |= (uint32_t)1 << bit;
+		  break;
+	    }
+	    if (!((key[word].aval >> bit) & 1)) {
+		  key[word].aval |= (uint32_t)1 << bit;
+		  continue;
+	    }
+	    key[word].aval &= ~((uint32_t)1 << bit);
+	    break;
+      }
+}
+
 static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -251,8 +317,17 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	/* Dynamic arrays and queues expose their element kind as vpiArrayType. */
       mem_kind = vpi_get(vpiType, arg);
       if (mem_kind == vpiArrayVar) mem_kind = vpi_get(vpiArrayType, arg);
+      if (mem_kind == vpiAssocArray && !vpip_assoc_readmem_legal(arg)) {
+	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+		       (int)vpi_get(vpiLineNo, callh));
+	    vpi_printf("%s's associative-array argument must have integral "
+		       "indices and packed elements.\n", name);
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+	    return 0;
+      }
       if (mem_kind != vpiMemory && mem_kind != vpiDynamicArray &&
-	  mem_kind != vpiQueueArray) {
+	  mem_kind != vpiQueueArray && mem_kind != vpiAssocArray) {
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
 	    vpi_printf("%s's second argument must be a memory.\n", name);
@@ -295,6 +370,9 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       int code, wwid, addr;
+      int assoc_mem;
+      unsigned key_width, buffer_width, key_words;
+      struct t_vpi_vecval*assoc_addr = 0;
       FILE*file;
       char *fname = 0;
       s_vpi_value value;
@@ -354,22 +432,40 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    return 0;
       }
 
-	/* We need this many words from the file. */
-      word_count = max_addr-min_addr+1;
+      assoc_mem = is_assoc_memory(mitem);
 
-      wwid = min_addr > max_addr ? 32 :
-	    vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
+	/* We need this many words from the file. */
+      word_count = assoc_mem ? 0 : max_addr-min_addr+1;
+
+      if (assoc_mem) {
+	    wwid = vpip_assoc_readmem_width(mitem);
+	    key_width = vpip_assoc_readmem_index_width(mitem);
+	    assoc_addr = calloc((key_width+31)/32, sizeof(s_vpi_vecval));
+	    assoc_key_from_int(assoc_addr, key_width, start_addr);
+      } else {
+	    wwid = min_addr > max_addr ? 32 :
+		  vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
+	    key_width = 32;
+      }
+
+	/* The input scanner uses one buffer for both data words and associative
+	 * address specifiers, whose declared index width can differ. */
+      buffer_width = wwid > key_width ? wwid : key_width;
+      key_words = (key_width+31)/32;
 
       /* variable that will be used by the lexer to pass values
 	 back to this code */
       value.format = vpiVectorVal;
-      value.value.vector = calloc((wwid+31)/32, sizeof(s_vpi_vecval));
+      value.value.vector = calloc((buffer_width+31)/32,
+				  sizeof(s_vpi_vecval));
 
       /* Configure the readmem lexer */
       if (strcmp(name,"$readmemb") == 0)
-	    sys_readmem_start_file(callh, file, 1, wwid, value.value.vector);
+	    sys_readmem_start_file(callh, file, 1, wwid, key_width,
+				   value.value.vector);
       else
-	    sys_readmem_start_file(callh, file, 0, wwid, value.value.vector);
+	    sys_readmem_start_file(callh, file, 0, wwid, key_width,
+				   value.value.vector);
 
       /*======================================== Read memory file */
 
@@ -379,7 +475,22 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  switch (code) {
 	  case MEM_ADDRESS:
 	      addr = value.value.vector->aval;
-	      if (addr < min_addr || addr > max_addr) {
+	      if (assoc_mem) {
+		  unsigned idx;
+		  for (idx = 0; idx < key_words; idx += 1)
+			memcpy(&assoc_addr[idx], &value.value.vector[idx],
+			       sizeof(s_vpi_vecval));
+		  if (vpip_assoc_readmem_in_range(
+			    mitem, assoc_addr, key_width, min_addr, max_addr,
+			    start_item != 0, stop_item != 0) <= 0) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+				   (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s(%s): address (0x%x) is out of range "
+				   "[%x:%x]\n", name, fname, addr,
+				   start_addr, stop_addr);
+			goto bailout;
+		  }
+	      } else if (addr < min_addr || addr > max_addr) {
 		  vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 		             (int)vpi_get(vpiLineNo, callh));
 		  vpi_printf("%s(%s): address (0x%x) is out of range "
@@ -395,7 +506,27 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	      break;
 
 	  case MEM_WORD:
-	      if (addr >= min_addr && addr <= max_addr) {
+	      if (assoc_mem) {
+		  if (vpip_assoc_readmem_in_range(
+			    mitem, assoc_addr, key_width, min_addr, max_addr,
+			    start_item != 0, stop_item != 0) <= 0) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+				   (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s(%s): address (0x%x) is out of range "
+				   "[%x:%x]\n", name, fname, addr,
+				   start_addr, stop_addr);
+			goto bailout;
+		  }
+		  if (!vpip_assoc_readmem_put(mitem, assoc_addr, key_width,
+					      &value)) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+				   (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s(%s): unable to store associative-array "
+				   "address 0x%x\n", name, fname, addr);
+			goto bailout;
+		  }
+		  assoc_key_increment(assoc_addr, key_width, addr_incr);
+	      } else if (addr >= min_addr && addr <= max_addr) {
 		  vpiHandle word_index;
 		  word_index = vpi_handle_by_index(mitem, addr);
 		  assert(word_index);
@@ -411,7 +542,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  goto bailout;
 	      }
 
-	      addr += addr_incr;
+	      if (!assoc_mem) addr += addr_incr;
 	      break;
 
 	  case MEM_ERROR:
@@ -439,6 +570,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
  bailout:
       free(value.value.vector);
+      free(assoc_addr);
       free(fname);
       fclose(file);
       destroy_readmem_lexor();
@@ -590,6 +722,46 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       else value.format = vpiHexStrVal;
 
       /*======================================== Write memory file */
+
+      if (is_assoc_memory(mitem)) {
+	    unsigned position, count = vpi_get(vpiSize, mitem);
+	    unsigned index_width = vpip_assoc_readmem_index_width(mitem);
+	    unsigned key_size = (index_width + 3) / 4 + 1;
+	    char*key = malloc(key_size);
+	    if (!key) {
+		  fclose(file);
+		  free(fname);
+		  return 0;
+	    }
+
+	    for (position = 0; position < count; position += 1) {
+		  int key_status = vpip_assoc_writemem_key(
+			mitem, position, min_addr, max_addr,
+			start_item != 0, stop_item != 0, key, key_size);
+		  if (key_status == 0) continue;
+		  if (key_status < 0) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+				   (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s: cannot write associative-array index at "
+				   "position %u.\n", name, position);
+			free(key);
+			fclose(file);
+			free(fname);
+			return 0;
+		  }
+
+		  vpiHandle word_index = vpi_handle_by_index(mitem, position);
+		  assert(word_index);
+		  fprintf(file, "@%s\n", key);
+		  vpi_get_value(word_index, &value);
+		  fprintf(file, "%s\n", value.value.str);
+	    }
+
+	    free(key);
+	    fclose(file);
+	    free(fname);
+	    return 0;
+      }
 
       cnt = 0;
       for(addr=start_addr; addr!=stop_addr+addr_incr; addr+=addr_incr, ++cnt) {

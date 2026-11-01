@@ -962,6 +962,31 @@ static inline uint64_t queue_receiver_max_operand_(ivl_expr_t receiver,
       return queue_live_max_operand_(type);
 }
 
+/* An associative array's index type is needed by $readmem/$writemem at
+ * runtime: unlike a fixed memory, the array has no declared address range.
+ * Encode only integral key widths here; non-integral and legacy declarations
+ * retain their old spelling and are rejected by those system tasks. */
+static inline void emit_assoc_index_type_(ivl_type_t type)
+{
+      if (!type || !ivl_type_queue_assoc_compat(type))
+	    return;
+
+      ivl_type_t index_type = ivl_type_assoc_index(type);
+      if (!index_type)
+	    return;
+
+      const ivl_variable_type_t base = ivl_type_base(index_type);
+      if (base != IVL_VT_BOOL && base != IVL_VT_LOGIC)
+	    return;
+
+      unsigned width = ivl_type_packed_width(index_type);
+      if (!width)
+	    return;
+
+      fprintf(vvp_out, "I%u%c", width,
+	      ivl_type_signed(index_type) ? 's' : 'u');
+}
+
 /* Emit the strict recursive container-layout suffix understood by new VVP.
  * Q0 means a known-unbounded queue; D and A carry no bound. An associative
  * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.

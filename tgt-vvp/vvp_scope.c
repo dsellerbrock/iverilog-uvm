@@ -1128,6 +1128,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		      /* '+' marks a signed integral element (see .var/darray). */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
 		    queue_kind);
+	    emit_assoc_index_type_(var_type);
 	    emit_container_layout_suffix_(var_type);
 	    fprintf(vvp_out, "\"");
 	    if (struct_obj_elem)
