@@ -16329,9 +16329,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (graph)
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  bool class_handle_array = type == "Do"
-                        && sv.container_type == "Do" && sv.leaf == 0;
-                  if ((!class_handle_array
+                  random_container_desc_t desc =
+		 random_container_desc_(sv.container_type);
+                  bool class_handle_collection =
+		(type == "Do" && sv.container_type == "Do")
+		|| (type == "Qo" && desc.is_queue
+		    && desc.elem_type == "Do");
+                  class_handle_collection = class_handle_collection
+		&& sv.leaf == 0;
+                  if ((!class_handle_collection
                        && ((type != "Do" && type != "Qo")
                            || sv.container_type == "D"
                            || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
@@ -16339,7 +16345,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       || !rand_size_active_(builder, prop_active,
 					   sv.idx, sv.leaf)) continue;
                   uint64_t count = 0;
-                  if (!class_handle_array
+                  if (!class_handle_collection
                       && (!z3_eval_uint64(ctx, model, sv.var, count)
                           || count != cobj_darray_size(builder.object(sv.idx),
 					      builder.local_index(sv.idx), sv.leaf))) {
@@ -16489,9 +16495,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  bool class_handle_array = type == "Do"
-                        && sv.container_type == "Do" && sv.leaf == 0;
-                  if (!class_handle_array
+                  random_container_desc_t desc =
+		 random_container_desc_(sv.container_type);
+                  bool class_handle_collection =
+		(type == "Do" && sv.container_type == "Do")
+		|| (type == "Qo" && desc.is_queue
+		    && desc.elem_type == "Do");
+                  class_handle_collection = class_handle_collection
+		&& sv.leaf == 0;
+                  if (!class_handle_collection
                       && (type == "Do" || type == "Qo")
                       && sv.container_type != "D"
                       && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
@@ -16518,7 +16530,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  return rand_nested_elem_active_(builder, prop_active,
 						     sv.idx, sv.leaf, adr);
 	    };
-	    vvp_darray*da = (desc.elem_type == "D" || desc.elem_type == "Do")
+	    vvp_darray*da = desc.elem_type == "Do"
+		  ? (desc.is_queue
+		     ? static_cast<vvp_darray*>(new vvp_queue_object)
+		     : static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size)))
+		  : desc.elem_type == "D"
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
@@ -16529,6 +16545,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
 		  const uint64_t queue_max = desc.max_size;
+		  if (desc.elem_type == "Do") {
+			for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
+			      vvp_object_t handle;
+			      if (old_array && adr < old_array->get_size())
+				    old_array->get_word((unsigned)adr, handle);
+			      queue->set_word_max((unsigned)adr, handle, queue_max);
+			}
+		  } else
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
 			bool active = element_active((unsigned)adr);
