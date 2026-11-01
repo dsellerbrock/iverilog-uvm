@@ -3431,6 +3431,14 @@ extern "C" int ivl_signal_integer(ivl_signal_t net)
 	    return 0;
 }
 
+extern "C" int ivl_signal_is_time(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->net_type() == &netvector_t::time_signed
+	  || net->net_->net_type() == &netvector_t::time_unsigned;
+}
+
 extern "C" ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net)
 {
       if (!net) {

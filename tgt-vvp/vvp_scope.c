@@ -975,6 +975,11 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    break;
       }
 
+      /* `time` is represented by a 64-bit logic vector in the target API.
+         Preserve its declared type for the VPI variable handle. */
+      if (ivl_signal_dimensions(sig) == 0 && ivl_signal_is_time(sig))
+	    datatype_flag = "/time";
+
 	/* If the reg objects are collected into an array, then first
 	   write out the .array record to declare the array indices. */
       if (ivl_signal_dimensions(sig) > 0 && vector_dims==0) {

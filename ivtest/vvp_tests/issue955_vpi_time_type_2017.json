@@ -1,0 +1,15 @@
+{
+  "type": "normal",
+  "source": "issue955_vpi_time_type.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue955_vpi_time_type"],
+  "vpi-sources": ["vpi/issue955_vpi_time_type.c"],
+  "output-contains": [
+    "ISSUE955_TIME_TYPE=63",
+    "ISSUE955_INTEGER_TYPE=25",
+    "ISSUE955_REAL_TYPE=47",
+    "ISSUE955_REG_TYPE=48",
+    "ISSUE955_PASSED",
+    "PASSED"
+  ]
+}

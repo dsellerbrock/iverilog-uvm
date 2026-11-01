@@ -549,6 +549,8 @@ extern vpiHandle vpip_make_int4(const char*name, int msb, int lsb,
 extern vpiHandle vpip_make_var4(const char*name, int msb, int lsb,
                                bool signed_flag, vvp_net_t*net,
                                bool automatic_storage);
+extern vpiHandle vpip_make_time_var(const char*name, int msb, int lsb,
+                                   vvp_net_t*net, bool automatic_storage);
 extern vpiHandle vpip_make_net4(__vpiScope*scope,
 				const char*name, int msb, int lsb,
 				bool signed_flag, vvp_net_t*node);
