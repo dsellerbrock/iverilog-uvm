@@ -6407,3 +6407,5 @@ issue802_enum_p_2023 normal,-g2023,-s,test ivltests gold=issue802_enum_p_2023.go
 issue726_property_local_formals normal,-g2017,-gassertions,-s,issue726_property_local_formals ivltests gold=issue726_property_local_formals.gold
 issue726_property_local_direction_fail CE,-g2017,-gassertions,-s,issue726_property_local_direction_fail ivltests gold=issue726_property_local_direction_fail.gold
 issue726_property_local_unassigned_actual_fail CE,-g2017,-gassertions,-s,issue726_property_local_unassigned_actual_fail ivltests gold=issue726_property_local_unassigned_actual_fail.gold
+issue794_nested_dynamic_array_queries_2017 normal,-g2017,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
+issue794_nested_dynamic_array_queries_2023 normal,-g2023,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
