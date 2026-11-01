@@ -182,6 +182,8 @@ extern void pform_module_define_port(const struct vlltype&li,
 				     NetNet::Type type,
 				     data_type_t*vtype,
 				     std::list<named_pexpr_t>*attr);
+extern void pform_module_define_event_port(const struct vlltype&li,
+                                           Module::port_t*port);
 extern void pform_module_define_nettype_port(
                                      const struct vlltype&li,
                                      const pform_ident_t&name,

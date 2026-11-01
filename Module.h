@@ -109,6 +109,7 @@ class Module : public PScopeExtra, public PNamedItem {
 	    perm_string name;
 	    std::vector<PEIdent*> expr;
 	    PExpr*default_value;
+	    bool event_port = false;
       };
 
     public:

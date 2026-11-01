@@ -302,6 +302,37 @@ void NetEvent::replace_event(NetEvent*that)
       }
 }
 
+void NetEvent::merge_event(NetEvent*that)
+{
+	  ivl_assert(*this, that != this);
+
+	  /* Event ports preserve synchronization identity. Move all static
+	   * references onto the connected object, including triggers and probes,
+	   * so both event names use the same runtime queue. */
+	  while (trig_) {
+		NetEvTrig*cur = trig_;
+		trig_ = cur->enext_;
+		cur->event_ = that;
+		cur->enext_ = that->trig_;
+		that->trig_ = cur;
+	  }
+	  while (nb_trig_) {
+		NetEvNBTrig*cur = nb_trig_;
+		nb_trig_ = cur->enext_;
+		cur->event_ = that;
+		cur->enext_ = that->nb_trig_;
+		that->nb_trig_ = cur;
+	  }
+	  while (probes_) {
+		NetEvProbe*cur = probes_;
+		probes_ = cur->enext_;
+		cur->event_ = that;
+		cur->enext_ = that->probes_;
+		that->probes_ = cur;
+	  }
+	  replace_event(that);
+}
+
 NexusSet* NetEvent::nex_async_()
 {
 	/* If there are behavioral trigger statements attached to me,

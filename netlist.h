@@ -4371,6 +4371,7 @@ class NetEvent : public LineInfo {
 	// that. It is typically used to replace similar events
 	// located by the find_similar_event method.
       void replace_event(NetEvent*that);
+      void merge_event(NetEvent*that);
 
     private:
 	// This returns a nexus set if it represents possibly

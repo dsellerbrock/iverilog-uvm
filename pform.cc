@@ -3730,6 +3730,14 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 	    pform_interface_event_bridge_(loc, name.first);
 }
 
+void pform_module_define_event_port(const struct vlltype&loc,
+                                    Module::port_t*port)
+{
+      pform_ident_t name = { port->name, loc.lexical_pos };
+      pform_make_event(loc, name, nullptr, IVL_VLT_INHERITED);
+      port->event_port = true;
+}
+
 void pform_make_events(const struct vlltype&loc,
 		       const list<pform_event_ident_t*>*names,
 		       ivl_lifetime_t lifetime)

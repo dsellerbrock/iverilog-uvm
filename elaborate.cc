@@ -6829,6 +6829,38 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  }
 	    }
 
+	      /* Named-event ports carry synchronization identity, not a signal
+	       * value. Replace the formal event's wait references with the
+	       * connected event so triggers in the parent wake waits in the child. */
+	    if (rmod->ports[idx]->event_port) {
+		  if (pins[idx]) {
+			const PEIdent*actual_id =
+			      dynamic_cast<const PEIdent*>(pins[idx]);
+			symbol_search_results sr;
+			NetEvent*actual_event = nullptr;
+			if (actual_id)
+			      symbol_search(this, des, scope, actual_id->path(),
+					    UINT_MAX, &sr);
+			if (actual_id)
+			      actual_event = resolve_named_event_member_from_search_(sr);
+			if (!actual_event) {
+			      cerr << pins[idx]->get_fileline()
+				   << ": error: Event port `" << port_name
+				   << "' of module `" << rmod->mod_name()
+				   << "' requires a named event connection." << endl;
+			      des->errors += 1;
+			} else {
+			      for (NetScope*inst_scope : instance) {
+				    NetEvent*formal_event =
+					  inst_scope->find_event(port_name);
+				    if (formal_event)
+				      formal_event->merge_event(actual_event);
+			      }
+			}
+		  }
+		  continue;
+	    }
+
 	      // Skip unconnected module ports. This happens when a
 	      // null parameter is passed in and there is no default
 	      // value.
