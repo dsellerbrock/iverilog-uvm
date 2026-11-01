@@ -12956,7 +12956,55 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 
 /* Assign a real assertion-API identity to each simple immediate cover and
    account for every execution independently of its optional action. */
+static perm_string sva_parser_assertion_label_;
 static unsigned immediate_cover_id_ = 0;
+/* Keep simple immediate assertions in a disjoint positive ID range from
+   synthesized concurrent assertion indices, which share the runtime control
+   table. */
+static unsigned immediate_assertion_id_ = 0;
+Statement* pform_make_immediate_assertion(const struct vlltype&loc,
+				 PExpr*expr, Statement*pass_stmt,
+				 Statement*fail_stmt)
+{
+      pform_generated_verification_scope_t verification_scope;
+      unsigned id = 0x40000000U + ++immediate_assertion_id_;
+      char nbuf[64];
+      if (!sva_parser_assertion_label_.nil())
+	    snprintf(nbuf, sizeof nbuf, "%s", sva_parser_assertion_label_.str());
+      else
+	    snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, id);
+
+      /* Register at the assertion site; the runtime hook associates the
+	 identity with the enclosing module and its source-level label. */
+      std::list<named_pexpr_t> reg_args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)id, 32));
+      reg_args.push_back(a0);
+      named_pexpr_t a1;
+      a1.parm = new PEString(strdup(nbuf));
+      reg_args.push_back(a1);
+      PCallTask*reg = new PCallTask(
+	    lex_strings.make("$ivl_register_immediate_assertion"), reg_args);
+      FILE_NAME(reg, loc);
+
+      PCondit*check = new PCondit(expr, pass_stmt, fail_stmt);
+      check->immediate_assertion();
+      FILE_NAME(check, loc);
+      std::list<named_pexpr_t> enabled_args;
+      named_pexpr_t e0;
+      e0.parm = new PENumber(new verinum((uint64_t)id, 32));
+      enabled_args.push_back(e0);
+      PECallFunction*enabled_fn = new PECallFunction(
+	    perm_string::literal("$ivl_immediate_assert_enabled"), enabled_args);
+      FILE_NAME(enabled_fn, loc);
+      PCondit*enabled = new PCondit(enabled_fn, check, nullptr);
+      FILE_NAME(enabled, loc);
+      std::vector<Statement*> body;
+      body.push_back(reg);
+      body.push_back(enabled);
+      return sva_block_(loc, body);
+}
+
 Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
 				     Statement*pass_stmt)
 {
@@ -26387,7 +26435,6 @@ static bool sva_named_prop_retry_active_ = false;
    attach block_identifier_opt. The grammar stages that label before parsing
    the statement; this active scope keeps it across recursive named-property
    lowering and lets procedural clock inference retain it. */
-static perm_string sva_parser_assertion_label_;
 static unsigned sva_assertion_label_depth_ = 0;
 
 void pform_sva_set_assertion_label(const char*label)

@@ -380,6 +380,49 @@ static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* Simple immediate assertions execute in procedural label/task scopes, but
+ * their hierarchical assertion names are rooted at the enclosing module.
+ * Resolve both registration and enable queries there. */
+static vpiHandle sva_immediate_assert_scope_(vpiHandle scope)
+{
+      while (scope && vpi_get(vpiType, scope) != vpiModule) {
+	    vpiHandle parent = vpi_handle(vpiScope, scope);
+	    if (!parent || parent == scope) return 0;
+	    scope = parent;
+      }
+      return scope;
+}
+
+static PLI_INT32 sva_immediate_assert_enabled_calltf(
+	ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle scope = sva_immediate_assert_scope_(
+	    vpi_handle(vpiScope, callh));
+      PLI_INT32 id = -1, enabled;
+      s_vpi_value rv;
+      (void)name;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  id = value.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      enabled = id >= 0 && scope
+	    ? (sva_control_find_(scope, id)
+	       ? sva_control_find_(scope, id)->enabled : sva_assert_enabled)
+	    : sva_assert_enabled;
+      rv.format = vpiIntVal;
+      rv.value.integer = enabled;
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
 static PLI_INT32 sva_deferred_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -580,6 +623,40 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* Register a simple immediate assertion in the same selector/control table
+ * used by synthesized concurrent assertions. */
+static PLI_INT32 sva_immediate_assertion_register_calltf(
+	ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 id = -1;
+      char nbuf[1024] = "";
+      (void)name;
+      if (argv) {
+	    vpiHandle a;
+	    s_vpi_value v;
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  id = v.value.integer;
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiStringVal;
+		  vpi_get_value(a, &v);
+		  if (v.value.str) {
+			strncpy(nbuf, v.value.str, sizeof nbuf - 1);
+			nbuf[sizeof nbuf - 1] = 0;
+		  }
+	    }
+	    vpi_free_object(argv);
+      }
+	if (id >= 0)
+	    sva_control_register_(id, nbuf,
+			  sva_immediate_assert_scope_(vpi_handle(vpiScope, callh)));
+      return 0;
+}
+
 /* Immediate cover identity/result hooks emitted by the front end. */
 static PLI_INT32 sva_immediate_cover_register_calltf(
 	ICARUS_VPI_CONST PLI_BYTE8*name)
@@ -764,6 +841,8 @@ void sys_sva_register(void)
 	/* Assertion control (20.12): the enable-query function used by
 	   synthesized checkers, and the control tasks. */
       register_one_("$ivl_sva_enabled", sva_enabled_calltf);
+	register_one_("$ivl_immediate_assert_enabled",
+		      sva_immediate_assert_enabled_calltf);
 	register_one_("$ivl_deferred_assert_enabled",
 		      sva_deferred_enabled_calltf);
       register_one_("$ivl_sva_kill_generation",
@@ -775,6 +854,8 @@ void sys_sva_register(void)
 	/* Assertion VPI identity registration + callback reporting (used
 	   by synthesized checkers; see pform_make_assertion). */
       register_task_("$ivl_register_assertion", sva_reg_assert_calltf);
+	register_task_("$ivl_register_immediate_assertion",
+		      sva_immediate_assertion_register_calltf);
       register_task_("$ivl_register_immediate_cover",
 		     sva_immediate_cover_register_calltf);
       register_task_("$ivl_report_immediate_cover",

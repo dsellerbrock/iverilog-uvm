@@ -1,0 +1,6 @@
+off failures=0
+on failures=2
+kill failures=2
+global off failures=2
+global on failures=4
+./ivltests/sv_immediate_assert_control.v:30: $finish called at 0 (1s)
