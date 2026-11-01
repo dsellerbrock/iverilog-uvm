@@ -50,6 +50,17 @@ static int class_cast_compatible_(vpiHandle dest_type, vpiHandle src_type)
       return 0;
 }
 
+static void sys_cast_nonsingular_task_error_(vpiHandle callh)
+{
+      const char*file = callh ? vpi_get_str(vpiFile, callh) : 0;
+      int line = callh ? (int) vpi_get(vpiLineNo, callh) : 0;
+
+      vpi_printf("%s:%d: error: $cast failed: the arguments are not "
+		 "assignment compatible (IEEE 1800-2023 6.24.2). "
+		 "The destination is unchanged.\n",
+		 file ? file : "<unknown>", line);
+}
+
 static int class_cast_trace_enabled_(void)
 {
       static int enabled = -1;
@@ -116,13 +127,48 @@ static PLI_INT32 sys_cast_impl_(bool task_form)
 
       vpiHandle dest_h = vpi_scan(argv);
       vpiHandle src_h  = vpi_scan(argv);
-      vpiHandle enum_ts = src_h ? vpi_scan(argv) : 0;
-      if (!enum_ts)
-            argv = 0;      /* iterator auto-freed by the final vpi_scan */
+      vpiHandle extra  = src_h ? vpi_scan(argv) : 0;
+      vpiHandle enum_ts = 0;
+      vpiHandle status_h = 0;
+      if (extra && vpi_get(vpiType, extra) == vpiEnumTypespec) {
+	    enum_ts = extra;
+	    status_h = vpi_scan(argv);
+	    if (!status_h)
+		  argv = 0;      /* scan exhausted and freed the iterator */
+      } else {
+	    status_h = extra;
+	    if (!extra)
+		  argv = 0;      /* scan exhausted and freed the iterator */
+      }
       if (argv)
             vpi_free_object(argv);
 
+      /* The elaborator appends a tagged status after the optional enum
+	 typespec. 0 means an invalid function cast, 1 means the ordinary
+	 runtime cast path, and 2 means an invalid task cast that must report
+	 the error required by IEEE 1800-2023 6.24.2. */
+      unsigned cast_status = 1;
+      if (status_h) {
+	    s_vpi_value sv;
+	    sv.format = vpiIntVal;
+	    vpi_get_value(status_h, &sv);
+	    unsigned value = static_cast<unsigned>(sv.value.integer);
+	    if ((value & 0xffff0000u) == 0x49560000u)
+		  cast_status = value & 0xffffu;
+      }
+
       int ok = 1;
+
+      if (cast_status == 0 || cast_status == 2) {
+	    ok = 0;
+	    if (cast_status == 2)
+		  sys_cast_nonsingular_task_error_(callh);
+	    s_vpi_value rv;
+	    rv.format = vpiIntVal;
+	    rv.value.integer = 0;
+	    vpi_put_value(callh, &rv, 0, vpiNoDelay);
+	    return 0;
+      }
 
       /* Enum destination (hidden third argument = the enum typespec,
          appended by elaboration): the cast succeeds only if the source

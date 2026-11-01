@@ -1,0 +1,7 @@
+function result=0 arr=7,8 calls=1
+ivltests/sv_cast_nonsingular.v:18: error: $cast failed: the arguments are not assignment compatible (IEEE 1800-2023 6.24.2). The destination is unchanged.
+task arr=7,8 calls=2
+singular result=1 scalar=9
+singular task scalar=11
+PASSED
+ivltests/sv_cast_nonsingular.v:27: $finish called at 0 (1s)

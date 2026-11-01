@@ -15008,6 +15008,42 @@ static bool scope_is_within_(const NetScope*scope, const NetScope*container)
       return false;
 }
 
+/* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
+ * 1800-2023, nonsingular arguments use assignment compatibility instead.
+ * Packed arrays and packed records are singular; unpacked arrays and
+ * unpacked records are aggregate values. */
+static bool cast_expr_is_singular_(const NetExpr*expr)
+{
+      if (!expr) return true;
+
+      ivl_type_t type = expr->net_type();
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return array->packed();
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type))
+	    return record->packed();
+
+      if (expr->expr_type() == IVL_VT_DARRAY
+	  || expr->expr_type() == IVL_VT_QUEUE)
+	    return false;
+      return true;
+}
+
+static bool cast_operands_nonsingular_(const NetExpr*dest,
+				       const NetExpr*source)
+{
+      return !cast_expr_is_singular_(dest)
+	    || !cast_expr_is_singular_(source);
+}
+
+static bool cast_operands_assignment_compatible_(const NetExpr*dest,
+						 const NetExpr*source)
+{
+      ivl_type_t dest_type = dest ? dest->net_type() : nullptr;
+      ivl_type_t source_type = source ? source->net_type() : nullptr;
+      return dest_type && source_type
+	    && dest_type->type_compatible(source_type);
+}
+
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
 	// Method-call statement on an arbitrary receiver expression,
@@ -15208,6 +15244,24 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	}
 	if (NetESignal*dest = dynamic_cast<NetESignal*>(eparms[0])) {
 	    materialize_ref_return(dest->sig());
+	}
+	const bool nonsingular =
+	      cast_operands_nonsingular_(eparms[0], eparms[1]);
+	if (nonsingular && generation_flag < GN_VER2023) {
+	    cerr << get_fileline() << ": error: The arguments to $cast must be "
+		    "singular (IEEE 1800-2017 6.24.2)." << endl;
+	    des->errors += 1;
+	}
+	const netclass_t*dest_class = dynamic_cast<const netclass_t*>(
+	      eparms[0] ? eparms[0]->net_type() : nullptr);
+	if (!dest_class) {
+	    const bool compatible = !nonsingular
+		    || cast_operands_assignment_compatible_(eparms[0], eparms[1]);
+	    const unsigned status_value = !compatible ? 2 : 1;
+	    NetEConst*status = new NetEConst(verinum(
+		    static_cast<uint64_t>(0x49560000u | status_value), 32));
+	    status->set_line(*this);
+	    eparms.push_back(status);
 	}
       }
 
