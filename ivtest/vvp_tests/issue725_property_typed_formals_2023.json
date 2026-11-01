@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue725_property_typed_formals.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue725_property_typed_formals"
+}

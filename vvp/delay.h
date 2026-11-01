@@ -218,11 +218,18 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 	    vvp_fun_modpath* owner_;
       };
 
+      struct resolve_wakeup_ : vvp_gen_event_s {
+	    explicit resolve_wakeup_(vvp_fun_modpath*owner) : owner_(owner) { }
+	    void run_run() override;
+	    vvp_fun_modpath* owner_;
+      };
+
     public:
       vvp_fun_modpath(vvp_net_t*net, unsigned width);
       ~vvp_fun_modpath() override;
 
       void add_modpath_src(vvp_fun_modpath_src*that, bool ifnone);
+      void set_has_conditional_paths() { has_conditional_paths_ = true; }
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
@@ -238,6 +245,8 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 				      vvp_time64_t error,
 				      const vvp_vector4_t&bit);
       void run_pulse_events_();
+      void schedule_transition_(const vvp_vector4_t&bit);
+      void resolve_pending_();
 
     private:
       vvp_net_t*net_;
@@ -249,6 +258,8 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       pulse_event_map_t pulse_events_;
       pulse_event_*pending_pulse_;
       vvp_vector4_t pulse_vec4_;
+      bool has_conditional_paths_;
+      std::list<vvp_vector4_t> pending_bits_;
 
     private: // not implemented
       vvp_fun_modpath(const vvp_fun_modpath&);

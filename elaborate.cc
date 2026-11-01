@@ -30393,6 +30393,7 @@ static const map<perm_string,string>*scope_randomize_emit_ctx_ = nullptr;
 static const map<perm_string,ivl_type_t>*scope_randomize_type_ctx_ = nullptr;
 static vector<NetNet*>*scope_randomize_signal_slots_ = nullptr;
 static vector<NetExpr*>*scope_randomize_object_slots_ = nullptr;
+static vector<NetExpr*>*scope_randomize_prebuilt_value_slots_ = nullptr;
 static Design*scope_randomize_design_ctx_ = nullptr;
 /* When std::randomize(h) receives a class handle, inline constraints retain
  * the lexical handle prefix (`h.member`). Class randomization IR is rooted
@@ -31255,6 +31256,7 @@ string pexpr_to_scope_constraint_ir(
       vector<const PExpr*>*value_slots,
       vector<NetNet*>*signal_slots,
       vector<NetExpr*>*object_slots,
+      vector<NetExpr*>*prebuilt_value_slots,
       Design*des, const NetScope*scope)
 {
       Design*save_ir_design = constraint_ir_design_ctx_;
@@ -31264,11 +31266,13 @@ string pexpr_to_scope_constraint_ir(
       const map<perm_string,ivl_type_t>*save_types = scope_randomize_type_ctx_;
       vector<NetNet*>*save_signals = scope_randomize_signal_slots_;
       vector<NetExpr*>*save_objects = scope_randomize_object_slots_;
+      vector<NetExpr*>*save_prebuilt = scope_randomize_prebuilt_value_slots_;
       Design*save_design = scope_randomize_design_ctx_;
       scope_randomize_emit_ctx_ = &random_tokens;
       scope_randomize_type_ctx_ = &random_types;
       scope_randomize_signal_slots_ = signal_slots;
       scope_randomize_object_slots_ = object_slots;
+      scope_randomize_prebuilt_value_slots_ = prebuilt_value_slots;
       scope_randomize_design_ctx_ = des;
       constraint_ir_design_ctx_ = des;
 	/* Diagnose forbidden randc constructs from the complete source tree
@@ -31283,6 +31287,7 @@ string pexpr_to_scope_constraint_ir(
       scope_randomize_type_ctx_ = save_types;
       scope_randomize_signal_slots_ = save_signals;
       scope_randomize_object_slots_ = save_objects;
+      scope_randomize_prebuilt_value_slots_ = save_prebuilt;
       scope_randomize_design_ctx_ = save_design;
       constraint_ir_design_ctx_ = save_ir_design;
       stateforeach_emit_ctx_ = save_foreach;
@@ -34157,12 +34162,88 @@ static string scope_randomize_value_slot_(const PExpr*expr,
 	    constraint_inline_prebuilt_value_slots_->push_back(nullptr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
+	  if (scope_randomize_prebuilt_value_slots_)
+	    scope_randomize_prebuilt_value_slots_->push_back(nullptr);
 	// Slots wider than 64 bits keep their width; the runtime substitutes
 	// them from their complete value instead of the 64-bit slot word.
       if (width == 0)
 	    width = 32;
       return string(function_result ? "fv:" : "v:")
 	    + to_string(slot) + ":" + to_string(width);
+}
+
+/* A module/package fixed unpacked array is caller state, not a solver
+ * property. Capture its leaves as ordinary value slots, then build a
+ * symbolic select from the index expression so a scope-randomized index is
+ * evaluated by the solver rather than at the call site. */
+static string scope_randomize_fixed_array_select_ir_(
+      const PEIdent*id, const PExpr*expr, NetNet*sig,
+      vector<const PExpr*>*value_slots,
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
+{
+      const netsarray_t*array = sig
+	    ? dynamic_cast<const netsarray_t*>(sig->array_type()) : nullptr;
+      if (!array || !id || id->path().back().index.empty()
+	  || !scope_randomize_prebuilt_value_slots_
+	  || !scope_randomize_signal_slots_)
+	    return "";
+      const netranges_t&dims = array->static_dimensions();
+      if (dims.size() != id->path().back().index.size()
+	  || dims.empty()) return "";
+      ivl_type_t element_type = sig->net_type();
+      if (!element_type || !element_type->packed()
+	  || (element_type->base_type() != IVL_VT_BOOL
+	      && element_type->base_type() != IVL_VT_LOGIC
+	      && !dynamic_cast<const netenum_t*>(element_type))) return "";
+      unsigned width = element_type->packed_width();
+      if (width == 0 || width > 65536) return "";
+
+      vector<string> indices;
+      uint64_t elements = 1;
+      std::list<index_component_t>::const_iterator component =
+	    id->path().back().index.begin();
+      for (size_t dim = 0; dim < dims.size(); ++dim, ++component) {
+	    const index_component_t&ic = *component;
+	    if (ic.sel != index_component_t::SEL_BIT || !ic.msb || ic.lsb
+		|| !dims[dim].defined() || dims[dim].width() == 0
+		|| elements > UINT_MAX / dims[dim].width()) return "";
+	    string index = pexpr_to_constraint_ir(
+		  ic.msb, nullptr, value_slots, scope, loop_env);
+	    if (index.empty()) return "";
+	    indices.push_back(index);
+	    elements *= dims[dim].width();
+      }
+
+      string result = "c:0:" + to_string(width);
+      for (uint64_t ordinal = 0; ordinal < elements; ++ordinal) {
+	    uint64_t remaining = ordinal;
+	    vector<uint64_t> digits(dims.size());
+	    string match = "c:1:1";
+	    for (size_t dim = dims.size(); dim-- > 0;) {
+		  unsigned long span = dims[dim].width();
+		  digits[dim] = remaining % span;
+		  remaining /= span;
+	    }
+	    for (size_t dim = 0; dim < dims.size(); ++dim) {
+		  int64_t low = min(dims[dim].get_msb(), dims[dim].get_lsb());
+		  int64_t declared = low + (int64_t)digits[dim];
+		  string equal = "(idxeq " + indices[dim] + " c:"
+			+ to_string(declared) + ":64:s)";
+		  if (dim == 0) match = equal;
+		  else match = "(and " + match + " " + equal + ")";
+	    }
+	    uint64_t flat = ordinal;
+	    NetEConst*word = new NetEConst(verinum((unsigned long)flat));
+	    NetESignal*leaf = new NetESignal(sig, word);
+	    unsigned slot = (unsigned)value_slots->size();
+	    value_slots->push_back(expr);
+	    scope_randomize_signal_slots_->push_back(nullptr);
+	    scope_randomize_prebuilt_value_slots_->push_back(leaf);
+	    string leaf_ir = "v:" + to_string(slot) + ":" + to_string(width)
+		  + (element_type->get_signed() ? ":s" : "");
+	    result = "(ite " + match + " " + leaf_ir + " " + result + ")";
+      }
+      return result;
 }
 
 static string scope_randomize_select_ir_(
@@ -36587,6 +36668,10 @@ static string constraint_fixed_locator_count_ir_(
       int pid = cls->property_idx_from_name(path.front().name);
       const netuarray_t*array = pid < 0 ? nullptr
 	    : dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)pid));
+      const netdarray_t*darray = pid < 0 ? nullptr
+	    : dynamic_cast<const netdarray_t*>(cls->get_prop_type((size_t)pid));
+      const netqueue_t*queue = pid < 0 ? nullptr
+	    : dynamic_cast<const netqueue_t*>(cls->get_prop_type((size_t)pid));
       ivl_type_t element_type = nullptr;
       vector<netrange_t>dimensions;
       unsigned long canonical_base = 0;
@@ -36604,7 +36689,12 @@ static string constraint_fixed_locator_count_ir_(
 	    canonical_base = carrier->fixed_object_word;
 	    source_property = carrier->fixed_source_property;
 	    source_indices = carrier->fixed_source_indices;
-      } else if (array) {
+	  } else if (darray && !queue && path.front().index.empty()) {
+	    property_qualifier_t qual = cls->get_prop_qual((size_t)pid);
+	    if (!qual.test_rand() && !qual.test_randc()) return "";
+	    element_type = darray->element_type();
+	    source_property = path.front().name;
+	  } else if (array) {
 	    source_property = path.front().name;
 	    element_type = array->element_type();
 	    dimensions.assign(array->static_dimensions().begin(),
@@ -36631,7 +36721,7 @@ static string constraint_fixed_locator_count_ir_(
 		  dimensions.erase(dimensions.begin());
 	    }
       } else return "";
-      if (dimensions.empty()) return "";
+	      if (dimensions.empty() && !(darray && !queue)) return "";
       const vector<PExpr*>&with = locator->with_constraints();
       if (with.size() != 1 || !with.front()) return "";
       const vector<named_pexpr_t>&parms = locator->get_parms();
@@ -36649,6 +36739,50 @@ static string constraint_fixed_locator_count_ir_(
       if (!object_type && (!element_type
 	  || (element_type->base_type() != IVL_VT_BOOL
 	      && element_type->base_type() != IVL_VT_LOGIC) || !width)) return "";
+	/* A random dynamic array has no fixed leaves until its size pass has
+	 * completed. Reuse the dynamic reduction lowering and sum the Boolean
+	 * locator predicate as 0/1 for each solved element. */
+	      if (darray && !queue) {
+	    if (object_type || width > 64 || !dimensions.empty()) return "";
+	    NetScope*mutable_scope = const_cast<NetScope*>(scope);
+	    if (!mutable_scope || !constraint_ir_design_ctx_) return "";
+	    NetNet*iter_net = new NetNet(mutable_scope,
+		  mutable_scope->local_symbol(), NetNet::REG, element_type);
+	    iter_net->set_line(*locator);
+	    iter_net->local_flag(true);
+	    NetNet*index_net = new NetNet(mutable_scope,
+		  mutable_scope->local_symbol(), NetNet::REG,
+		  &netvector_t::atom2s32);
+	    index_net->set_line(*locator);
+	    index_net->local_flag(true);
+	    NetNet*previous = mutable_scope->set_signal_alias(iterator, iter_net);
+	    push_array_method_iter_ctx(iter_net, index_net);
+	    PExpr*with_expr = with.front();
+	    PExpr::width_mode_t mode = PExpr::SIZED;
+	    unsigned result_width = with_expr->test_width(
+		  constraint_ir_design_ctx_, mutable_scope, mode);
+	    ivl_variable_type_t result_base = with_expr->expr_type();
+	    pop_array_method_iter_ctx();
+	    mutable_scope->restore_signal_alias(iterator, previous);
+	    if ((result_base != IVL_VT_BOOL && result_base != IVL_VT_LOGIC)
+		|| result_width == 0) return "";
+	    string suffix = element_type->get_signed() ? ":s" : "";
+	    constraint_reduction_iter_ctx_t ctx;
+	    ctx.name = iterator;
+	    ctx.value_ir = "(delem " + to_string(pid) + ":"
+		  + to_string(width) + suffix + " L)";
+	    ctx.index_ir = "L";
+	    ctx.value_type = element_type;
+	    ctx.parent = constraint_reduction_iter_ctx_;
+	    const constraint_reduction_iter_ctx_t*saved = constraint_reduction_iter_ctx_;
+	    constraint_reduction_iter_ctx_ = &ctx;
+	    string predicate = pexpr_to_constraint_ir(
+		  with.front(), cls, value_slots, scope, loop_env);
+	    constraint_reduction_iter_ctx_ = saved;
+	    if (predicate.empty()) return "";
+	    string term = "(ite " + predicate + " c:1:32:s c:0:32:s)";
+	    return "(dsumw " + to_string(pid) + ":32:s add " + term + ")";
+      }
       string suffix = element_type->get_signed() ? ":s" : "";
       const netrange_t&range = dimensions.front();
       long low = std::min(range.get_msb(), range.get_lsb());
@@ -38639,6 +38773,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		       index's pre-randomize value. */
 		  if (!id->path().back().index.empty()) {
 			NetNet*sig = scope_randomize_find_signal_(scope, name);
+			if (scope_randomize_prebuilt_value_slots_ && sig
+			    && dynamic_cast<const netsarray_t*>(sig->array_type())) {
+			      return scope_randomize_fixed_array_select_ir_(
+				    id, expr, sig, value_slots, scope, loop_env);
+			}
 			  /* A dynamic array or queue has no unpacked dimension on
 			     its net but its index selects an element, not a bit of
 			     one packed vector. */
@@ -39748,12 +39887,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      else if (mname == perm_string::literal("xor")) op = "bxor";
 
 			      if (!op.empty()) {
-				    int pidx = cls->property_idx_from_name(prop->name);
+				    const constraint_reduction_iter_ctx_t*receiver_ctx =
+					  constraint_array_iter_ctx_find_(prop->name);
+				    int pidx = receiver_ctx
+					  ? receiver_ctx->fixed_object_property
+					  : cls->property_idx_from_name(prop->name);
 				    ivl_type_t ptype = pidx >= 0
 					  ? cls->get_prop_type((size_t)pidx) : nullptr;
 				    const netuarray_t*ua =
 					  dynamic_cast<const netuarray_t*>(ptype);
-				    if (!ua)
+				    if (!ua && !receiver_ctx)
 					  return "";
 
 				    auto reduction_error = [&](const string&detail) -> string {
@@ -39789,12 +39932,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  return reduction_error(
 						"requires a nonempty with expression.");
 
-				    ivl_type_t etype = ua ? ua->element_type() : nullptr;
+				    ivl_type_t etype = receiver_ctx
+					  ? receiver_ctx->fixed_object_type
+					  : ua ? ua->element_type() : nullptr;
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
-				    const netranges_t&dimensions =
-					  ua->static_dimensions();
-				    if (dimensions.size() != prop->index.size() + 1) {
+				    netranges_t dimensions;
+				    if (receiver_ctx)
+					  dimensions = receiver_ctx->fixed_remaining_dimensions;
+				    else
+					  dimensions.assign(ua->static_dimensions().begin(),
+						ua->static_dimensions().end());
+				    if ((!receiver_ctx
+					 && dimensions.size() != prop->index.size() + 1
+					 && (with_exprs.empty()
+					     || dimensions.size() < prop->index.size() + 2))) {
 					  if (prop->index.empty())
 						return reduction_error(
 						      "requires a one-dimensional unpacked array "
@@ -39806,8 +39958,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						"after constant prefix selection.");
 				    }
 				    unsigned long canonical_base = 0;
+				    if (receiver_ctx)
+					  canonical_base = receiver_ctx->fixed_object_word;
 				    size_t dim = 0;
-				    for (const index_component_t&select : prop->index) {
+				    if (!receiver_ctx) for (const index_component_t&select : prop->index) {
 					  if (!select.msb || select.lsb
 					      || select.sel != index_component_t::SEL_BIT)
 						return reduction_error(
@@ -39900,10 +40054,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  result_signed = with_expr->has_sign();
 					  ivl_variable_type_t result_type =
 						with_expr->expr_type();
+					      /* The ordinary expression typer sees the iterator alias as
+					       * its scalar leaf type. A reduction directly on a row has
+					       * that same leaf type as its result. */
+					      const PECallFunction*nested_reduction =
+						    dynamic_cast<const PECallFunction*>(with_expr);
+					      bool row_reduction = receiver_ctx == nullptr
+						    && dimensions.size() > prop->index.size() + 1
+						    && nested_reduction
+						    && !nested_reduction->receiver_expr()
+						    && nested_reduction->path().name.size() == 2
+						    && nested_reduction->path().name.front().name
+							  == iter_name;
+					      if (row_reduction) {
+						    result_type = etype->base_type();
+						    result_width = ewid;
+						    result_signed = etype->get_signed();
+					      }
 					  pop_array_method_iter_ctx();
 					  mutable_scope->restore_signal_alias(iter_name,
 								      previous);
-					  if ((result_type != IVL_VT_BOOL
+					      if ((!row_reduction && result_type != IVL_VT_BOOL
 					       && result_type != IVL_VT_LOGIC)
 					      || result_width == 0)
 						return reduction_error(
@@ -39911,11 +40082,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      "(IEEE 1800-2017 7.12.3).");
 				    }
 
-				    const netrange_t&range = dimensions.back();
+				    /* A multidimensional reduction with a with-expression reduces
+			     * the outer dimension. The iterator then denotes the remaining
+			     * subarray, whose own reduction is handled recursively below. */
+			    size_t reduction_dim = receiver_ctx ? 0 : prop->index.size();
+			    const netrange_t&range = dimensions[reduction_dim];
 				    long range_lo = std::min(range.get_msb(),
 							     range.get_lsb());
 				    unsigned long count = range.width();
-				    if (count && canonical_base > ULONG_MAX - (count - 1))
+			    unsigned long stride = 1;
+			    for (size_t tail = reduction_dim + 1;
+				 tail < dimensions.size(); ++tail) {
+				  unsigned long width = dimensions[tail].width();
+				  if (width && stride > ULONG_MAX / width)
+					return reduction_error(
+					  "has fixed-array dimensions too large to canonicalize.");
+				  stride *= width;
+			    }
+			    if (count > 1 && stride > ULONG_MAX / (count - 1))
+				  return reduction_error(
+					"has fixed-array dimensions too large to canonicalize.");
+			    unsigned long span = count ? (count - 1) * stride : 0;
+			    if (count && canonical_base > ULONG_MAX - span)
 					  return reduction_error(
 						"has a fixed-array row too large to canonicalize.");
 				    string reduction;
@@ -39923,7 +40111,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					 elem += 1) {
 					  string leaf = "e:" + to_string(pidx)
 						+ ":" + to_string(ewid) + ":"
-						+ to_string(canonical_base + elem) + esfx;
+						+ to_string(canonical_base + elem * stride) + esfx;
 					  string value = leaf;
 					  if (!with_exprs.empty()) {
 						long declared_index = range_lo + (long)elem;
@@ -39933,6 +40121,39 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						iter_ctx.index_ir = "c:"
 						      + to_string(declared_index) + ":32:s";
 						iter_ctx.value_type = etype;
+						if (dimensions.size() > reduction_dim + 1) {
+						      iter_ctx.fixed_object_property = pidx;
+						      iter_ctx.fixed_object_word = canonical_base
+							    + elem * stride;
+						      iter_ctx.fixed_object_type = etype;
+						      iter_ctx.fixed_remaining_dimensions.assign(
+							    dimensions.begin() + reduction_dim + 1,
+							    dimensions.end());
+					      iter_ctx.fixed_source_property = receiver_ctx
+						    ? receiver_ctx->fixed_source_property : prop->name;
+					      if (receiver_ctx)
+						    iter_ctx.fixed_source_indices =
+							  receiver_ctx->fixed_source_indices;
+					      else
+						    iter_ctx.fixed_source_indices = {};
+					      iter_ctx.fixed_source_indices.reserve(
+						    iter_ctx.fixed_source_indices.size()
+						    + (receiver_ctx ? 0 : prop->index.size()) + 1);
+			    if (!receiver_ctx) for (const index_component_t&select : prop->index) {
+							    constraint_const_ir_t selected;
+							    string index_ir = pexpr_to_constraint_ir(
+								  select.msb, cls, value_slots, scope,
+								  loop_env);
+							    if (constraint_parse_const_ir_(index_ir,
+									  selected)
+								&& selected.width <= 64)
+								  iter_ctx.fixed_source_indices.push_back(
+									(long)constraint_resize_const_bits_(
+									  selected, 64, selected.is_signed));
+						      }
+						      iter_ctx.fixed_source_indices.push_back(
+							    range_lo + (long)elem);
+						}
 						const constraint_reduction_iter_ctx_t*saved =
 						      constraint_reduction_iter_ctx_;
 						iter_ctx.parent = saved;
@@ -41084,11 +41305,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                     unroll(d + 1, env);
                                     return;
                               }
-                              long lo = min(dim.get_msb(), dim.get_lsb());
-                              long hi = max(dim.get_msb(), dim.get_lsb());
-                              for (long idx = lo; idx <= hi && ok; idx += 1) {
+                              long left = dim.get_msb();
+                              long right = dim.get_lsb();
+                              bool up = left < right;
+                              long idx = left;
+                              while (ok && (up ? idx <= right : idx >= right)) {
                                     env[cfe->loop_vars()[d]] = (uint64_t)idx;
                                     unroll(d + 1, env);
+                                    if (!ok || idx == right) break;
+                                    idx += up ? 1 : -1;
                               }
                               env.erase(cfe->loop_vars()[d]);
                         };

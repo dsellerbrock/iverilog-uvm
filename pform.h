@@ -376,6 +376,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
 struct sva_property_t;
 struct sva_seq_step_t;
 struct sva_sequence_formal_t;
+struct sva_property_formal_t;
 struct sva_mc_seg_t;
 struct sva_prop_case_item_t;
 struct rs_production_t;
@@ -469,7 +470,7 @@ extern void pform_sva_declare_sequence_spec(const struct vlltype&loc,
    the ordered list of formal-argument names (may be null/empty). */
 extern void pform_sva_declare_property_p(const struct vlltype&loc,
 					 const char*name,
-					 std::list<perm_string>*formals,
+					 std::list<sva_property_formal_t>*formals,
 					 sva_property_t*prop);
 extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,

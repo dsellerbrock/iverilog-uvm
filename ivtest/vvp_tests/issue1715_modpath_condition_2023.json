@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1715_modpath_condition.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "output-contains": ["PASSED"]
+}

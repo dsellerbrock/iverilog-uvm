@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "sv_cast_enum_task_invalid.v",
+    "gold" : "sv_cast_enum_task_invalid",
+    "iverilog-args" : [ "-g2023" ]
+}

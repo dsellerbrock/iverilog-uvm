@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1725_class_randomize_size_retry_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1725_class_randomize_size_retry"
+}

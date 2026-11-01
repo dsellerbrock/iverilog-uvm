@@ -1,14 +1,23 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
 issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
+issue1760_constraint_state_xz_or_2017 normal,-g2017,-s,tb ivltests gold=issue1760_constraint_state_xz_or.gold
+issue1760_constraint_state_xz_or_2023 normal,-g2023,-s,tb ivltests gold=issue1760_constraint_state_xz_or.gold
 issue1614_cross_set_special_bins_2017 normal,-g2017,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins.gold
 issue1614_cross_set_special_bins_2023 normal,-g2023,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins_2023.gold
 issue1710_separate_setup_hold_2017 normal,-g2017,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2017-vvp-stdout
 issue1710_separate_setup_hold_2023 normal,-g2023,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2023-vvp-stdout
 issue1825_foreach_index_bit_select_2017 normal,-g2017,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
 issue1825_foreach_index_bit_select_2023 normal,-g2023,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
+issue1827_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1827_packed_foreach.gold
+issue1827_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1827_packed_foreach.gold
+issue1838_scope_randomize_array_2017 normal,-g2017,-s,test ivltests gold=issue1838_scope_randomize_array.gold
+issue1838_scope_randomize_array_2023 normal,-g2023,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 
 issue1537_clocking_concat_2017 normal,-g2017,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2017.gold
 issue1537_clocking_concat_2023 normal,-g2023,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2023.gold
@@ -3365,6 +3374,8 @@ sv_fork_null_child normal,-g2017,-s,main ivltests gold=sv_fork_null_child.gold
 sv_fork_null_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_null_child.gold
 sv_wait_fork_excludes_descendants_2017 normal,-g2017,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
 sv_wait_fork_excludes_descendants_2023 normal,-g2023,-s,main ivltests gold=sv_wait_fork_excludes_descendants.gold
+issue1801_task_process_fork_control_2017 normal,-g2017,-s,issue1801_task_process_fork_control ivltests gold=issue1801_task_process_fork_control.gold
+issue1801_task_process_fork_control_2023 normal,-g2023,-s,issue1801_task_process_fork_control ivltests gold=issue1801_task_process_fork_control.gold
 sv_fork_empty_child normal,-g2017,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_empty_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_empty_child.gold
 sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
@@ -6378,7 +6389,12 @@ issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_conca
 issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
 issue1757_enum2_wide_2017 normal,-g2017,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1757_enum2_wide_2023 normal,-g2023,-s,tb ivltests gold=issue1757_enum2_wide.gold
+issue1725_class_randomize_size_retry_2017 normal,-g2017,-s,tb ivltests gold=issue1725_class_randomize_size_retry.gold
+issue1725_class_randomize_size_retry_2023 normal,-g2023,-s,tb ivltests gold=issue1725_class_randomize_size_retry.gold
 sv_covergroup_cross_set_matches_2017 normal,-g2017,-s,tb ivltests gold=sv_covergroup_cross_set_matches.gold
 sv_covergroup_cross_set_matches_2023 normal,-g2023,-s,tb ivltests gold=sv_covergroup_cross_set_matches.gold
 issue636_function_call_implicit_var_2017 normal,-g2017,-s,issue636_function_call_implicit_var ivltests gold=issue636_function_call_implicit_var.gold
 issue636_function_call_implicit_var_2023 normal,-g2023,-s,issue636_function_call_implicit_var ivltests gold=issue636_function_call_implicit_var.gold
+issue1715_modpath_condition normal,-g2017,-gspecify,-s,issue1715_modpath_condition ivltests gold=issue1715_modpath_condition
+issue1796_dynamic_locator_count_2017 normal,-g2017,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
+issue1796_dynamic_locator_count_2023 normal,-g2023,-s,test ivltests gold=issue1796_dynamic_locator_count.gold

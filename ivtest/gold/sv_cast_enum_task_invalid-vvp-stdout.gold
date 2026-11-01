@@ -1,0 +1,6 @@
+ivltests/sv_cast_enum_task_invalid.v:7: error: $cast failed: the source value is not a member of the destination enum type (IEEE 1800-2017/2023 6.24.2). The destination is unchanged.
+after 10: col=1
+ivltests/sv_cast_enum_task_invalid.v:10: error: $cast failed: the source value is not a member of the destination enum type (IEEE 1800-2017/2023 6.24.2). The destination is unchanged.
+after -1: col=1
+function failure: ok=0 col=1
+after valid cast: col=2

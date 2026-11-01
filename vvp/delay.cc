@@ -776,7 +776,8 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 }
 
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width)
-: net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0)
+: net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
+  has_conditional_paths_(false)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
       pulse_vec4_ = cur_vec4_;
@@ -872,6 +873,11 @@ void vvp_fun_modpath::pulse_wakeup_::run_run()
       owner_->run_pulse_events_();
 }
 
+void vvp_fun_modpath::resolve_wakeup_::run_run()
+{
+      owner_->resolve_pending_();
+}
+
 void vvp_fun_modpath::run_pulse_events_()
 {
       vvp_time64_t now = schedule_simtime();
@@ -916,6 +922,32 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       if (port.port() > 0)
 	    return;
 
+      if (!has_conditional_paths_) {
+	    schedule_transition_(bit);
+	    return;
+      }
+
+	/* Conditions are separate nets from the path input. Resolve the path
+	 * after the current Active updates have propagated so same-time blocking
+	 * assignments to a condition are visible when the delay is selected. */
+      const vvp_vector4_t&last = pending_bits_.empty() ? cur_vec4_ : pending_bits_.back();
+      if (last.eeq(bit))
+	    return;
+      pending_bits_.push_back(bit);
+      schedule_generic(new resolve_wakeup_(this), 0, false, false, true);
+}
+
+void vvp_fun_modpath::resolve_pending_()
+{
+      while (!pending_bits_.empty()) {
+	    vvp_vector4_t bit = pending_bits_.front();
+	    pending_bits_.pop_front();
+	    schedule_transition_(bit);
+      }
+}
+
+void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
+{
       if (cur_vec4_.eeq(bit))
 	    return;
 
