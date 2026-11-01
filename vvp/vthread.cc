@@ -976,6 +976,12 @@ struct vthread_s {
       set<struct vthread_s*>detached_children;
 	/* Immediate detached subprocesses, excluding promoted descendants. */
       set<struct vthread_s*>wait_fork_children;
+	/* Process whose wait-fork set contains this detached child. */
+      struct vthread_s*wait_fork_owner;
+	/* Threads suspended by wait fork in this logical process. */
+      set<struct vthread_s*>wait_fork_waiters;
+	/* Process whose wait-fork completion this thread is awaiting. */
+      struct vthread_s*wait_fork_wait_owner;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* DPI export (35.5): non-null on an exported SV *task* thread that is
@@ -7473,6 +7479,23 @@ static vthread_t logical_process_thread_(vthread_t thr)
       return thr;
 }
 
+static void wait_fork_child_done_(vthread_t child)
+{
+      vthread_t owner = child->wait_fork_owner;
+      if (!owner) return;
+      child->wait_fork_owner = 0;
+      owner->wait_fork_children.erase(child);
+      if (!owner->wait_fork_children.empty()) return;
+      while (!owner->wait_fork_waiters.empty()) {
+            vthread_t waiter = *owner->wait_fork_waiters.begin();
+            owner->wait_fork_waiters.erase(owner->wait_fork_waiters.begin());
+            waiter->wait_fork_wait_owner = 0;
+            waiter->i_am_waiting = 0;
+            waiter->deferred_assert_flush_on_run = 1;
+            schedule_vthread(waiter, 0, true);
+      }
+}
+
 static void flush_deferred_asserts_for_thread_(vthread_t thr)
 {
       if (pending_deferred_assert_reports_ == 0)
@@ -11141,6 +11164,8 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
 	//thr->bits4  = vvp_vector4_t(32);
       thr->parent = 0;
       thr->dpi_coro = 0;
+      thr->wait_fork_owner = 0;
+      thr->wait_fork_wait_owner = 0;
       thr->parent_scope = scope;
       thr->wait_next = 0;
       thr->event_wait_link = 0;
@@ -11360,11 +11385,20 @@ static void vthread_reap(vthread_t thr)
 		  child->parent = thr->parent;
 		  child->is_reactive_process |= thr->is_reactive_process;
 		  thr->parent->detached_children.insert(child);
-		  if (thr->is_callf_child || thr->is_fork_v_child)
-			  thr->parent->wait_fork_children.insert(child);
+		  if (thr->is_callf_child || thr->is_fork_v_child) {
+			  vthread_t owner = logical_process_thread_(thr);
+			  if (child->wait_fork_owner != owner) {
+				wait_fork_child_done_(child);
+				child->wait_fork_owner = owner;
+				owner->wait_fork_children.insert(child);
+			  }
+		  }
+		  else
+			  wait_fork_child_done_(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
+		  wait_fork_child_done_(child);
 	    }
 	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(cur);
@@ -11380,7 +11414,7 @@ static void vthread_reap(vthread_t thr)
 				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
 		  }
 		  assert(res == 1);
-		  thr->parent->wait_fork_children.erase(thr);
+		    wait_fork_child_done_(thr);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
 		  if (res != 1) {
@@ -18780,6 +18814,11 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	   than leaving a partial journal active. */
       vvp_pure_comb_evaluation_abort(logical_process_thread_(thr));
 
+      if (thr->wait_fork_wait_owner) {
+            thr->wait_fork_wait_owner->wait_fork_waiters.erase(thr);
+            thr->wait_fork_wait_owner = 0;
+      }
+
       if (vvp_process*proc = thr->process_obj_.peek<vvp_process>()) {
 	    if (thr->i_have_ended && !thr->i_was_disabled)
 		  proc->mark_finished();
@@ -18834,20 +18873,8 @@ static bool do_disable(vthread_t thr, vthread_t match)
       vthread_t parent = thr->parent;
       if (thr->i_am_detached) {
 	      /* A detached thread (fork-join_none, possibly reparented after
-	       * its original parent ended) must NOT spuriously wake a parent
-	       * that is joining for a different child.  Mirror of_END's
-	       * detached-child path: optionally wake a parent stuck in
-	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
-	       * the parent's detached_children, so do not erase manually. */
-	    if (parent && parent->i_am_waiting
-		&& parent->wait_fork_children.size() == 1
-		&& parent->wait_fork_children.count(thr)) {
-		    /* This is the last detached child; the wait fork
-		     * predicate will become true once we reap. */
-		  parent->i_am_waiting = 0;
-		  parent->deferred_assert_flush_on_run = 1;
-		  schedule_vthread(parent, 0, true);
-	    }
+	       * its original parent ended) must not wake a parent joining for a
+	       * different child. Reaping updates the logical process wait-fork set. */
 	    vthread_reap(thr);
       } else if (parent && parent->i_am_joining) {
 	      // If a parent is waiting in a %join, wake it up. Note
@@ -19061,6 +19088,7 @@ bool of_JMP_FLOWCONT(vthread_t thr, vvp_code_t cp)
  */
 bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 {
+	  vthread_t owner = logical_process_thread_(thr);
 	/* If a %disable/fork is being executed then the parent thread
 	 * cannot be waiting in a join. */
       assert(! thr->i_am_joining);
@@ -19068,11 +19096,11 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children to disable. */
       assert(thr->children.empty());
 
-	/* Disable any detached children. */
-      while (! thr->detached_children.empty()) {
-	    vthread_t child = *(thr->detached_children.begin());
+	/* Disable the descendants tracked by the calling process. A task call
+	 * executes in that process, so its caller's earlier children are included. */
+	  while (! owner->wait_fork_children.empty()) {
+		vthread_t child = *(owner->wait_fork_children.begin());
 	    assert(child);
-	    assert(child->parent == thr);
 	      /* Disabling the children can never match the parent thread. */
 	    bool res = do_disable(child, thr);
 	    assert(! res);
@@ -19531,11 +19559,20 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    if (thr->parent) {
 		  child->parent = thr->parent;
 		  thr->parent->detached_children.insert(child);
-		  if (thr->is_callf_child || thr->is_fork_v_child)
-			  thr->parent->wait_fork_children.insert(child);
+		    if (thr->is_callf_child || thr->is_fork_v_child) {
+			  vthread_t owner = logical_process_thread_(thr);
+			  if (child->wait_fork_owner != owner) {
+				wait_fork_child_done_(child);
+				child->wait_fork_owner = owner;
+				owner->wait_fork_children.insert(child);
+			  }
+		    }
+		    else
+			    wait_fork_child_done_(child);
 	    } else {
 		  child->parent = 0;
 		  child->i_am_detached = 0;
+		  wait_fork_child_done_(child);
 	    }
 	    thr->wait_fork_children.erase(child);
 	    thr->detached_children.erase(thr->detached_children.begin());
@@ -19563,19 +19600,11 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    assert(tmp);
 	    size_t res = tmp->detached_children.erase(thr);
 	    assert(res == 1);
-	      /* If the parent is waiting for the detached children to
-	       * finish then the last detached child needs to tell the
-	       * parent to wake up when it is finished. */
-	    if (tmp->i_am_waiting && tmp->wait_fork_children.size() == 1
-		&& tmp->wait_fork_children.count(thr)) {
-		  tmp->i_am_waiting = 0;
-		  tmp->deferred_assert_flush_on_run = 1;
-		  schedule_vthread(tmp, 0, true);
-	    }
+	      /* Reaping updates the logical process wait-fork set. */
 	      /* Fully detach this thread so it will be reaped below. */
 	    thr->i_am_detached = 0;
 	    thr->parent = 0;
-	    tmp->wait_fork_children.erase(thr);
+	    wait_fork_child_done_(thr);
       }
 
 	/* If I have no parent, then no one can %join me and there is
@@ -22157,7 +22186,8 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		  assert(res == 1);
 		  child->i_am_detached = 1;
 		  thr->detached_children.insert(child);
-		  thr->wait_fork_children.insert(child);
+		  child->wait_fork_owner = logical_process_thread_(thr);
+		  child->wait_fork_owner->wait_fork_children.insert(child);
 	    }
       }
 
@@ -34866,6 +34896,7 @@ bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
  */
 bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 {
+	  vthread_t owner = logical_process_thread_(thr);
 	/* If a %wait/fork is being executed then the parent thread
 	 * cannot be waiting in a join or already waiting. */
       if (thr->i_am_in_function) {
@@ -34887,13 +34918,15 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* There should be no active children when waiting. */
       assert(thr->children.empty());
 
-	/* If there are no immediate detached children then there is nothing to
-	 * wait for. */
-	if (thr->wait_fork_children.empty()) return true;
+	/* A task activation is a continuation of its caller's process. Its
+	 * detached children and the caller's earlier children share this set. */
+	if (owner->wait_fork_children.empty()) return true;
 
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */
       thr->i_am_waiting = 1;
+	  thr->wait_fork_wait_owner = owner;
+	  owner->wait_fork_waiters.insert(thr);
       return false;
 }
 
