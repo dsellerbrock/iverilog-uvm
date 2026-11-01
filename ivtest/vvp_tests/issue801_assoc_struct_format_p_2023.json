@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue801_assoc_struct_format_p.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue801_assoc_struct_format_p" ],
+    "gold"          : "issue801_assoc_struct_format_p"
+}

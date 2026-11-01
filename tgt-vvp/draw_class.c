@@ -226,11 +226,16 @@ static void show_enum_domain_(ivl_enumtype_t enumtype)
       fputs("e{", vvp_out);
       for (idx = 0 ; idx < ivl_enum_names(enumtype) ; idx += 1) {
 	    const char*bits = ivl_enum_bits(enumtype, idx);
-	    if (!bits)
+	    const char*name = ivl_enum_name(enumtype, idx);
+	    if (!bits || !name)
 		  continue;
 	    if (emitted)
 		  fputc(',', vvp_out);
 	    fputs(bits, vvp_out);
+	    fputc('=', vvp_out);
+	    for (const unsigned char*ch = (const unsigned char*)name;
+		 *ch; ch += 1)
+		  fprintf(vvp_out, "%02x", (unsigned)*ch);
 	    emitted += 1;
       }
       fputs("}:", vvp_out);

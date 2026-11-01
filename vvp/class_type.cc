@@ -1483,6 +1483,12 @@ const vector<vvp_vector4_t>&class_type::property_enum_values(size_t idx) const
       return idx < properties_.size() ? properties_[idx].enum_values : empty;
 }
 
+const vector<string>&class_type::property_enum_names(size_t idx) const
+{
+      static const vector<string> empty;
+      return idx < properties_.size() ? properties_[idx].enum_names : empty;
+}
+
 void class_type::bind_static_property(size_t idx, char*storage)
 {
       assert(idx < properties_.size());
@@ -2068,6 +2074,7 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	// randomize() may choose. Keeping this metadata here prevents a sparse
 	// enum from receiving an unnamed packed encoding.
       vector<string> enum_bits;
+      vector<string> enum_names;
       if (base_type.compare(0, 2, "e{") == 0) {
 	    string::size_type close = base_type.find("}:", 2);
 	    if (close != string::npos) {
@@ -2078,8 +2085,25 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 			string bits = domain.substr(begin,
 			      comma == string::npos ? string::npos
 						    : comma - begin);
-			if (!bits.empty())
+			if (!bits.empty()) {
+			      string::size_type equal = bits.find('=');
+			      string enum_name;
+			      if (equal != string::npos) {
+				    string encoded = bits.substr(equal + 1);
+				    bits.erase(equal);
+				    for (string::size_type pos = 0;
+					 pos + 1 < encoded.size(); pos += 2) {
+					  string hex_byte = encoded.substr(pos, 2);
+					  char*end = 0;
+					  unsigned long byte = strtoul(
+						hex_byte.c_str(), &end, 16);
+					  if (!end || *end != '\0') break;
+					  enum_name += (char)byte;
+				    }
+			      }
 			      enum_bits.push_back(bits);
+			      enum_names.push_back(enum_name);
+			}
 			if (comma == string::npos)
 			      break;
 			begin = comma + 1;
@@ -2209,7 +2233,8 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    properties_[idx].type = new property_object(array_size? array_size : 1);
       }
 
-      for (const string&bits : enum_bits) {
+      for (size_t enum_idx = 0; enum_idx < enum_bits.size(); ++enum_idx) {
+	    const string&bits = enum_bits[enum_idx];
 	    vvp_vector4_t value((unsigned)bits.size(), BIT4_0);
 	    for (unsigned bit = 0 ; bit < bits.size() ; bit += 1) {
 		  vvp_bit4_t digit = BIT4_X;
@@ -2223,6 +2248,7 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 		  value.set_bit(bit, digit);
 	    }
 	    properties_[idx].enum_values.push_back(value);
+	    properties_[idx].enum_names.push_back(enum_names[enum_idx]);
       }
 
       if (properties_[idx].type)

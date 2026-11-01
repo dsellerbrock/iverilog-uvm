@@ -143,6 +143,33 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 			vp->format = vpiStringVal;
 			vpip_string_get_value(sval, vp);
 			return;
+		      case 3: {
+			if (vp->format == vpiObjTypeVal) {
+			      /* Mark object values for the %p formatter, which then
+				 reads their assignment-pattern string. */
+			      vp->format = vpiSuppressVal;
+			      return;
+			}
+			if (vp->format == vpiStringVal) {
+			      int key_kind = -1;
+			      std::string str_key;
+			      const vvp_object*obj_key = 0;
+			      vvp_vector4_t vec_key;
+			      vvp_object_t obj_val;
+			      if (mobj->peek_entry_identity(index, key_kind, str_key,
+							    obj_key, vec_key,
+							    obj_val)) {
+				    std::string text = vvp_format_cobject_p(obj_val);
+				    char*rbuf = (char*)need_result_buf(text.size()+1,
+								   RBUF_VAL);
+				    strcpy(rbuf, text.c_str());
+				    vp->value.str = rbuf;
+				    return;
+			      }
+			}
+			vp->format = vpiSuppressVal;
+			return;
+		      }
 		      default:
 			vp->format = vpiSuppressVal;
 			return;

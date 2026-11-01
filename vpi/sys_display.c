@@ -406,6 +406,16 @@ static char* format_p_value(vpiHandle item)
   value.format = vpiObjTypeVal;
   vpi_get_value(item, &value);
 
+  /* Associative arrays store unpacked structs as object values. Their VPI
+     element read marks vpiObjTypeVal as suppressed, while a vpiStringVal
+     read returns the shared assignment-pattern representation. */
+  if (value.format == vpiSuppressVal) {
+    value.format = vpiStringVal;
+    vpi_get_value(item, &value);
+    if (value.format == vpiStringVal && value.value.str)
+      return strdup(value.value.str);
+  }
+
   if (value.format == vpiRealVal) {
     char buf[64];
     snprintf(buf, sizeof buf, "%g", value.value.real);
