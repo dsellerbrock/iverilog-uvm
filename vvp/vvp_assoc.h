@@ -611,14 +611,10 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
                   return lhs_code < rhs_code ? -1 : 1;
             }
 
-              // Width is part of associative-key identity. If sign/zero
-              // extension makes two differently sized keys numerically equal,
-              // use the existing raw encoding only as a stable tie-breaker.
-            const std::string lhs_raw = vec4_key_(lhs);
-            const std::string rhs_raw = vec4_key_(rhs);
-            if (lhs_raw == rhs_raw)
-                  return 0;
-            return lhs_raw < rhs_raw ? -1 : 1;
+              // Equal numeric keys compare equal here as well as in the map
+              // identity, so traversal probes with a different width still
+              // find the canonical entry.
+            return 0;
       }
 
       const vec_index_t& vec_index_(bool signed_order) const

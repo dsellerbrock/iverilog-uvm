@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2056_wildcard_integral_width.v",
+  "iverilog-args": ["-g2023", "-s", "issue2056_wildcard_integral_width"],
+  "gold": "issue2056_wildcard_integral_width"
+}

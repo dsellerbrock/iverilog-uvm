@@ -29,7 +29,8 @@
 extern char *readmem_error_token;
 
 extern void sys_readmem_start_file(vpiHandle callh, FILE*in, int bin_flag,
-				   unsigned width, struct t_vpi_vecval*val);
+				   unsigned width, unsigned address_width,
+				   struct t_vpi_vecval*val);
 extern int readmemlex(void);
 
 extern void destroy_readmem_lexor(void);

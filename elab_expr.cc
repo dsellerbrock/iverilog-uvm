@@ -684,16 +684,29 @@ NetESFunc* make_std_randomize_with_expr(
 
       for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
 	    PExpr*pe = parms[idx].parm;
-	    if (std_randomize_fixed_array_arg_(pe, des, scope)) {
-		cerr << loc->get_fileline() << ": sorry: "
-		     << "std::randomize() with constraints on a fixed "
-		     << "unpacked array is not yet supported; the call "
-		     << "cannot be compiled." << endl;
-		des->errors += 1;
-		for (NetExpr*old : random_vars) delete old;
-		return nullptr;
-	    }
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(pe);
+	    if (NetNet*array = std_randomize_fixed_array_arg_(pe, des, scope)) {
+		const netranges_t dims = array->unpacked_dims();
+		const netranges_t::const_iterator dim = dims.begin();
+		const ivl_type_t elem_type = array->array_type()->element_type();
+		const unsigned width = elem_type->packed_width();
+		const unsigned start = (unsigned)random_vars.size();
+		const long low = std::min(dim->get_msb(), dim->get_lsb());
+		const unsigned count = array->unpacked_count();
+		for (unsigned word = 0; word < count; ++word) {
+		      NetEConst*index = make_const_val_s(word);
+		      index->set_line(*pe);
+		      NetESignal*element = new NetESignal(array, index);
+		      element->set_line(*pe);
+		      random_vars.push_back(element);
+		}
+		random_tokens[id->path().back().name] = "a:"
+		      + to_string(start) + ":" + to_string(low) + ":"
+		      + to_string(count) + ":" + to_string(width)
+		      + (elem_type->get_signed() ? ":s" : "");
+		random_types[id->path().back().name] = array->net_type();
+		continue;
+	    }
 	    if (!id || id->path().size() != 1
 		|| !id->path().back().index.empty()) {
 		  cerr << loc->get_fileline() << ": sorry: "

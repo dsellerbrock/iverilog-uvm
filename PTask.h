@@ -101,12 +101,19 @@ class PTaskFunc : public PScope, public PNamedItem {
 	// DPI import linkage (35.x): both functions and tasks can be
 	// DPI imports; the code generator synthesizes the marshaling
 	// body from the C name.
-      void set_dpi_import(const char*c_name) {
+      void set_dpi_import(const char*c_name, bool pure, bool context,
+                          bool legacy) {
 	    is_dpi_import_ = true;
 	    dpi_c_name_ = c_name;
+	    dpi_pure_ = pure;
+	    dpi_context_ = context;
+	    dpi_legacy_ = legacy;
       }
       bool is_dpi_import() const { return is_dpi_import_; }
       const std::string& dpi_c_name() const { return dpi_c_name_; }
+      bool dpi_pure() const { return dpi_pure_; }
+      bool dpi_context() const { return dpi_context_; }
+      bool dpi_legacy() const { return dpi_legacy_; }
 
 	// DPI export linkage (35.5): a normal SV function/task (with a
 	// body) that is additionally made callable from C under a C name.
@@ -144,6 +151,9 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool procedural_body_scope_ = true;
       bool is_dpi_import_ = false;
       std::string dpi_c_name_;
+      bool dpi_pure_ = false;
+      bool dpi_context_ = false;
+      bool dpi_legacy_ = false;
       bool is_dpi_export_ = false;
       std::string dpi_export_c_name_;
       std::vector<pform_tf_port_t>*ports_;

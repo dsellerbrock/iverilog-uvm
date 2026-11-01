@@ -347,6 +347,11 @@ const vvp_object* vvp_assoc_base::object_key_(const vvp_object_t&key)
 std::string vvp_assoc_base::vec4_key_(const vvp_vector4_t&key)
 {
       unsigned wid = key.size();
+        // IEEE 1800-2017 7.8.1 gives wildcard associative indexes a
+        // canonical representation: discard leading zero bits, retaining
+        // one bit for zero. Integral index expressions are unsigned here.
+      while (wid > 1 && key.value(wid - 1) == BIT4_0)
+            wid -= 1;
       std::string out;
       out.resize(4 + wid);
       out[0] = static_cast<char>((wid >> 24) & 0xff);

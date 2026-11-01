@@ -7536,8 +7536,20 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  /* Leaf identifiers have no operands to size. Keep their declared
 		     width for port conversion diagnostics and implicit type checks. */
 		  if (!pins_implicit[idx]
-		      && !dynamic_cast<const PEIdent*>(pins[idx]))
-			context_width = prts_vector_width / instance.size();
+		      && !dynamic_cast<const PEIdent*>(pins[idx])) {
+			if (instance.size() > 1) {
+			      /* Keep an array actual's own width so the packed-actual
+			         mapper can distinguish broadcast from per-instance
+			         slices. The unbased unsized literal still needs the
+			         aggregate width as its assignment-like context. */
+			      const PENumber*literal =
+				    dynamic_cast<const PENumber*>(pins[idx]);
+			      context_width = literal && literal->value().is_single()
+				    ? prts_vector_width : -1;
+			} else {
+			      context_width = prts_vector_width;
+			}
+		  }
 		    // FIXME: The default value is getting the wrong value for
 		    //        an array instance since only one scope is used
 		    //        and the value can be different for each scope.
@@ -30989,6 +31001,17 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.terminal = out.args.size() == 1 && out.args[0].terminal;
 	    return out;
       }
+      if (out.op == "cast" && out.args.size() == 3
+	  && out.args[0].is_constant && out.args[1].is_constant
+	  && out.args[0].constant_value > 0
+	  && out.args[0].constant_value <= UINT_MAX
+	  && out.args[1].constant_value <= 1) {
+	    out.width = (unsigned)out.args[0].constant_value;
+	    out.is_signed = out.args[1].constant_value == 1;
+	    out.self_safe = out.args[2].self_safe;
+	    out.terminal = out.args[2].terminal;
+	    return out;
+      }
       if (out.op == "trunc-real" || out.op == "tolerance-range") {
 	    if (out.args.size() == 3 && out.args[0].is_constant
 		&& out.args[1].is_constant
@@ -38719,13 +38742,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		      }
 			      if (cur) {
 				    unsigned mw = cur->packed_width();
-				    if (mw == 1)
-					  return "(bit " + base + " c:"
-						+ to_string(offset) + ")";
-				    if (mw > 1)
-					  return "(part " + base + " c:"
-						+ to_string(offset + mw - 1)
-						+ " c:" + to_string(offset) + ")";
+				    if (mw > 0) {
+					  string member_ir = mw == 1
+						? "(bit " + base + " c:"
+						  + to_string(offset) + ")"
+						: "(part " + base + " c:"
+						  + to_string(offset + mw - 1)
+						  + " c:" + to_string(offset) + ")";
+					  if (cur->get_signed())
+						return "(cast c:" + to_string(mw)
+						      + " c:1 " + member_ir + ")";
+					  return member_ir;
+				    }
 			      }
 			}
 		  }
@@ -38859,6 +38887,38 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  map<perm_string,string>::const_iterator it =
 			scope_randomize_emit_ctx_->find(name);
 		  if (it != scope_randomize_emit_ctx_->end()) {
+			if (it->second.compare(0, 2, "a:") == 0) {
+			      if (id->path().back().index.empty()) return "";
+			      unsigned start = 0, count = 0, width = 0;
+			      long low = 0;
+			      if (sscanf(it->second.c_str(), "a:%u:%ld:%u:%u",
+					 &start, &low, &count, &width) != 4
+				  || count == 0 || width == 0)
+				    return "";
+			      if (id->path().back().index.size() != 1
+				  && id->path().back().index.size() != 2)
+				    return "";
+			      const index_component_t&select =
+				    id->path().back().index.front();
+			      if (select.sel != index_component_t::SEL_BIT
+				  || !select.msb || select.lsb)
+				    return "";
+			      string index_ir = pexpr_to_constraint_ir(
+				    select.msb, cls, value_slots, scope, loop_env);
+			      if (index_ir.empty()) return "";
+			      string element_ir = "(ascope " + to_string(start)
+				    + ":" + to_string(width)
+				    + (it->second.find(":s", 2) != string::npos ? ":s " : " ")
+				    + to_string(low) + ":" + to_string(count) + " "
+				    + index_ir + ")";
+			      if (id->path().back().index.size() == 1)
+				    return element_ir;
+			      const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+				    scope_randomize_type_ctx_->at(name));
+			      return array ? packed_typed_select_ir_(element_ir,
+				    array->element_type(), id->path().back().index.back(),
+				    cls, value_slots, scope, loop_env) : "";
+			}
 			if (id->path().back().index.empty())
 			      return it->second.compare(0, 2, "s:") == 0
 				? "" : it->second;

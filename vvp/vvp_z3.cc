@@ -534,7 +534,8 @@ static bool constraint_inside_token_is_variable_(IRParser par)
 {
       string tok = par.read_token();
       return !tok.empty() && tok.compare(0, 3, "cw:") != 0
-	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 5, "qbad:") != 0
+	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 2, "f:") != 0
+	    && tok.compare(0, 5, "qbad:") != 0
 	    && tok.compare(0, 6, "qempty") != 0 && tok.compare(0, 2, "q:") != 0;
 }
 
@@ -1001,6 +1002,7 @@ struct Z3Builder {
       set<unsigned> real_ast_ids;
       map<unsigned, double> real_constants;
       map<unsigned, constraint_real_bounds_t> real_bounds;
+      map<unsigned, vector<double> > real_inside_points;
       bool collect_real_bounds = true;
 
       void mark_real(Z3_ast value) {
@@ -4224,6 +4226,76 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    return selected;
       }
 
+	/* Scope randomization of a fixed unpacked array flattens each declared
+	 * element into an ordinary scope argument. Select the matching argument
+	 * while retaining the source index expression (which may itself depend on
+	 * another random argument). */
+      if (op == "ascope") {
+	    string hdr = par.read_token();
+	    unsigned start = 0, width = 32; bool sign = false;
+	    { const char*c = hdr.c_str(); char*end = nullptr;
+	      start = (unsigned)strtoul(c, &end, 10);
+	      if (end == c || *end++ != ':') {
+		    b.state_errors.push_back("malformed scope fixed-array header");
+		    return b.mk_true();
+	      }
+	      width = (unsigned)strtoul(end, &end, 10);
+	      sign = *end == ':' && end[1] == 's';
+	    }
+	    string range = par.read_token();
+	    char*colon = nullptr;
+	    long long low = strtoll(range.c_str(), &colon, 10);
+	    char*end = nullptr;
+	    unsigned long count = colon && *colon == ':'
+		  ? strtoul(colon + 1, &end, 10) : 0;
+	    if (!width || count == 0 || !colon || *colon != ':'
+		|| end == colon + 1 || *end || count > UINT_MAX
+		|| start > UINT_MAX - count) {
+		  b.state_errors.push_back("invalid scope fixed-array dimensions");
+		  return b.mk_true();
+	    }
+	    set<Z3Builder::VarRef> index_refs;
+	    set<Z3Builder::VarRef>*saved_refs = b.collect_refs;
+	    b.collect_refs = &index_refs;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    Z3_ast index = build_z3_atom(par, b);
+	    b.collect_refs = saved_refs;
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
+	    if (saved_refs) saved_refs->insert(index_refs.begin(), index_refs.end());
+	    par.skip_ws(); par.expect(')');
+	    Z3_ast selected = Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    for (unsigned long ordinal = count; ordinal-- > 0;) {
+		  if (ordinal > (unsigned long)INT64_MAX
+		      || low > INT64_MAX - (long long)ordinal) {
+			b.state_errors.push_back(
+			      "scope fixed-array index exceeds signed 64-bit representation");
+			return selected;
+		  }
+		  unsigned arg = start + (unsigned)ordinal;
+		  if (b.collect_refs) {
+			Z3Builder::VarRef ref = {
+			      Z3Builder::VarRef::PROP, arg, 0
+			};
+			b.collect_refs->insert(ref);
+		  }
+		  Z3_ast value = b.collect_refs_only
+			? Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width))
+			: b.get_prop_var(arg, width);
+		  Z3_ast equal = constraint_index_equal_(b, index,
+			  low + (long long)ordinal);
+		  selected = Z3_mk_ite(b.ctx, equal, value, selected);
+		  if (sign) b.signed_vars.insert(value);
+	    }
+	    b.set_sv(selected, width);
+	    if (sign) b.signed_vars.insert(selected);
+	    return selected;
+      }
+
       /* A selected field of an unpacked parameter array. The leaves are
        * compile-time constants, but the index remains a solver expression.
        * An x leaf is an error only when selected (18.3); Table 7-1 gives an
@@ -5771,10 +5843,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			}
 		  } else if (par.peek() == '(') {
 			Z3_ast v = build_z3_atom(par, b);
-			if (real_subject || b.is_real(v))
+			if (real_subject || b.is_real(v)) {
+			      double point = 0.0;
+			      if (real_subject && real_property != UINT_MAX
+				  && b.real_constant(v, point)
+				  && isfinite(point))
+				    b.real_inside_points[real_property].push_back(point);
 			      clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 				    z3_to_real_(b, subject), z3_to_real_(b, v)));
-			else {
+			} else {
 			      v = match_width(v);
 			      clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
 			}
@@ -5800,10 +5877,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      if (!value_parser.at_end())
 				    b.state_errors.push_back(
 					  "malformed real constraint inside member");
-			      if (real_subject || b.is_real(value))
+			      if (real_subject || b.is_real(value)) {
+				    double point = 0.0;
+				    uint64_t point_bits = strtoull(tok.c_str() + 2,
+					  nullptr, 10);
+				    memcpy(&point, &point_bits, sizeof point);
+				    if (real_subject && real_property != UINT_MAX
+					&& isfinite(point))
+					  b.real_inside_points[real_property].push_back(point);
 				    clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 					  z3_to_real_(b, subject), z3_to_real_(b, value)));
-			      else
+			      } else
 				    clauses.push_back(Z3_mk_eq(b.ctx,
 					  subj_at(value), value));
 			} else if (tok.compare(0, 3, "cw:") == 0) {
@@ -11482,6 +11566,37 @@ static bool z3_joint_unique_projection_(Z3_context ctx, Z3_solver base,
       return result == Z3_L_FALSE;
 }
 
+/* Remove variables that are uniquely determined by the remaining projection.
+ * A single dependent variable is not enough for a chain such as
+ *   x == v + 100; y == x + 1; w == x + 1
+ * because projecting x, y, and w still includes two mutually dependent
+ * values. Repeatedly shrink the projection until every removed variable is
+ * functionally determined by it. Sampling the remaining projection uniformly
+ * and asking the solver for the unique completion is then uniform over the
+ * complete satisfying tuples. */
+static vector<Z3_ast> z3_joint_free_projection_(Z3_context ctx,
+      Z3_solver base, const vector<Z3_ast>&variables)
+{
+      vector<Z3_ast> projection = variables;
+      bool changed;
+      do {
+            changed = false;
+            for (size_t i = 0; i < projection.size();) {
+                  vector<Z3_ast> others = projection;
+                  Z3_ast dependent = others[i];
+                  others.erase(others.begin() + i);
+                  if (z3_joint_unique_projection_(ctx, base, others,
+                                                  dependent)) {
+                        projection.swap(others);
+                        changed = true;
+                  } else {
+                        ++i;
+                  }
+            }
+      } while (changed && !projection.empty());
+      return projection;
+}
+
 /* Prove that a one-variable factor admits exactly [0, 2^bits).  This
  * narrowly replaces complete tuple enumeration for bounded nested fields
  * whose entire legal set is a power-of-two prefix.  The proof is semantic:
@@ -13475,31 +13590,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			else if (uniform_joint_width.at(var) > 64)
 			      wide_direct_scalars = true;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
-			if (enumerate_direct_scalars && attempt == enumerate_after) {
+			if (enumerate_direct_scalars && !wide_direct_scalars
+			    && attempt == enumerate_after) {
 			      bool sampled_projection = false;
-		      vector<Z3_ast> dependents;
-		      if (!wide_direct_scalars) {
-			    dependents = component;
-			    stable_sort(dependents.begin(), dependents.end(),
-				    [&](Z3_ast left, Z3_ast right) {
-					  return uniform_joint_width.at(left)
-						> uniform_joint_width.at(right);
-				    });
-		      }
-			      for (Z3_ast dependent : dependents) {
-				    vector<Z3_ast> projection;
-				    for (Z3_ast var : component)
-					  if (var != dependent) projection.push_back(var);
-				    if (!z3_joint_unique_projection_(ctx, base,
-					  projection, dependent)) continue;
-				    // Uniqueness makes accepted projections a bijection with legal tuples.
-				    // shortcut: stop at 64 proposals; use projected model counting
-				    // if sparse inputs still make this path slow.
+			      vector<Z3_ast> projection =
+				    z3_joint_free_projection_(ctx, base, component);
+			      // The proof above makes each accepted projection a unique
+			      // complete tuple, including when several variables form a
+			      // dependency chain. The bounded proposals preserve uniform
+			      // sampling over those complete tuples.
 				    for (unsigned projected_attempt = 0;
 					  projected_attempt < uniform_joint_enumerate_after;
 					  ++projected_attempt) {
 					  vector<Z3_ast> pins;
-					  pins.reserve(component.size());
+					  pins.reserve(projection.size() + component.size());
 					  for (Z3_ast var : projection) {
 						unsigned width = uniform_joint_width.at(var);
 						z3_rng_stream_t&rng = property_rng(
@@ -13519,16 +13623,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  if (feasible == Z3_L_FALSE) continue;
 					  Z3_model model = Z3_solver_get_model(ctx, base);
 					  Z3_model_inc_ref(ctx, model);
-					  uint64_t value = 0;
-					  bool extracted = z3_eval_uint64(ctx, model,
-						dependent, value);
+					  bool extracted = true;
+					  for (Z3_ast var : component) {
+						if (find(projection.begin(), projection.end(), var)
+						      != projection.end()) continue;
+						uint64_t value = 0;
+						if (!z3_eval_uint64(ctx, model, var, value)) {
+						      extracted = false;
+						      break;
+						}
+						pins.push_back(Z3_mk_eq(ctx, var,
+						      Z3_mk_unsigned_int64(ctx, value,
+							    Z3_get_sort(ctx, var))));
+					  }
 					  Z3_model_dec_ref(ctx, model);
 					  if (!extracted)
 						return fail_joint(
 						      "a functional joint model value could not be extracted");
-					  pins.push_back(Z3_mk_eq(ctx, dependent,
-						Z3_mk_unsigned_int64(ctx, value,
-						      Z3_get_sort(ctx, dependent))));
 					  for (Z3_ast pin : pins) {
 						Z3_solver_assert(ctx, base, pin);
 						Z3_optimize_assert(ctx, opt, pin);
@@ -13538,8 +13649,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  sampled_projection = true;
 					  break;
 				    }
-				    if (sampled_projection) break;
-			      }
 			      if (sampled_projection) break;
 			      if (enumerate_after == uniform_joint_enumerate_after
 			          && z3_joint_has_free_block_(ctx, base, component,
@@ -14073,9 +14182,36 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      "real-valued dist sampling is not supported";
 			return;
 		  }
-		  if (bounds == builder.real_bounds.end()
+		  bool real_sampled = false;
+		  auto points = builder.real_inside_points.find(pv.idx);
+		  if (points != builder.real_inside_points.end()) {
+			vector<uint64_t> feasible_points;
+			for (double point : points->second) {
+			      uint64_t point_bits = z3_real_bits_(point);
+			      if (find(feasible_points.begin(), feasible_points.end(),
+				       point_bits) != feasible_points.end()) continue;
+			      Z3_ast value = Z3_mk_unsigned_int64(
+				    ctx, point_bits, Z3_get_sort(ctx, pv.var));
+			      Z3_ast pin = Z3_mk_eq(ctx, pv.var, value);
+			      Z3_solver_push(ctx, base);
+			      Z3_solver_assert(ctx, base, pin);
+			      Z3_lbool result = Z3_solver_check(ctx, base);
+			      Z3_solver_pop(ctx, base, 1);
+			      if (result == Z3_L_UNDEF) {
+				    feasible_points.clear();
+				    break;
+			      }
+			      if (result == Z3_L_TRUE) feasible_points.push_back(point_bits);
+			}
+			if (!feasible_points.empty()) {
+			      bits = feasible_points[property_rng(pv.idx).uniform_u64(
+				    feasible_points.size())];
+			      real_sampled = true;
+			}
+		  }
+		  if (!real_sampled && (bounds == builder.real_bounds.end()
 		      || !z3_sample_real_candidate_(ctx, base, pv.var,
-			    bounds->second, property_rng(pv.idx), bits)) {
+			    bounds->second, property_rng(pv.idx), bits))) {
 			    real_sampling_failed = true;
 			    real_sampling_error =
 				  "no feasible binary64 value satisfies the finite real interval";

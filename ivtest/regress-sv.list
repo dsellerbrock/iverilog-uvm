@@ -6,6 +6,7 @@ issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range
 
 issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
 issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+issue801_assoc_struct_p normal,-g2017,-s,issue801_assoc_struct_p ivltests gold=issue801_assoc_struct_p.gold
 
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
 issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
@@ -197,6 +198,8 @@ sv_urandom_extra_arg_fail_2017 CE,-g2017,-s,main ivltests gold=sv_urandom_extra_
 sv_urandom_extra_arg_fail_2023 CE,-g2023,-s,main ivltests gold=sv_urandom_extra_arg_fail_2023.gold
 issue1253_invalid_dpi_linkage_2017 CE,-g2017,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2017.gold
 issue1253_invalid_dpi_linkage_2023 CE,-g2023,-s,issue1253_invalid_dpi_linkage ivltests gold=issue1253_invalid_dpi_linkage_2023.gold
+issue871_dup_dpi_c_identifier_2017 CE,-g2017,-s,issue871_dup_dpi_c_identifier ivltests gold=issue871_dup_dpi_c_identifier_2017.gold
+issue871_dup_dpi_c_identifier_2023 CE,-g2023,-s,issue871_dup_dpi_c_identifier ivltests gold=issue871_dup_dpi_c_identifier_2023.gold
 issue1226_proc_decl_order CE,-g2017,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2017.gold
 issue1226_proc_decl_order_2023 CE,-g2023,-s,declaration_after_statement ivltests gold=issue1226_proc_decl_order_2023.gold
 sv_checker_always_ff_blocking_fail_2017 CE,-g2017,-s,sv_checker_always_ff_blocking_fail ivltests gold=sv_checker_always_ff_blocking_fail_2017.gold
@@ -5753,8 +5756,8 @@ sv_std_randomize_fixed_array normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std
 sv_std_randomize_fixed_array_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array ivltests gold=sv_std_randomize_fixed_array.gold
 sv_std_randomize_unpacked_struct normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
 sv_std_randomize_unpacked_struct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_unpacked_struct ivltests gold=sv_std_randomize_unpacked_struct.gold
-sv_std_randomize_fixed_array_with_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
-sv_std_randomize_fixed_array_with_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_fail ivltests gold=sv_std_randomize_fixed_array_with_fail.gold
+sv_std_randomize_fixed_array_with_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_2017 ivltests gold=sv_std_randomize_fixed_array_with-vvp-stdout.gold
+sv_std_randomize_fixed_array_with_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_fixed_array_with_2023 ivltests gold=sv_std_randomize_fixed_array_with-vvp-stdout.gold
 sv_std_randomize_zero_arg_checker normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_zero_arg_checker ivltests gold=sv_std_randomize_zero_arg_checker.gold
 sv_std_randomize_zero_arg_checker_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_std_randomize_zero_arg_checker ivltests gold=sv_std_randomize_zero_arg_checker.gold
 sv_bitstoreal_wide_arg normal,-g2017,-s,main ivltests gold=sv_bitstoreal_wide_arg.gold
@@ -6421,3 +6424,9 @@ issue794_nested_dynamic_array_queries_2023 normal,-g2023,-s,test ivltests gold=i
 
 issue767_undeclared_ref CE,-g2017,-s,issue767_undeclared_ref ivltests
 issue767_generate_implicit_scope CE,-g2017,-s,issue767_generate_implicit_scope ivltests
+issue1829_linear_equality_chain_2017 normal,-g2017,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
+issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
+
+# IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
+issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
+issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold

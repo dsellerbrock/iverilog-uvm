@@ -1,0 +1,5 @@
+p='{10:'{sw:OFF, s:"switch10"}, 20:'{sw:ON, s:"switch20"}}
+0p='{10:'{sw:OFF, s:"switch10"}, 20:'{sw:ON, s:"switch20"}}
+ISSUE801_PASSED
+PASSED
+./ivltests/issue801_assoc_struct_p.v:44: $finish called at 0 (1s)
