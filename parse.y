@@ -2743,6 +2743,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <perm_strings> loop_variables foreach_selector_prefixes
 %type <perm_strings> randomize_with_identifier_tail
 %type <sva_property_formals> sva_property_formal_list
+%type <sva_property_formals> sva_property_formal_declaration
 %destructor { for (sva_property_formal_t&formal : *$$)
 		{ delete formal.default_expr; } delete $$; } <sva_property_formals>
 %type <sva_formals> sva_sequence_formal_list
@@ -8064,24 +8065,26 @@ property_declaration
 	pform_sva_declare_property(@2, $2, p);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';' property_spec ';' K_endproperty
-      { pform_sva_declare_property_p(@2, $2, $4, $7);
+  | K_property IDENTIFIER sva_property_formal_declaration
+      property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $3, $4);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@11, "property", $2, $11);
-	pform_sva_declare_property_p(@2, $2, $4, $7);
+  | K_property IDENTIFIER sva_property_formal_declaration
+      property_spec ';' K_endproperty ':' IDENTIFIER
+      { check_end_label(@8, "property", $2, $8);
+	pform_sva_declare_property_p(@2, $2, $3, $4);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+  | K_property IDENTIFIER sva_property_formal_declaration
       sva_int_local_declarations property_spec ';' K_endproperty
-      { pform_sva_declare_property_p(@2, $2, $4, $8);
+      { pform_sva_declare_property_p(@2, $2, $3, $5);
 	delete[] $2;
       }
-  | K_property IDENTIFIER '(' sva_property_formal_list ')' ';'
+  | K_property IDENTIFIER sva_property_formal_declaration
       sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
-      { check_end_label(@12, "property", $2, $12);
-	pform_sva_declare_property_p(@2, $2, $4, $8);
+      { check_end_label(@9, "property", $2, $9);
+	pform_sva_declare_property_p(@2, $2, $3, $5);
 	delete[] $2;
       }
   ;
@@ -9065,6 +9068,14 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   ;
 
   /* Property formals retain their type and optional default actual. */
+sva_property_formal_declaration
+  : '(' sva_property_formal_list ')' ';'
+      { pform_sva_begin_local_declarations();
+	for (const sva_property_formal_t&formal : *$2)
+	  if (formal.local_formal) pform_sva_add_local_formal(formal.name.str());
+	$$ = $2; }
+  ;
+
 sva_property_formal_list
   : sva_property_formal_list ',' IDENTIFIER initializer_opt
       { sva_property_formal_t formal;
@@ -9072,6 +9083,9 @@ sva_property_formal_list
 	if (!$1->empty()) {
 	      formal.formal_type = $1->back().formal_type;
 	      formal.type = $1->back().type;
+	      formal.local_formal = $1->back().local_formal;
+	      formal.local_input = $1->back().local_input;
+	      formal.local_bad_direction = $1->back().local_bad_direction;
 	}
 	formal.default_expr = $4;
 	$1->push_back(formal); delete[]$3; $$ = $1; }
@@ -9093,6 +9107,82 @@ sva_property_formal_list
 	formal.formal_type = sva_property_formal_t::DATA_TYPE;
 	formal.default_expr = $3;
 	l->push_back(formal); delete[]$2; $$ = l; }
+	| sva_property_formal_list ',' K_local K_input data_type IDENTIFIER initializer_opt
+	    { sva_property_formal_t formal;
+	      formal.name = lex_strings.make($6);
+	      formal.type = $5;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_input = true;
+	      formal.default_expr = $7;
+	      $1->push_back(formal); delete[]$6; $$ = $1; }
+	| K_local K_input data_type IDENTIFIER initializer_opt
+	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
+	      sva_property_formal_t formal;
+	      formal.name = lex_strings.make($4);
+	      formal.type = $3;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_input = true;
+	      formal.default_expr = $5;
+	      l->push_back(formal); delete[]$4; $$ = l; }
+	| sva_property_formal_list ',' K_local data_type IDENTIFIER initializer_opt
+	    { sva_property_formal_t formal;
+	      formal.name = lex_strings.make($5);
+	      formal.type = $4;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_input = true;
+	      formal.default_expr = $6;
+	      $1->push_back(formal); delete[]$5; $$ = $1; }
+	| K_local data_type IDENTIFIER initializer_opt
+	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
+	      sva_property_formal_t formal;
+	      formal.name = lex_strings.make($3);
+	      formal.type = $2;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_input = true;
+	      formal.default_expr = $4;
+	      l->push_back(formal); delete[]$3; $$ = l; }
+	| sva_property_formal_list ',' K_local K_inout data_type IDENTIFIER initializer_opt
+	    { sva_property_formal_t formal;
+	      formal.name = lex_strings.make($6);
+	      formal.type = $5;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_bad_direction = true;
+	      formal.default_expr = $7;
+	      $1->push_back(formal); delete[]$6; $$ = $1; }
+	| K_local K_inout data_type IDENTIFIER initializer_opt
+	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
+	      sva_property_formal_t formal;
+	      formal.name = lex_strings.make($4);
+	      formal.type = $3;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_bad_direction = true;
+	      formal.default_expr = $5;
+	      l->push_back(formal); delete[]$4; $$ = l; }
+	| sva_property_formal_list ',' K_local K_output data_type IDENTIFIER initializer_opt
+	    { sva_property_formal_t formal;
+	      formal.name = lex_strings.make($6);
+	      formal.type = $5;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_bad_direction = true;
+	      formal.default_expr = $7;
+	      $1->push_back(formal); delete[]$6; $$ = $1; }
+	| K_local K_output data_type IDENTIFIER initializer_opt
+	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
+	      sva_property_formal_t formal;
+	      formal.name = lex_strings.make($4);
+	      formal.type = $3;
+	      formal.formal_type = sva_property_formal_t::DATA_TYPE;
+	      formal.local_formal = true;
+	      formal.local_bad_direction = true;
+	      formal.default_expr = $5;
+	      l->push_back(formal); delete[]$4; $$ = l; }
 	| sva_property_formal_list ',' K_untyped IDENTIFIER initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
