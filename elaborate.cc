@@ -21093,7 +21093,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    PExpr*actual = args[parms_idx];
 	    if (port->port_type() == NetNet::PREF
-		&& parms_idx < original_args.size())
+		&& parms_idx < original_args.size()
+		&& original_args[parms_idx])
 		  actual = original_args[parms_idx];
 	    NetScope*actual_scope = scope;
 	    if (!actual && (port->port_type() == NetNet::POUTPUT
