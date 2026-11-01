@@ -231,6 +231,7 @@ class Module : public PScopeExtra, public PNamedItem {
       SymbolType symbol_type() const override;
 
       bool can_be_toplevel() const;
+      perm_string first_interface_port() const;
 
     private:
       void dump_specparams_(std::ostream&out, unsigned indent) const;

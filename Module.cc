@@ -256,3 +256,17 @@ bool Module::can_be_toplevel() const
 
       return true;
 }
+
+perm_string Module::first_interface_port() const
+{
+      for (map<perm_string,PWire*>::const_iterator cur = wires.begin()
+	   ; cur != wires.end() ; ++ cur) {
+	    const PWire*wire = cur->second;
+	    const interface_type_t*interface_type =
+		  dynamic_cast<const interface_type_t*>(wire->data_type());
+	    if (wire->is_port() && interface_type && !interface_type->virtual_type)
+		  return cur->first;
+      }
+
+      return perm_string();
+}

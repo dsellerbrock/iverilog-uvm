@@ -1,0 +1,2 @@
+issue1853_unconnected_interface_root_2017 CE,-g2017 ivltests gold=issue1853_unconnected_interface_root.gold
+issue1853_unconnected_interface_root_2023 CE,-g2023 ivltests gold=issue1853_unconnected_interface_root.gold

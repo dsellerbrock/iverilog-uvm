@@ -1278,6 +1278,24 @@ int main(int argc, char*argv[])
 	    return ignore_missing_modules ? 0 : 1;
       }
 
+	/* An implicitly instantiated top-level module has no parent to
+	   provide an actual for an interface port. IEEE 1800-2017/2023
+	   23.3.3.4 forbids leaving that port unconnected. */
+      for (const perm_string&root : roots) {
+	    map<perm_string,Module*>::const_iterator mod =
+		  pform_modules.find(root);
+	    if (mod == pform_modules.end() || mod->second->is_interface)
+		  continue;
+	    perm_string port = mod->second->first_interface_port();
+	    if (port.nil())
+		  continue;
+
+	    cerr << "error: Top-level module `" << root
+		 << "` has unconnected interface port `" << port
+		 << "` (IEEE 1800-2017/2023 23.3.3.4)." << endl;
+	    return 1;
+      }
+
 
       if (verbose_flag) {
 	    if (times_flag) {

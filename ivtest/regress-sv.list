@@ -6398,3 +6398,5 @@ issue636_function_call_implicit_var_2023 normal,-g2023,-s,issue636_function_call
 issue1715_modpath_condition normal,-g2017,-gspecify,-s,issue1715_modpath_condition ivltests gold=issue1715_modpath_condition
 issue1796_dynamic_locator_count_2017 normal,-g2017,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
 issue1796_dynamic_locator_count_2023 normal,-g2023,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
+issue1853_unconnected_interface_root_2017 CE,-g2017 ivltests gold=issue1853_unconnected_interface_root.gold
+issue1853_unconnected_interface_root_2023 CE,-g2023 ivltests gold=issue1853_unconnected_interface_root.gold

@@ -1,0 +1,1 @@
+error: Top-level module `orphan` has unconnected interface port `bus` (IEEE 1800-2017/2023 23.3.3.4).
