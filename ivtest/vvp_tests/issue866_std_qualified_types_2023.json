@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue866_std_qualified_types.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "vvp-args": [],
+  "gold": "issue866_std_qualified_types"
+}

@@ -455,6 +455,17 @@ TU [munpf]
       return IDENTIFIER;
 }
 
+  /* `std::randomize' has existing dedicated grammar for its argument and
+     with-clause forms. Keep `std' as an ordinary identifier only for that
+     qualified built-in call; all std-qualified type names use the package
+     token below and retain package identity for type lookup. */
+"std"/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"::"([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"randomize"([^a-zA-Z0-9$_]) {
+      assert(yylloc.lexical_pos != UINT_MAX);
+      yylloc.lexical_pos += 1;
+      yylval.text = strdupnew(yytext);
+      return IDENTIFIER;
+}
+
   /* Preserve an unresolved class name in `function C::new' as an ordinary
      IDENTIFIER. The same first identifier in an untyped ordinary function is
      returned as FUNCTION_IDENTIFIER by the general rule below, avoiding the

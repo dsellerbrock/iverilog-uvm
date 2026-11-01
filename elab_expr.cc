@@ -27631,11 +27631,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      // the parameter resolves to a class, return the class
 		      // name as a string; otherwise return an empty string as
 		      // a compile-progress fallback.
-		    if (!path_.package && path_.name.size() == 2) {
+		    if (path_.name.size() == 2) {
 			  const name_component_t&head_comp = path_.name.front();
 			  const name_component_t&tail_comp = path_.name.back();
 
-			  if (head_comp.index.empty() && tail_comp.index.empty()
+			  if (!path_.package
+			      && head_comp.index.empty() && tail_comp.index.empty()
 			      && tail_comp.name == perm_string::literal("type_name")) {
 				auto resolve_type_name = [&](ivl_type_t pt) -> std::string {
 				      if (!pt) return std::string();
@@ -27664,7 +27665,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				}
 			  }
 
-			  if (head_comp.index.empty() && tail_comp.index.empty()
+			  if ((!path_.package
+			       || path_.package->pscope_name() == perm_string::literal("std"))
+			      && head_comp.index.empty() && tail_comp.index.empty()
 			      && head_comp.name == perm_string::literal("process")) {
 				if (tail_comp.name == perm_string::literal("FINISHED")
 				    || tail_comp.name == perm_string::literal("RUNNING")
@@ -27892,7 +27895,10 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// Built-in process state enum constants (IEEE 1800-2017 9.7)
 	// that arrive as an unresolved two-component reference
 	// (process::KILLED parses the same as process.KILLED here).
-      if (gn_system_verilog() && path_.size() == 2
+	if (gn_system_verilog()
+	    && (!path_.package
+		|| path_.package->pscope_name() == perm_string::literal("std"))
+	    && path_.size() == 2
 	  && path_.name.front().index.empty()
 	  && path_.name.back().index.empty()
 	  && peek_head_name(path_) == perm_string::literal("process")) {
