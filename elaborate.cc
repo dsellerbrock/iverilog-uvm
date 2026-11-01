@@ -13977,6 +13977,21 @@ NetExpr* PEMatches::elaborate_expr(Design*des, NetScope*scope,
                                       des, scope);
 }
 
+static bool pattern_filter_fallback_(NetProc*body, NetProc*fallback)
+{
+      NetProc*last = body;
+      if (NetBlock*block = dynamic_cast<NetBlock*>(body)) {
+            last = const_cast<NetProc*>(block->proc_first());
+            while (last && block->proc_next(last))
+                  last = const_cast<NetProc*>(block->proc_next(last));
+      }
+      NetCondit*guard = dynamic_cast<NetCondit*>(last);
+      if (!guard)
+            return false;
+      guard->set_else_clause_borrowed(fallback);
+      return true;
+}
+
 /* Elaborate `case (X) matches` to an if-else cascade. The shared matcher
  * validates and lowers each complete typed pattern; the item's implicit block
  * performs pattern-variable copies before its user statement. Invalid
@@ -14029,6 +14044,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   if (!match) continue;
                   NetProc*body = item->stat
                         ? item->stat->elaborate(des, scope) : nullptr;
+                  if (item->has_filter
+                      && !pattern_filter_fallback_(body, nullptr)) {
+                        cerr << item->pattern->get_fileline()
+                             << ": internal error: Unable to lower pattern filter."
+                             << endl;
+                        des->errors += 1;
+                  }
                   res->set_case(idx, match, body, idx);
             }
             return res;
@@ -14054,6 +14076,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   if (!match)
                         continue;
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
+                  if (it->has_filter
+                      && !pattern_filter_fallback_(body, cascade)) {
+                        cerr << it->pattern->get_fileline()
+                             << ": internal error: Unable to lower pattern filter."
+                             << endl;
+                        des->errors += 1;
+                  }
                   NetCondit*cond = new NetCondit(match, body, cascade);
                   cond->set_line(*this);
                   cascade = cond;

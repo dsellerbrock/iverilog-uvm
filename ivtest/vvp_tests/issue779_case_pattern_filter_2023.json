@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue779_case_pattern_filter.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue779_case_pattern_filter"
+}
