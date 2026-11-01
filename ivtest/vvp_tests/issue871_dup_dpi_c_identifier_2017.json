@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue871_dup_dpi_c_identifier_2017.v",
+    "iverilog-args": [ "-g2017", "-s", "issue871_dup_dpi_c_identifier" ],
+    "gold": "issue871_dup_dpi_c_identifier_2017"
+}

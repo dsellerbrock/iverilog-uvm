@@ -96,6 +96,107 @@ static bool dpi_function_result_type_allowed_(ivl_type_t type)
 	      || vec->base_type() == IVL_VT_LOGIC);
 }
 
+struct dpi_signature_port_t {
+      const ivl_type_s*type;
+      NetNet::PortType direction;
+      netranges_t packed_dims;
+      netranges_t unpacked_dims;
+};
+
+struct dpi_signature_t {
+      const PTaskFunc*declaration;
+      string c_name;
+      bool pure;
+      bool context;
+      bool legacy;
+      bool task;
+      dpi_signature_port_t result;
+      vector<dpi_signature_port_t> ports;
+};
+
+static vector<dpi_signature_t> dpi_signatures_;
+static set<pair<const PTaskFunc*, const PTaskFunc*> > dpi_signature_errors_;
+
+static dpi_signature_port_t dpi_signature_port_(const NetNet*signal)
+{
+      dpi_signature_port_t result;
+      result.type = signal ? signal->net_type() : 0;
+      result.direction = signal ? signal->port_type() : NetNet::NOT_A_PORT;
+      if (signal) {
+	    result.packed_dims = signal->packed_dims();
+	    result.unpacked_dims = signal->unpacked_dims();
+      }
+      return result;
+}
+
+static bool dpi_signature_port_equal_(const dpi_signature_port_t&left,
+				      const dpi_signature_port_t&right)
+{
+      if (left.direction != right.direction
+	  || left.packed_dims != right.packed_dims
+	  || left.unpacked_dims != right.unpacked_dims)
+	    return false;
+      if (left.type == right.type)
+	    return true;
+      return left.type && right.type
+	  && left.type->type_equivalent(right.type)
+	  && right.type->type_equivalent(left.type);
+}
+
+static void check_dpi_signature_(Design*des, const PTaskFunc*decl,
+				 NetBaseDef*def, NetNet*result_signal)
+{
+      if (!decl->is_dpi_import() || !def)
+	    return;
+
+      dpi_signature_t signature;
+      signature.declaration = decl;
+      signature.c_name = decl->dpi_c_name();
+      signature.pure = decl->dpi_pure();
+      signature.context = decl->dpi_context();
+      signature.legacy = decl->dpi_legacy();
+      signature.task = dynamic_cast<const PTask*>(decl) != 0;
+      if (signature.task) {
+	    signature.result.type = netvector_t::integer_type(true);
+	    signature.result.direction = NetNet::POUTPUT;
+      } else {
+	    signature.result = dpi_signature_port_(result_signal);
+      }
+      for (unsigned idx = 0; idx < def->port_count(); idx += 1)
+	    signature.ports.push_back(dpi_signature_port_(def->port(idx)));
+
+      for (vector<dpi_signature_t>::const_iterator prev = dpi_signatures_.begin();
+	   prev != dpi_signatures_.end(); ++prev) {
+	    if (prev->c_name != signature.c_name)
+		  continue;
+	    // The parser already reports a DPI/DPI-C mismatch with a focused
+	    // diagnostic; avoid emitting a second signature error for the same rule.
+	    if (prev->legacy != signature.legacy)
+		  continue;
+	    bool same = prev->pure == signature.pure
+		  && prev->context == signature.context
+		  && prev->legacy == signature.legacy
+		  && prev->task == signature.task
+		  && dpi_signature_port_equal_(prev->result, signature.result)
+		  && prev->ports.size() == signature.ports.size();
+	    for (size_t idx = 0; same && idx < signature.ports.size(); idx += 1)
+		  same = dpi_signature_port_equal_(prev->ports[idx],
+						   signature.ports[idx]);
+	    if (same)
+		  continue;
+
+	    pair<const PTaskFunc*, const PTaskFunc*> key(prev->declaration, decl);
+	    if (dpi_signature_errors_.insert(key).second) {
+		  cerr << decl->get_fileline() << ": error: DPI linkage identifier '"
+		       << signature.c_name << "' has an incompatible type signature "
+		       << "(first declaration at " << prev->declaration->get_fileline()
+		       << ") (IEEE 1800-2017/2023 35.5.4)." << endl;
+		  des->errors += 1;
+	    }
+      }
+      dpi_signatures_.push_back(signature);
+}
+
 /* elaborate_class_property_type_ deliberately follows typedef declarations
  * directly so it can repair late class handles without re-entering a class
  * signature through typedef_t::elaborate_type. Preserve the forward-typedef
@@ -3571,6 +3672,8 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    def->replace_port_defaults(pdef);
       }
 
+      check_dpi_signature_(des, this, def, ret_sig);
+
       if (trace_func_sig) {
 	    cerr << get_fileline() << ": trace func-sig exit"
 		 << " scope=" << trace_scope_path.str()
@@ -3618,6 +3721,7 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       elaborate_sig_ports_(des, scope, ports, pdefs, port_names);
       NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
       scope->set_task_def(def);
+      check_dpi_signature_(des, this, def, 0);
       scope->elaborate_nettypes(des);
 
 	// R25 (Option B, IEEE 1800-2017 13.5.2): a real/string/container
