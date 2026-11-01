@@ -6609,7 +6609,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			if (weight != 0 && bounds_ok) {
 			      if (hi_coord >= lo_coord) {
 			            uint64_t exact_span = hi_coord - lo_coord + 1;
-			            if (exact_span == 0 || exact_span > 256)
+			            if (exact_span == 0 || exact_span > 512)
 			                  dspec.requires_large_exact = true;
 			      }
 			      Z3Builder::DistBranch db = {
@@ -10278,7 +10278,7 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 		  return z3_resolve_dist_exact_wide(ctx, base, opt, spec, rng,
 						    chosen, require_complete_ranges,
 						    validate_only, indeterminate);
-      static const uint64_t RANGE_EXPAND_CAP = 256;
+      static const uint64_t RANGE_EXPAND_CAP = 512;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
 			       bool comparison_signed) -> Z3_ast {
 	      // Match the same self-determined sizing used by the hard branch
@@ -11165,7 +11165,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 	    if (branch.value_width > 64) return true;
 	    if (!branch.is_range) return false;
 	    uint64_t span = branch.hi - branch.lo + 1;
-	    return span == 0 || span > 256;
+	    return span == 0 || span > 512;
       };
       vector<Candidate> candidates;
       big total;
@@ -13301,7 +13301,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               if (branch.is_range) {
                                     if (branch.hi < branch.lo) continue;
                                     span = branch.hi - branch.lo + 1;
-                                    if (span == 0 || span > 256) {
+                                    if (span == 0 || span > 512) {
                                           dist_ok = false;
                                           break;
                                     }

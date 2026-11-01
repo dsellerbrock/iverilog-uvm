@@ -5,13 +5,18 @@ endclass
 
 module test;
   nonsingleton_expression_item item;
+  int succeeded;
   initial begin
     item = new;
-    item.value = 10'h155;
-    if (item.randomize())
-      $fatal(1, "unsupported non-singleton expression succeeded");
-    if (item.value != 10'h155)
-      $fatal(1, "failed randomize changed the object");
+    repeat (50) begin
+      if (!item.randomize())
+        $fatal(1, "dist randomize failed");
+      if ((~item.value) > 10'd300)
+        $fatal(1, "dist result outside [0:300]");
+      succeeded++;
+    end
+    if (succeeded != 50)
+      $fatal(1, "expected 50 successful randomizations, got %0d", succeeded);
     $display("PASSED");
   end
 endmodule
