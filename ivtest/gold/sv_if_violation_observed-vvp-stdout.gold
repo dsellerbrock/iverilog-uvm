@@ -1,0 +1,13 @@
+D0
+D1 same process
+D2 other process, Inactive
+WARNING: ivltests/sv_if_violation_observed.v:7: no condition matches for priority or unique if statement
+         Time: 0  Scope: sv_if_violation_observed
+F0
+F1 resumed same step
+P0
+P1 same process
+WARNING: ivltests/sv_if_violation_observed.v:33: no condition matches for priority or unique if statement
+         Time: 2  Scope: sv_if_violation_observed
+G0
+G1
