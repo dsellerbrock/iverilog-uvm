@@ -429,9 +429,32 @@ static char* format_p_value(vpiHandle item)
   {
     const char *sv = (value.format != vpiSuppressVal && value.value.str)
                      ? value.value.str : "?";
+    char *numeric = strdup(sv);
     /* vpiDecStrVal is right-justified with leading spaces to the field
        width; %p uses the bare number, so skip any leading blanks. */
     while (*sv == ' ') sv += 1;
+    /* An enum's valid integral value is represented by its declared
+       identifier in %p. Keep invalid values on the base-type path. */
+    vpiHandle typespec = vpi_handle(vpiTypespec, item);
+    if (typespec && vpi_get(vpiType, typespec) == vpiEnumTypespec) {
+      vpiHandle iter = vpi_iterate(vpiEnumConst, typespec);
+      vpiHandle member;
+      while (iter && (member = vpi_scan(iter)) != 0) {
+        s_vpi_value enum_value;
+        enum_value.format = vpiDecStrVal;
+        vpi_get_value(member, &enum_value);
+        if (enum_value.value.str && strcmp(enum_value.value.str, numeric) == 0) {
+          char *name = vpi_get_str(vpiName, member);
+          if (name) {
+            char *result = strdup(name);
+            free(numeric);
+            return result;
+          }
+          break;
+        }
+      }
+    }
+    free(numeric);
     return strdup(sv);
   }
 }

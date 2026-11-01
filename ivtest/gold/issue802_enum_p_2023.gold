@@ -1,0 +1,5 @@
+e=OFF
+p='{sw:OFF, s:"hi"}
+ISSUE802_PASSED
+PASSED
+./ivltests/issue802_enum_p_2023.v:13: $finish called at 0 (1s)

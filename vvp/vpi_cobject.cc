@@ -211,9 +211,31 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 	    } else if (!bt.empty() && bt[0] == 'M') {
 		  out += "<container>";
 	    } else {
-		    // Integral property: read the vector and print in decimal.
+		  // Enum properties print their declared name when the stored
+		  // value matches a member; invalid values use the base type.
 		  vvp_vector4_t v;
 		  cobj->get_vec4(i, v);
+		  bool enum_named = false;
+		  if (defn->property_is_enum(i)) {
+			const std::vector<vvp_vector4_t>&values = defn->property_enum_values(i);
+			const std::vector<std::string>&names = defn->property_enum_names(i);
+			for (size_t ei = 0; ei < values.size(); ei += 1) {
+			      if (values[ei].size() != v.size()) continue;
+			      bool equal = true;
+			      for (unsigned bit = 0; bit < v.size(); bit += 1) {
+				    if (v.value(bit) != values[ei].value(bit)) {
+					  equal = false;
+					  break;
+				    }
+			      }
+			      if (equal && ei < names.size() && !names[ei].empty()) {
+				    out += names[ei];
+				    enum_named = true;
+				    break;
+			      }
+			}
+		  }
+		  if (enum_named) continue;
 		  bool is_signed = (!bt.empty() && bt[0] == 's');
 		  char b[256];
 		  vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);

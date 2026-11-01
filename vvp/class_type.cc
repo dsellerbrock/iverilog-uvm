@@ -1483,6 +1483,12 @@ const vector<vvp_vector4_t>&class_type::property_enum_values(size_t idx) const
       return idx < properties_.size() ? properties_[idx].enum_values : empty;
 }
 
+const vector<string>&class_type::property_enum_names(size_t idx) const
+{
+      static const vector<string> empty;
+      return idx < properties_.size() ? properties_[idx].enum_names : empty;
+}
+
 void class_type::bind_static_property(size_t idx, char*storage)
 {
       assert(idx < properties_.size());
@@ -2078,8 +2084,14 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 			string bits = domain.substr(begin,
 			      comma == string::npos ? string::npos
 						    : comma - begin);
-			if (!bits.empty())
-			      enum_bits.push_back(bits);
+			string::size_type equals = bits.find('=');
+			if (equals != string::npos) {
+			      properties_[idx].enum_names.push_back(bits.substr(equals+1));
+			      bits.erase(equals);
+			} else {
+			      properties_[idx].enum_names.push_back(string());
+			}
+			if (!bits.empty()) enum_bits.push_back(bits);
 			if (comma == string::npos)
 			      break;
 			begin = comma + 1;

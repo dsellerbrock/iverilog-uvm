@@ -99,6 +99,7 @@ class class_type : public __vpiHandle {
       bool property_is_virtual_interface(size_t idx) const;
       unsigned property_qualifier(size_t idx) const;
       const std::vector<vvp_vector4_t>&property_enum_values(size_t idx) const;
+      const std::vector<std::string>&property_enum_names(size_t idx) const;
 
 	// Return the canonical declaring-scope VPI storage for a static
 	// property. This resolves inherited absolute property indexes and
@@ -241,6 +242,7 @@ class class_type : public __vpiHandle {
 	    bool virtual_interface = false;
 	    std::string base_type;
 	    std::vector<vvp_vector4_t> enum_values;
+	    std::vector<std::string> enum_names;
 	    vpiHandle declared_class_type = 0;
 	    uint64_t array_size = 1;
 	    vvp_container_layout_t container_layout;
