@@ -588,17 +588,40 @@ hierarchical_identifier
 
 rtriple
   : signed_real_number_opt ':' signed_real_number_opt ':' signed_real_number_opt
-      { switch(sdf_min_typ_max) {
-	    case _vpiDelaySelMinimum:
-	       $$ = $1;
+      { struct sdf_delay_s selected;
+	int scale_index = 1;
+	int value_index = 1;
+	switch(sdf_scale_type) {
+	    case SDF_SCALE_FROM_MINIMUM:
+	       value_index = 0;
 	       break;
-	    case _vpiDelaySelTypical:
-	       $$ = $3;
+	    case SDF_SCALE_FROM_TYPICAL:
+	       value_index = 1;
 	       break;
-	    case _vpiDelaySelMaximum:
-	       $$ = $5;
+	    case SDF_SCALE_FROM_MAXIMUM:
+	       value_index = 2;
 	       break;
 	}
+	switch(sdf_min_typ_max) {
+	    case _vpiDelaySelMinimum:
+	       scale_index = 0;
+	       break;
+	    case _vpiDelaySelTypical:
+	       scale_index = 1;
+	       break;
+	    case _vpiDelaySelMaximum:
+	       scale_index = 2;
+	       break;
+	}
+	if (sdf_scale_type == SDF_SCALE_FROM_MTM)
+	      value_index = scale_index;
+	switch(value_index) {
+	    case 0: selected = $1; break;
+	    case 1: selected = $3; break;
+	    default: selected = $5; break;
+	}
+	$$ = selected;
+	if ($$.defined) $$.value *= sdf_scale_factors[scale_index];
 	  /* At least one of the values must be defined. */
 	if (! ($1.defined || $3.defined || $5.defined)) {
 	      vpi_printf("SDF ERROR: %s:%d: rtriple must have at least one "

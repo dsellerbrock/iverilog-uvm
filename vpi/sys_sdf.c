@@ -19,8 +19,10 @@
 
 # include  "sys_priv.h"
 # include  "sdf_priv.h"
+# include  <ctype.h>
 # include  <stdlib.h>
 # include  <string.h>
+# include  <strings.h>
 # include  <assert.h>
 
 /*
@@ -30,6 +32,8 @@
 int sdf_flag_warning = 0;
 int sdf_flag_inform = 0;
 int sdf_min_typ_max;
+double sdf_scale_factors[3] = { 1.0, 1.0, 1.0 };
+int sdf_scale_type = SDF_SCALE_FROM_MTM;
 
   /* Scope of the $sdf_annotate call. Annotation starts here. */
 static vpiHandle sdf_scope;
@@ -37,6 +41,25 @@ static vpiHandle sdf_callh = 0;
   /* The cell in process. */
 static vpiHandle sdf_cur_cell;
 static char* sdf_fname = NULL;
+
+static int sdf_string_is_blank(const char*value)
+{
+      while (*value) {
+	    if (!isspace((unsigned char)*value)) return 0;
+	    value += 1;
+      }
+      return 1;
+}
+
+static int sdf_string_arg_is_blank(vpiHandle arg)
+{
+      s_vpi_value value;
+
+      if (!arg || !is_string_obj(arg)) return 0;
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      return value.value.str && sdf_string_is_blank(value.value.str);
+}
 
 /* Percent limits depend on the final IOPATH delays, so apply pulse records after parsing. */
 struct sdf_pathpulse_annotation_s {
@@ -555,10 +578,11 @@ static PLI_INT32 sys_sdf_annotate_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    vpi_control(vpiFinish, 1);
       }
 
-	/* The module argument is optional. */
+      /* The module argument is optional. */
       module = vpi_scan(argv);
       if (module == 0) return 0;
-      if (vpi_get(vpiType, module) != vpiModule) {
+      if (module != 0 && vpi_get(vpiType, module) != vpiModule &&
+	  !sdf_string_arg_is_blank(module)) {
 	    vpi_printf("SDF ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
 	    vpi_printf("%s's second argument must be a module instance.\n",
@@ -567,15 +591,8 @@ static PLI_INT32 sys_sdf_annotate_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    vpi_control(vpiFinish, 1);
       }
 
-	/* Warn the user that we only use the first two arguments. */
-      if (vpi_scan(argv) != 0) {
-	    vpi_printf("SDF WARNING: %s:%d: ", vpi_get_str(vpiFile, callh),
-	               (int)vpi_get(vpiLineNo, callh));
-	    vpi_printf("%s currently only uses the first two argument.\n",
-	               name);
-	    vpi_free_object(argv);
-      }
-
+      /* Remaining optional arguments are consumed by the call function. */
+      if (vpi_scan(argv) != 0) vpi_free_object(argv);
       return 0;
 }
 
@@ -583,6 +600,8 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle scope_arg, config_arg, log_arg, mtm_arg, scale_arg, type_arg;
+      int argv_exhausted = 0;
       FILE *sdf_fd;
       char *fname = get_filename(callh, name, vpi_scan(argv));
 
@@ -610,13 +629,80 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
       sdf_fname = fname;
 
-	/* The optional second argument is the scope to annotate. */
-      sdf_scope = vpi_scan(argv);
-      if (sdf_scope) vpi_free_object(argv);
-      else sdf_scope = vpi_handle(vpiScope, callh);
+	/* Preserve positional argument slots, including omitted optional arguments. */
+	scope_arg = vpi_scan(argv);
+	if (!scope_arg) argv_exhausted = 1;
+	config_arg = argv_exhausted ? 0 : vpi_scan(argv);
+	if (!config_arg && !argv_exhausted) argv_exhausted = 1;
+	log_arg = argv_exhausted ? 0 : vpi_scan(argv);
+	if (!log_arg && !argv_exhausted) argv_exhausted = 1;
+	mtm_arg = argv_exhausted ? 0 : vpi_scan(argv);
+	if (!mtm_arg && !argv_exhausted) argv_exhausted = 1;
+	scale_arg = argv_exhausted ? 0 : vpi_scan(argv);
+	if (!scale_arg && !argv_exhausted) argv_exhausted = 1;
+	type_arg = argv_exhausted ? 0 : vpi_scan(argv);
+	if (!type_arg && !argv_exhausted) argv_exhausted = 1;
+	(void)config_arg;
+	(void)log_arg;
+	sdf_scope = scope_arg;
+	if (!sdf_scope || sdf_string_arg_is_blank(sdf_scope))
+	      sdf_scope = vpi_handle(vpiScope, callh);
 
 	/* Select which delay to use. */
       sdf_min_typ_max = vpi_get(_vpiDelaySelection, 0);
+	if (mtm_arg) {
+	      s_vpi_value value;
+	      value.format = vpiStringVal;
+	      vpi_get_value(mtm_arg, &value);
+	      if (value.value.str && !sdf_string_is_blank(value.value.str)) {
+		    if (strcasecmp(value.value.str, "MINIMUM") == 0)
+			  sdf_min_typ_max = _vpiDelaySelMinimum;
+		    else if (strcasecmp(value.value.str, "TYPICAL") == 0)
+			  sdf_min_typ_max = _vpiDelaySelTypical;
+		    else if (strcasecmp(value.value.str, "MAXIMUM") == 0)
+			  sdf_min_typ_max = _vpiDelaySelMaximum;
+		    else if (strcasecmp(value.value.str, "TOOL_CONTROL") != 0)
+			  vpi_printf("SDF WARNING: %s:%d: Unknown mtm_spec '%s'; using TOOL_CONTROL.\n",
+			             vpi_get_str(vpiFile, callh),
+			             (int)vpi_get(vpiLineNo, callh), value.value.str);
+	      }
+	}
+	sdf_scale_factors[0] = sdf_scale_factors[1] = sdf_scale_factors[2] = 1.0;
+	if (scale_arg) {
+	      s_vpi_value value;
+	      value.format = vpiStringVal;
+	      vpi_get_value(scale_arg, &value);
+	      if (value.value.str && !sdf_string_is_blank(value.value.str)) {
+		    char extra;
+		    if (sscanf(value.value.str, "%lf:%lf:%lf%c",
+		               &sdf_scale_factors[0], &sdf_scale_factors[1],
+		               &sdf_scale_factors[2], &extra) != 3) {
+			  vpi_printf("SDF WARNING: %s:%d: Invalid scale_factors '%s'; using 1:1:1.\n",
+			             vpi_get_str(vpiFile, callh),
+			             (int)vpi_get(vpiLineNo, callh), value.value.str);
+			  sdf_scale_factors[0] = sdf_scale_factors[1] = sdf_scale_factors[2] = 1.0;
+		    }
+	      }
+	}
+	sdf_scale_type = SDF_SCALE_FROM_MTM;
+	if (type_arg) {
+	      s_vpi_value value;
+	      value.format = vpiStringVal;
+	      vpi_get_value(type_arg, &value);
+	      if (value.value.str && !sdf_string_is_blank(value.value.str)) {
+		    if (strcasecmp(value.value.str, "FROM_MINIMUM") == 0)
+			  sdf_scale_type = SDF_SCALE_FROM_MINIMUM;
+		    else if (strcasecmp(value.value.str, "FROM_TYPICAL") == 0)
+			  sdf_scale_type = SDF_SCALE_FROM_TYPICAL;
+		    else if (strcasecmp(value.value.str, "FROM_MAXIMUM") == 0)
+			  sdf_scale_type = SDF_SCALE_FROM_MAXIMUM;
+		    else if (strcasecmp(value.value.str, "FROM_MTM") != 0)
+			  vpi_printf("SDF WARNING: %s:%d: Unknown scale_type '%s'; using FROM_MTM.\n",
+			             vpi_get_str(vpiFile, callh),
+			             (int)vpi_get(vpiLineNo, callh), value.value.str);
+	      }
+	}
+	if (!argv_exhausted) vpi_free_object(argv);
 
       sdf_cur_cell = 0;
       sdf_callh = callh;
