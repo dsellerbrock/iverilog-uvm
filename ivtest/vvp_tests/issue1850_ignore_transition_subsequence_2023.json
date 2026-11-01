@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1850_ignore_transition_subsequence.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1850_ignore_transition_subsequence"
+}
