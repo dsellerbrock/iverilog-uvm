@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue899_sdf_annotate.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue899_sdf_annotate"],
+  "gold": "issue899_sdf_annotate"
+}
