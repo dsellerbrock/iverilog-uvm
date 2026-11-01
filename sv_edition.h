@@ -148,6 +148,8 @@
 		     "embedded covergroup inheritance")\
 	SV_FEATURE_ROW(SVF_TIMESCALE_RETRIEVAL_FUNCTIONS, GN_VER2023,\
 		     "the $timeunit and $timeprecision system functions")\
+	SV_FEATURE_ROW(SVF_PRINTTIMESCALE_SCOPE_ARGUMENTS, GN_VER2023,\
+		     "the $root and $unit arguments to $printtimescale")\
 	SV_FEATURE_ROW(SVF_REF_STATIC_TF_ARGUMENTS, GN_VER2023,\
 		     "ref static task/function arguments")\
       SV_FEATURE_ROW(SVF_ITERATOR_INDEX, GN_VER2005_SV,		\

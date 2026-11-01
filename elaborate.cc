@@ -15188,6 +15188,42 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  }
 	    }
 
+	    /* IEEE 1800-2023 20.4.2 defines $root as the simulation time
+	       precision, rather than as a VPI scope object. Preserve the
+	       identifier as an internal string sentinel for the VPI task. */
+	    if (name == "$printtimescale" && idx == 0) {
+	      if (const PEIdent*unit =
+		    dynamic_cast<const PEIdent*>(parm.parm)) {
+		    const pform_scoped_name_t&path = unit->path();
+		    if (path.package && path.name.size() == 1
+			&& path.name.front().name == path.package->pscope_name()) {
+			  if (NetScope*unit_scope =
+				  des->find_package(path.package->pscope_name())) {
+				eparms[idx] = new NetEScope(unit_scope);
+				eparms[idx]->set_line(*parm.parm);
+				continue;
+			  }
+		    }
+	      }
+	      if (const PECallFunction*root =
+		    dynamic_cast<const PECallFunction*>(parm.parm)) {
+		    if (root->receiver_expr() == nullptr
+			&& root->path().package == nullptr
+			&& root->path().name.size() == 1
+			&& peek_tail_name(root->path()) == "$root"
+			&& root->get_parms().empty()) {
+			  if (!sv_require_feature(root,
+					  SVF_PRINTTIMESCALE_SCOPE_ARGUMENTS)) {
+				des->errors += 1;
+				continue;
+			  }
+			  eparms[idx] = new NetECString("$root");
+			  eparms[idx]->set_line(*parm.parm);
+			  continue;
+		    }
+	      }
+	    }
+
 	    if (diagnose_interconnect_value_reference_(des, scope, parm.parm)) {
 		  eparms[idx] = 0;
 		  continue;
@@ -15195,6 +15231,15 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
 			    parm.parm);
+	    if (name == "$printtimescale" && idx == 0 && eparms[idx]
+		&& !dynamic_cast<NetEScope*>(eparms[idx])) {
+	      cerr << parm.get_fileline() << ": error: argument 1 of "
+		   << name << " must name a design scope, $root, or $unit."
+		   << endl;
+	      des->errors += 1;
+	      delete eparms[idx];
+	      eparms[idx] = nullptr;
+	    }
 
 	    if (coverage_db_task && idx == 0 && eparms[idx]) {
 		  bool is_string = eparms[idx]->expr_type() == IVL_VT_STRING;

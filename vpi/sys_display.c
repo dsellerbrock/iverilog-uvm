@@ -2372,6 +2372,30 @@ static const char *pts_convert(int value)
       return string;
 }
 
+static int sys_printtimescale_is_root(vpiHandle arg)
+{
+      s_vpi_value value;
+
+      if (vpi_get(vpiType, arg) != vpiConstant)
+	    return 0;
+
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      return value.value.str && strcmp(value.value.str, "$root") == 0;
+}
+
+static int sys_printtimescale_is_unit(vpiHandle arg)
+{
+      const char*name;
+
+      if (vpi_get(vpiType, arg) != vpiPackage)
+	    return 0;
+
+      name = vpi_get_str(vpiName, arg);
+      return name && strncmp(name, "$unit", 5) == 0
+	    && (name[5] == '\0' || name[5] == '#');
+}
+
 static PLI_INT32 sys_printtimescale_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh   = vpi_handle(vpiSysTfCall, 0);
@@ -2379,7 +2403,11 @@ static PLI_INT32 sys_printtimescale_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       if (argv) {
 	    vpiHandle arg = vpi_scan(argv);
-	    switch (vpi_get(vpiType, arg)) {
+	    if (sys_printtimescale_is_root(arg)
+		|| sys_printtimescale_is_unit(arg)) {
+		  /* The two IEEE 1800-2023 scope designators have dedicated
+		     representations in the task argument list. */
+	    } else switch (vpi_get(vpiType, arg)) {
 		case vpiFunction:
 		case vpiGenScope:
 		case vpiIntegerVar:
@@ -2427,6 +2455,9 @@ static PLI_INT32 sys_printtimescale_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle callh   = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
       vpiHandle item, scope;
+      int has_argument = argv != 0;
+      const char*design_element;
+      PLI_INT32 time_unit, time_precision;
 
       (void)name; /* Parameter is not used. */
 
@@ -2436,11 +2467,27 @@ static PLI_INT32 sys_printtimescale_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             item = vpi_scan(argv);
             vpi_free_object(argv);
       }
-      scope = sys_func_module(item);
 
-      vpi_printf("Time scale of (%s) is ", vpi_get_str(vpiFullName, item));
-      vpi_printf("%s / ", pts_convert(vpi_get(vpiTimeUnit, scope)));
-      vpi_printf("%s\n", pts_convert(vpi_get(vpiTimePrecision, scope)));
+
+      if (has_argument && item && sys_printtimescale_is_root(item)) {
+	    design_element = "$root";
+	    time_unit = vpi_get(vpiTimePrecision, 0);
+	    time_precision = time_unit;
+      } else if (has_argument && item && sys_printtimescale_is_unit(item)) {
+	    design_element = "$unit";
+	    scope = item;
+	    time_unit = vpi_get(vpiTimeUnit, scope);
+	    time_precision = vpi_get(vpiTimePrecision, scope);
+      } else {
+	    scope = sys_func_module(item);
+	    design_element = vpi_get_str(vpiFullName, item);
+	    time_unit = vpi_get(vpiTimeUnit, scope);
+	    time_precision = vpi_get(vpiTimePrecision, scope);
+      }
+
+      vpi_printf("Time scale of (%s) is ", design_element);
+      vpi_printf("%s / ", pts_convert(time_unit));
+      vpi_printf("%s\n", pts_convert(time_precision));
 
       return 0;
 }

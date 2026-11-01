@@ -1,0 +1,1 @@
+ivltests/issue926_printtimescale_scopes.v:7: error: the $root and $unit arguments to $printtimescale requires IEEE1800-2023; compile with -g2023 (or -glatest).

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue926_printtimescale_scopes.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue926_printtimescale_scopes"
+}

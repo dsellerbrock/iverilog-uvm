@@ -19189,7 +19189,36 @@ spec_notifier
   ;
 
 subroutine_call
-  : hierarchy_identifier argument_list_parens_opt
+  : SYSTEM_IDENTIFIER '(' PACKAGE_IDENTIFIER ')'
+      { /* IEEE 1800-2023 20.4.2 permits $unit as a $printtimescale
+	   design-element argument. Carry the compilation-unit scope through
+	   normal system-task argument elaboration. */
+	const char*package_name = $3->pscope_name().str();
+	const bool is_unit = package_name
+	      && strncmp(package_name, "$unit", 5) == 0
+	      && (package_name[5] == '\0' || package_name[5] == '#');
+	if (strcmp($1, "$printtimescale") != 0 || !is_unit)
+	      yyerror(@1, "error: A package scope argument is only valid as "
+		      "$printtimescale($unit).");
+	pform_name_t path;
+	path.push_back(name_component_t($3->pscope_name()));
+	PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	FILE_NAME(scope_arg, @3);
+	if (!sv_require_feature(scope_arg,
+				SVF_PRINTTIMESCALE_SCOPE_ARGUMENTS))
+	      error_count += 1;
+	std::list<named_pexpr_t> parms;
+	named_pexpr_t parm;
+	FILE_NAME(&parm, @3);
+	parm.name = perm_string();
+	parm.parm = scope_arg;
+	parms.push_back(parm);
+	PCallTask*tmp = new PCallTask(lex_strings.make($1), parms);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+  | hierarchy_identifier argument_list_parens_opt
       { PCallTask*tmp = pform_make_call_task(@1, *$1, *$2);
 	delete $1;
 	delete $2;
