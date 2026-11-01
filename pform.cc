@@ -29295,6 +29295,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      prop->clk_evt = nullptr;
 			      PExpr*outer_disable = prop->disable_iff_expr;
 			      prop->disable_iff_expr = nullptr;
+				if (outer_disable && named->disable_iff_expr) {
+				      cerr << loc << ": error: a property instance with a `disable iff' clause "
+					   << "cannot be nested under another `disable iff' clause "
+					   << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+				      error_count += 1;
+				      delete outer_clk;
+				      delete outer_disable;
+				      delete id;
+				      delete prop->seq;
+				      delete prop;
+				      delete fail_stmt;
+				      delete pass_stmt;
+				      return;
+				}
 			      bool has_outer_context = outer_clk || outer_disable;
 			        /* Deep-clone the declaration per instantiation
 			           (recovery C5): the old transfer-and-null
@@ -29512,10 +29526,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    inst->win_lo = decl->win_lo;
 				    inst->win_hi = decl->win_hi;
 				    bool ok = true;
+				    bool nested_disable = false;
 				    inst->clk_evt = prop->clk_evt;
 				    prop->clk_evt = nullptr;
 				    inst->disable_iff_expr = prop->disable_iff_expr;
 				    prop->disable_iff_expr = nullptr;
+				    if (inst->disable_iff_expr && decl->disable_iff_expr) {
+					  cerr << loc << ": error: a property instance with a `disable iff' clause "
+					       << "cannot be nested under another `disable iff' clause "
+					       << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+					  error_count += 1;
+					  ok = false;
+					  nested_disable = true;
+				    }
 				    if (decl->clk_evt) {
 					  if (inst->clk_evt) {
 						cerr << loc << ": sorry: parameterized property `"
@@ -29574,11 +29597,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				      for (PExpr*value : owned_subst) delete value;
 				      owned_subst.clear();
 				    if (!ok) {
-					  cerr << loc << ": sorry: property `" << nm
-					       << "' has a body expression that cannot "
-					       << "be instantiated with arguments; the "
-					       << "assertion is dropped." << endl;
-					  error_count += 1;
+					  if (!nested_disable) {
+						cerr << loc << ": sorry: property `" << nm
+						     << "' has a body expression that cannot "
+						     << "be instantiated with arguments; the "
+						     << "assertion is dropped." << endl;
+						 error_count += 1;
+					  }
 					  pform_sva_destroy_property(inst);
 					  inst = nullptr;
 					  fatal = true;
