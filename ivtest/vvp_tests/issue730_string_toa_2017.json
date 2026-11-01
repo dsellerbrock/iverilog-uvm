@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue730_string_toa_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue730_string_toa"],
+  "output-contains": ["PASSED"]
+}

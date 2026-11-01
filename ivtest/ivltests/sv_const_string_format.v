@@ -22,7 +22,7 @@ module sv_const_string_format;
  initial begin
   string d,h,o,b,r;
   d.itoa(-123);h.hextoa(-255);o.octtoa(83);b.bintoa(10);r.realtoa(12.5);
-  if(DNEG!="-123"||DZERO!="0"||HNEG!="-ff"||OCT!="123"||BIN!="1010"||REAL!="12.5"||NESTED!="AF"||RPOS!="2"||RNEG!="-2"||IMIN!="-2147483648"||IMAX!="2147483647"||WIDE!="1"||NARROW!="-1"||REPEAT!="3"||ONCE!="1b"||LITERAL!="6382179"||EXPLICIT!="6382179"||RZERO!="0"||RNEGATIVE!="-2.5"||RINTEGER!="7"||DIRECT!="42")
+  if(DNEG!="-123"||DZERO!="0"||HNEG!="ffffff01"||OCT!="123"||BIN!="1010"||REAL!="12.5"||NESTED!="AF"||RPOS!="2"||RNEG!="-2"||IMIN!="-2147483648"||IMAX!="2147483647"||WIDE!="1"||NARROW!="-1"||REPEAT!="3"||ONCE!="1b"||LITERAL!="6382179"||EXPLICIT!="6382179"||RZERO!="0"||RNEGATIVE!="-2.5"||RINTEGER!="7"||DIRECT!="42")
    $fatal(1,"constant format mismatch");
   if(d!=DNEG||h!=HNEG||o!=OCT||b!=BIN||r!=REAL)$fatal(1,"runtime/constant mismatch");
   $display("PASSED");
