@@ -1098,6 +1098,9 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       __vpiDecConst msb;
       __vpiDecConst lsb;
       unsigned vals_width;
+	// The declared element type of an unpacked array, when it is an enum
+	// or packed aggregate. Array word handles expose this through vpiTypespec.
+      vpiHandle typespec = nullptr;
 	// If this is a net array, nets lists the handles.
       vpiHandle*nets;
 	// If this is a var array, then these are used instead of nets.

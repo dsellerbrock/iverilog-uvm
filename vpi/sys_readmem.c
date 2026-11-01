@@ -30,6 +30,9 @@
 char **search_list = NULL;
 unsigned sl_count = 0;
 
+static int readmem_enum_value_valid(vpiHandle word, const s_vpi_value *value,
+                                    unsigned width);
+
 static void get_mem_params(vpiHandle argv, vpiHandle callh, const char *name,
                            char **fname, vpiHandle *mitem,
                            vpiHandle *start_item, vpiHandle *stop_item)
@@ -399,6 +402,13 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  vpiHandle word_index;
 		  word_index = vpi_handle_by_index(mitem, addr);
 		  assert(word_index);
+		  if (!readmem_enum_value_valid(word_index, &value, wwid)) {
+		      vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+		                 (int)vpi_get(vpiLineNo, callh));
+		      vpi_printf("%s(%s): value is not a valid enumerated value; "
+		                 "stopping read.\n", name, fname);
+		      goto bailout;
+		  }
 		  vpi_put_value(word_index, &value, 0, vpiNoDelay);
 
 		  if (word_count > 0) word_count -= 1;
@@ -443,6 +453,45 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       fclose(file);
       destroy_readmem_lexor();
       return 0;
+}
+
+/* A readmem word for an enumerated element must match one of that type's
+ * declared values. Check before vpi_put_value so an invalid word leaves the
+ * element unchanged and the caller can stop consuming the file. */
+static int readmem_enum_value_valid(vpiHandle word, const s_vpi_value *value,
+                                    unsigned width)
+{
+      vpiHandle typespec = vpi_handle(vpiTypespec, word);
+      vpiHandle iter;
+      vpiHandle item;
+      unsigned nwords = (width + 31) / 32;
+      int valid = 0;
+
+      if (!typespec || vpi_get(vpiType, typespec) != vpiEnumTypespec)
+	    return 1;
+
+      iter = vpi_iterate(vpiEnumConst, typespec);
+      while (iter && (item = vpi_scan(iter)) != 0) {
+	    s_vpi_value enum_value;
+	    unsigned idx;
+
+	    enum_value.format = vpiVectorVal;
+	    vpi_get_value(item, &enum_value);
+	    for (idx = 0; idx < nwords; idx += 1) {
+		  if (enum_value.value.vector[idx].aval !=
+		          value->value.vector[idx].aval ||
+		      enum_value.value.vector[idx].bval !=
+		          value->value.vector[idx].bval)
+			break;
+	    }
+	    if (idx == nwords) {
+		  valid = 1;
+		  vpi_free_object(iter);
+		  iter = 0;
+		  break;
+	    }
+      }
+      return valid;
 }
 
 static PLI_INT32 free_readmempath(p_cb_data cb_data)
