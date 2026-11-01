@@ -1087,6 +1087,10 @@ struct Z3Builder {
       struct StateCheck {
             Z3_ast error;
             string message;
+            bool deferred_oob;
+            StateCheck(Z3_ast error, const string&message,
+                       bool deferred_oob = false)
+            : error(error), message(message), deferred_oob(deferred_oob) { }
       };
       vector<StateCheck> state_checks;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
@@ -4510,6 +4514,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    }
 	    if (ok && !b.dyn_sizes && b.graph
 	        && b.graph->size_active(pidx)) {
+		  if (!b.collect_refs_only && !b.collect_refs) {
+			const string&container = b.type(pidx)->property_base_type(
+			      b.local_index(pidx));
+			Z3_ast size = b.get_size_var(pidx, container);
+			Z3_ast index = Z3_mk_unsigned_int64(b.ctx, idx64,
+			      Z3_mk_bv_sort(b.ctx, 32));
+			ostringstream msg;
+			msg << "dynamic array constraint element index " << idx64
+			    << " is outside the solved size (IEEE 1800-2017/2023 18.5.8.1)";
+			b.state_checks.push_back({Z3_mk_bvuge(b.ctx, index, size),
+			      msg.str(), true});
+		  }
 		  if (b.collect_refs) {
 			Z3Builder::VarRef ref = {
 			      Z3Builder::VarRef::ELEM, pidx, (unsigned)idx64
@@ -16173,6 +16189,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_model_inc_ref(ctx, model);
 
       for (const auto&check : builder.state_checks) {
+	    if (check.deferred_oob) continue;
             Z3_ast value = nullptr;
             Z3_lbool failed = Z3_L_UNDEF;
             if (Z3_model_eval(ctx, model, check.error, 1, &value) && value)
@@ -16577,6 +16594,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_dec_ref(ctx, opt);
 	    return Z3PASS_FAILED;
       }
+	    if (!defer_joint && absent_vacuous) {
+	      for (const auto&check : builder.state_checks) {
+		    if (!check.deferred_oob) continue;
+		    Z3_ast value = nullptr;
+		    Z3_lbool failed = Z3_L_UNDEF;
+		    if (Z3_model_eval(ctx, model, check.error, 1, &value) && value)
+			  failed = Z3_get_bool_value(ctx, Z3_simplify(ctx, value));
+		    if (failed == Z3_L_FALSE) continue;
+		    fprintf(stderr, "ERROR: constraint state read: %s.\n",
+			    failed == Z3_L_TRUE ? check.message.c_str()
+						: "could not evaluate guarded state read");
+		    Z3_model_dec_ref(ctx, model);
+
+		    Z3_optimize_dec_ref(ctx, opt);
+		    return Z3PASS_FAILED;
+	      }
+	    }
 
       // Apply solved array-element values.
       for (size_t ev_pos = 0 ; ev_pos < builder.elem_vars.size() ; ev_pos += 1) {
