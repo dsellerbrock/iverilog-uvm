@@ -819,14 +819,18 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
 	// the stack and replace it with the result of the shift.
       switch (ivl_expr_opcode(expr)) {
 	  case 'l': /* << */
-	    fprintf(vvp_out, "    %%shiftl %d;\n", use_index_reg);
+	    fprintf(vvp_out, ivl_expr_signed(le)
+	            ? "    %%shiftl/x %d;\n" : "    %%shiftl %d;\n",
+	            use_index_reg);
 	    break;
 	  case 'r': /* >> */
-	    fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
+	    fprintf(vvp_out, ivl_expr_signed(le)
+	            ? "    %%shiftr/x %d;\n" : "    %%shiftr %d;\n",
+	            use_index_reg);
 	    break;
 	  case 'R': /* >>> */
 	    if (ivl_expr_signed(le))
-		  fprintf(vvp_out, "    %%shiftr/s %d;\n", use_index_reg);
+		  fprintf(vvp_out, "    %%shiftr/sx %d;\n", use_index_reg);
 	    else
 		  fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
 	    break;
@@ -1737,11 +1741,15 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
             assert(use_index_reg >= 0);
             draw_eval_expr_into_integer(rhs, use_index_reg);
             if (op == 'l')
-                  fprintf(vvp_out, "    %%shiftl %d;\n", use_index_reg);
-            else if (op == 'R' && ivl_expr_signed(lhs))
-                  fprintf(vvp_out, "    %%shiftr/s %d;\n", use_index_reg);
-            else
-                  fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
+		  fprintf(vvp_out, ivl_expr_signed(lhs)
+		          ? "    %%shiftl/x %d;\n" : "    %%shiftl %d;\n",
+		          use_index_reg);
+	    else if (op == 'R' && ivl_expr_signed(lhs))
+		  fprintf(vvp_out, "    %%shiftr/sx %d;\n", use_index_reg);
+	    else if (ivl_expr_signed(lhs))
+		  fprintf(vvp_out, "    %%shiftr/x %d;\n", use_index_reg);
+	    else
+		  fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
             clr_word(use_index_reg);
       } else {
             draw_eval_vec4(lhs);
@@ -3368,7 +3376,16 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	         expression width before the operation so the bytecode stack
 	         contains the width promised by ivl_expr_width(expr). */
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    if (ivl_expr_signed(sub))
+	      fprintf(vvp_out, "    %%signed/x;\n");
 	    fprintf(vvp_out, "    %%inv;\n");
+	    break;
+
+	  case '+':
+	    draw_eval_vec4(sub);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    if (ivl_expr_signed(sub))
+	      fprintf(vvp_out, "    %%signed/x;\n");
 	    break;
 
 	  case '!':

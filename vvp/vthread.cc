@@ -31918,6 +31918,24 @@ bool of_SHIFTL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_SIGNED_X(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t& val = thr->peek_vec4();
+      if (val.has_xz())
+	    val = vvp_vector4_t(val.size(), BIT4_X);
+      return true;
+}
+
+bool of_SHIFTL_X(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t& val = thr->peek_vec4();
+      if (val.has_xz()) {
+	    val = vvp_vector4_t(val.size(), BIT4_X);
+	    return true;
+      }
+      return of_SHIFTL(thr, cp);
+}
+
 /*
  * %shiftr <idx>
  * This is an unsigned right shift. The <idx> is a number that selects
@@ -31949,6 +31967,17 @@ bool of_SHIFTR(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_SHIFTR_X(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      if (val.has_xz()) {
+	    thr->push_vec4(vvp_vector4_t(val.size(), BIT4_X));
+	    return true;
+      }
+      thr->push_vec4(val);
+      return of_SHIFTR(thr, cp);
+}
+
 /*
  *  %shiftr/s <wid>
  */
@@ -31977,6 +32006,17 @@ bool of_SHIFTR_S(vthread_t thr, vvp_code_t cp)
 
       thr->push_vec4(val);
       return true;
+}
+
+bool of_SHIFTR_SX(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      if (val.has_xz()) {
+	    thr->push_vec4(vvp_vector4_t(val.size(), BIT4_X));
+	    return true;
+      }
+      thr->push_vec4(val);
+      return of_SHIFTR_S(thr, cp);
 }
 
 /*

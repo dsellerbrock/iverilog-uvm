@@ -6106,7 +6106,7 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 	  && type_is_vectorable(left_->expr_type())) {
 	    l_width = left_->expr_width();
       } else {
-            left_->cast_signed(signed_flag_);
+	    left_->cast_signed(signed_flag_);
       }
 
       NetExpr*lp =  left_->elaborate_expr(des, scope, l_width, flags);
@@ -9372,10 +9372,12 @@ NetExpr*PEBLeftWidth::elaborate_expr(Design*des, NetScope*scope,
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
       ivl_assert(*this, left_);
+	const bool signed_shift_left = (op_ == 'l' || op_ == 'r' || op_ == 'R')
+	    && left_->has_sign();
 
         // The left operand is always context determined, so propagate
         // down the expression type (signed/unsigned).
-      left_->cast_signed(signed_flag_);
+      left_->cast_signed(signed_flag_ || signed_shift_left);
 
       unsigned r_width = right_->expr_width();
 
@@ -33088,6 +33090,7 @@ unsigned PEUnary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+      const bool signed_operand = expr_->has_sign();
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
       if (dynamic_cast<const PEStreaming*>(expr_)) {
@@ -33136,7 +33139,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
             // Other operators have context determined operands, so propagate
             // the expression type (signed/unsigned) down to the operands.
 	  default:
-            expr_->cast_signed(signed_flag_);
+	    expr_->cast_signed(signed_flag_ || signed_operand);
 	    break;
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
@@ -33289,7 +33292,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	    /* Keep unary plus as an operation. IEEE 1800-2017 11.8.4
+	     * requires a signed operand containing X/Z to produce all X,
+	     * which is observably different from simply using the operand. */
+	    tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+	    tmp->set_line(*this);
 	    break;
 
 	  case '!': // Logical NOT

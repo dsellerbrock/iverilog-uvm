@@ -1199,8 +1199,21 @@ NetNet* NetEUBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-      if (op_ == '+')
-	    return expr_->synthesize(des, scope, root);
+      if (op_ == '+') {
+	    if (!has_sign())
+		  return expr_->synthesize(des, scope, root);
+
+	      /* Preserve unary plus' signed-X rule through netlist synthesis.
+	       * AND with a signed all-ones value is an identity for defined
+	       * values and uses the existing signed-X runtime operation. */
+	    verinum all_ones(verinum::V1, expr_width());
+	    all_ones.has_sign(true);
+	    NetEConst*ones = new NetEConst(all_ones);
+	    NetEBBits*identity = new NetEBBits('&', expr_->dup_expr(), ones,
+	                                       expr_width(), true);
+	    identity->set_line(*this);
+	    return identity->synthesize(des, scope, root);
+      }
 
       if (op_ == '-') {
 	    NetNet*sig = expr_->synthesize(des, scope, root);

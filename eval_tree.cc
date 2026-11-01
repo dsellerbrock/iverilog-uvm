@@ -1143,7 +1143,9 @@ NetEConst* NetEBShift::eval_arguments_(const NetExpr*l, const NetExpr*r) const
       ivl_assert(*this, lv.len() == wid);
 
       verinum val;
-      if (rv.is_defined()) {
+      if (lv.has_sign() && !lv.is_defined()) {
+	    val = verinum(verinum::Vx, wid);
+      } else if (rv.is_defined()) {
 	    unsigned shift = rv.as_unsigned();
 
 	    switch (op_) {
@@ -1541,6 +1543,17 @@ NetExpr* NetEUnary::eval_arguments_(const NetExpr*ex) const
       if (rval == 0) return 0;
 
       verinum val = rval->value();
+
+	/* IEEE 1800-2017 11.8.4: every nonlogical operation on a signed
+	 * value containing X/Z produces an all-X result. */
+      if (val.has_sign() && !val.is_defined()) {
+	    val = verinum(verinum::Vx, expr_width());
+	    val.has_sign(has_sign());
+	    NetEConst*res = new NetEConst(val);
+	    ivl_assert(*this, res);
+	    eval_debug(this, res, false);
+	    return res;
+      }
 
       switch (op_) {
 
