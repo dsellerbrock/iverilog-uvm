@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2029_randc_fixed_array_wide.v",
+    "iverilog-args": [ "-g2017" ],
+    "gold": "issue2029_randc_fixed_array_wide"
+}
