@@ -21808,7 +21808,14 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
 
       } else {
 	    expr_type_  = target_type_->base_type();
-	    expr_width_ = target_type_->packed_width();
+	    long packed_width = target_type_->packed_width();
+	    /* An unpacked struct reports -1 here.  Keeping that sentinel in the
+	       unsigned expression width wraps it to UINT_MAX, so elaborating a
+	       packed source for an unsupported bit-stream cast can allocate an
+	       enormous temporary before we issue the diagnostic.  The source
+	       width is sufficient while the cast is being rejected below. */
+	    expr_width_ = packed_width > 0
+		  ? static_cast<unsigned>(packed_width) : base_->expr_width();
       }
       min_width_   = expr_width_;
       signed_flag_ = target_type_->get_signed();

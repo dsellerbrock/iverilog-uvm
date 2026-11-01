@@ -32,10 +32,11 @@ module test;
         || iter_item.data[0] !== 1 || iter_item.data[1] !== 2)
       $fatal(1, "dynamic foreach constraints were not satisfied");
 
-    // This seed's object RNG state after the 35 authoritative-pass words.
-    // $urandom advances the process RNG, so it cannot be the control here.
+    // This seed's object RNG state includes the prefill of all sixteen
+    // dynamic-array element bits before the two-pass solve. $urandom advances
+    // the process RNG, so it cannot be the control here.
     iter_state = iter_item.get_randstate();
-    if (iter_state != "ivl1:d4504ea3e6a25808")
+    if (iter_state != "ivl1:2f078b08fbf9770d")
       $fatal(1, "two-pass solve consumed a different object RNG stream");
 
     $display("PASSED");

@@ -8,6 +8,10 @@ import os
 import sys
 import re
 import platform
+try:
+    import resource
+except ImportError:
+    resource = None
 
 # Seconds one iverilog or vvp run may take. A hung test fails on its own
 # instead of stalling the whole suite; IVTEST_TIMEOUT overrides it (e.g. valgrind).
@@ -133,14 +137,23 @@ def compare_files(log_path, gold_path):
     return True
 
 
-def run_cmd(cmd: list, env: dict = None) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list, env: dict = None,
+            address_space_limit: int = None) -> subprocess.CompletedProcess:
     '''Run the given command'''
     run_env = os.environ.copy()
     if env:
         run_env.update(env)
+    preexec_fn = None
+    if (address_space_limit is not None and resource is not None
+            and sys.platform.startswith('linux')):
+        def set_address_space_limit():
+            resource.setrlimit(resource.RLIMIT_AS,
+                               (address_space_limit, address_space_limit))
+        preexec_fn = set_address_space_limit
     try:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             check=False, env=run_env, timeout=TIMEOUT)
+                             check=False, env=run_env, timeout=TIMEOUT,
+                             preexec_fn=preexec_fn)
     except subprocess.TimeoutExpired as err:
         # 256 makes CE/RE report an execution error; callers check timed_out
         # so expected-fail (EF/TE) tests do not pass on a hang.
@@ -155,6 +168,17 @@ def timed_out(res: subprocess.CompletedProcess, what: str) -> list:
     if getattr(res, 'timed_out', False):
         return [1, f"Failed - {what} timed out after {TIMEOUT} s."]
     return []
+
+def max_child_rss_bytes() -> int:
+    '''Return the largest child RSS reported by the host, in bytes.'''
+    if resource is None:
+        return 0
+    max_rss = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    # Darwin reports bytes; Linux and the other supported Unix platforms
+    # report KiB.
+    if platform.system() != 'Darwin':
+        max_rss *= 1024
+    return max_rss
 
 def build_vpi_modules(options: dict, it_key: str) -> list:
     '''Build optional VPI modules into the test work directory.'''
@@ -217,8 +241,13 @@ def run_CE(options: dict, cfg: dict) -> list:
     else:
         ivl_cmd = assemble_iverilog_cmd(options, cfg, 'a.out')
 
-    res = run_cmd(ivl_cmd)
+    res = run_cmd(ivl_cmd,
+                  address_space_limit=options.get('iverilog-address-space-limit'))
     log_results(it_key, "iverilog", res)
+
+    max_rss = options.get('iverilog-max-rss')
+    if max_rss is not None and max_child_rss_bytes() > max_rss:
+        return [1, "Failed - CE (compiler exceeded its RSS limit)."]
 
     log_list = ["iverilog-stdout", "iverilog-stderr"]
 

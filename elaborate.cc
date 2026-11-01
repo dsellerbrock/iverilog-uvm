@@ -6495,6 +6495,36 @@ static NetScope* selected_interface_instance_scope_(Design*des,
  * the parameters. This is done with BUFZ gates so that they look just
  * like continuous assignment connections.
  */
+static NetEvent* resolve_event_port_actual_(Design*des, NetScope*scope,
+					    const PExpr*actual)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(actual);
+      if (!ident) {
+	    cerr << actual->get_fileline()
+		 << ": error: An event port must be connected to a named event."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      symbol_search_results result;
+      bool found = symbol_search(ident, des, scope, ident->path(),
+				 ident->lexical_pos(), &result);
+      bool selected = false;
+      for (const name_component_t&component : ident->path().name)
+	    selected = selected || !component.index.empty();
+      if (!found || !result.eve || !result.path_tail.empty() || selected
+	  || result.eve->is_event_array()) {
+	    cerr << ident->get_fileline()
+		 << ": error: An event port must be connected to a scalar named event."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      return result.eve->canonical_event();
+}
+
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 {
 
@@ -6537,7 +6567,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    // Interface instances are scopes rather than nets, but
 				    // they are valid implicit .name actuals for interface
 				    // ports (IEEE 1800-2017/2023 23.3.2.4).
-				    if (sr.net != 0 || (sr.scope
+					if (sr.net != 0
+					    || (rmod->is_event_port(j) && sr.eve != 0)
+					    || (sr.scope
 						&& sr.scope->type() == NetScope::MODULE
 						&& sr.scope->is_interface())) {
 					  pins[j] = new PEIdent(rmod->ports[j]->name, UINT_MAX, true);
@@ -6587,7 +6619,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the right place.
 		  pins[pidx] = pins_[idx].parm;
 		  const PEIdent*ident = dynamic_cast<const PEIdent*>(pins[pidx]);
-		  pins_implicit[pidx] = ident && ident->no_implicit_sig();
+	  pins_implicit[pidx] = ident && ident->no_implicit_sig()
+		&& !ident->path().package;
 		  if (!pins[pidx])
 			pins_is_explicitly_not_connected[pidx] = true;
 	    }
@@ -6666,6 +6699,38 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	// An event port passes a handle to the actual synchronization object.
+	// Bind each formal before elaborating the child body so its waits,
+	// triggers, and triggered() references all resolve to the same event.
+      for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+	    if (!rmod->is_event_port(idx))
+		  continue;
+	    if (!pins[idx]) {
+		  cerr << get_fileline() << ": error: Event port `"
+		       << rmod->get_port_name(idx) << "' of module `"
+		       << rmod->mod_name()
+		       << "' requires a named-event actual." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    NetEvent*actual_event = resolve_event_port_actual_(des, scope,
+							 pins[idx]);
+	    if (!actual_event)
+		  continue;
+	    for (NetScope*inst_scope : instance) {
+		  NetEvent*formal_event = inst_scope->find_event(
+				rmod->get_port_name(idx));
+		  if (!formal_event) {
+			cerr << get_fileline() << ": internal error: event port `"
+			     << rmod->get_port_name(idx) << "' has no event in instance `"
+			     << scope_path(inst_scope) << "'." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  formal_event->set_alias(actual_event);
+	    }
+      }
 
 	// M5-5: An interface formal's member types come from the concrete
 	// ACTUAL of THIS instantiation. This is required for generic ports
@@ -6875,6 +6940,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
        * child is then elaborated with the concrete scalar/vector/real/UDNT
        * type that arrives through its port instead of the logic placeholder. */
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+	    if (rmod->is_event_port(idx))
+		  continue;
 	    if (!pins[idx] || interface_type_error[idx])
 		  continue;
             vector<PEIdent*>mport = rmod->get_port(idx);
@@ -6908,6 +6975,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    perm_string port_name = rmod->get_port_name(idx);
 	    if (interface_type_error[idx])
 		  continue;
+	    if (rmod->is_event_port(idx)) {
+		  for (NetScope*inst_scope : instance)
+			inst_scope->add_module_port_info(
+			      idx, port_name,
+			      rmod->get_event_port_direction(idx), 0);
+		  continue;
+	    }
 
 	      // If the port is unconnected, substitute the default
 	      // value. The parser ensures that a default value only
@@ -9383,7 +9457,9 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 		  delete tmp;
 		  return 0;
 	    }
-	    uint64_t delay = des->scale_to_precision(fn.as_ulong64(), scope);
+	    uint64_t delay_value = fn.is_negative()
+		  ? verinum(fn, 64).as_ulong64() : fn.as_ulong64();
+	    uint64_t delay = des->scale_to_precision(delay_value, scope);
 
 	    delete tmp;
 	    NetEConst*tmp2 = new NetEConst(verinum(delay, 64));
@@ -32245,6 +32321,35 @@ static bool constraint_nested_element_is_random_(const char*path,
 	    }
 	    if (*end != '.') return false;
 	    random_path = random_path && (qual.test_rand() || qual.test_randc());
+	    /* Indexed fixed arrays of unpacked struct properties encode the
+	     * flattened element word between the class property and its member
+	     * path (r:property.word.member:width). The selected member's own rand
+	     * qualifier, as well as the containing property's qualifier, is needed
+	     * for the leaf to be a random variable. */
+	    const netuarray_t*array = owner
+		  ? dynamic_cast<const netuarray_t*>(type) : nullptr;
+	    const netstruct_t*array_record = array && !array->packed()
+		  ? dynamic_cast<const netstruct_t*>(array->element_type()) : nullptr;
+	    if (array_record && !array_record->packed()
+		&& !array_record->union_flag() && array->static_dimensions().size()) {
+		  char*word_end = nullptr;
+		  unsigned long word = strtoul(end + 1, &word_end, 10);
+		  if (word_end == end + 1 || *word_end != '.') return false;
+		  uint64_t count = 1;
+		  for (const netrange_t&dim : array->static_dimensions()) {
+			if (!dim.width()) return false;
+			if (count <= UINT_MAX
+			    && dim.width() > (uint64_t)UINT_MAX / count)
+			      count = (uint64_t)UINT_MAX + 1;
+			else if (count <= UINT_MAX)
+			      count *= dim.width();
+		  }
+		  if (word >= count) return false;
+		  record = array_record;
+		  owner = nullptr;
+		  cur = word_end + 1;
+		  continue;
+	    }
 	    owner = dynamic_cast<const netclass_t*>(type);
 	    record = dynamic_cast<const netstruct_t*>(type);
 	    if (record && (record->packed() || record->union_flag())) record = nullptr;
@@ -35204,19 +35309,26 @@ static string constraint_class_container_size_ir_(
 	// A fixed leaf and an element of its queue need two randc history
 	// coordinates; the current history store has only one.
       if (fixed_leaf && qual.test_randc()) return "";
-      ivl_type_t etype = da ? da->element_type() : nullptr;
+      ivl_type_t etype = da ? da->element_type()
+	    : queue ? queue->element_type() : nullptr;
       ivl_variable_type_t ebase = etype
 	    ? etype->base_type() : IVL_VT_NO_TYPE;
       bool integral_queue = ebase == IVL_VT_BOOL
 	    || ebase == IVL_VT_LOGIC
 	    || dynamic_cast<const netenum_t*>(etype);
+	// Class handles are represented by object identities rather than solver
+	// bitvectors. Their queue size is still a solver variable; resizing keeps
+	// retained handles and gives new elements the required null value.
+      bool class_handle_queue = dynamic_cast<const netclass_t*>(etype);
 	// Associative arrays currently share netqueue_t as an elaboration
 	// representation, but their key set is state, not a randomizable queue
 	// size. Likewise, the bitvector solver cannot fill a rand queue of
 	// non-integral elements.
       bool unsupported_rand_queue = queue && rand_container
-	    && (queue->assoc_compat() || !integral_queue);
-      if (!da || unsupported_rand_queue || (fixed_leaf && !queue))
+	    && (queue->assoc_compat()
+		|| (!integral_queue && !class_handle_queue));
+      if ((!da && !queue) || unsupported_rand_queue
+	  || (fixed_leaf && !queue))
 	    return "";
 
       unsigned ewid = etype ? etype->packed_width() : 32;
@@ -50893,7 +51005,13 @@ Design* elaborate(list<perm_string>roots)
 	    for (unsigned idx = 0; idx < rmod->port_count(); idx += 1) {
 		  vector<PEIdent*> mport = rmod->get_port(idx);
                   unsigned int prt_vector_width = 0;
-                  PortType::Enum ptype = PortType::PIMPLICIT;
+		  PortType::Enum ptype = rmod->is_event_port(idx)
+			? rmod->get_event_port_direction(idx) : PortType::PIMPLICIT;
+		  if (rmod->is_event_port(idx)) {
+			scope->add_module_port_info(
+			      idx, rmod->get_port_name(idx), ptype, 0);
+			continue;
+		  }
 		  for (unsigned pin = 0; pin < mport.size(); pin += 1) {
 			  // This really does more than we need and adds extra
 			  // stuff to the design that should be cleaned later.

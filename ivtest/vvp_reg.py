@@ -98,6 +98,9 @@ def process_test(item: list, cfg: list) -> str:
         'key'               : it_key,
         'type'              : it_dict['type'],
         'iverilog_args'     : it_dict.get('iverilog-args', [ ]),
+        'iverilog-address-space-limit' : it_dict.get(
+            'iverilog-address-space-limit'),
+        'iverilog-max-rss' : it_dict.get('iverilog-max-rss'),
         # Keep the compiler's diagnostic spelling stable across hosts. Native
         # Windows accepts forward slashes, while passing os.path.join's `\\`
         # makes Icarus echo backslashes that cannot match shared gold files.

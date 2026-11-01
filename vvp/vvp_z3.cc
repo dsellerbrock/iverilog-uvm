@@ -6672,7 +6672,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			if (weight != 0 && bounds_ok) {
 			      if (hi_coord >= lo_coord) {
 			            uint64_t exact_span = hi_coord - lo_coord + 1;
-			            if (exact_span == 0 || exact_span > 256)
+			            if (exact_span == 0 || exact_span > 512)
 			                  dspec.requires_large_exact = true;
 			      }
 			      Z3Builder::DistBranch db = {
@@ -10341,7 +10341,7 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
 		  return z3_resolve_dist_exact_wide(ctx, base, opt, spec, rng,
 						    chosen, require_complete_ranges,
 						    validate_only, indeterminate);
-      static const uint64_t RANGE_EXPAND_CAP = 256;
+      static const uint64_t RANGE_EXPAND_CAP = 512;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
 			       bool comparison_signed) -> Z3_ast {
 	      // Match the same self-determined sizing used by the hard branch
@@ -11228,7 +11228,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 	    if (branch.value_width > 64) return true;
 	    if (!branch.is_range) return false;
 	    uint64_t span = branch.hi - branch.lo + 1;
-	    return span == 0 || span > 256;
+	    return span == 0 || span > 512;
       };
       vector<Candidate> candidates;
       big total;
@@ -13364,7 +13364,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               if (branch.is_range) {
                                     if (branch.hi < branch.lo) continue;
                                     span = branch.hi - branch.lo + 1;
-                                    if (span == 0 || span > 256) {
+                                    if (span == 0 || span > 512) {
                                           dist_ok = false;
                                           break;
                                     }
@@ -14915,50 +14915,41 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec) || !dist_active(spec)) continue;
                   if (!z3_direct_constant_(ctx, spec.subject)) {
-                        // A concatenated dist subject is a deterministic
+                        // A derived dist subject is a deterministic
                         // projection of its rand leaves. Include that
                         // projection in the complete tuple table so its
                         // weighted value can be pinned without inventing a
-                        // separate random choice. A one-bit expression of
-                        // one rand leaf has the same property; packed
-                        // foreach bit-select subjects use this form.
+                        // separate random choice. This includes packed
+                        // selects whose value depends on multiple rand leaves
+                        // (for example, a vector and its randomized index),
+                        // and packed-struct member projections.
                         // Signed literal/cast tags are equality-pinned
                         // occurrence aliases, not extra random leaves.
                         Z3_ast unaliased =
                               builder.resolve_signed_constants(spec.subject);
                         set<Z3_ast> leaves;
-                        bool concat = Z3_get_ast_kind(ctx, unaliased)
-                              == Z3_APP_AST
-                            && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
-                                  Z3_to_app(ctx, unaliased))) == Z3_OP_CONCAT;
-                        bool one_bit_projection = bv_width(ctx, unaliased) == 1;
                         bool collected = z3_collect_constants_(ctx, unaliased,
                               leaves);
-                        unsigned projected_stage = final_stage;
-                        bool staged_one_bit_leaf = false;
-                        if (collected && one_bit_projection
-                            && leaves.size() == 1) {
-                              auto leaf_stage = stages.find(*leaves.begin());
-                              if (leaf_stage != stages.end()) {
-                                    projected_stage = leaf_stage->second;
-                                    staged_one_bit_leaf = true;
+                        unsigned projected_stage = 0;
+                        if (collected) {
+                              for (Z3_ast leaf : leaves) {
+                                    auto leaf_stage = stages.find(leaf);
+                                    unsigned leaf_rank = leaf_stage == stages.end()
+                                          ? final_stage : leaf_stage->second;
+                                    projected_stage = max(projected_stage,
+                                          leaf_rank);
                               }
                         }
-                        if ((concat || one_bit_projection)
-                            && bv_width(ctx, unaliased) <= 64
+                        if (bv_width(ctx, unaliased) <= 64
                             && collected
                             && !leaves.empty()
-                            && (concat || leaves.size() == 1)
                             && all_of(leaves.begin(), leaves.end(),
                                   [&](Z3_ast leaf) {
                                         return seen.count(leaf)
-                                              && (!stages.count(leaf)
-                                                  || staged_one_bit_leaf)
                                               && !active_randc_var(leaf);
                                   })) {
                               add(spec.subject);
-                              if (staged_one_bit_leaf)
-                                    stages[spec.subject] = projected_stage;
+                              stages[spec.subject] = projected_stage;
                               for (Z3_ast leaf : leaves)
                                     preference_edges.emplace_back(
                                           spec.subject, leaf);
@@ -16392,9 +16383,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (graph)
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  bool class_handle_array = type == "Do"
-                        && sv.container_type == "Do" && sv.leaf == 0;
-                  if ((!class_handle_array
+                  random_container_desc_t desc =
+		 random_container_desc_(sv.container_type);
+                  bool class_handle_collection =
+		(type == "Do" && sv.container_type == "Do")
+		|| (type == "Qo" && desc.is_queue
+		    && desc.elem_type == "Do");
+                  class_handle_collection = class_handle_collection
+		&& sv.leaf == 0;
+                  if ((!class_handle_collection
                        && ((type != "Do" && type != "Qo")
                            || sv.container_type == "D"
                            || (sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
@@ -16402,7 +16399,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       || !rand_size_active_(builder, prop_active,
 					   sv.idx, sv.leaf)) continue;
                   uint64_t count = 0;
-                  if (!class_handle_array
+                  if (!class_handle_collection
                       && (!z3_eval_uint64(ctx, model, sv.var, count)
                           || count != cobj_darray_size(builder.object(sv.idx),
 					      builder.local_index(sv.idx), sv.leaf))) {
@@ -16552,9 +16549,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  bool class_handle_array = type == "Do"
-                        && sv.container_type == "Do" && sv.leaf == 0;
-                  if (!class_handle_array
+                  random_container_desc_t desc =
+		 random_container_desc_(sv.container_type);
+                  bool class_handle_collection =
+		(type == "Do" && sv.container_type == "Do")
+		|| (type == "Qo" && desc.is_queue
+		    && desc.elem_type == "Do");
+                  class_handle_collection = class_handle_collection
+		&& sv.leaf == 0;
+                  if (!class_handle_collection
                       && (type == "Do" || type == "Qo")
                       && sv.container_type != "D"
                       && !(sv.leaf > 0 && builder.type(sv.idx)->property_is_dyn2(
@@ -16581,7 +16584,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  return rand_nested_elem_active_(builder, prop_active,
 						     sv.idx, sv.leaf, adr);
 	    };
-	    vvp_darray*da = (desc.elem_type == "D" || desc.elem_type == "Do")
+	    vvp_darray*da = desc.elem_type == "Do"
+		  ? (desc.is_queue
+		     ? static_cast<vvp_darray*>(new vvp_queue_object)
+		     : static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size)))
+		  : desc.elem_type == "D"
 		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
 		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
@@ -16592,6 +16599,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
 		  const uint64_t queue_max = desc.max_size;
+		  if (desc.elem_type == "Do") {
+			for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
+			      vvp_object_t handle;
+			      if (old_array && adr < old_array->get_size())
+				    old_array->get_word((unsigned)adr, handle);
+			      queue->set_word_max((unsigned)adr, handle, queue_max);
+			}
+		  } else
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
 			bool active = element_active((unsigned)adr);

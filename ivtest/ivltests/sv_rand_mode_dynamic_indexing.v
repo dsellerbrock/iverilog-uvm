@@ -113,6 +113,15 @@ module test;
         || item.string_values["move"] === 32'd0)
       $fatal(1, "associative active entry did not randomize");
 
+    // Randomization also changes these unconstrained rand containers. Restore
+    // known values so the ordering checks below test mode/value association.
+    item.order_values[0] = 30;
+    item.order_values[1] = 10;
+    item.order_values[2] = 20;
+    item.dynamic_order[0] = 30;
+    item.dynamic_order[1] = 10;
+    item.dynamic_order[2] = 20;
+
     // Queue mode follows an existing element as insertion shifts its index.
     item.queue_values.push_front(64'd9);
     if (!item.queue_values[0].rand_mode()

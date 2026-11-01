@@ -44,6 +44,11 @@
 # define vpiCoverageMerge 754
 #endif
 
+/* Annex K names not yet exposed by vpi_user.h. */
+#define VPI_SCHED_EVENT_TYPE 53
+#define VPI_SCHEDULED_PROPERTY 46
+#define VPI_CANCEL_EVENT 7
+
 using namespace std;
 
 /* Packed and queue slice bounds can be arbitrary-width signed or unsigned
@@ -1241,17 +1246,34 @@ void vpi_get_value(vpiHandle expr, s_vpi_value*vp)
 	    }
 }
 
-struct vpip_put_value_event : vvp_gen_event_s {
+struct vpip_put_value_event : __vpiHandle, vvp_gen_event_s {
       vpiHandle handle;
       s_vpi_value value;
       int flags;
       vvp_time64_t due;
       bool canceled;
+      bool scheduled;
+      int get_type_code(void) const override { return VPI_SCHED_EVENT_TYPE; }
+      int vpi_get(int code) override
+      {
+	    if (code == VPI_SCHEDULED_PROPERTY) return scheduled;
+	    return __vpiHandle::vpi_get(code);
+      }
       virtual void run_run() override;
       ~vpip_put_value_event() override;
 };
 
 static std::vector<vpip_put_value_event*> vpip_pending_put_values;
+static std::vector<vpip_put_value_event*> vpip_returned_put_values;
+
+static void vpip_delete_returned_put_values()
+{
+      for (std::vector<vpip_put_value_event*>::iterator cur =
+           vpip_returned_put_values.begin();
+           cur != vpip_returned_put_values.end(); ++cur)
+	    delete *cur;
+      vpip_returned_put_values.clear();
+}
 
 static void vpip_untrack_put_value(vpip_put_value_event* event)
 {
@@ -1270,6 +1292,7 @@ vpip_put_value_event::~vpip_put_value_event()
 void vpip_put_value_event::run_run()
 {
       vpip_untrack_put_value(this);
+      scheduled = false;
       if (!canceled)
             handle->vpi_put_value(&value, flags);
       switch (value.format) {
@@ -1335,6 +1358,17 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 {
       assert(obj);
 
+      if (flags == VPI_CANCEL_EVENT) {
+	    vpip_put_value_event* event =
+		  dynamic_cast<vpip_put_value_event*>(obj);
+	    if (event) {
+		  event->canceled = true;
+		  event->scheduled = false;
+	    }
+	    return 0;
+      }
+
+	  const bool return_event = (flags & vpiReturnEvent) != 0;
       flags &= ~vpiReturnEvent;
 
       if (flags!=vpiNoDelay && flags!=vpiForceFlag && flags!=vpiReleaseFlag) {
@@ -1380,6 +1414,7 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 	    put->handle = obj;
             put->due = schedule_simtime() + dly;
             put->canceled = false;
+	    put->scheduled = true;
 	    if (dynamic_cast<__vpiNamedEvent*>(obj)) {
 		  put->value.format = vpiIntVal;
 		  put->value.value.integer = 0;
@@ -1425,12 +1460,23 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
                         if (vpi_compare_objects(pending->handle, obj) &&
                             (flags == vpiInertialDelay ||
                              pending->due > put->due))
+                        {
                               pending->canceled = true;
+                              pending->scheduled = false;
+                        }
                   }
             }
             vpip_pending_put_values.push_back(put);
-	    schedule_generic(put, dly, false, true, true);
-	    return 0;
+	    if (return_event) {
+		  static bool cleanup_registered = false;
+		  if (!cleanup_registered) {
+			std::atexit(vpip_delete_returned_put_values);
+			cleanup_registered = true;
+		  }
+		  vpip_returned_put_values.push_back(put);
+	    }
+	    schedule_generic(put, dly, false, true, !return_event);
+	    return return_event ? put : 0;
       }
 
       if (schedule_at_rosync()) {

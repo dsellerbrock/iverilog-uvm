@@ -173,6 +173,7 @@ struct deferred_assert_args_s {
 
 struct deferred_assert_report_s {
       unsigned long source_id;
+      unsigned result;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
       deferred_assert_args_s action_args;
@@ -202,6 +203,7 @@ class vvp_process : public vvp_object {
       static void cancel_await_waiter(void*owner, vthread_t thr);
 
       void enqueue_deferred_assert(unsigned long source_id,
+                                   unsigned result,
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
@@ -213,6 +215,7 @@ class vvp_process : public vvp_object {
       void cancel_deferred_asserts(const char*selector, int levels);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
+                                     unsigned result,
                                      vvp_code_t action_pc,
                                      __vpiScope*action_scope,
                                      const deferred_assert_args_s&action_args);
@@ -1783,6 +1786,7 @@ struct final_deferred_assert_mature_event_s : public vvp_gen_event_s {
 };
 
 void vvp_process::enqueue_deferred_assert(unsigned long source_id,
+                                          unsigned result,
                                           vvp_code_t action_pc,
                                           __vpiScope*action_scope,
                                           const deferred_assert_args_s&action_args)
@@ -1791,6 +1795,7 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
             deferred_assert_processes_.insert(this);
       deferred_assert_report_s report;
       report.source_id = source_id;
+      report.result = result;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -1914,6 +1919,10 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
+	    if (report.source_id && report.result)
+		  vpip_deferred_assertion_report(report.source_id,
+			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
+			  report.action_scope);
 
 	    if (!report.action_pc || !report.action_scope)
 		  continue;
@@ -1951,12 +1960,14 @@ void vvp_process::mature_deferred_asserts()
 }
 
 void vvp_process::pin_final_deferred_assert(unsigned long source_id,
+                                            unsigned result,
                                             vvp_code_t action_pc,
                                             __vpiScope*action_scope,
                                             const deferred_assert_args_s&action_args)
 {
       deferred_assert_report_s report;
       report.source_id = source_id;
+      report.result = result;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -2006,6 +2017,10 @@ void vvp_process::mature_final_deferred_asserts()
 		  continue;
 
 	    deferred_assert_report_s report = cur->second;
+	    if (report.source_id && report.result)
+		  vpip_deferred_assertion_report(report.source_id,
+			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
+			  report.action_scope);
 	    if (!report.action_pc || !report.action_scope)
 		  continue;
 
@@ -6034,8 +6049,7 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	      // them). Pre-fill them here; a constrained solve may subsequently
 	      // replace the tentative value/mark with its authoritative model.
 	    if (rand_prop_is_container_(defn, pid)) {
-		  if (defn->property_is_randc(pid) && !bt.empty()
-		      && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 			vvp_object_t object;
 			cobj->get_object(pid, object, 0);
 			if (vvp_darray*array = object.peek<vvp_darray>()) {
@@ -6049,6 +6063,16 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 				    vvp_vector4_t value;
 				    array->get_word((unsigned)position, value);
 				    if (value.size() == 0) continue;
+				    if (defn->property_is_enum(pid)
+					&& !defn->property_is_randc(pid)) {
+					  if (!randomize_enum_member_(cobj, defn, pid,
+							     position, value, next_random)) {
+						solve_ok = false;
+						break;
+					  }
+					  array->set_word((unsigned)position, value);
+					  continue;
+				    }
 				    if (defn->property_is_randc(pid)
 					&& randomize_randc_container_leaf_(cobj,
 					     pid, 0, position, value, next_random)) {
@@ -18416,7 +18440,7 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       bool task_key = key && key->opcode == of_DEFER_ENQUEUE_TASK_KEY;
       if (!process || !key
           || (key->opcode != of_DEFER_ENQUEUE_KEY && !task_key)
-          || !key->number || !scope) {
+          || !key->number || key->bit_idx[0] > 2 || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
 		  fprintf(stderr,
@@ -18441,7 +18465,8 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       process->enqueue_deferred_assert(
-	    static_cast<unsigned long>(key->number), action_pc, scope, action_args);
+	    static_cast<unsigned long>(key->number), key->bit_idx[0],
+	    action_pc, scope, action_args);
       return true;
 }
 
@@ -18580,7 +18605,7 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
       }
 
       unsigned long source_id = key->number;
-      if (source_id == 0) {
+      if (source_id == 0 || key->bit_idx[0] > 2) {
 	    static bool warned = false;
 	    if (!warned) {
 		  fprintf(stderr,
@@ -18606,8 +18631,8 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      process->pin_final_deferred_assert(source_id, action_pc, scope,
-                                         action_args);
+      process->pin_final_deferred_assert(source_id, key->bit_idx[0],
+                                         action_pc, scope, action_args);
       return true;
 }
 
@@ -32661,8 +32686,24 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      if (cobj)
-	    cobj->set_object(pid, val, idx);
+      if (cobj) {
+	    /* A whole-array assignment pattern is evaluated as a temporary
+	     * unpacked-array object. A fixed array of class handles stores one
+	     * handle per property word, so copy those words instead of storing
+	     * the temporary array object in word zero. */
+	    const class_type*type = cobj->get_defn();
+	    const string&base = type->property_base_type(pid);
+	    uint64_t count = type->property_array_size(pid);
+	    vvp_darray*array = val.peek<vvp_darray>();
+	    if (idx == 0 && !type->property_dimensions(pid).empty()
+		&& base == "o" && array && array->get_size() == count) {
+		  for (uint64_t word = 0; word < count; ++word) {
+			vvp_object_t element;
+			array->get_word((unsigned)word, element);
+			cobj->set_object(pid, element, word);
+		  }
+	    } else cobj->set_object(pid, val, idx);
+      }
       else
 	    vif_base->set_object(pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
@@ -34739,7 +34780,7 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 			  "vvp: unable to queue unique/priority case violation report.\n");
 		  return true;
 	    }
-	    process->enqueue_deferred_assert(0, cp, scope, args);
+	    process->enqueue_deferred_assert(0, 0, cp, scope, args);
 	    return true;
       }
 

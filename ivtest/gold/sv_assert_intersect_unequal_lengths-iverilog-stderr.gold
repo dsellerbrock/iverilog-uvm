@@ -1,1 +1,4 @@
+./../tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv:20: error: a sequence used as a property shall be nondegenerate (IEEE 1800-2017/2023 16.12.22(a)).
+./../tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv:21: error: a sequence used as a property shall be nondegenerate (IEEE 1800-2017/2023 16.12.22(a)).
 ./../tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv:26: error: an implication antecedent that can never match is illegal (IEEE 1800-2017/2023 16.12.22)
+./../tests/sva_nfa/intersect_unequal_lengths_nfa_only.sv:29: error: a sequence used as a property shall be nondegenerate (IEEE 1800-2017/2023 16.12.22(a)).

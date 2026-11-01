@@ -3661,6 +3661,7 @@ struct deferred_final_task_frame_s {
       int saw_alloc;
       int saw_free;
       long source_id;
+      unsigned result;
       unsigned action_lab;
       unsigned after_lab;
       ivl_scope_t action_scope;
@@ -6068,9 +6069,22 @@ int draw_vif_function_call(ivl_expr_t expr)
 static long deferred_final_task_marker_id_(ivl_statement_t net)
 {
       ivl_expr_t expr;
-      if (ivl_stmt_parm_count(net) != 1)
+      if (ivl_stmt_parm_count(net) != 2)
             return -1;
       expr = ivl_stmt_parm(net, 0);
+      if (!expr || ivl_expr_type(expr) != IVL_EX_NUMBER
+          || !number_is_immediate(expr, 32, 0)
+          || number_is_unknown(expr))
+            return -1;
+      return get_number_immediate(expr);
+}
+
+static long deferred_final_task_marker_result_(ivl_statement_t net)
+{
+      ivl_expr_t expr;
+      if (ivl_stmt_parm_count(net) != 2)
+            return -1;
+      expr = ivl_stmt_parm(net, 1);
       if (!expr || ivl_expr_type(expr) != IVL_EX_NUMBER
           || !number_is_immediate(expr, 32, 0)
           || number_is_unknown(expr))
@@ -6085,11 +6099,12 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
       const int is_final = strstr(name, "final") != NULL;
       const int is_begin = strstr(name, "_begin") != NULL;
       long source_id = deferred_final_task_marker_id_(net);
+      long result = deferred_final_task_marker_result_(net);
 
-      if (source_id <= 0 || !sscope) {
+      if (source_id <= 0 || (result != 1 && result != 2) || !sscope) {
             fprintf(stderr,
                     "%s:%u: error: malformed internal %s marker; expected "
-                    "one positive source id and a lexical scope.\n",
+                    "one positive source id, a result code, and a lexical scope.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net), name);
             vvp_errors += 1;
             return 1;
@@ -6111,6 +6126,7 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             deferred_final_task_frame_.active = 1;
             deferred_final_task_frame_.is_final = is_final;
             deferred_final_task_frame_.source_id = source_id;
+            deferred_final_task_frame_.result = result;
             deferred_final_task_frame_.action_scope = sscope;
             deferred_final_task_frame_.action_lab = local_count++;
             deferred_final_task_frame_.after_lab = local_count++;
@@ -6128,8 +6144,9 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
                     deferred_final_task_frame_.action_lab);
             fprintf(vvp_out, is_final
-                  ? "    %%defer/final/taskkey %ld;\n"
-                  : "    %%defer/enqueue/taskkey %ld;\n", source_id);
+                  ? "    %%defer/final/taskkey %ld, %u;\n"
+                  : "    %%defer/enqueue/taskkey %ld, %u;\n",
+                  source_id, deferred_final_task_frame_.result);
             return 0;
       }
 
@@ -6187,10 +6204,12 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       ivl_expr_t source_expr = parm_count > 1 ? ivl_stmt_parm(net, 1) : 0;
       ivl_expr_t assertion_kind_expr = parm_count > 2
 	    ? ivl_stmt_parm(net, 2) : 0;
-      ivl_expr_t kind_expr = parm_count > 3 ? ivl_stmt_parm(net, 3) : 0;
+      ivl_expr_t result_expr = parm_count > 3 ? ivl_stmt_parm(net, 3) : 0;
+      ivl_expr_t kind_expr = parm_count > 4 ? ivl_stmt_parm(net, 4) : 0;
       long mode = -1;
       long source_id = -1;
       long assertion_kind = -1;
+      long result = -1;
       long kind = -1;
 
       if (mode_expr && ivl_expr_type(mode_expr) == IVL_EX_NUMBER
@@ -6214,6 +6233,11 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
           && !number_is_unknown(kind_expr))
             kind = get_number_immediate(kind_expr);
 
+      if (result_expr && ivl_expr_type(result_expr) == IVL_EX_NUMBER
+          && number_is_immediate(result_expr, 32, 0)
+          && !number_is_unknown(result_expr))
+            result = get_number_immediate(result_expr);
+
       if ((final_marker && mode != 1) || (!final_marker && mode != 0))
             kind = -1;
 
@@ -6222,20 +6246,21 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
 	    kind = -1;
 
       if (kind == 0) {
-	    if (parm_count != 4)
+	    if (parm_count != 5)
                   kind = -1;
       } else if (kind == 1) {
-            if (parm_count < 4)
+	    if (parm_count < 5)
                   kind = -1;
       } else if (kind == 2) {
-            if (parm_count < 4)
+	    if (parm_count < 5)
                   kind = -1;
       } else {
             kind = -1;
       }
 
       if ((mode != 0 && mode != 1) || source_id <= 0
-          || kind < 0 || !sscope) {
+	  || kind < 0 || (result != 0 && result != 1 && result != 2)
+	  || !sscope) {
             fprintf(stderr,
                     "%s:%u: error: malformed internal "
                     "%s marker; expected a marker-consistent "
@@ -6260,26 +6285,27 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             show_stmt_file_line(net,
                   final_marker ? "Final deferred immediate assertion pin."
                                : "Deferred immediate assertion enqueue.");
-            return draw_vpi_deferred_call(net, 4,
+            return draw_vpi_deferred_call(net, 5,
                                           kind == 1 ? "$error" : "$display",
-                                          source_id, sscope, final_marker);
+                                          source_id, sscope, final_marker,
+                                          (unsigned)result);
       }
-
-      /* A selected #0 null arm queues no action. A final null arm must still
-       * pin its source id so it can cancel an earlier non-null selection. */
-      if (mode == 0)
-            return 0;
 
       unsigned action_lab = local_count++;
       unsigned after_lab = local_count++;
 
       show_stmt_file_line(net, "Final deferred immediate assertion pin.");
-      fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
-              thread_count, action_lab, sscope);
+      fprintf(vvp_out, final_marker
+	      ? "    %%defer/final T_%u.%u, S_%p;\n"
+	      : "    %%defer/enqueue T_%u.%u, S_%p;\n",
+	      thread_count, action_lab, sscope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, after_lab);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, action_lab);
-      fprintf(vvp_out, "    %%defer/final/key %ld;\n", source_id);
+      fprintf(vvp_out, final_marker
+	      ? "    %%defer/final/key %ld, %ld;\n"
+	      : "    %%defer/enqueue/key %ld, %ld;\n",
+	      source_id, result);
       fprintf(vvp_out, "    %%end;\n");
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, after_lab);
 

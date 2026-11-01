@@ -448,6 +448,9 @@ extern void vpip_register_deferred_assertion(unsigned long source_id,
 					     vpiHandle scope);
 extern void vpip_cancel_deferred_assertion(unsigned long source_id,
 					   vpiHandle scope);
+extern void vpip_deferred_assertion_report(unsigned long source_id,
+					   PLI_INT32 reason,
+					   vpiHandle scope);
 extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);

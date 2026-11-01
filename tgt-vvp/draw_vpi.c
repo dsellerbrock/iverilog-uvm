@@ -53,6 +53,7 @@ struct args_info {
 
 struct deferred_vpi_call_info {
       long source_id;
+      unsigned result;
       ivl_scope_t scope;
       unsigned action_lab;
       unsigned after_lab;
@@ -1300,11 +1301,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    fprintf(vvp_out, "T_%u.%u ;\n",
 		    thread_count, deferred->action_lab);
 	    if (deferred->is_final)
-		  fprintf(vvp_out, "    %%defer/final/key %ld;\n",
-			  deferred->source_id);
+		  fprintf(vvp_out, "    %%defer/final/key %ld, %u;\n",
+			  deferred->source_id, deferred->result);
 	    else
-		  fprintf(vvp_out, "    %%defer/enqueue/key %ld;\n",
-			  deferred->source_id);
+		  fprintf(vvp_out, "    %%defer/enqueue/key %ld, %u;\n",
+			  deferred->source_id, deferred->result);
       }
 
       fprintf(vvp_out, "%s", call_string);
@@ -1415,7 +1416,7 @@ void draw_vpi_task_call(ivl_statement_t tnet)
 
 int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
 			   const char*task_name, long source_id,
-			   ivl_scope_t scope, int is_final)
+			   ivl_scope_t scope, int is_final, unsigned result)
 {
       unsigned total = tnet ? ivl_stmt_parm_count(tnet) : 0;
 
@@ -1484,6 +1485,7 @@ int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
 
       struct deferred_vpi_call_info deferred;
       deferred.source_id = source_id;
+      deferred.result = result;
       deferred.scope = scope;
       deferred.action_lab = local_count++;
       deferred.after_lab = local_count++;

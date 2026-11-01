@@ -1390,6 +1390,8 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
 	    Module::port_t*pp = ports[idx];
 	    if (pp == 0)
 		  continue;
+	    if (pp->event_port)
+		  continue;
 
 	      // The port has a name and an array of expressions. The
 	      // expression are all identifiers that should reference

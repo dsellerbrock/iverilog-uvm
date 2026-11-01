@@ -67,6 +67,22 @@ perm_string NetEvent::name() const
       return name_;
 }
 
+NetEvent* NetEvent::canonical_event()
+{
+      NetEvent*event = this;
+      while (event->alias_)
+	    event = event->alias_;
+      return event;
+}
+
+const NetEvent* NetEvent::canonical_event() const
+{
+      const NetEvent*event = this;
+      while (event->alias_)
+	    event = event->alias_;
+      return event;
+}
+
 NetScope* NetEvent::scope()
 {
       ivl_assert(*this, scope_);

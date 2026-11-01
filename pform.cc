@@ -3714,7 +3714,8 @@ static void pform_interface_event_bridge_(const struct vlltype&loc,
 
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 			      std::list<pform_range_t>*array_dims,
-			      ivl_lifetime_t lifetime)
+			      ivl_lifetime_t lifetime,
+			      bool is_port = false)
 {
       PEvent*event = new PEvent(name.first, name.second);
       FILE_NAME(event, loc);
@@ -3726,8 +3727,15 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 
       if (!array_dims && !pform_cur_module.empty()
 	  && pform_cur_module.front()->is_interface
-	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front()))
+	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front())
+	  && !is_port)
 	    pform_interface_event_bridge_(loc, name.first);
+}
+
+void pform_make_event_port(const struct vlltype&loc,
+			   const pform_ident_t&name)
+{
+      pform_make_event(loc, name, nullptr, IVL_VLT_INHERITED, true);
 }
 
 void pform_make_events(const struct vlltype&loc,
@@ -7305,15 +7313,17 @@ static unsigned deferred_assertion_source_id_ = 0;
 
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
- * selected call. The first arguments are mode (0 = #0, 1 = final), source id,
- * assertion kind (assert=1, cover=2, assume=4), and action kind (0 = null,
- * 1 = `$error', 2 = `$display'). Action markers then carry any original
- * positional action arguments; the VVP target evaluates those expressions
- * before queueing the report and snapshots their typed stack values. */
+ * selected call and result. The first arguments are mode (0 = #0, 1 = final),
+ * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = no
+ * result, 1 = pass, 2 = fail), and action kind (0 = null, 1 = `$error',
+ * 2 = `$display'). Action markers then carry any original positional action
+ * arguments; the VVP target evaluates those expressions before queueing the
+ * report and snapshots their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
 					    unsigned assertion_kind,
+					    unsigned result,
 					    unsigned kind,
 					    const std::vector<named_pexpr_t>*action_args = 0)
 {
@@ -7336,6 +7346,11 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 	    new verinum((uint64_t)assertion_kind, 32));
       FILE_NAME(assertion_kind_arg.parm, loc);
       args.push_back(assertion_kind_arg);
+
+      named_pexpr_t result_arg;
+      result_arg.parm = new PENumber(new verinum((uint64_t)result, 32));
+      FILE_NAME(result_arg.parm, loc);
+      args.push_back(result_arg);
 
       named_pexpr_t kind_arg;
       kind_arg.parm = new PENumber(new verinum((uint64_t)kind, 32));
@@ -7363,15 +7378,21 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 static Statement* deferred_final_task_action_(const struct vlltype&loc,
                                                unsigned source_id,
                                                PCallTask*call,
-                                               bool is_final)
+                                               bool is_final,
+                                               bool is_failure)
 {
-      auto make_marker = [&loc, source_id](const char*name) -> Statement* {
+      auto make_marker = [&loc, source_id, is_failure](const char*name) -> Statement* {
             std::list<named_pexpr_t> args;
             named_pexpr_t source_arg;
             source_arg.parm = new PENumber(
                   new verinum((uint64_t)source_id, 32));
             FILE_NAME(source_arg.parm, loc);
             args.push_back(source_arg);
+            named_pexpr_t result_arg;
+            result_arg.parm = new PENumber(
+                  new verinum((uint64_t)(is_failure ? 2 : 1), 32));
+            FILE_NAME(result_arg.parm, loc);
+            args.push_back(result_arg);
             PCallTask*marker = new PCallTask(lex_strings.make(name), args);
             FILE_NAME(marker, loc);
             return marker;
@@ -7410,18 +7431,18 @@ static bool deferred_action_marker_(const struct vlltype&loc,
       if (source == 0) {
 	    if (default_error)
 		  marker = deferred_enqueue_marker_(loc, is_final,
-						   source_id, assertion_kind, 1);
-	    else if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id,
-						    assertion_kind, 0);
+						   source_id, assertion_kind, 2, 1);
+	    else
+		  marker = deferred_enqueue_marker_(loc, is_final, source_id,
+						    assertion_kind, 1, 0);
 	    return true;
       }
 
       if (dynamic_cast<PNoop*>(source)) {
 	    delete source;
-	    if (is_final)
-		  marker = deferred_enqueue_marker_(loc, true, source_id,
-					    assertion_kind, 0);
+	    marker = deferred_enqueue_marker_(loc, is_final, source_id,
+					    assertion_kind,
+					    default_error ? 2 : 1, 0);
 	    return true;
       }
 
@@ -7458,7 +7479,8 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 		  positional = positional && parm.name.nil();
 	    if (positional) {
 		  marker = deferred_enqueue_marker_(
-			loc, is_final, source_id, assertion_kind, 1,
+			loc, is_final, source_id, assertion_kind,
+			default_error ? 2 : 1, 1,
 			&parms);
 		  delete source;
 		  return true;
@@ -7471,7 +7493,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 		  positional = positional && parm.name.nil();
 	    if (positional) {
 		  marker = deferred_enqueue_marker_(loc, is_final, source_id,
-					  assertion_kind, 2,
+					  assertion_kind, default_error ? 2 : 1, 2,
 					  &parms);
 		  delete source;
 		  return true;
@@ -7483,7 +7505,7 @@ static bool deferred_action_marker_(const struct vlltype&loc,
           && call->leading_type_args() == 0
           && call->with_constraints().empty()) {
             marker = deferred_final_task_action_(loc, source_id, call,
-                                                 is_final);
+                                                 is_final, default_error);
             return true;
       }
 
@@ -7565,13 +7587,13 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
       }
 
       if (!pass_marker && !is_final)
-	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 0);
+	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 1, 0);
 
       /* A false final cover selection replaces an earlier true pin from the
 	 same source assertion and logical process. For #0, a false evaluation
 	 simply adds no report; normal process flush points handle reactivation. */
       Statement*false_marker = is_final
-	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0) : 0;
+	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0, 0) : 0;
 
       PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();
@@ -29044,6 +29066,23 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
       if (prop && prop->tree) {
+	    /* IEEE 1800-2017/2023 16.12.22(a): a sequence used as a
+	       property must be nondegenerate. An empty language is already
+	       proven on the source tree (for example, intersect operands with
+	       different fixed lengths); reject it before either assertion
+	       engine can turn it into a checker that never matches. For an
+	       implication, `tree' is the sequence/property consequent. */
+	    if (!prop->sequence_cover && prop->op_type <= 2
+		&& sva_tree_proves_empty_(prop->tree)) {
+		  cerr << loc << ": error: a sequence used as a property shall be "
+		       << "nondegenerate (IEEE 1800-2017/2023 16.12.22(a))."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(prop);
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  return;
+	    }
 	      /* The endpoint-method (.triggered/.matched) lowering must
 	         also cover combinator-tree leaf chains -- the tree
 	         dispatch used to bypass it, leaving the references
