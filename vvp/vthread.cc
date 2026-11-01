@@ -32661,8 +32661,24 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      if (cobj)
-	    cobj->set_object(pid, val, idx);
+      if (cobj) {
+	    /* A whole-array assignment pattern is evaluated as a temporary
+	     * unpacked-array object. A fixed array of class handles stores one
+	     * handle per property word, so copy those words instead of storing
+	     * the temporary array object in word zero. */
+	    const class_type*type = cobj->get_defn();
+	    const string&base = type->property_base_type(pid);
+	    uint64_t count = type->property_array_size(pid);
+	    vvp_darray*array = val.peek<vvp_darray>();
+	    if (idx == 0 && !type->property_dimensions(pid).empty()
+		&& base == "o" && array && array->get_size() == count) {
+		  for (uint64_t word = 0; word < count; ++word) {
+			vvp_object_t element;
+			array->get_word((unsigned)word, element);
+			cobj->set_object(pid, element, word);
+		  }
+	    } else cobj->set_object(pid, val, idx);
+      }
       else
 	    vif_base->set_object(pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
