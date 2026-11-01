@@ -2,5 +2,7 @@
   "type": "CE",
   "source": "issue2168_bitstream_p2s.v",
   "iverilog-args": ["-g2017", "-s", "issue2168_bitstream_p2s"],
+  "iverilog-address-space-limit": 4294967296,
+  "iverilog-max-rss": 1073741824,
   "gold": "issue2168_bitstream_p2s"
 }
