@@ -1,0 +1,5 @@
+Time scale of ($root) is 1fs / 1fs
+Time scale of ($unit) is 100ps / 10fs
+Time scale of (a_dat) is 1ms / 1us
+Time scale of (b_dat.c1) is 1ns / 1ns
+PASSED

@@ -779,6 +779,11 @@ TU [munpf]
       if (strcmp(yytext,"$attribute") == 0)
 	    return KK_attribute;
 
+	/* Keep the one system task with special $root/$unit argument forms
+	   separate from general system-function expression parsing. */
+      if (strcmp(yytext,"$printtimescale") == 0)
+	    return PRINTTIMESCALE;
+
       if (gn_system_verilog() && strcmp(yytext,"$unit") == 0) {
 	    yylval.package = pform_units.back();
 	    return PACKAGE_IDENTIFIER;

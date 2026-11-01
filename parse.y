@@ -607,6 +607,44 @@ static void pform_destroy_attr_method_call(pform_attr_method_call_t*call)
       delete call;
 }
 
+/* $printtimescale's $root form denotes the global simulation timescale,
+   which has no VPI scope object. Keep that syntax out of general expression
+   handling and lower it to a private runtime task. */
+static PCallTask* pform_make_printtimescale_call(
+      const struct vlltype&loc, std::list<named_pexpr_t>*args)
+{
+      perm_string task_name = perm_string::literal("$printtimescale");
+      if (args->size() == 1 && args->front().parm) {
+	    const PECallFunction*root =
+		  dynamic_cast<const PECallFunction*>(args->front().parm);
+	    if (root && root->receiver_expr() == nullptr
+		&& root->path().package == nullptr
+		&& root->path().size() == 1
+		&& strcmp(root->path().back().name.str(), "$root") == 0
+		&& root->get_parms().empty()) {
+		  delete args->front().parm;
+		  args->clear();
+		  task_name = perm_string::literal("$ivl_printtimescale_root");
+	    } else {
+		  const PEIdent*unit =
+			dynamic_cast<const PEIdent*>(args->front().parm);
+		  if (unit && unit->path().package
+		      && unit->path().size() == 1
+		      && unit->path().back().name
+			   == unit->path().package->pscope_name()
+		      && strcmp(unit->path().package->pscope_name().str(),
+				"$unit") == 0)
+			task_name = perm_string::literal(
+			      "$ivl_printtimescale_unit");
+	    }
+      }
+
+      PCallTask*tmp = new PCallTask(task_name, *args);
+      FILE_NAME(tmp, loc);
+      delete args;
+      return tmp;
+}
+
 /* IEEE 1800-2017 7.12: build a method-call expression for the
    keyword-named array methods (and/or/xor), which the generic
    function-call and with-clause rules cannot match.  args may be
@@ -2627,6 +2665,7 @@ static Module::port_t *module_declare_explicit_port(
    makes that tool reject the grammar before reading any productions. */
 %debug
 %token <text>      IDENTIFIER FUNCTION_IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
+%token             PRINTTIMESCALE
 %token <type_identifier> TYPE_IDENTIFIER
 %token <nettype_identifier> NETTYPE_IDENTIFIER
 %destructor { delete[] $$.text; } NETTYPE_IDENTIFIER
@@ -9853,6 +9892,20 @@ sva_match_call
 	delete[] $1;
 	delete $2;
 	$$ = tmp; }
+  | PRINTTIMESCALE argument_list_parens_opt
+      { $$ = pform_make_printtimescale_call(@1, $2); }
+  | PRINTTIMESCALE '(' PACKAGE_IDENTIFIER ')'
+      { pform_name_t path;
+	path.push_back(name_component_t($3->pscope_name()));
+	PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	FILE_NAME(scope_arg, @3);
+	std::list<named_pexpr_t>*args = new std::list<named_pexpr_t>;
+	named_pexpr_t parm;
+	FILE_NAME(&parm, @3);
+	parm.name = perm_string();
+	parm.parm = scope_arg;
+	args->push_back(parm);
+	$$ = pform_make_printtimescale_call(@1, args); }
   | IDENTIFIER argument_list_parens
       { pform_name_t name;
 	name.push_back(name_component_t(lex_strings.make($1)));
@@ -19543,6 +19596,21 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | PRINTTIMESCALE argument_list_parens_opt
+	{ $$ = pform_make_printtimescale_call(@1, $2); }
+  | PRINTTIMESCALE '(' PACKAGE_IDENTIFIER ')'
+	{ pform_name_t path;
+	  path.push_back(name_component_t($3->pscope_name()));
+	  PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	  FILE_NAME(scope_arg, @3);
+	  std::list<named_pexpr_t>*args = new std::list<named_pexpr_t>;
+	  named_pexpr_t parm;
+	  FILE_NAME(&parm, @3);
+	  parm.name = perm_string();
+	  parm.parm = scope_arg;
+	  args->push_back(parm);
+	  $$ = pform_make_printtimescale_call(@1, args);
+	}
   | expr_primary '.' IDENTIFIER argument_list_parens_opt
       { /* Method-call statement on an expression, e.g. pkg::queue.push_back(x).
 	   When the expr_primary is a PEIdent (typical for TYPE_IDENTIFIER or
