@@ -11,7 +11,7 @@ endclass
 
 class over_cap_cycle_item;
   randc bit [20:0] value;
-  constraint legal_values { value inside {[0:2048]}; }
+  constraint legal_values { value inside {[0:4096]}; }
 endclass
 
 module test;

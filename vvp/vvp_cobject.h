@@ -29,8 +29,8 @@
 
 class vvp_vector4_t;
 
-/* shortcut: 2,048 feasible scalar randc values, raise with bounded resource evidence. */
-static const uint64_t VVP_RANDC_FEASIBLE_DOMAIN_CAP = 2048;
+/* Bound exact sparse randc enumeration and its retained feasible set. */
+static const uint64_t VVP_RANDC_FEASIBLE_DOMAIN_CAP = 4096;
 
 // A constructor-resolved dynamic coverage-bin family. Plain range and set
 // covergroup expressions are immutable after the covergroup object is built,

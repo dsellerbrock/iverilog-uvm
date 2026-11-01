@@ -6428,5 +6428,7 @@ issue1829_linear_equality_chain_2017 normal,-g2017,-s,tb ivltests gold=issue1829
 issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
 
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
+issue420_randc_sparse_extension normal,-g2017,-s,test ivltests gold=issue420_randc_sparse_extension.gold
+issue420_randc_sparse_extension_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_sparse_extension_2023.gold
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold

@@ -9152,7 +9152,7 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
  * CAP+1 distinct values leaves sampling to the general fallback; returning
  * true means the solver proved the complete feasible set was exhausted. The
  * set comes back in ascending order, independent of Z3's model choices. */
-static const size_t SPARSE_DOMAIN_CAP = 64;
+static const size_t SPARSE_DOMAIN_CAP = VVP_RANDC_FEASIBLE_DOMAIN_CAP;
 
 static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
                                              Z3_ast var, unsigned width,
@@ -14262,7 +14262,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		    || feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP)) {
 		  randc_sampling_failed = true;
 		  randc_sampling_error = "wide randc requires a non-static scalar "
-			"domain of at most 2048 exactly enumerated values";
+		    "domain of at most 4096 exactly enumerated values";
 		  return;
 	    }
 	    if (enumerated) {

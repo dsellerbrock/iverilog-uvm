@@ -656,7 +656,7 @@ bool vvp_cobject::randc_transaction_commit()
 	    if (width > 20) {
 		  if (!sparse_history || !it->second.feasible_domain
 		      || it->second.feasible.empty()
-		      || it->second.feasible.size() > 1024
+		      || it->second.feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP
 		      || find(it->second.feasible.begin(),
 			     it->second.feasible.end(), actual)
 			 == it->second.feasible.end()) {
