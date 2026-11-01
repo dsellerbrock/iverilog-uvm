@@ -9030,7 +9030,8 @@ static std::vector<sva_seq_step_t>* sva_clone_steps_subst_(
 static PEventStatement* sva_clone_event_control_(
 					 const PEventStatement*src,
 					 const struct vlltype&loc,
-					 const std::map<perm_string,PExpr*>*subst);
+					 const std::map<perm_string,PExpr*>*subst = nullptr,
+					 const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
 
 Statement* pform_sva_sequence_event(const struct vlltype&loc,
 					    PEventStatement*ctl)
@@ -11901,7 +11902,10 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 				      perm_string nm,
 				      const std::vector<sva_property_formal_t>&formals,
 				      const std::vector<named_pexpr_t>&parms,
+				      const PEventStatement*inferred_clock,
+				      PExpr*inferred_disable,
 				      std::map<perm_string,PExpr*>&subst,
+				      std::map<perm_string,const PEventStatement*>&event_subst,
 				      std::vector<PExpr*>&owned,
 				      std::vector<sva_seq_step_t>&initializers,
 				      std::map<perm_string,perm_string>&local_carriers,
@@ -11960,7 +11964,39 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 			value = actuals[k]->parm;
 		  }
 	    } else if (formal.default_expr) {
-		  value = sva_clone_subst_(formal.default_expr, nullptr);
+		  PECallFunction*inferred =
+			 dynamic_cast<PECallFunction*>(formal.default_expr);
+		  bool inferred_clock_default = inferred
+			 && !inferred->path().package
+			 && inferred->path().name.size() == 1
+			 && inferred->path().name.front().name
+			      == perm_string::literal("$inferred_clock");
+		  bool inferred_disable_default = inferred
+			 && !inferred->path().package
+			 && inferred->path().name.size() == 1
+			 && inferred->path().name.front().name
+			      == perm_string::literal("$inferred_disable");
+		  if (inferred_clock_default) {
+			if (formal.formal_type != sva_property_formal_t::EVENT
+			    && formal.formal_type != sva_property_formal_t::UNTYPED) {
+			      cerr << loc << ": error: $inferred_clock requires an event or untyped property formal (IEEE 1800-2017/2023 16.14.7)." << endl;
+			      error_count += 1;
+			      return false;
+			}
+			if (!inferred_clock) {
+			      cerr << loc << ": error: $inferred_clock has no current resolved event expression (IEEE 1800-2017/2023 16.14.7)." << endl;
+			      error_count += 1;
+			      return false;
+			}
+			event_subst[formal.name] = inferred_clock;
+			continue;
+		  } else if (inferred_disable_default) {
+			value = inferred_disable
+			      ? sva_clone_subst_(inferred_disable, nullptr)
+			      : sva_bit_(loc, 0);
+		  } else {
+			value = sva_clone_subst_(formal.default_expr, nullptr);
+		  }
 		  if (value && formal.type) {
 			PECastType*cast = new PECastType(formal.type, value);
 			cast->set_property_formal_actual();
@@ -18335,7 +18371,8 @@ static sva_stree_t* sva_prop_take_tree_(sva_property_t*p);
 static PEventStatement* sva_clone_event_control_(
 				 const PEventStatement*src,
 				 const struct vlltype&loc,
-				 const std::map<perm_string,PExpr*>*subst = nullptr);
+					 const std::map<perm_string,PExpr*>*subst,
+					 const std::map<perm_string,const PEventStatement*>*event_subst);
 
 static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
 {
@@ -26777,7 +26814,8 @@ class sva_assertion_label_scope_t {
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 						 const struct vlltype&loc,
-			 const std::map<perm_string,PExpr*>*subst)
+				 const std::map<perm_string,PExpr*>*subst,
+				 const std::map<perm_string,const PEventStatement*>*event_subst)
 {
       if (!src) return nullptr;
       const std::vector<PEEvent*>&evs = src->event_expressions();
@@ -26788,6 +26826,37 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
       std::vector<PEEvent*> copy;
       for (size_t idx = 0 ; idx < evs.size() ; idx += 1) {
 	    if (!evs[idx]) continue;
+	    /* `@(event_formal)' adopts the inferred clock event expression,
+	       including each edge and iff condition, instead of treating the
+	       event formal as a signal. */
+	    const PEIdent*event_id = dynamic_cast<const PEIdent*>(evs[idx]->expr());
+	    const PEventStatement*event_control = nullptr;
+	    if (event_subst && event_id && !event_id->path().package
+		&& event_id->path().name.size() == 1
+		&& event_id->path().name.front().index.empty()) {
+		  std::map<perm_string,const PEventStatement*>::const_iterator found =
+			 event_subst->find(event_id->path().name.front().name);
+		  if (found != event_subst->end()) event_control = found->second;
+	    }
+	    if (event_control) {
+		  const std::vector<PEEvent*>&inferred_events =
+			 event_control->event_expressions();
+		  for (const PEEvent*inferred : inferred_events) {
+			if (!inferred) continue;
+			PExpr*expr = sva_clone_subst_(inferred->expr(), nullptr);
+			PExpr*condition = inferred->condition()
+			      ? sva_clone_subst_(inferred->condition(), nullptr) : nullptr;
+			if (!expr || (inferred->condition() && !condition)) {
+			      delete expr; delete condition;
+			      for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+			      return nullptr;
+			}
+			PEEvent*event = new PEEvent(inferred->type(), expr, condition);
+			FILE_NAME(event, loc);
+			copy.push_back(event);
+		  }
+		  continue;
+	    }
 	    PExpr*sub = sva_clone_subst_(evs[idx]->expr(), subst);
 	    if (!sub) {
 		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
@@ -29546,8 +29615,29 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  caller_locals.push_back(local);
 			      std::vector<perm_string> actual_local_reads =
 				    prop->local_input_actual_names;
+			      std::map<perm_string,const PEventStatement*> event_subst;
+			      PEventStatement*inferred_clock = prop->clk_evt;
+			      bool owns_inferred_clock = false;
+			      if (!inferred_clock) {
+				    Module*mod = pform_cur_module.empty() ? nullptr
+					  : pform_cur_module.front();
+				    if (mod && !mod->default_clocking.nil()) {
+					  std::list<named_pexpr_t> no_parms;
+					  PECallFunction*mark = new PECallFunction(
+						perm_string::literal("$ivl_default_clock"), no_parms);
+					  FILE_NAME(mark, loc);
+					  PEEvent*event = new PEEvent(PEEvent::ANYEDGE, mark);
+					  std::vector<PEEvent*> events;
+					  events.push_back(event);
+					  inferred_clock = new PEventStatement(events);
+					  FILE_NAME(inferred_clock, loc);
+					  owns_inferred_clock = true;
+				    }
+			      }
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
-				    pit->second.formals, cf->get_parms(), subst,
+				    pit->second.formals, cf->get_parms(), inferred_clock,
+				    sva_default_disable, subst,
+				    event_subst,
 				    owned_subst, *formal_initializers, local_carriers,
 				    caller_locals, actual_local_reads))
 				    fatal = true;
@@ -29590,13 +29680,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						ok = false;
 					  } else {
 						inst->clk_evt = sva_clone_event_control_(
-						      decl->clk_evt, loc, &subst);
+						      decl->clk_evt, loc, &subst,
+						      &event_subst);
 						if (!inst->clk_evt) ok = false;
 					  }
 				    }
 				    if (ok && decl->seq_clk_evt) {
 					  inst->seq_clk_evt = sva_clone_event_control_(
-						decl->seq_clk_evt, loc, &subst);
+						decl->seq_clk_evt, loc, &subst,
+						&event_subst);
 					  if (!inst->seq_clk_evt) ok = false;
 				    }
 				    if (ok && decl->disable_iff_expr) {
@@ -29647,6 +29739,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  fatal = true;
 				    }
 			      }
+			      if (owns_inferred_clock) delete inferred_clock;
 			      pform_sva_destroy_sequence(formal_initializers);
 			      formal_initializers = nullptr;
 			      for (PExpr*value : owned_subst) delete value;
