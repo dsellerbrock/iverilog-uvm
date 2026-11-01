@@ -2695,7 +2695,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <number>  number pos_neg_number
 %type <flag>    signing unsigned_signed_opt signed_unsigned_opt
 %type <flag>    import_export
-%type <flag>    dpi_function_import_property_opt
+%type <int_val> dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
 %type <flag>    udp_reg_opt
 %type <int_val> edge_operator
