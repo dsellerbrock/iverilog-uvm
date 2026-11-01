@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue726_property_local_unassigned_actual_fail.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue726_property_local_unassigned_actual_fail"],
+  "gold": "issue726_property_local_unassigned_actual_fail"
+}

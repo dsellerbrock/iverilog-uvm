@@ -1,0 +1,3 @@
+issue726_property_local_formals normal,-g2017,-gassertions,-s,issue726_property_local_formals ivltests gold=issue726_property_local_formals.gold
+issue726_property_local_direction_fail CE,-g2017,-gassertions,-s,issue726_property_local_direction_fail ivltests gold=issue726_property_local_direction_fail.gold
+issue726_property_local_unassigned_actual_fail CE,-g2017,-gassertions,-s,issue726_property_local_unassigned_actual_fail ivltests gold=issue726_property_local_unassigned_actual_fail.gold

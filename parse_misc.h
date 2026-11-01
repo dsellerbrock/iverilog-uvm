@@ -176,6 +176,11 @@ struct sva_property_formal_t {
       formal_type_t formal_type = UNTYPED;
       data_type_t* type = nullptr;
       PExpr* default_expr = nullptr;
+      // Named-property local formals are per-attempt local variables. The
+      // standard permits only input direction (explicit or inferred).
+      bool local_formal = false;
+      bool local_input = false;
+      bool local_bad_direction = false;
 };
 
 /*
@@ -227,6 +232,10 @@ struct sva_property_t {
       // bare identifier still shadows any same-named module object and must
       // never be silently resolved as design state by the NFA lowering.
       std::vector<perm_string> local_names;
+      // Caller locals read while initializing local input property formals.
+      // They participate in the same assigned-before-read analysis as this
+      // property's own locals after the formal instantiation is expanded.
+      std::vector<perm_string> local_input_actual_names;
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
       // M9-NFA stage D.1: consequent clocking event for a multiclocked
       // implication `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3). When

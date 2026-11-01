@@ -6404,3 +6404,6 @@ issue1816_function_ref_array_element_2017 normal,-g2017,-s,issue1816_function_re
 issue1816_function_ref_array_element_2023 normal,-g2023,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
 issue802_enum_p_2017 normal,-g2017,-s,test ivltests gold=issue802_enum_p_2017.gold
 issue802_enum_p_2023 normal,-g2023,-s,test ivltests gold=issue802_enum_p_2023.gold
+issue726_property_local_formals normal,-g2017,-gassertions,-s,issue726_property_local_formals ivltests gold=issue726_property_local_formals.gold
+issue726_property_local_direction_fail CE,-g2017,-gassertions,-s,issue726_property_local_direction_fail ivltests gold=issue726_property_local_direction_fail.gold
+issue726_property_local_unassigned_actual_fail CE,-g2017,-gassertions,-s,issue726_property_local_unassigned_actual_fail ivltests gold=issue726_property_local_unassigned_actual_fail.gold

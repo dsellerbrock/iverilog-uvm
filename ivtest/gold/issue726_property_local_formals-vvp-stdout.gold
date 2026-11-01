@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue726_property_local_formals.v:45: $finish called at 21 (1s)
