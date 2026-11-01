@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue956_vpi_return_event.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue956_vpi_return_event"],
+  "vpi-sources": ["vpi/issue956_vpi_return_event.c"],
+  "output-contains": ["PASSED"]
+}
