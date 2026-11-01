@@ -32,7 +32,7 @@ PWire::PWire(perm_string n,
 : name_(n), lexical_pos_(lp), type_(t), net_kind_(BUILTIN_NET),
   user_nettype_(nullptr), port_type_(pt), signed_(false),
   port_set_(false), net_set_(false), is_scalar_(false),
-  error_cnt_(0), discipline_(0)
+	  reject_unknown_range_(true), error_cnt_(0), discipline_(0)
 {
       switch (rt) {
 	  case SR_PORT:
@@ -186,8 +186,10 @@ void PWire::set_net(NetNet::Type t)
       }
 }
 
-void PWire::set_range(const list<pform_range_t>&rlist, PWSRType type)
+void PWire::set_range(const list<pform_range_t>&rlist, PWSRType type,
+		      bool reject_unknown)
 {
+	  reject_unknown_range_ = reject_unknown;
       switch (type) {
 	  case SR_PORT:
 	    if (!port_.empty())

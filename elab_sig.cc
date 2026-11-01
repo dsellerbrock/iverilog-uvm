@@ -4032,9 +4032,11 @@ ivl_type_t PWire::elaborate_sig_type(Design*des, NetScope*scope) const
 	    bool dimensions_ok = true;
 	    netranges_t plist, nlist;
 	    if (port_set_ && !port_.empty())
-		  dimensions_ok &= evaluate_ranges(des, scope, this, plist, port_);
+		  dimensions_ok &= evaluate_ranges(des, scope, this, plist, port_,
+						   reject_unknown_range_);
 	    if (net_set_ && !net_.empty() && dimensions_ok)
-		  dimensions_ok &= evaluate_ranges(des, scope, this, nlist, net_);
+		  dimensions_ok &= evaluate_ranges(des, scope, this, nlist, net_,
+						   reject_unknown_range_);
 	    packed_dimensions = net_set_ ? nlist : plist;
       }
 
@@ -4193,7 +4195,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 			cerr << get_fileline() << ": PWire::elaborate_sig: "
 			     << "Evaluate ranges for port " << basename() << endl;
 		  }
-		  dimensions_ok &= evaluate_ranges(des, scope, this, plist, port_);
+		  dimensions_ok &= evaluate_ranges(des, scope, this, plist, port_,
+						   reject_unknown_range_);
 	    }
             ivl_assert(*this, port_set_ || port_.empty());
 
@@ -4204,7 +4207,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 			cerr << get_fileline() << ": PWire::elaborate_sig: "
 			     << "Evaluate ranges for net " << basename() << endl;
 		  }
-		  dimensions_ok &= evaluate_ranges(des, scope, this, nlist, net_);
+		  dimensions_ok &= evaluate_ranges(des, scope, this, nlist, net_,
+						   reject_unknown_range_);
 	    }
             ivl_assert(*this, net_set_ || net_.empty());
 

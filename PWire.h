@@ -90,7 +90,8 @@ class PWire : public PNamedItem {
       void set_signed(bool flag);
       bool get_signed() const;
 
-      void set_range(const std::list<pform_range_t>&ranges, PWSRType type);
+      void set_range(const std::list<pform_range_t>&ranges, PWSRType type,
+		     bool reject_unknown = true);
 
       void set_unpacked_idx(const std::list<pform_range_t>&ranges);
       const std::list<pform_range_t>& unpacked_indices() const { return unpacked_; }
@@ -160,6 +161,7 @@ class PWire : public PNamedItem {
       std::list<pform_range_t>net_;
       bool net_set_;
       bool is_scalar_;
+      bool reject_unknown_range_;
       unsigned error_cnt_;
 
 	// If this wire is actually a memory, these indices will give

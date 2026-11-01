@@ -673,11 +673,18 @@ extern bool concat_of_assign_patterns_is_unsafe_typed(const PExpr*expr);
 
 extern bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
                            const pform_range_t&range,
-                           long&index_l, long&index_r);
+                           long&index_l, long&index_r,
+                           bool reject_unknown = false);
 
 extern bool evaluate_ranges(Design*des, NetScope*scope, const LineInfo*li,
 			    netranges_t&llist,
-			    const std::list<pform_range_t>&rlist);
+			    const std::list<pform_range_t>&rlist,
+			    bool reject_unknown = true);
+
+/* True when an expression still depends on a generic class value parameter
+ * whose provisional elaborated value is not final. */
+extern bool value_parameter_is_deferred(Design*des, NetScope*scope,
+					const PExpr*expr);
 /*
  * This procedure evaluates an expression and if the evaluation is
  * successful the original expression is replaced with the new one.
