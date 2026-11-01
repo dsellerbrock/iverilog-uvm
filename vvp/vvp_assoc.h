@@ -173,6 +173,12 @@ class vvp_assoc_base : public vvp_object {
 			      double val_real, const std::string&val_str,
 			      int val_kind) =0;
 
+	// Integral-key packed-data access used by $readmem/$writemem. These
+	// helpers deliberately address keys rather than the positional VPI view.
+      virtual bool readmem_set(const vvp_vector4_t&key,
+			       const vvp_vector4_t&value) =0;
+      virtual bool readmem_key_at(size_t pos, vvp_vector4_t&key) const =0;
+
 	// IEEE 1800-2017 18.8 per-element mode state. Overrides are keyed by
 	// the same typed key identity as the associative array and are removed
 	// with the entry, so delete/reinsert creates a fresh active variable.
@@ -848,7 +854,38 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return false;
       }
 
+      bool readmem_set(const vvp_vector4_t&key,
+		       const vvp_vector4_t&value) override
+      {
+	    TYPE converted;
+	    if (!readmem_convert_(converted, value))
+		  return false;
+	    set(key, converted);
+	    return true;
+      }
+
+      bool readmem_key_at(size_t pos, vvp_vector4_t&key) const override
+      {
+	    if (pos >= str_map_.size() + obj_map_.size()) {
+		  pos -= str_map_.size() + obj_map_.size();
+		  if (pos >= vec_map_.size()) return false;
+		  typename std::map<std::string, vec_entry_t>::const_iterator cur
+			= vec_map_.begin();
+		  std::advance(cur, pos);
+		  key = cur->second.key;
+		  return true;
+	    }
+	    return false;
+      }
+
     private:
+	static bool readmem_convert_(vvp_vector4_t&dst,
+			     const vvp_vector4_t&src)
+	{ dst = src; return true; }
+	template <class VALUE>
+	static bool readmem_convert_(VALUE&, const vvp_vector4_t&)
+	{ return false; }
+
 	// Overload set routing the stored value into the right VPI
 	// payload slot; returns the val_kind tag.
       static int assign_entry_val_(const vvp_vector4_t&src2, vvp_vector4_t&vv,

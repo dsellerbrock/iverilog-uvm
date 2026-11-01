@@ -1076,6 +1076,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t element_type = ivl_type_element(var_type);
             const char*queue_kind = 0;
             int assoc_compat = ivl_type_queue_assoc_compat(var_type);
+            ivl_type_t assoc_index_type = ivl_type_assoc_index(var_type);
+            unsigned assoc_index_width = assoc_index_type
+		  ? ivl_type_packed_width(assoc_index_type) : 0;
 
             if (type_is_fixed_uarray_property_(element_type)) {
                   queue_kind = assoc_compat ? "Mo" : "Qo";
@@ -1121,13 +1124,15 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    if (struct_obj_elem)
 		  draw_class_in_scope(element_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s", sig,
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
 		      /* '+' marks a signed integral element (see .var/darray). */
-		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
-		    queue_kind);
+		    (element_type && ivl_type_signed(element_type)) ? "+" : "");
+	    if (assoc_compat)
+		  fprintf(vvp_out, ", %u", assoc_index_width);
+	    fprintf(vvp_out, ", \"%s", queue_kind);
 	    emit_container_layout_suffix_(var_type);
 	    fprintf(vvp_out, "\"");
 	    if (struct_obj_elem)

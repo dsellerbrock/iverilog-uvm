@@ -383,7 +383,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 
 void compile_var_queue(char*label, char*name, unsigned size,
 		       char*type, int lifetime_flag, bool element_signed,
-		       char*element_type)
+		       char*element_type, unsigned key_size)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -438,7 +438,7 @@ void compile_var_queue(char*label, char*name, unsigned size,
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_queue_var(name, net, use_auto,
-                                          element_signed);
+                                          element_signed, size, key_size);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);

@@ -1075,6 +1075,33 @@ statement
   | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER signed_opt ';'
       { (void)$3; compile_var_queue($1, $5, $7, 0, $4, $8); }
 
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_NUMBER ',' T_STRING ';'
+      {
+            char*queue_type = $11 ? strdup($11) : 0;
+            delete[] $11;
+            compile_var_queue($1, $4, $6, queue_type, $3, $7, 0, $9);
+      }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_NUMBER ',' T_STRING ';'
+      {
+            char*queue_type = $12 ? strdup($12) : 0;
+            delete[] $12;
+            (void)$3;
+            compile_var_queue($1, $5, $7, queue_type, $4, $8, 0, $10);
+      }
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_NUMBER ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*queue_type = $11 ? strdup($11) : 0;
+            delete[] $11;
+            compile_var_queue($1, $4, $6, queue_type, $3, $7, $13, $9);
+      }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_NUMBER ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*queue_type = $12 ? strdup($12) : 0;
+            delete[] $12;
+            (void)$3;
+            compile_var_queue($1, $5, $7, queue_type, $4, $8, $14, $10);
+      }
+
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ',' T_STRING ';'
       {
             char*queue_type = $9 ? strdup($9) : 0;

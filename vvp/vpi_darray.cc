@@ -79,10 +79,92 @@ int __vpiDarrayVar::get_word_size() const
 {
       vvp_vector4_t new_vec;
       vvp_darray*aobj = get_vvp_darray();
-      if (!aobj || aobj->get_size() == 0)
-	    return 32;
+      if (!aobj) {
+	    if (const vvp_assoc_base*assoc = get_vvp_assoc()) {
+		  std::string key, text;
+		  double real = 0.0;
+		  int kind = -1;
+		  if (assoc->peek_entry(0, key, new_vec, real, text, kind)
+		      && kind == 0 && new_vec.size())
+			return new_vec.size();
+	    }
+	    return declared_word_size_ ? declared_word_size_ : 32;
+      }
+      if (aobj->get_size() == 0)
+	    return declared_word_size_ ? declared_word_size_ : 32;
       aobj->get_word(0, new_vec);
       return new_vec.size();
+}
+
+int __vpiDarrayVar::get_word_declared_index(unsigned idx) const
+{
+      int key;
+      if (get_vvp_assoc() && readmem_key(idx, key))
+	    return key;
+      return (int)idx;
+}
+
+bool __vpiDarrayVar::readmem_key(unsigned pos, int&key) const
+{
+      const vvp_assoc_base*assoc = get_vvp_assoc();
+      if (!assoc) return false;
+      vvp_vector4_t vec;
+      if (!assoc->readmem_key_at(pos, vec) || vec.size() > 32)
+	    return false;
+      unsigned long bits = 0;
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+	    if (vec.value(idx) != BIT4_0 && vec.value(idx) != BIT4_1)
+		  return false;
+	    if (vec.value(idx) == BIT4_1) bits |= 1UL << idx;
+      }
+      key = (int)(PLI_UINT32)bits;
+      return true;
+}
+
+bool __vpiDarrayVar::readmem_put(int key, p_vpi_value value)
+{
+      vvp_assoc_base*assoc = const_cast<vvp_assoc_base*>(get_vvp_assoc());
+      if (!assoc || !value || value->format != vpiVectorVal)
+	    return false;
+      if (!declared_key_size_ || declared_key_size_ > 32)
+	    return false;
+      vvp_vector4_t key_vec(declared_key_size_, BIT4_0);
+      unsigned long key_bits = (unsigned long)(PLI_UINT32)key;
+      key_vec.setarray(0, declared_key_size_, &key_bits);
+      unsigned width = get_word_size();
+      vvp_vector4_t data(width, BIT4_0);
+      for (unsigned idx = 0; idx < width; idx += 1) {
+	    unsigned word = idx / 32;
+	    unsigned bit = idx % 32;
+	    int aval = (value->value.vector[word].aval >> bit) & 1;
+	    int bval = (value->value.vector[word].bval >> bit) & 1;
+	    data.set_bit(idx, bval ? (aval ? BIT4_X : BIT4_Z)
+			       : (aval ? BIT4_1 : BIT4_0));
+      }
+      if (!assoc->readmem_set(key_vec, data)) return false;
+      assoc->touch();
+      if (vvp_fun_signal_base*fun = get_callback_functor())
+	    fun->run_sv_vpi_callbacks();
+      return true;
+}
+
+extern "C" int vpip_assoc_readmem_put(vpiHandle array, int key,
+				      p_vpi_value value)
+{
+      __vpiDarrayVar*var = dynamic_cast<__vpiDarrayVar*>(array);
+      return var && var->readmem_put(key, value);
+}
+
+extern "C" int vpip_assoc_readmem_legal(vpiHandle array)
+{
+      __vpiDarrayVar*var = dynamic_cast<__vpiDarrayVar*>(array);
+      return var && var->readmem_supported();
+}
+
+extern "C" int vpip_assoc_readmem_width(vpiHandle array)
+{
+      __vpiDarrayVar*var = dynamic_cast<__vpiDarrayVar*>(array);
+      return var ? var->get_word_size() : 0;
 }
 
 char*__vpiDarrayVar::get_word_str(struct __vpiArrayWord*word, int code)
@@ -556,7 +638,8 @@ __vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
 
 vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
 			      bool automatic_storage,
-                              bool element_signed)
+			      bool element_signed, unsigned word_size,
+			      unsigned key_size)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
@@ -564,6 +647,8 @@ vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
       __vpiQueueVar*obj = new __vpiQueueVar(scope, use_name, net,
                                             automatic_storage);
       obj->set_element_signed(element_signed);
+      obj->set_declared_word_size(word_size);
+      obj->set_declared_key_size(key_size);
 
       return obj;
 }

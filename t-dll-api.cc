@@ -4322,6 +4322,15 @@ extern "C" ivl_type_t ivl_type_element(ivl_type_t net)
       return 0;
 }
 
+extern "C" ivl_type_t ivl_type_assoc_index(ivl_type_t net)
+{
+      const netqueue_t*array = dynamic_cast<const netqueue_t*>(net);
+      if (!array || !array->assoc_compat()) return 0;
+      ivl_type_t index_type = array->assoc_index_type();
+      if (!index_type || !index_type->packed()) return 0;
+      return index_type;
+}
+
 extern "C" unsigned ivl_type_packed_width(ivl_type_t net)
 {
       if (net == 0)

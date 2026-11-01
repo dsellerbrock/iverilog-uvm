@@ -27,6 +27,11 @@
 # include  <sys/stat.h>
 # include  "ivl_alloc.h"
 
+extern int vpip_assoc_readmem_put(vpiHandle array, int key,
+				 p_vpi_value value);
+extern int vpip_assoc_readmem_legal(vpiHandle array);
+extern int vpip_assoc_readmem_width(vpiHandle array);
+
 char **search_list = NULL;
 unsigned sl_count = 0;
 
@@ -252,10 +257,17 @@ static PLI_INT32 sys_mem_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
       mem_kind = vpi_get(vpiType, arg);
       if (mem_kind == vpiArrayVar) mem_kind = vpi_get(vpiArrayType, arg);
       if (mem_kind != vpiMemory && mem_kind != vpiDynamicArray &&
-	  mem_kind != vpiQueueArray) {
+	  mem_kind != vpiQueueArray && mem_kind != vpiAssocArray) {
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
 	    vpi_printf("%s's second argument must be a memory.\n", name);
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+      }
+      if (mem_kind == vpiAssocArray && !vpip_assoc_readmem_legal(arg)) {
+	    vpi_printf("ERROR: %s:%d: associative array indices for %s must be "
+	               "integral.\n", vpi_get_str(vpiFile, callh),
+	               (int)vpi_get(vpiLineNo, callh), name);
 	    vpip_set_return_value(1);
 	    vpi_control(vpiFinish, 1);
       }
@@ -313,6 +325,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       /* min_addr and max_addr are equal to start_addr and stop_addr if
 	 start_addr<stop_addr or vice versa if not... */
       int min_addr, max_addr;
+      int associative;
 
       /* This is the number of words that we need from the memory. */
       unsigned word_count;
@@ -323,9 +336,17 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
                      &fname, &mitem, &start_item, &stop_item);
       if (fname == 0) return 0;
 
+      associative = vpi_get(vpiArrayType, mitem) == vpiAssocArray;
+
       /*======================================== Process parameters */
 
-      if (process_params(mitem, start_item, stop_item, callh, name,
+      if (associative) {
+	    start_addr = 0;
+	    stop_addr = 0x7fffffff;
+	    addr_incr = 1;
+	    min_addr = -0x7fffffff - 1;
+	    max_addr = 0x7fffffff;
+      } else if (process_params(mitem, start_item, stop_item, callh, name,
                          &start_addr, &stop_addr, &addr_incr,
                          &min_addr, &max_addr)) {
 	    free(fname);
@@ -355,9 +376,10 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
 
 	/* We need this many words from the file. */
-      word_count = max_addr-min_addr+1;
+      word_count = associative ? 0 : max_addr-min_addr+1;
 
-      wwid = min_addr > max_addr ? 32 :
+      wwid = associative ? vpip_assoc_readmem_width(mitem) :
+	    min_addr > max_addr ? 32 :
 	    vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
 
       /* variable that will be used by the lexer to pass values
@@ -395,7 +417,15 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	      break;
 
 	  case MEM_WORD:
-	      if (addr >= min_addr && addr <= max_addr) {
+	      if (associative) {
+		  if (!vpip_assoc_readmem_put(mitem, addr, &value)) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+			           (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s(%s): associative array index must be integral "
+			           "and element type must be packed.\n", name, fname);
+			goto bailout;
+		  }
+	      } else if (addr >= min_addr && addr <= max_addr) {
 		  vpiHandle word_index;
 		  word_index = vpi_handle_by_index(mitem, addr);
 		  assert(word_index);
@@ -559,6 +589,7 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       int start_addr, stop_addr, addr_incr;
       int min_addr, max_addr; // Not used in this routine.
+      int associative;
 
       /*======================================== Get parameters */
 
@@ -567,9 +598,16 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       if (fname == 0) return 0;
 
+      associative = vpi_get(vpiArrayType, mitem) == vpiAssocArray;
+
       /*======================================== Process parameters */
 
-      if (process_params(mitem, start_item, stop_item, callh, name,
+      if (associative) {
+	    start_addr = 0;
+	    stop_addr = 0;
+	    addr_incr = 1;
+	    min_addr = max_addr = 0;
+      } else if (process_params(mitem, start_item, stop_item, callh, name,
                          &start_addr, &stop_addr, &addr_incr,
                          &min_addr, &max_addr)) {
 	    free(fname);
@@ -592,6 +630,24 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       /*======================================== Write memory file */
 
       cnt = 0;
+      if (associative) {
+	    vpiHandle iter = vpi_iterate(vpiMemoryWord, mitem);
+	    vpiHandle word;
+	    while (iter && (word = vpi_scan(iter))) {
+		  vpiHandle index = vpi_handle(vpiIndex, word);
+		  s_vpi_value key;
+		  key.format = vpiIntVal;
+		  vpi_get_value(index, &key);
+		  value.value.str = 0;
+		  vpi_get_value(word, &value);
+		  if (!value.value.str) continue;
+		  fprintf(file, "@%08x\n%s\n", (unsigned)key.value.integer,
+			  value.value.str);
+	    }
+	    fclose(file);
+	    free(fname);
+	    return 0;
+      }
       for(addr=start_addr; addr!=stop_addr+addr_incr; addr+=addr_incr, ++cnt) {
 	  vpiHandle word_index;
 

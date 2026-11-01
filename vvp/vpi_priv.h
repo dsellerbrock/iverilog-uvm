@@ -1182,6 +1182,8 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// correctly instead of as large unsigned numbers.
       void set_element_signed(bool flag) { element_signed_ = flag; }
       bool element_signed() const { return element_signed_; }
+      void set_declared_word_size(unsigned size) { declared_word_size_ = size; }
+      void set_declared_key_size(unsigned size) { declared_key_size_ = size; }
 
       int get_type_code() const override { return vpiArrayVar; }
       unsigned get_size() const override;
@@ -1190,6 +1192,7 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
       __vpiScope*get_scope() const override { return scope_; }
 
       int get_word_size() const override;
+      int get_word_declared_index(unsigned idx) const override;
       char*get_word_str(struct __vpiArrayWord*word, int code) override;
       void get_word_value(struct __vpiArrayWord*word, p_vpi_value vp) override;
       void put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int flags) override;
@@ -1204,6 +1207,9 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 
       void vpi_get_value(p_vpi_value val) override;
       vvp_fun_signal_base*get_callback_functor() const override;
+      bool readmem_put(int key, p_vpi_value value);
+      bool readmem_key(unsigned pos, int&key) const;
+      bool readmem_supported() const { return declared_key_size_ != 0; }
 
     protected:
       virtual vvp_darray*get_vvp_darray() const;
@@ -1214,11 +1220,17 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// queue-declared variables.
       int default_array_type_ = vpiDynamicArray;
       bool element_signed_ = false;
+      unsigned declared_word_size_ = 0;
+      unsigned declared_key_size_ = 0;
 };
 
 extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
                                       bool automatic_storage,
                                       bool element_signed = false);
+extern "C" int vpip_assoc_readmem_put(vpiHandle array, int key,
+				      p_vpi_value value);
+extern "C" int vpip_assoc_readmem_legal(vpiHandle array);
+extern "C" int vpip_assoc_readmem_width(vpiHandle array);
 
 /* M12: queues (and associative arrays declared through the queue
  * path) share the full darray element-access machinery. */
@@ -1231,7 +1243,9 @@ class __vpiQueueVar : public __vpiDarrayVar {
 
 extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
                                      bool automatic_storage,
-                                     bool element_signed = false);
+                                     bool element_signed = false,
+                                     unsigned word_size = 0,
+                                     unsigned key_size = 0);
 
 class __vpiCobjectVar : public __vpiBaseVar {
 

@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_readmem_assoc.v:40: $finish called at 0 (1s)
