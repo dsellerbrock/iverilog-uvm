@@ -99,6 +99,7 @@ typedef struct sva_control_entry_s {
       PLI_INT32 idx;
       vpiHandle scope;
       char*full_name;
+      int immediate;
       int enabled;
       PLI_UINT32 kill_generation;
 } sva_control_entry_t;
@@ -169,7 +170,7 @@ static void sva_control_apply_entry_(sva_control_entry_t*entry,
       was = entry->enabled;
       entry->enabled = rule->enabled;
       if (rule->kill) entry->kill_generation += 1;
-      if (!callbacks) return;
+      if (!callbacks || entry->immediate) return;
       if (rule->kill) {
 	    if (was)
 		  vpip_assertion_report(entry->idx, cbAssertionDisable,
@@ -218,10 +219,13 @@ static int sva_control_append_rule_(const char*selector, PLI_INT32 levels,
       return 1;
 }
 
-static size_t sva_control_hash_(vpiHandle scope, PLI_INT32 idx)
+static size_t sva_control_hash_(vpiHandle scope, PLI_INT32 idx,
+				int immediate)
 {
       size_t hash = (size_t)(uintptr_t)scope;
       hash ^= (size_t)(unsigned int)idx + (size_t)0x9e3779b9U
+	    + (hash << 6) + (hash >> 2);
+      hash ^= (size_t)(unsigned int)immediate + (size_t)0x9e3779b9U
 	    + (hash << 6) + (hash >> 2);
       hash ^= hash >> 16;
       hash *= (size_t)0x7feb352dU;
@@ -233,7 +237,8 @@ static void sva_control_index_insert_(size_t*index, size_t capacity,
 				      size_t entry_index)
 {
       sva_control_entry_t*entry = &sva_control_entries[entry_index];
-      size_t slot = sva_control_hash_(entry->scope, entry->idx)
+      size_t slot = sva_control_hash_(entry->scope, entry->idx,
+					entry->immediate)
 	    & (capacity - 1);
       while (index[slot] != SVA_CONTROL_INDEX_EMPTY)
 	    slot = (slot + 1) & (capacity - 1);
@@ -285,34 +290,37 @@ static void sva_control_index_prepare_(void)
 	    sva_control_index_disable_();
 }
 
-static sva_control_entry_t*sva_control_find_(vpiHandle scope, PLI_INT32 idx)
+static sva_control_entry_t*sva_control_find_(vpiHandle scope, PLI_INT32 idx,
+					     int immediate)
 {
       size_t i;
       if (sva_control_entry_index_cap) {
-	    size_t slot = sva_control_hash_(scope, idx)
+	    size_t slot = sva_control_hash_(scope, idx, immediate)
 		  & (sva_control_entry_index_cap - 1);
 	    while (sva_control_entry_index[slot] != SVA_CONTROL_INDEX_EMPTY) {
 		  sva_control_entry_t*entry =
 			&sva_control_entries[sva_control_entry_index[slot]];
-		  if (entry->scope == scope && entry->idx == idx) return entry;
+		  if (entry->scope == scope && entry->idx == idx
+		      && entry->immediate == immediate) return entry;
 		  slot = (slot + 1) & (sva_control_entry_index_cap - 1);
 	    }
 	    return 0;
       }
       for (i = 0; i < sva_control_entry_count; i += 1)
 	    if (sva_control_entries[i].scope == scope
-		&& sva_control_entries[i].idx == idx)
+		&& sva_control_entries[i].idx == idx
+		&& sva_control_entries[i].immediate == immediate)
 		  return &sva_control_entries[i];
       return 0;
 }
 
 static void sva_control_register_(PLI_INT32 idx, const char*name,
-				  vpiHandle scope)
+				  vpiHandle scope, int immediate)
 {
       sva_control_entry_t*entry;
       const char*scope_name;
       size_t slen, nlen, i;
-      if (sva_control_find_(scope, idx)) return;
+      if (sva_control_find_(scope, idx, immediate)) return;
       if (sva_control_entry_count == sva_control_entry_cap) {
 	    size_t next = sva_control_entry_cap ? sva_control_entry_cap * 2 : 64;
 	    void*mem = realloc(sva_control_entries,
@@ -330,6 +338,7 @@ static void sva_control_register_(PLI_INT32 idx, const char*name,
       memset(entry, 0, sizeof *entry);
       entry->idx = idx;
       entry->scope = scope;
+      entry->immediate = immediate;
       entry->enabled = 1;
       if (sva_control_entry_index_cap)
 	    sva_control_index_insert_(sva_control_entry_index,
@@ -373,7 +382,37 @@ static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    vpi_free_object(argv);
       }
       if (idx >= 0)
-	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx);
+	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx, 0);
+      rv.format = vpiIntVal;
+      rv.value.integer = entry ? entry->enabled : sva_assert_enabled;
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
+static PLI_INT32 sva_immediate_assert_enabled_calltf(
+	  ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle scope = vpi_handle(vpiScope, callh);
+      PLI_INT32 idx = -1;
+      sva_control_entry_t*entry = 0;
+      s_vpi_value rv;
+      (void)name;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  idx = value.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      if (idx >= 0 && scope) {
+	    sva_control_register_(idx, "", scope, 1);
+	    entry = sva_control_find_(scope, idx, 1);
+      }
       rv.format = vpiIntVal;
       rv.value.integer = entry ? entry->enabled : sva_assert_enabled;
       vpi_put_value(callh, &rv, 0, vpiNoDelay);
@@ -433,7 +472,7 @@ static PLI_INT32 sva_kill_generation_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    vpi_free_object(argv);
       }
       if (idx >= 0)
-	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx);
+	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx, 0);
       rv.format = vpiIntVal;
       rv.value.integer = entry ? (PLI_INT32)entry->kill_generation : 0;
       vpi_put_value(callh, &rv, 0, vpiNoDelay);
@@ -576,7 +615,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
 			      depth, flags, assertion_kind);
-      sva_control_register_(idx, nm, vpi_handle(vpiScope, callh));
+      sva_control_register_(idx, nm, vpi_handle(vpiScope, callh), 0);
       return 0;
 }
 
@@ -764,6 +803,8 @@ void sys_sva_register(void)
 	/* Assertion control (20.12): the enable-query function used by
 	   synthesized checkers, and the control tasks. */
       register_one_("$ivl_sva_enabled", sva_enabled_calltf);
+      register_one_("$ivl_immediate_assert_enabled",
+		    sva_immediate_assert_enabled_calltf);
 	register_one_("$ivl_deferred_assert_enabled",
 		      sva_deferred_enabled_calltf);
       register_one_("$ivl_sva_kill_generation",

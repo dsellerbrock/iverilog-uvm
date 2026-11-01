@@ -10420,10 +10420,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      std::list<named_pexpr_t> arg_list;
 	      PCallTask*tmp1 = new PCallTask(lex_strings.make("$error"), arg_list);
 	      FILE_NAME(tmp1, @1);
-	      PCondit*tmp2 = new PCondit($3, $5, tmp1);
-	      tmp2->immediate_assertion();
-	      FILE_NAME(tmp2, @1);
-	      $$ = tmp2;
+	      $$ = pform_make_immediate_assertion(@1, $3, $5, tmp1);
 	} else {
 	      delete $3;
 	      delete $5;
@@ -10433,10 +10430,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      PCondit*tmp = new PCondit($3, 0, $6);
-	      tmp->immediate_assertion();
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
+	      $$ = pform_make_immediate_assertion(@1, $3, 0, $6);
 	} else {
 	      delete $3;
 	      delete $6;
@@ -10446,10 +10440,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' statement_or_null K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      PCondit*tmp = new PCondit($3, $5, $7);
-	      tmp->immediate_assertion();
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
+	      $$ = pform_make_immediate_assertion(@1, $3, $5, $7);
 	} else {
 	      delete $3;
 	      delete $5;
