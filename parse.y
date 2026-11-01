@@ -2695,7 +2695,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <number>  number pos_neg_number
 %type <flag>    signing unsigned_signed_opt signed_unsigned_opt
 %type <flag>    import_export
-%type <flag>    dpi_function_import_property_opt
+%type <int_val> dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
 %type <flag>    udp_reg_opt
 %type <int_val> edge_operator
@@ -8306,11 +8306,11 @@ package_import_declaration /* IEEE1800-2005 A.2.1.3 */
  * Exports are diagnosed as unsupported (loud sorry), never silently
  * dropped. */
 dpi_function_import_property_opt
-  :                     { $$ = false; }
-  | K_context           { $$ = false; }
-  | K_pure              { $$ = true; }
-  | K_context K_pure    { $$ = true; }
-  | K_pure K_context    { $$ = true; }
+  :                     { $$ = 0; }
+  | K_context           { $$ = 2; }
+  | K_pure              { $$ = 1; }
+  | K_context K_pure    { $$ = 3; }
+  | K_pure K_context    { $$ = 3; }
   ;
 
 dpi_import_export_declaration
@@ -8325,8 +8325,9 @@ dpi_import_export_declaration
 	current_function->set_return($5);
 	pform_check_dpi_import_c_identifier_(@6, $6);
 	pform_check_dpi_linkage_version_(@1, $6, $2);
-	current_function->set_dpi_import($6);
-	pform_check_pure_dpi_function_(@4, $3, $5, $8);
+	current_function->set_dpi_import($6, $3 & 1, $3 & 2,
+	                                 strcmp($2, "DPI") == 0);
+	pform_check_pure_dpi_function_(@4, $3 & 1, $5, $8);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8343,8 +8344,9 @@ dpi_import_export_declaration
 	current_function->set_return($7);
 	pform_check_dpi_import_c_identifier_(@4, $4);
 	pform_check_dpi_linkage_version_(@1, $4, $2);
-	current_function->set_dpi_import($4);
-	pform_check_pure_dpi_function_(@6, $3, $7, $10);
+	current_function->set_dpi_import($4, $3 & 1, $3 & 2,
+	                                 strcmp($2, "DPI") == 0);
+	pform_check_pure_dpi_function_(@6, $3 & 1, $7, $10);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -8354,7 +8356,7 @@ dpi_import_export_declaration
   | K_import STRING dpi_function_import_property_opt K_task IDENTIFIER
       { assert(current_task == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
-	if ($3) yyerror(@4, "error: A DPI import task cannot be declared "
+	if ($3 & 1) yyerror(@4, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
       }
@@ -8362,7 +8364,8 @@ dpi_import_export_declaration
       { current_task->set_ports($7);
 	pform_check_dpi_import_c_identifier_(@5, $5);
 	pform_check_dpi_linkage_version_(@1, $5, $2);
-	current_task->set_dpi_import($5);
+	current_task->set_dpi_import($5, false, $3 & 2,
+	                             strcmp($2, "DPI") == 0);
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;
@@ -8371,7 +8374,7 @@ dpi_import_export_declaration
   | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_task IDENTIFIER
       { assert(current_task == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
-	if ($3) yyerror(@6, "error: A DPI import task cannot be declared "
+	if ($3 & 1) yyerror(@6, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
       }
@@ -8379,7 +8382,8 @@ dpi_import_export_declaration
       { current_task->set_ports($9);
 	pform_check_dpi_import_c_identifier_(@4, $4);
 	pform_check_dpi_linkage_version_(@1, $4, $2);
-	current_task->set_dpi_import($4);
+	current_task->set_dpi_import($4, false, $3 & 2,
+	                             strcmp($2, "DPI") == 0);
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;

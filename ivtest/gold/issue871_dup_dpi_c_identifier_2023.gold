@@ -1,0 +1,2 @@
+./ivltests/issue871_dup_dpi_c_identifier_2023.v:3: error: DPI linkage identifier 'c_add2' has an incompatible type signature (first declaration at ./ivltests/issue871_dup_dpi_c_identifier_2023.v:2) (IEEE 1800-2017/2023 35.5.4).
+1 error(s) during elaboration.
