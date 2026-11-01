@@ -2863,6 +2863,8 @@ sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_se
 # Typed fixed-array read-port event sensitivity
 sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests gold=sv_array_port_string_event.gold
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
+sv_ansi_event_port_2017 normal,-g2017,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2017.gold
+sv_ansi_event_port_2023 normal,-g2023,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2023.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
 sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold

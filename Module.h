@@ -109,6 +109,8 @@ class Module : public PScopeExtra, public PNamedItem {
 	    perm_string name;
 	    std::vector<PEIdent*> expr;
 	    PExpr*default_value;
+	    bool event_port = false;
+	    NetNet::PortType event_direction = NetNet::PINPUT;
       };
 
     public:
@@ -215,6 +217,11 @@ class Module : public PScopeExtra, public PNamedItem {
       perm_string get_port_name(unsigned idx) const;
 
       PExpr* get_port_default_value(unsigned idx) const;
+
+      bool is_event_port(unsigned idx) const
+      { return ports[idx] && ports[idx]->event_port; }
+      NetNet::PortType get_event_port_direction(unsigned idx) const
+      { return ports[idx]->event_direction; }
 
       PGate* get_gate(perm_string name);
 

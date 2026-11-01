@@ -6495,6 +6495,36 @@ static NetScope* selected_interface_instance_scope_(Design*des,
  * the parameters. This is done with BUFZ gates so that they look just
  * like continuous assignment connections.
  */
+static NetEvent* resolve_event_port_actual_(Design*des, NetScope*scope,
+					    const PExpr*actual)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(actual);
+      if (!ident) {
+	    cerr << actual->get_fileline()
+		 << ": error: An event port must be connected to a named event."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      symbol_search_results result;
+      bool found = symbol_search(ident, des, scope, ident->path(),
+				 ident->lexical_pos(), &result);
+      bool selected = false;
+      for (const name_component_t&component : ident->path().name)
+	    selected = selected || !component.index.empty();
+      if (!found || !result.eve || !result.path_tail.empty() || selected
+	  || result.eve->is_event_array()) {
+	    cerr << ident->get_fileline()
+		 << ": error: An event port must be connected to a scalar named event."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      return result.eve->canonical_event();
+}
+
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 {
 
@@ -6537,7 +6567,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    // Interface instances are scopes rather than nets, but
 				    // they are valid implicit .name actuals for interface
 				    // ports (IEEE 1800-2017/2023 23.3.2.4).
-				    if (sr.net != 0 || (sr.scope
+					if (sr.net != 0
+					    || (rmod->is_event_port(j) && sr.eve != 0)
+					    || (sr.scope
 						&& sr.scope->type() == NetScope::MODULE
 						&& sr.scope->is_interface())) {
 					  pins[j] = new PEIdent(rmod->ports[j]->name, UINT_MAX, true);
@@ -6667,6 +6699,38 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	// An event port passes a handle to the actual synchronization object.
+	// Bind each formal before elaborating the child body so its waits,
+	// triggers, and triggered() references all resolve to the same event.
+      for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+	    if (!rmod->is_event_port(idx))
+		  continue;
+	    if (!pins[idx]) {
+		  cerr << get_fileline() << ": error: Event port `"
+		       << rmod->get_port_name(idx) << "' of module `"
+		       << rmod->mod_name()
+		       << "' requires a named-event actual." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    NetEvent*actual_event = resolve_event_port_actual_(des, scope,
+							 pins[idx]);
+	    if (!actual_event)
+		  continue;
+	    for (NetScope*inst_scope : instance) {
+		  NetEvent*formal_event = inst_scope->find_event(
+				rmod->get_port_name(idx));
+		  if (!formal_event) {
+			cerr << get_fileline() << ": internal error: event port `"
+			     << rmod->get_port_name(idx) << "' has no event in instance `"
+			     << scope_path(inst_scope) << "'." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  formal_event->set_alias(actual_event);
+	    }
+      }
 
 	// M5-5: An interface formal's member types come from the concrete
 	// ACTUAL of THIS instantiation. This is required for generic ports
@@ -6876,6 +6940,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
        * child is then elaborated with the concrete scalar/vector/real/UDNT
        * type that arrives through its port instead of the logic placeholder. */
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+	    if (rmod->is_event_port(idx))
+		  continue;
 	    if (!pins[idx] || interface_type_error[idx])
 		  continue;
             vector<PEIdent*>mport = rmod->get_port(idx);
@@ -6909,6 +6975,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    perm_string port_name = rmod->get_port_name(idx);
 	    if (interface_type_error[idx])
 		  continue;
+	    if (rmod->is_event_port(idx)) {
+		  for (NetScope*inst_scope : instance)
+			inst_scope->add_module_port_info(
+			      idx, port_name,
+			      rmod->get_event_port_direction(idx), 0);
+		  continue;
+	    }
 
 	      // If the port is unconnected, substitute the default
 	      // value. The parser ensures that a default value only
@@ -50930,7 +51003,13 @@ Design* elaborate(list<perm_string>roots)
 	    for (unsigned idx = 0; idx < rmod->port_count(); idx += 1) {
 		  vector<PEIdent*> mport = rmod->get_port(idx);
                   unsigned int prt_vector_width = 0;
-                  PortType::Enum ptype = PortType::PIMPLICIT;
+		  PortType::Enum ptype = rmod->is_event_port(idx)
+			? rmod->get_event_port_direction(idx) : PortType::PIMPLICIT;
+		  if (rmod->is_event_port(idx)) {
+			scope->add_module_port_info(
+			      idx, rmod->get_port_name(idx), ptype, 0);
+			continue;
+		  }
 		  for (unsigned pin = 0; pin < mport.size(); pin += 1) {
 			  // This really does more than we need and adds extra
 			  // stuff to the design that should be cleaned later.

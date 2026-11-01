@@ -3714,7 +3714,8 @@ static void pform_interface_event_bridge_(const struct vlltype&loc,
 
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 			      std::list<pform_range_t>*array_dims,
-			      ivl_lifetime_t lifetime)
+			      ivl_lifetime_t lifetime,
+			      bool is_port = false)
 {
       PEvent*event = new PEvent(name.first, name.second);
       FILE_NAME(event, loc);
@@ -3726,8 +3727,15 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 
       if (!array_dims && !pform_cur_module.empty()
 	  && pform_cur_module.front()->is_interface
-	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front()))
+	  && lexical_scope == static_cast<LexicalScope*>(pform_cur_module.front())
+	  && !is_port)
 	    pform_interface_event_bridge_(loc, name.first);
+}
+
+void pform_make_event_port(const struct vlltype&loc,
+			   const pform_ident_t&name)
+{
+      pform_make_event(loc, name, nullptr, IVL_VLT_INHERITED, true);
 }
 
 void pform_make_events(const struct vlltype&loc,
