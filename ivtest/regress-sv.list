@@ -6450,3 +6450,7 @@ issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fix
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold
 issue2120_class_handle_collections normal,-g2017,-s,main ivltests gold=issue2120_class_handle_collections.gold
 issue2120_class_handle_collections_2023 normal,-g2023,-s,main ivltests gold=issue2120_class_handle_collections.gold
+
+# IEEE 1800-2017/2023 12.4.2.1: deferred unique/priority if reports
+sv_if_violation_observed_2017 normal,-g2017,-s,sv_if_violation_observed ivltests gold=sv_if_violation_observed_legacy.gold
+sv_if_violation_observed_2023 normal,-g2023,-s,sv_if_violation_observed ivltests gold=sv_if_violation_observed_legacy.gold
