@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue799_string_format_leading_zero.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue799_string_format_leading_zero"
+}

@@ -876,10 +876,9 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
                      info->filename, info->lineno, info->name, fmtb);
         } else {
           if (width == -1) {
-            /* If all we have is a leading zero then we want a zero width. */
-            if (ld_zero == 1) width = 0;
-            /* Otherwise if a width was not given, use the value width. */
-            else width = (vpi_get(vpiSize, info->items[*idx])+7) / 8;
+            /* No width means no padding; integral %s conversion already
+             * suppresses leading zero bytes. */
+            width = 0;
           }
           /* If the default buffer is too small make it big enough. */
           size = strlen(value.value.str) + 1;
