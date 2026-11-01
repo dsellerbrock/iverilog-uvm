@@ -1556,6 +1556,13 @@ static void draw_darray_pop(ivl_expr_t expr)
 {
       static int warned_non_signal_pop = 0;
       const char*fb;
+      unsigned pop_width = ivl_expr_width(expr);
+
+      /* The runtime stores both 2-state and 4-state queue elements as
+       * vec4 values. Preserve the element's statefulness in the existing
+       * width operand so an empty pop can produce the proper default. */
+      if (ivl_expr_value(expr) == IVL_VT_BOOL)
+	    pop_width |= 0x80000000U;
 
       if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0)
 	    fb = "b";
@@ -1568,7 +1575,7 @@ static void draw_darray_pop(ivl_expr_t expr)
 	    if (expr_is_queue_container_(arg)) {
 		  draw_eval_object(arg);
 		  fprintf(vvp_out, "    %%qpop/o/%s/v %u;\n",
-		          fb, ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+		          fb, pop_width ? pop_width : 1);
 		  return;
 	    }
 	      /* A pop with nothing to pop from. The zero used to be a
@@ -1588,7 +1595,7 @@ static void draw_darray_pop(ivl_expr_t expr)
       }
 
       fprintf(vvp_out, "    %%qpop/%s/v v%p_0, %u;\n", fb, ivl_expr_signal(arg),
-                       ivl_expr_width(expr));
+	      pop_width);
 }
 
 static int draw_assoc_exists_vec4(ivl_expr_t expr)

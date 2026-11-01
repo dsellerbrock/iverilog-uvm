@@ -1,0 +1,4 @@
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.
+Warning: pop_front() on empty queue<vector[8]>.
+Warning: pop_back() on empty queue<vector[8]>.

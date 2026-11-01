@@ -30161,15 +30161,33 @@ inline void push_value(vthread_t thr, const string&value, unsigned)
       thr->push_str(value);
 }
 
+static const unsigned QPOP_TWO_STATE = 0x80000000U;
+static const unsigned QPOP_WIDTH_MASK = 0x7fffffffU;
+
 inline void push_value(vthread_t thr, const vvp_vector4_t&value, unsigned wid)
 {
-      assert(wid == value.size());
+      assert((wid & QPOP_WIDTH_MASK) == value.size());
       thr->push_vec4(value);
 }
 
 inline void push_value(vthread_t thr, const vvp_object_t&value, unsigned)
 {
       thr->push_object(value);
+}
+
+template <typename ELEM>
+static void qpop_default(ELEM&value, unsigned)
+{
+      dq_default(value, 0);
+}
+
+static void qpop_default(vvp_vector4_t&value, unsigned encoded_width)
+{
+      unsigned width = encoded_width & QPOP_WIDTH_MASK;
+      if (encoded_width & QPOP_TWO_STATE)
+	    value = vvp_vector4_t(width, BIT4_0);
+      else
+	    dq_default(value, width);
 }
 
 template <typename ELEM, class QTYPE>
@@ -30189,7 +30207,7 @@ static bool q_pop(vthread_t thr, vvp_code_t cp,
 	    get_val_func(queue, value);
             notify_mutated_object_signal_(thr, net, "queue-pop");
       } else {
-	    dq_default(value, wid);
+	    qpop_default(value, wid);
 	    cerr << thr->get_fileline()
 	         << "Warning: pop_" << loc << "() on empty "
 	         << get_queue_type(value) << "." << endl;
@@ -30257,7 +30275,7 @@ static bool qpop_o_b(vthread_t thr, unsigned wid=0)
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                         "queue-pop-o-back");
       } else {
-	    dq_default(value, wid);
+	    qpop_default(value, wid);
 	    cerr << thr->get_fileline()
 	         << "Warning: pop_back() on empty "
 	         << get_queue_type(value) << "." << endl;
@@ -30346,7 +30364,7 @@ static bool qpop_o_f(vthread_t thr, unsigned wid=0)
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                         "queue-pop-o-front");
       } else {
-	    dq_default(value, wid);
+	    qpop_default(value, wid);
 	    cerr << thr->get_fileline()
 	         << "Warning: pop_front() on empty "
 	         << get_queue_type(value) << "." << endl;
