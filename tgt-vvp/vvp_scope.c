@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "sv_vpi_user.h"
 # include  <stdlib.h>
 # include  <math.h>
 # include  <string.h>
@@ -932,6 +933,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 
       const char *datatype_flag = ivl_signal_integer(sig) ? "/i" :
 			       ivl_signal_signed(sig)? "/s" : "";
+      if (ivl_signal_dimensions(sig) == 0
+	  && ivl_type_typedef_vpi_type(ivl_signal_net_type(sig)) == vpiTimeTypespec)
+	    datatype_flag = "/time";
       const char *local_flag = local_flag_str(sig);
       const char *storage_flag = storage_flag_str(sig);
       const bool virtual_interface =

@@ -1258,6 +1258,11 @@ struct signal_integer : public __vpiSignal {
       int get_type_code(void) const override { return vpiIntegerVar; }
 };
 
+struct signal_timevar : public __vpiSignal {
+      inline signal_timevar() { }
+      int get_type_code(void) const override { return vpiTimeVar; }
+};
+
 struct signal_net : public __vpiSignal {
       inline signal_net() { }
       int get_type_code(void) const override { return vpiNet; }
@@ -1351,6 +1356,14 @@ vpiHandle vpip_make_int4(const char*name, int msb, int lsb, vvp_net_t*vec,
 {
       __vpiSignal*obj = new signal_integer;
       return fill_in_var4(obj, name, msb, lsb, true, vec,
+                          automatic_storage);
+}
+
+vpiHandle vpip_make_timevar(const char*name, int msb, int lsb, vvp_net_t*vec,
+                            bool automatic_storage)
+{
+      __vpiSignal*obj = new signal_timevar;
+      return fill_in_var4(obj, name, msb, lsb, false, vec,
                           automatic_storage);
 }
 

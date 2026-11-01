@@ -300,6 +300,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".var/darray"   { return K_VAR_DARRAY; }
 ".var/queue"    { return K_VAR_QUEUE; }
 ".var/real"     { return K_VAR_R; }
+".var/time"     { return K_VAR_TIME; }
 ".var/s"        { return K_VAR_S; }
 ".var/str"      { return K_VAR_STR; }
 ".var/i"        { return K_VAR_I; /* integer */ }

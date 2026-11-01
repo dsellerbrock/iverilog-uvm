@@ -1070,7 +1070,8 @@ vvp_net_t* vvp_net_lookup(const char*label)
 		case vpiShortIntVar:
 		case vpiIntVar:
 		case vpiLongIntVar:
-		case vpiIntegerVar: {
+		case vpiIntegerVar:
+		case vpiTimeVar: {
 		      const __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vpi);
 		      return sig->node;
 		}

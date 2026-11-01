@@ -109,6 +109,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiNet:
 		case vpiReg:
 		case vpiIntegerVar:
+		case vpiTimeVar:
 		case vpiLongIntVar:
 		case vpiShortIntVar:
 		case vpiIntVar:

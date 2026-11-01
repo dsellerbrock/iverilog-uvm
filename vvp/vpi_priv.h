@@ -543,6 +543,8 @@ extern vpiHandle vpip_make_int2(const char*name, int msb, int lsb,
                                bool automatic_storage);
 extern vpiHandle vpip_make_int4(const char*name, int msb, int lsb,
                                vvp_net_t*vec, bool automatic_storage);
+extern vpiHandle vpip_make_timevar(const char*name, int msb, int lsb,
+                                   vvp_net_t*vec, bool automatic_storage);
 extern vpiHandle vpip_make_var4(const char*name, int msb, int lsb,
                                bool signed_flag, vvp_net_t*net,
                                bool automatic_storage);

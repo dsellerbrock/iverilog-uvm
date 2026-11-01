@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue955_vpi_timevar.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue955_vpi_timevar_2017"],
+  "vpi-sources": ["vpi/issue955_vpi_timevar.c"],
+  "output-contains": ["PASSED"]
+}

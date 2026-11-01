@@ -36,6 +36,8 @@ issue1287_vpi_waiting_event_2017 normal,-g2017 issue1287_vpi_waiting_event.c iss
 issue1287_vpi_waiting_event_2023 normal,-g2023 issue1287_vpi_waiting_event.c issue1287_vpi_waiting_event_2023.log
 issue1301_function_return_2017 normal,-g2017 issue1301_function_return.c issue1301_function_return_2017.gold
 issue1301_function_return_2023 normal,-g2023 issue1301_function_return.c issue1301_function_return_2023.gold
+issue955_vpi_timevar_2017 normal,-g2017 issue955_vpi_timevar.c issue955_vpi_timevar_2017.gold
+issue955_vpi_timevar_2023 normal,-g2023 issue955_vpi_timevar.c issue955_vpi_timevar_2023.gold
 issue1278_vpi_index_2017 normal,-g2017 issue1278_vpi_index.c issue1278_vpi_index_2017.gold
 issue1278_vpi_index_2023 normal,-g2023 issue1278_vpi_index.c issue1278_vpi_index_2023.gold
 issue1323_vpi_wait_constants_2017 normal,-g2017 issue1323_vpi_wait_constants.c issue1323_vpi_wait_constants_2017.gold
@@ -47,7 +49,6 @@ issue1334_vpi_return_stmt_constant_2023 normal,-g2023 issue1334_vpi_return_stmt_
 issue1340_vpi_iterator_type_constant normal,-g2017 issue1340_vpi_iterator_type_constant.c issue1340_vpi_iterator_type_constant.gold
 issue1347_remove_assertion_cb normal,-g2017 issue1347_remove_assertion_cb.c issue1347_remove_assertion_cb.log
 
-# Icarus returns vpiReg instead of vpiTimeVar.
 vstd:by_name		normal			by_name.c		by_name-std.log
 
 # This test uses an Icarus language extension ($simparam).
