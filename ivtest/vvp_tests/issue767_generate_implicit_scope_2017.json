@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue767_generate_implicit_scope.v",
+  "iverilog-args": ["-g2017", "-s", "issue767_generate_implicit_scope"],
+  "gold": "issue767_generate_implicit_scope"
+}

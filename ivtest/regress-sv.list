@@ -1786,8 +1786,8 @@ sv_covergroup_virtual_interface_sample normal,-g2017,-gstrict-expr-width ivltest
 sv_covergroup_virtual_interface_sample_2023 normal,-g2023,-gstrict-expr-width ivltests gold=sv_covergroup_virtual_interface_sample.gold
 sv_covergroup_xz_bin_matching normal,-g2017 ivltests gold=sv_covergroup_xz_bin_matching.gold
 sv_covergroup_xz_bin_matching_2023 normal,-g2023 ivltests gold=sv_covergroup_xz_bin_matching.gold
-sv_covergroup_ctor_bin_ranges_unresolved normal,-g2017 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold
-sv_covergroup_ctor_bin_ranges_unresolved_2023 normal,-g2023 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold
+sv_covergroup_ctor_bin_ranges_unresolved CE,-g2017 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold
+sv_covergroup_ctor_bin_ranges_unresolved_2023 CE,-g2023 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold
 sv_covergroup_ctor_method_bin normal,-g2017 ivltests gold=sv_covergroup_ctor_method_bin.gold
 sv_covergroup_ctor_method_bin_2023 normal,-g2023 ivltests gold=sv_covergroup_ctor_method_bin.gold
 sv_covergroup_ctor_method_bin_default_mutable CE,-g2017 ivltests gold=sv_covergroup_ctor_method_bin_default_mutable.gold
@@ -6411,3 +6411,6 @@ issue726_property_local_direction_fail CE,-g2017,-gassertions,-s,issue726_proper
 issue726_property_local_unassigned_actual_fail CE,-g2017,-gassertions,-s,issue726_property_local_unassigned_actual_fail ivltests gold=issue726_property_local_unassigned_actual_fail.gold
 issue794_nested_dynamic_array_queries_2017 normal,-g2017,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
 issue794_nested_dynamic_array_queries_2023 normal,-g2023,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
+
+issue767_undeclared_ref CE,-g2017,-s,issue767_undeclared_ref ivltests
+issue767_generate_implicit_scope CE,-g2017,-s,issue767_generate_implicit_scope ivltests
