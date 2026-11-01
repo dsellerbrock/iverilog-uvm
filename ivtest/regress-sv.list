@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
 issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
 issue1760_constraint_state_xz_or_2017 normal,-g2017,-s,tb ivltests gold=issue1760_constraint_state_xz_or.gold
