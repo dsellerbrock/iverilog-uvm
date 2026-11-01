@@ -1529,7 +1529,7 @@ sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control
 sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
 sv_randsequence_nonconstant_actual_fail CE,-g2012 ivltests gold=sv_randsequence_nonconstant_actual_fail.gold
 sv_randsequence_join_nested_lanes normal,-g2012 ivltests gold=sv_randsequence_join_nested_lanes.gold
-sv_randsequence_value_return_fail CE,-g2012 ivltests gold=sv_randsequence_value_return_fail.gold
+sv_randsequence_value_return_fail normal,-g2012 ivltests gold=sv_randsequence_value_return_fail-vvp-stdout.gold
 sv_randsequence_output_formal_2017 normal,-g2017 ivltests gold=sv_randsequence_output_formal-vvp-stdout.gold
 sv_randsequence_output_formal_2023 normal,-g2023 ivltests gold=sv_randsequence_output_formal-vvp-stdout.gold
 sv_param_spec_audit normal,-g2012 ivltests
@@ -6432,3 +6432,5 @@ issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fix
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold
 issue2120_class_handle_collections normal,-g2017,-s,main ivltests gold=issue2120_class_handle_collections.gold
 issue2120_class_handle_collections_2023 normal,-g2023,-s,main ivltests gold=issue2120_class_handle_collections.gold
+
+sv_randsequence_value_return normal,-g2017 ivltests gold=sv_randsequence_value_return-vvp-stdout.gold
