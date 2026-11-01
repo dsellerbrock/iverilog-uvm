@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2168_bitstream_p2s.v",
+  "iverilog-args": ["-g2017", "-s", "issue2168_bitstream_p2s"],
+  "gold": "issue2168_bitstream_p2s"
+}
