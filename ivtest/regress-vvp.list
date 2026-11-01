@@ -6255,6 +6255,9 @@ issue1283_nettype_vpi_2023 vvp_tests/issue1283_nettype_vpi_2023.json
 # IEEE 1800-2017/2023 §10.3.3 continuous assignment delay on nettype arrays
 issue1514_nettype_array_delay_2017 vvp_tests/issue1514_nettype_array_delay_2017.json
 issue1514_nettype_array_delay_2023 vvp_tests/issue1514_nettype_array_delay_2023.json
+# IEEE 1800-2017/2023 §6.7.3 user-defined nettype resolver initialization
+issue1223_udnt_resolver_empty_2017 vvp_tests/issue1223_udnt_resolver_empty_2017.json
+issue1223_udnt_resolver_empty_2023 vvp_tests/issue1223_udnt_resolver_empty_2023.json
 issue1294_vpi_typedef_2017 vvp_tests/issue1294_vpi_typedef_2017.json
 issue1294_vpi_typedef_2023 vvp_tests/issue1294_vpi_typedef_2023.json
 issue1321_vpi_condition_2017 vvp_tests/issue1321_vpi_condition_2017.json

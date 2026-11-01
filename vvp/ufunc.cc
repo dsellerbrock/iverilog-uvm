@@ -284,6 +284,12 @@ void ufunc_core::invoke_thread_()
       }
 }
 
+void ufunc_core::activate_resolver_without_drivers()
+{
+      assert(resolver_kind_ != RESOLVER_NONE);
+      invoke_thread_();
+}
+
 ufunc_vec4::ufunc_vec4(unsigned ow, vvp_net_t*ptr,
 		       unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		       vvp_code_t start_address,
@@ -480,11 +486,23 @@ static void compile_ufunc_resolver_(char*label, char*code, unsigned wid,
 		   char*scope_label,
 		   ufunc_core::resolver_kind_t resolver_kind)
 {
+	  const bool empty_driver_list = argc == 1
+		&& strcmp(argv[0].text, "E_0x0") == 0;
+	  if (empty_driver_list) {
+		/* The target uses the existing time-zero activation symbol because the
+		 * VVP grammar requires at least one symbol in a list. It activates
+		 * this resolver but is not a net driver. */
+		free(argv[0].text);
+		free(argv);
+		argv = 0;
+		argc = 0;
+	  }
+
 	/* A resolver always has one dynamic-array formal, but its input list
 	 * contains one signal for every current driver. Reject malformed VVP
 	 * records before binding or otherwise consuming either symbol list. */
-      if (argc == 0 || portc != 1) {
-	    yyerror(".ufunc/resolv requires at least one driver and exactly one formal");
+	  if ((!empty_driver_list && argc == 0) || portc != 1) {
+		yyerror(".ufunc/resolv requires at least one driver and exactly one formal");
 	    compile_errors += 1;
 	    for (unsigned idx = 0; idx < argc; idx += 1)
 		  free(argv[idx].text);
@@ -545,7 +563,10 @@ static void compile_ufunc_resolver_(char*label, char*code, unsigned wid,
 
       exec_code->ufunc_core_ptr = fcore;
       reap_code->ufunc_core_ptr = fcore;
-      wide_inputs_connect(fcore, argc, argv);
+      if (empty_driver_list)
+	    fcore->activate_resolver_without_drivers();
+      else
+	    wide_inputs_connect(fcore, argc, argv);
 
       free(argv);
       free(portv);
