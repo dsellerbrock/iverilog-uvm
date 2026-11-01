@@ -25,6 +25,7 @@
 # include  "PClass.h"
 # include  "parse_misc.h"
 # include  "parse_api.h"
+# include  "pform_types.h"
 # include  <map>
 # include  <sstream>
 # include  "ivl_assert.h"
@@ -43,12 +44,41 @@ static map<perm_string,PPackage*> packages_by_name;
 
 static PPackage*pform_cur_package = 0;
 
+/* The standard built-in package is not parsed from source, but its class
+ * types need a package scope so std::type references remain distinct from
+ * names shadowed in the user's lexical scope. */
+PPackage* pform_builtin_std_package()
+{
+      const perm_string package_name = perm_string::literal("std");
+      map<perm_string,PPackage*>::const_iterator found =
+            packages_by_name.find(package_name);
+      if (found != packages_by_name.end())
+            return found->second;
+
+      PPackage* package = new PPackage(package_name, nullptr);
+      static const char* const builtin_types[] = {
+            "semaphore", "mailbox", "process"
+      };
+      for (const char* builtin_name : builtin_types) {
+            perm_string name = lex_strings.make(builtin_name);
+            typedef_t* type = new typedef_t(name);
+            type->set_data_type(new type_parameter_t(name));
+            package->typedefs[name] = type;
+      }
+
+      packages_by_name[package_name] = package;
+      pform_packages.push_back(package);
+      return package;
+}
+
 void pform_start_package_declaration(const struct vlltype&loc, const char*name,
 				     LexicalScope::lifetime_t lifetime)
 {
       ivl_assert(loc, pform_cur_package == 0);
 
       perm_string use_name = lex_strings.make(name);
+      if (use_name == perm_string::literal("std"))
+	    pform_builtin_std_package();
       PPackage*pkg_scope = pform_push_package_scope(loc, use_name, lifetime);
       FILE_NAME(pkg_scope, loc);
       pform_cur_package = pkg_scope;
@@ -309,6 +339,8 @@ typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt)
 PPackage* pform_test_package_identifier(const char*pkg_name)
 {
       perm_string use_name = lex_strings.make(pkg_name);
+      if (use_name == perm_string::literal("std"))
+	    return pform_builtin_std_package();
 
       map<perm_string,PPackage*>::const_iterator pcur = packages_by_name.find(use_name);
       if (pcur == packages_by_name.end())

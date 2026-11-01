@@ -1,0 +1,1 @@
+PASS: out-of-range reads fail unless guarded out

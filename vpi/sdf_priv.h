@@ -33,6 +33,15 @@ extern int sdf_flag_warning;
 extern int sdf_flag_inform;
 
 extern int sdf_min_typ_max;
+extern double sdf_scale_factors[3];
+extern int sdf_scale_type;
+
+enum sdf_scale_type_e {
+      SDF_SCALE_FROM_MTM,
+      SDF_SCALE_FROM_MINIMUM,
+      SDF_SCALE_FROM_TYPICAL,
+      SDF_SCALE_FROM_MAXIMUM
+};
 
 /* ****
  * These functions are called by the parser to process the SDF file as

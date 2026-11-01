@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue889_vpi_instance.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue889_vpi_instance"],
+  "vpi-sources": ["vpi/issue889_vpi_instance.c"],
+  "output-contains": ["PASSED"]
+}

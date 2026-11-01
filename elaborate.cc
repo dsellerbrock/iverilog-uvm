@@ -148,6 +148,78 @@ static bool checker_expr_has_const_cast_(const PExpr*expr)
       return false;
 }
 
+static bool ivl_type_contains_chandle_(ivl_type_t type)
+{
+      if (!type) return false;
+      if (ivl_type_is_chandle(type)) return true;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return ivl_type_contains_chandle_(array->element_type());
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type))
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (ivl_type_contains_chandle_(member.net_type)) return true;
+
+      return false;
+}
+
+/* Continuous assignments and event expressions prohibit chandle references
+ * anywhere in the expression tree, including inside an equality or a
+ * function argument whose resulting type is no longer chandle. */
+static bool netexpr_contains_chandle_(const NetExpr*expr)
+{
+      if (!expr) return false;
+      if (ivl_type_contains_chandle_(expr->net_type())) return true;
+
+      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(expr))
+	    return ivl_type_contains_chandle_(signal->sig()->net_type())
+		  || netexpr_contains_chandle_(signal->word_index());
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr))
+	    return netexpr_contains_chandle_(binary->left())
+		  || netexpr_contains_chandle_(binary->right());
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
+	    return netexpr_contains_chandle_(unary->expr());
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+	    return netexpr_contains_chandle_(select->sub_expr())
+		  || netexpr_contains_chandle_(select->select());
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
+		  if (netexpr_contains_chandle_(concat->parm(idx))) return true;
+	    return false;
+      }
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr))
+	    return netexpr_contains_chandle_(ternary->cond_expr())
+		  || netexpr_contains_chandle_(ternary->true_expr())
+		  || netexpr_contains_chandle_(ternary->false_expr());
+      if (const NetEProperty*property = dynamic_cast<const NetEProperty*>(expr))
+	    return ivl_type_contains_chandle_(property->get_sig()
+		  ? property->get_sig()->net_type() : nullptr)
+		  || netexpr_contains_chandle_(property->get_base())
+		  || netexpr_contains_chandle_(property->get_index());
+      if (const NetESFunc*func = dynamic_cast<const NetESFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < func->nparms(); idx += 1)
+		  if (netexpr_contains_chandle_(func->parm(idx))) return true;
+	    return false;
+      }
+      if (const NetEUFunc*func = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < func->parm_count(); idx += 1)
+		  if (netexpr_contains_chandle_(func->parm(idx))) return true;
+	    return false;
+      }
+      if (const NetEArrayPattern*pattern =
+	  dynamic_cast<const NetEArrayPattern*>(expr)) {
+	    for (size_t idx = 0; idx < pattern->item_size(); idx += 1)
+		  if (netexpr_contains_chandle_(pattern->item(idx))) return true;
+	    return false;
+      }
+      if (const NetEArraySlice*slice = dynamic_cast<const NetEArraySlice*>(expr))
+	    return ivl_type_contains_chandle_(slice->signal()->net_type());
+      if (const NetENew*created = dynamic_cast<const NetENew*>(expr))
+	    return netexpr_contains_chandle_(created->size_expr())
+		  || netexpr_contains_chandle_(created->init_expr());
+
+      return false;
+}
+
 static bool checker_formal_used_in_code_(Module*checker,
 						  perm_string formal)
 {
@@ -4208,6 +4280,15 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+      if (ivl_type_contains_chandle_(lval->net_type())) {
+	    cerr << get_fileline() << ": error: chandle is not permitted in a "
+		 << "continuous assignment (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    if (lval->local_flag()) delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
 	/* IEEE 1800-2017/2023 10.3.3 permits only one delay for a
 	 * continuous assignment to a user-defined nettype, including an
 	 * unpacked array of such nets. */
@@ -4259,6 +4340,16 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    cerr << get_fileline() << ": error: Unable to elaborate r-value: "
 		 << *pin(1) << endl;
 	    des->errors += 1;
+	    return;
+      }
+
+      if (netexpr_contains_chandle_(rval_expr)) {
+	    cerr << get_fileline() << ": error: chandle is not permitted in a "
+		 << "continuous assignment (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    delete rval_expr;
+	    if (lval->local_flag()) delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
 	    return;
       }
 
@@ -23525,6 +23616,14 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
       if (!gn_system_verilog() || !res.expr)
 	    return;
 
+      if (netexpr_contains_chandle_(res.expr.get())) {
+	    cerr << loc.get_fileline() << ": error: chandle is not permitted in an "
+		 << "event expression (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    res.expr.reset();
+	    return;
+      }
+
       NetExpr*expr = res.expr.get();
 
       std::vector<class_property_mutation_dep_t> object_deps;
@@ -24676,6 +24775,16 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		       << *expr_[idx] << "' (compile-progress: event skipped)." << endl;
 		  continue;
 	    }
+
+	    if (netexpr_contains_chandle_(tmp)) {
+		  cerr << expr_[idx]->get_fileline()
+		       << ": error: chandle is not permitted in an event expression "
+		       << "(IEEE 1800-2017/2023 6.14)." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  continue;
+	    }
+
 	    /* A named event's triggered property changes on the first trigger
 	     * of a time step and again when that time step ends. It has no
 	     * synthesizable net input, so use the dedicated property wait. */
@@ -37231,6 +37340,60 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       using namespace std;
 
       if (!expr) return "";
+
+	/* A scalar member of an element selected from a random queue or
+	 * associative array of class handles is a solver leaf of that live
+	 * object, not an integral array element. Keep the selected key/index in
+	 * qmelem IR so runtime graph collection retains handle identity. */
+	if (cls && !value_slots) {
+	      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+	      if (id && !id->path().package && !id->has_scoped_type_prefix()
+	          && id->path().size() == 2) {
+	            const name_component_t&root = id->path().name.front();
+	            const name_component_t&field = id->path().name.back();
+	            int property = !root.local_scope
+	                  ? cls->property_idx_from_name(root.name) : -1;
+	            const netarray_t*array = property >= 0
+	                  ? dynamic_cast<const netarray_t*>(
+	                        cls->get_prop_type((size_t)property)) : nullptr;
+	            const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array);
+	            property_qualifier_t qual = property >= 0
+	                  ? cls->get_prop_qual((size_t)property) : property_qualifier_t();
+	            const netclass_t*element = array && !array->packed()
+	                  ? dynamic_cast<const netclass_t*>(array->element_type()) : nullptr;
+	            if (element && root.index.size() == 1
+	                && (dynamic_cast<const netdarray_t*>(array)
+	                    || (queue && !queue->assoc_compat())
+	                    || (queue && queue->assoc_compat()
+	                        && queue->assoc_index_type()
+	                        && queue->assoc_index_type()->packed()
+	                        && queue->assoc_index_type()->packed_width() <= 64))) {
+	                  int member = field.index.empty() && !field.local_scope
+	                        ? element->property_idx_from_name(field.name) : -1;
+	                  ivl_type_t type = member >= 0
+	                        ? element->get_prop_type((size_t)member) : nullptr;
+	                  unsigned width = type && type->packed()
+	                        ? type->packed_width() : 0;
+	                  const index_component_t&select = root.index.front();
+	                  if ((qual.test_rand() || qual.test_randc()) && member >= 0
+	                      && constraint_state_member_visible_(element, member,
+	                            scope, expr)
+	                      && width > 0 && width <= 64
+	                      && (type->base_type() == IVL_VT_BOOL
+	                          || type->base_type() == IVL_VT_LOGIC)
+	                      && select.msb && !select.lsb
+	                      && select.sel == index_component_t::SEL_BIT) {
+	                        string index = pexpr_to_constraint_ir(
+	                              select.msb, cls, value_slots, scope, loop_env);
+	                        if (!index.empty())
+	                              return "(qmelem " + to_string(property) + ":"
+	                                    + to_string(member) + ":" + to_string(width)
+	                                    + (type->get_signed() ? ":s" : "")
+	                                    + " " + index + ")";
+	                  }
+	            }
+	      }
+	}
 
 	/* Let declarations are semantic expression substitutions. Reuse the
 	 * cached expansion before classifying identifiers/calls so legal let

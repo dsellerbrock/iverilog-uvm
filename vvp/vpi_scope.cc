@@ -281,6 +281,9 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
 
 	  case vpiModule:
 	    return rfp->scope;
+
+	  case vpiInstance:
+	    return rfp->scope;
       }
 
       return 0;

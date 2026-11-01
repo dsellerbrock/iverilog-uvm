@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue899_sdf_annotate")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue899_sdf_buf")
+    (INSTANCE u)
+    (DELAY
+      (ABSOLUTE (IOPATH a y (1:2:3) (4:5:6)))
+    )
+  )
+)

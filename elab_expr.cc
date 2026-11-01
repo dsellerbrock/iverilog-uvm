@@ -86,6 +86,40 @@ static bool cast_expr_is_singular_(const NetExpr*expr)
       return true;
 }
 
+static bool netexpr_is_chandle_(const NetExpr*expr)
+{
+      return expr && expr->net_type()
+	    && ivl_type_is_chandle(expr->net_type());
+}
+
+static bool chandle_arithmetic_op_(char op)
+{
+      switch (op) {
+	  case '+':
+	  case '-':
+	  case '*':
+	  case '/':
+	  case '%':
+	  case 'p': // **
+	  case 'l': // <<
+	  case 'r': // >>
+	  case 'R': // >>>
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static bool report_chandle_arithmetic_error_(Design*des,
+					      const LineInfo&loc, char op)
+{
+      cerr << loc.get_fileline() << ": error: chandle is not permitted with the '"
+	   << human_readable_op(op)
+	   << "' operator (IEEE 1800-2017/2023 6.14)." << endl;
+      des->errors += 1;
+      return false;
+}
+
 static bool cast_operands_nonsingular_(const NetExpr*dest,
 				       const NetExpr*source)
 {
@@ -6261,6 +6295,17 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 6.14 restricts chandle operators to equality
+	 * and Boolean testing. Arithmetic operators must not reinterpret the
+	 * pointer-sized representation as an integral value. */
+      if (chandle_arithmetic_op_(op_)
+	  && (netexpr_is_chandle_(lp) || netexpr_is_chandle_(rp))) {
+	    report_chandle_arithmetic_error_(des, *this, op_);
+	    delete lp;
+	    delete rp;
+	    return nullptr;
+      }
+
       if ((lp->expr_type() == IVL_VT_CLASS || rp->expr_type() == IVL_VT_CLASS)
 	  && !dynamic_cast<NetENull*>(lp) && !dynamic_cast<NetENull*>(rp)) {
 	    cerr << get_fileline() << ": error: "
@@ -9529,6 +9574,14 @@ NetExpr*PEBLeftWidth::elaborate_expr(Design*des, NetScope*scope,
 	    delete lp;
 	    delete rp;
 	    return 0;
+      }
+
+      if (chandle_arithmetic_op_(op_)
+	  && (netexpr_is_chandle_(lp) || netexpr_is_chandle_(rp))) {
+	    report_chandle_arithmetic_error_(des, *this, op_);
+	    delete lp;
+	    delete rp;
+	    return nullptr;
       }
 
         // For shift operations, the right operand is always treated as
@@ -27578,11 +27631,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      // the parameter resolves to a class, return the class
 		      // name as a string; otherwise return an empty string as
 		      // a compile-progress fallback.
-		    if (!path_.package && path_.name.size() == 2) {
+		    if (path_.name.size() == 2) {
 			  const name_component_t&head_comp = path_.name.front();
 			  const name_component_t&tail_comp = path_.name.back();
 
-			  if (head_comp.index.empty() && tail_comp.index.empty()
+			  if (!path_.package
+			      && head_comp.index.empty() && tail_comp.index.empty()
 			      && tail_comp.name == perm_string::literal("type_name")) {
 				auto resolve_type_name = [&](ivl_type_t pt) -> std::string {
 				      if (!pt) return std::string();
@@ -27611,7 +27665,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				}
 			  }
 
-			  if (head_comp.index.empty() && tail_comp.index.empty()
+			  if ((!path_.package
+			       || path_.package->pscope_name() == perm_string::literal("std"))
+			      && head_comp.index.empty() && tail_comp.index.empty()
 			      && head_comp.name == perm_string::literal("process")) {
 				if (tail_comp.name == perm_string::literal("FINISHED")
 				    || tail_comp.name == perm_string::literal("RUNNING")
@@ -27839,7 +27895,10 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// Built-in process state enum constants (IEEE 1800-2017 9.7)
 	// that arrive as an unresolved two-component reference
 	// (process::KILLED parses the same as process.KILLED here).
-      if (gn_system_verilog() && path_.size() == 2
+	if (gn_system_verilog()
+	    && (!path_.package
+		|| path_.package->pscope_name() == perm_string::literal("std"))
+	    && path_.size() == 2
 	  && path_.name.front().index.empty()
 	  && path_.name.back().index.empty()
 	  && peek_head_name(path_) == perm_string::literal("process")) {
@@ -33430,6 +33489,16 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
       if (ip == 0) {
 	    delete inc_lval;
 	    return 0;
+      }
+
+      if (op_ != '!' && netexpr_is_chandle_(ip)) {
+	    cerr << get_fileline() << ": error: chandle is not permitted with the '"
+		 << human_readable_op(op_, true)
+		 << "' operator (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    delete ip;
+	    delete inc_lval;
+	    return nullptr;
       }
 
       ivl_variable_type_t etype = expr_type_;

@@ -138,10 +138,9 @@ EXTERN_C_START
 /********* One-to-One and One-to-Many ***********/
 #define vpiInstance         745
 
-/********* Assertion object (IEEE 1800-2017 clause 40) ***********/
-#define vpiAssertion        686
-/* Assertion object vpiType values (IEEE 1800 Annex E). vpiAssert shares
-   its numeric value with vpiAssertion, the iterator type. */
+/********* Assertion object iterator (IEEE 1800-2017/2023 Annex M) ***********/
+#define vpiAssertion        744
+/* Assertion object vpiType values (IEEE 1800 Annex M). */
 #define vpiAssert           686
 #define vpiAssume            687
 #define vpiCover             688
@@ -155,6 +154,36 @@ EXTERN_C_START
 #define vpiImmediateAssert  665
 #define vpiImmediateAssume  694
 #define vpiImmediateCover   695
+
+/* Assertion control constants (IEEE 1800-2017/2023 Annex M).
+   vpiAssertionReset is also defined in vpi_user.h. */
+#define vpiAssertionLock                      645
+#define vpiAssertionUnlock                    646
+#define vpiAssertionDisable                   620
+#define vpiAssertionEnable                    621
+#define vpiAssertionKill                      623
+#define vpiAssertionEnableStep                624
+#define vpiAssertionDisableStep               625
+#define vpiAssertionClockSteps                626
+#define vpiAssertionSysLock                   647
+#define vpiAssertionSysUnlock                 648
+#define vpiAssertionSysOn                     627
+#define vpiAssertionSysOff                    628
+#define vpiAssertionSysKill                   632
+#define vpiAssertionSysEnd                    629
+#define vpiAssertionSysReset                  630
+#define vpiAssertionDisablePassAction         633
+#define vpiAssertionEnablePassAction          634
+#define vpiAssertionDisableFailAction         635
+#define vpiAssertionEnableFailAction          636
+#define vpiAssertionDisableVacuousAction      637
+#define vpiAssertionEnableNonvacuousAction    638
+#define vpiAssertionSysEnablePassAction       639
+#define vpiAssertionSysEnableFailAction       640
+#define vpiAssertionSysDisablePassAction      641
+#define vpiAssertionSysDisableFailAction      642
+#define vpiAssertionSysEnableNonvacuousAction 643
+#define vpiAssertionSysDisableVacuousAction   644
 
 /* Assertion callback reasons (IEEE 1800-2017 40.x). All are delivered
    by the automaton engine: cbAssertionStart (each attempt tick),
