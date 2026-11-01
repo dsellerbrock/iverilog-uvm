@@ -9,7 +9,7 @@ module test;
   overflow_item item;
   initial begin
     item = new;
-    if (item.randomize()) $fatal(1, "unrepresentable exact cardinality succeeded");
+    if (!item.randomize()) $fatal(1, "full-range exact dist failed");
     $display("PASSED");
   end
 endmodule
