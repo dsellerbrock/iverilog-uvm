@@ -34472,7 +34472,8 @@ static bool constraint_fixed_index_offset_(
 static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
-      const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
+      size_t packed_dimension = 0, bool allow_symbolic = false)
 {
       const netenum_t*en = dynamic_cast<const netenum_t*>(type);
       ivl_type_t packed_type = en ? en->base_type_obj() : type;
@@ -34507,20 +34508,27 @@ static string packed_typed_select_ir_(
       };
       netranges_t dims = vec ? vec->packed_dims()
 	    : packed_type->slice_dimensions();
-      if (dims.empty()) {
+      if (dims.empty() || packed_dimension >= dims.size()) {
 	    if (ic.sel == index_component_t::SEL_BIT)
 		  return bit_select(1);
 	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
 					      scope, loop_env);
       }
-      const netrange_t&outer = dims.front();
+      const netrange_t&outer = dims[packed_dimension];
       if (!outer.defined() || outer.width() == 0) return "";
-      if (dims.size() == 1 && outer.get_lsb() == 0
+      if (packed_dimension + 1 == dims.size() && outer.get_lsb() == 0
 	  && outer.get_msb() >= outer.get_lsb()
 	  && ic.sel == index_component_t::SEL_BIT)
 	    return bit_select(outer.width());
 
-      unsigned elem_width = packed_type->packed_width() / outer.width();
+      uint64_t preceding_width = 1;
+      for (size_t dim = 0; dim < packed_dimension; ++dim) {
+	    if (!dims[dim].defined() || dims[dim].width() == 0
+		|| preceding_width > UINT_MAX / dims[dim].width()) return "";
+	    preceding_width *= dims[dim].width();
+      }
+      unsigned elem_width = packed_type->packed_width() / preceding_width
+	    / outer.width();
       auto offset_of = [&](const PExpr*index, uint64_t&offset,
 			   string*captured) -> bool {
 	    string ir = pexpr_to_constraint_ir(index, cls, value_slots,
@@ -34609,7 +34617,8 @@ static string packed_typed_select_ir_(
 	    uint64_t off = 0;
 	    string index;
 	    if (!offset_of(ic.msb, off, &index)) {
-		  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array) || !scope
+	  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array
+	       && !allow_symbolic) || !scope
 		      || !constraint_ir_design_ctx_) return "";
 		  /* part has constant bounds in the solver. Keep the selected
 		   * value's width by choosing among constant slices instead of
@@ -39063,7 +39072,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
 		  bool packed_scalar = constraint_state_prop_ok_(ptype, false);
 		  bool packed_select = packed_scalar
-		    && id->path().back().index.size() == 1;
+	    && !id->path().back().index.empty();
 		    // A property that is not `rand` is a STATE VARIABLE
 		    // (IEEE 1800-2017 18.3): it takes part in the
 		    // constraint at the value it holds when randomize()
@@ -39101,9 +39110,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    ? ":s" : "";
 			      string base = "p:" + to_string(idx) + ":"
 				    + to_string(pwid) + psfx;
-			      return packed_typed_select_ir_(
-				    base, ptype, id->path().back().index.front(),
-				    cls, value_slots, scope, loop_env);
+		      string selected = base;
+		      size_t dimension = 0;
+		      for (const index_component_t&ic :
+			     id->path().back().index) {
+			    selected = packed_typed_select_ir_(
+				  selected, ptype, ic, cls, value_slots, scope,
+				  loop_env, dimension++, q.test_rand());
+			    if (selected.empty()) return "";
+		      }
+		      return selected;
 			}
 			  if (id->path().size() == 1) {
 		    string nested = constraint_class_fixed_queue_element_ir_(

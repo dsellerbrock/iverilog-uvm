@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1847_packed_rand_index.v",
+    "iverilog-args": ["-g2017", "-s", "test"],
+    "gold": "issue1847_packed_rand_index"
+}
