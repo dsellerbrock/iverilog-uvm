@@ -2852,7 +2852,7 @@ static int show_stmt_cassign(ivl_statement_t net)
 	    force_vector_to_lval(net);
       }
 
-      force_link_rval(net, rval);
+      force_link_rval(net, ivl_stmt_cassign_link_rval(net));
 
       return 0;
 }
