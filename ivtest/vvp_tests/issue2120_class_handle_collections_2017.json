@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2120_class_handle_collections.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue2120_class_handle_collections"
+}
