@@ -1,0 +1,2 @@
+module task: tb.t.blk
+package task: issue1162_pkg::t.blk
