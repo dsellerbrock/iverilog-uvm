@@ -1,0 +1,53 @@
+Compiling vpi/issue445_deferred_vpi.c...
+Making issue445_deferred_vpi_2017.vpi from  issue445_deferred_vpi.o...
+REGISTERED=7
+CALLBACK reason=611 line=11
+CALLBACK reason=611 line=13
+CALLBACK reason=611 line=15
+CALLBACK reason=611 line=17
+CALLBACK reason=611 line=21
+CALLBACK reason=611 line=25
+CALLBACK reason=611 line=6
+CALLBACK reason=613 line=11
+CALLBACK reason=613 line=13
+CALLBACK reason=613 line=15
+CALLBACK reason=613 line=17
+CALLBACK reason=613 line=21
+CALLBACK reason=613 line=25
+CALLBACK reason=613 line=6
+CALLBACK reason=612 line=11
+CALLBACK reason=612 line=13
+CALLBACK reason=612 line=15
+CALLBACK reason=612 line=17
+CALLBACK reason=612 line=21
+CALLBACK reason=612 line=25
+CALLBACK reason=612 line=6
+CALLBACK reason=611 line=11
+CALLBACK reason=611 line=13
+CALLBACK reason=611 line=15
+CALLBACK reason=611 line=17
+CALLBACK reason=611 line=21
+CALLBACK reason=611 line=25
+CALLBACK reason=611 line=6
+CALLBACK reason=612 line=11
+CALLBACK reason=612 line=13
+CALLBACK reason=612 line=15
+CALLBACK reason=612 line=17
+CALLBACK reason=612 line=21
+CALLBACK reason=612 line=25
+CALLBACK reason=612 line=6
+CALLBACK reason=607 line=11
+CALLBACK reason=608 line=13
+CALLBACK reason=607 line=25
+OBSERVED_PASS_ACTION
+OBSERVED_FAIL_ACTION
+OBSERVED_TASK_ACTION
+CALLBACK reason=607 line=15
+FINAL_PASS_ACTION
+CALLBACK reason=608 line=17
+FINAL_FAIL_ACTION
+RESULTS success=3 failure=2 disable=14 enable=14 reset=7
+IDENTITY_ERRORS=0 RESULT_ERRORS=0
+PASSED: deferred assertion VPI results
+PASSED
+./ivltests/issue445_deferred_vpi.sv:29: $finish called at 1 (1s)

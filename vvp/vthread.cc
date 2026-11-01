@@ -173,6 +173,7 @@ struct deferred_assert_args_s {
 
 struct deferred_assert_report_s {
       unsigned long source_id;
+      unsigned result;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
       deferred_assert_args_s action_args;
@@ -202,6 +203,7 @@ class vvp_process : public vvp_object {
       static void cancel_await_waiter(void*owner, vthread_t thr);
 
       void enqueue_deferred_assert(unsigned long source_id,
+                                   unsigned result,
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
@@ -213,6 +215,7 @@ class vvp_process : public vvp_object {
       void cancel_deferred_asserts(const char*selector, int levels);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
+                                     unsigned result,
                                      vvp_code_t action_pc,
                                      __vpiScope*action_scope,
                                      const deferred_assert_args_s&action_args);
@@ -1783,6 +1786,7 @@ struct final_deferred_assert_mature_event_s : public vvp_gen_event_s {
 };
 
 void vvp_process::enqueue_deferred_assert(unsigned long source_id,
+                                          unsigned result,
                                           vvp_code_t action_pc,
                                           __vpiScope*action_scope,
                                           const deferred_assert_args_s&action_args)
@@ -1791,6 +1795,7 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
             deferred_assert_processes_.insert(this);
       deferred_assert_report_s report;
       report.source_id = source_id;
+      report.result = result;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -1914,6 +1919,10 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
+	    if (report.source_id && report.result)
+		  vpip_deferred_assertion_report(report.source_id,
+			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
+			  report.action_scope);
 
 	    if (!report.action_pc || !report.action_scope)
 		  continue;
@@ -1951,12 +1960,14 @@ void vvp_process::mature_deferred_asserts()
 }
 
 void vvp_process::pin_final_deferred_assert(unsigned long source_id,
+                                            unsigned result,
                                             vvp_code_t action_pc,
                                             __vpiScope*action_scope,
                                             const deferred_assert_args_s&action_args)
 {
       deferred_assert_report_s report;
       report.source_id = source_id;
+      report.result = result;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
       report.action_args = action_args;
@@ -2006,6 +2017,10 @@ void vvp_process::mature_final_deferred_asserts()
 		  continue;
 
 	    deferred_assert_report_s report = cur->second;
+	    if (report.source_id && report.result)
+		  vpip_deferred_assertion_report(report.source_id,
+			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
+			  report.action_scope);
 	    if (!report.action_pc || !report.action_scope)
 		  continue;
 
@@ -18425,7 +18440,7 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       bool task_key = key && key->opcode == of_DEFER_ENQUEUE_TASK_KEY;
       if (!process || !key
           || (key->opcode != of_DEFER_ENQUEUE_KEY && !task_key)
-          || !key->number || !scope) {
+          || !key->number || key->bit_idx[0] > 2 || !scope) {
 	    static bool warned = false;
 	    if (!warned) {
 		  fprintf(stderr,
@@ -18450,7 +18465,8 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       process->enqueue_deferred_assert(
-	    static_cast<unsigned long>(key->number), action_pc, scope, action_args);
+	    static_cast<unsigned long>(key->number), key->bit_idx[0],
+	    action_pc, scope, action_args);
       return true;
 }
 
@@ -18589,7 +18605,7 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
       }
 
       unsigned long source_id = key->number;
-      if (source_id == 0) {
+      if (source_id == 0 || key->bit_idx[0] > 2) {
 	    static bool warned = false;
 	    if (!warned) {
 		  fprintf(stderr,
@@ -18615,8 +18631,8 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      process->pin_final_deferred_assert(source_id, action_pc, scope,
-                                         action_args);
+      process->pin_final_deferred_assert(source_id, key->bit_idx[0],
+                                         action_pc, scope, action_args);
       return true;
 }
 
@@ -34764,7 +34780,7 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 			  "vvp: unable to queue unique/priority case violation report.\n");
 		  return true;
 	    }
-	    process->enqueue_deferred_assert(0, cp, scope, args);
+	    process->enqueue_deferred_assert(0, 0, cp, scope, args);
 	    return true;
       }
 

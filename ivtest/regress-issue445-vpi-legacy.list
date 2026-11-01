@@ -1,0 +1,3 @@
+# Deferred-immediate assertion VPI result callbacks in both IEEE editions.
+issue445_deferred_vpi_2017 normal,-g2017 issue445_deferred_vpi.c issue445_deferred_vpi_2017.log
+issue445_deferred_vpi_2023 normal,-g2023 issue445_deferred_vpi.c issue445_deferred_vpi_2023.log

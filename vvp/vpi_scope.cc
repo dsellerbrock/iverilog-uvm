@@ -1488,6 +1488,17 @@ PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion)
       return obj && obj->reset_deferred();
 }
 
+void vpip_deferred_assertion_report(unsigned long source_id,
+                                    PLI_INT32 reason, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>::iterator it =
+	    deferred_assertion_by_key.find(std::make_pair(sc, source_id));
+      if (it != deferred_assertion_by_key.end())
+	    it->second->fire((int)reason);
+}
+
 /* M12B-cb: fire success/failure callbacks for the (scope, idx) assertion. */
 void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
 {
