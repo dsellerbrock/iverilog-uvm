@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2194_struct_array_solve_before_2017.v",
+    "iverilog-args": ["-g2017", "-s", "top"],
+    "gold": "issue2194_struct_array_solve_before"
+}
