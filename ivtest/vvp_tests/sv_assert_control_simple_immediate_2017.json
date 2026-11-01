@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_control_simple_immediate.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_assert_control_simple_immediate"
+}

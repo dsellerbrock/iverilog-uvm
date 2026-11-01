@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assert_control_simple_immediate.v:65: $finish called at 121 (1s)

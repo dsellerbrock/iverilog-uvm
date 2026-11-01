@@ -13074,6 +13074,35 @@ Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
       return result;
 }
 
+/* Simple immediate assertions are controlled when the statement executes,
+   so register their identity in that procedural scope before checking the
+   expression. This also lets a preceding $assertoff rule apply when a named
+   assertion's first execution occurs later. */
+static unsigned immediate_assertion_id_ = 0;
+Statement* pform_make_immediate_assertion(const struct vlltype&loc,
+					 PExpr*expr,
+					 Statement*pass_stmt,
+					 Statement*fail_stmt)
+{
+      unsigned id = ++immediate_assertion_id_;
+      if (id == 0) id = ++immediate_assertion_id_;
+
+      std::list<named_pexpr_t> enabled_args;
+      named_pexpr_t enabled_id;
+      enabled_id.parm = new PENumber(new verinum((uint64_t)id, 32));
+      enabled_args.push_back(enabled_id);
+      PECallFunction*enabled = new PECallFunction(
+	    perm_string::literal("$ivl_immediate_assert_enabled"), enabled_args);
+      FILE_NAME(enabled, loc);
+
+      PCondit*assertion = new PCondit(expr, pass_stmt, fail_stmt);
+      assertion->immediate_assertion();
+      FILE_NAME(assertion, loc);
+      PCondit*guarded = new PCondit(enabled, assertion, nullptr);
+      FILE_NAME(guarded, loc);
+      return guarded;
+}
+
 /* Assertion callback reasons (IEEE 1800-2017 40.x; must match the
    cbAssertion* values in sv_vpi_user.h). */
 static const int SVA_CB_START   = 606;   /* cbAssertionStart */
