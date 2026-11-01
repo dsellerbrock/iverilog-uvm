@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2030_joint_dist_derived_subject_2023.v",
+    "iverilog-args": ["-g2023", "-s", "main"],
+    "gold": "issue2030_joint_dist_derived_subject"
+}

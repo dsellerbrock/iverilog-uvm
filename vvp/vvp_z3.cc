@@ -14716,22 +14716,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec) || !dist_active(spec)) continue;
                   if (!z3_direct_constant_(ctx, spec.subject)) {
-                        // A concatenated dist subject is a deterministic
+                        // A derived dist subject is a deterministic
                         // projection of its rand leaves. Include that
                         // projection in the complete tuple table so its
                         // weighted value can be pinned without inventing a
-                        // separate random choice. A one-bit expression of
-                        // one rand leaf has the same property; packed
-                        // foreach bit-select subjects use this form.
+                        // separate random choice. This covers concatenations,
+                        // selects and packed-struct member expressions.
                         // Signed literal/cast tags are equality-pinned
                         // occurrence aliases, not extra random leaves.
                         Z3_ast unaliased =
                               builder.resolve_signed_constants(spec.subject);
                         set<Z3_ast> leaves;
-                        bool concat = Z3_get_ast_kind(ctx, unaliased)
-                              == Z3_APP_AST
-                            && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
-                                  Z3_to_app(ctx, unaliased))) == Z3_OP_CONCAT;
                         bool one_bit_projection = bv_width(ctx, unaliased) == 1;
                         bool collected = z3_collect_constants_(ctx, unaliased,
                               leaves);
@@ -14745,11 +14740,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     staged_one_bit_leaf = true;
                               }
                         }
-                        if ((concat || one_bit_projection)
-                            && bv_width(ctx, unaliased) <= 64
+                        if (bv_width(ctx, unaliased) <= 64
                             && collected
                             && !leaves.empty()
-                            && (concat || leaves.size() == 1)
+                            && (leaves.size() > 1 || *leaves.begin() != unaliased)
                             && all_of(leaves.begin(), leaves.end(),
                                   [&](Z3_ast leaf) {
                                         return seen.count(leaf)
