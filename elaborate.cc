@@ -38887,6 +38887,38 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  map<perm_string,string>::const_iterator it =
 			scope_randomize_emit_ctx_->find(name);
 		  if (it != scope_randomize_emit_ctx_->end()) {
+			if (it->second.compare(0, 2, "a:") == 0) {
+			      if (id->path().back().index.empty()) return "";
+			      unsigned start = 0, count = 0, width = 0;
+			      long low = 0;
+			      if (sscanf(it->second.c_str(), "a:%u:%ld:%u:%u",
+					 &start, &low, &count, &width) != 4
+				  || count == 0 || width == 0)
+				    return "";
+			      if (id->path().back().index.size() != 1
+				  && id->path().back().index.size() != 2)
+				    return "";
+			      const index_component_t&select =
+				    id->path().back().index.front();
+			      if (select.sel != index_component_t::SEL_BIT
+				  || !select.msb || select.lsb)
+				    return "";
+			      string index_ir = pexpr_to_constraint_ir(
+				    select.msb, cls, value_slots, scope, loop_env);
+			      if (index_ir.empty()) return "";
+			      string element_ir = "(ascope " + to_string(start)
+				    + ":" + to_string(width)
+				    + (it->second.find(":s", 2) != string::npos ? ":s " : " ")
+				    + to_string(low) + ":" + to_string(count) + " "
+				    + index_ir + ")";
+			      if (id->path().back().index.size() == 1)
+				    return element_ir;
+			      const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+				    scope_randomize_type_ctx_->at(name));
+			      return array ? packed_typed_select_ir_(element_ir,
+				    array->element_type(), id->path().back().index.back(),
+				    cls, value_slots, scope, loop_env) : "";
+			}
 			if (id->path().back().index.empty())
 			      return it->second.compare(0, 2, "s:") == 0
 				? "" : it->second;
