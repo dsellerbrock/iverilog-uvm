@@ -21136,6 +21136,29 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       unsigned int off = use_this ? 1 : 0;
 
       auto args = map_named_args(des, def, parms_, off);
+	  /* Sequence match-item input actuals have already been captured in
+	     Preponed. A ref/const-ref actual denotes the caller's variable,
+	     however, and must keep its original l-value instead of binding the
+	     sampled value expression. */
+	  vector<PExpr*> original_args(args.size(), static_cast<PExpr*>(0));
+	  if (!match_item_original_args_.empty()) {
+		bool seen_named = false;
+		for (size_t i = 0 ; i < match_item_original_args_.size() ; ++i) {
+		      const named_pexpr_t&arg = match_item_original_args_[i];
+		      if (arg.name.nil()) {
+			    if (arg.parm && !seen_named && i < original_args.size())
+				  original_args[i] = arg.parm;
+			    continue;
+		      }
+		      seen_named = true;
+		      for (unsigned int j = off ; j < def->port_count() ; ++j) {
+			    if (def->port(j)->name() == arg.name) {
+				  original_args[j - off] = arg.parm;
+				  break;
+			    }
+		      }
+		}
+	  }
 	/* Where each argument's copy pair, if it still needs one, has to
 	   land. Null means the port itself, which is the ordinary case.
 	   A bound `ref' formal is never copied; a bound ref formal whose
@@ -21152,6 +21175,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    PExpr*actual = args[parms_idx];
+	    if (port->port_type() == NetNet::PREF
+		&& parms_idx < original_args.size()
+		&& original_args[parms_idx])
+		  actual = original_args[parms_idx];
 	    NetScope*actual_scope = scope;
 	    if (!actual && (port->port_type() == NetNet::POUTPUT
 		    || port->port_type() == NetNet::PINOUT)) {
