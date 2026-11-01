@@ -3,6 +3,8 @@
 
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
 issue1709_array_slice_snapshot_2023 normal,-g2023,-s,test ivltests gold=issue1709_array_slice_snapshot_2023.gold
+issue1760_constraint_state_xz_or_2017 normal,-g2017,-s,tb ivltests gold=issue1760_constraint_state_xz_or.gold
+issue1760_constraint_state_xz_or_2023 normal,-g2023,-s,tb ivltests gold=issue1760_constraint_state_xz_or.gold
 issue1614_cross_set_special_bins_2017 normal,-g2017,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins.gold
 issue1614_cross_set_special_bins_2023 normal,-g2023,-s,issue1614_cross_set_special_bins ivltests gold=issue1614_cross_set_special_bins_2023.gold
 issue1710_separate_setup_hold_2017 normal,-g2017,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2017-vvp-stdout

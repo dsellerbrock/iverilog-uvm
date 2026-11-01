@@ -2976,9 +2976,14 @@ static Z3_ast constraint_side_conjunction_(Z3Builder&b,
 }
 
 static void constraint_guard_state_checks_(Z3Builder&b, size_t begin,
-                                            size_t end, Z3_ast guard)
+                                            size_t end, Z3_ast guard,
+                                            bool guard_state_values = true)
 {
       for (size_t idx = begin; idx < end; ++idx) {
+            if (!guard_state_values
+		&& b.state_checks[idx].message.find("constraint state")
+		      != string::npos)
+		  continue;
             Z3_ast guarded[2] = {guard, b.state_checks[idx].error};
             b.state_checks[idx].error = Z3_mk_and(b.ctx, 2, guarded);
       }
@@ -5095,9 +5100,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  Z3_mk_not(b.ctx, left_error), left_decides
 	    };
 	    constraint_guard_state_checks_(b, checks_before, checks_after_left,
-	          Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, left_sift_args)));
+		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, left_sift_args)), false);
 	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
-	          Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)));
+		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1760_constraint_state_xz_or_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1760_constraint_state_xz_or"
+}
