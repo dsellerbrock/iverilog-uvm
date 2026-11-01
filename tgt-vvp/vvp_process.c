@@ -6416,7 +6416,19 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 		  else if (signal_is_return_value(sig))
 			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
-		  else
+		  else if (ivl_signal_dimensions(sig) > 0) {
+			ivl_expr_t word_ex = ivl_expr_oper1(var);
+			unsigned long word = 0;
+			if (word_ex && number_is_immediate(word_ex, IMM_WID, 0)
+			    && !number_is_unknown(word_ex))
+			      word = get_number_immediate(word_ex);
+			int word_reg = allocate_word();
+			fprintf(vvp_out, "    %%ix/load %d, %lu, 0;\n",
+				word_reg, word);
+			fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n",
+				sig, word_reg);
+			clr_word(word_reg);
+		  } else
 			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 				sig, wid);
 	    }

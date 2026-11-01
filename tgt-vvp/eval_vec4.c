@@ -2174,9 +2174,23 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 		  else if (signal_is_return_value(sig))
 			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
-		  else
-			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-				sig, wid);
+		  else {
+			ivl_expr_t word_ex = ivl_expr_oper1(var);
+			unsigned long word = 0;
+			if (word_ex && number_is_immediate(word_ex, IMM_WID, 0)
+			    && !number_is_unknown(word_ex))
+			      word = get_number_immediate(word_ex);
+			if (ivl_signal_dimensions(sig) > 0) {
+			      int word_reg = allocate_word();
+			      fprintf(vvp_out, "    %%ix/load %d, %lu, 0;\n",
+				      word_reg, word);
+			      fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n",
+				      sig, word_reg);
+			      clr_word(word_reg);
+			} else
+			      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+				      sig, wid);
+		  }
 	    }
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
 	    clr_flag(success_flag);

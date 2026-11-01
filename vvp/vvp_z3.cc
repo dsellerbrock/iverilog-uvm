@@ -4224,6 +4224,76 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    return selected;
       }
 
+	/* Scope randomization of a fixed unpacked array flattens each declared
+	 * element into an ordinary scope argument. Select the matching argument
+	 * while retaining the source index expression (which may itself depend on
+	 * another random argument). */
+      if (op == "ascope") {
+	    string hdr = par.read_token();
+	    unsigned start = 0, width = 32; bool sign = false;
+	    { const char*c = hdr.c_str(); char*end = nullptr;
+	      start = (unsigned)strtoul(c, &end, 10);
+	      if (end == c || *end++ != ':') {
+		    b.state_errors.push_back("malformed scope fixed-array header");
+		    return b.mk_true();
+	      }
+	      width = (unsigned)strtoul(end, &end, 10);
+	      sign = *end == ':' && end[1] == 's';
+	    }
+	    string range = par.read_token();
+	    char*colon = nullptr;
+	    long long low = strtoll(range.c_str(), &colon, 10);
+	    char*end = nullptr;
+	    unsigned long count = colon && *colon == ':'
+		  ? strtoul(colon + 1, &end, 10) : 0;
+	    if (!width || count == 0 || !colon || *colon != ':'
+		|| end == colon + 1 || *end || count > UINT_MAX
+		|| start > UINT_MAX - count) {
+		  b.state_errors.push_back("invalid scope fixed-array dimensions");
+		  return b.mk_true();
+	    }
+	    set<Z3Builder::VarRef> index_refs;
+	    set<Z3Builder::VarRef>*saved_refs = b.collect_refs;
+	    b.collect_refs = &index_refs;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
+	    Z3_ast index = build_z3_atom(par, b);
+	    b.collect_refs = saved_refs;
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
+	    if (saved_refs) saved_refs->insert(index_refs.begin(), index_refs.end());
+	    par.skip_ws(); par.expect(')');
+	    Z3_ast selected = Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    for (unsigned long ordinal = count; ordinal-- > 0;) {
+		  if (ordinal > (unsigned long)INT64_MAX
+		      || low > INT64_MAX - (long long)ordinal) {
+			b.state_errors.push_back(
+			      "scope fixed-array index exceeds signed 64-bit representation");
+			return selected;
+		  }
+		  unsigned arg = start + (unsigned)ordinal;
+		  if (b.collect_refs) {
+			Z3Builder::VarRef ref = {
+			      Z3Builder::VarRef::PROP, arg, 0
+			};
+			b.collect_refs->insert(ref);
+		  }
+		  Z3_ast value = b.collect_refs_only
+			? Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width))
+			: b.get_prop_var(arg, width);
+		  Z3_ast equal = constraint_index_equal_(b, index,
+			  low + (long long)ordinal);
+		  selected = Z3_mk_ite(b.ctx, equal, value, selected);
+		  if (sign) b.signed_vars.insert(value);
+	    }
+	    b.set_sv(selected, width);
+	    if (sign) b.signed_vars.insert(selected);
+	    return selected;
+      }
+
       /* A selected field of an unpacked parameter array. The leaves are
        * compile-time constants, but the index remains a solver expression.
        * An x leaf is an error only when selected (18.3); Table 7-1 gives an

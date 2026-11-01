@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_std_randomize_fixed_array_with_2017.v",
+  "iverilog-args": ["-g2017", "-s", "sv_std_randomize_fixed_array_with_2017"],
+  "gold": "sv_std_randomize_fixed_array_with"
+}
