@@ -1,0 +1,3 @@
+ERROR: constraint element 0 remains outside the solved dynamic-container size 0.
+ERROR: constraint element 0 remains outside the solved dynamic-container size 0.
+PASS: out-of-range reads fail unless guarded out
