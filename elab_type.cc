@@ -1491,7 +1491,10 @@ static bool validate_nettype_resolver_(Design*des, NetNetType*info,
             return false;
       }
 
-      if (func->port_count() != 1) {
+      const bool class_method = func_scope->parent()
+            && func_scope->parent()->type() == NetScope::CLASS;
+      const unsigned arg_offset = class_method ? 1 : 0;
+      if (func->port_count() != arg_offset + 1) {
             cerr << decl->get_fileline() << ": error: Resolution function for "
                  << "nettype `" << decl->name() << "' must have exactly one "
                  << "input dynamic-array argument of type "
@@ -1500,16 +1503,15 @@ static bool validate_nettype_resolver_(Design*des, NetNetType*info,
             return false;
       }
 
-      if (func_scope->parent()
-          && func_scope->parent()->type() == NetScope::CLASS) {
-            cerr << decl->get_fileline() << ": sorry: class-method resolution "
-                 << "function '" << func_scope->basename()
-                 << "' cannot be used for nettype '" << decl->name()
-                 << "' because this frontend does not preserve the static "
-                 << "method qualifier needed to distinguish the legal form."
-                 << endl;
-            des->errors += 1;
-            return false;
+      if (class_method) {
+            if (!pfunc->method_qualifiers().test_static()) {
+                  cerr << decl->get_fileline()
+                       << ": error: class-method resolution function '"
+                       << func_scope->basename() << "' for nettype '"
+                       << decl->name() << "' must be static." << endl;
+                  des->errors += 1;
+                  return false;
+            }
       }
 
       if (pfunc->is_virtual_method() || pfunc->is_pure_method()
@@ -1532,7 +1534,7 @@ static bool validate_nettype_resolver_(Design*des, NetNetType*info,
             return false;
       }
 
-      const NetNet*arg = func->port(0);
+      const NetNet*arg = func->port(arg_offset);
       const netdarray_t*arg_array = arg
             ? dynamic_cast<const netdarray_t*>(arg->net_type()) : 0;
       if (!arg || arg->port_type() != NetNet::PINPUT || !arg_array

@@ -1,0 +1,2 @@
+./ivltests/issue435_class_resolver_nonstatic_2017.v:10: error: class-method resolution function 'resolve' for nettype 'issue435_bad_net' must be static.
+1 error(s) during elaboration.

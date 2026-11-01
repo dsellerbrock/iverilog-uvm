@@ -2757,6 +2757,12 @@ sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_c
 sv_package_param_interface_relations normal,-g2012 ivltests gold=sv_package_param_interface_relations.gold
 
 # IEEE 1800-2017 6.6.7 user-defined nettypes and 6.6.8 interconnect
+issue435_class_resolver_2017 normal,-g2017,-s,issue435_class_resolver ivltests gold=issue435_class_resolver.gold
+issue435_class_resolver_2023 normal,-g2023,-s,issue435_class_resolver ivltests gold=issue435_class_resolver.gold
+issue435_class_resolver_nonstatic_2017 CE,-g2017 ivltests gold=issue435_class_resolver_nonstatic_2017.gold
+issue435_class_resolver_nonstatic_2023 CE,-g2023 ivltests gold=issue435_class_resolver_nonstatic_2023.gold
+issue435_class_resolver_boundary_2017 normal,-g2017,-s,issue435_class_resolver_boundary ivltests gold=issue435_class_resolver_boundary.gold
+issue435_class_resolver_boundary_2023 normal,-g2023,-s,issue435_class_resolver_boundary ivltests gold=issue435_class_resolver_boundary.gold
 sv_nettype_corpus_decl CN,-g2012 ivltests
 sv_nettype_corpus_resolution_fn CN,-g2012 ivltests
 sv_interconnect_corpus CN,-g2012 ivltests
