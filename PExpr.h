@@ -1823,6 +1823,7 @@ class PEStreaming : public PExpr {
           { delete inner_; delete slice_expr_; delete slice_type_; }
       direction_t get_dir() const { return dir_; }
       PExpr* get_inner() const { return inner_; }
+      PExpr* get_slice_expr() const { return slice_expr_; }
       bool is_lval_context() const { return lval_context_; }
       bool is_ranged_lval_context() const { return ranged_lval_context_; }
       // Release ownership of inner_ so a parse-time rewrite can
