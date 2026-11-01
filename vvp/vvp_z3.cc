@@ -14915,50 +14915,41 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec) || !dist_active(spec)) continue;
                   if (!z3_direct_constant_(ctx, spec.subject)) {
-                        // A concatenated dist subject is a deterministic
+                        // A derived dist subject is a deterministic
                         // projection of its rand leaves. Include that
                         // projection in the complete tuple table so its
                         // weighted value can be pinned without inventing a
-                        // separate random choice. A one-bit expression of
-                        // one rand leaf has the same property; packed
-                        // foreach bit-select subjects use this form.
+                        // separate random choice. This includes packed
+                        // selects whose value depends on multiple rand leaves
+                        // (for example, a vector and its randomized index),
+                        // and packed-struct member projections.
                         // Signed literal/cast tags are equality-pinned
                         // occurrence aliases, not extra random leaves.
                         Z3_ast unaliased =
                               builder.resolve_signed_constants(spec.subject);
                         set<Z3_ast> leaves;
-                        bool concat = Z3_get_ast_kind(ctx, unaliased)
-                              == Z3_APP_AST
-                            && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx,
-                                  Z3_to_app(ctx, unaliased))) == Z3_OP_CONCAT;
-                        bool one_bit_projection = bv_width(ctx, unaliased) == 1;
                         bool collected = z3_collect_constants_(ctx, unaliased,
                               leaves);
-                        unsigned projected_stage = final_stage;
-                        bool staged_one_bit_leaf = false;
-                        if (collected && one_bit_projection
-                            && leaves.size() == 1) {
-                              auto leaf_stage = stages.find(*leaves.begin());
-                              if (leaf_stage != stages.end()) {
-                                    projected_stage = leaf_stage->second;
-                                    staged_one_bit_leaf = true;
+                        unsigned projected_stage = 0;
+                        if (collected) {
+                              for (Z3_ast leaf : leaves) {
+                                    auto leaf_stage = stages.find(leaf);
+                                    unsigned leaf_rank = leaf_stage == stages.end()
+                                          ? final_stage : leaf_stage->second;
+                                    projected_stage = max(projected_stage,
+                                          leaf_rank);
                               }
                         }
-                        if ((concat || one_bit_projection)
-                            && bv_width(ctx, unaliased) <= 64
+                        if (bv_width(ctx, unaliased) <= 64
                             && collected
                             && !leaves.empty()
-                            && (concat || leaves.size() == 1)
                             && all_of(leaves.begin(), leaves.end(),
                                   [&](Z3_ast leaf) {
                                         return seen.count(leaf)
-                                              && (!stages.count(leaf)
-                                                  || staged_one_bit_leaf)
                                               && !active_randc_var(leaf);
                                   })) {
                               add(spec.subject);
-                              if (staged_one_bit_leaf)
-                                    stages[spec.subject] = projected_stage;
+                              stages[spec.subject] = projected_stage;
                               for (Z3_ast leaf : leaves)
                                     preference_edges.emplace_back(
                                           spec.subject, leaf);

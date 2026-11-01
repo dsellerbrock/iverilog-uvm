@@ -1,2 +1,1 @@
-ERROR: global constraint sampling failed: joint dist requires a direct canonical scalar or element subject.
-PASS multi-leaf projected dist rejected
+PASS multi-leaf projected dist weighting
