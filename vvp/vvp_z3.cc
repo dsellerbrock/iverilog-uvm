@@ -1278,8 +1278,20 @@ struct Z3Builder {
       struct AbsentElem {
 	    Z3_ast var;
 	    string message;
+	    vector<Z3_ast> guards;
       };
       vector<AbsentElem> absent_elems;
+	struct DynamicElemRead {
+	    Z3_ast var;
+	    vector<Z3_ast> guards;
+	};
+	vector<DynamicElemRead> dynamic_elem_reads;
+	// A direct read of an absent element is an evaluation error unless an
+	// enclosing constraint guard eliminates the constraint that contains it.
+	// Keep the guards with the read: formula independence alone is insufficient
+	// (for example, `v[0] <= 1' is true for either value of a missing bit, but
+	// still evaluates the out-of-range read).
+      vector<Z3_ast> constraint_guards;
 
 	// One selected element of a fixed unpacked array member inside an
 	// unpacked-struct property ("a:OUTER:MEMBER:WIDTH:ELEM[:s]").
@@ -2345,7 +2357,8 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 				  << " size " << count;
 			    Z3_ast absent = Z3_mk_fresh_const(b.ctx, "absent",
 					  Z3_mk_bv_sort(b.ctx, width));
-			    b.absent_elems.push_back({absent, msg.str()});
+			    b.absent_elems.push_back({absent, msg.str(),
+						      b.constraint_guards});
 			    return absent;
 		      }
 		}
@@ -4515,7 +4528,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      << " is outside property " << pidx << " leaf "
 			      << leaf << " size " << count;
 			  b.absent_elems.push_back({Z3_mk_fresh_const(b.ctx, "absent",
-					      Z3_mk_bv_sort(b.ctx, ewid)), msg.str()});
+				      Z3_mk_bv_sort(b.ctx, ewid)), msg.str(),
+				      b.constraint_guards});
 			  return b.absent_elems.back().var;
 			}
 		  }
@@ -4617,6 +4631,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			b.collect_refs->insert(ref);
 		  }
 		  Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
+		  b.dynamic_elem_reads.push_back({var, b.constraint_guards});
 		  if (esig) b.signed_vars.insert(var);
 		  return var;
 	    }
@@ -4657,7 +4672,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			Z3Builder::AbsentElem absent = {
 			      Z3_mk_fresh_const(b.ctx, "absent",
 				    Z3_mk_bv_sort(b.ctx, ewid)),
-			      msg.str()
+			      msg.str(), b.constraint_guards
 			};
 			b.absent_elems.push_back(absent);
 			return absent.var;
@@ -5108,11 +5123,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t after_cond = b.state_errors.size();
 	    size_t side_after_cond = b.side_constraints.size();
 	    size_t checks_after_cond = b.state_checks.size();
+	    b.constraint_guards.push_back(cond);
 	    Z3_ast yes = build_z3_atom(par, b, &yes_guard);
+	    b.constraint_guards.pop_back();
 	    size_t after_yes = b.state_errors.size();
 	    size_t side_after_yes = b.side_constraints.size();
 	    size_t checks_after_yes = b.state_checks.size();
+	    b.constraint_guards.push_back(Z3_mk_not(b.ctx, cond));
 	    Z3_ast no = build_z3_atom(par, b, &no_guard);
+	    b.constraint_guards.pop_back();
 	    leave_typed_context_(b, saved_width, saved_sign);
 	    size_t side_after_no = b.side_constraints.size();
 	    size_t checks_after_no = b.state_checks.size();
@@ -5264,11 +5283,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                   if (guard) *guard = Z3_L_TRUE;
                   return b.mk_true();
             }
-	    if (op == "impl") b.soft_guards.push_back(left);
+	    if (op == "impl") {
+		  b.soft_guards.push_back(left);
+		  b.constraint_guards.push_back(left);
+	    }
 	    Z3_ast right = constraint_value_to_bool_(b, build_z3_atom(par, b));
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
-	    if (op == "impl") b.soft_guards.pop_back();
+	    if (op == "impl") {
+		  b.soft_guards.pop_back();
+		  b.constraint_guards.pop_back();
+	    }
 	    size_t side_after_right = b.side_constraints.size();
 	    size_t checks_after_right = b.state_checks.size();
 	    if (op == "impl")
@@ -16686,13 +16711,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
       }
 
-	/* An element past its container's solved size does not exist. That is
-	 * legal when every constraint naming it is vacuous in this solution,
-	 * e.g. `if (kmac_en) fname_arr[0] == 75;' with kmac_en == 0 and
-	 * fname_arr.size() == 0 (OpenTitan kmac_smoke_vseq). Prove it: with
-	 * each such element replaced by a fresh unknown, the hard constraints
-	 * must hold under this model for every value. Otherwise the solution
-	 * needs a missing element, and randomize() fails as before. */
+	/* An element past its container's solved size causes an evaluation error
+	 * unless an enclosing constraint guard eliminates every read, e.g.
+	 * `if (kmac_en) fname_arr[0] == 75;' with kmac_en == 0. The value-level
+	 * formula can be tautological for an unguarded read (`v[0] <= 1'), but
+	 * that does not remove the evaluation error. */
       set<size_t> vacuous_elems;
       bool absent_vacuous = false;
       if (!defer_joint) {
@@ -16710,38 +16733,45 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						     ev.nested ? ev.leaf : 0))
 			outside.push_back(k);
 	    }
-	    if (!outside.empty() || !builder.absent_elems.empty()) {
-		  Z3_ast_vector hard = Z3_optimize_get_assertions(ctx, opt);
-		  Z3_ast_vector_inc_ref(ctx, hard);
-		  vector<Z3_ast> parts;
-		  for (unsigned k = 0 ; k < Z3_ast_vector_size(ctx, hard) ; k += 1)
-			parts.push_back(Z3_ast_vector_get(ctx, hard, k));
-		  Z3_ast all = parts.empty() ? Z3_mk_true(ctx)
-			: Z3_mk_and(ctx, (unsigned)parts.size(), parts.data());
-		  vector<Z3_ast> from, to;
-		  for (size_t k : outside)
-			from.push_back(builder.elem_vars[k].var);
-		  for (const auto&absent : builder.absent_elems)
-			from.push_back(absent.var);
-		  for (Z3_ast var : from)
-			to.push_back(Z3_mk_fresh_const(ctx, "absent",
-			      Z3_get_sort(ctx, var)));
-		  Z3_ast free_form = Z3_substitute(ctx, all, (unsigned)from.size(),
-			from.data(), to.data());
-		  Z3_ast under_model = nullptr;
-		  if (Z3_model_eval(ctx, model, free_form, false, &under_model)
-		      && under_model) {
-			Z3_solver probe = Z3_mk_simple_solver(ctx);
-			Z3_solver_inc_ref(ctx, probe);
-			Z3_solver_assert(ctx, probe, Z3_mk_not(ctx, under_model));
-			if (Z3_solver_check(ctx, probe) == Z3_L_FALSE) {
-			      vacuous_elems.insert(outside.begin(), outside.end());
-			      absent_vacuous = true;
+	    bool outside_vacuous = true;
+	    for (size_t k : outside) {
+		  const Z3_ast variable = builder.elem_vars[k].var;
+		  bool saw_read = false;
+		  for (const auto&read : builder.dynamic_elem_reads) {
+			if (read.var != variable) continue;
+			saw_read = true;
+			bool guarded_out = false;
+			for (Z3_ast guard : read.guards) {
+			      Z3_ast value = nullptr;
+			      if (Z3_model_eval(ctx, model, guard, true, &value) && value
+				  && Z3_get_bool_value(ctx, Z3_simplify(ctx, value))
+				       == Z3_L_FALSE) {
+				    guarded_out = true;
+				    break;
+			      }
 			}
-			Z3_solver_dec_ref(ctx, probe);
+			if (!guarded_out) {
+			      outside_vacuous = false;
+			      break;
+			}
 		  }
-		  Z3_ast_vector_dec_ref(ctx, hard);
+		  if (!saw_read) outside_vacuous = false;
+		  if (!outside_vacuous) break;
 	    }
+	    if (outside_vacuous)
+		  vacuous_elems.insert(outside.begin(), outside.end());
+	    bool absent_guarded_out = all_of(builder.absent_elems.begin(),
+		  builder.absent_elems.end(), [&](const Z3Builder::AbsentElem&absent) {
+			for (Z3_ast guard : absent.guards) {
+			      Z3_ast value = nullptr;
+			      if (Z3_model_eval(ctx, model, guard, true, &value) && value
+				  && Z3_get_bool_value(ctx, Z3_simplify(ctx, value))
+				       == Z3_L_FALSE)
+				    return true;
+			}
+			return false;
+	      });
+	    absent_vacuous = outside_vacuous && absent_guarded_out;
       }
       if (!defer_joint && !builder.absent_elems.empty() && !absent_vacuous) {
 	    fprintf(stderr, "ERROR: constraint state read: %s.\n",

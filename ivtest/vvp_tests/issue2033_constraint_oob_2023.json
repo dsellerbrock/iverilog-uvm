@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2033_constraint_oob.v",
+    "iverilog-args": [ "-g2023", "-s", "issue2033_constraint_oob" ],
+    "gold": "issue2033_constraint_oob_2023"
+}
