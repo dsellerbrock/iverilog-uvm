@@ -21468,6 +21468,15 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
 	    expr_type_  = use_string->base_type();
 	    expr_width_ = 8;
 
+	  } else if (const netstruct_t*record =
+		       dynamic_cast<const netstruct_t*>(target_type_)) {
+	    /* Unpacked structs have no scalar packed_width. Some implementations
+	       report -1 here; passing that through PECastType's width-driven source
+	       elaboration turns an ordinary sized literal into a UINT_MAX-width
+	       value before the bit-stream cast can flatten it. */
+	    expr_type_  = target_type_->base_type();
+	    expr_width_ = record->packed() ? target_type_->packed_width() : 0;
+
       } else {
 	    expr_type_  = target_type_->base_type();
 	    expr_width_ = target_type_->packed_width();
@@ -21578,6 +21587,70 @@ static unsigned fixed_struct_stream_width_(ivl_type_t type)
 	    width += static_cast<unsigned>(member_width);
       }
       return width;
+}
+
+/* The object-backed VVP stream destination builder supports aggregate members
+ * recursively, plus dynamic integral containers and strings. Keep other
+ * legal bit-stream target shapes on the explicit unsupported path until the
+ * runtime has enough type metadata to construct them without approximation. */
+static bool bitstream_struct_target_supported_(ivl_type_t type)
+{
+      if (!type)
+	    return false;
+      if (type->packed() || dynamic_cast<const netstring_t*>(type))
+	    return true;
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type)) {
+	    if (queue->assoc_compat())
+		  return false;
+	    ivl_type_t element = queue->element_type();
+	    return element && element->packed() && element->packed_width() > 0
+		  && type_is_vectorable(element->base_type());
+      }
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type)) {
+	    ivl_type_t element = array->element_type();
+	    return element && element->packed() && element->packed_width() > 0
+		  && type_is_vectorable(element->base_type());
+      }
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return bitstream_struct_target_supported_(array->element_type());
+      if (const netstruct_t*record =
+		  dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->union_flag())
+		  return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!bitstream_struct_target_supported_(member.net_type))
+			return false;
+	    return true;
+      }
+      return false;
+}
+
+/* The source flattener used by this object-valued cast path can consume
+ * packed values, strings, and positional integral queues/dynamic arrays. */
+static bool bitstream_struct_source_supported_(const NetExpr*source)
+{
+      if (!source)
+	    return false;
+      ivl_type_t type = source->net_type();
+      if (!type)
+	    return source->expr_type() == IVL_VT_BOOL
+		  || source->expr_type() == IVL_VT_LOGIC;
+      if (!bitstream_cast_type_(type, false))
+	    return false;
+      if (type->packed() || dynamic_cast<const netstring_t*>(type))
+	    return true;
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type)) {
+	    if (queue->assoc_compat())
+		  return false;
+	    type = queue->element_type();
+      } else if (const netdarray_t*array =
+			 dynamic_cast<const netdarray_t*>(type)) {
+	    type = array->element_type();
+      } else {
+	    return false;
+      }
+      return type && type->packed() && type->packed_width() > 0
+	    && type_is_vectorable(type->base_type());
 }
 
 static bool positional_container_integral_elements_(ivl_type_t type)
@@ -21996,6 +22069,39 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    cast->parm(0, sub);
 	    cast->set_line(*this);
 	    return cast;
+      }
+
+	/* An unpacked struct is represented at runtime by a value cobject. Pack
+	 * the source once, then let the typed VVP operation construct each member
+	 * from the stream (including the greedy first dynamic member). */
+      if (const netstruct_t*record =
+		  dynamic_cast<const netstruct_t*>(target_type_)) {
+	    if (!record->packed() && !record->union_flag()
+		&& bitstream_cast_type_(target_type_, true)
+		&& bitstream_struct_target_supported_(target_type_)
+		&& bitstream_struct_source_supported_(sub)) {
+		  unsigned target_width = fixed_struct_stream_width_(target_type_);
+		  ivl_type_t source_type = sub->net_type();
+		  long source_width = sub->expr_width();
+		  bool source_fixed = source_type ? source_type->packed()
+			: (sub->expr_type() == IVL_VT_BOOL
+			   || sub->expr_type() == IVL_VT_LOGIC);
+		  if (target_width && source_fixed
+		      && source_width > 0
+		      && static_cast<unsigned long>(source_width) != target_width) {
+			cerr << get_fileline()
+			     << ": error: bit-stream cast between fixed-size types of different sizes (IEEE 1800-2017/2023 6.24.3)."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+		  NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+						 target_type_, 1);
+		  cast->parm(0, sub);
+		  cast->set_line(*this);
+		  return cast;
+	    }
       }
 
       /* An unpacked struct has no scalar VVP representation. For the fixed-size

@@ -295,7 +295,11 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 			   ivl_type_packed_width(element_type));
 		  show_queue_type_(rp, code, ptype);
 	    } else {
-		  show_queue_type_(rp, "Qv", ptype);
+		  char code[32];
+		  snprintf(code, sizeof code, "Q%c%u",
+			   ivl_type_base(element_type) == IVL_VT_BOOL ? 'b' : 'v',
+			   ivl_type_packed_width(element_type));
+		  show_queue_type_(rp, code, ptype);
 	    }
 	    break;
 	  case IVL_VT_CLASS:
@@ -337,8 +341,9 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC: {
 	    char dynamic_code[48];
-	    snprintf(dynamic_code, sizeof dynamic_code, "D%sv%u",
+	    snprintf(dynamic_code, sizeof dynamic_code, "D%s%c%u",
 		     ivl_type_signed(element_type) ? "s" : "",
+		     ivl_type_base(element_type) == IVL_VT_BOOL ? 'b' : 'v',
 		     ivl_type_packed_width(element_type));
 	    show_queue_type_(rp, dynamic_code, ptype);
 	    return;

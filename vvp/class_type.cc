@@ -1850,6 +1850,15 @@ uint64_t class_type::property_queue_max_size(size_t idx) const
 	    && layout->queue_bound_known ? layout->queue_max_size : 0;
 }
 
+const vvp_container_layout_t&class_type::property_container_layout(
+      size_t idx) const
+{
+      static const vvp_container_layout_t nil;
+      if (idx >= properties_.size())
+	    return nil;
+      return properties_[idx].container_layout;
+}
+
 const vector<pair<int,int> >& class_type::property_dimensions(size_t idx) const
 {
       static const vector<pair<int,int> > nil;
@@ -2173,7 +2182,9 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       else if (t == "QS")
 	    properties_[idx].type = new property_queue<vvp_queue_string>(
 		  array_size, properties_[idx].container_layout);
-      else if (t == "Qv")
+	  else if (t == "Qv" || t == "Qb"
+		   || (t.size() > 2 && (t.compare(0,2,"Qv") == 0
+					|| t.compare(0,2,"Qb") == 0)))
 	    properties_[idx].type = new property_queue<vvp_queue_vec4>(
 		  array_size, properties_[idx].container_layout);
       else if (t == "Qo")

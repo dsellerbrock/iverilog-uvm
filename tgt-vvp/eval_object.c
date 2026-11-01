@@ -2584,6 +2584,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
          a queue or dynamic array of the result's element type. */
       if (strncmp(name, "$ivl_stream$", 12) == 0) {
 	    ivl_type_t net_type = ivl_expr_net_type(expr);
+	    if (net_type && ivl_type_base(net_type) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(net_type) > 0) {
+		  ensure_class_type_emitted(net_type);
+		  draw_stream_pack_pieces(expr, 0);
+		  fprintf(vvp_out, "    %%stream/to/struct C%p;\n", net_type);
+		  return 0;
+	    }
 	    char elem_text[32];
 	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
 	    assert(net_type);

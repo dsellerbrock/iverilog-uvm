@@ -27705,6 +27705,344 @@ bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t cp)
       return do_stream_to_container(thr, cp, false);
 }
 
+namespace {
+
+static bool stream_struct_fixed_bits_(const class_type*type,
+				      uint64_t&bits, bool&dynamic)
+{
+      bits = 0;
+      dynamic = false;
+      if (!type || !type->is_struct_type() || type->is_union_type())
+	    return false;
+
+      for (size_t pid = 0; pid < type->property_count(); ++pid) {
+	    const string&base = type->property_base_type(pid);
+	    uint64_t count = type->property_array_size(pid);
+	    const class_type*child = type->property_declared_class_type(pid);
+	    if (child) {
+		  uint64_t child_bits = 0;
+		  bool child_dynamic = false;
+		  if (!stream_struct_fixed_bits_(child, child_bits, child_dynamic)
+		      || (count && child_bits > UINT64_MAX/count))
+			return false;
+		  child_bits *= count;
+		  if (child_bits > UINT64_MAX - bits)
+			return false;
+		  bits += child_bits;
+		  dynamic = dynamic || child_dynamic;
+		  continue;
+	    }
+	    if (base == "S" || (!base.empty()
+		&& (base[0] == 'D' || base[0] == 'Q'))) {
+		  dynamic = true;
+		  continue;
+	    }
+	    unsigned width = type->property_vec4_width(pid);
+	    if (width == 0 || (count && width > UINT64_MAX/count))
+		  return false;
+	    uint64_t prop_bits = static_cast<uint64_t>(width) * count;
+	    if (prop_bits > UINT64_MAX - bits)
+		  return false;
+	    bits += prop_bits;
+      }
+      return true;
+}
+
+struct stream_struct_greedy_t {
+      unsigned element_width = 0;
+      bool queue_bound_known = false;
+      uint64_t queue_max_size = 0;
+};
+
+static bool stream_struct_dynamic_element_(const string&base,
+					   const vvp_container_layout_t&layout,
+					   unsigned&width, bool&four_state)
+{
+      if (base.empty() || (base[0] != 'D' && base[0] != 'Q') || !layout
+		  || layout->kind != (base[0] == 'Q'
+			? VVP_CONTAINER_QUEUE : VVP_CONTAINER_DARRAY))
+	    return false;
+
+	  /* Container layouts retain shape and bounds. The .class property tag
+	     retains the integral element's width and state when there is no nested
+	     layout node (for example, byte[] is encoded as Dsb8). */
+	  if (layout->element
+	      && layout->element->kind == VVP_CONTAINER_FIXED
+	      && layout->element->fixed_width > 0
+	      && layout->element->fixed_leaf != VVP_FIXED_OBJECT) {
+	    width = layout->element->fixed_width;
+	    four_state = layout->element->fixed_leaf == VVP_FIXED_LOGIC;
+	    return true;
+	  }
+
+	  size_t pos = 1;
+	  if (pos < base.size() && base[pos] == 's')
+	    ++pos;
+	  if (pos >= base.size() || (base[pos] != 'v' && base[pos] != 'b'))
+	    return false;
+	  four_state = base[pos] == 'v';
+	  ++pos;
+	  if (pos == base.size())
+	    return false;
+	  char*end = 0;
+	  unsigned long parsed = strtoul(base.c_str()+pos, &end, 10);
+	  if (end == base.c_str()+pos || *end != '\0' || parsed == 0
+	      || parsed > UINT_MAX)
+	    return false;
+	  width = static_cast<unsigned>(parsed);
+	  return true;
+}
+
+static bool stream_struct_find_greedy_(const class_type*type,
+				       stream_struct_greedy_t&greedy)
+{
+      if (!type || !type->is_struct_type() || type->is_union_type())
+	    return false;
+      for (size_t pid = 0; pid < type->property_count(); ++pid) {
+	    const class_type*child = type->property_declared_class_type(pid);
+	    if (child) {
+		  if (!stream_struct_find_greedy_(child, greedy))
+			return false;
+		  if (greedy.element_width)
+			return true;
+		  continue;
+	    }
+	    const string&base = type->property_base_type(pid);
+	    if (base == "S") {
+		  greedy.element_width = 8;
+		  return true;
+	    }
+	    if (base.empty() || (base[0] != 'D' && base[0] != 'Q'))
+		  continue;
+	    const vvp_container_layout_t&layout =
+		  type->property_container_layout(pid);
+	    bool element_four_state = false;
+	    if (!stream_struct_dynamic_element_(base, layout,
+						greedy.element_width,
+						element_four_state))
+		  return false;
+	    greedy.queue_bound_known = base[0] == 'Q'
+		  && layout->queue_bound_known && layout->queue_max_size != 0;
+	    greedy.queue_max_size = layout->queue_max_size;
+	    return true;
+      }
+      return true;
+}
+
+static bool stream_struct_take_left_(const vvp_vector4_t&stream,
+				     unsigned&offset, unsigned width,
+				     vvp_vector4_t&value)
+{
+      if (offset > stream.size() || width > stream.size() - offset)
+	    return false;
+      unsigned top = stream.size() - offset;
+      value = stream.subvalue(top - width, width);
+      offset += width;
+      return true;
+}
+
+static bool stream_struct_fill_(vvp_cobject*object,
+				const vvp_vector4_t&stream, unsigned&offset,
+				uint64_t&greedy_bits, bool&greedy_used)
+{
+      const class_type*type = object ? object->get_defn() : nullptr;
+      if (!type || !type->is_struct_type() || type->is_union_type())
+	    return false;
+
+      for (size_t pid = 0; pid < type->property_count(); ++pid) {
+	    const class_type*child_type = type->property_declared_class_type(pid);
+	    uint64_t count = type->property_array_size(pid);
+	    if (child_type) {
+		  if (!child_type->is_struct_type() || child_type->is_union_type())
+			return false;
+		  for (uint64_t idx = 0; idx < count; ++idx) {
+			vvp_object_t child_value;
+			object->get_object(pid, child_value, static_cast<size_t>(idx));
+			vvp_cobject*child = child_value.peek<vvp_cobject>();
+			if (!child || !stream_struct_fill_(child, stream, offset,
+							   greedy_bits, greedy_used))
+			      return false;
+		  }
+		  continue;
+	    }
+
+	    const string&base = type->property_base_type(pid);
+	    unsigned width = type->property_vec4_width(pid);
+	    if (width) {
+		  for (uint64_t idx = 0; idx < count; ++idx) {
+			vvp_vector4_t value;
+			if (!stream_struct_take_left_(stream, offset, width, value))
+			      return false;
+			size_t state_pos = !base.empty() && base[0] == 's' ? 1 : 0;
+			if (state_pos < base.size() && base[state_pos] == 'b')
+			      value = coerce_stream_elem_(value, false);
+			object->set_vec4(pid, value, static_cast<size_t>(idx));
+		  }
+		  continue;
+	    }
+
+	    if (base == "S") {
+		  for (uint64_t idx = 0; idx < count; ++idx) {
+			uint64_t bits = 0;
+			if (!greedy_used) {
+			      bits = greedy_bits;
+			      greedy_bits = 0;
+			      greedy_used = true;
+			}
+			if (bits % 8 || bits/8 > STREAM_WITH_MAX_ELEMENTS)
+			      return false;
+			string value;
+			value.reserve(static_cast<size_t>(bits/8));
+			for (uint64_t byte_idx = 0; byte_idx < bits/8; ++byte_idx) {
+			      vvp_vector4_t elem;
+			      if (!stream_struct_take_left_(stream, offset, 8, elem))
+				    return false;
+			      elem = coerce_stream_elem_(elem, false);
+			      unsigned char ch = 0;
+			      for (unsigned bit = 0; bit < 8; ++bit)
+				    if (elem.value(bit) == BIT4_1)
+					  ch |= static_cast<unsigned char>(1U << bit);
+			      value.push_back(static_cast<char>(ch));
+			}
+			object->set_string(pid, value, static_cast<size_t>(idx));
+		  }
+		  continue;
+	    }
+
+	    if (!base.empty() && (base[0] == 'D' || base[0] == 'Q')) {
+		  const vvp_container_layout_t&layout =
+			  type->property_container_layout(pid);
+		  unsigned elem_width = 0;
+		  bool elem_four_state = false;
+		  if (!stream_struct_dynamic_element_(base, layout,
+						      elem_width,
+						      elem_four_state))
+			return false;
+		  for (uint64_t idx = 0; idx < count; ++idx) {
+			uint64_t bits = 0;
+			if (!greedy_used) {
+			      bits = greedy_bits;
+			      greedy_bits = 0;
+			      greedy_used = true;
+			}
+			if (bits % elem_width)
+			      return false;
+			uint64_t elements = bits / elem_width;
+			if (elements > STREAM_WITH_MAX_ELEMENTS
+			    || elements > UINT_MAX)
+			      return false;
+			if (base[0] == 'D') {
+			      vvp_darray*array = elem_four_state
+				    ? static_cast<vvp_darray*>(new vvp_darray_vec4(
+					  static_cast<size_t>(elements), elem_width))
+				    : static_cast<vvp_darray*>(new vvp_darray_vec2(
+					  static_cast<size_t>(elements), elem_width));
+			      for (uint64_t elem_idx = 0; elem_idx < elements; ++elem_idx) {
+				    vvp_vector4_t elem;
+				    if (!stream_struct_take_left_(stream, offset,
+								  elem_width, elem)) {
+					  delete array;
+					  return false;
+				    }
+				    array->set_word(static_cast<unsigned>(elem_idx),
+						    coerce_stream_elem_(elem,
+							       elem_four_state));
+			      }
+			      array->set_declared_container_layout(layout);
+			      object->set_object(pid, vvp_object_t(array),
+						 static_cast<size_t>(idx));
+			} else {
+			      if (layout->queue_bound_known
+				  && layout->queue_max_size != 0
+				  && elements > layout->queue_max_size)
+				    return false;
+			      vvp_object_t queue_value;
+			      object->get_object(pid, queue_value,
+						 static_cast<size_t>(idx));
+			      vvp_queue_vec4*queue = queue_value.peek<vvp_queue_vec4>();
+			      if (!queue) {
+				    return false;
+			      }
+			      for (uint64_t elem_idx = 0; elem_idx < elements; ++elem_idx) {
+				    vvp_vector4_t elem;
+				    if (!stream_struct_take_left_(stream, offset,
+								  elem_width, elem))
+					  return false;
+				    queue->push_back(coerce_stream_elem_(elem,
+								       elem_four_state),
+						    layout->queue_bound_known
+							  ? layout->queue_max_size : 0);
+			      }
+			}
+		  }
+		  continue;
+	    }
+	    return false;
+      }
+      return true;
+}
+
+static bool stream_struct_cast_error_(vthread_t thr, const char*detail)
+{
+      cerr << thr->get_fileline()
+	   << "VVP error: bit-stream cast to unpacked struct " << detail << "."
+	   << endl;
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+	    schedule_finish(0);
+      return false;
+}
+
+} // namespace
+
+/* %stream/to/struct <class-type>
+ * Convert the packed source stream into an object-backed unpacked struct.
+ * Fixed members are sized from the destination metadata. The first dynamic
+ * member receives all source bits not reserved by fixed members; later dynamic
+ * members remain empty (IEEE 1800-2017/2023 6.24.3). */
+bool of_STREAM_TO_STRUCT(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t stream = thr->pop_vec4();
+      const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
+      if (!defn || !defn->is_struct_type() || defn->is_union_type())
+	    return stream_struct_cast_error_(thr, "has an invalid destination type");
+
+      uint64_t fixed_bits = 0;
+      bool has_dynamic = false;
+      if (!stream_struct_fixed_bits_(defn, fixed_bits, has_dynamic))
+	    return stream_struct_cast_error_(thr, "has an unsupported member type");
+      if (stream.size() > STREAM_WITH_MAX_BITS
+	  || fixed_bits > STREAM_WITH_MAX_BITS)
+	    return stream_struct_cast_error_(thr, "exceeds the bounded runtime width");
+      if (stream.size() < fixed_bits || (!has_dynamic && stream.size() != fixed_bits))
+	    return stream_struct_cast_error_(thr, "source and destination sizes differ");
+
+      uint64_t greedy_bits = stream.size() - fixed_bits;
+      if (has_dynamic) {
+	    stream_struct_greedy_t greedy;
+	    if (!stream_struct_find_greedy_(defn, greedy)
+		|| greedy.element_width == 0
+		|| greedy_bits % greedy.element_width
+		|| (greedy.queue_bound_known
+		    && greedy_bits / greedy.element_width > greedy.queue_max_size))
+		  return stream_struct_cast_error_(thr,
+			"source size cannot fit its first dynamic member");
+      }
+
+      vvp_cobject*object = new vvp_cobject(defn);
+      unsigned offset = 0;
+      bool greedy_used = false;
+      if (!stream_struct_fill_(object, stream, offset,
+			       greedy_bits, greedy_used)
+	  || offset != stream.size()) {
+	    delete object;
+	    return stream_struct_cast_error_(thr,
+		  "could not be represented by the destination members");
+      }
+      thr->push_object(vvp_object_t(object));
+      return true;
+}
+
 bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*scope = dynamic_cast<__vpiScope*> (cp->handle);

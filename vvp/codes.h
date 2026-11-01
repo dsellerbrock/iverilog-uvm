@@ -706,6 +706,7 @@ extern bool of_STREAM_STORE_PROP_FIXED_RANGE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_STORE_PROP_FIXED_UP(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_STORE_PROP_FIXED_DOWN(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t code);
+extern bool of_STREAM_TO_STRUCT(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_DAR_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_QUEUE_WITH(vthread_t thr, vvp_code_t code);
