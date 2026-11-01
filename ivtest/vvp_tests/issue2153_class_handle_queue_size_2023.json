@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2153_class_handle_queue_size.sv",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue2153_class_handle_queue_size"
+}

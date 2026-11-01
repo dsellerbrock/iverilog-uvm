@@ -35234,19 +35234,26 @@ static string constraint_class_container_size_ir_(
 	// A fixed leaf and an element of its queue need two randc history
 	// coordinates; the current history store has only one.
       if (fixed_leaf && qual.test_randc()) return "";
-      ivl_type_t etype = da ? da->element_type() : nullptr;
+      ivl_type_t etype = da ? da->element_type()
+	    : queue ? queue->element_type() : nullptr;
       ivl_variable_type_t ebase = etype
 	    ? etype->base_type() : IVL_VT_NO_TYPE;
       bool integral_queue = ebase == IVL_VT_BOOL
 	    || ebase == IVL_VT_LOGIC
 	    || dynamic_cast<const netenum_t*>(etype);
+	// Class handles are represented by object identities rather than solver
+	// bitvectors. Their queue size is still a solver variable; resizing keeps
+	// retained handles and gives new elements the required null value.
+      bool class_handle_queue = dynamic_cast<const netclass_t*>(etype);
 	// Associative arrays currently share netqueue_t as an elaboration
 	// representation, but their key set is state, not a randomizable queue
 	// size. Likewise, the bitvector solver cannot fill a rand queue of
 	// non-integral elements.
       bool unsupported_rand_queue = queue && rand_container
-	    && (queue->assoc_compat() || !integral_queue);
-      if (!da || unsupported_rand_queue || (fixed_leaf && !queue))
+	    && (queue->assoc_compat()
+		|| (!integral_queue && !class_handle_queue));
+      if ((!da && !queue) || unsupported_rand_queue
+	  || (fixed_leaf && !queue))
 	    return "";
 
       unsigned ewid = etype ? etype->packed_width() : 32;
