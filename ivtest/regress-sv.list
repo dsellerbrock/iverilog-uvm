@@ -6398,3 +6398,5 @@ issue636_function_call_implicit_var_2023 normal,-g2023,-s,issue636_function_call
 issue1715_modpath_condition normal,-g2017,-gspecify,-s,issue1715_modpath_condition ivltests gold=issue1715_modpath_condition
 issue1796_dynamic_locator_count_2017 normal,-g2017,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
 issue1796_dynamic_locator_count_2023 normal,-g2023,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
+issue794_nested_dynamic_array_queries_2017 normal,-g2017,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
+issue794_nested_dynamic_array_queries_2023 normal,-g2023,-s,test ivltests gold=issue794_nested_dynamic_array_queries.gold
