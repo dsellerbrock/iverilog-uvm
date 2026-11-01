@@ -10259,6 +10259,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    PExpr*base = sva_clone_subst_(cast->cast_base(), subst);
 	    if (!base) return nullptr;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -11661,6 +11662,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 					   unsampled_locals);
 	    if (!base) return nullptr;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -11950,6 +11952,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 			value = sva_clone_subst_(actuals[k]->parm, nullptr);
 			if (value) {
 			      PECastType*cast = new PECastType(formal.type, value);
+			      cast->set_property_formal_actual();
 			      FILE_NAME(cast, loc);
 			      value = cast;
 			}
@@ -11960,6 +11963,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 		  value = sva_clone_subst_(formal.default_expr, nullptr);
 		  if (value && formal.type) {
 			PECastType*cast = new PECastType(formal.type, value);
+			cast->set_property_formal_actual();
 			FILE_NAME(cast, loc);
 			value = cast;
 		  }
@@ -14956,6 +14960,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 					     cur_live, reactive_past_offset);
 	    if (base == cast->cast_base()) return e;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }

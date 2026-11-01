@@ -1,0 +1,6 @@
+{
+    "type" : "CE",
+    "source" : "issue2207_property_bad_class_actual.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "issue2207_property_bad_class_actual_2023"
+}
