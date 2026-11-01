@@ -27402,7 +27402,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // property that compiles, never evaluates, and reports
 	      // nothing -- the check silently does not exist. Those take
 	      // the error branch.
-	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
+	    if (gn_system_verilog() && path_.size() > 1
+		&& !(NEED_CONST & flags) && !strict_bind_
 		&& !sr.decl_after_use
 		&& !unresolved_foreach_index_is_out_of_scope_(
 		      scope, path_.name.front().name)
@@ -27591,7 +27592,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// strict_bind_: see the companion site above. An identifier that
 	// came out of a concurrent assertion must not degrade to a
 	// warning here either.
-      if (gn_system_verilog() && !strict_bind_ && !sr.decl_after_use
+	if (gn_system_verilog() && path_.size() > 1 && !strict_bind_
+	    && !sr.decl_after_use
 	  && !unresolved_foreach_index_is_out_of_scope_(
 		scope, path_.name.front().name)
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue767_undeclared_ref.v",
+  "iverilog-args": ["-g2017", "-s", "issue767_undeclared_ref"],
+  "gold": "issue767_undeclared_ref"
+}

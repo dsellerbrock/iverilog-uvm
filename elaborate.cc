@@ -19629,6 +19629,34 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 			      }
 			      {
+					auto parent_property_guard = [&](PExpr*expr) -> NetExpr* {
+					      const PEIdent*id =
+						    dynamic_cast<const PEIdent*>(expr);
+					      if (!parent_cls || !id) return nullptr;
+					      const pform_scoped_name_t&path = id->path();
+					      if (path.size() != 1 || path.name.front().local_scope
+						  || !path.name.front().index.empty())
+						    return nullptr;
+					      symbol_search_results search;
+					      bool found = symbol_search(id, des, cp_scope, path,
+						    id->lexical_pos(), &search);
+					      bool parent_scope = !found && !search.decl_after_use;
+					      if (found && search.scope)
+						    for (const netclass_t*cls = parent_cls;
+							 cls; cls = cls->get_super())
+							  if (cls->class_scope() == search.scope) {
+								parent_scope = true;
+								break;
+							  }
+				      if (!parent_scope) return nullptr;
+				      int prop = parent_cls->property_idx_from_name(
+					    path.name.front().name);
+				      if (prop < 0) return nullptr;
+				      NetEProperty*value = new NetEProperty(
+					    make_parent_expr(), prop, nullptr);
+				      value->set_line(*expr);
+				      return value;
+				};
 				    // Coverpoint VALUES. Prefer the parent-
 				    // class property read (class-embedded
 				    // covergroups); otherwise elaborate the
@@ -19676,23 +19704,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, cp_scope, gexpr, -1,
-								     false, false);
+						gval = parent_property_guard(gexpr);
 						if (!gval)
-						if (const PEIdent*gid =
-						      dynamic_cast<const PEIdent*>(gexpr)) {
-						      perm_string gnm = peek_head_name(gid->path());
-						      int gp = parent_cls
-							    ? parent_cls->property_idx_from_name(gnm)
-							    : -1;
-						      if (gp >= 0) {
-							    NetEProperty*gprop =
-								  new NetEProperty(make_parent_expr(),
-										   gp, nullptr);
-							    gprop->set_line(*this);
-							    gval = gprop;
-						      }
-						}
+						      gval = elab_and_eval(des, cp_scope, gexpr, -1,
+								     false, false);
 						if (!gval)
 						      gval = elab_and_eval(des, cp_scope,
 									   gexpr, -1,
@@ -19720,22 +19735,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_item_guard(item);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						gval = elab_and_eval(des, cp_scope, gexpr, -1,
-							     false, false);
+						gval = parent_property_guard(gexpr);
 						if (!gval)
-						if (const PEIdent*gid =
-						      dynamic_cast<const PEIdent*>(gexpr)) {
-						      perm_string gnm = peek_head_name(gid->path());
-						      int gp = parent_cls
-							    ? parent_cls->property_idx_from_name(gnm)
-							    : -1;
-						      if (gp >= 0) {
-							    NetEProperty*gprop = new NetEProperty(
-								  make_parent_expr(), gp, nullptr);
-							    gprop->set_line(*this);
-							    gval = gprop;
-						      }
-						}
+						      gval = elab_and_eval(des, cp_scope, gexpr, -1,
+							     false, false);
 						if (!gval)
 						      cerr << get_fileline()
 							   << ": sorry: cross iff guard for '"
@@ -19759,22 +19762,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    for (unsigned gi = 0; gi < nbinguards; gi++) {
 					  PExpr*gexpr = cgtype->covgrp_bin_guard(gi);
 					  NetExpr*gval = gexpr
-						? elab_and_eval(des, cp_scope, gexpr,
-								-1, false, false)
-						: nullptr;
+						? parent_property_guard(gexpr) : nullptr;
 					  if (!gval && gexpr)
-					  if (const PEIdent*gid =
-						dynamic_cast<const PEIdent*>(gexpr)) {
-						perm_string gnm = peek_head_name(gid->path());
-						int gp = parent_cls
-						      ? parent_cls->property_idx_from_name(gnm) : -1;
-						if (gp >= 0) {
-						      NetEProperty*gprop = new NetEProperty(
-							make_parent_expr(), gp, nullptr);
-						      gprop->set_line(*this);
-						      gval = gprop;
-						}
-					  }
+						gval = elab_and_eval(des, cp_scope, gexpr,
+								 -1, false, false);
 					  if (!gval) {
 						if (gexpr)
 						      cerr << get_fileline()
