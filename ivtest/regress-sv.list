@@ -16,6 +16,8 @@ issue1825_foreach_index_bit_select_2017 normal,-g2017,-s,test ivltests gold=issu
 issue1825_foreach_index_bit_select_2023 normal,-g2023,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
 issue1827_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1827_packed_foreach.gold
 issue1827_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1827_packed_foreach.gold
+issue1828_nested_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1828_nested_packed_foreach-vvp-stdout.gold
+issue1828_nested_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1828_nested_packed_foreach-vvp-stdout.gold
 issue1838_scope_randomize_array_2017 normal,-g2017,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 issue1838_scope_randomize_array_2023 normal,-g2023,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 
