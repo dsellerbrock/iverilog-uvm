@@ -1527,7 +1527,7 @@ sv_disable_soft normal,-g2012 ivltests
 sv_randsequence normal,-g2012 ivltests gold=sv_randsequence.gold
 sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control_flow.gold
 sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
-sv_randsequence_nonconstant_actual_fail CE,-g2012 ivltests gold=sv_randsequence_nonconstant_actual_fail.gold
+sv_randsequence_nonconstant_actual_fail normal,-g2012,-s,sv_randsequence_nonconstant_actual_fail ivltests gold=issue1174_randsequence_runtime_input-vvp-stdout.gold
 sv_randsequence_join_nested_lanes normal,-g2012 ivltests gold=sv_randsequence_join_nested_lanes.gold
 sv_randsequence_value_return_fail CE,-g2012 ivltests gold=sv_randsequence_value_return_fail.gold
 sv_randsequence_output_formal_2017 normal,-g2017 ivltests gold=sv_randsequence_output_formal-vvp-stdout.gold
