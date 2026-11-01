@@ -1336,11 +1336,14 @@ netenum_t* builtin_process_state_type(Design*des)
 
 netclass_t* builtin_class_type(perm_string name)
 {
-      if (name == perm_string::literal("process"))
+      if (name == perm_string::literal("process")
+	  || name == perm_string::literal("$std_process"))
 	    return make_builtin_process_type_();
-      if (name == perm_string::literal("semaphore"))
+      if (name == perm_string::literal("semaphore")
+	  || name == perm_string::literal("$std_semaphore"))
 	    return make_builtin_semaphore_type_();
-      if (name == perm_string::literal("mailbox"))
+      if (name == perm_string::literal("mailbox")
+	  || name == perm_string::literal("$std_mailbox"))
 	    return make_builtin_mailbox_type_();
       return nullptr;
 }
@@ -3232,7 +3235,9 @@ NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
 
 ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 {
-      if (name == "process" || name == "semaphore" || name == "mailbox") {
+      if (name == "process" || name == "semaphore" || name == "mailbox"
+	  || name == "$std_process" || name == "$std_semaphore"
+	  || name == "$std_mailbox") {
 	    return builtin_class_type(name);
       }
 

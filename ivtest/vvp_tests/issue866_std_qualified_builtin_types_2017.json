@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue866_std_qualified_builtin_types.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue866_std_qualified_builtin_types"
+}

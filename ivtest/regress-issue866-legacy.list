@@ -1,0 +1,2 @@
+issue866_std_qualified_builtin_types_2017 normal,-g2017 ivltests gold=issue866_std_qualified_builtin_types.gold
+issue866_std_qualified_builtin_types_2023 normal,-g2023 ivltests gold=issue866_std_qualified_builtin_types.gold

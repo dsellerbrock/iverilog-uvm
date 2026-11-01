@@ -41,6 +41,26 @@ vector<PPackage*> pform_packages;
  */
 static map<perm_string,PPackage*> packages_by_name;
 
+/* std is a built-in package rather than a source-declared package. Keep a
+ * parser-visible package scope for its built-in class type names so that
+ * package-qualified references use the ordinary package type machinery. */
+static PPackage* pform_builtin_std_package()
+{
+      static PPackage*package = nullptr;
+      if (!package) {
+	    package = new PPackage(perm_string::literal("std"), nullptr);
+	    static const char*names[] = { "semaphore", "mailbox", "process" };
+	    for (const char*name : names) {
+		  perm_string ident = perm_string::literal(name);
+		  perm_string builtin_name = lex_strings.make(string("$std_") + name);
+		  typedef_t*type = new typedef_t(builtin_name);
+		  type->set_data_type(new type_parameter_t(builtin_name));
+		  package->typedefs[ident] = type;
+	    }
+      }
+      return package;
+}
+
 static PPackage*pform_cur_package = 0;
 
 void pform_start_package_declaration(const struct vlltype&loc, const char*name,
@@ -292,6 +312,12 @@ PExpr* pform_package_ident(const struct vlltype&loc,
 typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt)
 {
       perm_string use_name = lex_strings.make(txt);
+
+      if (pkg == pform_builtin_std_package()) {
+	    auto builtin = pkg->typedefs.find(use_name);
+	    return builtin == pkg->typedefs.end() ? nullptr : builtin->second;
+      }
+
       LexicalScope::typedef_map_t::const_iterator cur;
 
       cur = pkg->typedefs.find(use_name);
@@ -311,8 +337,11 @@ PPackage* pform_test_package_identifier(const char*pkg_name)
       perm_string use_name = lex_strings.make(pkg_name);
 
       map<perm_string,PPackage*>::const_iterator pcur = packages_by_name.find(use_name);
-      if (pcur == packages_by_name.end())
+      if (pcur == packages_by_name.end()) {
+	    if (use_name == perm_string::literal("std"))
+		  return pform_builtin_std_package();
 	    return 0;
+      }
 
       assert(pcur->second);
       return pcur->second;

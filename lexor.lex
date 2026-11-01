@@ -461,6 +461,14 @@ TU [munpf]
      scoped-constructor shift without adding a parser conflict. Trailing
      context is inspected but not consumed, so whitespace/comments and source
      locations continue through their normal rules. */
+  /* Preserve std as an ordinary identifier when the next scoped member is the
+     built-in randomize function; its established grammar handles this form. */
+"std"/[ \t\b\f\r\n]*"::"[ \t\b\f\r\n]*"randomize" {
+      assert(yylloc.lexical_pos != UINT_MAX);
+      yylloc.lexical_pos += 1;
+      yylval.text = strdupnew(yytext);
+      return IDENTIFIER;
+}
 [a-zA-Z_][a-zA-Z0-9$_]*/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"::" {
       if (in_function_header)
 	    scoped_function_header_name = true;
