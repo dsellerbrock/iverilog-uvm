@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_rand_real_inside_points_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_constraint_rand_real_inside_points_2017_json"
+}
