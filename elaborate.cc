@@ -13977,6 +13977,21 @@ NetExpr* PEMatches::elaborate_expr(Design*des, NetScope*scope,
                                       des, scope);
 }
 
+static bool pattern_filter_fallback_(NetProc*body, NetProc*fallback)
+{
+      NetProc*last = body;
+      if (NetBlock*block = dynamic_cast<NetBlock*>(body)) {
+            last = const_cast<NetProc*>(block->proc_first());
+            while (last && block->proc_next(last))
+                  last = const_cast<NetProc*>(block->proc_next(last));
+      }
+      NetCondit*guard = dynamic_cast<NetCondit*>(last);
+      if (!guard)
+            return false;
+      guard->set_else_clause_borrowed(fallback);
+      return true;
+}
+
 /* Elaborate `case (X) matches` to an if-else cascade. The shared matcher
  * validates and lowers each complete typed pattern; the item's implicit block
  * performs pattern-variable copies before its user statement. Invalid
@@ -14029,6 +14044,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   if (!match) continue;
                   NetProc*body = item->stat
                         ? item->stat->elaborate(des, scope) : nullptr;
+                  if (item->has_filter
+                      && !pattern_filter_fallback_(body, nullptr)) {
+                        cerr << item->pattern->get_fileline()
+                             << ": internal error: Unable to lower pattern filter."
+                             << endl;
+                        des->errors += 1;
+                  }
                   res->set_case(idx, match, body, idx);
             }
             return res;
@@ -14054,6 +14076,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   if (!match)
                         continue;
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
+                  if (it->has_filter
+                      && !pattern_filter_fallback_(body, cascade)) {
+                        cerr << it->pattern->get_fileline()
+                             << ": internal error: Unable to lower pattern filter."
+                             << endl;
+                        des->errors += 1;
+                  }
                   NetCondit*cond = new NetCondit(match, body, cascade);
                   cond->set_line(*this);
                   cascade = cond;
@@ -14979,6 +15008,42 @@ static bool scope_is_within_(const NetScope*scope, const NetScope*container)
       return false;
 }
 
+/* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
+ * 1800-2023, nonsingular arguments use assignment compatibility instead.
+ * Packed arrays and packed records are singular; unpacked arrays and
+ * unpacked records are aggregate values. */
+static bool cast_expr_is_singular_(const NetExpr*expr)
+{
+      if (!expr) return true;
+
+      ivl_type_t type = expr->net_type();
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return array->packed();
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type))
+	    return record->packed();
+
+      if (expr->expr_type() == IVL_VT_DARRAY
+	  || expr->expr_type() == IVL_VT_QUEUE)
+	    return false;
+      return true;
+}
+
+static bool cast_operands_nonsingular_(const NetExpr*dest,
+				       const NetExpr*source)
+{
+      return !cast_expr_is_singular_(dest)
+	    || !cast_expr_is_singular_(source);
+}
+
+static bool cast_operands_assignment_compatible_(const NetExpr*dest,
+						 const NetExpr*source)
+{
+      ivl_type_t dest_type = dest ? dest->net_type() : nullptr;
+      ivl_type_t source_type = source ? source->net_type() : nullptr;
+      return dest_type && source_type
+	    && dest_type->type_compatible(source_type);
+}
+
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
 	// Method-call statement on an arbitrary receiver expression,
@@ -15179,6 +15244,24 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	}
 	if (NetESignal*dest = dynamic_cast<NetESignal*>(eparms[0])) {
 	    materialize_ref_return(dest->sig());
+	}
+	const bool nonsingular =
+	      cast_operands_nonsingular_(eparms[0], eparms[1]);
+	if (nonsingular && generation_flag < GN_VER2023) {
+	    cerr << get_fileline() << ": error: The arguments to $cast must be "
+		    "singular (IEEE 1800-2017 6.24.2)." << endl;
+	    des->errors += 1;
+	}
+	const netclass_t*dest_class = dynamic_cast<const netclass_t*>(
+	      eparms[0] ? eparms[0]->net_type() : nullptr);
+	if (!dest_class) {
+	    const bool compatible = !nonsingular
+		    || cast_operands_assignment_compatible_(eparms[0], eparms[1]);
+	    const unsigned status_value = !compatible ? 2 : 1;
+	    NetEConst*status = new NetEConst(verinum(
+		    static_cast<uint64_t>(0x49560000u | status_value), 32));
+	    status->set_line(*this);
+	    eparms.push_back(status);
 	}
       }
 
@@ -21053,6 +21136,29 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       unsigned int off = use_this ? 1 : 0;
 
       auto args = map_named_args(des, def, parms_, off);
+	  /* Sequence match-item input actuals have already been captured in
+	     Preponed. A ref/const-ref actual denotes the caller's variable,
+	     however, and must keep its original l-value instead of binding the
+	     sampled value expression. */
+	  vector<PExpr*> original_args(args.size(), static_cast<PExpr*>(0));
+	  if (!match_item_original_args_.empty()) {
+		bool seen_named = false;
+		for (size_t i = 0 ; i < match_item_original_args_.size() ; ++i) {
+		      const named_pexpr_t&arg = match_item_original_args_[i];
+		      if (arg.name.nil()) {
+			    if (arg.parm && !seen_named && i < original_args.size())
+				  original_args[i] = arg.parm;
+			    continue;
+		      }
+		      seen_named = true;
+		      for (unsigned int j = off ; j < def->port_count() ; ++j) {
+			    if (def->port(j)->name() == arg.name) {
+				  original_args[j - off] = arg.parm;
+				  break;
+			    }
+		      }
+		}
+	  }
 	/* Where each argument's copy pair, if it still needs one, has to
 	   land. Null means the port itself, which is the ordinary case.
 	   A bound `ref' formal is never copied; a bound ref formal whose
@@ -21069,6 +21175,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    PExpr*actual = args[parms_idx];
+	    if (port->port_type() == NetNet::PREF
+		&& parms_idx < original_args.size()
+		&& original_args[parms_idx])
+		  actual = original_args[parms_idx];
 	    NetScope*actual_scope = scope;
 	    if (!actual && (port->port_type() == NetNet::POUTPUT
 		    || port->port_type() == NetNet::PINOUT)) {
@@ -21974,6 +22084,11 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
       return true;
 }
 
+static bool force_rhs_needs_structural_net_(const NetExpr*expr);
+static NetScope* force_rhs_structural_scope_(NetScope*scope);
+static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
+				       const LineInfo&loc);
+
 /*
  * Elaborate a procedural continuous assign. This really looks very
  * much like other procedural assignments, at this point, but there
@@ -22021,7 +22136,28 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      dev = new NetCAssign(lval, rexp);
+      NetExpr*link_rexp = 0;
+
+      /* A procedural continuous assignment needs both the expression's
+       * immediate value and a structural source whose changes can trigger
+       * the existing VVP cassign link. Keep the initial expression intact
+       * for activation-time evaluation. */
+      if (force_rhs_needs_structural_net_(rexp)) {
+	    NetScope*source_scope = force_rhs_structural_scope_(scope);
+	    NetExpr*structural_rexp = rexp->dup_expr();
+	    NetNet*source = structural_rexp->synthesize(des, source_scope,
+						       structural_rexp);
+	    source = force_rhs_static_alias_(source, source_scope,
+					     *structural_rexp);
+	    if (source) {
+		  NetESignal*continuous = new NetESignal(source);
+		  continuous->set_line(*structural_rexp);
+		  link_rexp = continuous;
+	    }
+	    delete structural_rexp;
+      }
+
+      dev = new NetCAssign(lval, rexp, link_rexp);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate cassign,"
@@ -26226,9 +26362,9 @@ NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 }
 
 /* Return true when EXPR can be lowered to the existing structural expression
- * netlist without changing its meaning. This deliberately starts with the
- * signal/select/concatenation cluster used by Caliptra's memory-injection
- * forces. Other procedural expressions retain the target's explicit
+ * netlist without changing its meaning. This covers signal/select/concat
+ * expressions, bitwise operators, and the supported subtract-constant force
+ * form. Other procedural expressions retain the target's explicit
  * one-evaluation warning until they have an equally precise lowering. */
 static bool force_rhs_is_structural_(const NetExpr*expr)
 {
@@ -26264,6 +26400,10 @@ static bool force_rhs_is_structural_(const NetExpr*expr)
 		&& force_rhs_is_structural_(sub->left())
 		&& dynamic_cast<const NetEConst*>(sub->right());
       }
+
+      if (const NetEBBits*bits = dynamic_cast<const NetEBBits*>(expr))
+	    return force_rhs_is_structural_(bits->left())
+		&& force_rhs_is_structural_(bits->right());
 
       return false;
 }

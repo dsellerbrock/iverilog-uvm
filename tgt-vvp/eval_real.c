@@ -516,6 +516,29 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    return;
       }
 
+      /* A scoped covergroup type/item method has no object receiver. Carry
+       * the VVP class-type label and the optional item index directly to
+       * the runtime so it can query that type's merged counters. */
+      {
+	    const char*name = ivl_expr_name(expr);
+	    const char*prefix =
+		  "$ivl_class_method$covgrp_type_get_coverage|";
+	    if (ivl_expr_value(expr) == IVL_VT_REAL && name
+		&& strncmp(name, prefix, strlen(prefix)) == 0) {
+		  const char*type_label = name + strlen(prefix);
+		  const char*item = strrchr(type_label, '|');
+		  if (!item || item == type_label || !item[1]) {
+			fprintf(stderr, "error: malformed covergroup type coverage call.\n");
+			vvp_errors += 1;
+			fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+			return;
+		  }
+		  fprintf(vvp_out, "    %%covgrp/type/get_coverage %.*s, %s;\n",
+			  (int)(item - type_label), type_label, item + 1);
+		  return;
+	    }
+      }
+
       /* Named coverpoint coverage uses the enclosing covergroup object
        * and a compile-time item index. The method name distinguishes
        * cumulative type coverage from this receiver's instance score. */

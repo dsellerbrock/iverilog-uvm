@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue802_enum_p_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "output-contains" : [ "e=OFF", "sw:OFF", "s:\"hi\"", "ISSUE802_PASSED" ]
+}

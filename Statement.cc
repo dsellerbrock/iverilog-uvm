@@ -1107,6 +1107,10 @@ PCallTask::PCallTask(PExpr*receiver, perm_string method_name,
 PCallTask::~PCallTask()
 {
       delete_parmvalue(leading_type_args_);
+	for (std::vector<named_pexpr_t>::iterator it =
+	     match_item_original_args_.begin() ;
+	     it != match_item_original_args_.end() ; ++it)
+	      delete it->parm;
 	// receiver_ is deliberately not deleted here: elaboration may
 	// transfer it into a synthesized PECallFunction (which owns its
 	// receiver). pform objects are process-lifetime, so this does not

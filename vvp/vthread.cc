@@ -10451,6 +10451,32 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* %covgrp/type/get_coverage — TYPE coverage selected without a covergroup
+ * instance receiver. Operand 1 is the covergroup class definition; operand
+ * 2 is zero for the group or item index plus one for a coverpoint/cross. */
+bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      const class_type*type = dynamic_cast<const class_type*>(code->handle);
+      if (!type || !type->is_covergroup()) {
+	    fprintf(stderr, "VVP error: %%covgrp/type/get_coverage requires a covergroup type\n");
+	    thr->push_real(0.0);
+	    return true;
+      }
+
+      int selected_item = -1;
+	  if (code->bit_idx[0] != 0) {
+	    if (code->bit_idx[0] > type->covgrp_item_count()) {
+		  fprintf(stderr, "VVP error: %%covgrp/type/get_coverage item index is out of range\n");
+		  thr->push_real(0.0);
+		  return true;
+	    }
+	    selected_item = static_cast<int>(code->bit_idx[0] - 1);
+      }
+
+      thr->push_real(type->type_coverage(nullptr, nullptr, selected_item));
+      return true;
+}
+
 /* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
  * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
@@ -21507,7 +21533,9 @@ static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
 		  if (sv) args[idx].r = sv->real_value();
 	    } else if (letter == 's') {
 		  vvp_fun_signal_string*ss =
-			vvp_fil_as_signal_string(net->fil);
+			vvp_fun_as_signal_string(net->fun);
+		  if (!ss)
+			ss = vvp_fil_as_signal_string(net->fil);
 		  if (ss) {
 			string_arg_hold[idx] = ss->get_string();
 			args[idx].s = string_arg_hold[idx].c_str();
@@ -22038,7 +22066,19 @@ extern "C" const char*svGetNameFromScope(void*scope)
 {
       if (scope == 0)
 	    return 0;
-      return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
+	  // VPI string results use a shared rotating buffer. DPI callers may keep
+	  // several scope names live at once (for example as printf arguments), so
+	  // retain a name for each scope handle instead of returning that buffer.
+	  static map<vpiHandle,string> names;
+	  vpiHandle handle = reinterpret_cast<vpiHandle>(scope);
+	  map<vpiHandle,string>::iterator entry = names.find(handle);
+	  if (entry == names.end()) {
+		const char*name = vpi_get_str(vpiFullName, handle);
+		if (name == 0)
+		      return 0;
+		entry = names.insert(make_pair(handle, string(name))).first;
+	  }
+	  return entry->second.c_str();
 }
 
 extern "C" const char*svGetFullNameFromScope(void*scope)
@@ -30995,8 +31035,8 @@ bool of_REF_CAPTURE_W(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* %ref/part -- packed selection base is ix3 and validity is flag 4. */
-bool of_REF_PART(vthread_t thr, vvp_code_t)
+/* %ref/part <width> -- packed selection base is ix3 and validity is flag 4. */
+bool of_REF_PART(vthread_t thr, vvp_code_t cp)
 {
       vvp_lvalue_ref*ref = thr->peek_object().peek<vvp_lvalue_ref>();
       if (!ref) {
@@ -31004,7 +31044,8 @@ bool of_REF_PART(vthread_t thr, vvp_code_t)
                  << "%ref/part requires a captured l-value target." << endl;
             return true;
       }
-      ref->set_part(thr->words[3].w_int, thr->flags[4] == BIT4_0);
+      ref->set_part(thr->words[3].w_int, thr->flags[4] == BIT4_0,
+		    cp->number);
       return true;
 }
 
@@ -36234,12 +36275,23 @@ bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static vvp_vector4_t mailbox_try_status_vector_(int status)
+{
+      vvp_vector4_t result(32);
+      uint32_t value = static_cast<uint32_t>(status);
+      for (unsigned idx = 0; idx < 32; idx += 1) {
+	    result.set_bit(idx, (value & (uint32_t(1) << idx))
+			 ? BIT4_1 : BIT4_0);
+      }
+      return result;
+}
+
 /*
  * %mbx/try_get
  * Stack (top->bottom): mailbox
- * Non-blocking get. If successful, push item onto obj stack; push
- * result (1=got item, 0=empty) onto vec4 stack.
- * If empty, push null onto obj stack and push 0 onto vec4 stack.
+ * Non-blocking get. Push the queued item onto the object stack, the signed
+ * method result (1=success, 0=empty, -1=type mismatch) onto the vec4 stack,
+ * and an independent success bit used to gate output writeback.
  */
 bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
 {
@@ -36248,18 +36300,24 @@ bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_get(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
-      thr->push_vec4(res);
+      vvp_lvalue_ref*output = thr->object_stack_size()
+	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
+      int result = mbx && output
+	    ? mbx->try_get(item, output->value_kind(),
+			    output->mailbox_value_width())
+	    : mbx && !mbx->empty() ? mbx->try_get(item, UINT_MAX, 0) : 0;
+      thr->push_object(item);
+      thr->push_vec4(mailbox_try_status_vector_(result));
+      thr->push_vec4(vvp_vector4_t(1, result > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 
 /*
  * %mbx/try_peek
  * Stack (top->bottom): mailbox
- * Non-blocking peek. If successful, push item onto obj stack; push
- * result (1=item present, 0=empty) onto vec4 stack.
+ * Non-blocking peek. Push the queued item onto the object stack, the signed
+ * method result (1=success, 0=empty, -1=type mismatch) onto the vec4 stack,
+ * and an independent success bit used to gate output writeback.
  */
 bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
 {
@@ -36268,10 +36326,15 @@ bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_peek(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
-      thr->push_vec4(res);
+      vvp_lvalue_ref*output = thr->object_stack_size()
+	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
+      int result = mbx && output
+	    ? mbx->try_peek(item, output->value_kind(),
+			    output->mailbox_value_width())
+	    : mbx && !mbx->empty() ? mbx->try_peek(item, UINT_MAX, 0) : 0;
+      thr->push_object(item);
+      thr->push_vec4(mailbox_try_status_vector_(result));
+      thr->push_vec4(vvp_vector4_t(1, result > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 

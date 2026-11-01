@@ -217,7 +217,7 @@ static void show_prop_type_vector(ivl_type_t ptype, const char*rand_prefix)
  * the storage implementation, while randomize() uses the retained values so
  * a sparse enum never receives an unnamed encoding. ivl_enum_bits is LSB
  * first, matching vvp_vector4_t bit indexes directly. */
-/* Emit the e{LSB-first-values}: literal set of an enum. */
+/* Emit the e{LSB-first-values=names}: literal set of an enum. */
 static void show_enum_domain_(ivl_enumtype_t enumtype)
 {
       unsigned idx;
@@ -231,6 +231,7 @@ static void show_enum_domain_(ivl_enumtype_t enumtype)
 	    if (emitted)
 		  fputc(',', vvp_out);
 	    fputs(bits, vvp_out);
+	    fprintf(vvp_out, "=%s", ivl_enum_name(enumtype, idx));
 	    emitted += 1;
       }
       fputs("}:", vvp_out);

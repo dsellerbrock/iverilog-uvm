@@ -1,3 +1,0 @@
-SDF WARNING: ivltests/issue1568_mismatched_interconnect_source.sdf:11: INTERCONNECT source port u4 and load port u2 are not on the same net; annotating load port anyway.
-LOAD 13000 1
-ivltests/issue1568_mismatched_interconnect_source.v:23: $finish called at 20000 (1ps)

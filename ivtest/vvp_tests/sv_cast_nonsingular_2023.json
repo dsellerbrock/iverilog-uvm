@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_cast_nonsingular.v",
+    "iverilog-args": ["-g2023", "-s", "sv_cast_nonsingular"],
+    "gold": "sv_cast_nonsingular_2023"
+}

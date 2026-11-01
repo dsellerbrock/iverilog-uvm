@@ -1838,6 +1838,8 @@ sv_covergroup_class_inheritance_shadowed_source_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_3level_shadowed_source_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_type_coverage_2017 CE,-g2017 ivltests
 sv_covergroup_class_inheritance_type_coverage_2023 normal,-g2023 ivltests
+sv_covergroup_type_coverage_2017 normal,-g2017,-s,top ivltests gold=sv_covergroup_type_coverage_2017.gold
+sv_covergroup_type_coverage_2023 normal,-g2023,-s,top ivltests gold=sv_covergroup_type_coverage_2023.gold
 sv_covergroup_class_inheritance_skip_level_2017 CE,-g2017 ivltests
 sv_covergroup_class_inheritance_skip_level_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_shadowed_bin_iff_2017 CE,-g2017 ivltests
@@ -5735,8 +5737,8 @@ sv_csrng_packed_bit_joint_dist_multileaf_2023 normal,-g2023,-Iivltests,-scsrng_p
 # Sequence match-item subroutine calls on cover endpoints.
 sv_sva_cover_match_item_runtime normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
 sv_sva_cover_match_item_runtime_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_runtime ivltests gold=sv_sva_cover_match_item_runtime.gold
-sv_sva_cover_match_item_arg_fail CE,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
-sv_sva_cover_match_item_arg_fail_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_cover_match_item_arg_fail ivltests gold=sv_sva_cover_match_item_arg_fail.gold
+sv_sva_match_item_subroutine_args_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_match_item_subroutine_args ivltests gold=sv_sva_match_item_subroutine_args.gold
+sv_sva_match_item_subroutine_args_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-ssv_sva_match_item_subroutine_args ivltests gold=sv_sva_match_item_subroutine_args.gold
 sv_sva_match_item_ranged_endpoint normal,-g2017,-gno-icarus-misc,-gno-xtypes,-ssv_sva_match_item_ranged_endpoint ivltests gold=sv_sva_match_item_ranged_endpoint.gold
 
 # Scope randomization of fixed unpacked integral arrays.
@@ -6398,3 +6400,7 @@ issue636_function_call_implicit_var_2023 normal,-g2023,-s,issue636_function_call
 issue1715_modpath_condition normal,-g2017,-gspecify,-s,issue1715_modpath_condition ivltests gold=issue1715_modpath_condition
 issue1796_dynamic_locator_count_2017 normal,-g2017,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
 issue1796_dynamic_locator_count_2023 normal,-g2023,-s,test ivltests gold=issue1796_dynamic_locator_count.gold
+issue1816_function_ref_array_element_2017 normal,-g2017,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
+issue1816_function_ref_array_element_2023 normal,-g2023,-s,issue1816_function_ref_array_element ivltests gold=issue1816_function_ref_array_element.gold
+issue802_enum_p_2017 normal,-g2017,-s,test ivltests gold=issue802_enum_p_2017.gold
+issue802_enum_p_2023 normal,-g2023,-s,test ivltests gold=issue802_enum_p_2023.gold

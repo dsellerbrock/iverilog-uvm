@@ -8829,6 +8829,10 @@ static void sva_match_call_forget_sampled_(const PCallTask*call)
       const std::vector<named_pexpr_t>&parms = call->parms();
       for (size_t i = 0 ; i < parms.size() ; i += 1)
 	    sva_expr_forget_sampled_(parms[i].parm);
+      const std::vector<named_pexpr_t>&original =
+	    call->match_item_original_args();
+      for (size_t i = 0 ; i < original.size() ; i += 1)
+	    sva_expr_forget_sampled_(original[i].parm);
 }
 
 /* PCallTask deliberately does not own its argument expressions. Sequence
@@ -10647,32 +10651,41 @@ PExpr* pform_sva_selected_local_assignment(const struct vlltype&loc,
       return pform_sva_coerce_local_assignment(loc, name, updated);
 }
 
-/* Keep cloning and validation on the same direct-call subset. A user
-   subroutine with no actual arguments needs no sampled-argument or ref
-   carrier; argument-bearing user calls still fail closed. */
-static bool sva_match_call_is_direct_(const PCallTask*call, bool cover)
+/* Keep cloning and validation on the same call forms. Indexed path
+   components need a deeper copy than the sequence-call carrier provides. */
+static bool sva_match_call_is_direct_(const PCallTask*call, bool)
 {
       if (!call || call->is_void_cast() || call->leading_type_args()
 	  || !call->with_constraints().empty())
 	    return false;
 
       const pform_name_t&path = call->path();
-      return (path.size() == 1 && path.front().index.empty()
-	      && (path.front().name == perm_string::literal("$display")
-		  || (cover && call->parms().empty())))
-	     || (!call->receiver_expr() && !call->package()
-		 && !call->has_scoped_type_prefix()
-		 && path.size() == 2 && path.front().index.empty()
-		 && path.back().index.empty() && call->parms().empty());
+      if (path.empty()) return false;
+      for (pform_name_t::const_iterator it = path.begin() ;
+	   it != path.end() ; ++it)
+	    if (!it->index.empty()) return false;
+	if (call->receiver_expr()) {
+	      if (path.size() != 1) return false;
+	      PExpr*receiver = sva_clone_expr_(call->receiver_expr());
+	      if (!receiver) return false;
+	      delete receiver;
+	}
+
+	/* The clone below can preserve package-qualified and hierarchical names,
+	   plus a receiver expression. Indexed name components need independent
+	   expression ownership and remain outside this lowering. */
+      return !call->receiver_expr() || path.size() == 1;
 }
 
 static PCallTask* sva_clone_match_call_(
       const PCallTask*source,
-      const std::map<perm_string,PExpr*>*subst = nullptr)
+      const std::map<perm_string,PExpr*>*subst = nullptr,
+      const std::vector<named_pexpr_t>*replacement_args = nullptr)
 {
       if (!sva_match_call_is_direct_(source, true)) return nullptr;
       std::list<named_pexpr_t> parms;
-      const std::vector<named_pexpr_t>&src = source->parms();
+      const std::vector<named_pexpr_t>&src = replacement_args
+	    ? *replacement_args : source->parms();
       for (size_t i = 0 ; i < src.size() ; i += 1) {
 	    named_pexpr_t arg;
 	    arg.name = src[i].name;
@@ -10686,11 +10699,43 @@ static PCallTask* sva_clone_match_call_(
 	    }
 	    parms.push_back(arg);
       }
-      PCallTask*out = new PCallTask(source->path(), parms);
+      PCallTask*out = nullptr;
+      if (source->receiver_expr()) {
+	    PExpr*receiver = sva_clone_subst_(source->receiver_expr(), subst);
+	    if (!receiver) {
+		  for (std::list<named_pexpr_t>::iterator it = parms.begin()
+		       ; it != parms.end() ; ++it)
+			delete it->parm;
+		  return nullptr;
+	    }
+	    out = new PCallTask(receiver, source->path().front().name, parms);
+      } else if (source->package()) {
+	    out = new PCallTask(source->package(), source->path(), parms);
+      } else {
+	    out = new PCallTask(source->path(), parms);
+      }
       if (source->has_scoped_type_prefix())
 	    out->set_scoped_type_prefix();
       out->set_lineno(source->get_lineno());
       out->set_file(source->get_file());
+      if (replacement_args) {
+	    std::vector<named_pexpr_t>original_args;
+	    const std::vector<named_pexpr_t>&src_args = source->parms();
+	    for (size_t i = 0 ; i < src_args.size() ; i += 1) {
+		  named_pexpr_t arg;
+		  arg.name = src_args[i].name;
+		  arg.parm = src_args[i].parm
+			? sva_clone_subst_(src_args[i].parm, subst) : nullptr;
+		  if (src_args[i].parm && !arg.parm) {
+			for (size_t j = 0 ; j < original_args.size() ; j += 1)
+			      delete original_args[j].parm;
+			sva_destroy_match_call_(out);
+			return nullptr;
+		  }
+		  original_args.push_back(arg);
+	    }
+	    out->set_match_item_original_args(std::move(original_args));
+      }
       return out;
 }
 
@@ -12313,14 +12358,14 @@ static perm_string sva_make_parameter_pipe_(const struct vlltype&loc,
       return name;
 }
 
-/* An unpacked [0:genvar-1] ring whose element width/type matches `arg'.
-   This implements $past(arg, genvar) without fixing the history depth while
+/* An unpacked [0:depth-1] ring whose element width/type matches `arg'.
+   This implements $past(arg, depth) without fixing the history depth while
    the generate template is parsed. */
 static perm_string sva_make_genvar_history_(const struct vlltype&loc,
 					    unsigned inst,
 					    unsigned&hist_idx,
 					    PExpr*arg,
-					    perm_string genvar,
+					    PExpr*depth,
 					    bool signed_value)
 {
       perm_string name = sva_make_reg_(loc, inst, "ghist", hist_idx++,
@@ -12331,9 +12376,18 @@ static perm_string sva_make_genvar_history_(const struct vlltype&loc,
 	    pform_range_t r;
 	    r.first = new PENumber(new verinum((uint64_t)0, 32));
 	    FILE_NAME(r.first, loc);
+	    PExpr*depth_copy = sva_clone_expr_(depth);
+	    if (!depth_copy) {
+		  delete r.first;
+		  cerr << loc.get_fileline()
+		       << ": sorry: cannot preserve the deferred $past depth in "
+		       << "a sequence match-item action." << endl;
+		  error_count += 1;
+		  return perm_string();
+	    }
 	    PENumber*one = new PENumber(new verinum((uint64_t)1, 32));
 	    FILE_NAME(one, loc);
-	    r.second = new PEBinary('-', sva_id_(loc, genvar), one);
+	    r.second = new PEBinary('-', depth_copy, one);
 	    FILE_NAME(r.second, loc);
 	    range.push_back(r);
 	    w->set_unpacked_idx(range);
@@ -12564,7 +12618,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   std::vector<Statement*>&pre,
 				   std::vector<Statement*>&post,
 				   std::vector<Statement*>&init,
-				   bool cur_live);
+				   bool cur_live = false,
+				   long reactive_past_offset = 0);
 
 static PECallFunction* sva_uarray_query_(const struct vlltype&loc,
 					 const char*name, PEIdent*array)
@@ -14106,7 +14161,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 					The assertion engine leaves it
 					false -- its capture and shift
 					bracket the checker body. */
-				   bool cur_live = false)
+				   bool cur_live,
+				   long reactive_past_offset)
 {
       if (!e) return e;
 
@@ -14133,7 +14189,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 		  }
 		  ++let_depth;
 		  PExpr*result = sva_rewrite_sampled_(loc, expanded, inst,
-				hist_idx, pre, post, init, cur_live);
+				hist_idx, pre, post, init, cur_live,
+				reactive_past_offset);
 		  --let_depth;
 		  return result;
 	    }
@@ -14206,7 +14263,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			}
 			PExpr*arg = sva_rewrite_sampled_(loc, parms[0].parm,
 							 inst, hist_idx, pre, post,
-							 init, cur_live);
+							 init, cur_live,
+							 reactive_past_offset);
 			  /* $rose/$fell are value-change functions of the operand's
 			     LSB (16.9.3), not of its truth value. Mask the operand
 			     before capturing it: the one-bit history then contains
@@ -14220,6 +14278,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			}
 			long depth = 1;
 			perm_string deferred_depth;
+			PExpr*deferred_depth_expr = nullptr;
 			if (is_past && parms.size() > 1 && parms[1].parm) {
 			      if (!pform_sva_const_long(parms[1].parm, depth)) {
 				    if (!pform_sva_deferred_genvar(
@@ -14241,6 +14300,23 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				    error_count += 1;
 				    return e;
 			      }
+			}
+			if (!deferred_depth.nil() && reactive_past_offset > 0) {
+			      PExpr*depth_expr = sva_clone_expr_(parms[1].parm);
+			      if (!depth_expr) return e;
+			      PENumber*offset = new PENumber(new verinum(
+				    (uint64_t)reactive_past_offset, 32));
+			      FILE_NAME(offset, loc);
+			      deferred_depth_expr = new PEBinary('+', depth_expr, offset);
+			      FILE_NAME(deferred_depth_expr, loc);
+			} else if (deferred_depth.nil() && reactive_past_offset > 0) {
+			      if (depth > LONG_MAX - reactive_past_offset) {
+				    cerr << loc << ": error: $past depth is too large."
+					 << endl;
+				    error_count += 1;
+				    return e;
+			      }
+			      depth += reactive_past_offset;
 			}
 			  /* $past(expr, n, GATING_EXPR): the history
 			     advances only on ticks where the gating
@@ -14342,11 +14418,18 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			if (!deferred_depth.nil()) {
 			      /* A generated scope supplies a different constant depth
 				 for every loop instance. Keep one circular history per
-				 call site: before the bottom-of-tick write, hist[ptr]
-				 is exactly the sample from `depth' enabled ticks ago. */
+				 call site. Match-item actions run in Reactive after the
+				 current sample shifts into history, so their ring is one
+				 entry deeper than the requested sample depth. */
+			      PExpr*ring_depth = deferred_depth_expr
+				    ? deferred_depth_expr : sva_id_(loc, deferred_depth);
 			      perm_string hist = sva_make_genvar_history_(
-				    loc, inst, hist_idx, arg, deferred_depth,
+				    loc, inst, hist_idx, arg, ring_depth,
 				    sample_signed);
+		      if (hist.nil()) {
+			    delete ring_depth;
+			    return e;
+		      }
 			      perm_string ptr = sva_make_reg_(loc, inst, "ghptr",
 							 hist_idx++, true);
 			      init.push_back(sva_assign_(loc, ptr,
@@ -14358,8 +14441,10 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      PENumber*one0 = new PENumber(
 				    new verinum((uint64_t)1, 32));
 			      FILE_NAME(one0, loc);
-			      PExpr*last = new PEBinary(
-				    '-', sva_id_(loc, deferred_depth), one0);
+			      PExpr*last_depth = sva_clone_expr_(ring_depth);
+			      delete ring_depth;
+			      if (!last_depth) { delete one0; return e; }
+			      PExpr*last = new PEBinary('-', last_depth, one0);
 			      FILE_NAME(last, loc);
 			      PExpr*at_last = new PEBComp(
 				    'e', sva_id_(loc, ptr), last);
@@ -14495,7 +14580,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			if (!src[k].parm) continue;
 			rewritten[k] = sva_rewrite_sampled_(
 			      loc, src[k].parm, inst, hist_idx, pre, post,
-			      init, cur_live);
+			      init, cur_live, reactive_past_offset);
 			changed |= rewritten[k] != src[k].parm;
 		  }
 		  if (changed) {
@@ -14531,7 +14616,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    PExpr*sub = sva_rewrite_sampled_(loc, un->get_expr(),
 					     inst, hist_idx, pre, post, init,
-					     cur_live);
+					     cur_live, reactive_past_offset);
 	    if (sub == un->get_expr()) return e;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
@@ -14565,10 +14650,10 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    }
 	    PExpr*l = sva_rewrite_sampled_(loc, bin->get_left(),
 					   inst, hist_idx, pre, post, init,
-					   cur_live);
+					   cur_live, reactive_past_offset);
 	    PExpr*r = sva_rewrite_sampled_(loc, bin->get_right(),
 					   inst, hist_idx, pre, post, init,
-					   cur_live);
+					   cur_live, reactive_past_offset);
 	    if (l == bin->get_left() && r == bin->get_right()) return e;
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -14587,13 +14672,13 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
 	    PExpr*c = sva_rewrite_sampled_(loc, ter->get_cond(),
 					   inst, hist_idx, pre, post, init,
-					   cur_live);
+					   cur_live, reactive_past_offset);
 	    PExpr*t = sva_rewrite_sampled_(loc, ter->get_true(),
 					   inst, hist_idx, pre, post, init,
-					   cur_live);
+					   cur_live, reactive_past_offset);
 	    PExpr*f = sva_rewrite_sampled_(loc, ter->get_false(),
 					   inst, hist_idx, pre, post, init,
-					   cur_live);
+					   cur_live, reactive_past_offset);
 	    if (c == ter->get_cond() && t == ter->get_true()
 		&& f == ter->get_false()) return e;
 	    PETernary*cp = new PETernary(c, t, f);
@@ -14603,7 +14688,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
 	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
 					     hist_idx, pre, post, init,
-					     cur_live);
+					     cur_live, reactive_past_offset);
 	    if (base == cast->cast_base()) return e;
 	    PExpr*size = sva_clone_expr_(cast->cast_size());
 	    if (!size) return e;
@@ -14614,7 +14699,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
 	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
 					     hist_idx, pre, post, init,
-					     cur_live);
+					     cur_live, reactive_past_offset);
 	    if (base == cast->cast_base()) return e;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
 	    cp->set_line(*e);
@@ -14623,7 +14708,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
 	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
 					     hist_idx, pre, post, init,
-					     cur_live);
+					     cur_live, reactive_past_offset);
 	    if (base == cast->cast_base()) return e;
 	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
 	    cp->set_line(*e);
@@ -14636,7 +14721,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    for (size_t k = 0 ; k < src.size() ; k += 1) {
 		  rewritten[k] = sva_rewrite_sampled_(loc, src[k], inst,
 						 hist_idx, pre, post, init,
-						 cur_live);
+							 cur_live, reactive_past_offset);
 		  changed |= rewritten[k] != src[k];
 	    }
 	    if (!changed) return e;
@@ -14658,7 +14743,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    const std::vector<inside_range_t>&src = inside->get_ranges();
 	    PExpr*base = sva_rewrite_sampled_(loc, inside->get_expr(), inst,
 					       hist_idx, pre, post, init,
-					       cur_live);
+					       cur_live, reactive_past_offset);
 	    struct rewritten_range_t {
 		  PExpr*lo;
 		  PExpr*hi;
@@ -14669,13 +14754,16 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    for (size_t k = 0 ; k < src.size() ; k += 1) {
 		  rewritten[k].lo = src[k].lo
 			? sva_rewrite_sampled_(loc, src[k].lo, inst, hist_idx,
-						 pre, post, init, cur_live) : nullptr;
+						 pre, post, init, cur_live,
+						 reactive_past_offset) : nullptr;
 		  rewritten[k].hi = src[k].hi
 			? sva_rewrite_sampled_(loc, src[k].hi, inst, hist_idx,
-						 pre, post, init, cur_live) : nullptr;
+						 pre, post, init, cur_live,
+						 reactive_past_offset) : nullptr;
 		  rewritten[k].weight = src[k].weight
 			? sva_rewrite_sampled_(loc, src[k].weight, inst, hist_idx,
-						 pre, post, init, cur_live) : nullptr;
+						 pre, post, init, cur_live,
+						 reactive_past_offset) : nullptr;
 		  changed |= rewritten[k].lo != src[k].lo;
 		  changed |= rewritten[k].hi != src[k].hi;
 		  changed |= rewritten[k].weight != src[k].weight;
@@ -20403,18 +20491,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	if (!match_calls.empty()) {
 	    std::vector<Statement*>actions;
 	    for (size_t c = 0 ; c < match_calls.size() ; c += 1) {
-		  std::list<named_pexpr_t>args;
+		  std::vector<named_pexpr_t>rewritten_args;
 		  for (size_t a = 0 ; a < match_args[c].size() ; a += 1) {
 			named_pexpr_t arg = match_args[c][a];
 			arg.parm = sva_rewrite_sampled_(loc, arg.parm, inst,
-						 hist_idx, pre, post, init_zero);
-			args.push_back(arg);
+						 hist_idx, pre, post, init_zero,
+						 false, 1);
+			rewritten_args.push_back(arg);
 		  }
-		  PCallTask*call = new PCallTask(match_calls[c]->call->path(), args);
-		  if (match_calls[c]->call->has_scoped_type_prefix())
-			call->set_scoped_type_prefix();
-		  call->set_lineno(match_calls[c]->call->get_lineno());
-		  call->set_file(match_calls[c]->call->get_file());
+		  PCallTask*call = sva_clone_match_call_(
+			match_calls[c]->call, nullptr, &rewritten_args);
+		  if (!call) return false;
 		  actions.push_back(call);
 	    }
 	    match_action = sva_block_(loc, actions);

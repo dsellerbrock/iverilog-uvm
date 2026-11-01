@@ -66,6 +66,42 @@ bool pform_type_operator_context = false;
 
 using namespace std;
 
+/* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
+ * 1800-2023, nonsingular arguments use assignment compatibility instead.
+ * Packed arrays and packed records are singular; unpacked arrays and
+ * unpacked records are aggregate values. */
+static bool cast_expr_is_singular_(const NetExpr*expr)
+{
+      if (!expr) return true;
+
+      ivl_type_t type = expr->net_type();
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return array->packed();
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type))
+	    return record->packed();
+
+      if (expr->expr_type() == IVL_VT_DARRAY
+	  || expr->expr_type() == IVL_VT_QUEUE)
+	    return false;
+      return true;
+}
+
+static bool cast_operands_nonsingular_(const NetExpr*dest,
+				       const NetExpr*source)
+{
+      return !cast_expr_is_singular_(dest)
+	    || !cast_expr_is_singular_(source);
+}
+
+static bool cast_operands_assignment_compatible_(const NetExpr*dest,
+						 const NetExpr*source)
+{
+      ivl_type_t dest_type = dest ? dest->net_type() : nullptr;
+      ivl_type_t source_type = source ? source->net_type() : nullptr;
+      return dest_type && source_type
+	    && dest_type->type_compatible(source_type);
+}
+
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
       pform_name_t&, perm_string*, bool*);
@@ -4157,6 +4193,101 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       }
 
       return method_scope;
+}
+
+struct scoped_covergroup_coverage_t {
+      const netclass_t*class_type = nullptr;
+      int item = -1;
+};
+
+/* Resolve the type and optional coverage item in a scoped get_coverage()
+ * call. Unlike the instance method path, these calls have no receiver
+ * expression to carry the covergroup definition to VVP. */
+static bool resolve_scoped_covergroup_coverage_(
+	Design*des, NetScope*scope, const pform_scoped_name_t&path,
+	scoped_covergroup_coverage_t&result)
+{
+      if (!gn_system_verilog() || path.name.size() < 2
+	  || path.name.back().name != perm_string::literal("get_coverage")
+	  || !path.name.back().index.empty())
+	    return false;
+
+      pform_name_t prefix = path.name;
+      prefix.pop_back();
+      if (prefix.size() < 1 || prefix.size() > 2)
+	    return false;
+
+      NetScope*type_scope = scope;
+      if (path.package) {
+	    type_scope = des->find_package(path.package->pscope_name());
+	    if (!type_scope)
+		  return false;
+      } else if (prefix.size() == 2) {
+	    // Some scoped-name productions retain the package as the first
+	    // component instead of setting path.package.
+	    const name_component_t&first = prefix.front();
+	    if (first.index.empty()
+		&& resolve_scoped_class_type_name_(des, type_scope, first.name).kind
+		     == SCOPED_CLASS_NAME_NONE) {
+		  if (NetScope*package = des->find_package(first.name)) {
+			prefix.pop_front();
+			type_scope = package;
+		  }
+	    }
+      }
+
+      if (prefix.size() < 1 || prefix.size() > 2
+	  || !prefix.front().index.empty())
+	    return false;
+
+      scoped_class_name_result_t resolved = resolve_scoped_class_type_name_(
+	    des, type_scope, prefix.front().name);
+      if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF)
+	    return false;
+      const netclass_t*class_type = resolved.class_type;
+      if ((!class_type || !class_type->class_scope()) && type_scope)
+	    class_type = ensure_visible_class_type(
+		  des, type_scope, prefix.front().name);
+      if (!class_type)
+	    return false;
+
+      if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+	    if (const netclass_t*current =
+		  scoped_class_current_specialization_(scope, class_type))
+		  class_type = current;
+	    else if (scoped_class_is_unspecialized_parameterized_(class_type))
+		  return false;
+      }
+      if (!class_type->is_covergroup())
+	    return false;
+
+      if (prefix.size() == 2) {
+	    const name_component_t&item_name = prefix.back();
+	    if (!item_name.index.empty())
+		  return false;
+	    for (size_t idx = 0; idx < class_type->covgrp_item_count(); ++idx) {
+		  if (class_type->covgrp_item(idx).name == item_name.name) {
+			result.item = static_cast<int>(idx);
+			result.class_type = class_type;
+			return true;
+		  }
+	    }
+	    return false;
+      }
+
+      result.class_type = class_type;
+      return true;
+}
+
+static std::string scoped_covergroup_coverage_name_(
+	const scoped_covergroup_coverage_t&coverage)
+{
+      std::string name = "$ivl_class_method$covgrp_type_get_coverage|";
+      std::ostringstream type_label;
+      type_label << 'C' << static_cast<const void*>(coverage.class_type);
+      name += type_label.str();
+      name += "|" + std::to_string(coverage.item + 1);
+      return name;
 }
 
 /*
@@ -12102,6 +12233,17 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 
+	    scoped_covergroup_coverage_t coverage;
+	    if (parms_.empty()
+		&& resolve_scoped_covergroup_coverage_(
+		      des, scope, path_, coverage)) {
+	  expr_type_ = IVL_VT_REAL;
+	  expr_width_ = 1;
+	  min_width_ = 1;
+	  signed_flag_ = true;
+	  return expr_width_;
+	    }
+
 	    if (scoped_static_func
 		&& !skip_static_typecall_override_(scoped_static_func)
 		&& (!search_flag
@@ -13591,8 +13733,15 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	   methods use); the $cast VPI implementation validates the source
 	   value against the member list and fails the cast on mismatch. */
       const netenum_t*cast_enum_type = nullptr;
-      if (strcmp(name, "$cast") == 0 && nparms == 2) {
+      // A hidden status argument makes the assignment-compatibility result
+      // available to the VPI implementation for non-class destinations. Keep
+      // class destinations on their dedicated lowering, whose argument shape
+      // is part of the target interface.
+      ivl_type_t cast_dest_type = nullptr;
+      const bool cast_call = strcmp(name, "$cast") == 0 && nparms == 2;
+      if (cast_call) {
 	    if (PEIdent*did = dynamic_cast<PEIdent*>(parms_[0].parm)) {
+		  cast_dest_type = did->test_type_of_ident(des, scope);
 		  symbol_search_results dsr;
 		  if (symbol_search(this, des, scope, did->path(),
 				    did->lexical_pos(), &dsr)
@@ -13600,17 +13749,33 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			/* $cast writes its first argument through VPI. A function's
 			 * implicit return needs signal storage for that write. */
 			materialize_ref_return(dsr.net);
-			cast_enum_type =
-			      dynamic_cast<const netenum_t*>(dsr.net->net_type());
+			cast_dest_type = dsr.net->net_type();
 		  }
-		  if (!cast_enum_type)
-			cast_enum_type = dynamic_cast<const netenum_t*>(
-			      did->test_type_of_ident(des, scope));
+		  /* test_type_of_ident() can leave a dynamic/queue array type in
+		     place for an indexed element lvalue. Resolve those remaining
+		     indices here so class-array element casts keep the dedicated
+		     class-handle lowering instead of receiving aggregate metadata. */
+		  unsigned index_count = 0;
+		  for (const name_component_t&component : did->path().name)
+			index_count += component.index.size();
+		  while (index_count != 0) {
+			const netarray_t*array =
+			      dynamic_cast<const netarray_t*>(cast_dest_type);
+			if (!array) break;
+			cast_dest_type = array->element_type();
+			index_count -= 1;
+		  }
+		  cast_enum_type =
+			  dynamic_cast<const netenum_t*>(cast_dest_type);
 	    }
       }
 
+      const bool cast_status_arg = cast_call && cast_dest_type
+		&& !dynamic_cast<const netclass_t*>(cast_dest_type);
+
       NetESFunc*fun = new NetESFunc(name, expr_type_, expr_width_,
-				    nparms + (cast_enum_type ? 1 : 0),
+				    nparms + (cast_enum_type ? 1 : 0)
+				    + (cast_status_arg ? 1 : 0),
 				    is_overridden_);
       fun->set_line(*this);
       if (cast_enum_type) {
@@ -13751,6 +13916,27 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       if (missing_parms || parm_errors)
             return 0;
+
+      if (cast_call) {
+	    const bool nonsingular =
+		  cast_operands_nonsingular_(fun->parm(0), fun->parm(1));
+	    if (nonsingular && generation_flag < GN_VER2023) {
+		  cerr << get_fileline() << ": error: The arguments to $cast must be "
+			  "singular (IEEE 1800-2017 6.24.2)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (cast_status_arg) {
+		  const bool compatible = !nonsingular
+			  || cast_operands_assignment_compatible_(
+				fun->parm(0), fun->parm(1));
+		  NetEConst*status = new NetEConst(verinum(
+			  static_cast<uint64_t>(0x49560000u
+					| (compatible ? 1u : 0u)), 32));
+		  status->set_line(*this);
+		  fun->parm(nparms + (cast_enum_type ? 1 : 0), status);
+	    }
+      }
 
       return pad_to_width(fun, expr_wid, signed_flag_, *this);
 }
@@ -18218,6 +18404,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    }
       }
 
+      scoped_covergroup_coverage_t scoped_coverage;
+      if (parms_.empty()
+	  && resolve_scoped_covergroup_coverage_(
+		  des, scope, path_, scoped_coverage)) {
+	    string name = scoped_covergroup_coverage_name_(scoped_coverage);
+	    NetESFunc*sys = new NetESFunc(
+		  name.c_str(), &netreal_t::type_real, 0);
+	    sys->set_line(*this);
+	    return sys;
+      }
+
       // Prefer object/class method elaboration whenever symbol_search
       // preserved a target path tail, even if it also found a function
       // scope. Some explicit receiver calls (e.g. this.f(), retvar.g())
@@ -20560,16 +20757,20 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 					delete sub_expr;
 					return 0;
 				  }
-				  // Returns bit (1=success, 0=fail)
+				  // try_get/try_peek return a signed int status; try_put keeps
+				  // its existing zero/one result representation.
 				  const char*sname =
 				      method_name==perm_string::literal("try_get")
 				      ? "$ivl_mailbox$try_get"
 				      : (method_name==perm_string::literal("try_peek")
 				         ? "$ivl_mailbox$try_peek"
 				         : "$ivl_mailbox$try_put");
-			      NetESFunc*sys = new NetESFunc(sname,
-						       &netvector_t::atom2u32,
-						       2);
+			      const netvector_t*result_type =
+				    method_name==perm_string::literal("try_get")
+				    || method_name==perm_string::literal("try_peek")
+				    ? netvector_t::integer_type()
+				    : &netvector_t::atom2u32;
+			      NetESFunc*sys = new NetESFunc(sname, result_type, 2);
 			      sys->set_line(*this);
 			      sys->parm(0, sub_expr);
 			      if (method_name == perm_string::literal("try_get")

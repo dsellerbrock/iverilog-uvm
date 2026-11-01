@@ -1941,11 +1941,22 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
       if (errors) return 0;
 
       NetEvWait*trigger = 0;
-      if (gn_strict_ca_eval_flag) {
+      bool has_open_array_arg = false;
+      for (unsigned idx = 0; idx < eparms.size(); idx += 1) {
+            const NetNet*formal = func_->func_def()->port(idx);
+            if (formal->data_type() == IVL_VT_DARRAY) {
+                  has_open_array_arg = true;
+                  break;
+            }
+      }
+      if (gn_strict_ca_eval_flag || has_open_array_arg) {
               /* Ideally we would only do this for functions that have hidden
                  dependencies or side effects. Once constant functions are
                  implemented, we may be able to reuse some code to achieve
-                 this. */
+                 this. Open-array DPI formals also need a whole-expression
+                 trigger: their array value is represented by a runtime
+                 handle, while the ordinary function pins expose only the
+                 first element as a scalar input. */
             trigger = make_func_trigger(des, scope, root);
       }
 

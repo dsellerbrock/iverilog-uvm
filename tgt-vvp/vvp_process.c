@@ -2852,7 +2852,7 @@ static int show_stmt_cassign(ivl_statement_t net)
 	    force_vector_to_lval(net);
       }
 
-      force_link_rval(net, rval);
+      force_link_rval(net, ivl_stmt_cassign_link_rval(net));
 
       return 0;
 }
@@ -7256,8 +7256,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
 	    fprintf(vvp_out, "    %%mbx/try_get;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume mailbox success\n",
 		    success_flag);
+	    fprintf(vvp_out, "    %%pop/vec4 1; discard task-context method result\n");
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_get leaves output unchanged\n",
 		    thread_count, lab_fail, success_flag);
 	    if (ivl_stmt_ref_lval(net))
@@ -7287,8 +7288,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
 	    fprintf(vvp_out, "    %%mbx/try_peek;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume mailbox success\n",
 		    success_flag);
+	    fprintf(vvp_out, "    %%pop/vec4 1; discard task-context method result\n");
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_peek leaves output unchanged\n",
 		    thread_count, lab_fail, success_flag);
 	    if (ivl_stmt_ref_lval(net))
