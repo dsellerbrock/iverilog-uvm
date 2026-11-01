@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_queue_pop_two_state_default.v",
+    "iverilog-args": [ "-g2023", "-s", "test" ],
+    "gold": "sv_queue_pop_two_state_default"
+}

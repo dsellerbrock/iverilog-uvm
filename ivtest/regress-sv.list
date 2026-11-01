@@ -1113,6 +1113,8 @@ sv_queue_string		normal,-g2009,-pfileline=1	ivltests gold=sv_queue_string.gold
 sv_queue_string_bounded	normal,-g2009,-pfileline=1	ivltests gold=sv_queue_string_bounded.gold
 sv_queue_string_fail	CE,-g2009		ivltests gold=sv_queue_string_fail.gold
 sv_queue_vec		normal,-g2009,-pfileline=1	ivltests gold=sv_queue_vec.gold
+sv_queue_pop_two_state_default normal,-g2017,-s,test ivltests gold=sv_queue_pop_two_state_default.gold
+sv_queue_pop_two_state_default_2023 normal,-g2023,-s,test ivltests gold=sv_queue_pop_two_state_default.gold
 sv_queue_vec_bounded	normal,-g2009,-pfileline=1	ivltests gold=sv_queue_vec_bounded.gold
 sv_queue_vec_fail	CE,-g2009		ivltests gold=sv_queue_vec_fail.gold
 sv_root_class		normal,-g2009		ivltests gold=sv_root_class.gold
