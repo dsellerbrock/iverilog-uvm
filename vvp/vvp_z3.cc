@@ -11482,6 +11482,37 @@ static bool z3_joint_unique_projection_(Z3_context ctx, Z3_solver base,
       return result == Z3_L_FALSE;
 }
 
+/* Remove variables that are uniquely determined by the remaining projection.
+ * A single dependent variable is not enough for a chain such as
+ *   x == v + 100; y == x + 1; w == x + 1
+ * because projecting x, y, and w still includes two mutually dependent
+ * values. Repeatedly shrink the projection until every removed variable is
+ * functionally determined by it. Sampling the remaining projection uniformly
+ * and asking the solver for the unique completion is then uniform over the
+ * complete satisfying tuples. */
+static vector<Z3_ast> z3_joint_free_projection_(Z3_context ctx,
+      Z3_solver base, const vector<Z3_ast>&variables)
+{
+      vector<Z3_ast> projection = variables;
+      bool changed;
+      do {
+            changed = false;
+            for (size_t i = 0; i < projection.size();) {
+                  vector<Z3_ast> others = projection;
+                  Z3_ast dependent = others[i];
+                  others.erase(others.begin() + i);
+                  if (z3_joint_unique_projection_(ctx, base, others,
+                                                  dependent)) {
+                        projection.swap(others);
+                        changed = true;
+                  } else {
+                        ++i;
+                  }
+            }
+      } while (changed && !projection.empty());
+      return projection;
+}
+
 /* Prove that a one-variable factor admits exactly [0, 2^bits).  This
  * narrowly replaces complete tuple enumeration for bounded nested fields
  * whose entire legal set is a power-of-two prefix.  The proof is semantic:
@@ -13475,31 +13506,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			else if (uniform_joint_width.at(var) > 64)
 			      wide_direct_scalars = true;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
-			if (enumerate_direct_scalars && attempt == enumerate_after) {
+			if (enumerate_direct_scalars && !wide_direct_scalars
+			    && attempt == enumerate_after) {
 			      bool sampled_projection = false;
-		      vector<Z3_ast> dependents;
-		      if (!wide_direct_scalars) {
-			    dependents = component;
-			    stable_sort(dependents.begin(), dependents.end(),
-				    [&](Z3_ast left, Z3_ast right) {
-					  return uniform_joint_width.at(left)
-						> uniform_joint_width.at(right);
-				    });
-		      }
-			      for (Z3_ast dependent : dependents) {
-				    vector<Z3_ast> projection;
-				    for (Z3_ast var : component)
-					  if (var != dependent) projection.push_back(var);
-				    if (!z3_joint_unique_projection_(ctx, base,
-					  projection, dependent)) continue;
-				    // Uniqueness makes accepted projections a bijection with legal tuples.
-				    // shortcut: stop at 64 proposals; use projected model counting
-				    // if sparse inputs still make this path slow.
+			      vector<Z3_ast> projection =
+				    z3_joint_free_projection_(ctx, base, component);
+			      // The proof above makes each accepted projection a unique
+			      // complete tuple, including when several variables form a
+			      // dependency chain. The bounded proposals preserve uniform
+			      // sampling over those complete tuples.
 				    for (unsigned projected_attempt = 0;
 					  projected_attempt < uniform_joint_enumerate_after;
 					  ++projected_attempt) {
 					  vector<Z3_ast> pins;
-					  pins.reserve(component.size());
+					  pins.reserve(projection.size() + component.size());
 					  for (Z3_ast var : projection) {
 						unsigned width = uniform_joint_width.at(var);
 						z3_rng_stream_t&rng = property_rng(
@@ -13519,16 +13539,23 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  if (feasible == Z3_L_FALSE) continue;
 					  Z3_model model = Z3_solver_get_model(ctx, base);
 					  Z3_model_inc_ref(ctx, model);
-					  uint64_t value = 0;
-					  bool extracted = z3_eval_uint64(ctx, model,
-						dependent, value);
+					  bool extracted = true;
+					  for (Z3_ast var : component) {
+						if (find(projection.begin(), projection.end(), var)
+						      != projection.end()) continue;
+						uint64_t value = 0;
+						if (!z3_eval_uint64(ctx, model, var, value)) {
+						      extracted = false;
+						      break;
+						}
+						pins.push_back(Z3_mk_eq(ctx, var,
+						      Z3_mk_unsigned_int64(ctx, value,
+							    Z3_get_sort(ctx, var))));
+					  }
 					  Z3_model_dec_ref(ctx, model);
 					  if (!extracted)
 						return fail_joint(
 						      "a functional joint model value could not be extracted");
-					  pins.push_back(Z3_mk_eq(ctx, dependent,
-						Z3_mk_unsigned_int64(ctx, value,
-						      Z3_get_sort(ctx, dependent))));
 					  for (Z3_ast pin : pins) {
 						Z3_solver_assert(ctx, base, pin);
 						Z3_optimize_assert(ctx, opt, pin);
@@ -13538,8 +13565,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  sampled_projection = true;
 					  break;
 				    }
-				    if (sampled_projection) break;
-			      }
 			      if (sampled_projection) break;
 			      if (enumerate_after == uniform_joint_enumerate_after
 			          && z3_joint_has_free_block_(ctx, base, component,
