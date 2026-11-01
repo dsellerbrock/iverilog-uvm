@@ -6,6 +6,8 @@ issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range
 
 issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
 issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+issue2206_inferred_defaults_2017 normal,-g2017,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
+issue2206_inferred_defaults_2023 normal,-g2023,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
 issue801_assoc_struct_p normal,-g2017,-s,issue801_assoc_struct_p ivltests gold=issue801_assoc_struct_p.gold
 
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold

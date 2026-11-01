@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2206_inferred_defaults.v:22: $finish called at 31 (1s)
