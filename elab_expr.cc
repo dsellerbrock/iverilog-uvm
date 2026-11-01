@@ -4155,6 +4155,101 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       return method_scope;
 }
 
+struct scoped_covergroup_coverage_t {
+      const netclass_t*class_type = nullptr;
+      int item = -1;
+};
+
+/* Resolve the type and optional coverage item in a scoped get_coverage()
+ * call. Unlike the instance method path, these calls have no receiver
+ * expression to carry the covergroup definition to VVP. */
+static bool resolve_scoped_covergroup_coverage_(
+	Design*des, NetScope*scope, const pform_scoped_name_t&path,
+	scoped_covergroup_coverage_t&result)
+{
+      if (!gn_system_verilog() || path.name.size() < 2
+	  || path.name.back().name != perm_string::literal("get_coverage")
+	  || !path.name.back().index.empty())
+	    return false;
+
+      pform_name_t prefix = path.name;
+      prefix.pop_back();
+      if (prefix.size() < 1 || prefix.size() > 2)
+	    return false;
+
+      NetScope*type_scope = scope;
+      if (path.package) {
+	    type_scope = des->find_package(path.package->pscope_name());
+	    if (!type_scope)
+		  return false;
+      } else if (prefix.size() == 2) {
+	    // Some scoped-name productions retain the package as the first
+	    // component instead of setting path.package.
+	    const name_component_t&first = prefix.front();
+	    if (first.index.empty()
+		&& resolve_scoped_class_type_name_(des, type_scope, first.name).kind
+		     == SCOPED_CLASS_NAME_NONE) {
+		  if (NetScope*package = des->find_package(first.name)) {
+			prefix.pop_front();
+			type_scope = package;
+		  }
+	    }
+      }
+
+      if (prefix.size() < 1 || prefix.size() > 2
+	  || !prefix.front().index.empty())
+	    return false;
+
+      scoped_class_name_result_t resolved = resolve_scoped_class_type_name_(
+	    des, type_scope, prefix.front().name);
+      if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF)
+	    return false;
+      const netclass_t*class_type = resolved.class_type;
+      if ((!class_type || !class_type->class_scope()) && type_scope)
+	    class_type = ensure_visible_class_type(
+		  des, type_scope, prefix.front().name);
+      if (!class_type)
+	    return false;
+
+      if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+	    if (const netclass_t*current =
+		  scoped_class_current_specialization_(scope, class_type))
+		  class_type = current;
+	    else if (scoped_class_is_unspecialized_parameterized_(class_type))
+		  return false;
+      }
+      if (!class_type->is_covergroup())
+	    return false;
+
+      if (prefix.size() == 2) {
+	    const name_component_t&item_name = prefix.back();
+	    if (!item_name.index.empty())
+		  return false;
+	    for (size_t idx = 0; idx < class_type->covgrp_item_count(); ++idx) {
+		  if (class_type->covgrp_item(idx).name == item_name.name) {
+			result.item = static_cast<int>(idx);
+			result.class_type = class_type;
+			return true;
+		  }
+	    }
+	    return false;
+      }
+
+      result.class_type = class_type;
+      return true;
+}
+
+static std::string scoped_covergroup_coverage_name_(
+	const scoped_covergroup_coverage_t&coverage)
+{
+      std::string name = "$ivl_class_method$covgrp_type_get_coverage|";
+      std::ostringstream type_label;
+      type_label << 'C' << static_cast<const void*>(coverage.class_type);
+      name += type_label.str();
+      name += "|" + std::to_string(coverage.item + 1);
+      return name;
+}
+
 /*
  * Look at the signal to see if there is already a branch that
  * connects the sig to the gnd. If there is, then return it. If not,
@@ -12098,6 +12193,17 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 
+	    scoped_covergroup_coverage_t coverage;
+	    if (parms_.empty()
+		&& resolve_scoped_covergroup_coverage_(
+		      des, scope, path_, coverage)) {
+	  expr_type_ = IVL_VT_REAL;
+	  expr_width_ = 1;
+	  min_width_ = 1;
+	  signed_flag_ = true;
+	  return expr_width_;
+	    }
+
 	    if (scoped_static_func
 		&& !skip_static_typecall_override_(scoped_static_func)
 		&& (!search_flag
@@ -18212,6 +18318,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			*this, path_, scope, scoped_static_func);
 		  return elaborate_base_(des, scope, scoped_static_func, flags);
 	    }
+      }
+
+      scoped_covergroup_coverage_t scoped_coverage;
+      if (parms_.empty()
+	  && resolve_scoped_covergroup_coverage_(
+		  des, scope, path_, scoped_coverage)) {
+	    string name = scoped_covergroup_coverage_name_(scoped_coverage);
+	    NetESFunc*sys = new NetESFunc(
+		  name.c_str(), &netreal_t::type_real, 0);
+	    sys->set_line(*this);
+	    return sys;
       }
 
       // Prefer object/class method elaboration whenever symbol_search

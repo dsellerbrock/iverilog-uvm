@@ -10428,6 +10428,32 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* %covgrp/type/get_coverage — TYPE coverage selected without a covergroup
+ * instance receiver. Operand 1 is the covergroup class definition; operand
+ * 2 is zero for the group or item index plus one for a coverpoint/cross. */
+bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      const class_type*type = dynamic_cast<const class_type*>(code->handle);
+      if (!type || !type->is_covergroup()) {
+	    fprintf(stderr, "VVP error: %%covgrp/type/get_coverage requires a covergroup type\n");
+	    thr->push_real(0.0);
+	    return true;
+      }
+
+      int selected_item = -1;
+	  if (code->bit_idx[0] != 0) {
+	    if (code->bit_idx[0] > type->covgrp_item_count()) {
+		  fprintf(stderr, "VVP error: %%covgrp/type/get_coverage item index is out of range\n");
+		  thr->push_real(0.0);
+		  return true;
+	    }
+	    selected_item = static_cast<int>(code->bit_idx[0] - 1);
+      }
+
+      thr->push_real(type->type_coverage(nullptr, nullptr, selected_item));
+      return true;
+}
+
 /* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
  * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
