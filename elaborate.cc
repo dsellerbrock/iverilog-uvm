@@ -7536,8 +7536,20 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  /* Leaf identifiers have no operands to size. Keep their declared
 		     width for port conversion diagnostics and implicit type checks. */
 		  if (!pins_implicit[idx]
-		      && !dynamic_cast<const PEIdent*>(pins[idx]))
-			context_width = prts_vector_width / instance.size();
+		      && !dynamic_cast<const PEIdent*>(pins[idx])) {
+			if (instance.size() > 1) {
+			      /* Keep an array actual's own width so the packed-actual
+			         mapper can distinguish broadcast from per-instance
+			         slices. The unbased unsized literal still needs the
+			         aggregate width as its assignment-like context. */
+			      const PENumber*literal =
+				    dynamic_cast<const PENumber*>(pins[idx]);
+			      context_width = literal && literal->value().is_single()
+				    ? prts_vector_width : -1;
+			} else {
+			      context_width = prts_vector_width;
+			}
+		  }
 		    // FIXME: The default value is getting the wrong value for
 		    //        an array instance since only one scope is used
 		    //        and the value can be different for each scope.
