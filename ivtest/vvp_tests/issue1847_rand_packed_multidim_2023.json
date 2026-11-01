@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1847_rand_packed_multidim.sv",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["PASSED"]
+}

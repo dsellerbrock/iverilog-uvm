@@ -34470,11 +34470,6 @@ static string packed_typed_select_ir_(
       const netvector_t*vec = dynamic_cast<const netvector_t*>(packed_type);
       const netstruct_t*record = dynamic_cast<const netstruct_t*>(packed_type);
       const netparray_t*array = dynamic_cast<const netparray_t*>(packed_type);
-      const netstruct_t*array_record = array
-	    ? dynamic_cast<const netstruct_t*>(array->element_type()) : nullptr;
-      bool class_packed_record_array = cls && array
-	    && array->static_dimensions().size() == 1
-	    && array_record && array_record->packed();
       if (!vec && !(record && record->packed()) && !array)
 	    return scope_randomize_select_ir_(base, ic, cls, value_slots,
 					      scope, loop_env);
@@ -34600,8 +34595,7 @@ static string packed_typed_select_ir_(
 	    uint64_t off = 0;
 	    string index;
 	    if (!offset_of(ic.msb, off, &index)) {
-		  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array) || !scope
-		      || !constraint_ir_design_ctx_) return "";
+		  if (!scope || !constraint_ir_design_ctx_) return "";
 		  /* part has constant bounds in the solver. Keep the selected
 		   * value's width by choosing among constant slices instead of
 		   * treating an outer packed index as a single bit. */
@@ -39110,8 +39104,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netvector_t*pvec = dynamic_cast<const netvector_t*>(
 				    penum ? penum->base_type_obj() : ptype);
 			      const netranges_t&dims = pvec->packed_dims();
-			      uint64_t offset = 0;
-			      uint64_t long_width = 1;
+			      string selected = "p:" + to_string(idx) + ":"
+				    + to_string(ptype->packed_width())
+				    + (ptype->get_signed() ? ":s" : "");
+			      uint64_t remaining_width = ptype->packed_width();
 			      auto select = id->path().back().index.begin();
 			      for (size_t dim = 0; dim < dims.size(); ++dim) {
 				    const netrange_t&range = dims[dim];
@@ -39122,32 +39118,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  return "";
 				    string index_ir = pexpr_to_constraint_ir(
 					  component.msb, cls, value_slots, scope, loop_env);
-				    constraint_const_ir_t index;
-				    uint64_t digit = 0;
-				    if (!constraint_parse_const_ir_(index_ir, index)
-					|| index.width > 64
-					|| !constraint_fixed_index_offset_(
-					      index, min(range.get_msb(), range.get_lsb()),
-					      range.width(), digit))
+				    if (index_ir.empty() || remaining_width % range.width())
 					  return "";
-				    uint64_t position = range.get_msb() >= range.get_lsb()
-					  ? range.width() - 1 - digit : digit;
-				    if (position > UINT_MAX
-					|| offset > (UINT_MAX - position) / range.width())
-					  return "";
-				    offset = offset * range.width() + position;
-				    if (range.width() > UINT64_MAX / long_width)
-					  return "";
-				    long_width *= range.width();
+				    uint64_t element_width = remaining_width / range.width();
+				    selected = "(idxpart " + selected + " " + index_ir
+					  + " c:1 c:0 c:" + to_string(range.get_msb())
+					  + " c:" + to_string(range.get_lsb()) + " c:"
+					  + to_string(element_width) + ")";
+				    remaining_width = element_width;
 			      }
-			      if (long_width != (uint64_t)pvec->packed_width())
+			      if (remaining_width != 1)
 				    return "";
-			      string base = "p:" + to_string(idx) + ":"
-				    + to_string(ptype->packed_width())
-				    + (ptype->get_signed() ? ":s" : "");
-			      return string(ptype->base_type() == IVL_VT_LOGIC
-				    ? "(bit4 " : "(bit ") + base + " c:"
-				    + to_string(offset) + ")";
+			      return selected;
 			}
 			  if (id->path().size() == 1) {
 		    string nested = constraint_class_fixed_queue_element_ir_(
