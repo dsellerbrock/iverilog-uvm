@@ -23299,10 +23299,14 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
 /* A structural selected net keeps its ordinary NetPartSelect edge probe.
    Only a selected VIF member needs the expression observer to rebind the
    member when its handle changes; class-property dependencies likewise have
-   no static NetNet input. */
+   no static NetNet input. User functions also need the full expression to be
+   reevaluated when any source operand changes. */
+static bool expr_has_user_function_call_(const NetExpr*expr);
+
 static bool selected_edge_requires_observer_(const NetExpr*expr)
 {
-      if (has_class_property_mutation_dep_(expr))
+      if (has_class_property_mutation_dep_(expr)
+          || expr_has_user_function_call_(expr))
             return true;
       if (!dynamic_cast<const NetESelect*>(expr))
             return false;
