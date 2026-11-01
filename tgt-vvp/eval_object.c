@@ -59,6 +59,110 @@ void stream_elem_type_text(ivl_type_t element_type, char*buf, size_t bufsz)
       }
 }
 
+/* The stream-to-struct VVP opcodes carry a bounded recursive description of
+ * the aggregate member layout. This is needed because the runtime cobject
+ * representation stores members individually rather than as one packed
+ * vector. Keep this encoding separate from class-property storage metadata:
+ * it describes only the bit-stream operation being emitted. */
+static int stream_type_desc_supported_(ivl_type_t type, unsigned depth)
+{
+      if (!type || depth > 64)
+	    return 0;
+
+      if (ivl_type_base(type) == IVL_VT_BOOL
+	  || ivl_type_base(type) == IVL_VT_LOGIC)
+	    return ivl_type_packed_width(type) > 0;
+      if (ivl_type_base(type) == IVL_VT_STRING)
+	    return 1;
+
+      if (ivl_type_base(type) == IVL_VT_DARRAY
+	  || ivl_type_base(type) == IVL_VT_QUEUE) {
+	    if (ivl_type_base(type) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(type))
+		  return 0;
+	    return stream_type_desc_supported_(ivl_type_element(type), depth + 1);
+      }
+
+      if (ivl_type_base(type) == IVL_VT_NO_TYPE) {
+	    if (ivl_type_is_union(type) || ivl_type_properties(type) <= 0)
+		  return 0;
+	    int idx;
+	    for (idx = 0 ; idx < ivl_type_properties(type) ; idx += 1)
+		  if (!stream_type_desc_supported_(ivl_type_prop_type(type, idx),
+						  depth + 1))
+			return 0;
+	    return 1;
+      }
+
+      if (ivl_type_base(type) == IVL_VT_CLASS) {
+	    int idx;
+	    for (idx = 0 ; idx < ivl_type_properties(type) ; idx += 1) {
+		  if (ivl_type_prop_qual(type, idx) & 1)
+			continue;
+		  if (!stream_type_desc_supported_(ivl_type_prop_type(type, idx),
+						  depth + 1))
+			return 0;
+	    }
+	    return 1;
+      }
+
+      return 0;
+}
+
+static void emit_stream_type_desc_(ivl_type_t type)
+{
+      ivl_variable_type_t base = ivl_type_base(type);
+      if (base == IVL_VT_BOOL || base == IVL_VT_LOGIC) {
+	    fprintf(vvp_out, "%c%u", base == IVL_VT_BOOL ? 'b' : 'v',
+		    ivl_type_packed_width(type));
+	    return;
+      }
+      if (base == IVL_VT_STRING) {
+	    fputc('s', vvp_out);
+	    return;
+      }
+      if (base == IVL_VT_DARRAY) {
+	    fputs("d(", vvp_out);
+	    emit_stream_type_desc_(ivl_type_element(type));
+	    fputc(')', vvp_out);
+	    return;
+      }
+      if (base == IVL_VT_QUEUE) {
+	    fprintf(vvp_out, "q%" PRIu64 "(",
+		    ivl_type_queue_max_size(type));
+	    emit_stream_type_desc_(ivl_type_element(type));
+	    fputc(')', vvp_out);
+	    return;
+      }
+      if (base == IVL_VT_NO_TYPE) {
+	    int idx;
+	    fprintf(vvp_out, "r%d{", ivl_type_properties(type));
+	    for (idx = 0 ; idx < ivl_type_properties(type) ; idx += 1) {
+		  if (idx) fputc(';', vvp_out);
+		  emit_stream_type_desc_(ivl_type_prop_type(type, idx));
+	    }
+	    fputc('}', vvp_out);
+	    return;
+      }
+      if (base == IVL_VT_CLASS) {
+	    int idx, emitted = 0;
+	    for (idx = 0 ; idx < ivl_type_properties(type) ; idx += 1)
+		  if (!(ivl_type_prop_qual(type, idx) & 1)) emitted += 1;
+	    fprintf(vvp_out, "c%d{", emitted);
+	    emitted = 0;
+	    for (idx = 0 ; idx < ivl_type_properties(type) ; idx += 1) {
+		  if (ivl_type_prop_qual(type, idx) & 1)
+			continue;
+		  if (emitted++) fputc(';', vvp_out);
+		  fprintf(vvp_out, "%d:", idx);
+		  emit_stream_type_desc_(ivl_type_prop_type(type, idx));
+	    }
+	    fputc('}', vvp_out);
+	    return;
+      }
+      fputc('?', vvp_out); /* Defensive: frontend rejects this shape. */
+}
+
 void darray_new(ivl_type_t element_type, unsigned size_reg)
 {
       static int warned_unhandled_elem_type = 0;
@@ -256,10 +360,49 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    } else {
 	    switch (ivl_expr_value(parm)) {
 		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
-		  draw_eval_object(parm);
-		  fprintf(vvp_out, "    %%stream/flatten/obj;\n");
+		case IVL_VT_QUEUE: {
+		  ivl_type_t source_type = ivl_expr_net_type(parm);
+		  ivl_type_t source_element = source_type
+			? ivl_type_element(source_type) : 0;
+		  if (source_element
+		      && (ivl_type_base(source_element) == IVL_VT_NO_TYPE
+			  || ivl_type_base(source_element) == IVL_VT_CLASS
+			  || ivl_type_base(source_element) == IVL_VT_DARRAY
+			  || ivl_type_base(source_element) == IVL_VT_QUEUE)) {
+			if (!stream_type_desc_supported_(source_type, 0)) {
+			      fprintf(stderr, "%s:%u: internal error: unsupported "
+				      "aggregate bit-stream source type.\n",
+				      ivl_expr_file(parm), ivl_expr_lineno(parm));
+			      return 1;
+			}
+			if (ivl_type_base(source_element) == IVL_VT_NO_TYPE)
+			      ensure_class_type_emitted(source_element);
+			draw_eval_object(parm);
+			fprintf(vvp_out, "    %%stream/flatten/container \"");
+			emit_stream_type_desc_(source_type);
+			fprintf(vvp_out, "\";\n");
+		  } else {
+			draw_eval_object(parm);
+			fprintf(vvp_out, "    %%stream/flatten/obj;\n");
+		  }
 		  break;
+		}
+		case IVL_VT_NO_TYPE:
+		case IVL_VT_CLASS: {
+		  ivl_type_t source_type = ivl_expr_net_type(parm);
+		  if (!stream_type_desc_supported_(source_type, 0)) {
+			fprintf(stderr, "%s:%u: internal error: unsupported "
+				"aggregate bit-stream source type.\n",
+				ivl_expr_file(parm), ivl_expr_lineno(parm));
+			return 1;
+		  }
+		  ensure_class_type_emitted(source_type);
+		  draw_eval_object(parm);
+		  fprintf(vvp_out, "    %%stream/flatten/struct \"");
+		  emit_stream_type_desc_(source_type);
+		  fprintf(vvp_out, "\";\n");
+		  break;
+		}
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
 		  fprintf(vvp_out, "    %%stream/flatten/str;\n");
@@ -2587,6 +2730,24 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    char elem_text[32];
 	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
 	    assert(net_type);
+	    if (strict_cast && ivl_type_base(net_type) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(net_type) > 0) {
+		  if (parm_count != 1
+		      || !stream_type_desc_supported_(net_type, 0)) {
+			fprintf(stderr, "%s:%u: internal error: unsupported "
+				"bit-stream struct destination.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			fprintf(vvp_out,
+				"    %%null; ; unsupported stream struct cast\n");
+			return 1;
+		  }
+		  ensure_class_type_emitted(net_type);
+		  draw_stream_pack_pieces(expr, 0);
+		  fprintf(vvp_out, "    %%stream/to/struct \"");
+		  emit_stream_type_desc_(net_type);
+		  fprintf(vvp_out, "\", C%p;\n", net_type);
+		  return 0;
+	    }
 	    stream_elem_type_text(ivl_type_element(net_type),
 				  elem_text, sizeof elem_text);
 	    draw_stream_pack_pieces(expr, 0);

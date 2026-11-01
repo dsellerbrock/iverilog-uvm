@@ -1,2 +1,3 @@
-./ivltests/sv_bitstream_cast_unpacked_struct_fail.v:20: sorry: bit-stream cast to `11netstruct_t' is not yet implemented (IEEE 1800-2017/2023 6.24.3).
-1 error(s) during elaboration.
+fixed=12,34
+mixed=2,1x0z
+packet=2,1234,2,aa,bb,11

@@ -21736,6 +21736,118 @@ static bool bitstream_cast_type_(ivl_type_t type, bool destination)
       return bitstream_cast_type_(type, destination, active);
 }
 
+/* The VVP struct stream materializer supports recursive unpacked structs,
+ * packed integral members, strings, and dynamic arrays/queues of packed
+ * integral elements. Keep unsupported aggregate shapes on the existing
+ * explicit diagnostic path instead of emitting a vector-shaped value where
+ * an object-backed value is required. */
+static bool bitstream_struct_cast_supported_(ivl_type_t type, unsigned depth)
+{
+      if (!type || depth > 64)
+	    return false;
+
+      if (type->packed())
+	    return (type->base_type() == IVL_VT_BOOL
+		    || type->base_type() == IVL_VT_LOGIC)
+		  && type->packed_width() > 0;
+
+      if (dynamic_cast<const netstring_t*>(type))
+	    return true;
+
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type)) {
+	    ivl_type_t element = array->element_type();
+	    return element && element->packed()
+		  && (element->base_type() == IVL_VT_BOOL
+		      || element->base_type() == IVL_VT_LOGIC)
+		  && element->packed_width() > 0;
+      }
+
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type)) {
+	    ivl_type_t element = queue->element_type();
+	    return !queue->assoc_compat() && element && element->packed()
+		  && (element->base_type() == IVL_VT_BOOL
+		      || element->base_type() == IVL_VT_LOGIC)
+		  && element->packed_width() > 0;
+      }
+
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (!record || record->packed() || record->union_flag())
+	    return false;
+      for (const netstruct_t::member_t&member : record->members())
+	    if (!bitstream_struct_cast_supported_(member.net_type, depth + 1))
+		  return false;
+      return true;
+}
+
+static bool bitstream_struct_source_supported_(ivl_type_t type,
+					       unsigned depth)
+{
+      if (!type || depth > 64)
+	    return false;
+      if (type->packed())
+	    return (type->base_type() == IVL_VT_BOOL
+		    || type->base_type() == IVL_VT_LOGIC)
+		  && type->packed_width() > 0;
+      if (dynamic_cast<const netstring_t*>(type))
+	    return true;
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type))
+	    return bitstream_struct_source_supported_(array->element_type(),
+						      depth + 1);
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type))
+	    return !queue->assoc_compat()
+		  && bitstream_struct_source_supported_(queue->element_type(),
+							       depth + 1);
+      if (const netstruct_t*record =
+		    dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->packed()) return true;
+	    if (record->union_flag()) return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!bitstream_struct_source_supported_(member.net_type,
+							  depth + 1))
+			return false;
+	    return true;
+      }
+      if (const netclass_t*class_type =
+		    dynamic_cast<const netclass_t*>(type)) {
+	    for (size_t idx = 0 ; idx < class_type->get_properties() ; idx += 1) {
+		  if (class_type->get_prop_qual(idx).test_static())
+			continue;
+		  if (!bitstream_struct_source_supported_(
+			    class_type->get_prop_type(idx), depth + 1))
+			return false;
+	    }
+	    return true;
+      }
+      return false;
+}
+
+static bool bitstream_struct_source_expr_supported_(const NetExpr*expr,
+						    const PExpr*source)
+{
+      if (!expr) return false;
+      if (expr->net_type())
+	    return bitstream_struct_source_supported_(expr->net_type(), 0);
+      if (!source) return false;
+      return (source->expr_type() == IVL_VT_BOOL
+	      || source->expr_type() == IVL_VT_LOGIC)
+	    && source->expr_width() > 0;
+}
+
+static bool fixed_bitstream_expr_width_(const NetExpr*expr,
+					       const PExpr*source,
+					       uint64_t&width)
+{
+      if (!expr) return false;
+      if (expr->net_type())
+	    return fixed_bitstream_width_(expr->net_type(), width);
+	if (!source || (source->expr_type() != IVL_VT_BOOL
+			&& source->expr_type() != IVL_VT_LOGIC))
+	    return false;
+      if (source->expr_width() == 0) return false;
+      width = source->expr_width();
+      return true;
+}
+
 static bool bitstream_class_has_restricted_property_(const netclass_t*type)
 {
       if (!type)
@@ -21758,27 +21870,6 @@ static bool bitstream_cast_source_is_this_(const PExpr*expr)
       return !path.package && path.name.size() == 1
 	    && path.name.front().name == perm_string::literal("this")
 	    && path.name.front().index.empty();
-}
-
-/* Return the fixed bit-stream width for an unpacked struct whose members
- * are packed. A zero result means that this helper does not apply. */
-static unsigned fixed_struct_stream_width_(ivl_type_t type)
-{
-      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
-      if (!record || record->packed() || record->union_flag())
-	    return 0;
-
-      unsigned width = 0;
-      for (const netstruct_t::member_t&member : record->members()) {
-	    if (!member.net_type->packed())
-		  return 0;
-	    long member_width = member.net_type->packed_width();
-	    if (member_width <= 0 ||
-		  static_cast<unsigned long>(member_width) > UINT_MAX - width)
-		  return 0;
-	    width += static_cast<unsigned>(member_width);
-      }
-      return width;
 }
 
 static bool positional_container_integral_elements_(ivl_type_t type)
@@ -22041,6 +22132,10 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	   retains T's width and type, including when it is an operand of a
 	   concatenation replication. */
       NetExpr*sub = nullptr;
+	const netstruct_t*target_record =
+	    dynamic_cast<const netstruct_t*>(target_type_);
+	bool unpacked_struct_target = target_record
+	    && !target_record->packed() && !target_record->union_flag();
       if (const PEAssignPattern*pat =
 	      dynamic_cast<const PEAssignPattern*>(base_)) {
 	    /* A parse-form expression is shared by every elaboration of a
@@ -22051,13 +22146,18 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    ivl_type_t use_type = target_
 		  ? target_->elaborate_type(des, scope) : nullptr;
 	    target_type_ = use_type;
+	    target_record = dynamic_cast<const netstruct_t*>(target_type_);
+	    unpacked_struct_target = target_record && !target_record->packed()
+		  && !target_record->union_flag();
 	    if (use_type)
 		  sub = pat->elaborate_expr(des, scope, use_type, flags);
       } else {
-	    // A cast behaves exactly like an assignment to a temporary variable,
-	    // so the temporary result size may affect the sub-expression width.
+	    /* Most casts behave like assignment to a temporary, so the target
+	       context can widen the source. A bit-stream cast to an unpacked struct
+	       must retain the source's own width for the intermediate packed value. */
 	    unsigned cast_width = base_->expr_width();
-	    if (type_is_vectorable(base_->expr_type()) &&
+	    if (!unpacked_struct_target
+		&& type_is_vectorable(base_->expr_type()) &&
 		(cast_width < expr_width_))
 		  cast_width = expr_width_;
 
@@ -22082,24 +22182,42 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
-	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
-	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
-	 * not have a packed_width(), so check their member widths before the
-	 * scalar conversion path can silently truncate or extend. */
-      unsigned source_struct_width = fixed_struct_stream_width_(sub->net_type());
-      unsigned target_struct_width = fixed_struct_stream_width_(target_type_);
-      if ((source_struct_width && target_type_ && target_type_->packed()
-	   && target_type_->packed_width() > 0
-	   && source_struct_width != static_cast<unsigned>(target_type_->packed_width()))
-	  || (target_struct_width && sub->net_type() && sub->net_type()->packed()
-	      && sub->net_type()->packed_width() > 0
-	      && target_struct_width != static_cast<unsigned>(sub->net_type()->packed_width()))) {
+	/* IEEE 1800-2017/2023 6.24.3: a size mismatch is a compile-time error
+	 * when both bit-stream types have fixed size. This recursive helper also
+	 * accounts for fixed unpacked arrays and nested structs. */
+	uint64_t source_stream_width = 0;
+	uint64_t target_stream_width = 0;
+	bool unpacked_bitstream_cast =
+	      (sub->net_type() && !sub->net_type()->packed())
+	      || (target_type_ && !target_type_->packed());
+	if (unpacked_bitstream_cast
+	    && bitstream_struct_source_expr_supported_(sub, base_)
+	    && bitstream_cast_type_(target_type_, true)
+	    && fixed_bitstream_expr_width_(sub, base_, source_stream_width)
+	    && fixed_bitstream_width_(target_type_, target_stream_width)
+	    && source_stream_width != target_stream_width) {
 	    cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
 		 << endl;
 	    des->errors += 1;
 	    delete sub;
 	    return nullptr;
       }
+
+	/* Materialize an unpacked-struct destination from the source's generic
+	 * packed representation. The VVP marker retains the destination type so
+	 * code generation can emit its recursive field layout and runtime can
+	 * construct the corresponding value-semantic cobject. */
+	if (target_record && !target_record->packed()
+	    && !target_record->union_flag()
+	    && bitstream_cast_type_(target_type_, true)
+	    && bitstream_struct_source_expr_supported_(sub, base_)
+	    && bitstream_struct_cast_supported_(target_type_, 0)) {
+	    NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+				   target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+	}
 
 	/* IEEE 1800-2023 11.4.13 requires truncation when a real tolerance is
 	 * converted to an integral range type. The ordinary type-cast path rounds

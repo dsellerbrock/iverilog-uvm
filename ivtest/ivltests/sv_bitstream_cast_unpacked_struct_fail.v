@@ -1,23 +1,32 @@
-// A vector cast to an unpacked struct is a legal bit-stream cast
-// (IEEE 1800-2017/2023 6.24.3), but full bit-stream casting (arbitrary
-// queues/dynamic arrays/nested aggregates on either side) is not yet
-// implemented. This used to warn and then CRASH the compiler
-// (ivl_expr_value asserted on a null child expression, because the
-// fallback handed codegen a vector-shaped expression where a
-// struct-shaped one was required). Now it is a clean, loud rejection
-// instead (L37). A packed-struct cast target is unaffected -- see
-// sv_bitstream_cast_packed_struct.v.
-
+// This formerly expected the compiler's "not yet implemented" rejection.
+// Both conversions are legal bit-stream casts under IEEE 1800-2017/2023 6.24.3.
 module test;
+  typedef struct { byte a; byte b; } fixed_t;
   typedef struct {
-    logic [3:0] a;
-    logic [3:0] b;
-  } s_t;
-  s_t s;
-  logic [7:0] v;
+    byte length;
+    shortint address;
+    byte payload[];
+    byte chksum;
+  } Packet;
+  typedef struct { bit [3:0] two_state; logic [3:0] four_state; } mixed_t;
+  typedef byte channel_t[$];
+
+  fixed_t fixed;
+  Packet packet;
+  mixed_t mixed;
+  channel_t channel;
+
   initial begin
-    v = 8'hAB;
-    s = s_t'(v);
-    $display("FAILED");
+    fixed = fixed_t'(16'h1234);
+    $display("fixed=%02h,%02h", fixed.a, fixed.b);
+
+    mixed = mixed_t'(8'bxz10_1x0z);
+    $display("mixed=%h,%b", mixed.two_state, mixed.four_state);
+
+    channel = '{2, 8'h12, 8'h34, 8'haa, 8'hbb, 8'h11};
+    packet = Packet'(channel);
+    $display("packet=%0d,%04h,%0d,%02h,%02h,%02h",
+             packet.length, packet.address, packet.payload.size(),
+             packet.payload[0], packet.payload[1], packet.chksum);
   end
 endmodule

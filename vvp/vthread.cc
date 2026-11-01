@@ -26879,6 +26879,487 @@ static vvp_vector4_t coerce_stream_elem_(const vvp_vector4_t&value,
 	                                         value.size());
 }
 
+const uint64_t STREAM_CAST_MAX_BITS = UINT64_C(64) * 1024 * 1024;
+const uint64_t STREAM_CAST_MAX_ELEMENTS = UINT64_C(1024) * 1024;
+
+struct stream_cast_type_t {
+      enum kind_t { PACKED2, PACKED4, STRING, DARRAY, QUEUE, STRUCT, CLASS } kind;
+      unsigned width = 0;
+      uint64_t queue_max = 0;
+      std::vector<stream_cast_type_t> members;
+      std::vector<unsigned> property_indices;
+};
+
+class stream_cast_type_parser_t {
+    public:
+      explicit stream_cast_type_parser_t(const char*text)
+	    : text_(text ? text : ""), pos_(0), nodes_(0) { }
+
+      bool parse(stream_cast_type_t&type)
+	    { return parse_type_(type, 0) && text_[pos_] == '\0'; }
+
+    private:
+	  bool consume_(char expected)
+	  {
+		if (text_[pos_] != expected) return false;
+		pos_ += 1;
+		return true;
+	  }
+
+      bool decimal_(uint64_t&value)
+	    {
+		  size_t start = pos_;
+		  while (std::isdigit(static_cast<unsigned char>(text_[pos_])))
+			pos_ += 1;
+		  if (start == pos_) return false;
+		  errno = 0;
+		  char*end = 0;
+		  unsigned long long parsed = std::strtoull(text_ + start, &end, 10);
+		  if (errno == ERANGE || end != text_ + pos_) return false;
+		  value = static_cast<uint64_t>(parsed);
+		  return true;
+	    }
+
+      bool parse_type_(stream_cast_type_t&type, unsigned depth)
+	    {
+		  if (depth > 64 || ++nodes_ > 1024) return false;
+	      if (text_[pos_] == '\0') return false;
+		  char tag = text_[pos_++];
+		  if (tag == 'b' || tag == 'v') {
+			uint64_t width = 0;
+			if (!decimal_(width) || width == 0 || width > UINT_MAX)
+			      return false;
+			type.kind = tag == 'b' ? stream_cast_type_t::PACKED2
+			      : stream_cast_type_t::PACKED4;
+			type.width = static_cast<unsigned>(width);
+			return true;
+		  }
+		  if (tag == 's') {
+			type.kind = stream_cast_type_t::STRING;
+			return true;
+		  }
+		  if (tag == 'd' || tag == 'q') {
+			type.kind = tag == 'd' ? stream_cast_type_t::DARRAY
+			      : stream_cast_type_t::QUEUE;
+			if (tag == 'q' && !decimal_(type.queue_max)) return false;
+		    if (!consume_('(') || type.members.size() != 0)
+			      return false;
+			type.members.resize(1);
+			if (!parse_type_(type.members[0], depth + 1)
+			    || !consume_(')')) return false;
+			return true;
+		  }
+		  if (tag == 'r' || tag == 'c') {
+			type.kind = tag == 'r' ? stream_cast_type_t::STRUCT
+			      : stream_cast_type_t::CLASS;
+			uint64_t count = 0;
+		    if (!decimal_(count) || count > 1024 || !consume_('{'))
+			      return false;
+			type.members.resize(static_cast<size_t>(count));
+			if (type.kind == stream_cast_type_t::CLASS)
+			      type.property_indices.resize(static_cast<size_t>(count));
+			for (size_t idx = 0 ; idx < type.members.size() ; idx += 1) {
+			  if (idx && !consume_(';')) return false;
+			      if (type.kind == stream_cast_type_t::CLASS) {
+				    uint64_t prop = 0;
+				    if (!decimal_(prop) || prop > UINT_MAX
+					|| !consume_(':')) return false;
+				    type.property_indices[idx] =
+					  static_cast<unsigned>(prop);
+			      }
+			      if (!parse_type_(type.members[idx], depth + 1))
+				    return false;
+			}
+		    if (!consume_('}')) return false;
+			return true;
+		  }
+		  return false;
+	    }
+
+      const char*text_;
+      size_t pos_;
+      unsigned nodes_;
+};
+
+static bool stream_cast_fixed_width_(const stream_cast_type_t&type,
+				     uint64_t&width)
+{
+      switch (type.kind) {
+	  case stream_cast_type_t::PACKED2:
+	  case stream_cast_type_t::PACKED4:
+	    width = type.width;
+	    return true;
+	  case stream_cast_type_t::STRUCT:
+	  case stream_cast_type_t::CLASS: {
+	    uint64_t total = 0;
+	    for (const stream_cast_type_t&member : type.members) {
+		  uint64_t member_width = 0;
+		  if (!stream_cast_fixed_width_(member, member_width))
+			return false;
+		  if (member_width > UINT64_MAX - total) return false;
+		  total += member_width;
+	    }
+	    width = total;
+	    return true;
+	  }
+	  case stream_cast_type_t::STRING:
+	  case stream_cast_type_t::DARRAY:
+	  case stream_cast_type_t::QUEUE:
+	    width = 0;
+	    return true;
+	  default:
+	    width = 0;
+	    return false;
+      }
+}
+
+static const stream_cast_type_t*stream_cast_first_dynamic_(
+	      const stream_cast_type_t&type)
+{
+      if (type.kind == stream_cast_type_t::DARRAY
+	  || type.kind == stream_cast_type_t::QUEUE
+	  || type.kind == stream_cast_type_t::STRING)
+	    return &type;
+      for (const stream_cast_type_t&member : type.members)
+	    if (const stream_cast_type_t*found =
+		  stream_cast_first_dynamic_(member))
+		  return found;
+      return 0;
+}
+
+static unsigned stream_cast_dynamic_element_width_(
+	      const stream_cast_type_t&type, bool&four_state)
+{
+      if (type.kind == stream_cast_type_t::STRING) {
+	    four_state = false;
+	    return 8;
+      }
+      if ((type.kind != stream_cast_type_t::DARRAY
+	   && type.kind != stream_cast_type_t::QUEUE)
+	  || type.members.size() != 1)
+	    return 0;
+      const stream_cast_type_t&element = type.members[0];
+      if (element.kind == stream_cast_type_t::PACKED2) {
+	    four_state = false;
+	    return element.width;
+      }
+      if (element.kind == stream_cast_type_t::PACKED4) {
+	    four_state = true;
+	    return element.width;
+      }
+      return 0;
+}
+
+class stream_cast_reader_t {
+    public:
+      explicit stream_cast_reader_t(const vvp_vector4_t&bits)
+	    : bits_(bits), used_(0) { }
+
+      bool take(unsigned width, vvp_vector4_t&value)
+	    {
+		  if (width > bits_.size() - used_) return false;
+		  unsigned top = bits_.size() - used_;
+		  value = bits_.subvalue(top - width, width);
+		  used_ += width;
+		  return true;
+	    }
+
+      uint64_t used() const { return used_; }
+
+    private:
+      const vvp_vector4_t&bits_;
+      unsigned used_;
+};
+
+static bool stream_cast_decode_member_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, size_t pid,
+	      stream_cast_reader_t&reader, const stream_cast_type_t*first_dynamic,
+	      uint64_t dynamic_bits);
+
+static bool stream_cast_decode_struct_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, stream_cast_reader_t&reader,
+	      const stream_cast_type_t*first_dynamic, uint64_t dynamic_bits)
+{
+      if (!cobj || (type.kind != stream_cast_type_t::STRUCT
+		    && type.kind != stream_cast_type_t::CLASS))
+	    return false;
+      class_type*defn = const_cast<class_type*>(cobj->get_defn());
+      if (!defn) return false;
+      if (type.kind == stream_cast_type_t::STRUCT
+	  && type.members.size() != defn->property_count())
+	    return false;
+      if (type.kind == stream_cast_type_t::CLASS
+	  && type.members.size() > defn->property_count())
+	    return false;
+
+      for (size_t idx = 0 ; idx < type.members.size() ; idx += 1) {
+	    size_t pid = type.kind == stream_cast_type_t::STRUCT
+		  ? idx : type.property_indices[idx];
+	    if (pid >= defn->property_count()
+		|| !stream_cast_decode_member_(cobj, type.members[idx], pid,
+					     reader, first_dynamic,
+					     dynamic_bits))
+		  return false;
+      }
+      return true;
+}
+
+static bool stream_cast_decode_member_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, size_t pid,
+	      stream_cast_reader_t&reader, const stream_cast_type_t*first_dynamic,
+	      uint64_t dynamic_bits)
+{
+      const class_type*defn = cobj->get_defn();
+      if (!defn || pid >= defn->property_count()) return false;
+
+      if (type.kind == stream_cast_type_t::PACKED2
+	  || type.kind == stream_cast_type_t::PACKED4) {
+	    vvp_vector4_t value;
+	    if (!reader.take(type.width, value)) return false;
+	    cobj->set_vec4(pid, value);
+	    return true;
+      }
+
+      if (type.kind == stream_cast_type_t::STRUCT) {
+	    vvp_object_t object;
+	    cobj->get_object(pid, object, 0);
+	    vvp_cobject*nested = object.peek<vvp_cobject>();
+	    if (!nested) {
+		  const class_type*nested_defn = defn->property_declared_class_type(pid);
+		  if (!nested_defn) return false;
+		  object = new vvp_cobject(nested_defn);
+		  cobj->set_object(pid, object, 0);
+		  nested = object.peek<vvp_cobject>();
+	    }
+	    return stream_cast_decode_struct_(nested, type, reader,
+					      first_dynamic, dynamic_bits);
+      }
+
+      if (type.kind == stream_cast_type_t::STRING) {
+	    uint64_t bits = (&type == first_dynamic) ? dynamic_bits : 0;
+	    if ((bits % 8) != 0 || bits / 8 > STREAM_CAST_MAX_ELEMENTS)
+		  return false;
+	    std::string value;
+	    value.reserve(static_cast<size_t>(bits / 8));
+	    for (uint64_t idx = 0 ; idx < bits / 8 ; idx += 1) {
+		  vvp_vector4_t byte;
+		  if (!reader.take(8, byte)) return false;
+		  byte = coerce_stream_elem_(byte, false);
+		  unsigned char ch = 0;
+		  for (unsigned bit = 0 ; bit < 8 ; bit += 1)
+			if (byte.value(bit) == BIT4_1) ch |= 1U << bit;
+		  value.push_back(static_cast<char>(ch));
+	    }
+	    cobj->set_string(pid, value);
+	    return true;
+      }
+
+      if (type.kind == stream_cast_type_t::DARRAY
+	  || type.kind == stream_cast_type_t::QUEUE) {
+	    bool four_state = false;
+	    unsigned width = stream_cast_dynamic_element_width_(type,
+							       four_state);
+	    if (!width || type.members.size() != 1) return false;
+	    uint64_t bits = (&type == first_dynamic) ? dynamic_bits : 0;
+	    if (bits % width != 0 || bits > STREAM_CAST_MAX_BITS)
+		  return false;
+	    uint64_t count = bits / width;
+	    if (count > STREAM_CAST_MAX_ELEMENTS
+		|| (type.kind == stream_cast_type_t::QUEUE
+		    && type.queue_max && count > type.queue_max))
+		  return false;
+
+	    vvp_object_t value;
+	    if (type.kind == stream_cast_type_t::DARRAY) {
+		  vvp_darray*array = four_state
+			? static_cast<vvp_darray*>(new vvp_darray_vec4(
+			      static_cast<size_t>(count), width))
+			: static_cast<vvp_darray*>(new vvp_darray_vec2(
+			      static_cast<size_t>(count), width));
+		  for (uint64_t idx = 0 ; idx < count ; idx += 1) {
+			vvp_vector4_t elem;
+			if (!reader.take(width, elem)) return false;
+			array->set_word(static_cast<unsigned>(idx),
+					coerce_stream_elem_(elem, four_state));
+		  }
+		  value = array;
+		  if (vvp_object*object = value.peek<vvp_object>())
+			object->set_declared_container_layout(vvp_make_container_layout(
+			      VVP_CONTAINER_DARRAY, false, 0,
+			      vvp_container_layout_t()));
+	    } else {
+		  vvp_queue_vec4*queue = new vvp_queue_vec4;
+		  for (uint64_t idx = 0 ; idx < count ; idx += 1) {
+			vvp_vector4_t elem;
+			if (!reader.take(width, elem)) return false;
+			queue->push_back(coerce_stream_elem_(elem, four_state),
+					 type.queue_max);
+		  }
+		  value = queue;
+		  if (vvp_object*object = value.peek<vvp_object>())
+			object->set_declared_container_layout(vvp_make_container_layout(
+			      VVP_CONTAINER_QUEUE, true, type.queue_max,
+			      vvp_container_layout_t()));
+	    }
+	    cobj->set_object(pid, value, 0);
+	    return true;
+      }
+
+      return false;
+}
+
+static bool stream_cast_append_(vvp_vector4_t&result,
+				const vvp_vector4_t&piece)
+{
+      if (piece.size() > STREAM_CAST_MAX_BITS
+	  || result.size() > STREAM_CAST_MAX_BITS - piece.size())
+	    return false;
+      unsigned total = result.size() + piece.size();
+      vvp_vector4_t joined(total, BIT4_0);
+      if (result.size()) joined.set_vec(piece.size(), result);
+      if (piece.size()) joined.set_vec(0, piece);
+      result = joined;
+      return true;
+}
+
+static bool stream_cast_flatten_struct_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, vvp_vector4_t&result,
+	      unsigned depth);
+
+static bool stream_cast_flatten_object_(const stream_cast_type_t&type,
+	      const vvp_object_t&object, vvp_vector4_t&result, unsigned depth)
+{
+      if (depth > 64) return false;
+      if (type.kind == stream_cast_type_t::STRUCT
+	  || type.kind == stream_cast_type_t::CLASS)
+	    return stream_cast_flatten_struct_(object.peek<vvp_cobject>(), type,
+						result, depth + 1);
+
+      vvp_darray*array = object.peek<vvp_darray>();
+      if (!array) return false;
+      if (type.kind == stream_cast_type_t::PACKED2
+	  || type.kind == stream_cast_type_t::PACKED4
+	  || type.kind == stream_cast_type_t::STRING) {
+	    result = array->get_bitstream(true);
+	    return result.size() <= STREAM_CAST_MAX_BITS;
+      }
+      if ((type.kind != stream_cast_type_t::DARRAY
+	   && type.kind != stream_cast_type_t::QUEUE)
+	  || type.members.size() != 1
+	  || array->get_size() > STREAM_CAST_MAX_ELEMENTS)
+	    return false;
+
+      const stream_cast_type_t&element = type.members[0];
+      if (element.kind == stream_cast_type_t::PACKED2
+	  || element.kind == stream_cast_type_t::PACKED4
+	  || element.kind == stream_cast_type_t::STRING) {
+	    result = array->get_bitstream(true);
+	    return result.size() <= STREAM_CAST_MAX_BITS;
+	  }
+      for (size_t idx = 0 ; idx < array->get_size() ; idx += 1) {
+	    vvp_object_t item;
+	    array->get_word(static_cast<unsigned>(idx), item);
+	    vvp_vector4_t bits(0, BIT4_0);
+	    if (!stream_cast_flatten_object_(element, item, bits, depth + 1)
+		|| !stream_cast_append_(result, bits))
+		  return false;
+      }
+      return true;
+}
+
+static bool stream_cast_flatten_member_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, size_t pid,
+	      vvp_vector4_t&result, unsigned depth)
+{
+      const class_type*defn = cobj ? cobj->get_defn() : nullptr;
+      if (!defn || pid >= defn->property_count() || depth > 64)
+	    return false;
+
+      if (type.kind == stream_cast_type_t::PACKED2
+	  || type.kind == stream_cast_type_t::PACKED4) {
+	    vvp_vector4_t value;
+	    cobj->get_vec4(pid, value);
+	    if (value.size() != type.width) {
+		  if (value.size() > type.width)
+			value = value.subvalue(0, type.width);
+		  else {
+			vvp_vector4_t resized(type.width, BIT4_0);
+			if (value.size()) resized.set_vec(0, value);
+			value = resized;
+		  }
+	    }
+	    if (type.kind == stream_cast_type_t::PACKED2)
+		  value = coerce_stream_elem_(value, false);
+	    return stream_cast_append_(result, value);
+      }
+
+      if (type.kind == stream_cast_type_t::STRING) {
+	    std::string text = cobj->get_string(pid);
+	    if (text.size() > STREAM_CAST_MAX_BITS / 8) return false;
+	    vvp_vector4_t value(static_cast<unsigned>(text.size() * 8), BIT4_0);
+	    unsigned pos = value.size();
+	    for (unsigned idx = 0 ; idx < text.size() ; idx += 1) {
+		  unsigned char ch = static_cast<unsigned char>(text[idx]);
+		  pos -= 8;
+		  for (unsigned bit = 0 ; bit < 8 ; bit += 1)
+			if ((ch >> bit) & 1U) value.set_bit(pos + bit, BIT4_1);
+	    }
+	    return stream_cast_append_(result, value);
+      }
+
+      if (type.kind == stream_cast_type_t::STRUCT) {
+	    vvp_object_t object;
+	    cobj->get_object(pid, object, 0);
+	    vvp_vector4_t value(0, BIT4_0);
+	    return stream_cast_flatten_struct_(object.peek<vvp_cobject>(), type,
+						value, depth + 1)
+		  && stream_cast_append_(result, value);
+      }
+
+      vvp_object_t object;
+      cobj->get_object(pid, object, 0);
+      vvp_vector4_t value(0, BIT4_0);
+      return stream_cast_flatten_object_(type, object, value, depth + 1)
+	    && stream_cast_append_(result, value);
+}
+
+static bool stream_cast_flatten_struct_(vvp_cobject*cobj,
+	      const stream_cast_type_t&type, vvp_vector4_t&result,
+	      unsigned depth)
+{
+      if (!cobj || depth > 64
+	  || (type.kind != stream_cast_type_t::STRUCT
+	      && type.kind != stream_cast_type_t::CLASS))
+	    return false;
+      const class_type*defn = cobj->get_defn();
+      if (!defn) return false;
+      if (type.kind == stream_cast_type_t::STRUCT
+	  && type.members.size() != defn->property_count())
+	    return false;
+      if (type.kind == stream_cast_type_t::CLASS
+	  && type.members.size() > defn->property_count())
+	    return false;
+
+      for (size_t idx = 0 ; idx < type.members.size() ; idx += 1) {
+	    size_t pid = type.kind == stream_cast_type_t::STRUCT
+		  ? idx : type.property_indices[idx];
+	    if (!stream_cast_flatten_member_(cobj, type.members[idx], pid,
+					    result, depth + 1))
+		  return false;
+      }
+      return true;
+}
+
+static bool stream_cast_decode_error_(vthread_t thr, const char*detail)
+{
+      cerr << thr->get_fileline() << "VVP error: bit-stream cast "
+	      << detail << "." << endl;
+      vpip_set_return_value(1);
+      if (!schedule_finished()) schedule_finish(0);
+      thr->push_object(vvp_object_t());
+      return false;
+}
+
 static bool take_stream_left_(vthread_t thr, uint64_t wanted)
 {
       if (wanted > STREAM_WITH_MAX_BITS || wanted > UINT_MAX) {
@@ -26909,6 +27390,47 @@ static bool take_stream_left_(vthread_t thr, uint64_t wanted)
 }
 
 } // namespace
+
+bool of_STREAM_FLATTEN_STRUCT(vthread_t thr, vvp_code_t cp)
+{
+      stream_cast_type_t type;
+      stream_cast_type_parser_t parser(cp->text);
+      if (!parser.parse(type)
+	  || (type.kind != stream_cast_type_t::STRUCT
+	      && type.kind != stream_cast_type_t::CLASS))
+	    return stream_cast_decode_error_(thr,
+		  "has a malformed source-struct descriptor");
+
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_vector4_t result(0, BIT4_0);
+      if (!stream_cast_flatten_struct_(object.peek<vvp_cobject>(), type,
+					       result, 0))
+	    return stream_cast_decode_error_(thr,
+		  "could not flatten its struct source");
+      thr->push_vec4(result);
+      return true;
+}
+
+bool of_STREAM_FLATTEN_CONTAINER(vthread_t thr, vvp_code_t cp)
+{
+      stream_cast_type_t type;
+      stream_cast_type_parser_t parser(cp->text);
+      if (!parser.parse(type)
+	  || (type.kind != stream_cast_type_t::DARRAY
+	      && type.kind != stream_cast_type_t::QUEUE))
+	    return stream_cast_decode_error_(thr,
+		  "has a malformed source-container descriptor");
+
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_vector4_t result(0, BIT4_0);
+      if (!stream_cast_flatten_object_(type, object, result, 0))
+	    return stream_cast_decode_error_(thr,
+		  "could not flatten its container source");
+      thr->push_vec4(result);
+      return true;
+}
 
 bool of_STREAM_FLATTEN_OBJ_WITH(vthread_t thr, vvp_code_t cp)
 {
@@ -27743,6 +28265,71 @@ bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t cp)
 bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t cp)
 {
       return do_stream_to_container(thr, cp, false);
+}
+
+/* %stream/to/struct <layout>, <class-type>
+ *
+ * Convert the source's generic packed representation into a value-semantic
+ * unpacked struct. Fixed members are consumed in declaration order. When the
+ * destination contains dynamic members, the first one receives the source
+ * bits left after all fixed-width members; later dynamic members stay empty. */
+bool of_STREAM_TO_STRUCT(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t bits = thr->pop_vec4();
+      stream_cast_type_t type;
+      stream_cast_type_parser_t parser(cp->text);
+      class_type*defn = reinterpret_cast<class_type*>(cp->cptr2);
+      bool parsed = parser.parse(type);
+      if (!parsed || type.kind != stream_cast_type_t::STRUCT
+	  || !defn || !defn->is_struct_type() || defn->is_union_type()
+	  || type.members.size() != defn->property_count()) {
+	    return stream_cast_decode_error_(thr,
+		  "has a malformed destination-struct descriptor");
+	  }
+      uint64_t fixed_bits = 0;
+      if (!stream_cast_fixed_width_(type, fixed_bits)
+	  || fixed_bits > STREAM_CAST_MAX_BITS
+	  || fixed_bits > bits.size())
+	    return stream_cast_decode_error_(thr,
+		  "source is shorter than the fixed destination members");
+
+      const stream_cast_type_t*first_dynamic =
+	    stream_cast_first_dynamic_(type);
+      uint64_t dynamic_bits = 0;
+      if (!first_dynamic) {
+	    if (bits.size() != fixed_bits)
+		  return stream_cast_decode_error_(thr,
+			"source size does not match the fixed destination");
+      } else {
+	    dynamic_bits = bits.size() - fixed_bits;
+	    bool four_state = false;
+	    unsigned element_width = stream_cast_dynamic_element_width_(
+		  *first_dynamic, four_state);
+	    if (!element_width || dynamic_bits > STREAM_CAST_MAX_BITS
+		|| dynamic_bits % element_width != 0
+		|| dynamic_bits / element_width > STREAM_CAST_MAX_ELEMENTS)
+		  return stream_cast_decode_error_(thr,
+			"source size does not fit the first dynamic destination member");
+	    uint64_t count = dynamic_bits / element_width;
+	    if (first_dynamic->kind == stream_cast_type_t::QUEUE
+		&& first_dynamic->queue_max
+		&& count > first_dynamic->queue_max)
+		  return stream_cast_decode_error_(thr,
+			"source exceeds the bounded destination queue capacity");
+      }
+
+      vvp_cobject*object = new vvp_cobject(defn);
+      stream_cast_reader_t reader(bits);
+      if (!stream_cast_decode_struct_(object, type, reader, first_dynamic,
+					      dynamic_bits)
+	  || reader.used() != bits.size()) {
+	    delete object;
+	    return stream_cast_decode_error_(thr,
+		  "could not distribute the source bits into the destination");
+      }
+
+      thr->push_object(vvp_object_t(object));
+      return true;
 }
 
 bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
