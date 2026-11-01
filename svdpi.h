@@ -68,6 +68,10 @@ extern svScope svGetScopeFromName(const char* scopeName);
 extern const char* svGetNameFromScope(svScope scope);
 extern const char* svGetFullNameFromScope(const svScope scope);
 
+/* Store and retrieve user data associated with a scope and user key. */
+extern int   svPutUserData(const svScope scope, void *userKey, void *userData);
+extern void* svGetUserData(const svScope scope, void *userKey);
+
 /* Open-array queries (H.12.2). */
 extern int  svDimensions(const void*h);
 extern int  svSize(const void*h, int dim);      /* dim is 1 */
