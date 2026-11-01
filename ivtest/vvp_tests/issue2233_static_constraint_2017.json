@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2233_static_constraint.v",
+    "iverilog-args": [ "-g2017", "-s", "issue2233_static_constraint" ],
+    "gold": "issue2233_static_constraint"
+}

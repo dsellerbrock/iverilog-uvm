@@ -2432,7 +2432,28 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       vvp_vector4_t state_value;
       vvp_cobject*cur = b.cobj;
       string path_error;
+      bool static_read = false;
       if (!path.empty()) {
+	    /* A static property is class state, not state owned by the
+	     * intermediate handle. IEEE 1800-2017/2023 8.9 permits the
+	     * property selection even when that handle is null. */
+	    if (cur && path.size() == 2
+		&& path[0] < cur->get_defn()->property_count()) {
+		  const class_type*declared =
+			cur->get_defn()->property_declared_class_type(path[0]);
+		  if (declared && path[1] < declared->property_count()
+		      && declared->property_is_static(path[1])) {
+			declared->get_vec4(nullptr, path[1], state_value);
+			static_read = true;
+			if (state_value.size() == 0)
+			      path_error = "invalid static constraint property storage";
+		  }
+	    }
+	    if (!path_error.empty()) {
+		  b.state_errors.push_back(path_error);
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    }
+	    if (!static_read) {
 	    size_t next = 0;
 	    const class_type*defn = cur ? cur->get_defn() : nullptr;
 	    if (defn && path[0] < defn->property_count()
@@ -2470,6 +2491,7 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 	    if (path_error.empty()) {
 		  cur->get_vec4(path.back(), state_value);
 	    }
+	    }
       }
 
       if (!path_error.empty()) {
@@ -2477,7 +2499,7 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
             return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
       }
 
-      if (b.graph && cur && !path.empty())
+      if (!static_read && b.graph && cur && !path.empty())
             return scalar_property_ref_(b, b.graph->intern(cur, path.back()),
                                         width, sflag);
       Z3_ast val;
