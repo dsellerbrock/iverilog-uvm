@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2223_event_function_operand.sv",
+  "iverilog-args": ["-g2017", "-s", "issue2223_event_function_operand"],
+  "output-contains": ["PASSED"]
+}
