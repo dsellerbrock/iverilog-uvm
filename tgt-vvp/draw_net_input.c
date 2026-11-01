@@ -877,6 +877,12 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    if (ivl_scope_ports(user_resolver) == 2) {
 		  return_sig = ivl_scope_port(user_resolver, 0);
 		  formal_sig = ivl_scope_port(user_resolver, 1);
+	    } else if (ivl_scope_ports(user_resolver) == 3) {
+		  /* Class methods carry an implicit this port between their return
+		   * signal and explicit arguments. The frontend has already checked
+		   * that a class resolver is static, so its this value is unused. */
+		  return_sig = ivl_scope_port(user_resolver, 0);
+		  formal_sig = ivl_scope_port(user_resolver, 2);
 	    }
 	    if (!return_sig || !formal_sig
 		|| ivl_signal_data_type(formal_sig) != IVL_VT_DARRAY) {
