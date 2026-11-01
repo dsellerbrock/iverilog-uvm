@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2150_explicit_named_package_ports_2017 normal,-g2017,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
+issue2150_explicit_named_package_ports_2023 normal,-g2023,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
+
 issue765_vector_range_unknown_2017 CE,-g2017 ivltests gold=issue765_vector_range_unknown_2017.gold
 issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range_unknown_2023.gold
 
