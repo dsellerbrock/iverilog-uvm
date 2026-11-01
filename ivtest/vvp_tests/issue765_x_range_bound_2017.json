@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue765_x_range_bound_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue765_x_range_bound_2017"],
+  "gold": "issue765_x_range_bound_2017"
+}

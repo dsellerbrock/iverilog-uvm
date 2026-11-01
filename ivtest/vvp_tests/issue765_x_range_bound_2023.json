@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue765_x_range_bound_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue765_x_range_bound_2023"],
+  "gold": "issue765_x_range_bound_2023"
+}

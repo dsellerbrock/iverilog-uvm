@@ -1,0 +1,3 @@
+ivltests/issue765_x_range_bound_2023.v:3: error: Range bound must not contain any unknown (x) or high-impedance (z) bits.
+ivltests/issue765_x_range_bound_2023.v:2: error: Range bound must not contain any unknown (x) or high-impedance (z) bits.
+2 error(s) during elaboration.
