@@ -87,6 +87,14 @@ char* yytext_string_filter(const char*str, size_t str_len,
 		  if ((sidx+1 < str_len) && (str[sidx+1] == '\n')) {
 			sidx += 1;
 			didx -= 1;
+		  } else if (preserve_newlines && (sidx+1 < str_len)
+		             && (str[sidx+1] == '\\')) {
+			/* In a triple-quoted string, a backslash pair escapes itself.
+			 * Do not let its second backslash also escape a following newline. */
+			buf[didx] = str[sidx];
+			buf[didx+1] = str[sidx+1];
+			sidx += 1;
+			didx += 1;
 		  } else {
 			buf[didx] = str[sidx];
 		  }
