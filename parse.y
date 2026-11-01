@@ -4188,7 +4188,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     /* External class method definitions... */
 
   | K_extern method_qualifier_opt K_function K_new
-      { current_function = pform_push_constructor_scope(@4); }
+      { current_function = pform_push_constructor_scope(@4); current_function->set_extern_method_declaration(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($6);
 	pform_set_constructor_return(current_function);
@@ -4199,6 +4199,7 @@ class_item /* IEEE1800-2005: A.1.8 */
   | K_extern method_qualifier_opt class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void
     function_identifier
       { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($3); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
@@ -4210,6 +4211,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern method_qualifier_opt class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($3); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($6);
@@ -4220,6 +4222,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual K_function K_new
       { current_function = pform_push_constructor_scope(@4);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($6);
@@ -4230,6 +4233,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($3);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4242,6 +4246,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($3);
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4252,7 +4257,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $4;
       }
   | K_extern class_item_qualifier_opt method_qualifier_opt K_function K_new
-      { current_function = pform_push_constructor_scope(@5); }
+      { current_function = pform_push_constructor_scope(@5); current_function->set_extern_method_declaration(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
@@ -4264,6 +4269,7 @@ class_item /* IEEE1800-2005: A.1.8 */
   | K_extern class_item_qualifier_opt method_qualifier_opt class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void
     function_identifier
       { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($4); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
@@ -4276,6 +4282,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern class_item_qualifier_opt method_qualifier_opt class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($4); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
@@ -4287,6 +4294,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual class_item_qualifier_opt K_function K_new
       { current_function = pform_push_constructor_scope(@5);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
@@ -4298,6 +4306,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual class_item_qualifier_opt class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($4);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4311,6 +4320,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual class_item_qualifier_opt class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($4);
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4323,6 +4333,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern class_item_qualifier_opt K_virtual K_function K_new
       { current_function = pform_push_constructor_scope(@5);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
@@ -4334,6 +4345,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern class_item_qualifier_opt K_virtual class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($4);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4347,6 +4359,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern class_item_qualifier_opt K_virtual class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($4);
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4359,6 +4372,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_protected K_virtual K_function K_new
       { current_function = pform_push_constructor_scope(@5);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
@@ -4370,6 +4384,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual K_protected K_function K_new
       { current_function = pform_push_constructor_scope(@5);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
@@ -4381,6 +4396,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_protected K_virtual class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($4);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4394,6 +4410,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual K_protected class_item_method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_extern_method_declaration(true);
 	current_function->set_method_override_specifiers($4);
 	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4407,6 +4424,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_protected K_virtual class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($4);
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
@@ -4419,6 +4437,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_extern K_virtual K_protected class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_extern_method_declaration(true);
 	current_task->set_method_override_specifiers($4);
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'

@@ -6450,3 +6450,5 @@ issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fix
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold
 issue2120_class_handle_collections normal,-g2017,-s,main ivltests gold=issue2120_class_handle_collections.gold
 issue2120_class_handle_collections_2023 normal,-g2023,-s,main ivltests gold=issue2120_class_handle_collections.gold
+issue1215_duplicate_extern_method_2017 CE,-g2017 ivltests gold=issue1215_duplicate_extern_method_2017.gold
+issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplicate_extern_method_2023.gold
