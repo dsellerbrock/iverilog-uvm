@@ -1,0 +1,2 @@
+ivltests/sv_constraint_rand_real_inside_points_2017.v:2: error: property 'value' of class real_inside_2017 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+1 error(s) during elaboration.

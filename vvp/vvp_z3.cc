@@ -534,7 +534,8 @@ static bool constraint_inside_token_is_variable_(IRParser par)
 {
       string tok = par.read_token();
       return !tok.empty() && tok.compare(0, 3, "cw:") != 0
-	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 5, "qbad:") != 0
+	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 2, "f:") != 0
+	    && tok.compare(0, 5, "qbad:") != 0
 	    && tok.compare(0, 6, "qempty") != 0 && tok.compare(0, 2, "q:") != 0;
 }
 
@@ -1001,6 +1002,7 @@ struct Z3Builder {
       set<unsigned> real_ast_ids;
       map<unsigned, double> real_constants;
       map<unsigned, constraint_real_bounds_t> real_bounds;
+      map<unsigned, vector<double> > real_inside_points;
       bool collect_real_bounds = true;
 
       void mark_real(Z3_ast value) {
@@ -5771,10 +5773,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			}
 		  } else if (par.peek() == '(') {
 			Z3_ast v = build_z3_atom(par, b);
-			if (real_subject || b.is_real(v))
+			if (real_subject || b.is_real(v)) {
+			      double point = 0.0;
+			      if (real_subject && real_property != UINT_MAX
+				  && b.real_constant(v, point)
+				  && isfinite(point))
+				    b.real_inside_points[real_property].push_back(point);
 			      clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 				    z3_to_real_(b, subject), z3_to_real_(b, v)));
-			else {
+			} else {
 			      v = match_width(v);
 			      clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
 			}
@@ -5800,10 +5807,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      if (!value_parser.at_end())
 				    b.state_errors.push_back(
 					  "malformed real constraint inside member");
-			      if (real_subject || b.is_real(value))
+			      if (real_subject || b.is_real(value)) {
+				    double point = 0.0;
+				    uint64_t point_bits = strtoull(tok.c_str() + 2,
+					  nullptr, 10);
+				    memcpy(&point, &point_bits, sizeof point);
+				    if (real_subject && real_property != UINT_MAX
+					&& isfinite(point))
+					  b.real_inside_points[real_property].push_back(point);
 				    clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 					  z3_to_real_(b, subject), z3_to_real_(b, value)));
-			      else
+			      } else
 				    clauses.push_back(Z3_mk_eq(b.ctx,
 					  subj_at(value), value));
 			} else if (tok.compare(0, 3, "cw:") == 0) {
@@ -14073,9 +14087,36 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      "real-valued dist sampling is not supported";
 			return;
 		  }
-		  if (bounds == builder.real_bounds.end()
+		  bool real_sampled = false;
+		  auto points = builder.real_inside_points.find(pv.idx);
+		  if (points != builder.real_inside_points.end()) {
+			vector<uint64_t> feasible_points;
+			for (double point : points->second) {
+			      uint64_t point_bits = z3_real_bits_(point);
+			      if (find(feasible_points.begin(), feasible_points.end(),
+				       point_bits) != feasible_points.end()) continue;
+			      Z3_ast value = Z3_mk_unsigned_int64(
+				    ctx, point_bits, Z3_get_sort(ctx, pv.var));
+			      Z3_ast pin = Z3_mk_eq(ctx, pv.var, value);
+			      Z3_solver_push(ctx, base);
+			      Z3_solver_assert(ctx, base, pin);
+			      Z3_lbool result = Z3_solver_check(ctx, base);
+			      Z3_solver_pop(ctx, base, 1);
+			      if (result == Z3_L_UNDEF) {
+				    feasible_points.clear();
+				    break;
+			      }
+			      if (result == Z3_L_TRUE) feasible_points.push_back(point_bits);
+			}
+			if (!feasible_points.empty()) {
+			      bits = feasible_points[property_rng(pv.idx).uniform_u64(
+				    feasible_points.size())];
+			      real_sampled = true;
+			}
+		  }
+		  if (!real_sampled && (bounds == builder.real_bounds.end()
 		      || !z3_sample_real_candidate_(ctx, base, pv.var,
-			    bounds->second, property_rng(pv.idx), bits)) {
+			    bounds->second, property_rng(pv.idx), bits))) {
 			    real_sampling_failed = true;
 			    real_sampling_error =
 				  "no feasible binary64 value satisfies the finite real interval";
