@@ -9457,7 +9457,9 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 		  delete tmp;
 		  return 0;
 	    }
-	    uint64_t delay = des->scale_to_precision(fn.as_ulong64(), scope);
+	    uint64_t delay_value = fn.is_negative()
+		  ? verinum(fn, 64).as_ulong64() : fn.as_ulong64();
+	    uint64_t delay = des->scale_to_precision(delay_value, scope);
 
 	    delete tmp;
 	    NetEConst*tmp2 = new NetEConst(verinum(delay, 64));

@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue2177_negative_constant_delay.sv",
+  "iverilog-args": ["-g2023"],
+  "output-contains": [
+    "ISSUE2177_PARAM=18446744073709551613",
+    "ISSUE2177_VARIABLE=18446744073709551611"
+  ]
+}
