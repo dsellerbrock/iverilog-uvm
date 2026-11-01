@@ -14,6 +14,8 @@ issue1710_separate_setup_hold_2017 normal,-g2017,-gspecify,-s,main ivltests gold
 issue1710_separate_setup_hold_2023 normal,-g2023,-gspecify,-s,main ivltests gold=issue1710_separate_setup_hold_2023-vvp-stdout
 issue1825_foreach_index_bit_select_2017 normal,-g2017,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
 issue1825_foreach_index_bit_select_2023 normal,-g2023,-s,test ivltests gold=issue1825_foreach_index_bit_select.gold
+issue2094_rand_unconstrained_container_2017 normal,-g2017,-s,issue2094_rand_unconstrained_container ivltests gold=issue2094_rand_unconstrained_container.gold
+issue2094_rand_unconstrained_container_2023 normal,-g2023,-s,issue2094_rand_unconstrained_container ivltests gold=issue2094_rand_unconstrained_container.gold
 issue1827_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1827_packed_foreach.gold
 issue1827_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1827_packed_foreach.gold
 issue1838_scope_randomize_array_2017 normal,-g2017,-s,test ivltests gold=issue1838_scope_randomize_array.gold

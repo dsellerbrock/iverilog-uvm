@@ -6034,8 +6034,7 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	      // them). Pre-fill them here; a constrained solve may subsequently
 	      // replace the tentative value/mark with its authoritative model.
 	    if (rand_prop_is_container_(defn, pid)) {
-		  if (defn->property_is_randc(pid) && !bt.empty()
-		      && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
 			vvp_object_t object;
 			cobj->get_object(pid, object, 0);
 			if (vvp_darray*array = object.peek<vvp_darray>()) {
@@ -6044,7 +6043,7 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			      for (size_t position = 0;
 				   position < array->get_size(); position += 1) {
 				    if (!all_active
-					&& !cobj->rand_mode(pid, position))
+					  && !cobj->rand_mode_for_randomization(pid, position))
 					  continue;
 				    vvp_vector4_t value;
 				    array->get_word((unsigned)position, value);

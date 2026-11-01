@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2094_rand_unconstrained_container_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "output-contains" : [ "rand dynamic container elements randomized; sizes held" ]
+}
