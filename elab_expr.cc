@@ -13467,7 +13467,8 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	      // dynamic dimension (for example int a[3][][5]). Walk the unpacked
 	      // type layers so queries number every declared dimension, rather
 	      // than treating only the outermost array type as the whole shape.
-	      if (sub && (strcmp(name, "$unpacked_dimensions") == 0
+	      if (sub && !dynamic_cast<const netdarray_t*>(sub->net_type())
+		  && (strcmp(name, "$unpacked_dimensions") == 0
 		  || strcmp(name, "$size") == 0 || strcmp(name, "$high") == 0
 		  || strcmp(name, "$low") == 0 || strcmp(name, "$left") == 0
 		  || strcmp(name, "$right") == 0
