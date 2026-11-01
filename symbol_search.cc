@@ -377,7 +377,7 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			if (prefix_scope || (eve->lexical_pos() <= lexical_pos)) {
 			      path.push_back(path_tail);
 			      res->scope = scope;
-			      res->eve = eve;
+		      res->eve = eve->canonical_event();
 			      res->path_head = path;
 			      return true;
 			} else if (!res->decl_after_use) {

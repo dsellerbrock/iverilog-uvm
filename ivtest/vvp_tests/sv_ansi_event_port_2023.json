@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_ansi_event_port_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_ansi_event_port"],
+  "gold": "sv_ansi_event_port_2023"
+}

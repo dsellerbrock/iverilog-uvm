@@ -207,8 +207,10 @@ static struct {
       bool is_const;
       bool is_ref_static;
       bool checker_formals;
+      bool event_type;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false, false
+	NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false, false,
+	false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -1401,6 +1403,7 @@ void reset_parser_file_state(void)
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.checker_formals = false;
+      port_declaration_context.event_type = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -2153,6 +2156,7 @@ static void port_declaration_context_init(void)
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = false;
 }
 
 /* IEEE 1800-2017/2023 6.4: unpacked arrays and unpacked structures are
@@ -2251,6 +2255,42 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = false;
+
+      return port;
+}
+
+static Module::port_t *module_declare_event_port(
+				    const YYLTYPE&loc, char*id,
+				    NetNet::PortType port_type,
+				    std::list<pform_range_t>*unpacked_dims,
+				    PExpr*default_value)
+{
+      pform_ident_t name = { lex_strings.make(id), loc.lexical_pos };
+      delete[] id;
+
+      if (unpacked_dims) {
+	    yyerror(loc, "sorry: Unpacked event ports are not supported.");
+	    delete unpacked_dims;
+      }
+      if (default_value) {
+	    yyerror(loc, "sorry: Default values on event ports are not supported.");
+	    delete default_value;
+      }
+
+      pform_make_event_port(loc, name);
+      Module::port_t*port = pform_module_port_reference(loc, name.first);
+      port->event_port = true;
+      port->event_direction = port_type;
+
+      port_declaration_context.port_type = port_type;
+      port_declaration_context.port_net_type = NetNet::IMPLICIT;
+      port_declaration_context.data_type = nullptr;
+      port_declaration_context.user_nettype = nullptr;
+      port_declaration_context.interconnect = false;
+      port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = true;
 
       return port;
 }
@@ -2278,6 +2318,7 @@ static Module::port_t *module_declare_nettype_port(
       port_declaration_context.user_nettype = nettype;
       port_declaration_context.interconnect = false;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = false;
       return port;
 }
 
@@ -2304,6 +2345,7 @@ static Module::port_t *module_declare_interconnect_port(
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = true;
       port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = false;
       return port;
 }
 
@@ -2313,6 +2355,10 @@ static Module::port_t *module_declare_port_continuation(
                                     PExpr*default_value,
                                     std::list<named_pexpr_t>*attributes)
 {
+      if (port_declaration_context.event_type)
+	    return module_declare_event_port(
+		  loc, id, port_declaration_context.port_type,
+		  unpacked_dims, default_value);
       if (port_declaration_context.user_nettype)
             return module_declare_nettype_port(
                   loc, id, port_declaration_context.port_type,
@@ -16198,6 +16244,7 @@ list_of_port_declarations
         port_declaration_context.data_type = nullptr;
         port_declaration_context.user_nettype = nullptr;
         port_declaration_context.interconnect = false;
+        port_declaration_context.event_type = false;
       }
   | list_of_port_declarations ','
       { yyerror(@2, "error: Superfluous comma in port declaration list."); }
@@ -16246,7 +16293,14 @@ parameterized_class_scoped_type_identifier
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
-  : port_direction NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+  : port_direction K_event IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_event_port(@3, $3, $1, $4, $5); }
+  | K_event IDENTIFIER dimensions_opt initializer_opt
+      { pform_requires_sv(@1, "ANSI event port");
+	$$ = module_declare_event_port(
+	      @2, $2, port_declaration_context.port_type, $3, $4);
+      }
+  | port_direction NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
       { pform_set_nettype_referenced(@2, $2.text);
 	$$ = module_declare_nettype_port(@3, $3, $1, $2.type,
 					 $4, $5, nullptr);
