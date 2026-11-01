@@ -29,6 +29,7 @@
 # include  <limits>
 # include  "netlist.h"
 # include  "PClass.h"
+# include  "PPackage.h"
 # include  "netparray.h"
 # include  "netvector.h"
 # include  "netenum.h"
@@ -2922,6 +2923,38 @@ NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
 {
       if (!pe)
 	    return nullptr;
+
+	  /* $printtimescale's $unit argument is a package scope, not a value
+	     expression. Preserve it as a scope handle for the VPI task. */
+	  if (name == "$printtimescale") {
+		const PECallFunction*root_arg =
+		      dynamic_cast<const PECallFunction*>(pe);
+		if (root_arg && root_arg->receiver_expr() == nullptr
+		    && root_arg->path().package == nullptr
+		    && root_arg->path().name.size() == 1
+		    && root_arg->path().name.front().name
+			 == perm_string::literal("$root")
+		    && root_arg->get_parms().empty()) {
+		      NetECString*result = new NetECString(std::string("$root"));
+		      result->set_line(*pe);
+		      return result;
+		}
+
+		const PEIdent*package_arg = dynamic_cast<const PEIdent*>(pe);
+		if (package_arg) {
+		      const pform_scoped_name_t&path = package_arg->path();
+		      if (path.package && path.name.size() == 1
+			  && path.name.front().name == path.package->pscope_name()) {
+			    NetScope*target = des->find_package(
+				  path.package->pscope_name());
+			    if (target) {
+				  NetEScope*result = new NetEScope(target);
+				  result->set_line(*pe);
+				  return result;
+			    }
+		      }
+		}
+	  }
 
       PExpr::width_mode_t mode = PExpr::SIZED;
       pe->test_width(des, scope, mode);

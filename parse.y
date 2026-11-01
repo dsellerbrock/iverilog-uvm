@@ -19486,6 +19486,32 @@ subroutine_call
 	delete $6;
 	$$ = tmp;
       }
+
+  /* IEEE 1800-2023 20.4.2 permits $unit and $root as design-element
+     arguments to $printtimescale. They are scopes, not value expressions,
+     so preserve their identity instead of passing the ordinary expression
+     forms through VPI. */
+  | SYSTEM_IDENTIFIER '(' PACKAGE_IDENTIFIER ')'
+	{ if (strcmp($1, "$printtimescale") != 0)
+	      yyerror(@1, "error: A package scope argument is only valid for "
+		      "$printtimescale.");
+	  pform_name_t path;
+	  path.push_back(name_component_t($3->pscope_name()));
+	  PEIdent*scope_arg = new PEIdent($3, path, @3.lexical_pos);
+	  FILE_NAME(scope_arg, @3);
+	  std::list<named_pexpr_t> parms;
+	  named_pexpr_t parm;
+	  FILE_NAME(&parm, @3);
+	  parm.name = perm_string();
+	  parm.parm = scope_arg;
+	  parms.push_back(parm);
+	  pform_name_t name;
+	  name.push_back(name_component_t(lex_strings.make($1)));
+	  PCallTask*tmp = new PCallTask(name, parms);
+	  FILE_NAME(tmp, @1);
+	  delete[]$1;
+	  $$ = tmp;
+	}
   | SYSTEM_IDENTIFIER argument_list_parens_opt
 	{ if (strcmp($1, "$dumpports") == 0) gn_dumpports_flag = true;
 	PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);

@@ -1,0 +1,4 @@
+Time scale of ($root) is 10fs / 10fs
+Time scale of ($unit) is 100ps / 10fs
+PASSED
+./ivltests/issue926_printtimescale_scopes_2017.v:10: $finish called at 0 (10fs)

@@ -3,6 +3,8 @@
 
 issue765_vector_range_unknown_2017 CE,-g2017 ivltests gold=issue765_vector_range_unknown_2017.gold
 issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range_unknown_2023.gold
+issue926_printtimescale_scopes_2017 normal,-g2017,-s,issue926_printtimescale_scopes ivltests gold=issue926_printtimescale_scopes_2017.gold
+issue926_printtimescale_scopes_2023 normal,-g2023,-s,issue926_printtimescale_scopes ivltests gold=issue926_printtimescale_scopes_2023.gold
 
 issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
 issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
