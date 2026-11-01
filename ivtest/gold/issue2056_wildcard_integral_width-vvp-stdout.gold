@@ -1,0 +1,2 @@
+entries=1 at_4=80
+ivltests/issue2056_wildcard_integral_width.v:7: $finish called at 0 (1s)
