@@ -4985,20 +4985,19 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    unsigned expression_context = saved_width;
 	    bool result_signed = false;
 	    bool typed = b.integral_typed_mode;
-	    if (typed) {
-		  IRParser types = par;
-		  constraint_integral_type_t condition_type, yes_type, no_type;
-		  if (!infer_constraint_integral_type_(types, condition_type)
-		      || !infer_constraint_integral_type_(types, yes_type)
-		      || !infer_constraint_integral_type_(types, no_type)) {
-			b.state_errors.push_back(
-			      "unsupported typed conditional in constraint cast");
-		  } else {
-			expression_context = max(saved_width,
-			      max(yes_type.width, no_type.width));
-			result_signed = saved_sign >= 0 ? saved_sign != 0
-			      : yes_type.sign && no_type.sign;
-		  }
+	    IRParser types = par;
+	    constraint_integral_type_t condition_type, yes_type, no_type;
+	    bool inferred_type = infer_constraint_integral_type_(types, condition_type)
+		&& infer_constraint_integral_type_(types, yes_type)
+		&& infer_constraint_integral_type_(types, no_type);
+	    if (!inferred_type) {
+		  if (typed) b.state_errors.push_back(
+			"unsupported typed conditional in constraint cast");
+	    } else {
+		  expression_context = max(saved_width,
+			max(yes_type.width, no_type.width));
+		  result_signed = saved_sign >= 0 ? saved_sign != 0
+			: yes_type.sign && no_type.sign;
 	    }
 	    b.integral_context_width = 0; // condition is self-determined
 	    b.integral_context_sign = -1;
@@ -5053,12 +5052,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  return Z3_mk_ite(b.ctx, cond, yes, no);
 	    yes = bool_to_bv1(b.ctx, yes);
 	    no = bool_to_bv1(b.ctx, no);
+	    if (!typed && !inferred_type)
+		  result_signed = saved_sign >= 0 ? saved_sign != 0
+			: b.is_signed(yes) && b.is_signed(no);
 	    unsigned sw = b.sv_of(yes);
 	    if (b.sv_of(no) > sw) sw = b.sv_of(no);
 	    if (expression_context > sw) sw = expression_context;
             // Both arms determine the common type, including the unchosen
             // arm (IEEE 1800-2017/2023 11.6.1, 11.8.1, 11.8.2).
-	    if (!typed) result_signed = b.is_signed(yes) && b.is_signed(no);
 	    yes = b.coerce_in_context(yes, sw, result_signed);
 	    no = b.coerce_in_context(no, sw, result_signed);
 	    Z3_ast out = Z3_mk_ite(b.ctx, cond, yes, no);
@@ -5223,7 +5224,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  b.integral_context_sign = expression_sign;
 	    }
 	    par.skip_ws(); par.expect(')');
-	    bool result_signed = typed ? typed_sign : b.is_signed(left);
+	    bool result_signed = typed ? typed_sign
+		  : b.integral_context_sign >= 0
+			? b.integral_context_sign != 0 : b.is_signed(left);
 
 	    unsigned sw = b.sv_of(left);
 	    if (expression_context > sw) sw = expression_context;
@@ -5298,7 +5301,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    // only when both operands are signed. This common context also
 	    // controls how both operands extend before the operation.
 	    bool result_signed = typed ? typed_sign
-		  : b.is_signed(left) && b.is_signed(right);
+		  : b.integral_context_sign >= 0
+			? b.integral_context_sign != 0
+			: b.is_signed(left) && b.is_signed(right);
 
 	    unsigned sv = b.sv_of(left);
 	    if (b.sv_of(right) > sv) sv = b.sv_of(right);
@@ -5379,7 +5384,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    unsigned width = b.sv_of(arg);
 	    if (b.integral_context_width > width)
 		  width = b.integral_context_width;
-	    bool result_signed = typed && b.integral_context_sign >= 0
+	    bool result_signed = b.integral_context_sign >= 0
 		  ? b.integral_context_sign != 0
 		  : typed && type_ok ? inferred.sign : b.is_signed(arg);
 	    arg = b.coerce_in_context(arg, width, result_signed);
@@ -5411,7 +5416,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    if (typed) sw = typed_width;
 	    else if (b.integral_context_width > sw) sw = b.integral_context_width;
 	    bool result_signed = typed ? typed_sign
-		  : b.is_signed(left) && b.is_signed(right);
+		  : b.integral_context_sign >= 0
+			? b.integral_context_sign != 0
+			: b.is_signed(left) && b.is_signed(right);
 	    left = b.coerce_in_context(left, sw, result_signed);
 	    right = b.coerce_in_context(right, sw, result_signed);
 	    Z3_ast out = op == "band" ? Z3_mk_bvand(b.ctx, left, right)
@@ -5446,7 +5453,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    par.skip_ws(); par.expect(')');
 	    unsigned lw = b.sv_of(left);
 	    if (expression_context > lw) lw = expression_context;
-	    bool result_signed = typed ? typed_sign : b.is_signed(left);
+	    bool result_signed = typed ? typed_sign
+		  : b.integral_context_sign >= 0
+			? b.integral_context_sign != 0 : b.is_signed(left);
 	    left = b.coerce_in_context(left, lw, result_signed);
 	    right = b.coerce(right, lw);
 	    Z3_ast out = op == "shl" ? Z3_mk_bvshl(b.ctx, left, right)
@@ -5469,7 +5478,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    unsigned width = b.sv_of(arg);
 	    if (b.integral_context_width > width)
 		  width = b.integral_context_width;
-	    bool result_signed = typed && b.integral_context_sign >= 0
+	    bool result_signed = b.integral_context_sign >= 0
 		  ? b.integral_context_sign != 0
 		  : typed && type_ok ? inferred.sign : b.is_signed(arg);
 	    arg = b.coerce_in_context(arg, width, result_signed);
@@ -5576,22 +5585,23 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	  || op == "eq" || op == "ne") {
 	    unsigned outer_context = b.integral_context_width;
 	    int outer_sign = b.integral_context_sign;
-	    if (b.integral_typed_mode) {
-		  IRParser types = par;
-		  constraint_integral_type_t left_type, right_type;
-		  if (!infer_constraint_integral_type_(types, left_type)
-		      || !infer_constraint_integral_type_(types, right_type)) {
-			b.state_errors.push_back(
-			      "unsupported typed comparison in constraint cast");
-			b.integral_context_width = 0;
-			b.integral_context_sign = -1;
-		  } else {
-			b.integral_context_width = max(left_type.width, right_type.width);
-			b.integral_context_sign = left_type.sign && right_type.sign ? 1 : 0;
-		  }
-	    } else {
+	    IRParser types = par;
+	    constraint_integral_type_t left_type, right_type;
+	    bool inferred_type = infer_constraint_integral_type_(types, left_type)
+		&& infer_constraint_integral_type_(types, right_type);
+	    if (!inferred_type) {
+		  if (b.integral_typed_mode) b.state_errors.push_back(
+			"unsupported typed comparison in constraint cast");
 		  b.integral_context_width = 0;
 		  b.integral_context_sign = -1;
+	    } else {
+		  /* IEEE 1800-2017/2023 11.8.2: equality and relational operands
+		   * determine a common context from their self-determined widths and
+		   * signedness, then propagate that context into context-determined
+		   * subexpressions. Preserve it while building both operands so an
+		   * unsigned peer makes nested arithmetic zero-extend signed leaves. */
+		  b.integral_context_width = max(left_type.width, right_type.width);
+		  b.integral_context_sign = left_type.sign && right_type.sign ? 1 : 0;
 	    }
 	    Z3_ast left  = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);

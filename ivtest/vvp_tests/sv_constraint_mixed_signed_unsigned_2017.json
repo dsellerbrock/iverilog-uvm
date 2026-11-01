@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_mixed_signed_unsigned.v",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASS mixed signed/unsigned constraint context"]
+}
