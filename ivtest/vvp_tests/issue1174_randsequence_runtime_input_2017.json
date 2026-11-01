@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randsequence_nonconstant_actual_fail.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue1174_randsequence_runtime_input"
+}

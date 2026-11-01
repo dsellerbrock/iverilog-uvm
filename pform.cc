@@ -7955,13 +7955,16 @@ static void pform_rs_mark_conditions_strict_(Statement*stmt)
 struct pform_rs_expand_ctx_t {
       const struct vlltype&loc;
       std::map<perm_string,rs_production_t*>&pmap;
+      LexicalScope* lexical_parent;
       std::set<perm_string> active;
       size_t nodes = 0;
+      unsigned scope_id = 0;
       bool bad = false;
 
       pform_rs_expand_ctx_t(const struct vlltype&l,
-			    std::map<perm_string,rs_production_t*>&m)
-      : loc(l), pmap(m) { }
+			    std::map<perm_string,rs_production_t*>&m,
+			    LexicalScope*parent)
+      : loc(l), pmap(m), lexical_parent(parent) { }
 };
 
 static bool pform_rs_budget_(pform_rs_expand_ctx_t&ctx)
@@ -8000,36 +8003,15 @@ static PBlock* pform_rs_block_(const struct vlltype&where,
       return blk;
 }
 
-static bool pform_rs_constant_actual_(PExpr*expr)
+static PBlock* pform_rs_scope_(pform_rs_expand_ctx_t&ctx)
 {
-      if (!expr) return false;
-      if (dynamic_cast<PENumber*>(expr) || dynamic_cast<PEFNumber*>(expr)
-	  || dynamic_cast<PEString*>(expr) || dynamic_cast<PETypename*>(expr))
-	    return true;
-      if (PEUnary*un = dynamic_cast<PEUnary*>(expr))
-	    return pform_rs_constant_actual_(un->get_expr());
-      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr))
-	    return pform_rs_constant_actual_(bin->get_left())
-		&& pform_rs_constant_actual_(bin->get_right());
-      if (PETernary*ter = dynamic_cast<PETernary*>(expr))
-	    return pform_rs_constant_actual_(ter->get_cond())
-		&& pform_rs_constant_actual_(ter->get_true())
-		&& pform_rs_constant_actual_(ter->get_false());
-      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_size())
-		&& pform_rs_constant_actual_(cast->cast_base());
-      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_base());
-      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_base());
-      if (PEConcat*cat = dynamic_cast<PEConcat*>(expr)) {
-	    if (cat->has_repeat()
-		&& !pform_rs_constant_actual_(cat->repeat_expr())) return false;
-	    for (PExpr*part : cat->stream_parms())
-		  if (!pform_rs_constant_actual_(part)) return false;
-	    return true;
-      }
-      return false;
+      char name[48];
+      snprintf(name, sizeof name, "$__ivl_randsequence_%u", ctx.scope_id++);
+      PBlock*scope = new PBlock(lex_strings.make(name),
+				ctx.lexical_parent, PBlock::BL_SEQ);
+      FILE_NAME(scope, ctx.loc);
+      scope->default_lifetime = LexicalScope::AUTOMATIC;
+      return scope;
 }
 
 static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
@@ -8043,7 +8025,10 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 				   const rs_production_t&prod,
 				   const std::list<named_pexpr_t>*actuals,
 				   const std::map<perm_string,PExpr*>*outer,
-				   std::map<perm_string,PExpr*>&bound)
+				   std::map<perm_string,PExpr*>&bound,
+				   PBlock*scope,
+				   std::vector<Statement*>&initializers,
+				   perm_string local_prefix = perm_string())
 {
       const size_t count = prod.formals ? prod.formals->size() : 0;
       std::vector<PExpr*> values(count, nullptr);
@@ -8078,13 +8063,9 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    values[idx] = actual.parm
 		? sva_clone_subst_(actual.parm, outer) : nullptr;
-	    const bool input_formal =
-		(*prod.formals)[idx].direction == NetNet::PINPUT;
-	    if (!values[idx]
-		|| (input_formal && !pform_rs_constant_actual_(values[idx]))) {
-		  cerr << ctx.loc << ": sorry: randsequence input actuals must be "
-		       << "side-effect-free constant expressions; production `"
-		       << prod.name << "' has a nonconstant actual." << endl;
+	    if (!values[idx]) {
+		  cerr << ctx.loc << ": error: randsequence actual for production `"
+		       << prod.name << "' cannot be represented." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
       }
@@ -8106,15 +8087,43 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    if (!values[idx] && formal.default_expr)
 		  values[idx] = sva_clone_subst_(formal.default_expr, &bound);
-	    if (!values[idx] || (formal.direction == NetNet::PINPUT
-				  && !pform_rs_constant_actual_(values[idx]))) {
+	    if (!values[idx]) {
 		  cerr << ctx.loc << ": error: randsequence production `"
-		       << prod.name << "' has no constant actual for formal `"
+		       << prod.name << "' has no actual for formal `"
 		       << formal.name << "'." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
-	    bound[formal.name] = values[idx];
-	    values[idx] = nullptr;
+	    if (formal.direction == NetNet::PINPUT) {
+		  if (!scope || !formal.type) {
+			cerr << formal.get_fileline() << ": sorry: randsequence input "
+			     << "formal storage is not available for this production."
+			     << endl;
+			error_count += 1; ctx.bad = true; break;
+		  }
+		  perm_string local_name = formal.name;
+		  if (!local_prefix.nil()) {
+			char buffer[128];
+			snprintf(buffer, sizeof buffer, "%s_%s",
+				 local_prefix.str(), formal.name.str());
+			local_name = lex_strings.make(buffer);
+		  }
+		  PWire*wire = new PWire(local_name, 0, NetNet::REG,
+					 NetNet::NOT_A_PORT, SR_NET);
+		  wire->set_line(formal);
+		  wire->lifetime_override(IVL_VLT_AUTOMATIC);
+		  wire->set_data_type(new type_reference_t(formal.type));
+		  scope->wires[local_name] = wire;
+		  scope->local_symbols[local_name] = wire;
+		  PExpr*lhs = new PEIdent(local_name, 0, true);
+		  PAssign*init = new PAssign(lhs, values[idx]);
+		  init->set_line(formal);
+		  initializers.push_back(init);
+		  values[idx] = nullptr;
+		  bound[formal.name] = new PEIdent(local_name, 0, true);
+	    } else {
+		  bound[formal.name] = values[idx];
+		  values[idx] = nullptr;
+	    }
       }
       for (PExpr*value : values) delete value;
       if (ctx.bad) pform_rs_delete_subst_(bound);
@@ -8374,12 +8383,26 @@ static Statement* pform_rs_expand_join_(
       if (!pform_rs_join_probability_(ctx, item.expr, outer,
 				      stay_probability)) return nullptr;
 
-      std::vector<pform_rs_join_lane_t> lanes;
       if (!item.join_items || item.join_items->size() < 2) {
 	    cerr << ctx.loc << ": error: randsequence rand join requires at "
 		 << "least two productions." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
+
+      std::vector<pform_rs_join_lane_t> lanes;
+      bool has_input_formals = false;
+      for (const rs_item_t&call : *item.join_items) {
+	    std::map<perm_string,rs_production_t*>::const_iterator found =
+		  ctx.pmap.find(call.name);
+	    if (found != ctx.pmap.end() && found->second->formals)
+		  for (const rs_formal_t&formal : *found->second->formals)
+			if (formal.direction == NetNet::PINPUT)
+			      has_input_formals = true;
+      }
+      PBlock*join_scope = has_input_formals ? pform_rs_scope_(ctx) : nullptr;
+      std::vector<Statement*> initializers;
+      LexicalScope*saved_parent = ctx.lexical_parent;
+      if (join_scope) ctx.lexical_parent = join_scope;
       for (const rs_item_t&call : *item.join_items) {
 	    std::map<perm_string,rs_production_t*>::iterator found =
 		  ctx.pmap.find(call.name);
@@ -8405,10 +8428,15 @@ static Statement* pform_rs_expand_join_(
 	    pform_rs_join_lane_t lane;
 	    lane.production = prod;
 	    lane.rule = &rule;
+	    char prefix[48];
+	    snprintf(prefix, sizeof prefix, "$lane_%lu",
+		     (unsigned long)lanes.size());
 	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
-					  lane.subst)) break;
+					  lane.subst, join_scope, initializers,
+					  lex_strings.make(prefix))) break;
 	    lanes.push_back(lane);
       }
+      ctx.lexical_parent = saved_parent;
       if (ctx.bad) {
 	    for (pform_rs_join_lane_t&lane : lanes)
 		  pform_rs_delete_subst_(lane.subst);
@@ -8417,9 +8445,11 @@ static Statement* pform_rs_expand_join_(
 
       std::vector<size_t> positions(lanes.size(), 0), order;
       std::vector<pform_rs_join_schedule_t> schedules;
+      if (join_scope) ctx.lexical_parent = join_scope;
       pform_rs_join_schedules_(ctx, lanes, positions, -1,
 				      stay_probability, 1.0, order, schedules);
       if (ctx.bad) {
+	    ctx.lexical_parent = saved_parent;
 	    for (pform_rs_join_lane_t&lane : lanes)
 		  pform_rs_delete_subst_(lane.subst);
 	    return nullptr;
@@ -8452,11 +8482,22 @@ static Statement* pform_rs_expand_join_(
 	    (*branches)[0]->stat = nullptr;
 	    delete (*branches)[0];
 	    delete branches;
-	    return only;
+	    if (join_scope) {
+		  initializers.push_back(only);
+		  join_scope->set_statement(initializers);
+	    }
+	    ctx.lexical_parent = saved_parent;
+	    return join_scope ? static_cast<Statement*>(join_scope) : only;
       }
       PRandCase*choice = new PRandCase(branches);
       choice->set_line(item);
-      return choice;
+      if (join_scope) {
+	    std::vector<Statement*> body = initializers;
+	    body.push_back(choice);
+	    join_scope->set_statement(body);
+      }
+      ctx.lexical_parent = saved_parent;
+      return join_scope ? static_cast<Statement*>(join_scope) : choice;
 }
 
 static Statement* pform_rs_expand_item_(
@@ -8572,12 +8613,22 @@ static Statement* pform_rs_expand_production_(
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
 
+      bool has_input_formals = false;
+      if (prod.formals) for (const rs_formal_t&formal : *prod.formals)
+	    if (formal.direction == NetNet::PINPUT) has_input_formals = true;
+      PBlock*scope = has_input_formals ? pform_rs_scope_(ctx) : nullptr;
+      if (scope) scope->randsequence_block(IVL_RANDSEQ_BLOCK_PRODUCTION);
+
       std::map<perm_string,PExpr*> subst;
-      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst))
+      std::vector<Statement*> initializers;
+      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst,
+				      scope, initializers))
 	    return nullptr;
       ctx.active.insert(name);
 
       Statement*body = nullptr;
+      LexicalScope*saved_parent = ctx.lexical_parent;
+      if (scope) ctx.lexical_parent = scope;
       if (!prod.rules || prod.rules->empty()) {
 	    std::vector<Statement*> empty;
 	    body = pform_rs_block_(ctx.loc, empty);
@@ -8604,12 +8655,19 @@ static Statement* pform_rs_expand_production_(
 	    FILE_NAME(choice, ctx.loc);
 	    body = choice;
       }
+      ctx.lexical_parent = saved_parent;
       ctx.active.erase(name);
       pform_rs_delete_subst_(subst);
 
+      if (scope) {
+	    if (body) initializers.push_back(body);
+	    scope->set_statement(initializers);
+	    body = scope;
+      }
       std::vector<Statement*> one;
       if (body) one.push_back(body);
-      return pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
+      return scope ? pform_rs_block_(ctx.loc, one)
+	    : pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
 }
 
 static void pform_rs_destroy_item_(rs_item_t&item)
@@ -8688,7 +8746,7 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       }
 
       perm_string start_name = start.nil() ? prods->front().name : start;
-      pform_rs_expand_ctx_t ctx(loc, pmap);
+      pform_rs_expand_ctx_t ctx(loc, pmap, lexical_scope);
       ctx.bad = duplicate;
       if (!ctx.bad) {
 	    Statement*body = pform_rs_expand_production_(ctx, start_name,
