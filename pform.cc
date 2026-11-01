@@ -29066,6 +29066,23 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
       if (prop && prop->tree) {
+	    /* IEEE 1800-2017/2023 16.12.22(a): a sequence used as a
+	       property must be nondegenerate. An empty language is already
+	       proven on the source tree (for example, intersect operands with
+	       different fixed lengths); reject it before either assertion
+	       engine can turn it into a checker that never matches. For an
+	       implication, `tree' is the sequence/property consequent. */
+	    if (!prop->sequence_cover && prop->op_type <= 2
+		&& sva_tree_proves_empty_(prop->tree)) {
+		  cerr << loc << ": error: a sequence used as a property shall be "
+		       << "nondegenerate (IEEE 1800-2017/2023 16.12.22(a))."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(prop);
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  return;
+	    }
 	      /* The endpoint-method (.triggered/.matched) lowering must
 	         also cover combinator-tree leaf chains -- the tree
 	         dispatch used to bypass it, leaving the references
