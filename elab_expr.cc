@@ -66,6 +66,42 @@ bool pform_type_operator_context = false;
 
 using namespace std;
 
+/* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
+ * 1800-2023, nonsingular arguments use assignment compatibility instead.
+ * Packed arrays and packed records are singular; unpacked arrays and
+ * unpacked records are aggregate values. */
+static bool cast_expr_is_singular_(const NetExpr*expr)
+{
+      if (!expr) return true;
+
+      ivl_type_t type = expr->net_type();
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return array->packed();
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type))
+	    return record->packed();
+
+      if (expr->expr_type() == IVL_VT_DARRAY
+	  || expr->expr_type() == IVL_VT_QUEUE)
+	    return false;
+      return true;
+}
+
+static bool cast_operands_nonsingular_(const NetExpr*dest,
+				       const NetExpr*source)
+{
+      return !cast_expr_is_singular_(dest)
+	    || !cast_expr_is_singular_(source);
+}
+
+static bool cast_operands_assignment_compatible_(const NetExpr*dest,
+						 const NetExpr*source)
+{
+      ivl_type_t dest_type = dest ? dest->net_type() : nullptr;
+      ivl_type_t source_type = source ? source->net_type() : nullptr;
+      return dest_type && source_type
+	    && dest_type->type_compatible(source_type);
+}
+
 extern bool rewrite_nested_class_clocking_member_path(
       const PEIdent*, Design*, NetScope*, const symbol_search_results&,
       pform_name_t&, perm_string*, bool*);
@@ -13587,8 +13623,15 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	   methods use); the $cast VPI implementation validates the source
 	   value against the member list and fails the cast on mismatch. */
       const netenum_t*cast_enum_type = nullptr;
-      if (strcmp(name, "$cast") == 0 && nparms == 2) {
+      // A hidden status argument makes the assignment-compatibility result
+      // available to the VPI implementation for non-class destinations. Keep
+      // class destinations on their dedicated lowering, whose argument shape
+      // is part of the target interface.
+      ivl_type_t cast_dest_type = nullptr;
+      const bool cast_call = strcmp(name, "$cast") == 0 && nparms == 2;
+      if (cast_call) {
 	    if (PEIdent*did = dynamic_cast<PEIdent*>(parms_[0].parm)) {
+		  cast_dest_type = did->test_type_of_ident(des, scope);
 		  symbol_search_results dsr;
 		  if (symbol_search(this, des, scope, did->path(),
 				    did->lexical_pos(), &dsr)
@@ -13596,17 +13639,33 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			/* $cast writes its first argument through VPI. A function's
 			 * implicit return needs signal storage for that write. */
 			materialize_ref_return(dsr.net);
-			cast_enum_type =
-			      dynamic_cast<const netenum_t*>(dsr.net->net_type());
+			cast_dest_type = dsr.net->net_type();
 		  }
-		  if (!cast_enum_type)
-			cast_enum_type = dynamic_cast<const netenum_t*>(
-			      did->test_type_of_ident(des, scope));
+		  /* test_type_of_ident() can leave a dynamic/queue array type in
+		     place for an indexed element lvalue. Resolve those remaining
+		     indices here so class-array element casts keep the dedicated
+		     class-handle lowering instead of receiving aggregate metadata. */
+		  unsigned index_count = 0;
+		  for (const name_component_t&component : did->path().name)
+			index_count += component.index.size();
+		  while (index_count != 0) {
+			const netarray_t*array =
+			      dynamic_cast<const netarray_t*>(cast_dest_type);
+			if (!array) break;
+			cast_dest_type = array->element_type();
+			index_count -= 1;
+		  }
+		  cast_enum_type =
+			  dynamic_cast<const netenum_t*>(cast_dest_type);
 	    }
       }
 
+      const bool cast_status_arg = cast_call && cast_dest_type
+		&& !dynamic_cast<const netclass_t*>(cast_dest_type);
+
       NetESFunc*fun = new NetESFunc(name, expr_type_, expr_width_,
-				    nparms + (cast_enum_type ? 1 : 0),
+				    nparms + (cast_enum_type ? 1 : 0)
+				    + (cast_status_arg ? 1 : 0),
 				    is_overridden_);
       fun->set_line(*this);
       if (cast_enum_type) {
@@ -13747,6 +13806,27 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       if (missing_parms || parm_errors)
             return 0;
+
+      if (cast_call) {
+	    const bool nonsingular =
+		  cast_operands_nonsingular_(fun->parm(0), fun->parm(1));
+	    if (nonsingular && generation_flag < GN_VER2023) {
+		  cerr << get_fileline() << ": error: The arguments to $cast must be "
+			  "singular (IEEE 1800-2017 6.24.2)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (cast_status_arg) {
+		  const bool compatible = !nonsingular
+			  || cast_operands_assignment_compatible_(
+				fun->parm(0), fun->parm(1));
+		  NetEConst*status = new NetEConst(verinum(
+			  static_cast<uint64_t>(0x49560000u
+					| (compatible ? 1u : 0u)), 32));
+		  status->set_line(*this);
+		  fun->parm(nparms + (cast_enum_type ? 1 : 0), status);
+	    }
+      }
 
       return pad_to_width(fun, expr_wid, signed_flag_, *this);
 }
