@@ -30989,6 +30989,17 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.terminal = out.args.size() == 1 && out.args[0].terminal;
 	    return out;
       }
+      if (out.op == "cast" && out.args.size() == 3
+	  && out.args[0].is_constant && out.args[1].is_constant
+	  && out.args[0].constant_value > 0
+	  && out.args[0].constant_value <= UINT_MAX
+	  && out.args[1].constant_value <= 1) {
+	    out.width = (unsigned)out.args[0].constant_value;
+	    out.is_signed = out.args[1].constant_value == 1;
+	    out.self_safe = out.args[2].self_safe;
+	    out.terminal = out.args[2].terminal;
+	    return out;
+      }
       if (out.op == "trunc-real" || out.op == "tolerance-range") {
 	    if (out.args.size() == 3 && out.args[0].is_constant
 		&& out.args[1].is_constant
@@ -38719,13 +38730,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		      }
 			      if (cur) {
 				    unsigned mw = cur->packed_width();
-				    if (mw == 1)
-					  return "(bit " + base + " c:"
-						+ to_string(offset) + ")";
-				    if (mw > 1)
-					  return "(part " + base + " c:"
-						+ to_string(offset + mw - 1)
-						+ " c:" + to_string(offset) + ")";
+				    if (mw > 0) {
+					  string member_ir = mw == 1
+						? "(bit " + base + " c:"
+						  + to_string(offset) + ")"
+						: "(part " + base + " c:"
+						  + to_string(offset + mw - 1)
+						  + " c:" + to_string(offset) + ")";
+					  if (cur->get_signed())
+						return "(cast c:" + to_string(mw)
+						      + " c:1 " + member_ir + ")";
+					  return member_ir;
+				    }
 			      }
 			}
 		  }

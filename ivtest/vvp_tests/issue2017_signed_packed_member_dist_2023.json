@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2017_signed_packed_member_dist.v",
+  "iverilog-args": ["-g2023", "-sissue2017_signed_packed_member_dist"],
+  "gold": "issue2017_signed_packed_member_dist"
+}
