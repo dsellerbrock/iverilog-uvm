@@ -1025,6 +1025,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    }
 	    fprintf(vvp_out, ";\n");
 	    emit_unpacked_dims_(sig);
+	    note_signal_vartype(sig, "");
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);
@@ -1036,6 +1037,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first, msb, lsb);
 	    emit_unpacked_dims_(sig);
+	    note_signal_vartype(sig, "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_DARRAY) {
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
@@ -1386,6 +1388,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
                 emit_declared_packed_dims_(sig, suffix);
                 if (dimensions > 0 && iword == 0)
                       emit_packed_dims_(sig, "");
+          }
+          if (dimensions > 0) {
+                char suffix[32];
+                snprintf(suffix, sizeof suffix, "_%u", iword);
+                note_signal_vartype(sig, suffix);
           }
       }
 

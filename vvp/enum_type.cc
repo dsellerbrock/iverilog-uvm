@@ -346,17 +346,21 @@ class vartype_resolv_t : public resolv_list_s {
       bool resolve(bool message_flag) override
       {
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
+	    __vpiArray*array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
 	    const char*cp = text_;
 	    unsigned width = 0;
 	    bool missing = false;
-	    vpiHandle spec = sig ? parse_vartype(cp, width, missing) : 0;
-	    if ((!sig || missing) && !message_flag) return false;
-	    if (!sig || !spec || *cp || width != sig->width()) {
+	    vpiHandle spec = (sig || array)
+		  ? parse_vartype(cp, width, missing) : 0;
+	    if (((!sig && !array) || missing) && !message_flag) return false;
+	    if ((!sig && !array) || !spec || *cp ||
+	        width != (sig ? sig->width() : array->get_word_size())) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
 	    }
-	    sig->typespec = spec;
+	    if (sig) sig->typespec = spec;
+	    else array->typespec = spec;
 	    return true;
       }
 
