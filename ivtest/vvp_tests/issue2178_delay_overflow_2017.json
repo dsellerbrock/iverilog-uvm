@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2178_delay_overflow_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2178_delay_overflow_2017"],
+  "gold": "issue2178_delay_overflow"
+}
