@@ -1918,7 +1918,7 @@ void vvp_ref_signal_aa::set_root_provenance(vvp_net_t*root_net,
 vvp_lvalue_ref::vvp_lvalue_ref(storage_kind_t storage, value_kind_t value,
                                unsigned width)
 : storage_kind_(storage), value_kind_(value), width_(width),
-  part_select_(false), part_valid_(true), part_base_(0), net_(0),
+  part_select_(false), part_valid_(true), part_base_(0), part_width_(0), net_(0),
   context_(0), property_(0), index_(0), array_(0)
 {
 }
@@ -2049,6 +2049,7 @@ void vvp_lvalue_ref::shallow_copy(const vvp_object*that)
       part_select_ = src->part_select_;
       part_valid_ = src->part_valid_;
       part_base_ = src->part_base_;
+      part_width_ = src->part_width_;
       net_ = src->net_;
       context_ = src->context_;
       object_ = src->object_;
@@ -2066,11 +2067,12 @@ vvp_object*vvp_lvalue_ref::duplicate(void) const
       return copy;
 }
 
-void vvp_lvalue_ref::set_part(int64_t base, bool valid)
+void vvp_lvalue_ref::set_part(int64_t base, bool valid, unsigned width)
 {
       part_select_ = true;
       part_valid_ = valid;
       part_base_ = base;
+      part_width_ = width;
 }
 
 vvp_object_t vvp_lvalue_ref::mutation_receiver() const

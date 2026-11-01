@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "issue695_mailbox_try_type_mismatch.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue695_mailbox_try_type_mismatch" ]
+}

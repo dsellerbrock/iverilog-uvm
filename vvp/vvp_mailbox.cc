@@ -44,22 +44,57 @@ bool vvp_mailbox::try_put(const vvp_object_t& item)
       return true;
 }
 
-bool vvp_mailbox::try_get(vvp_object_t& item)
+static bool mailbox_item_matches_ref_(const vvp_object_t&item,
+				      unsigned value_kind,
+				      unsigned value_width)
 {
-      if (empty())
-	    return false;
-      item = items_.front();
-      items_.pop_front();
-      resume_put_waiters_();
-      return true;
+      /* These tags have the same values as vvp_lvalue_ref::value_kind_t.
+       * Mailbox values are boxed on insertion, so compare their runtime
+       * representation before allowing the compiler's ref writeback. */
+      switch (value_kind) {
+	  case 0: { /* VALUE_VEC4 */
+		vvp_boxed_vec4*boxed = item.peek<vvp_boxed_vec4>();
+		return boxed && boxed->get_value().size() == value_width;
+	  }
+	  case 1: /* VALUE_REAL */
+		return item.peek<vvp_boxed_real>() != 0;
+	  case 2: /* VALUE_STRING */
+		return item.peek<vvp_boxed_string>() != 0;
+	  case 3: /* VALUE_OBJECT */
+		return !item.peek<vvp_boxed_vec4>()
+		      && !item.peek<vvp_boxed_real>()
+		      && !item.peek<vvp_boxed_string>();
+	  default:
+		return false;
+      }
 }
 
-bool vvp_mailbox::try_peek(vvp_object_t& item)
+int vvp_mailbox::try_get(vvp_object_t& item, unsigned value_kind,
+			unsigned value_width)
 {
       if (empty())
-	    return false;
+	    return 0;
       item = items_.front();
-      return true;
+
+      if (!mailbox_item_matches_ref_(item, value_kind, value_width))
+	    return -1;
+
+      items_.pop_front();
+      resume_put_waiters_();
+      return 1;
+}
+
+int vvp_mailbox::try_peek(vvp_object_t& item, unsigned value_kind,
+			  unsigned value_width)
+{
+      if (empty())
+	    return 0;
+      item = items_.front();
+
+      if (!mailbox_item_matches_ref_(item, value_kind, value_width))
+	    return -1;
+
+      return 1;
 }
 
 bool vvp_mailbox::put(vthread_t thr, const vvp_object_t& self,

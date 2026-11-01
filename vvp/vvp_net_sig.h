@@ -691,9 +691,11 @@ class vvp_lvalue_ref : public vvp_object {
 
       value_kind_t value_kind() const { return value_kind_; }
       unsigned value_width() const { return width_; }
+      unsigned mailbox_value_width() const
+      { return part_select_ ? part_width_ : width_; }
       vvp_object_t mutation_receiver() const;
       bool read_vec4(vvp_vector4_t&value) const { return read_vec4_(value); }
-      void set_part(int64_t base, bool valid);
+      void set_part(int64_t base, bool valid, unsigned width);
       void store_vec4(const vvp_vector4_t&value);
       void store_real(double value);
       void store_string(const std::string&value);
@@ -714,6 +716,7 @@ class vvp_lvalue_ref : public vvp_object {
       bool part_select_;
       bool part_valid_;
       int64_t part_base_;
+      unsigned part_width_;
 
       vvp_net_t*net_;
       vvp_context_t context_;

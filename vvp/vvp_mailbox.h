@@ -44,10 +44,11 @@ class vvp_mailbox : public vvp_object {
       bool   full()  const { return bound_ && items_.size() >= bound_; }
       bool   empty() const { return items_.empty(); }
 
-      /* Non-blocking operations.  Return true on success. */
+      /* Non-blocking retrieval operations return 0 if empty, 1 on success,
+       * and -1 if the message representation does not match the ref target. */
       bool try_put(const vvp_object_t& item);
-      bool try_get(vvp_object_t& item);
-      bool try_peek(vvp_object_t& item);
+      int try_get(vvp_object_t& item, unsigned value_kind, unsigned value_width);
+      int try_peek(vvp_object_t& item, unsigned value_kind, unsigned value_width);
 
       /*
        * Blocking operations: return true if the operation completed
