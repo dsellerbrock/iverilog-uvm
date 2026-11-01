@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue801_assoc_struct_p.v",
+    "iverilog-args" : [ "-g2023" ],
+    "output-contains" : [ "sw:OFF", "s:\"switch10\"", "ISSUE801_PASSED" ]
+}
