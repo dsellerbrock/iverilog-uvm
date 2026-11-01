@@ -78,11 +78,13 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
-static int ref_actual_is_static_array_word_(ivl_signal_t port,
-                                            ivl_expr_t expr)
+static int ref_actual_is_fixed_array_word_(ivl_signal_t port,
+                                           ivl_expr_t expr)
 {
-      if (!port || !ivl_signal_ref_static(port) || !expr
-	  || ivl_expr_type(expr) != IVL_EX_SIGNAL)
+      /* A word select of a fixed unpacked array has a stable storage
+         identity for this call, regardless of whether the formal is
+         ref static. Evaluate its index now and bind that exact word. */
+      if (!port || !expr || ivl_expr_type(expr) != IVL_EX_SIGNAL)
 	    return 0;
       ivl_signal_t sig = ivl_expr_signal(expr);
       return sig && ivl_signal_dimensions(sig) > 0
@@ -148,7 +150,7 @@ static int function_port_is_native_output_(ivl_signal_t port)
    copies it back through the same binding. */
 static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
 {
-      if (ref_actual_is_static_array_word_(port, expr)) {
+      if (ref_actual_is_fixed_array_word_(port, expr)) {
 	    draw_eval_vec4(ivl_expr_oper1(expr));
 	    fprintf(vvp_out, "    %%ref/bind/w v%p, v%p_0;\n",
 		    ivl_expr_signal(expr), port);
@@ -1739,8 +1741,8 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 		continue;
 	  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
 	      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx))
-	      || ref_actual_is_static_array_word_(port,
-						   ivl_expr_parm(expr, idx)))
+	      || ref_actual_is_fixed_array_word_(port,
+						  ivl_expr_parm(expr, idx)))
 		continue;
 	    } else if ((port_type != IVL_SIP_OUTPUT) &&
 		       (port_type != IVL_SIP_INOUT)) {
