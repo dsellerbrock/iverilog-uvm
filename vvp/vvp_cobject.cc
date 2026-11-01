@@ -606,7 +606,6 @@ bool vvp_cobject::randc_transaction_commit()
 	    bool sparse = period == 0;
 	    if (sparse && (it->first.pid >= defn_->property_count()
 		  || defn_->property_is_static(it->first.pid)
-		  || !defn_->property_dimensions(it->first.pid).empty()
 		  || val.size() <= 20 || val.size() > 64
 		  || !it->second.feasible_domain
 		  || it->second.feasible.empty()
@@ -825,7 +824,6 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       bool sparse = period == 0;
       if (sparse) {
 	    if (pid >= defn_->property_count() || defn_->property_is_static(pid)
-		|| !defn_->property_dimensions(pid).empty()
 		|| feasible.empty()
 		|| feasible.size() > VVP_RANDC_FEASIBLE_DOMAIN_CAP) return;
 	    vvp_vector4_t current;
