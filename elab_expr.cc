@@ -21798,6 +21798,24 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
 	    base_->test_width(des, scope, tmp_mode);
       }
 
+      /* IEEE 1800-2017/2023 16.12.18 applies the typed-argument rules of
+       * 16.8.1: an ordinary typed actual must be cast-compatible with its
+       * formal. A class handle cannot be converted to an integral formal.
+       * Check the synthesized cast before elaboration reaches code that
+       * expects a value expression; otherwise this invalid actual can abort
+       * in the target API while extracting its constant value. */
+      if (property_formal_actual_ && target_type_
+	  && base_->expr_type() == IVL_VT_CLASS
+	  && type_is_vectorable(target_type_->base_type())) {
+	    if (report_property_formal_actual_error()) {
+		  cerr << get_fileline() << ": error: class handle actual is not "
+		       << "cast-compatible with integral property formal "
+		       << "(IEEE 1800-2017/2023 16.12.18)." << endl;
+		  des->errors += 1;
+	    }
+	    return 0;
+      }
+
       if (const netdarray_t*use_darray = dynamic_cast<const netdarray_t*>(target_type_)) {
 	    expr_type_  = use_darray->element_base_type();
 	    expr_width_ = use_darray->element_width();
