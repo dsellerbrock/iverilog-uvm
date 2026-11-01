@@ -1117,6 +1117,8 @@ extern ivl_scope_t ivl_expr_scope(ivl_expr_t net);
 extern ivl_signal_t ivl_expr_signal(ivl_expr_t net);
   /* any expression */
 extern int         ivl_expr_signed(ivl_expr_t net);
+  /* any expression: source signedness for IEEE 1800 11.8.4 */
+extern int         ivl_expr_signed_xz(ivl_expr_t net);
   /* any expression */
 extern int         ivl_expr_sized(ivl_expr_t net);
   /* IVL_EX_STRING */

@@ -126,7 +126,27 @@ void draw_immediate_vec4(ivl_expr_t re, const char*opcode)
       fprintf(vvp_out, "    %s %lu, %lu, %u;\n", opcode, val0, valx, wid);
 }
 
-static void draw_binary_vec4_arith(ivl_expr_t expr)
+static int signed_xz_guard_begin(void)
+{
+      int flag = allocate_flag();
+      fprintf(vvp_out, "    %%flag_set/imm %d, 0; signed X/Z guard\n", flag);
+      return flag;
+}
+
+static void signed_xz_guard_check(ivl_expr_t expr, int flag)
+{
+	  if (ivl_expr_signed_xz(expr))
+	    fprintf(vvp_out, "    %%signed/xz %d; check signed operand\n", flag);
+}
+
+static void signed_xz_guard_result(int flag, unsigned width)
+{
+      fprintf(vvp_out, "    %%signed/xz/result %u, %d; signed X/Z result\n",
+	      width, flag);
+      clr_flag(flag);
+}
+
+static void draw_binary_vec4_arith(ivl_expr_t expr, int xz_flag)
 {
       ivl_expr_t le = ivl_expr_oper1(expr);
       ivl_expr_t re = ivl_expr_oper2(expr);
@@ -151,6 +171,7 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
       if (lwid != ewid) {
 	    fprintf(vvp_out, "    %%pad/%c %u;\n", ivl_expr_signed(le)? 's' : 'u', ewid);
       }
+      signed_xz_guard_check(le, xz_flag);
 
 	/* Special case: If the re expression can be collected into an
 	   immediate operand, and the instruction supports it, then
@@ -176,6 +197,7 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
       if ((rwid != ewid) && !is_power_op) {
 	    fprintf(vvp_out, "    %%pad/%c %u;\n", ivl_expr_signed(re)? 's' : 'u', ewid);
       }
+      signed_xz_guard_check(re, xz_flag);
 
       switch (ivl_expr_opcode(expr)) {
 	  case '+':
@@ -203,10 +225,12 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
       }
 }
 
-static void draw_binary_vec4_bitwise(ivl_expr_t expr)
+static void draw_binary_vec4_bitwise(ivl_expr_t expr, int xz_flag)
 {
       draw_eval_vec4(ivl_expr_oper1(expr));
+      signed_xz_guard_check(ivl_expr_oper1(expr), xz_flag);
       draw_eval_vec4(ivl_expr_oper2(expr));
+      signed_xz_guard_check(ivl_expr_oper2(expr), xz_flag);
 
       /* IEEE 1800-2017 11.8.4: a nonlogical operation on a signed
        * operand containing X/Z produces an all-X result. */
@@ -802,13 +826,14 @@ static void draw_binary_vec4_le(ivl_expr_t expr)
       }
 }
 
-static void draw_binary_vec4_lrs(ivl_expr_t expr)
+static void draw_binary_vec4_lrs(ivl_expr_t expr, int xz_flag)
 {
       ivl_expr_t le = ivl_expr_oper1(expr);
       ivl_expr_t re = ivl_expr_oper2(expr);
 
 	// Push the left expression onto the stack.
       draw_eval_vec4(le);
+      signed_xz_guard_check(le, xz_flag);
 
 	// Calculate the shift amount into an index register.
       int use_index_reg = allocate_word();
@@ -840,6 +865,14 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
 
 static void draw_binary_vec4(ivl_expr_t expr)
 {
+      char op = ivl_expr_opcode(expr);
+      int xz_flag = -1;
+      if (op == '+' || op == '-' || op == '*' || op == '/' || op == '%'
+	  || op == 'p' || op == '&' || op == '|' || op == '^'
+	  || op == 'A' || op == 'O' || op == 'X'
+	  || op == 'l' || op == 'r' || op == 'R')
+	    xz_flag = signed_xz_guard_begin();
+
       switch (ivl_expr_opcode(expr)) {
 	  case 'a': /* Logical && */
 	  case 'o': /* || (logical or) */
@@ -852,7 +885,7 @@ static void draw_binary_vec4(ivl_expr_t expr)
 	  case '/':
 	  case '%':
 	  case 'p': /* ** (power) */
-	    draw_binary_vec4_arith(expr);
+	    draw_binary_vec4_arith(expr, xz_flag);
 	    break;
 
 	  case '&':
@@ -861,7 +894,7 @@ static void draw_binary_vec4(ivl_expr_t expr)
 	  case 'A': /* NAND (~&) */
 	  case 'O': /* NOR  (~|) */
 	  case 'X': /* exclusive nor (~^) */
-	    draw_binary_vec4_bitwise(expr);
+	    draw_binary_vec4_bitwise(expr, xz_flag);
 	    break;
 
 	  case 'e': /* == */
@@ -885,7 +918,7 @@ static void draw_binary_vec4(ivl_expr_t expr)
 	  case 'l': /* << */
 	  case 'r': /* >> */
 	  case 'R': /* >>> */
-	    draw_binary_vec4_lrs(expr);
+	    draw_binary_vec4_lrs(expr, xz_flag);
 	    break;
 
 	  case 'q': /* -> (logical implication) */
@@ -901,6 +934,9 @@ static void draw_binary_vec4(ivl_expr_t expr)
 		    ivl_expr_opcode(expr));
 	    assert(0);
       }
+
+      if (xz_flag >= 0)
+	    signed_xz_guard_result(xz_flag, ivl_expr_width(expr));
 }
 
 /*
@@ -3337,6 +3373,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 static void draw_unary_vec4(ivl_expr_t expr)
 {
       ivl_expr_t sub = ivl_expr_oper1(expr);
+      char op = ivl_expr_opcode(expr);
+      int xz_flag = -1;
+
+	  if (ivl_expr_signed_xz(sub)
+	  && (op == '+' || op == '-' || op == 'm' || op == '~'
+	      || op == '&' || op == '|' || op == '^'
+	      || op == 'A' || op == 'N' || op == 'X'))
+	    xz_flag = signed_xz_guard_begin();
 
       if (debug_draw) {
 	    fprintf(vvp_out, " ; %s:%u:draw_unary_vec4: opcode=%c\n",
@@ -3347,17 +3391,26 @@ static void draw_unary_vec4(ivl_expr_t expr)
       switch (ivl_expr_opcode(expr)) {
 	  case '&':
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%and/r;\n");
 	    break;
 
 	  case '|':
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%or/r;\n");
 	    break;
 
 	  case '^':
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%xor/r;\n");
+	    break;
+
+	  case '+':
+	    draw_eval_vec4(sub);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    break;
 
 	  case '~':
@@ -3368,6 +3421,7 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	         expression width before the operation so the bytecode stack
 	         contains the width promised by ivl_expr_width(expr). */
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%inv;\n");
 	    break;
 
@@ -3379,12 +3433,14 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	  case '-':
 	    draw_eval_vec4(sub);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%inv;\n");
 	    fprintf(vvp_out, "    %%addi 1, 0, %u;\n", ivl_expr_width(expr));
 	    break;
 
 	  case 'A': /* nand (~&) */
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%nand/r;\n");
 	    break;
 
@@ -3410,16 +3466,19 @@ static void draw_unary_vec4(ivl_expr_t expr)
 
 	  case 'N': /* nor (~|) */
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%nor/r;\n");
 	    break;
 
 	  case 'X': /* xnor (~^) */
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    fprintf(vvp_out, "    %%xnor/r;\n");
 	    break;
 
 	  case 'm': /* abs(m) */
 	    draw_eval_vec4(sub);
+	    if (xz_flag >= 0) signed_xz_guard_check(sub, xz_flag);
 	    if (! ivl_expr_signed(sub))
 		  break;
 
@@ -3515,6 +3574,9 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	    fprintf(stderr, "XXXX Unary operator %c not implemented\n", ivl_expr_opcode(expr));
 	    break;
       }
+
+      if (xz_flag >= 0)
+	    signed_xz_guard_result(xz_flag, ivl_expr_width(expr));
 }
 
 static void draw_eval_vec4_core_(ivl_expr_t expr)
@@ -3581,6 +3643,7 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
                       default:
                         break;
                   }
+
             }
       }
       if (ivl_expr_value(expr) == IVL_VT_STRING) {

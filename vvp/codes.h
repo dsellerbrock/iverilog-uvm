@@ -603,6 +603,8 @@ extern bool of_SETBITS_VEC4_X(vthread_t thr, vvp_code_t code);
 extern bool of_SHIFTL(vthread_t thr, vvp_code_t code);
 extern bool of_SHIFTR(vthread_t thr, vvp_code_t code);
 extern bool of_SHIFTR_S(vthread_t thr, vvp_code_t code);
+extern bool of_SIGNED_XZ(vthread_t thr, vvp_code_t code);
+extern bool of_SIGNED_XZ_RESULT(vthread_t thr, vvp_code_t code);
 extern bool of_SPLIT_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_LOAD(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_LOAD_OBJ(vthread_t thr, vvp_code_t code);

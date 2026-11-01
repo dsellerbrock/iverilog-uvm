@@ -2623,6 +2623,12 @@ class NetExpr  : public LineInfo {
       bool has_sign() const { return signed_flag_; }
       virtual void cast_signed(bool flag);
 
+	// Retain the source signedness of an operand when an enclosing
+	// expression converts the actual value to an unsigned context. IEEE
+	// 1800-2017/2023 11.8.4 uses the signed source type for its X/Z rule.
+      bool signed_xz_operand() const { return signed_xz_operand_; }
+      void signed_xz_operand(bool flag) { signed_xz_operand_ = flag; }
+
 	// This returns true if the expression has a definite
 	// width. This is generally true, but in some cases the
 	// expression is amorphous and desires a width from its
@@ -2707,6 +2713,7 @@ class NetExpr  : public LineInfo {
       ivl_type_t net_type_;
       unsigned width_;
       bool signed_flag_;
+      bool signed_xz_operand_ = false;
       bool deferred_type_parameter_stub_;
       bool requires_procedural_context_ = false;
 

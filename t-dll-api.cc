@@ -1069,6 +1069,12 @@ extern "C" int ivl_expr_signed(ivl_expr_t net)
       return net->signed_;
 }
 
+extern "C" int ivl_expr_signed_xz(ivl_expr_t net)
+{
+      assert(net);
+      return net->origin_ && net->origin_->signed_xz_operand();
+}
+
 extern "C" int ivl_expr_sized(ivl_expr_t net)
 {
       assert(net);

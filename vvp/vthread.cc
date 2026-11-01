@@ -32020,6 +32020,33 @@ bool of_SHIFTR_S(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %signed/xz <flag>
+ * Set FLAG when the top value contains an X or Z. The compiler emits this
+ * only for operands whose expression type is signed.
+ */
+bool of_SIGNED_XZ(vthread_t thr, vvp_code_t cp)
+{
+      unsigned flag = cp->number;
+      assert(flag < vthread_s::FLAGS_COUNT);
+      if (thr->peek_vec4().has_xz())
+	    thr->flags[flag] = BIT4_1;
+      return true;
+}
+
+/* %signed/xz/result <width>, <flag>
+ * A nonlogical operation involving a signed X/Z operand has an all-X result
+ * of the expression's width (IEEE 1800-2017/2023 11.8.4).
+ */
+bool of_SIGNED_XZ_RESULT(vthread_t thr, vvp_code_t cp)
+{
+      unsigned flag = cp->bit_idx[0];
+      unsigned width = cp->number;
+      assert(flag < vthread_s::FLAGS_COUNT);
+      if (thr->flags[flag] == BIT4_1)
+	    thr->peek_vec4() = vvp_vector4_t(width, BIT4_X);
+      return true;
+}
+
 /*
  * %split/vec4 <wid>
  *   Pop 1 value,

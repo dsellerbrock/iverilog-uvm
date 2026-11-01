@@ -85,6 +85,111 @@ static bool process_binary_args(Design*des, NetScope*scope, NetExpr*root,
       else return false;
 }
 
+/* IEEE 1800-2017/2023 11.8.4 requires a nonlogical expression to
+   produce all X when a signed integral operand contains X or Z. The
+   structural expression path needs an explicit guard, since ordinary
+   gates can otherwise propagate only the affected bits. */
+static NetNet* signed_xz_guard(Design*des, NetScope*scope,
+			       NetNet*a, bool a_signed,
+			       NetNet*b, bool b_signed,
+			       NetNet*result, const NetExpr*expr)
+{
+      if (!result || result->data_type() == IVL_VT_REAL)
+		return result;
+
+      NetNet*unknown = 0;
+      NetNet*operands[2] = {a, b};
+      const bool signed_operands[2] = {a_signed, b_signed};
+
+      for (unsigned idx = 0; idx < 2; idx += 1) {
+	    NetNet*operand = operands[idx];
+	    if (!operand || !signed_operands[idx]
+		|| operand->data_type() == IVL_VT_REAL)
+		  continue;
+
+	    unsigned width = operand->vector_width();
+	    NetLogic*xor_gate = new NetLogic(scope, scope->local_symbol(),
+					     3, NetLogic::XOR, width, true);
+	    xor_gate->set_line(*expr);
+	    NetNet*xor_value = new NetNet(scope, scope->local_symbol(),
+					   NetNet::IMPLICIT,
+					   new netvector_t(IVL_VT_LOGIC,
+							   width-1, 0));
+	    xor_value->set_line(*expr);
+	    xor_value->local_flag(true);
+	    connect(xor_gate->pin(0), xor_value->pin(0));
+	    connect(operand->pin(0), xor_gate->pin(1));
+	    connect(operand->pin(0), xor_gate->pin(2));
+	    des->add_node(xor_gate);
+
+	    NetUReduce*reduce = new NetUReduce(scope, scope->local_symbol(),
+					       NetUReduce::OR, width);
+	    reduce->set_line(*expr);
+	    NetNet*operand_unknown = new NetNet(scope, scope->local_symbol(),
+						 NetNet::IMPLICIT,
+						 new netvector_t(IVL_VT_BOOL));
+	    operand_unknown->set_line(*expr);
+	    operand_unknown->local_flag(true);
+	    connect(reduce->pin(0), operand_unknown->pin(0));
+	    connect(reduce->pin(1), xor_value->pin(0));
+	    des->add_node(reduce);
+
+	    if (!unknown) {
+		  unknown = operand_unknown;
+		  continue;
+	    }
+
+	    NetLogic*combine = new NetLogic(scope, scope->local_symbol(),
+					     3, NetLogic::OR, 1, true);
+	    combine->set_line(*expr);
+	    NetNet*combined_unknown = new NetNet(scope, scope->local_symbol(),
+						  NetNet::IMPLICIT,
+						  new netvector_t(IVL_VT_BOOL));
+	    combined_unknown->set_line(*expr);
+	    combined_unknown->local_flag(true);
+	    connect(combine->pin(0), combined_unknown->pin(0));
+	    connect(unknown->pin(0), combine->pin(1));
+	    connect(operand_unknown->pin(0), combine->pin(2));
+	    des->add_node(combine);
+	    unknown = combined_unknown;
+      }
+
+      if (!unknown)
+	    return result;
+
+      unsigned width = result->vector_width();
+      netvector_t*result_type = new netvector_t(expr->expr_type(),
+							width-1, 0,
+							expr->has_sign());
+      NetNet*guarded = new NetNet(scope, scope->local_symbol(),
+					  NetNet::IMPLICIT, result_type);
+      guarded->set_line(*expr);
+      guarded->local_flag(true);
+
+      NetConst*xconst = new NetConst(scope, scope->local_symbol(),
+					     verinum(verinum::Vx, width));
+      xconst->set_line(*expr);
+      des->add_node(xconst);
+
+      NetNet*xvalue = new NetNet(scope, scope->local_symbol(),
+					 NetNet::IMPLICIT,
+					 new netvector_t(expr->expr_type(),
+							 width-1, 0,
+							 expr->has_sign()));
+      xvalue->set_line(*expr);
+      xvalue->local_flag(true);
+      connect(xconst->pin(0), xvalue->pin(0));
+
+      NetMux*mux = new NetMux(scope, scope->local_symbol(), width, 2, 1);
+      mux->set_line(*expr);
+      connect(guarded->pin(0), mux->pin_Result());
+      connect(unknown->pin(0), mux->pin_Sel());
+      connect(result->pin(0), mux->pin_Data(0));
+      connect(xvalue->pin(0), mux->pin_Data(1));
+      des->add_node(mux);
+      return guarded;
+}
+
 NetNet* NetExpr::synthesize(Design*des, NetScope*, NetExpr*)
 {
       cerr << get_fileline() << ": internal error: cannot synthesize expression: "
@@ -326,7 +431,11 @@ NetNet* NetEBAdd::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	    break;
       }
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 /*
@@ -398,7 +507,11 @@ NetNet* NetEBBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
       gate->set_line(*this);
       des->add_node(gate);
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 NetNet* NetEBComp::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -606,7 +719,11 @@ NetNet* NetEBPow::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       connect(powr->pin_Result(), osig->pin(0));
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 NetNet* NetEBMult::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -643,7 +760,11 @@ NetNet* NetEBMult::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       connect(mult->pin_Result(), osig->pin(0));
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 NetNet* NetEBDiv::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -717,7 +838,11 @@ NetNet* NetEBDiv::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	  }
       }
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 NetNet* NetEBLogic::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -789,8 +914,9 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
       eval_expr(right_);
 
       NetNet*lsig = left_->synthesize(des, scope, root);
+      NetNet*rsig = right_->synthesize(des, scope, root);
 
-      if (lsig == 0) return 0;
+      if (lsig == 0 || rsig == 0) return 0;
 
         /* Cannot shift a real values. */
       if (lsig->data_type() == IVL_VT_REAL) {
@@ -815,7 +941,12 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  shift = 0-shift;
 
 	    if (shift == 0)
-		  return lsig;
+		  return signed_xz_guard(des, scope, lsig,
+					 left_->has_sign()
+					     || left_->signed_xz_operand(),
+					 rsig, right_->has_sign()
+					     || right_->signed_xz_operand(),
+					 lsig, this);
 
 	    const netvector_t*osig_vec = new netvector_t(expr_type(), expr_width()-1,0);
 	    NetNet*osig = new NetNet(scope, scope->local_symbol(),
@@ -857,7 +988,12 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 		  connect(pad->pin(1), psig->pin(0));
 		  connect(pad->pin(0), osig->pin(0));
-		  return osig;
+		  return signed_xz_guard(des, scope, lsig,
+					 left_->has_sign()
+					     || left_->signed_xz_operand(),
+					 rsig, right_->has_sign()
+					     || right_->signed_xz_operand(),
+					 osig, this);
 	    }
 
 	      // Other cases are handled by zero-extending on the
@@ -891,12 +1027,13 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  connect(ccat->pin(2), zsig->pin(0));
 	    }
 
-	    return osig;
+	    return signed_xz_guard(des, scope, lsig,
+				   left_->has_sign()
+				       || left_->signed_xz_operand(),
+				   rsig, right_->has_sign()
+				       || right_->signed_xz_operand(),
+				   osig, this);
       }
-
-      NetNet*rsig = right_->synthesize(des, scope, root);
-
-      if (rsig == 0) return 0;
 
       const netvector_t*osig_vec = new netvector_t(expr_type(), expr_width()-1, 0);
       NetNet*osig = new NetNet(scope, scope->local_symbol(),
@@ -918,7 +1055,11 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       connect(dev->pin_Distance(), rsig->pin(0));
 
-      return osig;
+      return signed_xz_guard(des, scope, lsig,
+			     left_->has_sign() || left_->signed_xz_operand(),
+			     rsig,
+			     right_->has_sign() || right_->signed_xz_operand(),
+			     osig, this);
 }
 
 NetNet* NetEConcat::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -1194,18 +1335,26 @@ NetNet* NetEUBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       des->add_node(gate);
 
-      return osig;
+	  return signed_xz_guard(des, scope, isig,
+			     expr_->has_sign() || expr_->signed_xz_operand(),
+			     0, false, osig, this);
 }
 
 NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-      if (op_ == '+')
-	    return expr_->synthesize(des, scope, root);
+      if (op_ == '+') {
+	    NetNet*sig = expr_->synthesize(des, scope, root);
+	    return signed_xz_guard(des, scope, sig,
+				   expr_->has_sign() || expr_->signed_xz_operand(),
+				   0, false, sig, this);
+      }
 
       if (op_ == '-') {
 	    NetNet*sig = expr_->synthesize(des, scope, root);
-	    sig = sub_net_from(des, scope, 0, sig);
-	    return sig;
+	    NetNet*result = sub_net_from(des, scope, 0, sig);
+	    return signed_xz_guard(des, scope, sig,
+				   expr_->has_sign() || expr_->signed_xz_operand(),
+				   0, false, result, this);
       }
 
       if (op_ == 'm') {
@@ -1226,7 +1375,9 @@ NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 	    connect(tmp->pin(1), sub->pin(0));
 	    connect(tmp->pin(0), sig->pin(0));
-	    return sig;
+	    return signed_xz_guard(des, scope, sub,
+				   expr_->has_sign() || expr_->signed_xz_operand(),
+				   0, false, sig, this);
       }
 
       cerr << get_fileline() << ": internal error: "
@@ -1298,7 +1449,12 @@ NetNet* NetEUReduce::synthesize(Design*des, NetScope*scope, NetExpr*root)
       for (unsigned idx = 0 ;  idx < isig->pin_count() ;  idx += 1)
 	    connect(gate->pin(1+idx), isig->pin(idx));
 
-      return osig;
+      if (op() == '!')
+	    return osig;
+
+	  return signed_xz_guard(des, scope, isig,
+			     expr_->has_sign() || expr_->signed_xz_operand(),
+			     0, false, osig, this);
 }
 
 NetNet* NetECast::synthesize(Design*des, NetScope*scope, NetExpr*root)

@@ -5962,6 +5962,9 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       if ((mode >= LOSSLESS) && (saved_mode < LOSSLESS))
 	    r_width = right_->test_width(des, scope, mode);
 
+      left_signed_flag_ = left_->has_sign();
+      right_signed_flag_ = right_->has_sign();
+
       ivl_variable_type_t l_type =  left_->expr_type();
       ivl_variable_type_t r_type = right_->expr_type();
 
@@ -6283,6 +6286,12 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 		|| rconst->value().has_sign() != signed_flag_)))
 		  rp = cast_to_width(rp, expr_wid, signed_flag_, *this);
       }
+
+	/* Context conversion controls the value's sizing and signed operation
+	 * semantics. Keep its pre-conversion signedness separately for the
+	 * signed X/Z rule in nonlogical operators. */
+      lp->signed_xz_operand(left_signed_flag_);
+      rp->signed_xz_operand(right_signed_flag_);
 
       return elaborate_expr_base_(des, lp, rp, expr_wid);
 }
@@ -9347,6 +9356,8 @@ unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       expr_width_  = left_->test_width(des, scope, l_mode);
       expr_type_   = left_->expr_type();
       signed_flag_ = left_->has_sign();
+      left_signed_flag_ = left_->has_sign();
+      right_signed_flag_ = right_->has_sign();
 
       if (expr_type_ == IVL_VT_CLASS || right_->expr_type() == IVL_VT_CLASS) {
 	      // Compile-progress leniency for stubbed class-typed
@@ -9525,6 +9536,11 @@ NetExpr*PEBLeftWidth::elaborate_expr(Design*des, NetScope*scope,
             rp->cast_signed(false);
             rp->set_line(*this);
       }
+
+	/* Shifts size and interpret their operands using the ordinary
+	 * context rules; retain the original types only for X/Z handling. */
+      lp->signed_xz_operand(left_signed_flag_);
+      rp->signed_xz_operand(right_signed_flag_);
 
       eval_expr(lp, expr_wid);
       eval_expr(rp, r_width);
@@ -33256,6 +33272,7 @@ unsigned PEUnary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	    {
 		  width_mode_t sub_mode = SIZED;
 		  unsigned sub_width = expr_->test_width(des, scope, sub_mode);
+		  operand_signed_flag_ = expr_->has_sign();
 
 		  expr_type_   = expr_->expr_type();
 	          expr_width_  = 1;
@@ -33277,6 +33294,7 @@ unsigned PEUnary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       expr_type_   = expr_->expr_type();
       min_width_   = expr_->min_width();
       signed_flag_ = expr_->has_sign();
+      operand_signed_flag_ = expr_->has_sign();
 
       if (expr_type_ == IVL_VT_NO_TYPE && gn_system_verilog()) {
 	    expr_type_ = IVL_VT_LOGIC;
@@ -33337,7 +33355,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
             // Other operators have context determined operands, so propagate
             // the expression type (signed/unsigned) down to the operands.
 	  default:
-            expr_->cast_signed(signed_flag_);
+	    expr_->cast_signed(signed_flag_);
 	    break;
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
@@ -33345,6 +33363,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    delete inc_lval;
 	    return 0;
       }
+      ip->signed_xz_operand(operand_signed_flag_);
 
       ivl_variable_type_t etype = expr_type_;
       if (etype == IVL_VT_NO_TYPE) {
@@ -33468,7 +33487,13 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case '-':
 	    if (const NetEConst*ipc = dynamic_cast<NetEConst*>(ip)) {
 
-		  verinum val = - ipc->value();
+		  verinum val;
+		  if (operand_signed_flag_ && !ipc->value().is_defined()) {
+			val = verinum(verinum::Vx, expr_wid);
+			val.has_sign(signed_flag_);
+		  } else {
+			val = - ipc->value();
+		  }
 		  tmp = new NetEConst(val);
 		  tmp->cast_signed(signed_flag_);
 		  tmp->set_line(*this);
@@ -33490,7 +33515,25 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	    if (const NetEConst*ipc = dynamic_cast<NetEConst*>(ip)) {
+		  if (operand_signed_flag_ && !ipc->value().is_defined()) {
+			verinum val(verinum::Vx, expr_wid);
+			val.has_sign(signed_flag_);
+			tmp = new NetEConst(val);
+			tmp->set_line(*this);
+			delete ip;
+		  } else {
+			tmp = ip;
+		  }
+	    } else if (ip->expr_type() != IVL_VT_REAL
+		       && (ip->has_sign() || operand_signed_flag_)) {
+		  /* Keep unary plus in the tree so its signed X/Z operand can make
+		   * the complete result X under IEEE 1800-2017 11.8.4. */
+		  tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+		  tmp->set_line(*this);
+	    } else {
+		  tmp = ip;
+	    }
 	    break;
 
 	  case '!': // Logical NOT
@@ -33590,7 +33633,12 @@ NetExpr* PEUnary::elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const
 	      // The only operand that I know can get here is the
 	      // unary not (~).
 	    ivl_assert(*this, op_ == '~');
-	    value = ~value;
+	    if (operand_signed_flag_ && !value.is_defined()) {
+		  value = verinum(verinum::Vx, expr_wid);
+		  value.has_sign(signed_flag_);
+	    } else {
+		  value = ~value;
+	    }
 
 	    ctmp = new NetEConst(value);
 	    ctmp->set_line(*this);

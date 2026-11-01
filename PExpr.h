@@ -1293,6 +1293,7 @@ class PEUnary : public PExpr {
       char op_;
       PExpr*expr_;
       bool concurrent_assertion_expr_ = false;
+      bool operand_signed_flag_ = false;
 };
 
 class PEBinary : public PExpr {
@@ -1325,6 +1326,8 @@ class PEBinary : public PExpr {
       char op_;
       PExpr*left_;
       PExpr*right_;
+      bool left_signed_flag_ = false;
+      bool right_signed_flag_ = false;
 
       NetExpr*elaborate_expr_base_(Design*, NetExpr*lp, NetExpr*rp,
 				   unsigned expr_wid) const;

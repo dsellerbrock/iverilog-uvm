@@ -3131,13 +3131,53 @@ bool evaluate_ranges(Design*des, NetScope*scope, const LineInfo*li,
       return dimensions_ok;
 }
 
+static bool signed_xz_constant_operand_(const NetExpr*expr)
+{
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+      return constant && (expr->signed_xz_operand()
+			  || constant->value().has_sign())
+	    && !constant->value().is_defined();
+}
+
+static bool nonlogical_signed_xz_fold_(const NetExpr*expr)
+{
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr)) {
+	    /* Logical and comparison operators have their own result semantics;
+	     * this rule applies to value-producing nonlogical operators. */
+	    if (dynamic_cast<const NetEBLogic*>(binary)
+		|| dynamic_cast<const NetEBComp*>(binary))
+		  return false;
+	    return signed_xz_constant_operand_(binary->left())
+		  || signed_xz_constant_operand_(binary->right());
+      }
+
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr)) {
+	    if (unary->op() == '!') return false;
+	    return signed_xz_constant_operand_(unary->expr());
+      }
+
+      return false;
+}
+
 void eval_expr(NetExpr*&expr, int context_width)
 {
       assert(expr);
       if (dynamic_cast<NetECReal*>(expr)) return;
 
       NetExpr*tmp = expr->eval_tree();
+
+	/* Constant folding must preserve the same signed X/Z rule as runtime
+	 * evaluation. Comparisons and logical operators remain governed by their
+	 * own four-state semantics. */
+      if (tmp && nonlogical_signed_xz_fold_(expr)) {
+	    delete tmp;
+	    verinum value(verinum::Vx, expr->expr_width());
+	    value.has_sign(expr->has_sign());
+	    tmp = new NetEConst(value);
+      }
+
       if (tmp != 0) {
+	    tmp->signed_xz_operand(expr->signed_xz_operand());
 	    tmp->set_line(*expr);
 	    tmp->inherit_deferred_type_parameter_stub(*expr);
 	    delete expr;
