@@ -7,6 +7,7 @@ import difflib
 import os
 import sys
 import re
+import platform
 
 # Seconds one iverilog or vvp run may take. A hung test fails on its own
 # instead of stalling the whole suite; IVTEST_TIMEOUT overrides it (e.g. valgrind).
@@ -173,6 +174,29 @@ def build_vpi_modules(options: dict, it_key: str) -> list:
     log_results(it_key, "iverilog-vpi", res)
     if res.returncode != 0:
         return [1, "Failed - VPI module build."]
+    return []
+
+def build_dpi_library(options: dict, it_key: str) -> list:
+    '''Build DPI C sources together with the export stub emitted by iverilog.'''
+    if not options['dpi_sources']:
+        return []
+    export_stub = os.path.join("work", "a.out.dpiexport.c")
+    if not os.path.isfile(export_stub):
+        return [1, "Failed - iverilog did not emit a DPI export stub."]
+    output = os.path.join("work", "dpi.dylib" if platform.system() == "Darwin" else "dpi.so")
+    cmd = ["cc", "-shared", "-fPIC"]
+    if platform.system() == "Darwin":
+        cmd.extend(["-undefined", "dynamic_lookup"])
+    else:
+        cmd.append("-Wl,--allow-shlib-undefined")
+    cmd.extend(["-I../local-install/include/iverilog", "-o", output])
+    cmd.extend(options['dpi_sources'])
+    cmd.append(export_stub)
+    res = run_cmd(cmd)
+    log_results(it_key, "dpi", res)
+    if res.returncode != 0:
+        return [1, "Failed - DPI library build."]
+    options['vvp_args'].extend(["-d", output])
     return []
 
 
@@ -377,6 +401,10 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
         build_ivl_return(translation_fail, ivl_res)
     if ivl_rtn:
         return ivl_rtn
+
+    dpi_rtn = build_dpi_library(options, it_key)
+    if dpi_rtn:
+        return dpi_rtn
 
     # run the vvp command
     vvp_cmd = assemble_vvp_cmd(options, cfg)

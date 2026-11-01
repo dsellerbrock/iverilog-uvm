@@ -1,6 +1,8 @@
 
 # Test list files are a list of test names and the json that
 # describes the test.
+issue1844_dpi_export_string_2017 vvp_tests/issue1844_dpi_export_string_2017.json
+issue1844_dpi_export_string_2023 vvp_tests/issue1844_dpi_export_string_2023.json
 issue642_class_static_continuous_2017 vvp_tests/issue642_class_static_continuous_2017.json
 issue642_class_static_continuous_2023 vvp_tests/issue642_class_static_continuous_2023.json
 issue1556_checker_initial_assignment_2017 vvp_tests/issue1556_checker_initial_assignment_2017.json

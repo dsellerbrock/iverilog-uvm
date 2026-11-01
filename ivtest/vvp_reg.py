@@ -110,6 +110,7 @@ def process_test(item: list, cfg: list) -> str:
         'vvp_env'           : it_dict.get('vvp-env', {}),
         'vpi_modules'       : it_dict.get('vpi-modules', [ ]),
         'vpi_sources'       : it_dict.get('vpi-sources', [ ]),
+        'dpi_sources'       : it_dict.get('dpi-sources', [ ]),
         'output_contains'   : it_dict.get('output-contains', [ ])
     }
 
