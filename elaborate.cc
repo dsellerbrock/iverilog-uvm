@@ -6496,7 +6496,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the right place.
 		  pins[pidx] = pins_[idx].parm;
 		  const PEIdent*ident = dynamic_cast<const PEIdent*>(pins[pidx]);
-		  pins_implicit[pidx] = ident && ident->no_implicit_sig();
+	  pins_implicit[pidx] = ident && ident->no_implicit_sig()
+		&& !ident->path().package;
 		  if (!pins[pidx])
 			pins_is_explicitly_not_connected[pidx] = true;
 	    }

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2150_explicit_named_package_ports.v",
+  "iverilog-args": ["-g2023", "-s", "issue2150_explicit_named_package_ports"],
+  "gold": "issue2150_explicit_named_package_ports"
+}
