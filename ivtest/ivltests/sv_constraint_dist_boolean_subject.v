@@ -471,9 +471,8 @@ class dist_weight_over_uint64;
   }
 endclass
 
-// This non-singleton expression exceeds the exact expression sampler boundary.
-// Reject it transactionally instead of always choosing the dominant item: the
-// latter is not the requested 1:100 probability distribution.
+// A non-singleton expression subject still needs exact feasible-value
+// projection so the range and singleton weights can both be honored.
 class dist_expression_over_exact_cap;
   rand bit [8:0] a;
   rand bit [8:0] b;
@@ -1160,15 +1159,10 @@ module main;
     end
 
     expression_fallback_item = new;
-    expression_fallback_item.a = 17;
-    expression_fallback_item.b = 29;
-    expression_rng_before = expression_fallback_item.get_randstate();
     repeat (16) begin
-      if (expression_fallback_item.randomize())
-        $fatal(1, "unsupported non-singleton expression dist succeeded");
-      if (expression_fallback_item.a != 17 || expression_fallback_item.b != 29 ||
-          expression_fallback_item.get_randstate() != expression_rng_before)
-        $fatal(1, "unsupported expression changed values or RNG state");
+      if (!expression_fallback_item.randomize()
+          || (expression_fallback_item.a + expression_fallback_item.b) > 301)
+        $fatal(1, "non-singleton expression dist failed or escaped its set");
     end
     $display("PASSED");
   end

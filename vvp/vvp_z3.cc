@@ -10270,11 +10270,28 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                   Z3_solver_assert(ctx, base, different);
                   Z3_lbool another = Z3_solver_check(ctx, base);
                   Z3_solver_pop(ctx, base, 1);
-                  if (another != Z3_L_FALSE) return unsupported();
-
-                  sampling_subject = Z3_mk_fresh_const(ctx,
-                        "dist_singleton_subject", subject_sort);
-                  factor = Z3_mk_eq(ctx, sampling_subject, value);
+                  if (another == Z3_L_FALSE) {
+                        sampling_subject = Z3_mk_fresh_const(ctx,
+                              "dist_singleton_subject", subject_sort);
+                        factor = Z3_mk_eq(ctx, sampling_subject, value);
+                  } else if (another == Z3_L_TRUE) {
+                        if (!spec.exact_supported) {
+                              // Do not let a sampling heuristic turn an
+                              // unsupported weight shape into apparent
+                              // success. The projection path is exact only
+                              // when all branch weights are representable.
+                              if (indeterminate) *indeterminate = true;
+                              return false;
+                        }
+                        // A non-singleton expression is still a valid dist
+                        // subject. Project its feasible values through the
+                        // full hard constraints below, just as for a coupled
+                        // direct variable, and pin the selected expression
+                        // value on success.
+                        coupled_projection = true;
+                  } else {
+                        return unsupported();
+                  }
             }
 
             Z3_solver positive = nullptr;
