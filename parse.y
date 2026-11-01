@@ -3786,6 +3786,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     K_endfunction endnew_opt
       { current_function->set_ports($5);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@3, current_function);
 	current_function_set_statement(@3, $8);
 	pform_pop_scope();

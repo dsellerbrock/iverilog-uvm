@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1213_protected_external_access_fail.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1213_protected_external_access_fail"
+}
