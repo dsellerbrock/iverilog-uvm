@@ -17163,7 +17163,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 							      delete obj_expr;
 							      obj_expr = nullptr;
 							      field_diagnostic = true;
-							    }
+								}
 						      }
 						}
 					  }
@@ -45656,7 +45656,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  }
 	    };
 
-			    // IEEE 1800-2017 19.5.7 / 1800-2023 19.5.7: a transition sequence
+			    // IEEE 1800-2017/2023 19.5.5: a transition sequence
 			    // listed in ignore_bins is removed from the sequences of the
 			    // coverpoint's other transition bins. Resolve every fixed
 			    // ignored sequence to value sets once; the regular bins below
@@ -45912,7 +45912,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						       << "terms; the bin is dropped." << endl;
 						  bad = true;
 						  break;
-					    }
+								    }
 					    std::vector<trans_term_t> terms;
 					    unsigned __int128 sequence_variants = 1;
 					    for (auto&source_term : source_terms) {
@@ -46103,48 +46103,64 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      if (t.dynamic || t.repeat != (unsigned)class_type_t::
 								  pform_cov_trans_term_t::TRANS_ONCE)
 								    plain = false;
-							if (piece.size() != ignored.size()) {
+							if (ignored.size() > piece.size()) {
 							      next_pieces.push_back(std::move(piece));
 							      continue;
 							}
-							if (!plain) {
-							      cerr << "sorry: covergroup '" << cgdef->name
-								   << "': an ignore_bins transition cannot be "
-								   << "subtracted from repeated or constructor-"
-								   << "dependent bin '" << bin.name
-								   << "'; the bin is dropped." << endl;
-							      bad = true;
-							      break;
-							}
-							std::vector<trans_ranges_t> common;
-							bool overlaps = true;
-							for (size_t k = 0; k < piece.size(); k++) {
-							      common.push_back(trans_ranges_intersect(
-								    piece[k].ranges, ignored[k]));
-							      if (common.back().empty()) overlaps = false;
-							}
-							if (!overlaps) {
-							      next_pieces.push_back(std::move(piece));
-							      continue;
-							}
-							pieces_changed = true;
-							for (size_t k = 0; k < piece.size(); k++) {
-							      trans_ranges_t rest = trans_ranges_subtract(
-								    piece[k].ranges, ignored[k]);
-							      if (rest.empty()) continue;
-							      std::vector<trans_term_t> variant;
-							      for (size_t j = 0; j < piece.size(); j++) {
-								    trans_term_t t = piece[j];
-								    t.ranges = j < k ? common[j]
-									  : j == k ? rest : piece[j].ranges;
-								    uint64_t alt = 0;
-								    for (auto&r : t.ranges)
-									  alt += r.second - r.first + 1;
-								    t.alternatives = alt;
-								    variant.push_back(std::move(t));
+							std::vector<std::vector<trans_term_t>> offset_pieces;
+							offset_pieces.push_back(std::move(piece));
+							for (size_t offset = 0;
+							     !offset_pieces.empty()
+							     && offset + ignored.size() <= offset_pieces[0].size();
+							     ++offset) {
+							      std::vector<std::vector<trans_term_t>> next_offset_pieces;
+							      for (auto&candidate : offset_pieces) {
+								    std::vector<trans_ranges_t> common;
+								    bool overlaps = true;
+								    for (size_t k = 0; k < ignored.size(); k++) {
+									  common.push_back(trans_ranges_intersect(
+										candidate[offset + k].ranges, ignored[k]));
+									  if (common.back().empty()) overlaps = false;
+								    }
+								    if (!overlaps) {
+									  next_offset_pieces.push_back(std::move(candidate));
+									  continue;
+								    }
+								    if (!plain) {
+									  cerr << "sorry: covergroup '" << cgdef->name
+									       << "': an ignore_bins transition cannot be "
+									       << "subtracted from repeated or constructor-"
+									       << "dependent bin '" << bin.name
+									       << "'; the bin is dropped." << endl;
+									  bad = true;
+									  break;
+								    }
+								    pieces_changed = true;
+								    for (size_t k = 0; k < ignored.size(); k++) {
+									  trans_ranges_t rest = trans_ranges_subtract(
+										candidate[offset + k].ranges, ignored[k]);
+									  if (rest.empty()) continue;
+									  std::vector<trans_term_t> variant;
+									  for (size_t j = 0; j < candidate.size(); j++) {
+										trans_term_t t = candidate[j];
+										if (j >= offset && j < offset + k)
+										      t.ranges = common[j - offset];
+										else if (j == offset + k)
+										      t.ranges = rest;
+										uint64_t alt = 0;
+										for (auto&r : t.ranges)
+										      alt += r.second - r.first + 1;
+										t.alternatives = alt;
+										variant.push_back(std::move(t));
+									  }
+									  next_offset_pieces.push_back(std::move(variant));
+								    }
 							      }
-							      next_pieces.push_back(std::move(variant));
+							      if (bad) break;
+							      offset_pieces = std::move(next_offset_pieces);
 							}
+							for (auto&candidate : offset_pieces)
+							      next_pieces.push_back(std::move(candidate));
 						  }
 						  if (bad) break;
 						  pieces = std::move(next_pieces);
