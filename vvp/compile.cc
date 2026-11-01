@@ -675,7 +675,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%ref/capture/pr",of_REF_CAPTURE_PR,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%ref/capture/pr/i",of_REF_CAPTURE_PR_I,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%ref/capture/w",of_REF_CAPTURE_W,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
-      { "%ref/part",of_REF_PART,0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%ref/part",of_REF_PART,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%ref/store/mbx",of_REF_STORE_MBX,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/net/off",of_RELEASE_NET_OFF,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },

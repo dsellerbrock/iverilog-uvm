@@ -1500,7 +1500,8 @@ static void mailbox_ref_apply_part_(ivl_lval_t lval)
       ivl_expr_t part = ivl_lval_part_off(lval);
       if (!part) return;
       draw_eval_expr_into_integer(part, 3);
-      fprintf(vvp_out, "    %%ref/part; capture packed output selection\n");
+      fprintf(vvp_out, "    %%ref/part %u; capture packed output selection\n",
+	      ivl_lval_width(lval));
 }
 
 static ivl_signal_t mailbox_ref_base_signal_(ivl_lval_t lval)

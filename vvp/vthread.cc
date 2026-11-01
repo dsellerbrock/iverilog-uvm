@@ -30965,8 +30965,8 @@ bool of_REF_CAPTURE_W(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* %ref/part -- packed selection base is ix3 and validity is flag 4. */
-bool of_REF_PART(vthread_t thr, vvp_code_t)
+/* %ref/part <width> -- packed selection base is ix3 and validity is flag 4. */
+bool of_REF_PART(vthread_t thr, vvp_code_t cp)
 {
       vvp_lvalue_ref*ref = thr->peek_object().peek<vvp_lvalue_ref>();
       if (!ref) {
@@ -30974,7 +30974,8 @@ bool of_REF_PART(vthread_t thr, vvp_code_t)
                  << "%ref/part requires a captured l-value target." << endl;
             return true;
       }
-      ref->set_part(thr->words[3].w_int, thr->flags[4] == BIT4_0);
+      ref->set_part(thr->words[3].w_int, thr->flags[4] == BIT4_0,
+		    cp->number);
       return true;
 }
 
@@ -36201,12 +36202,23 @@ bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static vvp_vector4_t mailbox_try_status_vector_(int status)
+{
+      vvp_vector4_t result(32);
+      uint32_t value = static_cast<uint32_t>(status);
+      for (unsigned idx = 0; idx < 32; idx += 1) {
+	    result.set_bit(idx, (value & (uint32_t(1) << idx))
+			 ? BIT4_1 : BIT4_0);
+      }
+      return result;
+}
+
 /*
  * %mbx/try_get
  * Stack (top->bottom): mailbox
- * Non-blocking get. If successful, push item onto obj stack; push
- * result (1=got item, 0=empty) onto vec4 stack.
- * If empty, push null onto obj stack and push 0 onto vec4 stack.
+ * Non-blocking get. Push the queued item onto the object stack, the signed
+ * method result (1=success, 0=empty, -1=type mismatch) onto the vec4 stack,
+ * and an independent success bit used to gate output writeback.
  */
 bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
 {
@@ -36215,18 +36227,24 @@ bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_get(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
-      thr->push_vec4(res);
+      vvp_lvalue_ref*output = thr->object_stack_size()
+	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
+      int result = mbx && output
+	    ? mbx->try_get(item, output->value_kind(),
+			    output->mailbox_value_width())
+	    : mbx && !mbx->empty() ? mbx->try_get(item, UINT_MAX, 0) : 0;
+      thr->push_object(item);
+      thr->push_vec4(mailbox_try_status_vector_(result));
+      thr->push_vec4(vvp_vector4_t(1, result > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 
 /*
  * %mbx/try_peek
  * Stack (top->bottom): mailbox
- * Non-blocking peek. If successful, push item onto obj stack; push
- * result (1=item present, 0=empty) onto vec4 stack.
+ * Non-blocking peek. Push the queued item onto the object stack, the signed
+ * method result (1=success, 0=empty, -1=type mismatch) onto the vec4 stack,
+ * and an independent success bit used to gate output writeback.
  */
 bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
 {
@@ -36235,10 +36253,15 @@ bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
 
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       vvp_object_t item;
-      bool ok = mbx ? mbx->try_peek(item) : false;
-      thr->push_object(ok ? item : vvp_object_t());
-      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
-      thr->push_vec4(res);
+      vvp_lvalue_ref*output = thr->object_stack_size()
+	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
+      int result = mbx && output
+	    ? mbx->try_peek(item, output->value_kind(),
+			    output->mailbox_value_width())
+	    : mbx && !mbx->empty() ? mbx->try_peek(item, UINT_MAX, 0) : 0;
+      thr->push_object(item);
+      thr->push_vec4(mailbox_try_status_vector_(result));
+      thr->push_vec4(vvp_vector4_t(1, result > 0 ? BIT4_1 : BIT4_0));
       return true;
 }
 

@@ -20556,16 +20556,20 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 					delete sub_expr;
 					return 0;
 				  }
-				  // Returns bit (1=success, 0=fail)
+				  // try_get/try_peek return a signed int status; try_put keeps
+				  // its existing zero/one result representation.
 				  const char*sname =
 				      method_name==perm_string::literal("try_get")
 				      ? "$ivl_mailbox$try_get"
 				      : (method_name==perm_string::literal("try_peek")
 				         ? "$ivl_mailbox$try_peek"
 				         : "$ivl_mailbox$try_put");
-			      NetESFunc*sys = new NetESFunc(sname,
-						       &netvector_t::atom2u32,
-						       2);
+			      const netvector_t*result_type =
+				    method_name==perm_string::literal("try_get")
+				    || method_name==perm_string::literal("try_peek")
+				    ? netvector_t::integer_type()
+				    : &netvector_t::atom2u32;
+			      NetESFunc*sys = new NetESFunc(sname, result_type, 2);
 			      sys->set_line(*this);
 			      sys->parm(0, sub_expr);
 			      if (method_name == perm_string::literal("try_get")

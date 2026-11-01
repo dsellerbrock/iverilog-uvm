@@ -2427,10 +2427,10 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
 	    fprintf(vvp_out, "    %s;\n", is_peek ? "%mbx/try_peek" : "%mbx/try_get");
-	    /* Preserve the expression result while using a duplicate to gate
-	       ref-output writeback. A failed try leaves the actual unchanged. */
-	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    fprintf(vvp_out, "    %%flag_set/vec4 %d; test mailbox result\n",
+	    /* The mailbox leaves its signed return value below a separate success
+	       bit. Use only the success bit to gate ref-output writeback, preserving
+	       the method result as the sole value on the vec4 stack. */
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; test mailbox success\n",
 		    success_flag);
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed mailbox try\n",
 		    thread_count, lab_fail, success_flag);
