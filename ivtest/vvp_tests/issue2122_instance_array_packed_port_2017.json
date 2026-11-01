@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2122_instance_array_packed_port.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue2122_instance_array_packed_port" ],
+    "gold"          : "issue2122_instance_array_packed_port"
+}
