@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1846_dpi_user_data.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1846_dpi_user_data"],
+  "vpi-sources": ["vpi/issue1846_dpi_user_data.c"],
+  "output-contains": ["PASSED"]
+}

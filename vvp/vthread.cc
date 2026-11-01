@@ -22088,6 +22088,42 @@ extern "C" const char*svGetFullNameFromScope(void*scope)
       return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
 }
 
+/* DPI user data is private to each (scope, key) pair. Scopes remain valid
+ * for the lifetime of a VVP simulation, so keeping the entries here also
+ * gives repeated puts the specified replace behavior. */
+static map<pair<void*, void*>, void*> dpi_user_data_;
+
+extern "C" int svPutUserData(void*scope, void*userKey, void*userData)
+{
+      if (!scope || !userKey || !userData)
+	    return -1;
+
+      int scope_type = vpi_get(vpiType, reinterpret_cast<vpiHandle>(scope));
+      if (scope_type != vpiModule && scope_type != vpiInterface
+		  && scope_type != vpiProgram && scope_type != vpiGenScope
+		  && scope_type != vpiPackage)
+	    return -1;
+
+      dpi_user_data_[make_pair(scope, userKey)] = userData;
+      return 0;
+}
+
+extern "C" void*svGetUserData(void*scope, void*userKey)
+{
+      if (!scope || !userKey)
+	    return 0;
+
+      int scope_type = vpi_get(vpiType, reinterpret_cast<vpiHandle>(scope));
+      if (scope_type != vpiModule && scope_type != vpiInterface
+		  && scope_type != vpiProgram && scope_type != vpiGenScope
+		  && scope_type != vpiPackage)
+	    return 0;
+
+      map<pair<void*, void*>, void*>::const_iterator entry =
+	    dpi_user_data_.find(make_pair(scope, userKey));
+      return entry == dpi_user_data_.end() ? 0 : entry->second;
+}
+
 static bool do_join_opcode(vthread_t thr)
 {
       assert( !thr->i_am_joining );

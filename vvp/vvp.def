@@ -113,3 +113,5 @@ svSetScope
 svGetScopeFromName
 svGetNameFromScope
 svGetFullNameFromScope
+svPutUserData
+svGetUserData
