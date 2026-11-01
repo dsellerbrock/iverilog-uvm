@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue883_assertion_vpi.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue883_assertion_vpi_2017"],
+  "vpi-sources": ["vpi/issue883_assertion_vpi.c"],
+  "output-contains": ["PASS: issue883 assertion VPI constants and iterator"]
+}
