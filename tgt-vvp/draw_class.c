@@ -560,6 +560,24 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       {
+	    int nr = ivl_type_covgrp_wide_ranges(classtype);
+	    for (idx = 0; idx < nr; ++idx) {
+		  unsigned width = ivl_type_covgrp_wide_range_width(classtype, idx);
+		  unsigned nwords = (width + 63) / 64;
+		  fprintf(vvp_out, " .covgrp_wide_range %u %u", idx, width);
+		  for (unsigned word = 0; word < 4; ++word)
+			fprintf(vvp_out, " %" PRIu64,
+				word < nwords
+				? ivl_type_covgrp_wide_range_low(classtype, idx, word) : 0);
+		  for (unsigned word = 0; word < 4; ++word)
+			fprintf(vvp_out, " %" PRIu64,
+				word < nwords
+				? ivl_type_covgrp_wide_range_high(classtype, idx, word) : 0);
+		  fprintf(vvp_out, "\n");
+	    }
+      }
+
+      {
 	      /* Full record form. The trailing transition/guard fields keep
 		 old VVP streams readable while carrying compact repetition state.
 		 (vvp also still parses the older 4/5-operand forms.) */
