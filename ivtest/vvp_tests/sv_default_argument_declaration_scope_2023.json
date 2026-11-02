@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_default_argument_declaration_scope.v",
+  "iverilog-args": ["-g2023", "-s", "sv_default_argument_declaration_scope"]
+}

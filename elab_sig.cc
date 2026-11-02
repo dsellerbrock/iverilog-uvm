@@ -3796,13 +3796,49 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
       pdefs.resize(ports_->size());
       port_names.resize(ports_->size());
 
+      bool has_default_expr = false;
+      for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+	    if (ports_->at(idx).defe) {
+		  has_default_expr = true;
+		  break;
+	    }
+      }
+      bool declaration_scope_defaults = has_default_expr
+	    && generation_flag >= GN_VER2017;
+
+      // Defaults are looked up in the scope containing this declaration.
+      // Keep the subroutine scope for class context (including `this'), but
+      // temporarily hide its formals so a same-named formal cannot shadow an
+      // enclosing declaration used by a default expression.
+      vector<NetNet*>formal_signals(ports_->size(), nullptr);
+      vector<PWire*>formal_placeholders(ports_->size(), nullptr);
+      bool removed_formals = false;
+      for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
+	    perm_string port_name = ports_->at(idx).port->basename();
+	    formal_signals[idx] = scope->find_signal(port_name);
+	    if (!declaration_scope_defaults
+		|| port_name == perm_string::literal(THIS_TOKEN))
+		  continue;
+	    if (formal_signals[idx]) {
+		  scope->rem_signal(formal_signals[idx]);
+		  removed_formals = true;
+	    }
+	    formal_placeholders[idx] = scope->find_signal_placeholder(port_name);
+	    if (formal_placeholders[idx]) {
+		  scope->rem_signal_placeholder(formal_placeholders[idx]);
+		  removed_formals = true;
+	    }
+      }
+      if (removed_formals)
+	symbol_search_cache_clear();
+
       for (size_t idx = 0 ; idx < ports_->size() ; idx += 1) {
 
 	    perm_string port_name = ports_->at(idx).port->basename();
 
 	    ports[idx] = 0;
 	    pdefs[idx] = 0;
-	    NetNet*tmp = scope->find_signal(port_name);
+	    NetNet*tmp = formal_signals[idx];
 	    NetExpr*tmp_def = 0;
 	    if (tmp == 0) {
 		  cerr << get_fileline() << ": internal error: "
@@ -3939,6 +3975,16 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	      // declaration-time rejection here made legal output/inout/ref
 	      // formals fail even though the caller retains the complete
 	      // array type and the target already carries word-array stores.
+      }
+      if (declaration_scope_defaults) {
+	    for (NetNet*formal : formal_signals)
+		  if (formal)
+			scope->add_signal(formal);
+	    for (PWire*formal : formal_placeholders)
+		  if (formal)
+			scope->add_signal_placeholder(formal);
+	    if (removed_formals)
+		  symbol_search_cache_clear();
       }
 }
 
