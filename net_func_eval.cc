@@ -1354,16 +1354,16 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 			converted_value.cast_to_int2();
 			converted = static_cast<int32_t>(
 			      static_cast<uint32_t>(converted_value.as_long()));
-		  } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
-			converted = static_cast<int32_t>(value->value().as_long());
+		  } else if (const NetECReal*real_value = dynamic_cast<const NetECReal*>(arg)) {
+			converted = static_cast<int32_t>(real_value->value().as_long());
 		  } else { delete arg; delete invalid_slot; return false; }
 		  text = const_string_format_int_(converted, radix);
 	    } else {
 		  double converted;
 		  if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg))
 			converted = value->value().as_double();
-		  else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
-			converted = value->value().as_double();
+		  else if (const NetEConst*const_value = dynamic_cast<const NetEConst*>(arg))
+			converted = const_value->value().as_double();
 		  else { delete arg; delete invalid_slot; return false; }
 		  char buffer[64];
 		  snprintf(buffer, sizeof buffer, "%g", converted);
@@ -1399,9 +1399,9 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 			      ? int64_t(static_cast<int32_t>(
 				    static_cast<uint32_t>(converted.as_long())))
 			      : int64_t(static_cast<uint8_t>(converted.as_long()));
-		  } else if (const NetECReal*number =
+		  } else if (const NetECReal*real_number =
 			       dynamic_cast<const NetECReal*>(evaluated)) {
-			int64_t rounded = number->value().as_long();
+			int64_t rounded = real_number->value().as_long();
 			value = width == 32
 			      ? int64_t(static_cast<int32_t>(rounded))
 			      : int64_t(static_cast<uint8_t>(rounded));
