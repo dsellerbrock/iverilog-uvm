@@ -3479,6 +3479,13 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+	/* Record the package objects referenced through imports for the
+	   IEEE 1800-2017/2023 vpiImport scope iterator. */
+      for (idx = 0; idx < ivl_scope_imports(net); idx += 1)
+	    fprintf(vvp_out, "    .vpi_import \"%s\" \"%s\";\n",
+		    vvp_mangle_name(ivl_scope_import_package(net, idx)),
+		    vvp_mangle_name(ivl_scope_import_name(net, idx)));
+
 	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
 	   37.23). Keep aliases and resolution-function names for runtime queries. */
       for (idx = 0; idx < ivl_scope_nettypes(net); idx += 1) {

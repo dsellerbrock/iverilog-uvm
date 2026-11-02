@@ -330,6 +330,8 @@ class __vpiScope : public __vpiHandle {
       __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
+	/* Imported package symbols referenced in this scope. */
+      std::vector<std::pair<const char*, const char*> > vpi_imports;
 	/* Source statement tree exposed by vpiStmt for tasks/functions. */
       vpiHandle statement_root;
       std::vector<vpiHandle> statement_nodes;

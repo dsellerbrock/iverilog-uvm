@@ -373,6 +373,9 @@ typedef struct t_vpi_delay  {
 
 #define vpiGenScope   134
 
+/* IEEE 1800-2017/2023 scope iterator object. */
+#define vpiImport     726
+
 /* PROPERTIES */
 #define vpiUndefined   (-1)
 #define vpiQualifier   650

@@ -498,6 +498,27 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
 
+      if (code == vpiImport) {
+	    vector<vpiHandle> items;
+	    for (vector<pair<const char*, const char*> >::const_iterator cur
+		   = ref->vpi_imports.begin(); cur != ref->vpi_imports.end(); ++cur) {
+		  string full_name = cur->first;
+		  full_name += "::";
+		  full_name += cur->second;
+		  vpiHandle item = vpi_handle_by_name(
+			  reinterpret_cast<PLI_BYTE8*>(const_cast<char*>(full_name.c_str())),
+			  0);
+		  if (item && find(items.begin(), items.end(), item) == items.end())
+			items.push_back(item);
+	    }
+	    if (items.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(
+		  calloc(items.size(), sizeof(vpiHandle)));
+	    for (unsigned idx = 0; idx < items.size(); idx += 1)
+		  args[idx] = items[idx];
+	    return vpip_make_iterator(items.size(), args, true);
+      }
+
       if (code == vpiVirtualInterfaceVar) {
 	    vector<vpiHandle> items;
 	    set<vpiHandle> seen;
@@ -637,6 +658,16 @@ void compile_nettype_decl(char*name, char*alias, char*with)
       delete[] name;
       delete[] alias;
       delete[] with;
+}
+
+void compile_vpi_import(char*package, char*name)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope);
+      scope->vpi_imports.push_back(make_pair(vpip_name_string(package),
+						     vpip_name_string(name)));
+      delete[] package;
+      delete[] name;
 }
 
 

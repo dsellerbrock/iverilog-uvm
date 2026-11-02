@@ -1300,6 +1300,8 @@ class NetScope : public Definitions, public Attrib {
 
       void add_imports(const std::map<perm_string,PPackage*>*imports);
       NetScope*find_import(const Design*des, perm_string name);
+      const std::map<perm_string,PPackage*>& referenced_imports() const
+	{ return referenced_imports_; }
 
       void add_typedefs(const std::map<perm_string,typedef_t*>*typedefs);
       void elaborate_typedef_types(Design*des);
@@ -1841,6 +1843,7 @@ class NetScope : public Definitions, public Attrib {
       bool time_from_timescale_;
 
       const std::map<perm_string,PPackage*>*imports_;
+      std::map<perm_string,PPackage*> referenced_imports_;
 
       std::map<perm_string,typedef_t*>typedefs_;
       std::map<perm_string,ivl_type_t>typedef_types_;

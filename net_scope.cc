@@ -273,7 +273,10 @@ NetScope*NetScope::find_import(const Design*des, perm_string name)
 
       map<perm_string,PPackage*>::const_iterator cur = imports_->find(name);
       if (cur != imports_->end()) {
-            return des->find_package(cur->second->pscope_name());
+            NetScope*import_scope = des->find_package(cur->second->pscope_name());
+            if (import_scope)
+		  referenced_imports_[name] = cur->second;
+            return import_scope;
       } else
             return 0;
 }

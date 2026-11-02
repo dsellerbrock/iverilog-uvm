@@ -27,6 +27,7 @@
 # include  "netdarray.h"
 # include  "netenum.h"
 # include  "netparray.h"
+# include  "PPackage.h"
 # include  "netqueue.h"
 # include  "netscalar.h"
 # include  "netstruct.h"
@@ -2702,6 +2703,34 @@ extern "C" ivl_type_t ivl_scope_typedef_type(ivl_scope_t net, unsigned idx)
       assert(net && net->aux_ && net->aux_->typedefs_);
       assert(idx < net->aux_->typedefs_->size());
       return (*net->aux_->typedefs_)[idx].second;
+}
+
+extern "C" unsigned ivl_scope_imports(ivl_scope_t net)
+{
+      assert(net && net->net_);
+      return net->net_->referenced_imports().size();
+}
+
+extern "C" const char* ivl_scope_import_name(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      const std::map<perm_string,PPackage*>&imports
+	    = net->net_->referenced_imports();
+      assert(idx < imports.size());
+      std::map<perm_string,PPackage*>::const_iterator cur = imports.begin();
+      std::advance(cur, idx);
+      return cur->first.str();
+}
+
+extern "C" const char* ivl_scope_import_package(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      const std::map<perm_string,PPackage*>&imports
+	    = net->net_->referenced_imports();
+      assert(idx < imports.size());
+      std::map<perm_string,PPackage*>::const_iterator cur = imports.begin();
+      std::advance(cur, idx);
+      return cur->second->pscope_name().str();
 }
 
 extern "C" unsigned ivl_scope_nettypes(ivl_scope_t net)
