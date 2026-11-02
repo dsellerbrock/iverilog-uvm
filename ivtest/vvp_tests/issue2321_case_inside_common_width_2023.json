@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2321_case_inside_common_width.v",
+  "iverilog-args": ["-g2023", "-s", "issue2321_case_inside_common_width"]
+}

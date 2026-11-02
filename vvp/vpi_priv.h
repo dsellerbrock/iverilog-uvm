@@ -682,12 +682,22 @@ struct __vpiPV : public __vpiHandle {
       vpiHandle parent;
       vvp_net_t*net;
       vpiHandle sbase;
+      vpiHandle base_expr;
+      vpiHandle width_expr;
       int64_t tbase;
       unsigned width;
+      bool indexed;
+      bool own_base_expr;
 };
 extern vpiHandle vpip_make_PV(char*name, int64_t base, int width);
 extern vpiHandle vpip_make_PV(char*name, char*symbol, int width);
 extern vpiHandle vpip_make_PV(char*name, vpiHandle handle, int width);
+extern vpiHandle vpip_make_PV(char*name, int64_t base, int width,
+                              bool indexed);
+extern vpiHandle vpip_make_PV(char*name, char*symbol, int width,
+                              bool indexed);
+extern vpiHandle vpip_make_PV(char*name, vpiHandle handle, int width,
+                              bool indexed);
 
 struct __vpiModPathTerm : public __vpiHandle {
       __vpiModPathTerm();
@@ -791,6 +801,12 @@ struct __vpiInterModPath : public __vpiHandle {
  */
 
 extern struct __vpiInterModPath* vpip_make_intermodpath(vvp_net_t *net, vpiPortInfo* port1, vpiPortInfo* port2);
+extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
+                                                        vpiHandle load);
+extern "C" bool vpip_interconnect_through_net(vpiHandle net,
+                                               vpiHandle load);
+extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
+                                                   vpiHandle load);
 
 /* Reset the bounded loader-side accounting for .port_info/evcd records. */
 extern void vpip_reset_port_info_evcd_budget(void);
@@ -1499,6 +1515,14 @@ class __vpiNullConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_null_const();
+
+class __vpiNullOp : public __vpiHandle {
+    public:
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+};
+
+vpiHandle vpip_make_null_op();
 
 /*
  *  This one looks like a constant, but really is a vector in the current

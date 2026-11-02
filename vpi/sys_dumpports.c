@@ -218,6 +218,7 @@ static int evcd_is_filename(vpiHandle arg)
           case vpiMemoryWord:
           case vpiNet:
           case vpiPartSelect:
+          case vpiIndexedPartSelect:
           case vpiReg:
           case vpiTimeVar:
           case vpiStringVar:

@@ -523,6 +523,7 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    ivl_expr_t vexpr = ivl_expr_oper1(expr);
 	    ivl_expr_t bexpr;
 	    ivl_expr_t wexpr;
+	    int indexed = ivl_expr_sel_type(expr) != IVL_SEL_OTHER;
 
 	    /* An aggregate select is a value, not a signal handle with one
 	     * array index. Let the object evaluator preserve every select. */
@@ -586,10 +587,17 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      /* This is a constant bit/part select. */
 	    } else if (number_is_immediate(bexpr, 64, 1)) {
 		  assert(! number_is_unknown(bexpr));
-		  snprintf(buffer, sizeof buffer, "&PV<v%p_0, %" PRId64 ", %u>",
-		           ivl_expr_signal(vexpr),
-		           (int64_t)get_number_immediate64(bexpr),
-		           ivl_expr_width(expr));
+		  if (indexed)
+			snprintf(buffer, sizeof buffer,
+			         "&PV<v%p_0, %" PRId64 ", %u, 1>",
+			         ivl_expr_signal(vexpr),
+			         (int64_t)get_number_immediate64(bexpr),
+			         ivl_expr_width(expr));
+		  else
+			snprintf(buffer, sizeof buffer, "&PV<v%p_0, %" PRId64 ", %u>",
+			         ivl_expr_signal(vexpr),
+			         (int64_t)get_number_immediate64(bexpr),
+			         ivl_expr_width(expr));
 
 	      /* This is an indexed bit/part select. */
 	    } else if (ivl_expr_type(bexpr) == IVL_EX_SIGNAL ||
@@ -597,10 +605,16 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    /* Special case: the base is a signal/select. */
 		  result->child = calloc(1, sizeof(struct args_info));
 		  if (get_vpi_taskfunc_signal_arg(result->child, bexpr)) {
-			snprintf(buffer, sizeof buffer, "&PV<v%p_0, %s, %u>",
-			         ivl_expr_signal(vexpr),
-			         result->child->text,
-			         ivl_expr_width(expr));
+			if (indexed)
+			      snprintf(buffer, sizeof buffer,
+			               "&PV<v%p_0, %s, %u, 1>",
+			               ivl_expr_signal(vexpr), result->child->text,
+			               ivl_expr_width(expr));
+			else
+			      snprintf(buffer, sizeof buffer,
+			               "&PV<v%p_0, %s, %u>",
+			               ivl_expr_signal(vexpr), result->child->text,
+			               ivl_expr_width(expr));
 			free(result->child->text);
 		  } else {
 			free(result->child);
@@ -1024,7 +1038,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		       with VPI handles of their own. Therefore, skip
 		       them in the process of evaluating expressions. */
 		case IVL_EX_NONE:
-		  args[idx].text = strdup("\" \"");
+		  /* Resolve this VVP-only symbol to a vpiNullOp expression. */
+		  args[idx].text = strdup("__ivl_vpi_null_op__");
 		  continue;
 
 		case IVL_EX_ARRAY:

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1305_vpi_omitted_arguments.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1305_vpi_omitted_arguments"],
+  "vpi-sources": ["vpi/issue1305_vpi_omitted_arguments.c"],
+  "output-contains": ["PASSED"]
+}

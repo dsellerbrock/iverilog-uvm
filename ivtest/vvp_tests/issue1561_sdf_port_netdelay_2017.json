@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1561_sdf_port_netdelay.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect", "-s", "issue1561_sdf_port_netdelay"],
+  "output-contains": ["13000 1 1 1"]
+}

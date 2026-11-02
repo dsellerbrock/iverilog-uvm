@@ -1276,6 +1276,7 @@ static int is_assignable_obj(vpiHandle obj)
 		  rtn = 1;
 	    break;
 	case vpiPartSelect:
+	case vpiIndexedPartSelect:
 	    if (! is_assignable_obj(vpi_handle(vpiParent, obj))) break;
 	    // fallthrough
 	case vpiIntegerVar:

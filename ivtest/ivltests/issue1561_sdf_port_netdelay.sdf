@@ -1,0 +1,14 @@
+(DELAYFILE
+  (SDFVERSION "4.0")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue1561_buf")
+    (INSTANCE port_load_inst)
+    (DELAY (ABSOLUTE (PORT a (3))))
+  )
+  (CELL
+    (CELLTYPE "issue1561_sdf_port_netdelay")
+    (INSTANCE)
+    (DELAY (ABSOLUTE (NETDELAY link (3))))
+  )
+)

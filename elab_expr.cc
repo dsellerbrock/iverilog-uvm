@@ -7862,7 +7862,9 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, expr_);
 
       bool need_const = NEED_CONST & flags;
-      NetExpr*base = elab_and_eval(des, scope, expr_, -1, need_const);
+      NetExpr*base = elab_and_eval(des, scope, expr_,
+				   case_context_width_ ? case_context_width_ : -1,
+				   need_const);
       if (base == 0) {
 	    NetEConst*z = new NetEConst(verinum(verinum::V0, 1));
 	    z->set_line(*this);
@@ -7875,7 +7877,8 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 	   PEInside builds its comparison IR directly, so it must preserve
 	   that context explicitly instead of elaborating the literal as a
 	   one-bit self-determined item. */
-      auto inside_item_width = [base](PExpr*item) -> int {
+      auto inside_item_width = [this, base](PExpr*item) -> int {
+	    if (case_context_width_) return int(case_context_width_);
 	    PENumber*num = dynamic_cast<PENumber*>(item);
 	    return num && num->value().is_single()
 		 ? int(base->expr_width()) : -1;
