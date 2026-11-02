@@ -3,7 +3,7 @@ module main;
   logic d = 0;
   always #5 clk = ~clk;
   clocking cb @(posedge clk);
-    input #0 d;
+    input #0ns d;
   endclocking
   always @(posedge clk) begin
     if ($past(cb.d)) $display("unexpected");
