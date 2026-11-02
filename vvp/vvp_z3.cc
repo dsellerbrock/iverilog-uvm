@@ -2473,7 +2473,11 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       }
 
       if (!path_error.empty()) {
-            b.state_errors.push_back(path_error);
+            // A null or invalid path is a run-time error only when this
+            // operand is evaluated. Keep it as a guarded state check so
+            // enclosing short-circuit operators can suppress it for the
+            // selected rand solution (IEEE 1800-2017/2023 11.3.5).
+            b.state_checks.push_back({Z3_mk_true(b.ctx), path_error});
             return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
       }
 
@@ -5207,20 +5211,16 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t checks_after_right = b.state_checks.size();
 	    Z3_ast left_error = constraint_state_error_disjunction_(
 	          b, checks_before, checks_after_left);
-	    Z3_ast right_error = constraint_state_error_disjunction_(
-	          b, checks_after_left, checks_after_right);
 	    Z3_ast left_decides = op == "and"
 		  ? Z3_mk_not(b.ctx, left) : left;
 	    Z3_ast right_decides = op == "and"
 		  ? Z3_mk_not(b.ctx, right) : right;
-	    Z3_ast left_sift_args[2] = {
-		  Z3_mk_not(b.ctx, right_error), right_decides
-	    };
 	    Z3_ast right_sift_args[2] = {
 		  Z3_mk_not(b.ctx, left_error), left_decides
 	    };
-	    constraint_guard_state_checks_(b, checks_before, checks_after_left,
-		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, left_sift_args)), false);
+	    // The left operand is always evaluated before the operator can decide
+	    // whether to short-circuit the right operand. A value in the right
+	    // operand therefore cannot suppress an error while evaluating left.
 	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
 		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
 	    Z3_ast left_valid = constraint_side_conjunction_(
