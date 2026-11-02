@@ -117,7 +117,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
-%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
+%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_IPV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
 %token K_SCOPE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
@@ -1629,6 +1629,13 @@ symbol_access
       { $$ = vpip_make_vthr_A($3, $5); }
   | K_PV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, $5, $7); }
+  | K_IPV '<' T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER '>'
+	  { $$ = vpip_make_IPV($3, $5, $7, $9); }
+  | K_IPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+	  { $$ = vpip_make_IPV($3, $5, $7, $9 != 0, $11, $13); }
+  | K_IPV '<' T_SYMBOL ',' '-' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+	  { $$ = vpip_make_IPV($3, static_cast<uint64_t>(-static_cast<int64_t>($6)),
+	                       $8, $10 != 0, $12, $14); }
   | K_PV '<' T_SYMBOL ',' '-' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, -$6, $8); }
   | K_PV '<' T_SYMBOL ',' T_SYMBOL ',' T_NUMBER '>'

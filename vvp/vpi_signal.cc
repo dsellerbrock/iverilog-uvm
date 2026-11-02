@@ -1581,6 +1581,7 @@ vpiHandle vpip_make_net4(__vpiScope*scope,
 
 static int64_t PV_get_base(struct __vpiPV*rfp)
 {
+	  int64_t base;
 	/* We return from the symbol base if it is defined. */
       if (rfp->sbase != 0) {
 	    s_vpi_value val;
@@ -1595,15 +1596,27 @@ static int64_t PV_get_base(struct __vpiPV*rfp)
 	      /* Preserve the complete signed or unsigned index width. */
 	    vvp_vector4_t vec = vec4_from_vpi_value(
 		  &val, vpi_get(vpiSize, rfp->sbase));
-	    int64_t base = 0;
+	    base = 0;
 	    if (!vpip_vec4_to_int64_saturated(
 		  vec, vpi_get(vpiSigned, rfp->sbase), base))
 		  return LLONG_MIN;
-	    return base;
+	  } else {
+	    base = rfp->tbase;
       }
 
-	/* If the width is zero then tbase is the constant. */
-      return rfp->tbase;
+	  if (rfp->indexed) {
+		/* An indexed part-select base is an index in the parent range, not
+		 * the canonical bit offset used by the runtime part-select view. */
+	    if (rfp->indexed_type == vpiNegIndexed)
+		  base -= static_cast<int64_t>(rfp->width) - 1;
+	    int left = vpi_get(vpiLeftRange, rfp->parent);
+	    int right = vpi_get(vpiRightRange, rfp->parent);
+	    if (left >= right)
+		  base -= right;
+	    else
+		  base = right - base;
+	  }
+	  return base;
 }
 
 static int PV_get(int code, vpiHandle ref)
@@ -1621,9 +1634,14 @@ static int PV_get(int code, vpiHandle ref)
 	case vpiSize:
 	    return rfp->width;
 
+	case vpiIndexedPartSelectType:
+	    return rfp->indexed ? rfp->indexed_type : 0;
+
 	  /* This is like the &A<> in array.cc. */
 	case vpiConstantSelect:
-	    return rfp->sbase == 0;
+	    return rfp->sbase == 0
+		  || (rfp->indexed
+		      && rfp->sbase->get_type_code() == vpiConstant);
 
 	case vpiLeftRange:
 	case vpiRightRange: {
@@ -1872,6 +1890,12 @@ static vpiHandle PV_get_handle(int code, vpiHandle ref)
       assert(rfp);
 
       switch (code) {
+	  case vpiBaseExpr:
+	    return rfp->indexed ? rfp->sbase : 0;
+
+	  case vpiWidthExpr:
+	    return rfp->indexed ? rfp->width_expr : 0;
+
 	  case vpiParent:
 	    return rfp->parent;
 
@@ -1889,7 +1913,7 @@ inline __vpiPV::__vpiPV()
 { }
 
 int __vpiPV::get_type_code(void) const
-{ return vpiPartSelect; }
+{ return indexed ? vpiIndexedPartSelect : vpiPartSelect; }
 
 int __vpiPV::vpi_get(int code)
 { return PV_get(code, this); }
@@ -1911,8 +1935,11 @@ vpiHandle vpip_make_PV(char*var, int64_t base, int width)
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       obj->sbase = 0;
+      obj->width_expr = 0;
       obj->tbase = base;
       obj->width = (unsigned) width;
+      obj->indexed = false;
+      obj->indexed_type = 0;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
 
@@ -1924,8 +1951,11 @@ vpiHandle vpip_make_PV(char*var, char*symbol, int width)
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       compile_vpi_lookup(&obj->sbase, symbol);
+      obj->width_expr = 0;
       obj->tbase = 0;
       obj->width = (unsigned) width;
+      obj->indexed = false;
+	  obj->indexed_type = 0;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
 
@@ -1937,11 +1967,62 @@ vpiHandle vpip_make_PV(char*var, vpiHandle handle, int width)
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       obj->sbase = handle;
+      obj->width_expr = 0;
       obj->tbase = 0;
       obj->width = (unsigned) width;
+      obj->indexed = false;
+	  obj->indexed_type = 0;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
 
+      return obj;
+}
+
+vpiHandle vpip_make_IPV(char*var, char*base, unsigned width, int indexed_type)
+{
+      struct __vpiPV*obj = new __vpiPV;
+      compile_vpi_lookup(&obj->parent, strdup(var));
+      compile_vpi_lookup(&obj->sbase, base);
+      obj->tbase = 0;
+      obj->width = width;
+      obj->indexed = true;
+	  obj->indexed_type = indexed_type;
+      char bits[33];
+      for (unsigned idx = 0; idx < 32; idx += 1)
+	    bits[31-idx] = ((width >> idx) & 1) ? '1' : '0';
+      bits[32] = 0;
+      obj->width_expr = vpip_make_binary_const(32, bits);
+      obj->net = 0;
+      functor_ref_lookup(&obj->net, var);
+      return obj;
+}
+
+vpiHandle vpip_make_IPV(char*var, uint64_t base, unsigned base_width,
+                       bool base_signed, unsigned width, int indexed_type)
+{
+      struct __vpiPV*obj = new __vpiPV;
+      compile_vpi_lookup(&obj->parent, strdup(var));
+      char*base_bits = static_cast<char*>(malloc(base_width + (base_signed ? 2 : 1)));
+      unsigned base_offset = base_signed ? 1 : 0;
+      if (base_signed) base_bits[0] = 's';
+      for (unsigned idx = 0; idx < base_width; idx += 1)
+	    base_bits[base_offset + base_width - 1 - idx]
+	          = ((base >> idx) & 1) ? '1' : '0';
+      base_bits[base_offset + base_width] = 0;
+      char width_bits[33];
+      for (unsigned idx = 0; idx < 32; idx += 1) {
+	    width_bits[31-idx] = ((width >> idx) & 1) ? '1' : '0';
+      }
+      width_bits[32] = 0;
+      obj->sbase = vpip_make_binary_const(base_width, base_bits);
+      free(base_bits);
+      obj->width_expr = vpip_make_binary_const(32, width_bits);
+      obj->tbase = base;
+      obj->width = width;
+      obj->indexed = true;
+      obj->indexed_type = indexed_type;
+      obj->net = 0;
+      functor_ref_lookup(&obj->net, var);
       return obj;
 }
 
@@ -1957,6 +2038,7 @@ void PV_delete(vpiHandle item)
 		  }
 		  break;
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		  assert(vpi_get(_vpiFromThr, obj->sbase) == _vpi_at_PV);
 		  PV_delete(obj->sbase);
 		  break;

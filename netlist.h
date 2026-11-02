@@ -5754,6 +5754,8 @@ class NetESelect  : public NetExpr {
 
       const NetExpr*sub_expr() const;
       const NetExpr*select() const;
+      const NetExpr*vpi_base() const;
+      void set_vpi_base(NetExpr*base);
       ivl_select_type_t select_type() const;
 
 	// The type of a bit/part select is the base type of the
@@ -5774,6 +5776,7 @@ class NetESelect  : public NetExpr {
     private:
       NetExpr*expr_;
       NetExpr*base_;
+      NetExpr*vpi_base_;
       ivl_select_type_t sel_type_;
 };
 

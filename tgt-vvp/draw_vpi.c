@@ -559,7 +559,8 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 
 	      /* The signal is part of an array. */
 	      /* Add &APV<> code here when it is finished. */
-	    bexpr = ivl_expr_oper2(expr);
+	    bexpr = ivl_expr_vpi_base(expr);
+	    if (!bexpr) bexpr = ivl_expr_oper2(expr);
 
               /* This is a pad operation. */
 	    if (!bexpr) return 0;
@@ -582,6 +583,25 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 
 	    } else if (wexpr) {
 		  return 0;
+	    } else if ((ivl_expr_sel_type(expr) == IVL_SEL_IDX_UP
+	                || ivl_expr_sel_type(expr) == IVL_SEL_IDX_DOWN)
+	               && number_is_immediate(bexpr, 64, 1)) {
+		  assert(! number_is_unknown(bexpr));
+		  if (ivl_expr_signed(bexpr)) {
+			snprintf(buffer, sizeof buffer,
+			         "&IPV<v%p_0, %" PRId64 ", %u, 1, %u, %u>",
+			         ivl_expr_signal(vexpr),
+			         (int64_t)get_number_immediate64(bexpr),
+			         ivl_expr_width(bexpr), ivl_expr_width(expr),
+			         ivl_expr_sel_type(expr) == IVL_SEL_IDX_UP ? 1 : 2);
+		  } else {
+			snprintf(buffer, sizeof buffer,
+			         "&IPV<v%p_0, %" PRIu64 ", %u, 0, %u, %u>",
+			         ivl_expr_signal(vexpr),
+			         (uint64_t)get_number_immediate64(bexpr),
+			         ivl_expr_width(bexpr), ivl_expr_width(expr),
+			         ivl_expr_sel_type(expr) == IVL_SEL_IDX_UP ? 1 : 2);
+		  }
 
 	      /* This is a constant bit/part select. */
 	    } else if (number_is_immediate(bexpr, 64, 1)) {
@@ -597,10 +617,20 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    /* Special case: the base is a signal/select. */
 		  result->child = calloc(1, sizeof(struct args_info));
 		  if (get_vpi_taskfunc_signal_arg(result->child, bexpr)) {
-			snprintf(buffer, sizeof buffer, "&PV<v%p_0, %s, %u>",
-			         ivl_expr_signal(vexpr),
-			         result->child->text,
-			         ivl_expr_width(expr));
+			if (ivl_expr_sel_type(expr) == IVL_SEL_IDX_UP
+			    || ivl_expr_sel_type(expr) == IVL_SEL_IDX_DOWN) {
+			      snprintf(buffer, sizeof buffer,
+			               "&IPV<v%p_0, %s, %u, %u>",
+			               ivl_expr_signal(vexpr), result->child->text,
+			               ivl_expr_width(expr),
+			               ivl_expr_sel_type(expr) == IVL_SEL_IDX_UP
+			                 ? 1 : 2);
+			} else {
+			      snprintf(buffer, sizeof buffer, "&PV<v%p_0, %s, %u>",
+			               ivl_expr_signal(vexpr),
+			               result->child->text,
+			               ivl_expr_width(expr));
+			}
 			free(result->child->text);
 		  } else {
 			free(result->child);

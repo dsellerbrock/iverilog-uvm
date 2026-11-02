@@ -311,6 +311,7 @@ typedef struct t_vpi_delay  {
 #define vpiNettypeDecl 523
 #define vpiParameter   41
 #define vpiPartSelect  42
+#define vpiIndexedPartSelect 130
 #define vpiPathTerm    43
 #define vpiPort        44
 #define vpiPortBit     45
@@ -333,6 +334,11 @@ typedef struct t_vpi_delay  {
 #define vpiIndex       78
 #define vpiLeftRange   79
 #define vpiParent      81
+#define vpiBaseExpr   131
+#define vpiWidthExpr  132
+#define vpiIndexedPartSelectType 72
+#define vpiPosIndexed 1
+#define vpiNegIndexed 2
 #define vpiRightRange  83
 #define vpiScope       84
 #define vpiSysTfCall   85

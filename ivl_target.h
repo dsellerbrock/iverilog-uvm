@@ -1107,6 +1107,7 @@ extern int         ivl_expr_union_active_member(ivl_expr_t net);
 extern unsigned    ivl_expr_repeat(ivl_expr_t net);
   /* IVL_EX_SELECT */
 extern ivl_select_type_t ivl_expr_sel_type(ivl_expr_t net);
+extern ivl_expr_t ivl_expr_vpi_base(ivl_expr_t net);
   /* IVL_EX_EVENT */
 extern ivl_event_t ivl_expr_event(ivl_expr_t net);
   /* IVL_EX_PROPERTY */

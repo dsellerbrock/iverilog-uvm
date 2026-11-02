@@ -590,7 +590,7 @@ NetNet* NetEProperty::resolve_interface_member_signal() const
 
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
                        ivl_select_type_t sel_type)
-: expr_(exp), base_(base), sel_type_(sel_type)
+: expr_(exp), base_(base), vpi_base_(0), sel_type_(sel_type)
 {
       expr_width(wid);
       // IEEE 1800 6.16: a string character has signed byte type.
@@ -600,7 +600,7 @@ NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
 
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
                        ivl_type_t use_type, ivl_select_type_t sel_type)
-: NetExpr(use_type), expr_(exp), base_(base), sel_type_(sel_type)
+: NetExpr(use_type), expr_(exp), base_(base), vpi_base_(0), sel_type_(sel_type)
 {
       expr_width(wid);
 }
@@ -609,6 +609,7 @@ NetESelect::~NetESelect()
 {
       delete expr_;
       delete base_;
+      delete vpi_base_;
 }
 
 const NetExpr*NetESelect::sub_expr() const
@@ -619,6 +620,17 @@ const NetExpr*NetESelect::sub_expr() const
 const NetExpr*NetESelect::select() const
 {
       return base_;
+}
+
+const NetExpr*NetESelect::vpi_base() const
+{
+      return vpi_base_;
+}
+
+void NetESelect::set_vpi_base(NetExpr*base)
+{
+      delete vpi_base_;
+      vpi_base_ = base;
 }
 
 ivl_select_type_t NetESelect::select_type() const

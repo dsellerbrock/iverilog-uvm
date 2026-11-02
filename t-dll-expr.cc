@@ -669,6 +669,14 @@ void dll_target::expr_select(const NetESelect*net)
       expr_->u_.select_.sel_type_ = net->select_type();
       expr_->u_.select_.expr_ = expr;
       expr_->u_.select_.base_ = base;
+      ivl_expr_t selected = expr_;
+      selected->u_.select_.vpi_base_ = 0;
+      if (net->vpi_base()) {
+	    expr_ = 0;
+	    net->vpi_base()->expr_scan(this);
+	    selected->u_.select_.vpi_base_ = expr_;
+      }
+      expr_ = selected;
 }
 
 void dll_target::expr_sfunc(const NetESFunc*net)

@@ -518,6 +518,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiParameter";
 	  case vpiPartSelect:
 	    return "vpiPartSelect";
+	  case vpiIndexedPartSelect:
+	    return "vpiIndexedPartSelect";
 	  case vpiRealVar:
 	    return "vpiRealVar";
 	  case vpiReg:
@@ -701,6 +703,7 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	  case vpiMemory:
 	  case vpiMemoryWord:
 	  case vpiPartSelect:
+	  case vpiIndexedPartSelect:
 	    return dynamic_cast<__vpiScope*>(obj->vpi_handle(vpiScope));
 
 	  default:

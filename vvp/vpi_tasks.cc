@@ -961,6 +961,7 @@ void vpi_call_delete(vpiHandle item)
 		  }
 		  break;
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		  switch (vpi_get(_vpiFromThr, obj->args[arg])) {
 		      case _vpi_at_PV:
 			PV_delete(obj->args[arg]);

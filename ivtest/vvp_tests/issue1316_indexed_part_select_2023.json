@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue1316_indexed_part_select.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vvp-args": ["-d", "work/issue1316_indexed_part_select.vpi"],
+  "vpi-modules": ["issue1316_indexed_part_select"],
+  "vpi-sources": ["vpi/issue1316_indexed_part_select.c"],
+  "output-contains": ["PASSED"]
+}

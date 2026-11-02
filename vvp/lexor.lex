@@ -334,6 +334,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 "&CPS" { return K_CPS; }
 "&CPV" { return K_CPV; }
 "&PV" { return K_PV; }
+"&IPV" { return K_IPV; }
 
 "%"[.$_/a-zA-Z0-9]+ {
       yylval.text = strdup(yytext);

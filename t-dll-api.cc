@@ -1041,6 +1041,13 @@ extern "C" ivl_select_type_t ivl_expr_sel_type(ivl_expr_t net)
       return net->u_.select_.sel_type_;
 }
 
+extern "C" ivl_expr_t ivl_expr_vpi_base(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SELECT);
+      return net->u_.select_.vpi_base_;
+}
+
 extern "C" ivl_signal_t ivl_expr_signal(ivl_expr_t net)
 {
       assert(net);

@@ -399,6 +399,7 @@ struct ivl_expr_s {
 		  ivl_select_type_t  sel_type_;
 		  ivl_expr_t expr_;
 		  ivl_expr_t base_;
+		  ivl_expr_t vpi_base_;
 	    } select_;
 
 	    struct {

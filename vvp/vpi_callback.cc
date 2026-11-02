@@ -475,7 +475,8 @@ static value_callback* make_force_release(p_cb_data data)
       }
       if (!use_net)
       switch (data->obj->get_type_code()) {
-	  case vpiPartSelect: {
+	  case vpiPartSelect:
+	  case vpiIndexedPartSelect: {
 		struct __vpiPV*pobj = dynamic_cast<__vpiPV*>(data->obj);
 		assert(pobj);
 		use_net = pobj->net;
@@ -559,7 +560,8 @@ static value_callback* make_value_change(p_cb_data data)
                   return make_value_change_part(data);
 
 	// Special case: the target object is a vpiPartSelect
-	if (target->get_type_code() == vpiPartSelect) {
+	if (target->get_type_code() == vpiPartSelect
+	    || target->get_type_code() == vpiIndexedPartSelect) {
 	      if (target->vpi_handle(vpiArray))
 	        return vpip_array_word_change_target(data, target);
 	      else
@@ -1271,7 +1273,8 @@ void vvp_vpi_callback::run_vpi_callbacks()
 			      __vpiSignal*view = dynamic_cast<__vpiSignal*>(
 			            cur->cb_data.obj);
 			      if (cur->cb_data.obj &&
-			          (cur->cb_data.obj->get_type_code() == vpiPartSelect ||
+		          (cur->cb_data.obj->get_type_code() == vpiPartSelect ||
+	           cur->cb_data.obj->get_type_code() == vpiIndexedPartSelect ||
 			           (view && view->packed_parent)))
 			            cur->cb_data.obj->vpi_get_value(cur->cb_data.value);
 			      else

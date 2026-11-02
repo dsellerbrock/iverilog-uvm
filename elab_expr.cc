@@ -16568,7 +16568,6 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
             delete index_expr;
             return nullptr;
       }
-
       if (index_.sel == index_component_t::SEL_IDX_UP
           || index_.sel == index_component_t::SEL_IDX_DO) {
               // A self-determined packed expression has the canonical range
@@ -30159,7 +30158,8 @@ static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
 						  NetExpr*source,
 						  NetExpr*base,
 						  unsigned long width,
-						  ivl_select_type_t sel_type = IVL_SEL_OTHER)
+						  ivl_select_type_t sel_type = IVL_SEL_OTHER,
+						  NetExpr*vpi_base = 0)
 {
       ivl_type_t use_type = source->expr_type() == IVL_VT_BOOL
 	    ? new netvector_t(IVL_VT_LOGIC, (long)width - 1, 0, false)
@@ -30168,6 +30168,8 @@ static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
 	    ? new NetESelect(source, base, width, use_type, sel_type)
 	    : new NetESelect(source, base, width, sel_type);
       res->set_line(ident);
+      if (vpi_base)
+	    res->set_vpi_base(vpi_base);
       return res;
 }
 
@@ -30444,10 +30446,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    NetExpr*vpi_base = base->dup_expr();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, true, 0);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
-						  IVL_SEL_IDX_UP);
+						  IVL_SEL_IDX_UP, vpi_base);
       }
 
       list<long>prefix_indices;
@@ -30460,10 +30463,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
       if (slice_base_constant
 	  && slice_base_constant->value().is_defined()
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
+	    NetExpr*vpi_base = base->dup_expr();
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, true);
 	    return make_four_state_packed_select_(*this, net, base, wid,
-						  IVL_SEL_IDX_UP);
+						  IVL_SEL_IDX_UP, vpi_base);
       }
 
 	// Handle the special case that the base is constant as
@@ -30471,7 +30475,9 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	// part select.
       if (const NetEConst*base_c = dynamic_cast<NetEConst*> (base)) {
 	    NetExpr*ex;
+	    NetExpr*vpi_base = 0;
 	    if (base_c->value().is_defined()) {
+		  vpi_base = base->dup_expr();
 		  long lsv = base_c->value().as_long();
 		  long rel_base = 0;
 
@@ -30565,7 +30571,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid,
+							  IVL_SEL_IDX_UP, vpi_base);
 
 	    delete base;
 	    return ss;
@@ -30576,10 +30583,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 
 	// Convert the non-constant part select index expression into
 	// an expression that returns a canonical base.
-      base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, true);
+	  NetExpr*vpi_base = base->dup_expr();
+	  base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, true);
 
       NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
-							IVL_SEL_IDX_UP);
+							IVL_SEL_IDX_UP, vpi_base);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "
@@ -30626,10 +30634,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    NetExpr*vpi_base = base->dup_expr();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
-						  IVL_SEL_IDX_DOWN);
+						  IVL_SEL_IDX_DOWN, vpi_base);
       }
 
       list<long>prefix_indices;
@@ -30642,10 +30651,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
       if (slice_base_constant
 	  && slice_base_constant->value().is_defined()
 	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
+	    NetExpr*vpi_base = base->dup_expr();
 	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
 						  wid, false);
 	    return make_four_state_packed_select_(*this, net, base, wid,
-						  IVL_SEL_IDX_DOWN);
+						  IVL_SEL_IDX_DOWN, vpi_base);
       }
 
 	// Handle the special case that the base is constant as
@@ -30653,7 +30663,9 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	// part select.
       if (const NetEConst*base_c = dynamic_cast<NetEConst*> (base)) {
 	    NetExpr*ex;
+	    NetExpr*vpi_base = 0;
 	    if (base_c->value().is_defined()) {
+		  vpi_base = base->dup_expr();
 		  long lsv = base_c->value().as_long();
 		  long rel_base = 0;
 
@@ -30747,7 +30759,8 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		  }
 		  return ex;
 	    }
-	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid);
+	    NetESelect*ss = make_four_state_packed_select_(*this, net, ex, wid,
+							  IVL_SEL_IDX_DOWN, vpi_base);
 
 	    delete base;
 	    return ss;
@@ -30757,10 +30770,11 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 
 	// Convert the non-constant part select index expression into
 	// an expression that returns a canonical base.
-      base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, false);
+	  NetExpr*vpi_base = base->dup_expr();
+	  base = normalize_variable_part_base(prefix_indices, base, net->sig(), wid, false);
 
       NetESelect*ss = make_four_state_packed_select_(*this, net, base, wid,
-							IVL_SEL_IDX_DOWN);
+							IVL_SEL_IDX_DOWN, vpi_base);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate part "

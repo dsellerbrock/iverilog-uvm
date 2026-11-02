@@ -277,6 +277,8 @@ NetESelect* NetESelect::dup_expr() const
 			     expr_width(), sel_type_);
       ivl_assert(*this, tmp);
       tmp->cast_signed(has_sign());
+      if (vpi_base_)
+	    tmp->set_vpi_base(vpi_base_->dup_expr());
       tmp->set_line(*this);
       tmp->inherit_deferred_type_parameter_stub(*this);
       return tmp;
