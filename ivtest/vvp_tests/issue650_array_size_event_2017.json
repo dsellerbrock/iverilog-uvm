@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue650_array_size_event.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "output-contains": ["PASSED"]
+}

@@ -25096,6 +25096,38 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  continue;
 	    }
 
+	    /* A dynamic-array or queue size() call is represented by an internal
+	     * system-function node. It cannot be synthesized as an ordinary
+	     * expression, but its receiver inputs can trigger the existing value
+	     * observer. The observer compares successive size() results, so changes
+	     * to elements or same-sized assignments do not create false events. */
+	    if (gn_system_verilog()
+		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
+		  const NetESFunc*size_call = dynamic_cast<const NetESFunc*>(tmp);
+		  if (size_call
+		      && strcmp(size_call->name(), "$ivl_queue_method$size") == 0
+		      && size_call->nparms() == 1
+		      && size_call->parm(0)
+		      && dynamic_cast<const netdarray_t*>(
+			    size_call->parm(0)->net_type())) {
+			NexusSet*source_set = tmp->nex_input();
+			if (source_set && source_set->size() > 0) {
+			      NetEvProbe*probe = new NetEvProbe(
+				    scope, scope->local_symbol(), ev,
+				    NetEvProbe::ANYEDGE, source_set->size());
+			      for (unsigned pin = 0; pin < source_set->size(); ++pin)
+				    connect(source_set->at(pin).lnk, probe->pin(pin));
+			      probe->set_event_observer_expr(tmp);
+			      tmp = nullptr;
+			      des->add_node(probe);
+			      expr_count += 1;
+			      delete source_set;
+			      continue;
+			}
+			delete source_set;
+		  }
+	    }
+
 	    /* A named event's triggered property changes on the first trigger
 	     * of a time step and again when that time step ends. It has no
 	     * synthesizable net input, so use the dedicated property wait. */

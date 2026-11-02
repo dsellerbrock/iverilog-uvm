@@ -51,6 +51,7 @@ issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_t
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
+issue650_array_size_event normal,-g2017,-s,top ivltests
 issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 issue1526_input_port_context_2017 normal,-g2017,-s,main ivltests gold=issue1526_input_port_context_2017.gold
