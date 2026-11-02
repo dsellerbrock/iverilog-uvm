@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2336_packed_indexed_part_select.v",
+    "iverilog-args": ["-g2017", "-s", "issue2336_packed_indexed_part_select"],
+    "gold": "issue2336_packed_indexed_part_select"
+}

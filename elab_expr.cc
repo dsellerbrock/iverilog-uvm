@@ -30423,7 +30423,7 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
       for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
 	    indices.pop_front();
 
-      if (indices.size() != dims.size())
+      if (indices.empty() || indices.size() > dims.size())
 	    return false;
       list<index_component_t>::const_iterator last = indices.end();
       --last;
@@ -30434,6 +30434,18 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 		 ; cur != last ; ++cur) {
 	    if (cur->sel != index_component_t::SEL_BIT || !cur->msb)
 		  return false;
+      }
+	// The partial-dimension carrier below addresses a fixed outer
+	// sub-array. Leave run-time outer indices on their existing path.
+      if (indices.size() < dims.size()) {
+	    for (list<index_component_t>::const_iterator cur = indices.begin()
+			 ; cur != last ; ++cur) {
+		  NetExpr*index = elab_and_eval(des, scope, cur->msb, -1, need_const);
+		  bool constant = dynamic_cast<const NetEConst*>(index) != 0;
+		  delete index;
+		  if (!constant)
+			return false;
+	    }
       }
 
 	/* IEEE 1800-2017/2023 11.5.1: retain every packed dimension as
@@ -30505,6 +30517,18 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    if (!carrier) {
 		  delete base;
 		  return 0;
+	    }
+	    const size_t index_count = path_.back().index.size()
+		  - net->sig()->unpacked_dimensions();
+	    if (index_count < net->sig()->packed_dims().size()) {
+		  const size_t used = index_count - 1;
+		  const unsigned long slice_wid = net->sig()->slice_width(used + 1);
+		  const netrange_t& rng = net->sig()->packed_dims()[used];
+		  base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
+						 wid / slice_wid, true, 0);
+		  base = scale_index_to_bits(base, slice_wid, *this);
+		  return make_four_state_packed_select_(*this, carrier, base, wid,
+							IVL_SEL_IDX_UP);
 	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
@@ -30687,6 +30711,18 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    if (!carrier) {
 		  delete base;
 		  return 0;
+	    }
+	    const size_t index_count = path_.back().index.size()
+		  - net->sig()->unpacked_dimensions();
+	    if (index_count < net->sig()->packed_dims().size()) {
+		  const size_t used = index_count - 1;
+		  const unsigned long slice_wid = net->sig()->slice_width(used + 1);
+		  const netrange_t& rng = net->sig()->packed_dims()[used];
+		  base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
+						 wid / slice_wid, false, 0);
+		  base = scale_index_to_bits(base, slice_wid, *this);
+		  return make_four_state_packed_select_(*this, carrier, base, wid,
+							IVL_SEL_IDX_DOWN);
 	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
