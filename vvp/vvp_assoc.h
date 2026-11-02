@@ -151,6 +151,8 @@ class vvp_assoc_base : public vvp_object {
       virtual bool peek_entry(size_t pos, std::string&key_text,
 			      vvp_vector4_t&val_vec, double&val_real,
 			      std::string&val_str, int&val_kind) const =0;
+	  virtual bool get_vec4_bitstream(unsigned key_kind, bool signed_order,
+					  vvp_vector4_t&stream) const =0;
 
 	// Positional exact identity for equality (IEEE 1800-2017/2023
 	// 11.4.5): key_kind is 0 string / 1 object / 2 vector, and the key
@@ -776,6 +778,29 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return false;
       }
 
+	  bool get_vec4_bitstream(unsigned key_kind, bool signed_order,
+				  vvp_vector4_t&stream) const override
+	  {
+	    std::vector<const TYPE*> values;
+	    if (key_kind == 0) {
+		  for (typename std::map<std::string, TYPE>::const_iterator cur =
+			     str_map_.begin(); cur != str_map_.end(); ++cur)
+			values.push_back(&cur->second);
+	    } else if (key_kind == 1) {
+		  for (typename std::map<const vvp_object*, TYPE>::const_iterator cur =
+			     obj_map_.begin(); cur != obj_map_.end(); ++cur)
+			values.push_back(&cur->second);
+	    } else if (key_kind == 2) {
+		  const vec_index_t&index = vec_index_(signed_order);
+		  for (typename vec_index_t::const_iterator cur = index.begin();
+		       cur != index.end(); ++cur)
+			values.push_back(&(*cur)->value);
+	    } else {
+		  return false;
+	    }
+	    return make_vec4_bitstream_(values, stream);
+	  }
+
       bool peek_entry_identity(size_t pos, int&key_kind,
 			       std::string&str_key,
 			       const vvp_object*&obj_key,
@@ -850,6 +875,38 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       static int assign_entry_val_(const vvp_vector4_t&src2, vvp_vector4_t&vv,
 				   double&, std::string&)
       { vv = src2; return 0; }
+      static bool vec4_entry_width_(const vvp_vector4_t&src, unsigned&width)
+	  { width = src.size(); return true; }
+      template <class VALUE>
+      static bool vec4_entry_width_(const VALUE&, unsigned&)
+	  { return false; }
+      static void set_vec4_entry_(const vvp_vector4_t&src,
+				  vvp_vector4_t&dst, unsigned offset)
+	  { dst.set_vec(offset, src); }
+      template <class VALUE>
+      static void set_vec4_entry_(const VALUE&, vvp_vector4_t&, unsigned)
+	  { }
+      static bool make_vec4_bitstream_(
+	    const std::vector<const TYPE*>&values, vvp_vector4_t&stream)
+	  {
+	    size_t total = 0;
+	    for (size_t idx = 0; idx < values.size(); idx += 1) {
+		  unsigned width = 0;
+		  if (!vec4_entry_width_(*values[idx], width)
+		      || width > UINT_MAX - total)
+			return false;
+		  total += width;
+	    }
+	    stream = vvp_vector4_t(static_cast<unsigned>(total), BIT4_0);
+	    unsigned offset = stream.size();
+	    for (size_t idx = 0; idx < values.size(); idx += 1) {
+		  unsigned width = 0;
+		  if (!vec4_entry_width_(*values[idx], width)) return false;
+		  offset -= width;
+		  set_vec4_entry_(*values[idx], stream, offset);
+	    }
+	    return true;
+	  }
       static int assign_entry_val_(const double&src2, vvp_vector4_t&,
 				   double&rv, std::string&)
       { rv = src2; return 1; }

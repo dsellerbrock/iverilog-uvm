@@ -689,6 +689,7 @@ extern bool of_STATIC_SAVE_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_END_L(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_END_R(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_STREAM_FLATTEN_ASSOC(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_OBJ_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_VEC_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_STR(vthread_t thr, vvp_code_t code);
