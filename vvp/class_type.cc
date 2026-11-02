@@ -3169,8 +3169,12 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 	// tagged record so they cannot be parsed as the next numeric property.
       const uint64_t uint_max = std::numeric_limits<unsigned>::max();
       const uint64_t int_max = std::numeric_limits<int>::max();
+      uint64_t cross_num_print_missing = guardsrc >> 32;
+	uint64_t guardsrc_prop = guardsrc & UINT32_MAX;
       bool bad = at_least > uint_max || weight > uint_max
-	    || is_cross > 1 || guardsrc > int_max + 1;
+	    || is_cross > 1 || guardsrc_prop > int_max + 1
+	    || cross_num_print_missing > uint_max
+	    || (cross_num_print_missing && !is_cross);
       if (bad) {
 	    yyerror("invalid .covgrp_item metadata value");
 	    free(name);
@@ -3181,7 +3185,8 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			     is_cross != 0,
 		     name ? std::string(name) : std::string(),
 		     weight_ir ? std::string(weight_ir) : std::string(),
-	     guardsrc ? static_cast<int>(guardsrc - 1) : -1);
+	     guardsrc_prop ? static_cast<int>(guardsrc_prop - 1) : -1,
+	     (unsigned)cross_num_print_missing);
       free(name);
       free(weight_ir);
 }
@@ -3332,13 +3337,19 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 	// object, array, or static property and reach the wrong storage accessor.
       const uint64_t size_max = std::numeric_limits<size_t>::max();
       const uint64_t int_max = std::numeric_limits<int>::max();
+      uint64_t cross_num_print_missing_prop = weight_prop >> 32;
+	weight_prop &= UINT32_MAX;
       bool bad = item_idx > size_max || at_least_prop > int_max + 1
-	    || weight_prop > int_max + 1;
+	    || weight_prop > int_max + 1
+	    || cross_num_print_missing_prop > int_max + 1;
       int at_prop = -1;
       int wt_prop = -1;
+	int cross_missing_prop = -1;
       if (!bad) {
 	    at_prop = at_least_prop ? (int)(at_least_prop - 1) : -1;
 	    wt_prop = weight_prop ? (int)(weight_prop - 1) : -1;
+	    cross_missing_prop = cross_num_print_missing_prop
+		  ? (int)(cross_num_print_missing_prop - 1) : -1;
       }
       auto valid_property = [&](int prop) {
 	    return prop < 0
@@ -3349,8 +3360,14 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
       };
       if (!bad)
 	    if (!valid_property(at_prop) || !valid_property(wt_prop)
+		|| !valid_property(cross_missing_prop)
+		|| (cross_missing_prop >= 0
+		    && (item_idx >= compile_class->covgrp_item_count()
+			|| !compile_class->covgrp_item(
+			      static_cast<size_t>(item_idx)).is_cross))
 		|| !compile_class->set_covgrp_item_option_props(
-		      static_cast<size_t>(item_idx), at_prop, wt_prop))
+		      static_cast<size_t>(item_idx), at_prop, wt_prop,
+		      cross_missing_prop))
 		  bad = true;
       if (bad)
 	    yyerror("invalid .covgrp_item_options metadata value");
@@ -3846,6 +3863,17 @@ unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
       return covgrp_option_prop_value_(this, obj, item.weight_prop, declared);
 }
 
+unsigned class_type::covgrp_item_cross_num_print_missing(vvp_cobject*obj,
+							 size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 0;
+      const cov_item_t&item = covgrp_items_[idx];
+      if (!item.is_cross) return 0;
+      return covgrp_option_prop_value_(this, obj,
+		item.cross_num_print_missing_prop,
+		item.cross_num_print_missing);
+}
+
 unsigned class_type::covgrp_cumulative_at_least_(size_t idx) const
 {
       if (idx >= covgrp_items_.size()) return 1;
@@ -3861,6 +3889,20 @@ unsigned class_type::covgrp_cumulative_at_least_(size_t idx) const
 	    found = true;
       }
       return found ? maximum : covgrp_items_[idx].at_least;
+}
+
+unsigned class_type::covgrp_cumulative_cross_num_print_missing_(size_t idx) const
+{
+      if (idx >= covgrp_items_.size() || !covgrp_items_[idx].is_cross) return 0;
+      unsigned maximum = covgrp_items_[idx].cross_num_print_missing;
+      if (idx < covgrp_retired_population_.item_cross_num_print_missing.size())
+	    maximum = std::max(maximum,
+		  covgrp_retired_population_.item_cross_num_print_missing[idx]);
+      for (vvp_cobject*obj : covgrp_live_) {
+	    if (!obj || obj->get_defn() != this) continue;
+	    maximum = std::max(maximum, covgrp_item_cross_num_print_missing(obj, idx));
+      }
+      return maximum;
 }
 
 void class_type::covgrp_live_add(vvp_cobject*obj) const
@@ -3898,10 +3940,13 @@ class_type::covgrp_instance_snapshot_t class_type::covgrp_snapshot_(
             snapshot.bin_counts[bin.prop_idx] = count;
       }
       snapshot.item_at_least.reserve(covgrp_items_.size());
+      snapshot.item_cross_num_print_missing.reserve(covgrp_items_.size());
       snapshot.item_weight.reserve(covgrp_items_.size());
       snapshot.item_comments.reserve(covgrp_items_.size());
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
             snapshot.item_at_least.push_back(covgrp_item_at_least(obj, idx));
+            snapshot.item_cross_num_print_missing.push_back(
+		  covgrp_item_cross_num_print_missing(obj, idx));
             snapshot.item_weight.push_back(covgrp_item_weight(obj, idx));
             const cov_item_t&item = covgrp_items_[idx];
             snapshot.item_comments.push_back(item.comment_prop >= 0
@@ -3928,6 +3973,12 @@ void class_type::covgrp_accumulate_instance_(covgrp_population_t&population,
 	    population.item_weighted.resize(covgrp_items_.size(), 0);
 	    population.item_has_bins.resize(covgrp_items_.size(), false);
       }
+      if (population.item_cross_num_print_missing.size() < covgrp_items_.size())
+	    population.item_cross_num_print_missing.resize(covgrp_items_.size(), 0);
+      for (size_t item = 0; item < covgrp_items_.size(); item += 1)
+	    population.item_cross_num_print_missing[item] = std::max(
+		  population.item_cross_num_print_missing[item],
+		  covgrp_item_cross_num_print_missing(obj, item));
       for (size_t item = 0; item < covgrp_items_.size(); item += 1) {
 	    bool item_contributes = false;
 	    double item_score = vvp_covgrp_instance_coverage(
@@ -3994,6 +4045,8 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
 	    const cov_item_t&item = covgrp_items_[idx];
 	    store(item.at_least_prop, item.at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+	    store(item.cross_num_print_missing_prop,
+		  item.cross_num_print_missing);
 	    store(item.goal_prop, item.goal);
 	    if (item.comment_prop >= 0
 		&& (size_t)item.comment_prop < property_count())
@@ -4395,6 +4448,10 @@ void class_type::covgrp_report(FILE*fd)
 			weight = ct->covgrp_items_[ip.first].weight;
 			is_cross = ct->covgrp_items_[ip.first].is_cross;
 		  }
+	  unsigned missing_limit = is_cross
+		? ct->covgrp_cumulative_cross_num_print_missing_(ip.first)
+		: std::numeric_limits<unsigned>::max();
+	  unsigned missing_printed = 0;
 	  fprintf(fd, "  item %u kind %s at_least %u weight %u",
 			  ip.first, is_cross ? "cross" : "coverpoint",
 			  at_least, weight);
@@ -4410,10 +4467,14 @@ void class_type::covgrp_report(FILE*fd)
 			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
+			bool missing = (k == 0 || k == 4) && cnt < at_least;
+			if (is_cross && missing && missing_printed >= missing_limit)
+			      continue;
+			if (is_cross && missing) missing_printed += 1;
 			fprintf(fd, "    %s %s count %u %s\n", tag,
 				ct->property_name(prop).c_str(), cnt,
 				(k == 0 || k == 4)
-				      ? (cnt >= at_least ? "hit" : "MISS")
+				      ? (missing ? "MISS" : "hit")
 				      : "-");
 		  }
 	    }
@@ -4431,6 +4492,8 @@ void class_type::covgrp_report(FILE*fd)
 			unsigned idx = ip.first;
 			unsigned at_least = idx < instance.item_at_least.size()
 			      ? instance.item_at_least[idx] : 1;
+			unsigned missing_limit = idx < instance.item_cross_num_print_missing.size()
+			      ? instance.item_cross_num_print_missing[idx] : 0;
 			unsigned weight = idx < instance.item_weight.size()
 			      ? instance.item_weight[idx] : 1;
 			bool is_cross = idx < ct->covgrp_items_.size()
@@ -4443,6 +4506,7 @@ void class_type::covgrp_report(FILE*fd)
 			      covgrp_report_string_(fd, instance.item_comments[idx]);
 			}
 			fputc('\n', fd);
+			unsigned missing_printed = 0;
 			for (unsigned prop : ip.second) {
 			      unsigned kind = prop_kind[prop];
 			      const char*tag = (kind == 2 || kind == 5) ? "illegal"
@@ -4450,10 +4514,14 @@ void class_type::covgrp_report(FILE*fd)
 			      auto count_it = instance.bin_counts.find(prop);
 			      uint32_t count = count_it == instance.bin_counts.end()
 				    ? 0 : count_it->second;
+			      bool missing = (kind == 0 || kind == 4) && count < at_least;
+			      if (is_cross && missing && missing_printed >= missing_limit)
+				    continue;
+			      if (is_cross && missing) missing_printed += 1;
 			      fprintf(fd, "      %s %s count %u %s\n", tag,
 				      ct->property_name(prop).c_str(), count,
 				      (kind == 0 || kind == 4)
-					    ? (count >= at_least ? "hit" : "MISS") : "-");
+					    ? (missing ? "MISS" : "hit") : "-");
 			}
 		  }
 	    };

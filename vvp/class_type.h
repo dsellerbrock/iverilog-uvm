@@ -315,8 +315,10 @@ class class_type : public __vpiHandle {
 	    unsigned weight = 1;
             unsigned type_weight = 1;
 	    std::string weight_ir;
+	    unsigned cross_num_print_missing = 0;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
+	    int cross_num_print_missing_prop = -1;
 	    unsigned goal = 100;
 	    std::string comment;
 	    std::string type_comment;
@@ -381,13 +383,15 @@ class class_type : public __vpiHandle {
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   const std::string&name = std::string(),
 			   const std::string&weight_ir = std::string(),
-			   int iff_src = -1)
+			   int iff_src = -1,
+			   unsigned cross_num_print_missing = 0)
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
         it.type_weight = weight; // compatibility for untagged older VVP
 
 	it.weight_ir = weight_ir;
+	it.cross_num_print_missing = cross_num_print_missing;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_src = iff_src;
@@ -397,10 +401,13 @@ class class_type : public __vpiHandle {
         covgrp_items_[static_cast<size_t>(idx)].type_weight = weight;
         return true; }
       bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
-					 int weight_prop)
+					 int weight_prop,
+					 int cross_num_print_missing_prop = -1)
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].at_least_prop = at_least_prop;
 	covgrp_items_[idx].weight_prop = weight_prop;
+	covgrp_items_[idx].cross_num_print_missing_prop =
+	      cross_num_print_missing_prop;
 	return true; }
       bool set_covgrp_item_option_values(size_t idx, int goal_prop,
 					 unsigned goal, int comment_prop,
@@ -486,9 +493,10 @@ class class_type : public __vpiHandle {
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       unsigned covgrp_item_at_least(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_item_weight(class vvp_cobject*obj, size_t idx) const;
-	// Initialize constant/default at_least and weight slots after constructor
-	// formals are stored, so a constructor-dependent weight expression is
-	// evaluated against the completed instance.
+	unsigned covgrp_item_cross_num_print_missing(class vvp_cobject*obj,
+						      size_t idx) const;
+	// Initialize constant/default item option slots after constructor formals
+	// are stored, so per-instance option values use the completed object.
       void covgrp_init_options(class vvp_cobject*obj) const;
       bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
 			  uint64_t&value) const;
@@ -610,6 +618,7 @@ class class_type : public __vpiHandle {
             std::vector<long double> item_weighted;
             std::vector<bool> item_has_bins;
             std::vector<unsigned> item_at_least;
+            std::vector<unsigned> item_cross_num_print_missing;
             bool has_options = false;
       };
       struct covgrp_instance_snapshot_t {
@@ -618,6 +627,7 @@ class class_type : public __vpiHandle {
             std::string comment;
             std::map<unsigned, uint32_t> bin_counts;
             std::vector<unsigned> item_at_least;
+            std::vector<unsigned> item_cross_num_print_missing;
             std::vector<unsigned> item_weight;
             std::vector<std::string> item_comments;
       };
@@ -665,6 +675,7 @@ class class_type : public __vpiHandle {
       mutable std::vector<covgrp_instance_snapshot_t> covgrp_retired_instances_;
       unsigned covgrp_decl_weight_(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_cumulative_at_least_(size_t idx) const;
+      unsigned covgrp_cumulative_cross_num_print_missing_(size_t idx) const;
       std::string covgrp_fingerprint_() const;
 };
 

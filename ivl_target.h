@@ -2867,6 +2867,7 @@ extern const char* ivl_type_covgrp_cross_bin_name(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_cross_bin_select_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_cross_num_print_missing(ivl_type_t net, int idx);
 /* Covergroup declaration options; property indexes are -1 when absent. */
 extern unsigned ivl_type_covgrp_merge_instances(ivl_type_t net);
 extern unsigned ivl_type_covgrp_weight(ivl_type_t net);
@@ -2893,6 +2894,7 @@ extern int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx);
      (-1 for legacy metadata without materialized runtime state). */
 extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_cross_num_print_missing_prop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);

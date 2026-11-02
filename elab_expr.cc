@@ -31606,7 +31606,8 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       for (size_t idx = 0; !has_dynamic_options
             && idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
-            has_dynamic_options = item.goal_expr || item.comment_expr;
+            has_dynamic_options = item.goal_expr || item.comment_expr
+                  || item.cross_num_print_missing_expr;
       }
       if (!has_dynamic_options
             && !(inherited && covgrp_has_dynamic_goal_comment(inherited)))
@@ -31714,6 +31715,8 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
             assign_option(item.comment_prop, item.comment_expr,
                   inherited && !item.comment_expr
                         ? new NetECString(item.comment) : nullptr);
+            assign_option(item.cross_num_print_missing_prop,
+                  item.cross_num_print_missing_expr, nullptr);
       }
       def->set_proc(body);
       NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);

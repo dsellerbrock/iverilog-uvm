@@ -681,22 +681,31 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    for (idx = 0 ; idx < ni ; idx += 1) {
 		    /* M12-7: the strings carry the coverpoint/cross label and
 		       declaration-time weight IR. */
+		    /* Keep the VVP record shape stable: the high 32 bits of guardsrc
+		       carry cross_num_print_missing; the low word keeps guardsrc + 1. */
+		  uint64_t guardsrc = (uint64_t)(ivl_type_covgrp_item_guardsrc(
+			classtype, idx) + 1);
+		  guardsrc |= (uint64_t)ivl_type_covgrp_item_cross_num_print_missing(
+			classtype, idx) << 32;
 		  fprintf(vvp_out,
-			  " .covgrp_item %u %u %u \"%s\" \"%s\" %d\n",
+			  " .covgrp_item %u %u %u \"%s\" \"%s\" %" PRIu64 "\n",
 			  ivl_type_covgrp_item_at_least(classtype, idx),
 			  ivl_type_covgrp_item_weight(classtype, idx),
 			  ivl_type_covgrp_item_is_cross(classtype, idx),
 			  ivl_type_covgrp_item_name(classtype, idx),
 			  ivl_type_covgrp_item_weight_ir(classtype, idx),
-			  ivl_type_covgrp_item_guardsrc(classtype, idx) + 1);
+			  guardsrc);
                   fprintf(vvp_out, " .covgrp_item_type_weight %u %u\n", idx,
                           ivl_type_covgrp_item_type_weight(classtype, idx));
 		    /* Keep mutable option-property metadata in a separate tagged
 		       record. Appending bare numbers to .covgrp_item is ambiguous
 		       with the numeric line that begins the next class property. */
-		  fprintf(vvp_out, " .covgrp_item_options %u %d %d\n", idx,
+		  fprintf(vvp_out, " .covgrp_item_options %u %d %" PRIu64 "\n", idx,
 			  ivl_type_covgrp_item_at_least_prop(classtype, idx) + 1,
-			  ivl_type_covgrp_item_weight_prop(classtype, idx) + 1);
+			  ((uint64_t)(ivl_type_covgrp_item_cross_num_print_missing_prop(
+				classtype, idx) + 1) << 32)
+			      | (uint64_t)(ivl_type_covgrp_item_weight_prop(
+				classtype, idx) + 1));
           fprintf(vvp_out,
                   " .covgrp_item_option_values %u %d %u %d \"%s\"\n", idx,
                   ivl_type_covgrp_item_goal_prop(classtype, idx) + 1,

@@ -514,9 +514,11 @@ class netclass_t : public ivl_type_s {
 	    unsigned weight = 1;
             unsigned type_weight = 1;
 	    std::string weight_ir; // per-instance constructor expression
+	    unsigned cross_num_print_missing = 0;
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
 	    int weight_prop = -1;   // mutable per-instance option slot
+	    int cross_num_print_missing_prop = -1;
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    unsigned goal = 100;
@@ -528,6 +530,7 @@ class netclass_t : public ivl_type_s {
 	    perm_string name;   // M12-7: coverpoint/cross label
 	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
 	    int iff_src = -1;          // parent property for sample/all
+	    PExpr* cross_num_print_missing_expr = nullptr;
       };
 
       static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
@@ -616,12 +619,18 @@ class netclass_t : public ivl_type_s {
 			   int goal_prop = -1, int comment_prop = -1,
 			   PExpr*goal_expr = nullptr, PExpr*comment_expr = nullptr,
 			   unsigned goal = 100,
-			   const std::string&comment = std::string())
+			   const std::string&comment = std::string(),
+			   unsigned cross_num_print_missing = 0,
+			   int cross_num_print_missing_prop = -1,
+			   PExpr*cross_num_print_missing_expr = nullptr)
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
         it.type_weight = type_weight;
 	it.weight_ir = weight_ir;
+	it.cross_num_print_missing = cross_num_print_missing;
+	it.cross_num_print_missing_prop = cross_num_print_missing_prop;
+	it.cross_num_print_missing_expr = cross_num_print_missing_expr;
 	it.at_least_prop = at_least_prop;
 	it.weight_prop = weight_prop;
 	it.goal_prop = goal_prop;
@@ -688,6 +697,8 @@ class netclass_t : public ivl_type_s {
 				   perm_string option_name) const {
 	    for (const covgrp_item_t&item : covgrp_items_) {
 		  if (item.name != item_name) continue;
+		  if (option_name == perm_string::literal("cross_num_print_missing"))
+			return item.is_cross ? item.cross_num_print_missing_prop : -1;
 		  if (option_name == perm_string::literal("at_least"))
 			return item.at_least_prop;
 		  if (option_name == perm_string::literal("weight"))

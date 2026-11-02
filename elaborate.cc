@@ -44458,6 +44458,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  delete value;
 		  return std::make_pair(100u, expr);
 	    };
+	    auto opt_cross_num_print_missing = [&](PExpr*expr,
+						   unsigned dflt)
+		  -> std::pair<unsigned,PExpr*> {
+		  if (!expr) return std::make_pair(dflt, static_cast<PExpr*>(nullptr));
+		  NetExpr*value = is_direct_ctor_formal(expr) ? nullptr
+			: elab_and_eval(des, class_scope_, expr, -1, false, false);
+		  if (NetEConst*constant = dynamic_cast<NetEConst*>(value)) {
+			unsigned result = static_cast<unsigned>(
+			      constant->value().as_ulong64());
+			delete value;
+			return std::make_pair(result, static_cast<PExpr*>(nullptr));
+		  }
+		  delete value;
+		  return std::make_pair(dflt, expr);
+	    };
 	    auto opt_comment = [](PExpr*expr) -> std::pair<std::string,PExpr*> {
 		  if (const PEString*value = dynamic_cast<const PEString*>(expr))
 			return std::make_pair(value->value(), static_cast<PExpr*>(nullptr));
@@ -44584,6 +44599,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    };
 		    opt_check(cgdef->options, "covergroup");
+	    auto cg_cross_missing_it = cgdef->options.find(
+		  perm_string::literal("cross_num_print_missing"));
+	    std::pair<unsigned,PExpr*> cg_cross_missing =
+		  opt_cross_num_print_missing(
+			cg_cross_missing_it == cgdef->options.end()
+			      ? nullptr : cg_cross_missing_it->second, 0);
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
@@ -48551,6 +48572,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
+		  auto cross_missing_it = cross.options.find(
+			perm_string::literal("cross_num_print_missing"));
+		  std::pair<unsigned,PExpr*> x_cross_missing =
+			cross_missing_it == cross.options.end() ? cg_cross_missing
+			      : opt_cross_num_print_missing(cross_missing_it->second, 0);
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1);
 				  unsigned retain_auto = cg_retain_auto;
@@ -48602,6 +48628,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  std::string x_option_stem = "__covgrp_item_" + std::to_string(item_idx);
 			  std::pair<int,int> x_option_props = add_option_props(x_option_stem);
+		  int x_cross_missing_prop = add_unique_cov_counter(
+			x_option_stem + "_option_cross_num_print_missing");
 			  auto x_goal_it = cross.options.find(perm_string::literal("goal"));
 			  auto x_comment_it = cross.options.find(perm_string::literal("comment"));
 		  std::pair<unsigned,PExpr*>x_goal = opt_goal(
@@ -48623,7 +48651,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].first,
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
-					x_goal.first, x_comment.first);
+					x_goal.first, x_comment.first,
+					x_cross_missing.first, x_cross_missing_prop,
+					x_cross_missing.second);
 			  cg_class->set_covgrp_item_type_comment(item_idx,
 				x_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,

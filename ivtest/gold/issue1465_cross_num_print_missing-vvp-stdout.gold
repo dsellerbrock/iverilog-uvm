@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue1465_cross_num_print_missing.v:26: $finish called at 0 (1s)

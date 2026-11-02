@@ -5012,6 +5012,16 @@ extern "C" unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx)
       return 1;
 }
 
+extern "C" unsigned ivl_type_covgrp_item_cross_num_print_missing(
+      ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).cross_num_print_missing;
+      return 0;
+}
+
 extern "C" unsigned ivl_type_covgrp_merge_instances(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -5176,6 +5186,16 @@ extern "C" int ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx)
       if (class_type && idx >= 0
 	  && (size_t)idx < class_type->covgrp_item_count())
 	    return class_type->covgrp_item((size_t)idx).weight_prop;
+      return -1;
+}
+
+extern "C" int ivl_type_covgrp_item_cross_num_print_missing_prop(
+      ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).cross_num_print_missing_prop;
       return -1;
 }
 
