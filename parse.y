@@ -7945,13 +7945,13 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   : K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@2, $2, $3); }
     clocking_items_opt K_endclocking label_opt
-      { check_end_label(@8, "clocking", $2, $8);
+      { check_end_label(@8, "clocking", pform_clocking_block_name(), $8);
         pform_end_clocking_block(@7); }
   /* 14.12: named default clocking declaration. */
   | K_default K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, true); }
     clocking_items_opt K_endclocking label_opt
-      { check_end_label(@9, "clocking", $3, $9);
+      { check_end_label(@9, "clocking", pform_clocking_block_name(), $9);
         pform_end_clocking_block(@8); }
   /* 14.12: anonymous default clocking declaration. */
   | K_default K_clocking event_control ';'
@@ -7968,7 +7968,7 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_global K_clocking IDENTIFIER event_control ';'
       { pform_start_clocking_block(@3, $3, $4, false, true); }
     clocking_items_opt K_endclocking label_opt
-      { check_end_label(@9, "clocking", $3, $9);
+      { check_end_label(@9, "clocking", pform_clocking_block_name(), $9);
         pform_end_clocking_block(@8); }
   | K_global K_clocking event_control ';'
       { pform_start_clocking_block(@2, 0, $3, false, true); }
