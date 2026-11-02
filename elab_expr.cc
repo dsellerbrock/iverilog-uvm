@@ -9837,7 +9837,8 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
-      if (name=="$signed" || name=="$unsigned") {
+      if ((name=="$signed" || name=="$unsigned")
+	  && !lookup_sys_func(name)->override_flag) {
 	    PExpr *expr = parms_[0].parm;
 	    if (expr == 0)
 		  return 0;
@@ -13115,7 +13116,7 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	/* Catch the special case that the system function is the $signed
 	   function. Its argument will be evaluated as a self-determined
            expression. */
-      if (name=="$signed" || name=="$unsigned") {
+      if ((name=="$signed" || name=="$unsigned") && !is_overridden_) {
 	    if ((parms_.size() != 1) || !parms_[0].parm) {
 		  cerr << get_fileline() << ": error: The " << name
 		       << " function takes exactly one(1) argument." << endl;
