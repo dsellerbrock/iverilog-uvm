@@ -729,10 +729,17 @@ extern std::ostream& operator << (std::ostream&, PortType::Enum);
    */
 struct PortInfo
 {
+    enum ModulePortVpiType {
+          VPI_PORT = 44,
+          VPI_INTERFACE_PORT = 1,
+          VPI_MODPORT_PORT = 2
+    };
+
     PortType::Enum  type;
     unsigned long   width;
     perm_string     name;
     ivl_net_logic_t buffer;
+    ModulePortVpiType vpi_type;
 };
 
 /*
@@ -1611,7 +1618,8 @@ class NetScope : public Definitions, public Attrib {
       void add_module_port_info( unsigned idx,
                             perm_string name,  // May be "" for undeclared port
                             PortType::Enum type,
-                            unsigned long width );
+                            unsigned long width,
+                            PortInfo::ModulePortVpiType vpi_type = PortInfo::VPI_PORT );
 
       PortInfo* get_module_port_info(unsigned idx);
 

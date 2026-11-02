@@ -3501,12 +3501,13 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    for( idx = 0; idx < ivl_scope_mod_module_ports(net); ++idx ) {
 		  const char *name =  ivl_scope_mod_module_port_name(net,idx);
 		  ivl_signal_port_t ptype = ivl_scope_mod_module_port_type(net,idx);
+		  int vpi_type = ivl_scope_mod_module_port_vpi_type(net,idx);
 		  unsigned width = ivl_scope_mod_module_port_width(net,idx);
 		  ivl_net_logic_t buffer = ivl_scope_mod_module_port_buffer(net,idx);
 		  if( name == 0 )
 			name = "";
-		  fprintf( vvp_out, "    .port_info %u %s %u \"%s\"",
-		           idx, vvp_port_info_type_str(ptype), width,
+		  fprintf( vvp_out, "    .port_info %u %s %u %d \"%s\"",
+		           idx, vvp_port_info_type_str(ptype), width, vpi_type,
 		           vvp_mangle_name(name) );
 		  if (buffer) fprintf( vvp_out, " L_%p;\n", buffer);
 		  else fprintf( vvp_out, ";\n");

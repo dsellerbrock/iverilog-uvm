@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1272_vpi_port_type.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1272_vpi_port_type"],
+  "vpi-sources": ["vpi/issue1272_vpi_port_type.c"],
+  "output-contains": ["ISSUE1272_VPI_PORT_TYPE_PASSED", "PASSED"]
+}
