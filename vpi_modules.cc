@@ -190,7 +190,11 @@ vpiHandle vpi_register_systf(const struct t_vpi_systf_data*ss)
         ret_type.signed_flag = false;
         break;
     }
-    ret_type.override_flag = false;
+    /* $signed and $unsigned are normally elaborated as sign casts. A PLI
+       registration replaces those built-ins and must go through the normal
+       system-function path, using this registration's declared return type. */
+    ret_type.override_flag = !strcmp(ss->tfname, "$signed")
+	|| !strcmp(ss->tfname, "$unsigned");
     add_sys_func(ret_type);
     return 0;
 }
