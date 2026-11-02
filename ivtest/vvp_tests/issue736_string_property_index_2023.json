@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue736_string_property_index.sv",
+  "iverilog-args": ["-g2023", "-sissue736_string_property_index"],
+  "gold": "issue736_string_property_index"
+}

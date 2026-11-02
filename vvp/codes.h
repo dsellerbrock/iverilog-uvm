@@ -532,6 +532,7 @@ extern bool of_PUSHI_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHI_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHV_STR(vthread_t thr, vvp_code_t code);
 extern bool of_PUTC_RET_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_PUTC_PROP_STR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_PUTC_STRA_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_NET(vthread_t thr, vvp_code_t code);

@@ -5962,10 +5962,41 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 	    } else if (ivl_type_base(value_type) == IVL_VT_STRING) {
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
+		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
 
-		    /* Whole-array pattern into a string-array property. */
-		  if (!idx_expr &&
+		    /* A scalar string property character is a byte l-value, not a
+		       string-array element. Keep the selector as a signed string
+		       index and let the runtime update the selected byte in the
+		       current property value. */
+		  if (ivl_type_base(prop_type) == IVL_VT_STRING
+		      && part_off_ex && !idx_expr && !fixed_scalar_slot) {
+			int char_index = allocate_word();
+			int char_flag = allocate_flag();
+			draw_eval_vec4(part_off_ex);
+			resize_vec4_wid(part_off_ex, 32);
+			fprintf(vvp_out, "    %%cast2; string property character selector to int\n");
+			fprintf(vvp_out, "    %%ix/vec4/s %d; capture string property character selector\n",
+			        char_index);
+			fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string property character selector\n",
+			        char_flag);
+			if (ivl_stmt_opcode(net) != 0) {
+			      fprintf(vvp_out, "    %%prop/str %d; string property character compound read\n",
+			              prop_idx);
+			      fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string property character\n",
+			              char_index);
+			      fprintf(vvp_out, "    %%pop/str 1; discard property string\n");
+			}
+			draw_stmt_assign_vector_rhs(net, 8);
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore string property character selector\n",
+			        char_flag);
+			fprintf(vvp_out, "    %%putc/prop/str/vec4 %d, %d; Store string property character\n",
+			        prop_idx, char_index);
+			clr_word(char_index);
+			clr_flag(char_flag);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  } else if (!part_off_ex && !idx_expr &&
 		      ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			  /* Whole-array pattern into a string-array property. */
 			int wreg = allocate_word();
 			draw_prop_str_array_pattern(prop_idx,
 						    ivl_type_prop_name(sig_type, prop_idx),
@@ -5977,9 +6008,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 			return errors;
-		  }
-
-		  if (idx_expr) {
+		  } else if (idx_expr) {
 			  /* Element of a string-array property. */
 			int wreg = fixed_scalar_slot
 			      ? fixed_slot_word : allocate_word();

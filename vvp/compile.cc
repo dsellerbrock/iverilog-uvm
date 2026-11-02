@@ -566,6 +566,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%pushi/str", of_PUSHI_STR, 1,{OA_STRING, OA_NONE,   OA_NONE} },
       { "%pushi/vec4",of_PUSHI_VEC4,3,{OA_BIT1,   OA_BIT2,   OA_NUMBER} },
       { "%pushv/str", of_PUSHV_STR, 0,{OA_NONE,   OA_NONE,   OA_NONE} },
+      { "%putc/prop/str/vec4",of_PUTC_PROP_STR_VEC4,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%putc/ret/vec4",of_PUTC_RET_VEC4,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%putc/str/vec4",of_PUTC_STR_VEC4,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%putc/stra/vec4",of_PUTC_STRA_VEC4,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },

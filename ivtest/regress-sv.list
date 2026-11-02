@@ -6474,6 +6474,9 @@ issue767_generate_implicit_scope CE,-g2017,-s,issue767_generate_implicit_scope i
 issue1829_linear_equality_chain_2017 normal,-g2017,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
 issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
 
+issue736_string_property_index_2017 normal,-g2017,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+issue736_string_property_index_2023 normal,-g2023,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold

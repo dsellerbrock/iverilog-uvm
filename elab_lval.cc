@@ -37,6 +37,7 @@
 # include  "netdarray.h"
 # include  "netparray.h"
 # include  "netqueue.h"
+# include  "netscalar.h"
 # include  "netvector.h"
 # include  "netenum.h"
 # include  "compiler.h"
@@ -4213,6 +4214,38 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      part_type = new netvector_t(
 				    packed->base_type(), (long)part_wid - 1, 0);
 			lv->set_part(part_off, part_type);
+		  } else if (dynamic_cast<const netstring_t*>(ptype)) {
+			/* A string property is a dynamically sized sequence of bytes,
+			 * not an array property slot. Represent its single character
+			 * select like an ordinary string l-value so assignment context
+			 * sees a signed byte and the target can perform a character RMW. */
+			if (!member_path.empty() || member_cur.index.size() != 1
+			    || member_cur.index.front().sel != index_component_t::SEL_BIT
+			    || !member_cur.index.front().msb
+			    || member_cur.index.front().lsb) {
+			      cerr << get_fileline() << ": sorry: only a single character "
+				   << "index is supported on a string property l-value."
+				   << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			NetExpr*char_index = elab_and_eval(
+			      des, scope, member_cur.index.front().msb, -1);
+			if (!char_index) {
+			      delete lv;
+			      return 0;
+			}
+			if (char_index->expr_type() == IVL_VT_REAL) {
+			      cerr << get_fileline() << ": error: Index expression for "
+				   << "a string property cannot be a real value." << endl;
+			      des->errors += 1;
+			      delete char_index;
+			      delete lv;
+			      return 0;
+			}
+			lv->set_part(char_index, &netvector_t::atom2s8);
+			lv->set_signed(true);
 		  } else if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
 			  // Element access + bit/part-select of a packed-vector
 			  // element (c.arr[i][m:l] = v): leading indices address

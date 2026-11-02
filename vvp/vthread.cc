@@ -32996,6 +32996,65 @@ bool of_STORE_PROP_STR_I(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %putc/prop/str/vec4 <pid>, <index-reg>
+ *
+ * Replace one character of scalar string property <pid>. The byte value is
+ * popped from the vec4 stack; the property receiver remains on the object
+ * stack. Like string.putc, an invalid index or zero byte leaves the string
+ * unchanged.
+ */
+bool of_PUTC_PROP_STR_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      int64_t index = thr->words[idx_reg].w_int;
+
+      vvp_vector4_t byte = thr->pop_vec4();
+      assert(byte.size() == 8);
+      if (thr->flags[4] != BIT4_0 || index < 0)
+	    return true;
+
+      char replacement = 0;
+      for (size_t bit = 0; bit < 8; bit += 1) {
+	    if (byte.value(bit) == BIT4_1)
+		  replacement |= (char)(1u << bit);
+      }
+      if (replacement == 0)
+	    return true;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%putc/prop/str/vec4", pid,
+		      (unsigned)index, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << "); skipping further similar stores."
+		       << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
+
+      string current = cobj ? cobj->get_string(pid) : vif->get_string(pid);
+      if ((uint64_t)index >= (uint64_t)current.size())
+	    return true;
+
+      current[(size_t)index] = replacement;
+      if (cobj)
+	    cobj->set_string(pid, current);
+      else
+	    vif->set_string(pid, current);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0), "putc-prop-str");
+      return true;
+}
+
+/*
  * %store/prop/v <pid>, <wid>
  *
  * Store vector value into property <id> of cobject in the top of the
