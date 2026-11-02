@@ -608,6 +608,7 @@ class vpiPortInfo  : public __vpiHandle {
       vpiPortInfo( __vpiScope *parent,
                     unsigned index,
                     int vpi_direction,
+                    int vpi_port_type,
                     unsigned width,
                     const char *name,
                     char* buffer );
@@ -634,6 +635,7 @@ class vpiPortInfo  : public __vpiHandle {
       __vpiScope *parent_;
       unsigned  index_;
       int       direction_;
+      int       vpi_port_type_;
       unsigned  width_;
       const char *name_;
       vvp_net_t *ref_;

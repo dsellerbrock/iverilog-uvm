@@ -6525,6 +6525,29 @@ static NetEvent* resolve_event_port_actual_(Design*des, NetScope*scope,
       return result.eve->canonical_event();
 }
 
+static PortInfo::ModulePortVpiType module_port_vpi_type_(
+      const Module*rmod, unsigned idx, NetScope*formal_scope)
+{
+      vector<PEIdent*>mport = rmod->get_port(idx);
+      if (mport.size() != 1 || !formal_scope)
+            return PortInfo::VPI_PORT;
+
+      perm_string pname = peek_tail_name(mport[0]->path().name);
+      NetNet*formal = formal_scope->find_signal(pname);
+      if (!formal) return PortInfo::VPI_PORT;
+
+      bool generic_iface = formal->attribute(
+            perm_string::literal("ivl_generic_iface")).len() != 0;
+      const netclass_t*interface_type =
+            dynamic_cast<const netclass_t*>(formal->net_type());
+      if (!generic_iface
+          && (!interface_type || !interface_type->is_interface()))
+            return PortInfo::VPI_PORT;
+
+      return interface_type && !interface_type->interface_modport().nil()
+            ? PortInfo::VPI_MODPORT_PORT : PortInfo::VPI_INTERFACE_PORT;
+}
+
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 {
 
@@ -6699,6 +6722,16 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	// Capture the formal declaration kind before interface formals are
+	// retagged with the effective modport of their actual connection.
+      vector<PortInfo::ModulePortVpiType> port_vpi_types(
+	    pins.size(), PortInfo::VPI_PORT);
+      if (!instance.empty()) {
+	    for (unsigned idx = 0; idx < pins.size(); idx += 1)
+		  port_vpi_types[idx] = module_port_vpi_type_(
+			rmod, idx, instance[0]);
+      }
 
 	// An event port passes a handle to the actual synchronization object.
 	// Bind each formal before elaborating the child body so its waits,
@@ -6979,7 +7012,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (NetScope*inst_scope : instance)
 			inst_scope->add_module_port_info(
 			      idx, port_name,
-			      rmod->get_event_port_direction(idx), 0);
+			      rmod->get_event_port_direction(idx), 0,
+			      port_vpi_types[idx]);
 		  continue;
 	    }
 
@@ -7116,7 +7150,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			prt_vector_width += port_width;
 			ptype = PortType::merged(netnet->port_type(), ptype);
 		  }
-		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width );
+		  inst_scope->add_module_port_info(idx, port_name, ptype,
+					   prt_vector_width, port_vpi_types[idx]);
 	    }
 
 	      // Interface-typed port (IEEE 1800-2017 25.3): the formal
@@ -51035,7 +51070,8 @@ Design* elaborate(list<perm_string>roots)
 			? rmod->get_event_port_direction(idx) : PortType::PIMPLICIT;
 		  if (rmod->is_event_port(idx)) {
 			scope->add_module_port_info(
-			      idx, rmod->get_port_name(idx), ptype, 0);
+			      idx, rmod->get_port_name(idx), ptype, 0,
+			      module_port_vpi_type_(rmod, idx, scope));
 			continue;
 		  }
 		  for (unsigned pin = 0; pin < mport.size(); pin += 1) {
@@ -51054,7 +51090,9 @@ Design* elaborate(list<perm_string>roots)
                                 << ": adding module port "
                                 << rmod->get_port_name(idx) << endl;
                      }
-		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype, prt_vector_width );
+		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype,
+					      prt_vector_width,
+					      module_port_vpi_type_(rmod, idx, scope));
 		    }
 	      }
 
