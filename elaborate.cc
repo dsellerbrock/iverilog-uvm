@@ -28,6 +28,7 @@
  */
 
 # include  <algorithm>
+# include  <cctype>
 # include  <cmath>
 # include  <functional>
 # include  <utility>
@@ -50624,6 +50625,81 @@ static void check_timescales()
       }
 }
 
+/* IEEE 1800-2017/2023 3.14.2.3 requires an error if some design elements
+ * have both a time unit and precision specified and others do not. Check
+ * the elaborated module/program/interface hierarchy: compilation-unit and
+ * class scopes, unused module definitions, and non-SystemVerilog modules
+ * are not part of that hierarchy. */
+static bool is_vhdl_module_(const Module*module)
+{
+      perm_string file = module->get_file();
+      if (file.nil()) return false;
+
+      string filename = file.str();
+      string::size_type extension = filename.rfind('.');
+      if (extension == string::npos) return false;
+
+      string suffix = filename.substr(extension);
+      transform(suffix.begin(), suffix.end(), suffix.begin(),
+		[](unsigned char ch) { return tolower(ch); });
+      return suffix == ".vhd" || suffix == ".vhdl";
+}
+
+static void check_sv_timescales(Design*des)
+{
+      bool some_explicit = false;
+      bool some_implicit = false;
+      const NetScope*explicit_scope = 0;
+      const NetScope*implicit_scope = 0;
+
+      function<void(const NetScope*)> check_scope;
+      check_scope = [&](const NetScope*scope) {
+	    if (scope->type() == NetScope::MODULE) {
+		  const Module*module = scope->module_definition();
+		  if (module && !module->is_checker && !is_vhdl_module_(module)) {
+			map<perm_string,Module*>::const_iterator definition =
+			      pform_modules.find(module->mod_name());
+			if (definition != pform_modules.end()
+			    && definition->second == module) {
+			      if (scope->time_from_timescale()) {
+				    some_explicit = true;
+				    if (!explicit_scope)
+					  explicit_scope = scope;
+			      } else {
+				    some_implicit = true;
+				    if (!implicit_scope)
+					  implicit_scope = scope;
+			      }
+			}
+		  }
+	    }
+	    for (const auto&child : scope->children())
+		  check_scope(child.second);
+      };
+
+      for (NetScope*root : des->find_root_scopes())
+	    check_scope(root);
+
+      if (some_explicit && some_implicit) {
+	    cerr << "error: Some design elements have a time unit and "
+		 << "precision specified and others do not "
+		 << "(IEEE 1800 3.14.2.3): "
+		 << explicit_scope->fullname() << " ("
+		 << explicit_scope->get_fileline() << "; definition at "
+		 << (explicit_scope->module_definition()
+		     ? explicit_scope->module_definition()->get_fileline()
+		     : explicit_scope->get_def_fileline())
+		 << ") is specified, but "
+		 << implicit_scope->fullname() << " ("
+		 << implicit_scope->get_fileline() << "; definition at "
+		 << (implicit_scope->module_definition()
+		     ? implicit_scope->module_definition()->get_fileline()
+		     : implicit_scope->get_def_fileline())
+		 << ") is not." << endl;
+	    des->errors += 1;
+      }
+}
+
 /*
  * This function is the root of all elaboration. The input is the list
  * of root module names. The function locates the Module definitions
@@ -51145,8 +51221,10 @@ Design* elaborate(list<perm_string>roots)
 	    return des;
 
 	// Now we have the full design, check for timescale inconsistencies.
-      if (warn_timescale)
-	    check_timescales();
+	      if (gn_system_verilog())
+		    check_sv_timescales(des);
+	      else if (warn_timescale)
+		    check_timescales();
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "
