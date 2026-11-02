@@ -8921,10 +8921,14 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
 struct sva_scoped_name_t {
       perm_string name;
       const PGenerate*gen;   // nullptr == module scope
+      const PPackage*package; // nullptr unless declared in a package
+      const PPackage*unit; // compilation-unit declarations outlive modules
 
       bool operator< (const sva_scoped_name_t&that) const
       {
 	    if (name != that.name) return name < that.name;
+	    if (package != that.package) return package < that.package;
+	    if (unit != that.unit) return unit < that.unit;
 	    return gen < that.gen;
       }
 };
@@ -9034,6 +9038,10 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
       sva_scoped_name_t k;
       k.name = nm;
       k.gen  = pform_cur_generate;
+	  k.unit = pform_in_compilation_unit_scope()
+		? dynamic_cast<const PPackage*>(pform_peek_scope()) : nullptr;
+	  k.package = k.unit ? nullptr
+		: dynamic_cast<const PPackage*>(pform_peek_scope());
       return k;
 }
 
@@ -9056,12 +9064,24 @@ static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
 	    sva_scoped_name_t k;
 	    k.name = nm;
 	    k.gen  = g;
+	    k.package = nullptr;
+	    k.unit = nullptr;
 	    typename MAP::iterator it = m.find(k);
 	    if (it != m.end()) return it;
 	    if (!g) break;
 	    const LexicalScope*up = g->parent_scope();
 	    g = dynamic_cast<const PGenerate*>(up);
       }
+      sva_scoped_name_t unit_key;
+      unit_key.name = nm;
+      unit_key.gen = nullptr;
+      unit_key.package = nullptr;
+      unit_key.unit = !pform_cur_module.empty()
+		? dynamic_cast<const PPackage*>(pform_cur_module.front()->parent_scope())
+		: nullptr;
+      if (!unit_key.unit) return m.end();
+      typename MAP::iterator unit_it = m.find(unit_key);
+      if (unit_it != m.end()) return unit_it;
       return m.end();
 }
 
@@ -9988,29 +10008,37 @@ void pform_sva_module_done(void)
          expressions or let them affect a later module. */
       pform_sva_end_local_declarations();
       for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
-		sva_module_properties.begin() ;
-	   it != sva_module_properties.end() ; ++it)
+		sva_module_properties.begin() ; it != sva_module_properties.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_property(it->second);
+	    sva_module_properties.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-		sva_module_sequences.begin() ;
-	   it != sva_module_sequences.end() ; ++it)
+		sva_module_sequences.begin() ; it != sva_module_sequences.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_sequence(it->second);
+	    sva_module_sequences.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
-		sva_param_sequences.begin() ;
-	   it != sva_param_sequences.end() ; ++it)
+		sva_param_sequences.begin() ; it != sva_param_sequences.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_sequence(it->second.body);
+	    sva_param_sequences.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
-		sva_param_properties.begin() ;
-	   it != sva_param_properties.end() ; ++it) {
+		sva_param_properties.begin() ; it != sva_param_properties.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    for (sva_property_formal_t&formal : it->second.formals)
 		  delete formal.default_expr;
 	    pform_sva_destroy_property(it->second.body);
-	   }
-      sva_module_properties.clear();
-      sva_module_sequences.clear();
-      sva_property_shaped_sequences.clear();
-      sva_param_sequences.clear();
-      sva_param_properties.clear();
+	    sva_param_properties.erase(it++);
+	  }
+	  for (std::set<sva_scoped_name_t>::iterator it =
+		sva_property_shaped_sequences.begin();
+	       it != sva_property_shaped_sequences.end(); ) {
+	    if (it->package || it->unit) { ++it; continue; }
+	    sva_property_shaped_sequences.erase(it++);
+	  }
       sva_default_disable_scopes.clear();
       delete sva_default_disable;
       sva_default_disable = nullptr;
@@ -14667,6 +14695,52 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   long reactive_past_offset)
 {
       if (!e) return e;
+	/* Local-variable lowering can place sampled-value expressions inside
+	   identifier selects. Rewrite those expressions too; otherwise a
+	   $past(...) in a bit/part/array index remains live in the checker. */
+	if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	      pform_name_t path = id->path().name;
+	      bool has_select = false;
+	      pform_name_t::const_iterator src_comp = id->path().name.begin();
+	      pform_name_t::iterator dst_comp = path.begin();
+	      for (; src_comp != id->path().name.end(); ++src_comp, ++dst_comp) {
+		    std::list<index_component_t>::const_iterator src_idx =
+			  src_comp->index.begin();
+		    std::list<index_component_t>::iterator dst_idx =
+			  dst_comp->index.begin();
+		    for (; src_idx != src_comp->index.end(); ++src_idx, ++dst_idx) {
+			  has_select = true;
+			  PExpr*msb_copy = src_idx->msb
+				? sva_clone_expr_(src_idx->msb) : nullptr;
+			  if (src_idx->msb && !msb_copy) return e;
+			  PExpr*msb = msb_copy
+				? sva_rewrite_sampled_(loc, msb_copy, inst,
+				      hist_idx, pre, post, init, cur_live,
+				      reactive_past_offset) : nullptr;
+			  if (msb_copy && msb != msb_copy) delete msb_copy;
+			  PExpr*lsb_copy = src_idx->lsb == src_idx->msb ? nullptr
+				: (src_idx->lsb ? sva_clone_expr_(src_idx->lsb) : nullptr);
+			  if (src_idx->lsb && src_idx->lsb != src_idx->msb
+			      && !lsb_copy) { delete msb; return e; }
+			  PExpr*lsb = src_idx->lsb == src_idx->msb ? msb
+				: (lsb_copy
+				   ? sva_rewrite_sampled_(loc, lsb_copy, inst,
+				      hist_idx, pre, post, init, cur_live,
+				      reactive_past_offset) : nullptr);
+			  if (lsb_copy && lsb != lsb_copy) delete lsb_copy;
+			  dst_idx->msb = msb;
+			  dst_idx->lsb = lsb;
+		    }
+	      }
+	      if (!has_select) return e;
+	      PEIdent*copy = id->path().package
+		    ? new PEIdent(id->path().package, path, id->lexical_pos())
+		    : new PEIdent(path, id->lexical_pos());
+	      copy->set_scoped_type_prefix(id->has_scoped_type_prefix());
+	      copy->set_dotted_suffix(id->has_dotted_suffix());
+	      copy->set_line(*e);
+	      return copy;
+	}
 
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    bool is_let = false;
@@ -16366,13 +16440,23 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 	    }
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!id || id->path().package || id->path().name.size() != 1
+	    if (!id || id->path().name.size() != 1
 		|| !id->path().name.front().index.empty()) {
 		  i += 1;
 		  continue;
 	    }
-	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
-		  sva_resolve_(sva_module_sequences, id->path().name.front().name, scope);
+	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it;
+	    if (id->path().package) {
+		  sva_scoped_name_t key;
+		  key.name = id->path().name.front().name;
+		  key.gen = nullptr;
+		  key.package = id->path().package;
+	  key.unit = nullptr;
+		  seq_it = sva_module_sequences.find(key);
+	    } else {
+		  seq_it = sva_resolve_(sva_module_sequences,
+				id->path().name.front().name, scope);
+	    }
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
@@ -18779,6 +18863,44 @@ sva_property_t* pform_sva_multiclock_comb_antecedent(
 	p->mc_more = tail;
 	p->op_type = op_type;
 	return p;
+}
+
+/* Append an implication consequent to a complete multiclocked sequence.
+   Every existing post-initial clock domain is part of the antecedent; a
+   mismatch in any of them therefore suppresses the implication vacuously. */
+sva_property_t* pform_sva_multiclock_sequence_implication(
+					const struct vlltype&loc, int op_type,
+					 sva_property_t*ante, PEventStatement*clk,
+					 std::vector<sva_seq_step_t>*conseq,
+					 std::vector<sva_mc_seg_t>*tail)
+{
+	(void)loc;
+	if (!ante || !ante->mc_prefix || ante->mc_prefix->empty()
+	    || !ante->seq || ante->seq->empty() || !ante->seq_clk_evt
+	    || ante->antecedent || ante->tree || !clk || !conseq
+	    || conseq->empty()) {
+	      pform_sva_destroy_property(ante);
+	      delete clk;
+	      pform_sva_destroy_sequence(conseq);
+	      pform_sva_destroy_mc_segments(tail);
+	      return nullptr;
+	}
+	if (!ante->mc_more) ante->mc_more = new std::vector<sva_mc_seg_t>;
+	ante->mc_antecedent_domains = 1 + ante->mc_more->size();
+	sva_mc_seg_t seg;
+	seg.boundary = (op_type == 1) ? 0 : 1;
+	seg.clk_evt = clk;
+	seg.chain = conseq;
+	ante->mc_more->push_back(seg);
+	if (tail) {
+	      ante->mc_more->insert(ante->mc_more->end(), tail->begin(), tail->end());
+	      tail->clear();
+	      delete tail;
+	}
+	ante->antecedent = ante->mc_prefix;
+	ante->mc_prefix = nullptr;
+	ante->op_type = op_type;
+	return ante;
 }
 
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
@@ -26269,7 +26391,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 						       sva_id_(loc, adv)));
 			PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
 			FILE_NAME(dead, loc);
-			bodyd.push_back(raise_fail(dead));
+			if (d > prop->mc_antecedent_domains)
+			      bodyd.push_back(raise_fail(dead));
+			else
+			      delete dead;
 		  }
 
 		  PExpr*fb = slots[d][Tb[d] - 1];
@@ -26307,7 +26432,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			}
 			bodyd.push_back(sva_if_(loc, gate(Tb[d] - 1),
 				sva_if_(loc, fb, hit,
-					raise_fail(gate(Tb[d] - 1))),
+					d > prop->mc_antecedent_domains
+					? raise_fail(gate(Tb[d] - 1)) : nullptr),
 				nullptr));
 		  } else {
 			perm_string fbv = dreg("mcbv", d, 0, false);
@@ -26355,9 +26481,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    sva_assign_(loc, pn_req, add), nullptr));
 			}
 
-			bodyd.push_back(sva_if_(loc,
-				sva_not_(loc, sva_id_(loc, fbv)),
-				raise_fail(gate(lastage)), nullptr));
+			if (d > prop->mc_antecedent_domains)
+			      bodyd.push_back(sva_if_(loc,
+				    sva_not_(loc, sva_id_(loc, fbv)),
+				    raise_fail(gate(lastage)), nullptr));
 		  }
 	    }
 	    if (!cover) {

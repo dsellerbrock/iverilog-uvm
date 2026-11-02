@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
+issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
+
 issue2150_explicit_named_package_ports_2017 normal,-g2017,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
 issue2150_explicit_named_package_ports_2023 normal,-g2023,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
 issue2269_clocking_end_label_2017 normal,-g2017,-s,issue2269_clocking_end_label ivltests gold=issue2269_clocking_end_label_2017.gold
@@ -3363,6 +3366,8 @@ sv_constraint_handle_rollback normal,-g2017,-s,main ivltests gold=sv_constraint_
 sv_constraint_handle_rollback_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_rollback.gold
 sv_constraint_handle_state_guard normal,-g2017,-s,main ivltests gold=sv_constraint_handle_state_guard.gold
 sv_constraint_handle_state_guard_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_state_guard.gold
+sv_constraint_handle_rand_guard_2017 normal,-g2017,-s,main ivltests gold=sv_constraint_handle_rand_guard.gold
+sv_constraint_handle_rand_guard_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_rand_guard.gold
 sv_constraint_class_state_fixed_2d normal,-g2017,-gno-icarus-misc,-gno-xtypes,-s,main ivltests gold=sv_constraint_class_state_fixed_2d.gold
 sv_constraint_class_state_fixed_2d_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-s,main ivltests gold=sv_constraint_class_state_fixed_2d.gold
 sv_constraint_class_state_assoc_select normal,-g2017,-gno-icarus-misc,-gno-xtypes,-s,top ivltests gold=sv_constraint_class_state_assoc_select.gold
@@ -6480,3 +6485,4 @@ sv_if_violation_observed_2017 normal,-g2017,-s,sv_if_violation_observed ivltests
 sv_if_violation_observed_2023 normal,-g2023,-s,sv_if_violation_observed ivltests gold=sv_if_violation_observed_legacy.gold
 issue1215_duplicate_extern_method_2017 CE,-g2017 ivltests gold=issue1215_duplicate_extern_method_2017.gold
 issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplicate_extern_method_2023.gold
+issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_scope.gold
