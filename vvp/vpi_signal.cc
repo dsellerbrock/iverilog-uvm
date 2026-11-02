@@ -1872,6 +1872,12 @@ static vpiHandle PV_get_handle(int code, vpiHandle ref)
       assert(rfp);
 
       switch (code) {
+	  case vpiBaseExpr:
+	    return rfp->indexed ? rfp->base_expr : 0;
+
+	  case vpiWidthExpr:
+	    return rfp->indexed ? rfp->width_expr : 0;
+
 	  case vpiParent:
 	    return rfp->parent;
 
@@ -1889,7 +1895,7 @@ inline __vpiPV::__vpiPV()
 { }
 
 int __vpiPV::get_type_code(void) const
-{ return vpiPartSelect; }
+{ return indexed ? vpiIndexedPartSelect : vpiPartSelect; }
 
 int __vpiPV::vpi_get(int code)
 { return PV_get(code, this); }
@@ -1906,44 +1912,95 @@ vpiHandle __vpiPV::vpi_put_value(p_vpi_value val, int flags)
 vpiHandle __vpiPV::vpi_handle(int code)
 { return PV_get_handle(code, this); }
 
-vpiHandle vpip_make_PV(char*var, int64_t base, int width)
+static vpiHandle make_PV_index_const(int64_t value)
+{
+      const unsigned width = (value < INT32_MIN || value > INT32_MAX) ? 64 : 32;
+      char bits[66];
+      uint64_t value_bits = (uint64_t)value;
+      bits[0] = 's';
+      for (unsigned idx = 0; idx < width; idx += 1)
+	    bits[idx + 1] = (value_bits >> (width - idx - 1)) & 1 ? '1' : '0';
+      bits[width + 1] = 0;
+      return vpip_make_binary_const(width, bits);
+}
+
+static void init_PV_index_exprs(struct __vpiPV*obj)
+{
+      if (!obj->indexed)
+	    return;
+
+      if (obj->sbase) {
+	    obj->base_expr = obj->sbase;
+	    obj->own_base_expr = false;
+      } else {
+	    obj->base_expr = make_PV_index_const(obj->tbase);
+	    obj->own_base_expr = true;
+      }
+      obj->width_expr = make_PV_index_const(obj->width);
+}
+
+vpiHandle vpip_make_PV(char*var, int64_t base, int width, bool indexed)
 {
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       obj->sbase = 0;
       obj->tbase = base;
       obj->width = (unsigned) width;
+      obj->base_expr = 0;
+      obj->width_expr = 0;
+      obj->indexed = indexed;
+      obj->own_base_expr = false;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
+      init_PV_index_exprs(obj);
 
       return obj;
 }
 
-vpiHandle vpip_make_PV(char*var, char*symbol, int width)
+vpiHandle vpip_make_PV(char*var, char*symbol, int width, bool indexed)
 {
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       compile_vpi_lookup(&obj->sbase, symbol);
       obj->tbase = 0;
       obj->width = (unsigned) width;
+      obj->base_expr = 0;
+      obj->width_expr = 0;
+      obj->indexed = indexed;
+      obj->own_base_expr = false;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
+      init_PV_index_exprs(obj);
 
       return obj;
 }
 
-vpiHandle vpip_make_PV(char*var, vpiHandle handle, int width)
+vpiHandle vpip_make_PV(char*var, vpiHandle handle, int width, bool indexed)
 {
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
       obj->sbase = handle;
       obj->tbase = 0;
       obj->width = (unsigned) width;
+      obj->base_expr = 0;
+      obj->width_expr = 0;
+      obj->indexed = indexed;
+      obj->own_base_expr = false;
       obj->net = 0;
       functor_ref_lookup(&obj->net, var);
+      init_PV_index_exprs(obj);
 
       return obj;
 }
+
+vpiHandle vpip_make_PV(char*var, int64_t base, int width)
+{ return vpip_make_PV(var, base, width, false); }
+
+vpiHandle vpip_make_PV(char*var, char*symbol, int width)
+{ return vpip_make_PV(var, symbol, width, false); }
+
+vpiHandle vpip_make_PV(char*var, vpiHandle handle, int width)
+{ return vpip_make_PV(var, handle, width, false); }
 
 #ifdef CHECK_WITH_VALGRIND
 void PV_delete(vpiHandle item)
@@ -1957,11 +2014,16 @@ void PV_delete(vpiHandle item)
 		  }
 		  break;
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		  assert(vpi_get(_vpiFromThr, obj->sbase) == _vpi_at_PV);
 		  PV_delete(obj->sbase);
 		  break;
 	    }
       }
+      if (obj->own_base_expr)
+	    constant_delete(obj->base_expr);
+      if (obj->width_expr)
+	    constant_delete(obj->width_expr);
       assert(obj->net->fil);
       obj->net->fil->clear_all_callbacks();
       delete obj;

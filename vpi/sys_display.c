@@ -1312,6 +1312,7 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
       case vpiTimeVar:
       case vpiMemoryWord:
       case vpiPartSelect:
+      case vpiIndexedPartSelect:
         width = get_numeric(&result, info, item);
         rtn = realloc(rtn, (size+width)*sizeof(char));
         memcpy(rtn+size-1, result, width);
@@ -1442,6 +1443,7 @@ static int sys_check_args(vpiHandle callh, vpiHandle argv, const PLI_BYTE8*name,
 	    switch (vpi_get(vpiType, arg)) {
 	      case vpiMemoryWord:
 	      case vpiPartSelect:
+	      case vpiIndexedPartSelect:
 		  if (is_monitor && vpi_get(vpiConstantSelect, arg) == 0) {
 			vpi_printf("SORRY: %s:%d: ",
 			           vpi_get_str(vpiFile, callh),
@@ -1900,6 +1902,7 @@ static PLI_INT32 sys_monitor_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		case vpiLongIntVar:
 		case vpiRealVar:
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		    /* Monitoring reg and net values involves setting
 		       a callback for value changes. */
 		  cb.obj = monitor->strobe.items[idx];
@@ -2386,6 +2389,7 @@ static PLI_INT32 sys_printtimescale_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 //		case vpiNetBit: // Unused and unavailable in Icarus
 		case vpiParameter:
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		case vpiRealVar:
 		case vpiReg:
 //		case vpiRegBit: // Unused and unavailable in Icarus

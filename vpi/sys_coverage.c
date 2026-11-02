@@ -91,6 +91,7 @@ static int coverage_is_integral(vpiHandle arg)
           case vpiMemoryWord:
           case vpiNet:
           case vpiPartSelect:
+          case vpiIndexedPartSelect:
           case vpiReg:
           case vpiTimeVar:
             return 1;

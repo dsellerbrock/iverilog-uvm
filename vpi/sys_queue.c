@@ -500,6 +500,7 @@ static unsigned is_32_or_smaller_obj(vpiHandle obj)
 	case vpiMemoryWord:
 	case vpiNet:
 	case vpiPartSelect:
+	case vpiIndexedPartSelect:
 	case vpiReg:
 	    rtn = 1;
 	    break;
@@ -522,6 +523,7 @@ static void check_var_arg_32(vpiHandle arg, vpiHandle callh,
       switch (vpi_get(vpiType, arg)) {
 	case vpiMemoryWord:
 	case vpiPartSelect:
+	case vpiIndexedPartSelect:
 	case vpiBitVar:
 	case vpiReg: // Check that we have exactly 32 bits.
 	    if (vpi_get(vpiSize, arg) != 32) {
@@ -556,6 +558,7 @@ static void check_var_arg_large(vpiHandle arg, vpiHandle callh,
       switch (vpi_get(vpiType, arg)) {
 	case vpiMemoryWord:
 	case vpiPartSelect:
+	case vpiIndexedPartSelect:
 	case vpiBitVar:
 	case vpiReg: // Check that we have at least 32 bits.
 	    if (vpi_get(vpiSize, arg) < 32) {
