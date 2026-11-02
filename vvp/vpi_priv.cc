@@ -2249,6 +2249,77 @@ static vpiHandle find_intermodpath_from_scope(vpiHandle scope, vpiHandle load)
       return nullptr;
 }
 
+static bool interconnect_net_on_load_path(vvp_net_t* named_net,
+                                          vpiPortInfo* load,
+                                          vpiHandle scope)
+{
+      vpiHandle ports = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (ports && (port = vpi_scan(ports))) {
+            auto* source = dynamic_cast<vpiPortInfo*>(port);
+            if (!source || (source->get_direction() != vpiOutput &&
+                            source->get_direction() != vpiInout))
+                  continue;
+            vvp_net_t* boundary = source->get_port();
+            if (!boundary || !boundary->out_.ptr()) continue;
+
+            bool saw_named_net = false;
+            for (vvp_net_ptr_t cur = boundary->out_; cur.ptr();
+                 cur = cur.ptr()->port[cur.port()]) {
+                  if (cur.ptr() == named_net) saw_named_net = true;
+                  if (cur.ptr() == load->get_port() && saw_named_net) {
+                        vpi_free_object(ports);
+                        return true;
+                  }
+            }
+      }
+
+      vpiHandle modules = vpi_iterate(vpiModule, scope);
+      vpiHandle module;
+      while (modules && (module = vpi_scan(modules))) {
+            if (interconnect_net_on_load_path(named_net, load, module)) {
+                  vpi_free_object(modules);
+                  return true;
+            }
+      }
+      return false;
+}
+
+extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
+                                                        vpiHandle load)
+{
+      bool saved_quiet = quiet_intermodpath_lookup;
+      quiet_intermodpath_lookup = true;
+      vpiHandle path = vpi_handle_multi(vpiInterModPath, source, load);
+      quiet_intermodpath_lookup = saved_quiet;
+      return path;
+}
+
+extern "C" bool vpip_interconnect_through_net(vpiHandle net, vpiHandle load)
+{
+      auto* named_net = dynamic_cast<__vpiSignal*>(net);
+      auto* load_port = dynamic_cast<vpiPortInfo*>(load);
+      if (!named_net || !named_net->node || !load_port || !load_port->get_port())
+            return false;
+
+      for (vvp_net_ptr_t cur = named_net->node->out_; cur.ptr();
+           cur = cur.ptr()->port[cur.port()]) {
+            if (cur.ptr() == load_port->get_port()) return true;
+      }
+
+      vpiHandle scope = vpi_handle(vpiScope, load);
+      while (scope && vpi_handle(vpiScope, scope))
+            scope = vpi_handle(vpiScope, scope);
+      return scope && interconnect_net_on_load_path(named_net->node, load_port, scope);
+}
+
+extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
+                                                   vpiHandle load)
+{
+      if (!vpip_interconnect_through_net(net, load)) return nullptr;
+      return vpip_interconnect_ports_connected(nullptr, load);
+}
+
 // Used to get intermodpath for two ports
 vpiHandle vpi_handle_multi(PLI_INT32 type,
                            vpiHandle ref1,

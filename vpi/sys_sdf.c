@@ -23,6 +23,12 @@
 # include  <stdlib.h>
 # include  <string.h>
 # include  <strings.h>
+
+extern vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
+                                                  vpiHandle load);
+extern bool vpip_interconnect_through_net(vpiHandle net, vpiHandle load);
+extern vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
+                                               vpiHandle load);
 # include  <assert.h>
 
 /*
@@ -228,6 +234,31 @@ static vpiHandle get_port_handle(char* port_name, const int sdf_lineno)
 }
 
 
+static void sdf_put_interconnect_delays(vpiHandle path,
+                                       const struct sdf_delval_list_s*delval_list,
+                                       const int sdf_lineno)
+{
+      s_vpi_delay delays;
+      struct t_vpi_time delay_vals[12];
+      delays.da = delay_vals;
+      delays.no_of_delays = delval_list->count;
+      delays.time_type = vpiScaledRealTime;
+      delays.mtm_flag = 0;
+      delays.append_flag = 0;
+      delays.pulsere_flag = 0;
+      vpi_get_delays(path, &delays);
+      for (int idx = 0; idx < delval_list->count; idx += 1) {
+            delay_vals[idx].type = vpiScaledRealTime;
+            if (delval_list->val[idx].defined) {
+                  if (sdf_flag_inform)
+                        vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
+                                   sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
+                  delay_vals[idx].real = delval_list->val[idx].value;
+            }
+      }
+      vpi_put_delays(path, &delays);
+}
+
 void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconnect_port_s port2,
                              const struct sdf_delval_list_s*delval_list,
                              const int sdf_lineno)
@@ -305,29 +336,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 	    if (intermodpath) {
 		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Created a vpiInterModPath\n", sdf_fname, sdf_lineno);
 
-		  s_vpi_delay delays;
-		  struct t_vpi_time delay_vals[12];
-
-		    // Initialize delay structure
-		  delays.da = delay_vals;
-		  delays.no_of_delays = delval_list->count;
-		  delays.time_type = vpiScaledRealTime;
-		  delays.mtm_flag = 0;
-		  delays.append_flag = 0;
-		  delays.pulsere_flag = 0;
-		  vpi_get_delays(intermodpath, &delays);
-
-		  for (int idx = 0 ; idx < delval_list->count ; idx += 1) {
-			delay_vals[idx].type = vpiScaledRealTime;
-			if (delval_list->val[idx].defined) {
-			      if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
-			                                      sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-			      delay_vals[idx].real = delval_list->val[idx].value;
-			}
-		  }
-
-		    // Put the new delays
-		  vpi_put_delays(intermodpath, &delays);
+		  sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
 	    } else {
 		  vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath!\n", sdf_fname, sdf_lineno);
 	    }
@@ -335,6 +344,147 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 	    vpi_printf("SDF WARNING: %s:%d: Cannot annotate interconnect; both endpoints must be module ports.\n",
 	               sdf_fname, sdf_lineno);
       }
+}
+
+static vpiHandle get_port_bit(vpiHandle port, struct interconnect_port_s spec,
+                              const int sdf_lineno)
+{
+      if (!spec.has_index) return port;
+      vpiHandle iter = vpi_iterate(vpiBit, port);
+      vpiHandle bit;
+      while (iter && (bit = vpi_scan(iter))) {
+            if (vpi_get(vpiBit, bit) == spec.index) {
+                  vpi_free_object(iter);
+                  return bit;
+            }
+      }
+      vpi_printf("SDF ERROR: %s:%d: Could not find port bit %d!\n",
+                 sdf_fname, sdf_lineno, spec.index);
+      return NULL;
+}
+
+static int sdf_apply_sources_to_load(vpiHandle scope, vpiHandle load,
+                                     const struct sdf_delval_list_s*delval_list,
+                                     const int sdf_lineno)
+{
+      int matches = 0;
+      vpiHandle ports = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (ports && (port = vpi_scan(ports))) {
+            int direction = vpi_get(vpiDirection, port);
+            if (direction != vpiOutput && direction != vpiInout) continue;
+            vpiHandle path = vpip_interconnect_ports_connected(port, load);
+            if (path) {
+                  sdf_put_interconnect_delays(path, delval_list, sdf_lineno);
+                  matches += 1;
+            }
+      }
+      vpiHandle modules = vpi_iterate(vpiModule, scope);
+      vpiHandle module;
+      while (modules && (module = vpi_scan(modules)))
+            matches += sdf_apply_sources_to_load(module, load, delval_list,
+                                                 sdf_lineno);
+      return matches;
+}
+
+void sdf_port_delays(struct interconnect_port_s port_spec,
+                     const struct sdf_delval_list_s*delval_list,
+                     const int sdf_lineno)
+{
+      if (!sdf_cur_cell) return;
+      char*name = strdup(port_spec.name);
+      if (!name) return;
+      vpiHandle load = get_port_handle(name, sdf_lineno);
+      free(name);
+      if (!load) {
+            vpi_printf("SDF ERROR: %s:%d: PORT target %s not found.\n",
+                       sdf_fname, sdf_lineno, port_spec.name);
+            return;
+      }
+      int direction = vpi_get(vpiDirection, load);
+      if (direction != vpiInput && direction != vpiInout) {
+            vpi_printf("SDF ERROR: %s:%d: PORT target %s is not an input or inout port.\n",
+                       sdf_fname, sdf_lineno, port_spec.name);
+            return;
+      }
+      load = get_port_bit(load, port_spec, sdf_lineno);
+      if (!load) return;
+      int matches = sdf_apply_sources_to_load(sdf_scope, load, delval_list,
+                                              sdf_lineno);
+      if (!matches) {
+            vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath for PORT %s.\n",
+                       sdf_fname, sdf_lineno, port_spec.name);
+      }
+}
+
+static int sdf_apply_netdelay_to_loads(vpiHandle scope, vpiHandle net,
+                                      const struct sdf_delval_list_s*delval_list,
+                                      const int sdf_lineno)
+{
+      int matches = 0;
+      vpiHandle ports = vpi_iterate(vpiPort, scope);
+      vpiHandle port;
+      while (ports && (port = vpi_scan(ports))) {
+            int direction = vpi_get(vpiDirection, port);
+            if (direction != vpiInput && direction != vpiInout) continue;
+            if (vpip_interconnect_through_net(net, port)) {
+                  matches += sdf_apply_sources_to_load(sdf_scope, port,
+                                                       delval_list, sdf_lineno);
+            }
+      }
+      vpiHandle modules = vpi_iterate(vpiModule, scope);
+      vpiHandle module;
+      while (modules && (module = vpi_scan(modules)))
+            matches += sdf_apply_netdelay_to_loads(module, net, delval_list,
+                                                   sdf_lineno);
+      return matches;
+}
+
+void sdf_netdelay_delays(struct interconnect_port_s target,
+                         const struct sdf_delval_list_s*delval_list,
+                         const int sdf_lineno)
+{
+      if (!sdf_cur_cell) return;
+
+      char*port_name = strdup(target.name);
+      vpiHandle port = port_name ? get_port_handle(port_name, sdf_lineno) : NULL;
+      free(port_name);
+      if (port) {
+            int direction = vpi_get(vpiDirection, port);
+            if (direction != vpiInput && direction != vpiInout) {
+                  vpi_printf("SDF ERROR: %s:%d: NETDELAY target %s is not an input/inout port or net.\n",
+                             sdf_fname, sdf_lineno, target.name);
+                  return;
+            }
+            port = get_port_bit(port, target, sdf_lineno);
+            if (!port) return;
+            int matches = sdf_apply_sources_to_load(sdf_scope, port,
+                                                    delval_list, sdf_lineno);
+            if (!matches)
+                  vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath for NETDELAY %s.\n",
+                             sdf_fname, sdf_lineno, target.name);
+            return;
+      }
+
+      vpiHandle net = vpi_handle_by_name(target.name, sdf_cur_cell);
+      if (!net || vpi_get(vpiType, net) != vpiNet) {
+            vpi_printf("SDF ERROR: %s:%d: NETDELAY target %s is not an input/inout port or net.\n",
+                       sdf_fname, sdf_lineno, target.name);
+            return;
+      }
+      if (target.has_index) {
+            net = vpi_handle_by_index(net, target.index);
+            if (!net) {
+                  vpi_printf("SDF ERROR: %s:%d: Could not find net bit %d!\n",
+                             sdf_fname, sdf_lineno, target.index);
+                  return;
+            }
+      }
+      int matches = sdf_apply_netdelay_to_loads(sdf_cur_cell, net,
+                                                delval_list, sdf_lineno);
+      if (matches == 0)
+            vpi_printf("SDF ERROR: %s:%d: No load ports found on NETDELAY net %s.\n",
+                       sdf_fname, sdf_lineno, target.name);
 }
 
 void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
