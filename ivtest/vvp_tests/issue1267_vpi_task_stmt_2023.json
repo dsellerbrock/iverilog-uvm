@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1267_vpi_task_stmt.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1267_vpi_task_stmt"],
+  "vpi-sources": ["vpi/issue1267_vpi_task_stmt.c"],
+  "output-contains": ["ISSUE1267 empty=1 multi=1 children=2 PASSED"]
+}
