@@ -23,6 +23,7 @@
 # include  "PExpr.h"
 # include  "pform_types.h"
 # include  <memory>
+# include  <string>
 
 /*
 * The PTimingCheck is the base class for all timing checks
@@ -134,6 +135,27 @@ class PSetupHold : public PTimingCheck {
 
       std::unique_ptr<pform_name_t> delayed_reference_;
       std::unique_ptr<pform_name_t> delayed_data_;
+};
+
+/* $width is elaborated after the event signal has a concrete packed shape,
+   so vector events can be expanded into independent per-bit checks. */
+class PWidth : public PTimingCheck {
+
+    public:
+      PWidth(const char*file, int line, unsigned lexical_pos,
+             event_t* event, PExpr* limit, PExpr* threshold,
+             pform_name_t* notifier);
+      ~PWidth() override;
+      void elaborate(class Design*des, class NetScope*scope) const override;
+      void dump(std::ostream&out, unsigned ind) const override;
+
+    private:
+      std::unique_ptr<event_t> event_;
+      std::unique_ptr<PExpr> limit_;
+      std::unique_ptr<PExpr> threshold_;
+      std::unique_ptr<pform_name_t> notifier_;
+      std::string file_;
+      unsigned lexical_pos_;
 };
 
 #endif /* IVL_PTimingCheck_H */
