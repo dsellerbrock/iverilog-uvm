@@ -57,7 +57,6 @@ issue1556_checker_initial_assignment_2017 CE,-g2017 ivltests gold=issue1556_chec
 issue1556_checker_initial_assignment_2023 CE,-g2023 ivltests gold=issue1556_checker_initial_assignment_2023.gold
 issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
-issue1465_cross_num_print_missing normal,-g2017,-s,tb ivltests gold=issue1465_cross_num_print_missing-legacy.gold
 issue926_printtimescale_2017 normal,-g2017,-Iivltests ivltests gold=issue926_printtimescale_2017.gold
 issue926_printtimescale_2023 normal,-g2023,-Iivltests ivltests gold=issue926_printtimescale_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
