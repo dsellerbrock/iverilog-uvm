@@ -399,7 +399,7 @@ class synth_blocking_read_context_guard_t {
       synth_blocking_read_context_t*saved_;
 };
 
-NetNet* synth_blocking_read_signal(Design*des, NetScope*scope, NetNet*sig)
+NetNet* synth_blocking_read_signal(Design*, NetScope*scope, NetNet*sig)
 {
       synth_blocking_read_context_t*context =
             active_synth_blocking_read_context;
