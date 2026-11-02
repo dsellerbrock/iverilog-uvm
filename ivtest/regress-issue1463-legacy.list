@@ -1,0 +1,2 @@
+issue1463_mixed_timescales CE,-g2017,-s,tb ivltests
+issue1463_consistent_timescales normal,-g2017,-s,tb ivltests gold=issue1463_consistent_timescales.gold

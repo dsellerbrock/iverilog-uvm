@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1463_consistent_timescales.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1463_consistent_timescales"
+}
