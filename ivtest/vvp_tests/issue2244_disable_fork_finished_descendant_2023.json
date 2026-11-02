@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2244_disable_fork_finished_descendant.v",
+  "iverilog-args": ["-g2023", "-s", "issue2244_disable_fork_finished_descendant"],
+  "output-contains": [
+    "PASS disable fork terminates descendants of finished children"
+  ]
+}

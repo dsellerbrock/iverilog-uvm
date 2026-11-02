@@ -72,6 +72,7 @@ class ufunc_core : public vvp_wide_fun_core {
 
       void assign_bits_to_ports(vvp_context_t context);
       virtual void finish_thread() =0;
+      void activate_resolver_without_drivers();
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;

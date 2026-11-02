@@ -917,7 +917,8 @@ void NetScope::add_module_port_net(NetNet*subport)
 
 
 void NetScope::add_module_port_info( unsigned idx, perm_string name, PortType::Enum ptype,
-                                unsigned long width )
+                                unsigned long width,
+                                PortInfo::ModulePortVpiType vpi_type )
 {
       ivl_assert(*this, type_ == MODULE);
       ivl_assert(*this, ports_.size() > idx);
@@ -926,6 +927,7 @@ void NetScope::add_module_port_info( unsigned idx, perm_string name, PortType::E
       info.type = ptype;
       info.width = width;
       info.buffer = nullptr;
+      info.vpi_type = vpi_type;
 }
 
 PortInfo* NetScope::get_module_port_info( unsigned idx )

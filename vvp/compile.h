@@ -583,6 +583,8 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long def_file_idx, long def_lineno,
                                long is_cell);
 extern void compile_scope_recall(char*sym);
+extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
+                              char*name);
 
 /*
  * The parser uses this function to declare a thread. The start_sym is
@@ -641,7 +643,7 @@ extern void compile_var_queue(char*label, char*name, unsigned size,
  * nets connected through module ports.
  */
 
-extern void compile_port_info( unsigned index, int vpi_port_type, unsigned width, const char *name, char* buffer );
+extern void compile_port_info( unsigned index, int vpi_direction, int vpi_port_type, unsigned width, const char *name, char* buffer );
 extern void compile_port_info_evcd(unsigned port_index,
                                    unsigned component_index,
                                    unsigned width, char *name,

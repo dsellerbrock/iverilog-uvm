@@ -75,6 +75,133 @@ extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
 
+static bool covergroup_option_uses_sample_formal_(const PExpr*expr,
+							 perm_string formal);
+static bool covergroup_option_pattern_uses_sample_formal_(
+		const PMatchPattern*pattern, perm_string formal);
+
+/* IEEE 1800 19.8.1 searches sample formals for unqualified names before
+ * the enclosing scope. Keep member and explicitly package-scoped names out
+ * of this option-expression check. */
+static bool covergroup_option_path_uses_sample_formal_(
+		const pform_scoped_name_t&path, perm_string formal, bool check_head)
+{
+      bool uses_formal = check_head && !path.package && !path.name.empty()
+		&& !path.name.front().local_scope
+		&& path.name.front().name == formal;
+      for (const name_component_t&component : path.name) {
+		for (const index_component_t&index : component.index) {
+		      if (covergroup_option_uses_sample_formal_(index.msb, formal)
+			  || covergroup_option_uses_sample_formal_(index.lsb, formal))
+			    uses_formal = true;
+		}
+      }
+      return uses_formal;
+}
+
+static bool covergroup_option_pattern_uses_sample_formal_(
+	const PMatchPattern*pattern, perm_string formal)
+{
+      if (!pattern) return false;
+      if (covergroup_option_uses_sample_formal_(pattern->expression(), formal))
+	return true;
+      for (const PMatchPattern*child : pattern->children())
+	if (covergroup_option_pattern_uses_sample_formal_(child, formal))
+	      return true;
+      return false;
+}
+
+static bool covergroup_option_uses_sample_formal_(const PExpr*expr,
+							 perm_string formal)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+		return covergroup_option_path_uses_sample_formal_(id->path(), formal,
+									  true);
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+		bool uses_formal = covergroup_option_path_uses_sample_formal_(
+		      call->path(), formal, call->receiver_expr() == nullptr);
+		if (covergroup_option_uses_sample_formal_(call->receiver_expr(), formal))
+		      uses_formal = true;
+		for (const named_pexpr_t&arg : call->get_parms())
+		      if (covergroup_option_uses_sample_formal_(arg.parm, formal))
+			    uses_formal = true;
+		for (const PExpr*constraint : call->with_constraints())
+		      if (covergroup_option_uses_sample_formal_(constraint, formal))
+			    uses_formal = true;
+		return uses_formal;
+      }
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+	return covergroup_option_uses_sample_formal_(binary->get_left(), formal)
+	    || covergroup_option_uses_sample_formal_(binary->get_right(), formal);
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+	return covergroup_option_uses_sample_formal_(unary->get_expr(), formal);
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	return covergroup_option_uses_sample_formal_(ternary->get_cond(), formal)
+	    || covergroup_option_uses_sample_formal_(ternary->get_true(), formal)
+	    || covergroup_option_uses_sample_formal_(ternary->get_false(), formal);
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	for (const PExpr*part : concat->stream_parms())
+	      if (covergroup_option_uses_sample_formal_(part, formal)) return true;
+	return covergroup_option_uses_sample_formal_(concat->repeat_expr(), formal);
+      }
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(expr))
+	return covergroup_option_uses_sample_formal_(member->base(), formal);
+      if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(expr)) {
+	const index_component_t&index = select->index();
+	return covergroup_option_uses_sample_formal_(select->base(), formal)
+	    || covergroup_option_uses_sample_formal_(index.msb, formal)
+	    || covergroup_option_uses_sample_formal_(index.lsb, formal);
+      }
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	return covergroup_option_uses_sample_formal_(cast->cast_size(), formal)
+	    || covergroup_option_uses_sample_formal_(cast->cast_base(), formal);
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	return covergroup_option_uses_sample_formal_(cast->cast_base(), formal);
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	return covergroup_option_uses_sample_formal_(cast->cast_base(), formal);
+      if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	if (covergroup_option_uses_sample_formal_(inside->get_expr(), formal))
+	      return true;
+	for (const inside_range_t&range : inside->get_ranges())
+	      if (covergroup_option_uses_sample_formal_(range.lo, formal)
+		  || covergroup_option_uses_sample_formal_(range.hi, formal)
+		  || covergroup_option_uses_sample_formal_(range.weight, formal))
+		    return true;
+	return false;
+      }
+      if (const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(expr)) {
+	for (const PExpr*value : pattern->parms())
+	      if (covergroup_option_uses_sample_formal_(value, formal)) return true;
+	for (const assignment_pattern_key_t&key : pattern->keys())
+	      if (covergroup_option_uses_sample_formal_(key.expr, formal)) return true;
+	return covergroup_option_uses_sample_formal_(pattern->replication(), formal);
+      }
+      if (const PEUnique*unique = dynamic_cast<const PEUnique*>(expr)) {
+	for (const PExpr*item : unique->items())
+	      if (covergroup_option_uses_sample_formal_(item, formal)) return true;
+	return false;
+      }
+      if (const PEStreamWith*stream = dynamic_cast<const PEStreamWith*>(expr))
+	return covergroup_option_uses_sample_formal_(stream->base(), formal)
+	    || covergroup_option_uses_sample_formal_(stream->range_first(), formal)
+	    || covergroup_option_uses_sample_formal_(stream->range_second(), formal);
+      if (const PESoft*soft = dynamic_cast<const PESoft*>(expr))
+	return covergroup_option_uses_sample_formal_(soft->get_inner(), formal);
+      if (const PEDisableSoft*disable = dynamic_cast<const PEDisableSoft*>(expr))
+	return covergroup_option_uses_sample_formal_(disable->get_inner(), formal);
+      if (const PEEvent*event = dynamic_cast<const PEEvent*>(expr))
+	return covergroup_option_uses_sample_formal_(event->expr(), formal)
+	    || covergroup_option_uses_sample_formal_(event->condition(), formal);
+      if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr))
+	return covergroup_option_uses_sample_formal_(stream->get_slice_expr(), formal)
+	    || covergroup_option_uses_sample_formal_(stream->get_inner(), formal);
+      if (const PEMatches*matches = dynamic_cast<const PEMatches*>(expr))
+	return covergroup_option_uses_sample_formal_(matches->subject(), formal)
+	    || covergroup_option_pattern_uses_sample_formal_(matches->pattern(), formal);
+      return false;
+}
+
 /* IEEE 1800-2017/2023 17.3: a checker input actual containing a const cast
  * cannot be substituted into procedural code or a continuous assignment in
  * the checker. */
@@ -6525,6 +6652,29 @@ static NetEvent* resolve_event_port_actual_(Design*des, NetScope*scope,
       return result.eve->canonical_event();
 }
 
+static PortInfo::ModulePortVpiType module_port_vpi_type_(
+      const Module*rmod, unsigned idx, NetScope*formal_scope)
+{
+      vector<PEIdent*>mport = rmod->get_port(idx);
+      if (mport.size() != 1 || !formal_scope)
+            return PortInfo::VPI_PORT;
+
+      perm_string pname = peek_tail_name(mport[0]->path().name);
+      NetNet*formal = formal_scope->find_signal(pname);
+      if (!formal) return PortInfo::VPI_PORT;
+
+      bool generic_iface = formal->attribute(
+            perm_string::literal("ivl_generic_iface")).len() != 0;
+      const netclass_t*interface_type =
+            dynamic_cast<const netclass_t*>(formal->net_type());
+      if (!generic_iface
+          && (!interface_type || !interface_type->is_interface()))
+            return PortInfo::VPI_PORT;
+
+      return interface_type && !interface_type->interface_modport().nil()
+            ? PortInfo::VPI_MODPORT_PORT : PortInfo::VPI_INTERFACE_PORT;
+}
+
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 {
 
@@ -6699,6 +6849,16 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	// Capture the formal declaration kind before interface formals are
+	// retagged with the effective modport of their actual connection.
+      vector<PortInfo::ModulePortVpiType> port_vpi_types(
+	    pins.size(), PortInfo::VPI_PORT);
+      if (!instance.empty()) {
+	    for (unsigned idx = 0; idx < pins.size(); idx += 1)
+		  port_vpi_types[idx] = module_port_vpi_type_(
+			rmod, idx, instance[0]);
+      }
 
 	// An event port passes a handle to the actual synchronization object.
 	// Bind each formal before elaborating the child body so its waits,
@@ -6979,7 +7139,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (NetScope*inst_scope : instance)
 			inst_scope->add_module_port_info(
 			      idx, port_name,
-			      rmod->get_event_port_direction(idx), 0);
+			      rmod->get_event_port_direction(idx), 0,
+			      port_vpi_types[idx]);
 		  continue;
 	    }
 
@@ -7116,7 +7277,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			prt_vector_width += port_width;
 			ptype = PortType::merged(netnet->port_type(), ptype);
 		  }
-		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width );
+		  inst_scope->add_module_port_info(idx, port_name, ptype,
+					   prt_vector_width, port_vpi_types[idx]);
 	    }
 
 	      // Interface-typed port (IEEE 1800-2017 25.3): the formal
@@ -44371,6 +44533,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		"type_option.real_interval",
 		"type_option.auto_bin_max", 0 };
 				  for (auto&kv : opts) {
+					if (kv.second) {
+					      for (perm_string formal : cgdef->sample_formals) {
+						    if (!covergroup_option_uses_sample_formal_(
+							  kv.second, formal)) continue;
+						    cerr << kv.second->get_fileline()
+							 << ": error: covergroup sample() formal '"
+							 << formal
+							 << "' may only be used in a coverpoint or conditional guard expression (IEEE 1800 19.8.1)."
+							 << endl;
+						    des->errors += 1;
+						    break;
+				      }
+				}
 					if (kv.first == "type_option.cross_retain_auto_bins") {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
 					      cerr << "error: cross_retain_auto_bins is an instance "
@@ -51035,7 +51210,8 @@ Design* elaborate(list<perm_string>roots)
 			? rmod->get_event_port_direction(idx) : PortType::PIMPLICIT;
 		  if (rmod->is_event_port(idx)) {
 			scope->add_module_port_info(
-			      idx, rmod->get_port_name(idx), ptype, 0);
+			      idx, rmod->get_port_name(idx), ptype, 0,
+			      module_port_vpi_type_(rmod, idx, scope));
 			continue;
 		  }
 		  for (unsigned pin = 0; pin < mport.size(); pin += 1) {
@@ -51054,7 +51230,9 @@ Design* elaborate(list<perm_string>roots)
                                 << ": adding module port "
                                 << rmod->get_port_name(idx) << endl;
                      }
-		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype, prt_vector_width );
+		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype,
+					      prt_vector_width,
+					      module_port_vpi_type_(rmod, idx, scope));
 		    }
 	      }
 

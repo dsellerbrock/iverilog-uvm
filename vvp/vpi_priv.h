@@ -330,6 +330,10 @@ class __vpiScope : public __vpiHandle {
       __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
+	/* Source statement tree exposed by vpiStmt for tasks/functions. */
+      vpiHandle statement_root;
+      std::vector<vpiHandle> statement_nodes;
+      std::map<uint64_t, vpiHandle> statement_node_by_id;
 	/* Set of types */
       std::map<std::string,class_type*> classes;
         /* Keep an array of items to be automatically allocated */
@@ -608,6 +612,7 @@ class vpiPortInfo  : public __vpiHandle {
       vpiPortInfo( __vpiScope *parent,
                     unsigned index,
                     int vpi_direction,
+                    int vpi_port_type,
                     unsigned width,
                     const char *name,
                     char* buffer );
@@ -634,6 +639,7 @@ class vpiPortInfo  : public __vpiHandle {
       __vpiScope *parent_;
       unsigned  index_;
       int       direction_;
+      int       vpi_port_type_;
       unsigned  width_;
       const char *name_;
       vvp_net_t *ref_;
