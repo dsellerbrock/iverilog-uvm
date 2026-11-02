@@ -2295,6 +2295,31 @@ extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
       return path;
 }
 
+extern "C" bool vpip_interconnect_port_uses_part_select(vpiHandle port_handle)
+{
+      auto* port = dynamic_cast<vpiPortInfo*>(port_handle);
+      if (!port || !port->get_port()) return false;
+
+      std::set<vvp_net_t*> seen;
+      for (vvp_net_ptr_t cur = port->get_port()->out_; cur.ptr();
+           cur = cur.ptr()->port[cur.port()]) {
+            if (!seen.insert(cur.ptr()).second) break;
+            if (dynamic_cast<vvp_fun_part*>(cur.ptr()->fun) ||
+                dynamic_cast<vvp_fun_part_pv*>(cur.ptr()->fun))
+                  return true;
+      }
+
+      seen.clear();
+      for (vvp_net_ptr_t cur = port->get_port()->port[0]; cur.ptr();
+           cur = cur.ptr()->port[0]) {
+            if (!seen.insert(cur.ptr()).second) break;
+            if (dynamic_cast<vvp_fun_part*>(cur.ptr()->fun) ||
+                dynamic_cast<vvp_fun_part_pv*>(cur.ptr()->fun))
+                  return true;
+      }
+      return false;
+}
+
 extern "C" bool vpip_interconnect_through_net(vpiHandle net, vpiHandle load)
 {
       auto* named_net = dynamic_cast<__vpiSignal*>(net);
