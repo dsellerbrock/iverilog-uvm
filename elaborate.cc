@@ -38393,7 +38393,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    }
 
-	    if (!target_path && !local_qualified && cls && value_slots) {
+	    bool rooted_target_object = cls && !constraint_class_object_root_.nil()
+		  && !id->path().name.empty()
+		  && id->path().name.front().name == constraint_class_object_root_
+		  && cls->property_idx_from_name(
+			id->path().name.front().name) < 0
+		  && id->path().name.front().index.empty()
+		  && !id->path().name.front().local_scope;
+	    if ((!target_path || rooted_target_object) && !local_qualified
+		&& cls && value_slots) {
 	  string alias_ir;
 	  if (constraint_inline_alias_field_ir_(id, scope, alias_ir))
 		return alias_ir;
@@ -46282,6 +46290,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
 			  bool has_value_bins = false;
+			  bool has_explicit_bins = false;
+			  for (const auto&bin : cp.bins)
+				if (((unsigned)bin.kind & 7) == 0) {
+				      has_explicit_bins = true;
+				      break;
+				}
 
 			    // M11-6: IEEE 19.5.5 — values named by
 			    // ignore_bins/illegal_bins are excluded from
@@ -48133,10 +48147,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 			  }
 
-			    // Automatic bins (19.5.1): no explicit value
-			    // bins => min(auto_bin_max, 2**M) uniform bins
-			    // over the coverpoint's bit-pattern space.
-			  if (!has_value_bins) {
+			    // IEEE 1800-2023 19.5.3: real-expression coverpoints
+			    // without an explicit bins construct cannot use the
+			    // generic automatic-bin fallback below.
+			  if (cp_real_supported && !cp.implicit_cross_item
+			      && !has_explicit_bins) {
+				cerr << cp.expr->get_fileline()
+				     << ": error: real coverpoint '" << cp.label
+				     << "' requires at least one explicit bins construct "
+				     << "(IEEE 1800-2023 19.5.3)." << endl;
+				des->errors += 1;
+			  }
+
+			    // Keep the existing fallback for integral coverpoints,
+			    // explicit real-bin metadata, and implicit cross items.
+			    // A declared real coverpoint without an explicit bins
+			    // construct must not reach this path.
+			  if (!has_value_bins
+			      && (!cp_real_type || has_explicit_bins
+				  || cp.implicit_cross_item)) {
 				unsigned w = 32;
 				  // IEEE 19.5.1: an ENUM coverpoint gets
 				  // one automatic bin per named value,
@@ -49717,6 +49746,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
+	    group_options.name_prop = add_unique_cov_property(
+		  "__covgrp_group_option_name", &netstring_t::type_string);
 	    if (!cg_standalone) {
 				  int parent_prop = add_unique_cov_property(
 					"__covgrp_parent", this);

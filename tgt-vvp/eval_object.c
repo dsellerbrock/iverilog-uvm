@@ -157,6 +157,22 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	       left-to-right order as a right-stream with slice size 1. The
 	       caller emits a strict target conversion after this pack. */
 	    tail += 5;
+	    if (strncmp(tail, "assoc$s$1", 9) == 0
+		|| strncmp(tail, "assoc$u$1", 9) == 0
+		|| strncmp(tail, "assoc$t$1", 9) == 0
+		|| strncmp(tail, "assoc$o$1", 9) == 0) {
+		  if (ivl_expr_parms(expr) != 1) {
+			fprintf(stderr, "%s:%u: internal error: malformed associative bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			return 1;
+		  }
+		  draw_eval_object(ivl_expr_parm(expr, 0));
+		  unsigned key_kind = tail[6] == 't' ? 0U
+			: tail[6] == 'o' ? 1U
+			: tail[6] == 's' ? 3U : 2U;
+		  fprintf(vvp_out, "    %%stream/flatten/assoc %u;\n", key_kind);
+		  return 0;
+	    }
       } else if (strncmp(tail, "unpack$", 7) == 0) {
 	    unpack = 1;
 	    tail += 7;

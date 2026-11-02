@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_inline_target_self_handle.v",
+  "iverilog-args": ["-g2017", "-s", "sv_randomize_inline_target_self_handle"],
+  "gold": "sv_randomize_inline_target_self_handle"
+}

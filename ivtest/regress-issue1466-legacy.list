@@ -1,0 +1,2 @@
+issue1466_covergroup_default_name_2017 normal,-g2017,-s,issue1466_covergroup_default_name ivltests gold=issue1466_covergroup_default_name-legacy.gold
+issue1466_covergroup_default_name_2023 normal,-g2023,-s,issue1466_covergroup_default_name ivltests gold=issue1466_covergroup_default_name-legacy.gold

@@ -5091,6 +5091,12 @@ extern "C" int ivl_type_covgrp_comment_prop(ivl_type_t net)
       return class_type ? class_type->covgrp_options().comment_prop : -1;
 }
 
+extern "C" int ivl_type_covgrp_name_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().name_prop : -1;
+}
+
 extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

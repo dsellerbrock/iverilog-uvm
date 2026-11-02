@@ -808,6 +808,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/vec4a",   of_STORE_VEC4A,   3, {OA_ARR_PTR, OA_BIT1, OA_BIT2} },
       { "%stream/end/l",  of_STREAM_END_L,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
+      { "%stream/flatten/assoc", of_STREAM_FLATTEN_ASSOC, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/flatten/obj", of_STREAM_FLATTEN_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%stream/flatten/obj/with", of_STREAM_FLATTEN_OBJ_WITH, 3, {OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/flatten/str", of_STREAM_FLATTEN_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
