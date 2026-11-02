@@ -18769,6 +18769,44 @@ sva_property_t* pform_sva_multiclock_comb_antecedent(
 	return p;
 }
 
+/* Append an implication consequent to a complete multiclocked sequence.
+   Every existing post-initial clock domain is part of the antecedent; a
+   mismatch in any of them therefore suppresses the implication vacuously. */
+sva_property_t* pform_sva_multiclock_sequence_implication(
+					const struct vlltype&loc, int op_type,
+					 sva_property_t*ante, PEventStatement*clk,
+					 std::vector<sva_seq_step_t>*conseq,
+					 std::vector<sva_mc_seg_t>*tail)
+{
+	(void)loc;
+	if (!ante || !ante->mc_prefix || ante->mc_prefix->empty()
+	    || !ante->seq || ante->seq->empty() || !ante->seq_clk_evt
+	    || ante->antecedent || ante->tree || !clk || !conseq
+	    || conseq->empty()) {
+	      pform_sva_destroy_property(ante);
+	      delete clk;
+	      pform_sva_destroy_sequence(conseq);
+	      pform_sva_destroy_mc_segments(tail);
+	      return nullptr;
+	}
+	if (!ante->mc_more) ante->mc_more = new std::vector<sva_mc_seg_t>;
+	ante->mc_antecedent_domains = 1 + ante->mc_more->size();
+	sva_mc_seg_t seg;
+	seg.boundary = (op_type == 1) ? 0 : 1;
+	seg.clk_evt = clk;
+	seg.chain = conseq;
+	ante->mc_more->push_back(seg);
+	if (tail) {
+	      ante->mc_more->insert(ante->mc_more->end(), tail->begin(), tail->end());
+	      tail->clear();
+	      delete tail;
+	}
+	ante->antecedent = ante->mc_prefix;
+	ante->mc_prefix = nullptr;
+	ante->op_type = op_type;
+	return ante;
+}
+
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
    CONSEQUENT into the tree carrier used by the automaton engine. */
 extern sva_property_t* pform_sva_comb_consequent_sorry(
@@ -26257,7 +26295,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 						       sva_id_(loc, adv)));
 			PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
 			FILE_NAME(dead, loc);
-			bodyd.push_back(raise_fail(dead));
+			if (d > prop->mc_antecedent_domains)
+			      bodyd.push_back(raise_fail(dead));
+			else
+			      delete dead;
 		  }
 
 		  PExpr*fb = slots[d][Tb[d] - 1];
@@ -26295,7 +26336,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			}
 			bodyd.push_back(sva_if_(loc, gate(Tb[d] - 1),
 				sva_if_(loc, fb, hit,
-					raise_fail(gate(Tb[d] - 1))),
+					d > prop->mc_antecedent_domains
+					? raise_fail(gate(Tb[d] - 1)) : nullptr),
 				nullptr));
 		  } else {
 			perm_string fbv = dreg("mcbv", d, 0, false);
@@ -26343,9 +26385,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    sva_assign_(loc, pn_req, add), nullptr));
 			}
 
-			bodyd.push_back(sva_if_(loc,
-				sva_not_(loc, sva_id_(loc, fbv)),
-				raise_fail(gate(lastage)), nullptr));
+			if (d > prop->mc_antecedent_domains)
+			      bodyd.push_back(sva_if_(loc,
+				    sva_not_(loc, sva_id_(loc, fbv)),
+				    raise_fail(gate(lastage)), nullptr));
 		  }
 	    }
 	    if (!cover) {

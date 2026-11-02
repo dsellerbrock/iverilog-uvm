@@ -9571,6 +9571,16 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      nested property without losing its operator semantics. */
   | sva_seq_expr K_PIPE_IMPL_OV property_expr
       { $$ = pform_sva_paren_conseq(@2, 1, $1, $3); }
+  /* IEEE 1800-2017 16.13.3 and 16.13.4(d): implication may follow a
+     complete multiclocked sequence. All clock domains in that sequence
+     remain part of the antecedent; the new event control begins the
+     consequence domain. */
+  | sva_multiclock_seq K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail_opt
+      { $$ = pform_sva_multiclock_sequence_implication(
+		@2, 2, $1, $3, $4, $5); }
+  | sva_multiclock_seq K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail_opt
+      { $$ = pform_sva_multiclock_sequence_implication(
+		@2, 1, $1, $3, $4, $5); }
   | sva_seq_expr K_PIPE_IMPL_NOV property_expr
       { $$ = pform_sva_paren_conseq(@2, 2, $1, $3); }
   /* IEEE 1800-2017 16.13.3: multiclocked implication `@(c1) a |=> @(c2) b'
