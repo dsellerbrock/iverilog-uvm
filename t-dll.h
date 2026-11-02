@@ -929,6 +929,9 @@ struct ivl_scope_s {
       unsigned func_signed : 1;
       unsigned is_dpi_import : 1;
       unsigned is_dpi_export : 1;
+      unsigned dpi_pure : 1;
+      unsigned dpi_context : 1;
+      unsigned dpi_legacy : 1;
 
       signed int time_precision :8;
       signed int time_units :8;

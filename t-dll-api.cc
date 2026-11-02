@@ -2893,6 +2893,26 @@ extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
       return proc ? proc->dpi_c_name : 0;
 }
 
+extern "C" int ivl_scope_dpi_pure(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_pure ? 1 : 0;
+}
+
+extern "C" int ivl_scope_dpi_context(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_context ? 1 : 0;
+}
+
+extern "C" int ivl_scope_dpi_cstr(ivl_scope_t net)
+{
+      assert(net);
+      if (!net->is_dpi_import && !net->is_dpi_export)
+	    return 0;
+      return net->dpi_legacy ? IVL_DPI : IVL_DPI_C;
+}
+
 extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)
 {
       assert(net);
