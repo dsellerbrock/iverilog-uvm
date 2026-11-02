@@ -38393,7 +38393,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    }
 
-	    if (!target_path && !local_qualified && cls && value_slots) {
+	    bool rooted_target_object = cls && !constraint_class_object_root_.nil()
+		  && !id->path().name.empty()
+		  && id->path().name.front().name == constraint_class_object_root_
+		  && cls->property_idx_from_name(
+			id->path().name.front().name) < 0
+		  && id->path().name.front().index.empty()
+		  && !id->path().name.front().local_scope;
+	    if ((!target_path || rooted_target_object) && !local_qualified
+		&& cls && value_slots) {
 	  string alias_ir;
 	  if (constraint_inline_alias_field_ir_(id, scope, alias_ir))
 		return alias_ir;
