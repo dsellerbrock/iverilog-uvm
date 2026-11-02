@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1569_down_hierarchy_interconnect.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "tb"],
+  "gold": "issue1569_down_hierarchy_interconnect"
+}
