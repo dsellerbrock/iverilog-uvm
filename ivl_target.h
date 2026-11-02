@@ -2625,6 +2625,8 @@ extern unsigned ivl_stmt_parm_count(ivl_statement_t net);
 extern ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net);
   /* IVL_ST_STASK: exact dynamic virtual-interface method candidates. */
 extern ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net, unsigned idx);
+extern ivl_scope_t ivl_stmt_vif_dispatch_scope(ivl_statement_t net,
+						       unsigned idx);
 extern unsigned    ivl_stmt_vif_methods(ivl_statement_t net);
   /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB IVL_ST_CASSIGN IVL_ST_CONTRIB
      IVL_ST_FORCE */

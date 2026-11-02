@@ -26,12 +26,14 @@
 
 using namespace std;
 
-void NetSTask::add_vif_method(NetScope*method)
+void NetSTask::add_vif_method(NetScope*method, NetScope*dispatch_scope)
 {
       ivl_assert(*this, method);
       ivl_assert(*this, method->type() == NetScope::TASK
 			 || method->type() == NetScope::FUNC);
+	  ivl_assert(*this, dispatch_scope);
       vif_methods_.push_back(method);
+      vif_dispatch_scopes_.push_back(dispatch_scope);
 }
 
 unsigned NetSTask::vif_method_count() const
@@ -43,6 +45,12 @@ const NetScope* NetSTask::vif_method(unsigned idx) const
 {
       ivl_assert(*this, idx < vif_methods_.size());
       return vif_methods_[idx];
+}
+
+const NetScope* NetSTask::vif_dispatch_scope(unsigned idx) const
+{
+      ivl_assert(*this, idx < vif_dispatch_scopes_.size());
+      return vif_dispatch_scopes_[idx];
 }
 
 NetBlock::NetBlock(Type t, NetScope*ss)

@@ -1095,6 +1095,7 @@ struct ivl_statement_s {
 		  unsigned   nparm_;
 		  ivl_expr_t*parms_;
 		  ivl_scope_t*vif_method_;
+		  ivl_scope_t*vif_dispatch_scope_;
 		  unsigned   vif_methods_;
 		  ivl_lval_t ref_lval_;
 	    } stask_;

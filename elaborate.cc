@@ -518,6 +518,14 @@ static bool validate_interface_port_modport_exports_(
 	    const char*kind = prototype
 		  ? (prototype->is_function ? "function" : "task")
 		  : "task/function";
+	    const PTask*provider_task = nullptr;
+	    auto task_entry = provider->tasks.find(method);
+	    if (task_entry != provider->tasks.end()
+		&& task_entry->second->interface_provider_port() == port_name)
+		  provider_task = task_entry->second;
+	    if (provider_task) {
+		  continue;
+	    }
 	    const bool unqualified_declaration = provider->tasks.count(method)
 		  || provider->funcs.count(method);
 	    if (unqualified_declaration) {
@@ -6674,6 +6682,169 @@ static PortInfo::ModulePortVpiType module_port_vpi_type_(
 
       return interface_type && !interface_type->interface_modport().nil()
             ? PortInfo::VPI_MODPORT_PORT : PortInfo::VPI_INTERFACE_PORT;
+}
+
+static const NetBaseDef* ensure_interface_method_def_(
+		Design*des, NetScope*method);
+static bool interface_modport_prototype_matches_method_(
+		const LineInfo&loc, Design*des,
+		const PModport::tf_port_prototype_t*prototype,
+		const NetScope*method_scope, const NetBaseDef*def,
+		bool require_matching_names, bool diagnose,
+		const NetScope*prototype_scope);
+
+void PGModule::prepare_interface_export_providers(Design*des,
+						  NetScope*scope) const
+{
+      if (!des || !scope)
+	    return;
+      Module*rmod = bound_type_ ? bound_type_ : find_module_type_(type_, scope);
+      if (!rmod)
+	    return;
+
+      std::map<perm_string,NetScope::scope_vec_t>::const_iterator found =
+	    scope->instance_arrays.find(get_name());
+      if (found == scope->instance_arrays.end() || found->second.empty())
+	    return;
+      const NetScope::scope_vec_t&instances = found->second;
+
+      bool has_provider = false;
+      for (const auto&entry : rmod->tasks)
+	    has_provider |= !entry.second->interface_provider_port().nil();
+      if (!has_provider)
+	    return;
+
+      for (unsigned idx = 0 ; idx < rmod->port_count() ; idx += 1) {
+	    perm_string port_name = rmod->get_port_name(idx);
+	    vector<PEIdent*>port = rmod->get_port(idx);
+	    if (port.size() != 1)
+		  continue;
+	    perm_string signal_name = peek_tail_name(port.front()->path().name);
+	    NetNet*formal = instances.front()->find_signal(signal_name);
+	    if (!formal)
+		  continue;
+	    bool generic_iface = formal->attribute(
+		  perm_string::literal("ivl_generic_iface")).len() != 0;
+	    const netclass_t*formal_type =
+		  dynamic_cast<const netclass_t*>(formal->net_type());
+	    if (!generic_iface && (!formal_type || !formal_type->is_interface()))
+		  continue;
+
+	    PExpr*actual = nullptr;
+	    std::unique_ptr<PEIdent>wildcard_actual;
+	    if (pins_) {
+		  bool has_wildcard = false;
+		  for (unsigned pin = 0 ; pin < npins_ ; pin += 1) {
+			if (pins_[pin].name && pins_[pin].name[0] == '*') {
+			      has_wildcard = true;
+			      continue;
+			}
+			if (pins_[pin].name
+			    && strcmp(pins_[pin].name, port_name.str()) == 0) {
+			      actual = pins_[pin].parm;
+			      break;
+			}
+		  }
+
+		  if (!actual && has_wildcard) {
+			wildcard_actual.reset(
+			      new PEIdent(port_name, UINT_MAX, true));
+			actual = wildcard_actual.get();
+		  }
+	    } else if (idx < pin_count()) {
+		  actual = pin(idx);
+	    }
+	    if (!actual)
+		  continue;
+
+	    const PEIdent*ident = dynamic_cast<const PEIdent*>(actual);
+	    if (!ident)
+		  continue;
+	    const pform_name_t&path = ident->path().name;
+	    NetScope*interface_scope =
+		  selected_interface_instance_scope_(des, scope, ident);
+	    if (!interface_scope && !path.empty()
+		&& path.front().index.empty()) {
+		  NetScope*direct = scope->child(hname_t(path.front().name));
+		  if (direct && direct->type() == NetScope::MODULE
+		      && direct->is_interface())
+			interface_scope = direct;
+		  if (!interface_scope && path.size() == 1)
+			interface_scope = scope->interface_port_target(
+			      path.front().name);
+		  if (!interface_scope && path.size() == 1) {
+			std::map<perm_string,NetScope::scope_vec_t>::const_iterator array =
+			      scope->instance_arrays.find(path.front().name);
+			if (array != scope->instance_arrays.end()
+			    && !array->second.empty()
+			    && array->second.front()->is_interface())
+			      interface_scope = array->second.front();
+		  }
+	    }
+	    if (!interface_scope)
+		  continue;
+
+	    for (NetScope*instance : instances)
+		  instance->set_interface_port_target(port_name, interface_scope);
+
+	    for (const auto&entry : rmod->tasks) {
+		  const PTask*provider = entry.second;
+		  if (provider->interface_provider_port() != port_name)
+			continue;
+		  for (NetScope*instance : instances) {
+			NetScope*method = instance->child(hname_t(entry.first));
+			if (method && method->type() == NetScope::TASK) {
+			      auto interface_module = pform_modules.find(
+				    interface_scope->module_name());
+			      if (interface_module != pform_modules.end()
+				  && interface_module->second) {
+				    const NetBaseDef*def =
+					  ensure_interface_method_def_(des, method);
+				    for (const auto&view_entry :
+					 interface_module->second->modports) {
+					  const PModport*view = view_entry.second;
+					  if (!view
+					      || !view->export_ports.count(entry.first))
+						continue;
+					  for (const auto&prototype_entry :
+					       view->import_prototypes) {
+						if (prototype_entry.first != entry.first)
+						      continue;
+						const LineInfo*loc = interface_module->second;
+						const auto*prototype = &prototype_entry.second;
+						if (prototype->ports
+						    && !prototype->ports->empty()
+						    && prototype->ports->front().port)
+						      loc = prototype->ports->front().port;
+						interface_modport_prototype_matches_method_(
+						      *loc, des, prototype, method, def, false,
+						      true, interface_scope);
+					  }
+				    }
+			      }
+			      interface_scope->add_export_provider_task(
+				    entry.first, method);
+			}
+		  }
+	    }
+      }
+}
+
+bool PGModule::has_interface_export_providers(NetScope*scope) const
+{
+      Module*rmod = bound_type_ ? bound_type_ : find_module_type_(type_, scope);
+      if (!rmod)
+	    return false;
+      for (const auto&entry : rmod->tasks)
+	    if (!entry.second->interface_provider_port().nil())
+		  return true;
+      return false;
+}
+
+bool PGModule::is_interface_instance(NetScope*scope) const
+{
+      Module*rmod = bound_type_ ? bound_type_ : find_module_type_(type_, scope);
+      return rmod && rmod->is_interface;
 }
 
 void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
@@ -15938,6 +16109,55 @@ static vector<NetScope*> collect_interface_method_scopes_(
       return methods;
 }
 
+struct interface_task_candidate_t {
+      NetScope*method;
+      NetScope*dispatch_scope;
+};
+
+static void collect_interface_task_candidates_recurse_(
+		Design*des, NetScope*scope, perm_string interface_name,
+		perm_string method_name, const netclass_t*required_type,
+		vector<interface_task_candidate_t>&candidates)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE
+	  && scope->module_name() == interface_name
+	  && interface_scope_matches_layout_(des, scope, required_type)) {
+	    NetScope*method = scope->child(hname_t(method_name));
+	    if (method && method->type() == NetScope::TASK) {
+		  interface_task_candidate_t candidate = { method, scope };
+		  candidates.push_back(candidate);
+	    }
+	    for (NetScope*provider : scope->export_provider_tasks(method_name)) {
+		  if (!provider || provider->type() != NetScope::TASK)
+			continue;
+		  interface_task_candidate_t candidate = { provider, scope };
+		  candidates.push_back(candidate);
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    collect_interface_task_candidates_recurse_(
+		  des, child.second, interface_name, method_name, required_type,
+		  candidates);
+}
+
+static vector<interface_task_candidate_t>
+collect_interface_task_candidates_(Design*des, perm_string interface_name,
+				  perm_string method_name,
+				  const netclass_t*required_type)
+{
+      vector<interface_task_candidate_t>candidates;
+      if (!des)
+	    return candidates;
+      for (NetScope*root : des->find_root_scopes())
+	    collect_interface_task_candidates_recurse_(
+		  des, root, interface_name, method_name, required_type, candidates);
+      return candidates;
+}
+
 static void collect_nested_interface_method_scopes_recurse_(
 		Design*des, NetScope*scope, perm_string outer_name,
 		perm_string nested_name, perm_string method_name,
@@ -16361,7 +16581,8 @@ static bool interface_modport_prototype_matches_method_(
 		const LineInfo&loc, Design*des,
 		const PModport::tf_port_prototype_t*prototype,
 		const NetScope*method_scope, const NetBaseDef*def,
-		bool require_matching_names, bool diagnose)
+		bool require_matching_names, bool diagnose,
+		const NetScope*prototype_scope = nullptr)
 {
       if (!prototype)
 	    return true;
@@ -16369,8 +16590,9 @@ static bool interface_modport_prototype_matches_method_(
       const bool method_is_function = method_scope
 	    && method_scope->type() == NetScope::FUNC;
 
-      NetScope*declaration_scope = method_scope
-	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
+      NetScope*declaration_scope = prototype_scope
+	    ? const_cast<NetScope*>(prototype_scope)
+	    : method_scope ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
       const vector<pform_tf_port_t>*ports = prototype->ports;
       const unsigned prototype_count = ports
 	    ? static_cast<unsigned>(ports->size()) : 0;
@@ -16458,6 +16680,14 @@ static void validate_interface_modport_import_prototypes_(
 		  NetScope*method = scope->child(hname_t(method_name));
 		  const NetBaseDef*def = ensure_interface_method_def_(des, method);
 		  if (!method || !def) {
+			bool exported_by_modport = false;
+			for (const auto&export_view : interface_module->modports) {
+			      const PModport*export_modport = export_view.second;
+			      exported_by_modport |= export_modport
+				    && export_modport->export_ports.count(method_name);
+			}
+			if (exported_by_modport)
+			      continue;
 			string location = interface_module->get_fileline();
 			if (prototype->ports && !prototype->ports->empty()
 			    && prototype->ports->front().port)
@@ -16665,7 +16895,7 @@ static vector<NetExpr*> elaborate_interface_method_argument_row_(
 static NetSTask* elaborate_dynamic_interface_method_call_(
 		const LineInfo&loc, Design*des, NetScope*caller_scope,
 		const string&call_name, NetExpr*receiver,
-		const vector<NetScope*>&methods,
+		const vector<interface_task_candidate_t>&candidates,
 		const netclass_t*interface_type,
 		const PModport::tf_port_prototype_t*prototype,
 		bool selected_modport, perm_string method_name,
@@ -16687,6 +16917,11 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 	    hard_error = true;
 	    return nullptr;
       }
+
+	  vector<NetScope*>methods;
+	  methods.reserve(candidates.size());
+	  for (const interface_task_candidate_t&candidate : candidates)
+	    methods.push_back(candidate.method);
 
       if (methods.empty()) {
 	/* No physical instance of this interface can own the method body. */
@@ -16711,7 +16946,8 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 		  return nullptr;
 	    if (!interface_modport_prototype_matches_method_(
 		  loc, des, prototype, method, def,
-		  require_matching_names, idx == 0)) {
+		  require_matching_names, idx == 0,
+		  candidates[idx].dispatch_scope)) {
 		  hard_error = true;
 		  return nullptr;
 	    }
@@ -16770,7 +17006,7 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 	    bool row_error = false;
 	    vector<NetExpr*>row = elaborate_interface_method_argument_row_(
 		  loc, des, caller_scope, defs[idx], actuals,
-		  prototype, methods[idx]->parent(), idx == 0, row_error);
+		  prototype, candidates[idx].dispatch_scope, idx == 0, row_error);
 	    argv.insert(argv.end(), row.begin(), row.end());
 	    if (row_error) {
 		  /* The caller still owns the receiver on a hard task-dispatch
@@ -16784,9 +17020,10 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 
       perm_string name = lex_strings.make(call_name.c_str());
       NetSTask*sys = new NetSTask(name.str(), IVL_SFUNC_AS_TASK_IGNORE, argv);
-      for (NetScope*method : methods) {
-	    sys->add_vif_method(method);
-	    note_unsafe_task_call_(method);
+	  for (size_t idx = 0 ; idx < candidates.size() ; idx += 1) {
+	    sys->add_vif_method(candidates[idx].method,
+				candidates[idx].dispatch_scope);
+	    note_unsafe_task_call_(candidates[idx].method);
       }
       sys->set_line(loc);
       return sys;
@@ -17307,6 +17544,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			: nullptr;
 
 		  vector<NetScope*>methods;
+		  vector<interface_task_candidate_t>candidates;
 		  interface_method_pform_info_t pform_method = { nullptr, false };
 		  if (outer_type && outer_type->is_interface()) {
 			methods = collect_nested_interface_method_scopes_(
@@ -17315,6 +17553,11 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			pform_method = find_nested_interface_method_pform_(
 			      outer_type->get_name(), nested_it->name,
 			      method_it->name);
+			for (NetScope*method : methods) {
+			      interface_task_candidate_t candidate = {
+				    method, method ? method->parent() : nullptr };
+			      candidates.push_back(candidate);
+			}
 		  }
 
 		  if (!methods.empty() || pform_method.method) {
@@ -17331,7 +17574,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			bool dynamic_error = false;
 			if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
 			      *this, des, scope, call_name, outer_expr,
-			      methods, nullptr, nullptr, false, method_it->name,
+			      candidates, nullptr, nullptr, false, method_it->name,
 			      parms_, dynamic_error)) {
 			      bool is_task = methods.empty()
 				    ? pform_method.is_task
@@ -20354,7 +20597,12 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  // class hierarchies), treat the missing inherited method as
 		  // a compile-progress warning and emit a noop stub so
 		  // elaboration can continue producing a VVP file.
-		  if (!class_type->scope_ready() || class_type->is_covergroup()) {
+		  const PModport::tf_port_prototype_t*interface_prototype =
+			class_type->is_interface()
+			? find_interface_modport_method_prototype_(
+			      class_type, method_name) : nullptr;
+		  if (!class_type->scope_ready() || class_type->is_covergroup()
+		      || (interface_prototype && !interface_prototype->is_function)) {
 			// Phase 54: deferred interface method dispatch. When the
 			// caller is a parameterized class body that elaborates
 			// before the interface's testbench instance scope is
@@ -20372,23 +20620,24 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    noop->set_line(*this);
 				    return noop;
 			      }
-			      vector<NetScope*>methods = collect_interface_method_scopes_(
-				    des, class_type->get_name(), method_name,
-				    class_type);
+			      vector<interface_task_candidate_t>candidates =
+				    collect_interface_task_candidates_(
+					  des, class_type->get_name(), method_name,
+					  class_type);
 			      interface_method_pform_info_t pform_method =
 				    find_interface_method_pform_(
 					  class_type->get_name(), method_name);
-			      if (!methods.empty() || pform_method.method) {
-				    const PModport::tf_port_prototype_t*prototype =
-					  find_interface_modport_method_prototype_(
-						class_type, method_name);
+			      const PModport::tf_port_prototype_t*prototype =
+				    find_interface_modport_method_prototype_(
+					  class_type, method_name);
+			      if (!candidates.empty() || pform_method.method || prototype) {
 				    const bool selected_modport =
 					  !class_type->interface_modport().nil();
 				    std::string call_name = "$ivl_vif_call$";
 				    call_name += class_type->get_name().str();
 				    call_name += "$";
 				    call_name += method_name.str();
-				    if (methods.empty())
+				    if (candidates.empty())
 					  validate_uninstantiated_interface_method_call_(
 						*this, des, scope, method_name,
 						pform_method.method, prototype, parms_);
@@ -20396,12 +20645,15 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    if (NetSTask*sys =
 					  elaborate_dynamic_interface_method_call_(
 						*this, des, scope, call_name, obj_expr,
-						methods, class_type, prototype,
+						candidates, class_type, prototype,
 						selected_modport,
 						method_name, parms_, dynamic_error)) {
-					  bool is_task = methods.empty()
+					  bool is_task = !candidates.empty()
+						? candidates.front().method->type()
+						     == NetScope::TASK
+						: pform_method.method
 						? pform_method.is_task
-						: methods.front()->type() == NetScope::TASK;
+						: prototype && !prototype->is_function;
 					  if (is_task)
 						test_task_calls_ok_(des, scope);
 					  return sys;
@@ -20464,33 +20716,37 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
-		  vector<NetScope*>methods = collect_interface_method_scopes_(
-			des, class_type->get_name(), method_name, class_type);
+		  vector<interface_task_candidate_t>candidates =
+			collect_interface_task_candidates_(
+			      des, class_type->get_name(), method_name, class_type);
 		  interface_method_pform_info_t pform_method =
 			find_interface_method_pform_(
 			      class_type->get_name(), method_name);
-		  if (!methods.empty() || pform_method.method) {
-			const PModport::tf_port_prototype_t*prototype =
-			      find_interface_modport_method_prototype_(
-				    class_type, method_name);
+		  const PModport::tf_port_prototype_t*prototype =
+			find_interface_modport_method_prototype_(
+			      class_type, method_name);
+		  if (!candidates.empty() || pform_method.method || prototype) {
 			const bool selected_modport =
 			      !class_type->interface_modport().nil();
 			std::string call_name = "$ivl_vif_call$";
 			call_name += class_type->get_name().str();
 			call_name += "$";
 			call_name += method_name.str();
-			if (methods.empty())
+			if (candidates.empty())
 			      validate_uninstantiated_interface_method_call_(
 				    *this, des, scope, method_name,
 				    pform_method.method, prototype, parms_);
 			bool dynamic_error = false;
 				if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
 				      *this, des, scope, call_name, obj_expr,
-				      methods, class_type, prototype, selected_modport,
+				      candidates, class_type, prototype, selected_modport,
 				      method_name, parms_, dynamic_error)) {
-			      bool is_task = methods.empty()
+			      bool is_task = !candidates.empty()
+				    ? candidates.front().method->type()
+					 == NetScope::TASK
+				    : pform_method.method
 				    ? pform_method.is_task
-				    : methods.front()->type() == NetScope::TASK;
+				    : prototype && !prototype->is_function;
 			      if (is_task)
 				test_task_calls_ok_(des, scope);
 			      return sys;
@@ -30766,7 +31022,31 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // complex.
 	    const list<PGate*>&gl = get_gates();
 
-	    for (const auto gt : gl) gt->elaborate(des, scope);
+	      // Interface scopes must exist before a connected module can bind its
+	      // hierarchical export provider. Elaborate those instances first, then
+	      // providers, and finally consumers so source order does not change
+	      // which task body an importing modport resolves.
+	    vector<const PGate*>elaborated;
+	    for (const auto gt : gl) {
+		  const PGModule*module = dynamic_cast<const PGModule*>(gt);
+		  if (module && module->is_interface_instance(scope)) {
+			gt->elaborate(des, scope);
+			elaborated.push_back(gt);
+		  }
+	    }
+	    for (const auto gt : gl) {
+		  const PGModule*module = dynamic_cast<const PGModule*>(gt);
+		  if (!module || module->is_interface_instance(scope)
+		      || !module->has_interface_export_providers(scope))
+			continue;
+		  gt->elaborate(des, scope);
+		  module->prepare_interface_export_providers(des, scope);
+		  elaborated.push_back(gt);
+	    }
+	    for (const auto gt : gl)
+		  if (std::find(elaborated.begin(), elaborated.end(), gt)
+		      == elaborated.end())
+			gt->elaborate(des, scope);
 
 	      // Elaborate the variable initialization statements, making a
 	      // single initial process out of them.

@@ -971,13 +971,20 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->u_.stask_.vif_methods_ = vif_methods;
       stmt_cur_->u_.stask_.vif_method_ = vif_methods
 	    ? dll_procedure_new_array<ivl_scope_t>(vif_methods) : 0;
+      stmt_cur_->u_.stask_.vif_dispatch_scope_ = vif_methods
+	    ? dll_procedure_new_array<ivl_scope_t>(vif_methods) : 0;
       for (unsigned idx = 0 ; idx < vif_methods ; idx += 1) {
 	    const NetScope*method = net->vif_method(idx);
+	    const NetScope*dispatch_scope = net->vif_dispatch_scope(idx);
 	    assert(method);
+	    assert(dispatch_scope);
 	    assert(method->type() == NetScope::TASK
 		   || method->type() == NetScope::FUNC);
 	    stmt_cur_->u_.stask_.vif_method_[idx] = lookup_scope_(method);
 	    assert(stmt_cur_->u_.stask_.vif_method_[idx]);
+	    stmt_cur_->u_.stask_.vif_dispatch_scope_[idx] =
+		  lookup_scope_(dispatch_scope);
+	    assert(stmt_cur_->u_.stask_.vif_dispatch_scope_[idx]);
       }
 
       for (unsigned idx = 0 ;  idx < nparms ;  idx += 1) {

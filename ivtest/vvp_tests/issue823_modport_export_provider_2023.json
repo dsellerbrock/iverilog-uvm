@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue823_modport_export_provider.v",
+  "iverilog-args": ["-g2023", "-s", "issue823_modport_export_provider"],
+  "gold": "issue823_modport_export_provider"
+}

@@ -10856,6 +10856,16 @@ task_declaration_header
 	$$ = $3;
 	@$ = @3;
       }
+  | K_task lifetime_opt IDENTIFIER '.' IDENTIFIER
+      { /* IEEE 1800-2017/2023 25.7.3 permits an exported interface task
+	   to be defined in its connected module through the interface port. */
+	assert(current_task == 0);
+	current_task = pform_push_task_scope(@1, $5, $2);
+	current_task->set_interface_provider_port(lex_strings.make($3));
+	$$ = $5;
+	@$ = @5;
+	delete[] $3;
+      }
   | method_task_keyword lifetime_opt IDENTIFIER
       { assert(current_task == 0);
 	current_task = pform_push_task_scope(@1, $3, $2);

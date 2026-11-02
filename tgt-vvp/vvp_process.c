@@ -5844,7 +5844,7 @@ static int show_vif_dyn_call(ivl_statement_t net)
       int malformed = 0;
       for (unsigned i = 0 ; i < ninst ; i += 1) {
             methods[i] = ivl_stmt_vif_method(net, i);
-            insts[i] = methods[i] ? ivl_scope_parent(methods[i]) : 0;
+            insts[i] = ivl_stmt_vif_dispatch_scope(net, i);
             row_base[i] = methods[i]
                   ? find_iface_method_row_(&call, methods[i]) : UINT_MAX;
             if (!methods[i]
@@ -5855,6 +5855,9 @@ static int show_vif_dyn_call(ivl_statement_t net)
                 || !insts[i] || ivl_scope_type(insts[i]) != IVL_SCT_MODULE
                 || !ivl_scope_tname(insts[i])
                 || strcmp(ivl_scope_tname(insts[i]), iface_name) != 0
+                || !ivl_scope_parent(methods[i])
+                || ivl_scope_type(ivl_scope_parent(methods[i]))
+                     != IVL_SCT_MODULE
                 || row_base[i] == UINT_MAX) {
                   fprintf(stderr,
                           "%s:%u: vvp.tgt error: invalid candidate %u in "

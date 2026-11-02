@@ -4169,6 +4169,15 @@ extern "C" ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net,
       return net->u_.stask_.vif_method_[idx];
 }
 
+extern "C" ivl_scope_t ivl_stmt_vif_dispatch_scope(ivl_statement_t net,
+							 unsigned idx)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      assert(idx < net->u_.stask_.vif_methods_);
+      return net->u_.stask_.vif_dispatch_scope_[idx];
+}
+
 extern "C" unsigned ivl_stmt_vif_methods(ivl_statement_t net)
 {
       assert(net);

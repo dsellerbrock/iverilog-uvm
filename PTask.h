@@ -203,6 +203,15 @@ class PTask  : public PTaskFunc {
 
       bool is_auto() const { return is_auto_; };
 
+      // A hierarchical task definition in a module can provide an exported
+      // interface subroutine. Keep the interface-port name on the parsed
+      // declaration so elaboration can associate each task instance with the
+      // interface instance connected to that port.
+      void set_interface_provider_port(perm_string port)
+      { interface_provider_port_ = port; }
+      perm_string interface_provider_port() const
+      { return interface_provider_port_; }
+
       void dump(std::ostream&, unsigned) const override;
 
       SymbolType symbol_type() const override;
@@ -210,6 +219,7 @@ class PTask  : public PTaskFunc {
     private:
       Statement*statement_;
       bool is_auto_;
+      perm_string interface_provider_port_;
 
     private: // Not implemented
       PTask(const PTask&);

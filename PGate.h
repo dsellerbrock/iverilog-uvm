@@ -293,6 +293,13 @@ class PGModule  : public PGate {
       virtual void elaborate_scope(Design*des, NetScope*sc) const override;
       virtual bool elaborate_sig(Design*des, NetScope*scope) const override;
 
+	/* Install the interface-instance -> provider-task associations needed by
+	 * exported modport calls before any sibling module body is elaborated. */
+      void prepare_interface_export_providers(Design*des,
+						      NetScope*scope) const;
+      bool has_interface_export_providers(NetScope*scope) const;
+      bool is_interface_instance(NetScope*scope) const;
+
 	// This returns the module name of this module. It is a
 	// permallocated string.
       perm_string get_type() const;

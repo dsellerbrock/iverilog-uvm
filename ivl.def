@@ -401,6 +401,7 @@ ivl_stmt_wait_order_fail_stmt
 ivl_stmt_is_super_call
 ivl_stmt_is_immediate_assertion
 ivl_stmt_vif_method
+ivl_stmt_vif_dispatch_scope
 ivl_stmt_vif_methods
 
 ivl_switch_a

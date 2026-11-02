@@ -27,6 +27,7 @@
  * processors.
  */
 # include  <string>
+# include  <algorithm>
 # include  <cstdint>
 # include  <map>
 # include  <list>
@@ -1442,6 +1443,32 @@ class NetScope : public Definitions, public Attrib {
 	// useful for some elaboration error checking.
       const NetScope* child_byname(perm_string name) const;
 
+	/* A module's interface port keeps the physical interface instance that
+	 * supplies its handle. The interface scope in turn records task bodies
+	 * provided by connected modules for exported modport methods. */
+      void set_interface_port_target(perm_string port, NetScope*target)
+      { interface_port_targets_[port] = target; }
+      NetScope* interface_port_target(perm_string port) const
+      {
+	    std::map<perm_string,NetScope*>::const_iterator found =
+		  interface_port_targets_.find(port);
+	    return found == interface_port_targets_.end() ? nullptr : found->second;
+      }
+      void add_export_provider_task(perm_string method, NetScope*task)
+      {
+	    std::vector<NetScope*>&providers = export_provider_tasks_[method];
+	    if (std::find(providers.begin(), providers.end(), task) == providers.end())
+		  providers.push_back(task);
+      }
+      const std::vector<NetScope*>& export_provider_tasks(
+		    perm_string method) const
+      {
+	    static const std::vector<NetScope*>empty;
+	    std::map<perm_string,std::vector<NetScope*> >::const_iterator found =
+		  export_provider_tasks_.find(method);
+	    return found == export_provider_tasks_.end() ? empty : found->second;
+      }
+
 	// Nested modules have slightly different scope search rules.
       inline bool nested_module() const { return nested_module_; }
 	// Program blocks and interfaces have elaboration constraints.
@@ -1886,6 +1913,8 @@ class NetScope : public Definitions, public Attrib {
       NetScope*up_;
       mutable ivl_scope_t target_scope_;
       std::map<hname_t,NetScope*> children_;
+	std::map<perm_string,NetScope*> interface_port_targets_;
+	std::map<perm_string,std::vector<NetScope*> > export_provider_tasks_;
 
       unsigned lcounter_;
       bool need_const_func_, is_const_func_, is_auto_, auto_frame_, is_cell_, calls_stask_;
@@ -5101,9 +5130,10 @@ class NetSTask  : public NetProc {
 	/* A dynamic virtual-interface task call carries the exact concrete
 	 * method scopes represented by its instance-keyed argument rows. The
 	 * Design owns these scopes; this statement only borrows their pointers. */
-      void add_vif_method(NetScope*method);
+	void add_vif_method(NetScope*method, NetScope*dispatch_scope);
       unsigned vif_method_count() const;
       const NetScope* vif_method(unsigned idx) const;
+      const NetScope* vif_dispatch_scope(unsigned idx) const;
 
 	/* This call came from an immediate-assertion action block. It remains
 	   executable in simulation, but it is verification-only and must not
@@ -5131,6 +5161,7 @@ class NetSTask  : public NetProc {
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
       std::vector<NetScope*>vif_methods_;
+      std::vector<NetScope*>vif_dispatch_scopes_;
       bool assertion_action_ = false;
 };
 
