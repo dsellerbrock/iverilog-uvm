@@ -7,7 +7,6 @@ module issue2339_numeric_input_skew_initializer;
   initial begin
     #8 overwritten = 1'b1;
     #2 clk = 1'b1;
-    #1 $finish;
   end
 
   clocking cb @(posedge clk);

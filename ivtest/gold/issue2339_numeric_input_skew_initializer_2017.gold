@@ -1,2 +1,1 @@
 PASSED
-./ivltests/issue2339_numeric_input_skew_initializer_2017.v:10: $finish called at 11000 (1ps)
