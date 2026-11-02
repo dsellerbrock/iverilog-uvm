@@ -1,0 +1,6 @@
+LOAD 0 0
+t=0 y=0 a=0
+t=10000 y=1 a=0
+LOAD 13000 1
+t=13000 y=1 a=1
+ivltests/issue1569_down_hierarchy_interconnect.v:23: $finish called at 20000 (1ps)

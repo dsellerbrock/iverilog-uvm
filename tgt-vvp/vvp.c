@@ -782,27 +782,6 @@ DLLEXPORT int target_process_order(ivl_process_order_s*processes,
  * (e.g. randomize() pre/post-hook lookup in eval_vec4.c). */
 ivl_design_t vvp_get_saved_design(void) { return saved_design; }
 
-static void segfault_handler(int sig)
-{
-      (void)sig;
-      if (vvp_out && saved_design) {
-            unsigned size, idx;
-            // Flush any buffered content
-            fflush(vvp_out);
-            
-            // Write the file name table that would normally be written after ivl_design_process
-            size = ivl_file_table_size();
-            fprintf(vvp_out, "# The file index is used to find the file name in "
-                           "the following table.\n:file_names %u;\n", size);
-            for (idx = 0; idx < size; idx++) {
-                  fprintf(vvp_out, "    \"%s\";\n", ivl_file_table_item(idx));
-            }
-            fflush(vvp_out);
-            fclose(vvp_out);
-      }
-      exit(0); // Exit cleanly with code 0 since code generation was successful
-}
-
 /* This needs to match the actual flag count in the VVP thread. */
 # define FLAGS_COUNT 512
 

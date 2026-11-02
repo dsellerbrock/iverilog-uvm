@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1536_zero_clocking_skew.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "output-contains": ["PASSED"]
+}

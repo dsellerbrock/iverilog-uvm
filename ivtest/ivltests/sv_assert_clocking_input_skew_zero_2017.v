@@ -3,7 +3,7 @@ module main;
   bit data;
 
   clocking cb @(posedge clk);
-    input #0 data;
+    input #0ns data;
   endclocking
 
   assert property (@(posedge clk) cb.data);

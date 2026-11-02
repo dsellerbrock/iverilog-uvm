@@ -1,0 +1,3 @@
+ivltests/sv_clocking_selected_input_alias.v:10: error: A clocking skew must evaluate to a positive integer value in IEEE 1800-2017.
+ivltests/sv_clocking_selected_input_alias.v:11: error: A clocking skew must evaluate to a positive integer value in IEEE 1800-2017.
+2 error(s) during elaboration.

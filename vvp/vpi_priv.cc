@@ -2471,11 +2471,28 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    }
       }
 
-	// Iterate over all nodes connected to port1
-      vvp_net_ptr_t cur = net1->out_;
-      vvp_net_ptr_t prev = vvp_net_ptr_t(nullptr, 0);
+	// The usual path walks downstream from the source port boundary. For a
+	// down-hierarchy annotation the source and load can instead be sibling
+	// consumers of the same signal. In that case the load is the next node in
+	// the source boundary's fanout chain, so search from that link.
+	      for (unsigned pass = 0; pass < 2; ++pass) {
+	    vvp_net_t* output_net = net1;
+	    vvp_net_ptr_t cur;
+	    vvp_net_ptr_t prev(nullptr, 0);
+	    if (pass) {
+		  if ((port1->get_direction() != vpiOutput &&
+		       port1->get_direction() != vpiInout) ||
+		      (port2->get_direction() != vpiInput &&
+		       port2->get_direction() != vpiInout))
+			break;
+		  cur = net1->port[0];
+		  if (!cur.ptr()) break;
+		  prev = vvp_net_ptr_t(net1, 0);
+	    } else {
+		  cur = net1->out_;
+	    }
 
-      while (cur.ptr()) {
+	      while (cur.ptr()) {
 	      // Either port2 is directly connected to port1
 	      // Or in the second case port2 is indirectly connected
 	      // to port1 through a net of concat8s
@@ -2494,7 +2511,6 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 		  int width = 1; // TODO
 		  vvp_fun_intermodpath*obj = new vvp_fun_intermodpath(new_net, width);
 
-		  vvp_net_t* output_net = net1;
 		  if (is_connected) {
 			if (is_output) {
 			      output_net = previous_node.ptr(); // net2 is direct output of part_sa
@@ -2542,7 +2558,8 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 
 	    prev = cur;
 	    cur = cur.ptr()->port[cur.port()]; // Next net in linked list
-      }
+	      }
+	      }
 
       if (!quiet_intermodpath_lookup) {
 	    fprintf(stderr, "VPI error: Could not insert intermodpath!\n");

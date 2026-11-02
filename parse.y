@@ -13898,7 +13898,7 @@ expr_primary
   | hierarchy_identifier
       { PEIdent*tmp = pform_new_ident(@1, *$1);
 	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	$$ = pform_sva_sequence_triggered(@1, tmp);
 	delete $1;
       }
   /* Temporary parse support for using type identifiers as actuals in
@@ -14848,7 +14848,7 @@ expr_primary
 	      FILE_NAME(tmp, @2);
 	      delete id;
 	      delete[]$3;
-	      $$ = tmp;
+	      $$ = pform_sva_sequence_triggered(@2, tmp);
 	} else {
 	      PEMemberAccess*tmp = new PEMemberAccess($1, lex_strings.make($3));
 	      FILE_NAME(tmp, @2);
@@ -14867,7 +14867,7 @@ expr_primary
 	      FILE_NAME(tmp, @2);
 	      delete id;
 	      delete[]$3.text;
-	      $$ = tmp;
+	      $$ = pform_sva_sequence_triggered(@2, tmp);
 	} else {
 	      PEMemberAccess*tmp = new PEMemberAccess($1, lex_strings.make($3.text));
 	      FILE_NAME(tmp, @2);

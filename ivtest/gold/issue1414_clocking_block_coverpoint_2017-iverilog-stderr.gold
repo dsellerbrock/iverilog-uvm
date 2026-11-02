@@ -1,0 +1,2 @@
+ivltests/issue1414_clocking_block_coverpoint.v:4: error: A clocking skew must evaluate to a positive integer value in IEEE 1800-2017.
+1 error(s) during elaboration.

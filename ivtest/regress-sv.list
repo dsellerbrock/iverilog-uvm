@@ -4,6 +4,9 @@
 issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 
+issue1569_down_hierarchy_interconnect_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
+issue1569_down_hierarchy_interconnect_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
+
 issue2150_explicit_named_package_ports_2017 normal,-g2017,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
 issue2150_explicit_named_package_ports_2023 normal,-g2023,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
 issue2269_clocking_end_label_2017 normal,-g2017,-s,issue2269_clocking_end_label ivltests gold=issue2269_clocking_end_label_2017.gold
@@ -48,6 +51,7 @@ issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_t
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
+issue650_array_size_event normal,-g2017,-s,top ivltests
 issue1514_nettype_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 issue1514_nettype_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue1514_nettype_array_delay.gold
 issue1526_input_port_context_2017 normal,-g2017,-s,main ivltests gold=issue1526_input_port_context_2017.gold
@@ -113,7 +117,7 @@ issue1367_unclocked_assertion_clock_2017 CE,-g2017,-s,top ivltests
 issue1367_unclocked_assertion_clock_2023 CE,-g2023,-s,top ivltests
 issue1410_covergroup_strobe_2017 normal,-g2017,-s,test ivltests gold=issue1410_covergroup_strobe.gold
 issue1410_covergroup_strobe_2023 normal,-g2023,-s,test ivltests gold=issue1410_covergroup_strobe.gold
-issue1414_clocking_block_coverpoint normal,-g2017,-s,test ivltests gold=issue1414_clocking_block_coverpoint.gold
+issue1414_clocking_block_coverpoint CE,-g2017,-s,test ivltests
 issue1430_illegal_value_transition_2017 normal,-g2017,-s,test ivltests gold=issue1430_illegal_value_transition.gold
 issue1430_illegal_value_transition_2023 normal,-g2023,-s,test ivltests gold=issue1430_illegal_value_transition.gold
 issue1383_sequence_method_match_items_2017 normal,-g2017,-gassertions,-s,issue1383_sequence_method_match_items ivltests gold=issue1383_sequence_method_match_items.gold
@@ -123,6 +127,8 @@ issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue12
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
 issue1363_sequence_triggered_args_2017 normal,-g2017,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
 issue1363_sequence_triggered_args_2023 normal,-g2023,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
+issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
+issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
 issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
 issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
@@ -1697,7 +1703,7 @@ sv_clocking_unpacked_net_output_fail normal,-g2017,-ssv_clocking_unpacked_net_ou
 sv_clocking_unpacked_net_output_fail_2023 normal,-g2023,-ssv_clocking_unpacked_net_output_fail ivltests gold=sv_clocking_unpacked_net_output_fail.gold
 sv_clocking_unpacked_net_output normal,-g2017,-ssv_clocking_unpacked_net_output ivltests gold=sv_clocking_unpacked_net_output.gold
 sv_clocking_unpacked_net_output_2023 normal,-g2023,-ssv_clocking_unpacked_net_output ivltests gold=sv_clocking_unpacked_net_output.gold
-sv_clocking_selected_input_alias normal,-g2017,-ssv_clocking_selected_input_alias ivltests gold=sv_clocking_selected_input_alias.gold
+sv_clocking_selected_input_alias CE,-g2017,-ssv_clocking_selected_input_alias ivltests
 sv_clocking_vif_input_sys_task_arg normal,-g2012,-ssv_clocking_vif_input_sys_task_arg ivltests gold=sv_clocking_vif_input_sys_task_arg.gold
 sv_clocking_vif_vpi_write_fail RE,-g2012,-ssv_clocking_vif_vpi_write_fail,+CBIN=1,+CBOUT=1,+MPIN=1 ivltests gold=sv_clocking_vif_vpi_write_fail.gold
 sv_clocking_nonconstant_output_skew_fail CE,-g2012,-ssv_clocking_nonconstant_output_skew_fail ivltests gold=sv_clocking_nonconstant_output_skew_fail.gold

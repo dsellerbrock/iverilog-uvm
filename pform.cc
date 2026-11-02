@@ -8940,6 +8940,12 @@ static std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*> sva_module_sequ
    IR.  This tag distinguishes them from actual property declarations when a
    sequence is embedded in another sequence operator. */
 static std::set<sva_scoped_name_t> sva_property_shaped_sequences;
+/* Procedural sequence `.triggered' uses a continuous assertion monitor and
+   exposes its successful endpoints through a private named event. Keep the
+   source declaration for assertion-context rewriting, where the endpoint is
+   evaluated in the Observed region rather than through the procedural event. */
+static std::map<sva_scoped_name_t, perm_string> sva_sequence_trigger_events;
+static std::map<perm_string, sva_scoped_name_t> sva_sequence_trigger_sources;
 static PExpr* sva_default_disable = nullptr;
 static unsigned sva_gensym_counter = 0;
 
@@ -10039,6 +10045,8 @@ void pform_sva_module_done(void)
 	    if (it->package || it->unit) { ++it; continue; }
 	    sva_property_shaped_sequences.erase(it++);
 	  }
+      sva_sequence_trigger_events.clear();
+      sva_sequence_trigger_sources.clear();
       sva_default_disable_scopes.clear();
       delete sva_default_disable;
       sva_default_disable = nullptr;
@@ -18720,6 +18728,143 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       return out;
 }
 
+/* Build a continuous endpoint monitor for a module-scope named sequence.
+   Its pass action triggers a private event, whose existing `.triggered'
+   property supplies both the same-slot value and wait sensitivity required
+   by procedural sequence controls. */
+PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() != 2
+	  || !id->path().name.front().index.empty()
+	  || !id->path().name.back().index.empty()
+	  || id->path().name.back().name != perm_string::literal("triggered"))
+	    return expr;
+
+      perm_string seqname = id->path().name.front().name;
+      sva_scoped_name_t key;
+      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator sit =
+	    sva_resolve_(sva_module_sequences, seqname);
+      std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+	    sva_resolve_(sva_module_properties, seqname);
+      if (sit != sva_module_sequences.end() && sit->second)
+	    key = sit->first;
+      else if (pit != sva_module_properties.end() && pit->second
+	       && sva_property_shaped_sequences.count(pit->first))
+	    key = pit->first;
+      else
+	    return expr;
+
+      /* Package and compilation-unit sequence declarations can be shared by
+	 multiple module instances. Their endpoint state needs per-instance
+	 elaboration, which this module-local monitor does not provide. */
+      if (key.package || key.unit || pform_cur_module.empty()) return expr;
+
+      std::map<sva_scoped_name_t, perm_string>::iterator cached =
+	    sva_sequence_trigger_events.find(key);
+      perm_string event_name;
+      if (cached != sva_sequence_trigger_events.end()) {
+	    event_name = cached->second;
+      } else {
+	    sva_property_t*monitor = new sva_property_t;
+	    monitor->op_type = 0;
+	    std::map<perm_string,PExpr*> no_subst;
+	    bool cloned = true;
+	    if (sit != sva_module_sequences.end() && sit->second) {
+		  monitor->seq = sva_clone_steps_subst_(loc, sit->second, no_subst);
+		  cloned = monitor->seq != nullptr;
+	    } else {
+		  const sva_property_t*body = pit->second;
+		  monitor->local_names = body->local_names;
+		  monitor->local_input_actual_names = body->local_input_actual_names;
+		  monitor->clk_evt = body->clk_evt
+			? sva_clone_event_control_(body->clk_evt, loc) : nullptr;
+		  monitor->seq_clk_evt = body->seq_clk_evt
+			? sva_clone_event_control_(body->seq_clk_evt, loc) : nullptr;
+		  monitor->mc_prefix = body->mc_prefix
+			? sva_clone_steps_subst_(loc, body->mc_prefix, no_subst) : nullptr;
+		  monitor->mc_boundary = body->mc_boundary;
+		  monitor->mc_antecedent_domains = body->mc_antecedent_domains;
+		  monitor->tree_sorry = body->tree_sorry;
+		  monitor->strength = body->strength;
+		  monitor->seq = body->seq
+			? sva_clone_steps_subst_(loc, body->seq, no_subst) : nullptr;
+		  monitor->tree = body->tree
+			? sva_tree_clone_(loc, body->tree) : nullptr;
+		  if (body->mc_more) {
+			monitor->mc_more = new std::vector<sva_mc_seg_t>;
+			for (const sva_mc_seg_t&source : *body->mc_more) {
+			      sva_mc_seg_t segment;
+			      segment.boundary = source.boundary;
+			      segment.clk_evt = source.clk_evt
+				    ? sva_clone_event_control_(source.clk_evt, loc)
+				    : nullptr;
+			      segment.chain = source.chain
+				    ? sva_clone_steps_subst_(loc, source.chain, no_subst)
+				    : nullptr;
+			      if ((source.clk_evt && !segment.clk_evt)
+				  || (source.chain && !segment.chain)) {
+				    delete segment.clk_evt;
+				    pform_sva_destroy_sequence(segment.chain);
+				    cloned = false;
+				    break;
+			      }
+			      monitor->mc_more->push_back(segment);
+			}
+		  }
+		  cloned = cloned
+			&& (!body->clk_evt || monitor->clk_evt)
+			&& (!body->seq_clk_evt || monitor->seq_clk_evt)
+			&& (!body->mc_prefix || monitor->mc_prefix)
+			&& (!body->seq || monitor->seq)
+			&& (!body->tree || monitor->tree)
+			&& (!body->mc_more
+			    || monitor->mc_more->size() == body->mc_more->size());
+	    }
+	    if (!cloned || (!monitor->seq && !monitor->tree)) {
+		  pform_sva_destroy_property(monitor);
+		  cerr << loc << ": sorry: named sequence `" << seqname
+		       << ".triggered' cannot be monitored in this form." << endl;
+		  error_count += 1;
+		  return expr;
+	    }
+
+	    unsigned inst = sva_gensym_counter++;
+	    char buf[64];
+	    snprintf(buf, sizeof buf, "_ivl_sva_seq_trigger_%u", inst);
+	    event_name = lex_strings.make(buf);
+
+	    LexicalScope*saved_scope = lexical_scope;
+	    PGenerate*saved_generate = pform_cur_generate;
+	    lexical_scope = key.gen
+		  ? static_cast<LexicalScope*>(const_cast<PGenerate*>(key.gen))
+		  : static_cast<LexicalScope*>(pform_cur_module.front());
+	    pform_cur_generate = const_cast<PGenerate*>(key.gen);
+	    pform_make_event(loc, pform_ident_t(event_name, loc.lexical_pos),
+			     nullptr, IVL_VLT_INHERITED);
+
+	    pform_name_t event_path;
+	    event_path.push_back(name_component_t(event_name));
+	    PTrigger*trigger = pform_new_trigger(loc, nullptr, event_path,
+						 loc.lexical_pos);
+	    PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(no_failure_action, loc);
+	    sva_sequence_trigger_events[key] = event_name;
+	    sva_sequence_trigger_sources[event_name] = key;
+	    pform_make_assertion(loc, monitor, no_failure_action, trigger, 0);
+	    lexical_scope = saved_scope;
+	    pform_cur_generate = saved_generate;
+      }
+
+      pform_name_t event_path;
+      event_path.push_back(name_component_t(event_name));
+      event_path.push_back(name_component_t(perm_string::literal("triggered")));
+      PEIdent*result = new PEIdent(event_path, id->lexical_pos());
+      result->set_line(*id);
+      delete id;
+      return result;
+}
+
 /*
  * Name a property operator whose operand is a nested property rather
  * than a plain sequence. IEEE 1800-2017 A.2.10 defines property_expr
@@ -22784,12 +22929,12 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
       return conj;
 }
 
-static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
-				      perm_string seqname, perm_string method,
-				      bool&failed)
+static PExpr* sva_endpoint_indicator_key_(const struct vlltype&loc,
+					  const sva_scoped_name_t&key,
+					  perm_string method, bool&failed)
 {
-      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_resolve_(sva_module_sequences, seqname);
+	  std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_module_sequences.find(key);
       std::vector<sva_seq_step_t>*body =
 	    it != sva_module_sequences.end() ? it->second : nullptr;
       if (!body) {
@@ -22801,17 +22946,33 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 	       the property-shaped tables.  A fixed chain there has the same
 	       endpoint expression as the plain sequence representation. */
 	    std::set<sva_scoped_name_t>::iterator tag =
-		  sva_resolve_(sva_property_shaped_sequences, seqname);
+		  sva_property_shaped_sequences.find(key);
 	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
 	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
-		  sva_resolve_(sva_module_properties, seqname);
+		  sva_module_properties.find(key);
 	    if (pit == sva_module_properties.end() || !pit->second
 		|| pit->second->tree || !pit->second->seq)
 		  return nullptr;
 	    body = pit->second->seq;
       }
-      return sva_endpoint_indicator_body_(loc, seqname, method,
+	return sva_endpoint_indicator_body_(loc, key.name, method,
 					   *body, failed);
+}
+
+static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
+				      perm_string seqname, perm_string method,
+				      bool&failed)
+{
+	  std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_resolve_(sva_module_sequences, seqname);
+	  if (it != sva_module_sequences.end() && it->second)
+	    return sva_endpoint_indicator_key_(loc, it->first, method, failed);
+
+	  if (method != perm_string::literal("triggered")) return nullptr;
+	  std::set<sva_scoped_name_t>::iterator tag =
+	    sva_resolve_(sva_property_shaped_sequences, seqname);
+	  if (tag == sva_property_shaped_sequences.end()) return nullptr;
+	  return sva_endpoint_indicator_key_(loc, *tag, method, failed);
 }
 
 /* Recursively rewrite `seq.triggered'/`seq.matched' references INSIDE
@@ -22834,8 +22995,24 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	    perm_string method = nm.back().name;
 	    if (strcmp(method, "triggered") && strcmp(method, "matched"))
 		  return e;
-	    PExpr*ind = sva_endpoint_indicator_(loc, nm.front().name,
+	    PExpr*ind = nullptr;
+	    std::map<perm_string, sva_scoped_name_t>::iterator source =
+		  sva_sequence_trigger_sources.find(nm.front().name);
+	    if (source != sva_sequence_trigger_sources.end()) {
+		  ind = sva_endpoint_indicator_key_(loc, source->second,
+						    method, failed);
+		  if (!ind && !failed) {
+			cerr << loc << ": sorry: named sequence `"
+			     << source->second.name << ".triggered' in an assertion "
+			     << "requires a fixed-length sequence endpoint here; the "
+			     << "assertion is dropped." << endl;
+			error_count += 1;
+			failed = true;
+		  }
+	    } else {
+		  ind = sva_endpoint_indicator_(loc, nm.front().name,
 						method, failed);
+	    }
 	    if (!ind) return e;
 	    delete e;
 	    return ind;
