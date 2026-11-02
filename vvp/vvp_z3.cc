@@ -2432,10 +2432,30 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       vvp_vector4_t state_value;
       vvp_cobject*cur = b.cobj;
       string path_error;
+      bool static_state_read = false;
       if (!path.empty()) {
 	    size_t next = 0;
 	    const class_type*defn = cur ? cur->get_defn() : nullptr;
-	    if (defn && path[0] < defn->property_count()
+	    if (defn && path.size() == 2
+		&& path[0] < defn->property_count()) {
+		  const class_type*declared =
+			defn->property_declared_class_type(path[0]);
+		  if (declared && path[1] < declared->property_count()
+		      && declared->property_is_static(path[1])) {
+			vvp_object_t handle;
+			cur->get_object(path[0], handle, 0);
+			if (!handle.peek<vvp_cobject>()) {
+			      /* A static member is owned by its class, not by the
+			       * handle used to name it. In particular, a null handle
+			       * does not prevent reading this final path component. */
+			      declared->get_vec4(nullptr, path[1], state_value);
+			      static_state_read = true;
+			}
+		  }
+	    }
+	    if (static_state_read) {
+		  cur = nullptr;
+	    } else if (defn && path[0] < defn->property_count()
 		&& !defn->property_dimensions(path[0]).empty()
 		&& defn->property_base_type(path[0]).compare(0, 3, "oc:") == 0) {
 		  /* Indexed fixed arrays of class-backed unpacked structs encode the
@@ -2465,9 +2485,10 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
                                                     path_error, 0, false)) break;
 		  cur = nested.peek<vvp_cobject>();
 	    }
-	    if (!cur || path.back() >= cur->get_defn()->property_count())
+	    if (!static_state_read
+		&& (!cur || path.back() >= cur->get_defn()->property_count()))
                   path_error = "null/invalid constraint object path";
-	    if (path_error.empty()) {
+	    if (path_error.empty() && !static_state_read) {
 		  cur->get_vec4(path.back(), state_value);
 	    }
       }
