@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1215_duplicate_extern_method_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1215_duplicate_extern_method_2023"
+}

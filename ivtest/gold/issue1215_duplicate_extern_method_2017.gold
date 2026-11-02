@@ -1,0 +1,2 @@
+./ivltests/issue1215_duplicate_extern_method_2017.v:10: error: More than one out-of-block definition was provided for extern method `f' (IEEE 1800-2017/2023 8.24).
+./ivltests/issue1215_duplicate_extern_method_2017.v:17: error: More than one out-of-block definition was provided for extern method `t' (IEEE 1800-2017/2023 8.24).
