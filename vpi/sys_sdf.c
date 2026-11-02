@@ -338,6 +338,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 }
 
 void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
+                       const char*condition, int ifnone,
                        const struct sdf_delval_list_s*delval_list,
                        const int sdf_lineno)
 {
@@ -382,6 +383,19 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	      /* If the dst name doesn't match, go on. */
 	    if (strcmp(dst,vpi_get_str(vpiName,path_out)) != 0)
 		  continue;
+
+	      /* An unqualified IOPATH applies to every matching path. A COND
+	       * entry applies only to the path with the same condition, while a
+	       * CONDELSE entry applies only to an ifnone path. */
+	    if (ifnone) {
+		  if (!vpi_get(_vpiModPathIfNone, path)) continue;
+	    } else if (condition) {
+		  const char*path_condition =
+			vpi_get_str(_vpiModPathConditionText, path);
+		  if (vpi_get(_vpiModPathIfNone, path)
+		      || !path_condition || strcmp(condition, path_condition) != 0)
+			continue;
+	    }
 
 	      /* Ah, this must be a match! */
 	    delays.da = delay_vals;

@@ -2479,6 +2479,12 @@ extern "C" ivl_nexus_t ivl_path_condit(ivl_delaypath_t obj)
       return obj->condit;
 }
 
+extern "C" const char* ivl_path_condition_text(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->condition_text;
+}
+
 extern "C" int ivl_path_is_condit(ivl_delaypath_t obj)
 {
       assert(obj);

@@ -359,11 +359,13 @@ unsigned NetBus::find_link(const Link&that) const
 }
 
 NetDelaySrc::NetDelaySrc(NetScope*s, perm_string n, unsigned npins,
-                         bool condit_src, bool conditional, bool parallel)
+                         bool condit_src, bool conditional, bool parallel,
+                         const std::string& condition_text)
 : NetObj(s, n, npins + (condit_src?1:0))
 {
       condit_flag_ = false;
       conditional_ = conditional;
+      condition_text_ = condition_text;
       parallel_ = parallel;
       posedge_ = false;
       negedge_ = false;
@@ -511,6 +513,11 @@ bool NetDelaySrc::is_condit() const
 bool NetDelaySrc::has_condit() const
 {
       return condit_flag_;
+}
+
+const std::string& NetDelaySrc::condition_text() const
+{
+      return condition_text_;
 }
 
 Link& NetDelaySrc::condit_pin()

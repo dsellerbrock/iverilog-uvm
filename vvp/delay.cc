@@ -1181,10 +1181,21 @@ bool vvp_fun_modpath_edge::test_vec4(const vvp_vector4_t&bit)
  * make some specific delays path operations
  *
  */
-static int modpath_src_get(int, vpiHandle ref)
+static int modpath_src_get(int code, vpiHandle ref)
 {
       struct __vpiModPathSrc*obj =dynamic_cast<__vpiModPathSrc*>(ref);
       assert(obj);
+      if (code == _vpiModPathIfNone)
+	    return obj->ifnone ? 1 : 0;
+      return 0;
+}
+
+static char* modpath_src_get_str(int code, vpiHandle ref)
+{
+      struct __vpiModPathSrc*obj =dynamic_cast<__vpiModPathSrc*>(ref);
+      assert(obj);
+      if (code == _vpiModPathConditionText && !obj->condition_text.empty())
+	    return const_cast<char*>(obj->condition_text.c_str());
       return 0;
 }
 
@@ -1453,6 +1464,9 @@ int __vpiModPathSrc::get_type_code(void) const
 
 int __vpiModPathSrc::vpi_get(int code)
 { return modpath_src_get(code, this); }
+
+char* __vpiModPathSrc::vpi_get_str(int code)
+{ return modpath_src_get_str(code, this); }
 
 void __vpiModPathSrc::vpi_get_value(p_vpi_value val)
 { modpath_src_get_value(this, val); }

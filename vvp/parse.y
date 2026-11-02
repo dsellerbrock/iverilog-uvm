@@ -158,6 +158,7 @@ static bool is_force_release_opcode(const char* name)
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
 %type <text> label_opt
+%type <text> modpath_condition_text_opt
 %type <opa>  operand operands operands_opt
 %type <table> udp_table
 
@@ -1756,25 +1757,33 @@ modport_ports_opt
                 { compile_modport_port($2, $3); }
         ;
 
+modpath_condition_text_opt
+        : /* empty */ { $$ = 0; }
+        | T_STRING { $$ = $1; }
+        ;
+
 modpath_src
   : symbol '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, 0, $1, $3, 0, $5, false); }
   | symbol '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, 0, $1, $3, 0, $6, true); }
-  | symbol '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $7); }
+  | symbol '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $8, $6);
+	if ($6) free($6); }
   | symbol '+' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $6, false); }
   | symbol '+' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $7, true); }
-  | symbol '+' '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $8); }
+  | symbol '+' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $9, $7);
+	if ($7) free($7); }
   | symbol '-' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $6, false); }
   | symbol '-' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $7, true); }
-  | symbol '-' '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $8); }
+  | symbol '-' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $9, $7);
+	if ($7) free($7); }
   ;
 
 udp_table

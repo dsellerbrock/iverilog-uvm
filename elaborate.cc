@@ -29389,9 +29389,13 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 
+	    ostringstream condition_text;
+	    if (condition)
+		  condition->dump(condition_text);
 	    NetDelaySrc*path = new NetDelaySrc(scope, scope->local_symbol(),
 					       src.size(), condit_sig,
-					       conditional, !full_flag_);
+					       conditional, !full_flag_,
+					       condition_text.str());
 	    path->set_line(*this);
 
 	      // The presence of the data_source_expression indicates

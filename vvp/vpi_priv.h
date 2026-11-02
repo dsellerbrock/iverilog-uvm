@@ -704,6 +704,7 @@ struct __vpiModPathSrc : public __vpiHandle {
       __vpiModPathSrc();
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       vpiHandle vpi_handle(int code) override;
@@ -715,6 +716,8 @@ struct __vpiModPathSrc : public __vpiHandle {
 
       struct __vpiModPath *dest;
       int   type;
+      bool ifnone;
+      std::string condition_text;
 
 	/* This is the input expression for this modpath. */
       struct __vpiModPathTerm path_term_in;
