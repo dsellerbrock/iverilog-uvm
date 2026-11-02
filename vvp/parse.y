@@ -930,12 +930,20 @@ statement
 
   /* Port information for scopes... currently this is just meta-data for VPI queries */
 
+	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_NUMBER T_STRING T_SYMBOL ';'
+		{ compile_port_info( $2 /* port_index */, $3, $5 /* vpi_port_type */,
+		                     $4 /* width */, $6 /*&name */, $7 /* buffer */ ); }
+
+	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_NUMBER T_STRING ';'
+		{ compile_port_info( $2 /* port_index */, $3, $5 /* vpi_port_type */,
+		                     $4 /* width */, $6 /*&name */, nullptr /* buffer */ ); }
+
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING T_SYMBOL ';'
-		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
+		{ compile_port_info( $2 /* port_index */, $3, 44, $4 /* width */,
 		                     $5 /*&name */, $6 /* buffer */ ); }
 
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING ';'
-		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
+		{ compile_port_info( $2 /* port_index */, $3, 44, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
 
 	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING ';'

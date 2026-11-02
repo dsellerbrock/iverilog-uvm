@@ -2132,6 +2132,7 @@ extern ivl_scope_t  ivl_scope_parent(ivl_scope_t net);
 extern unsigned ivl_scope_mod_module_ports(ivl_scope_t net);
 extern const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx );
 extern ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, unsigned idx );
+extern int ivl_scope_mod_module_port_vpi_type(ivl_scope_t net, unsigned idx );
 extern unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned idx );
 extern ivl_net_logic_t ivl_scope_mod_module_port_buffer(ivl_scope_t net, unsigned idx );
 
