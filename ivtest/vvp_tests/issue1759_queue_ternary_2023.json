@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1759_queue_ternary.v",
+  "iverilog-args": ["-g2023", "-s", "issue1759_queue_ternary"],
+  "gold": "issue1759_queue_ternary"
+}
