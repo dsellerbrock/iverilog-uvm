@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2339_numeric_input_skew_initializer.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue2339_numeric_input_skew_initializer" ],
+    "gold"          : "issue2339_numeric_input_skew_initializer"
+}
