@@ -830,6 +830,19 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
 	    return 0;
       }
 
+	/* Built-in VPI callbacks use blank string arguments as internal
+	 * placeholders (for example, $monitor's optional format argument).
+	 * Keep that legacy representation inside the built-ins; user-registered
+	 * system tasks and functions receive the IEEE vpiNullOp expression. */
+      if (!defn->is_user_defn) {
+	    for (unsigned idx = 0; idx < argc; idx += 1) {
+		  if (dynamic_cast<__vpiNullOp*>(argv[idx])) {
+			delete dynamic_cast<__vpiNullOp*>(argv[idx]);
+			argv[idx] = vpip_make_string_const(strdup(" "));
+		  }
+	    }
+      }
+
       switch (defn->info.type) {
 	  case vpiSysTask:
 	    if (val_code != 0 || fnet != 0) {
@@ -942,6 +955,9 @@ void vpi_call_delete(vpiHandle item)
 		      default:
 			assert(0);
 		  }
+		  break;
+		case vpiOperation:
+		  delete dynamic_cast<__vpiNullOp*>(obj->args[arg]);
 		  break;
 		case vpiClassVar:
 		case vpiVirtualInterfaceVar:

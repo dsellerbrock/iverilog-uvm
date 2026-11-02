@@ -1267,6 +1267,11 @@ struct vpi_handle_resolv_list_s: public resolv_list_s {
 bool vpi_handle_resolv_list_s::resolve(bool mes)
 {
       symbol_value_t val = sym_get_value(sym_vpi, label());
+      if (!val.ptr && strcmp(label(), "__ivl_vpi_null_op__") == 0) {
+	    /* Each omitted argument gets its own expression handle. */
+	    *handle = vpip_make_null_op();
+	    return true;
+      }
       if (!val.ptr) {
 	    // check for thread access symbols
 	    unsigned base, wid;
