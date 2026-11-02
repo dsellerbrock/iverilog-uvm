@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1257_vpi_signed.sv",
+  "iverilog-args": ["-g2023", "-L", "work", "-m", "issue1257_vpi_signed_2023"],
+  "vpi-modules": ["issue1257_vpi_signed_2023"],
+  "vpi-sources": ["vpi/issue1257_vpi_signed.c"],
+  "output-contains": ["SIGNED_BITS=7 RESULT=55", "UNSIGNED_BITS=16 VALUE=1234", "PASSED"]
+}
