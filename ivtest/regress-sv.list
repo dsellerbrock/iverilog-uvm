@@ -45,6 +45,8 @@ issue1613_cross_function_and_binsof_2017 normal,-g2017,-s,test ivltests gold=iss
 issue1613_cross_function_and_binsof_2023 normal,-g2023,-DISSUE1613_2023,-s,test ivltests gold=issue1613_cross_function_and_binsof.gold
 issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
+issue2343_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue2343_array_pattern.gold
+issue2343_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue2343_array_pattern.gold
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
