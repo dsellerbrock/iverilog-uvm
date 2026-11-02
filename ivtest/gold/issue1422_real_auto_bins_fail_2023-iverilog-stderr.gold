@@ -1,0 +1,2 @@
+ivltests/issue1422_real_auto_bins_fail.v:4: error: real coverpoint 'cp' requires at least one explicit bins construct (IEEE 1800-2023 19.5.3).
+1 error(s) during elaboration.
