@@ -1,0 +1,5 @@
+ivltests/issue1213_protected_external_access_fail.v:9: error: Protected constructor of class `C` is not accessible in this context.
+ivltests/issue1213_protected_external_access_fail.v:10: error: Protected property value is not accessible (l-value) in this context. (scope=top)
+ivltests/issue1213_protected_external_access_fail.v:11: error: Protected property value is not accessible in this context. (scope=top)
+ivltests/issue1213_protected_external_access_fail.v:12: error: Protected method `read_value' is not accessible in this context.
+4 error(s) during elaboration.
