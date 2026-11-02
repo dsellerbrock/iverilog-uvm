@@ -11806,7 +11806,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  symbol_search_results target;
 		  if (symbol_search(this, des, scope, id->path(),
 				    id->lexical_pos(), &target)
-		      && target.eve && target.path_tail.empty()) {
+		      && target.eve && target.path_tail.empty()
+		      && !target.eve->is_class_event()) {
 			bool selected = false;
 			for (const name_component_t&component : id->path().name)
 			      selected = selected || !component.index.empty();
