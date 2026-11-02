@@ -2140,6 +2140,8 @@ extern ivl_signal_t ivl_scope_port(ivl_scope_t net, unsigned idx);
 extern ivl_nexus_t  ivl_scope_mod_port(ivl_scope_t net, unsigned idx);
 extern unsigned     ivl_scope_sigs(ivl_scope_t net);
 extern ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx);
+extern unsigned     ivl_scope_imports(ivl_scope_t net);
+extern ivl_signal_t ivl_scope_import(ivl_scope_t net, unsigned idx);
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);
 extern ivl_scope_type_t ivl_scope_type(ivl_scope_t net);

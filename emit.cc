@@ -595,9 +595,26 @@ bool netclass_t::emit_defs(struct target_t*tgt) const
       return class_scope_->emit_defs(tgt);
 }
 
+static void resolve_scope_imports_(const Design*des, NetScope*scope)
+{
+      scope->resolve_imports(des);
+      const map<hname_t,NetScope*>&children = scope->children();
+      for (map<hname_t,NetScope*>::const_iterator cur = children.begin();
+	   cur != children.end(); ++cur)
+	    resolve_scope_imports_(des, cur->second);
+}
+
 int Design::emit(struct target_t*tgt)
 {
       int rc = 0;
+
+	/* Explicit-import objects are emitted alongside scope declarations.
+	   Resolve their package signals after elaboration, before any target
+	   sees the scopes. */
+      for (NetScope*scope : find_package_scopes())
+	    resolve_scope_imports_(this, scope);
+      for (NetScope*scope : find_root_scopes())
+	    resolve_scope_imports_(this, scope);
 
       if (tgt->start_design(this) == false)
 	    return -2;

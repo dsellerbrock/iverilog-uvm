@@ -50899,7 +50899,8 @@ Design* elaborate(list<perm_string>roots)
 	      // Collect some basic properties of this scope from the
 	      // Module definition.
 	    scope->set_line(rmod);
-	    scope->add_imports(&rmod->explicit_imports);
+	    scope->add_imports(&rmod->explicit_imports,
+			       &rmod->wildcard_pin_used);
 	    set_scope_timescale(des, scope, rmod);
 
 	      // Save this scope, along with its definition, in the

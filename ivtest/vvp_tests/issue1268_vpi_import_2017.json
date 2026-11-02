@@ -1,0 +1,12 @@
+{
+  "type": "normal",
+  "source": "issue1268_vpi_import.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1268_vpi_import"],
+  "vpi-sources": ["vpi/issue1268_vpi_import.c"],
+  "output-contains": [
+    "IMPORT used VALUE=17",
+    "IMPORT_COUNT=1",
+    "PASSED"
+  ]
+}

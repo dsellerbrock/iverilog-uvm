@@ -136,6 +136,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NETTYPE_DECL
 %token K_TYPEDEF
 %token K_vpi_source_location
+%token K_vpi_import
 %token K_export_dpi
 %token K_PORT_INPUT K_PORT_OUTPUT K_PORT_INOUT K_PORT_MIXED K_PORT_NODIR
 
@@ -824,6 +825,9 @@ statement
 
 	| T_LABEL K_vpi_source_location T_NUMBER T_NUMBER ';'
 		{ compile_vpi_source_location($1, $3, $4); }
+
+	| K_vpi_import T_SYMBOL ';'
+		{ compile_vpi_import($2); }
 
   /* %file_line statements are instructions that have unusual operand
      requirements so are handled by their own rules. */

@@ -3449,6 +3449,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+      for (idx = 0; idx < ivl_scope_imports(net); idx += 1)
+	    fprintf(vvp_out, " .vpi_import v%p_0;\n", ivl_scope_import(net, idx));
+
 	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
 	   37.23). Keep aliases and resolution-function names for runtime queries. */
       for (idx = 0; idx < ivl_scope_nettypes(net); idx += 1) {

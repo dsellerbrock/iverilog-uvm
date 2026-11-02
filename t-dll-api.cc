@@ -3098,6 +3098,21 @@ extern "C" ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx)
       return net->sigs_[idx];
 }
 
+extern "C" unsigned ivl_scope_imports(ivl_scope_t net)
+{
+      assert(net && net->net_);
+      return net->net_->imported_signals();
+}
+
+extern "C" ivl_signal_t ivl_scope_import(ivl_scope_t net, unsigned idx)
+{
+      assert(net && net->net_);
+      assert(idx < net->net_->imported_signals());
+      NetNet*signal = net->net_->imported_signal(idx);
+      assert(signal && signal->target_signal());
+      return signal->target_signal();
+}
+
 extern "C" unsigned ivl_scope_switches(ivl_scope_t net)
 {
       assert(net);

@@ -266,6 +266,40 @@ void NetScope::add_imports(const map<perm_string,PPackage*>*imports)
       clear_lookup_caches_(true, true);
 }
 
+void NetScope::add_imports(const map<perm_string,PPackage*>*imports,
+			  const set<perm_string>*used_imports)
+{
+      add_imports(imports);
+      if (!used_imports) return;
+	  imported_names_ = *used_imports;
+      imported_packages_.clear();
+      for (set<perm_string>::const_iterator cur = used_imports->begin();
+	   cur != used_imports->end(); ++cur) {
+	    map<perm_string,PPackage*>::const_iterator package =
+		  imports->find(*cur);
+	    if (package != imports->end() && package->second)
+		  imported_packages_[*cur] = package->second->pscope_name();
+      }
+      imports_resolved_ = false;
+}
+
+void NetScope::resolve_imports(const Design*des)
+{
+	  if (imports_resolved_) return;
+	  imported_signals_.clear();
+	  for (set<perm_string>::const_iterator cur = imported_names_.begin();
+	       cur != imported_names_.end(); ++cur) {
+	    map<perm_string,perm_string>::const_iterator package_name =
+		  imported_packages_.find(*cur);
+	    NetScope*package = package_name == imported_packages_.end()
+		  ? 0 : des->find_package(package_name->second);
+	    if (!package) continue;
+	    NetNet*signal = package->find_signal(*cur);
+	    if (signal) imported_signals_.push_back(signal);
+	  }
+	  imports_resolved_ = true;
+}
+
 NetScope*NetScope::find_import(const Design*des, perm_string name)
 {
       if (imports_ == 0)

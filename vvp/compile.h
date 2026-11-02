@@ -80,6 +80,7 @@ extern vvp_net_t* vvp_net_lookup(const char*label);
 extern vpiHandle vvp_lookup_handle(const char*label);
 extern void compile_vpi_source_location(char*label, uint64_t file_idx,
                                         uint64_t lineno);
+extern void compile_vpi_import(char*label);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
                                       __vpiScope**scope, bool exact = false);
 

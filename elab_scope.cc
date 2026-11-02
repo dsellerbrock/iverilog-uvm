@@ -6372,7 +6372,8 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	    my_scope->set_line(get_file(), mod->get_file(),
 	                       get_lineno(), mod->get_lineno());
 	    my_scope->set_module_name(mod->mod_name());
-	    my_scope->add_imports(&mod->explicit_imports);
+	    my_scope->add_imports(&mod->explicit_imports,
+			  &mod->wildcard_pin_used);
 
 	    for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
 	      my_scope->attribute(attrib_list[adx].key, attrib_list[adx].val);

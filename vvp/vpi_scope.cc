@@ -418,6 +418,15 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
 
+      if (code == vpiImport) {
+	    if (ref->imports.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(
+		  calloc(ref->imports.size(), sizeof(vpiHandle)));
+	    for (unsigned idx = 0; idx < ref->imports.size(); idx += 1)
+		  args[idx] = ref->imports[idx];
+	    return vpip_make_iterator(ref->imports.size(), args, true);
+      }
+
       if (code == vpiVirtualInterfaceVar) {
 	    vector<vpiHandle> items;
 	    set<vpiHandle> seen;

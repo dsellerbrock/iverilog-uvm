@@ -1292,6 +1292,12 @@ class NetScope : public Definitions, public Attrib {
       bool auto_name(const char* prefix, char pad, const char* suffix);
 
       void add_imports(const std::map<perm_string,PPackage*>*imports);
+	  void add_imports(const std::map<perm_string,PPackage*>*imports,
+                       const std::set<perm_string>*used_imports);
+      size_t imported_signals() const { return imported_signals_.size(); }
+      NetNet* imported_signal(size_t idx) const
+      { return idx < imported_signals_.size() ? imported_signals_[idx] : 0; }
+      void resolve_imports(const Design*des);
       NetScope*find_import(const Design*des, perm_string name);
 
       void add_typedefs(const std::map<perm_string,typedef_t*>*typedefs);
@@ -1411,6 +1417,10 @@ class NetScope : public Definitions, public Attrib {
 
     private:
       std::vector<std::pair<const NetNet*, const NetNet*>> alias_pairs_;
+      std::vector<NetNet*> imported_signals_;
+      std::set<perm_string> imported_names_;
+      std::map<perm_string,perm_string> imported_packages_;
+      bool imports_resolved_ = false;
 
     public:
 

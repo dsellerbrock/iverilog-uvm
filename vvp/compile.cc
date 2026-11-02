@@ -1349,6 +1349,40 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
       return false;
 }
 
+struct vpi_import_resolv_list_s: public resolv_list_s {
+      vpi_import_resolv_list_s(char*lab, __vpiScope*scope_arg)
+	: resolv_list_s(lab), scope(scope_arg) { }
+      bool resolve(bool mes) override;
+      __vpiScope*scope;
+};
+
+bool vpi_import_resolv_list_s::resolve(bool mes)
+{
+      symbol_value_t val = sym_get_value(sym_vpi, label());
+      if (val.ptr) {
+	scope->imports.push_back(static_cast<__vpiHandle*>(val.ptr));
+	return true;
+      }
+      if (mes) {
+	yyerror("VPI import object is not defined");
+	compile_errors += 1;
+	return true;
+      }
+      return false;
+}
+
+void compile_vpi_import(char*label)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      if (!scope) {
+	yyerror("VPI import has no scope");
+	compile_errors += 1;
+	free(label);
+	return;
+      }
+      resolv_submit(new vpi_import_resolv_list_s(label, scope));
+}
+
 void compile_vpi_lookup(vpiHandle *handle, char*label)
 {
       if (strcmp(label, "$time") == 0) {
