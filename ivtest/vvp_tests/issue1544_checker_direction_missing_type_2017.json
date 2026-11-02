@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1544_checker_direction_missing_type.sv",
+  "iverilog-args": ["-g2017", "-s", "issue1544_top"],
+  "gold": "issue1544_checker_direction_missing_type"
+}

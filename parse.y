@@ -16429,10 +16429,14 @@ port_declaration
 	      $4, $5, nullptr);
       }
   | port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-      { $$ = module_declare_port(@4, $4, $1, $2, $3, $5, $6, nullptr);
+      { if (port_declaration_context.checker_formals && !$3)
+	    yyerror(@1, "error: Checker formal with explicit direction must include a type.");
+	$$ = module_declare_port(@4, $4, $1, $2, $3, $5, $6, nullptr);
       }
   | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-      { $$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
+      { if (port_declaration_context.checker_formals && !$4)
+	    yyerror(@2, "error: Checker formal with explicit direction must include a type.");
+	$$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
       }
   /* A checker property_formal_type may be sequence or property. These
      assertion types are not data_type productions, but checker declarations

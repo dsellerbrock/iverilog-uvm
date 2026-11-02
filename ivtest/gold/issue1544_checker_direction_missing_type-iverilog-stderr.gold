@@ -1,0 +1,2 @@
+ivltests/issue1544_checker_direction_missing_type.sv:1: error: Checker formal with explicit direction must include a type.
+ivltests/issue1544_checker_direction_missing_type.sv:2: error: Checker formal with explicit direction must include a type.
