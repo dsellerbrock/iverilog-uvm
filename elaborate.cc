@@ -18022,37 +18022,19 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			 || mname == perm_string::literal("next")
 			 || mname == perm_string::literal("prev"));
 		  if (is_aa_traversal) {
-			// Build the receiver via PEIdent so class-property
-			// chains (this.m_maps) resolve through NetEProperty,
-			// not just bare signals.
-			pform_name_t obj_path = path_;
-			obj_path.pop_back();
-			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
-			obj_id->set_file(get_file());
-			obj_id->set_lineno(get_lineno());
-			NetExpr*obj_expr = obj_id->elaborate_expr(des, scope, /*expr_wid*/0u, /*flags*/0u);
-			if (obj_expr) {
-			      NetExpr*key_expr = elab_and_eval(des, scope, parms_[0].parm, -1, false);
-			      if (key_expr) {
-				    string sys_name = "$ivl_assoc_method$";
-				    sys_name += mname.str();
-				    NetESFunc*sys_expr = new NetESFunc(
-					    sys_name.c_str(), &netvector_t::atom2u32, 2);
-				    sys_expr->set_line(*this);
-				    sys_expr->parm(0, obj_expr);
-				    sys_expr->parm(1, key_expr);
-				    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-					    NetNet::REG, &netvector_t::atom2u32);
-				    tmp->set_line(*this);
-				    NetAssign_*lv = new NetAssign_(tmp);
-				    NetAssign*na = new NetAssign(lv, sys_expr);
-				    na->set_line(*this);
-				    delete obj_id;
-				    return na;
-			      }
-			      delete obj_expr;
-			}
-			delete obj_id;
+			/* The expression-call path handles ref key arguments, scope
+			 * binding, and associative-array type checks. Statement position
+			 * only needs to discard its int return value. */
+			PECallFunction*call = package_
+			      ? new PECallFunction(package_, path_, parms_)
+			      : new PECallFunction(path_, parms_);
+			call->set_scoped_type_prefix(has_scoped_type_prefix());
+			call->set_file(get_file());
+			call->set_lineno(get_lineno());
+			PAssign*discard = new PAssign(nullptr, call);
+			discard->set_file(get_file());
+			discard->set_lineno(get_lineno());
+			return discard->elaborate(des, scope);
 		  }
 	    }
 
