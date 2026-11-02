@@ -10456,8 +10456,8 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         uint64_t first;
                         uint64_t last;
                         uint64_t sample_first;
-                        uint64_t declared_span;
-                        uint64_t weight;
+                        dist_wide_uint_t declared_span;
+                        dist_wide_uint_t weight;
                   };
                   vector<DrawItem> draws;
                   for (const auto&br : spec.branches) {
@@ -10465,20 +10465,22 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         if (br.value_width == 0 || br.value_width > 64
                             || physical_width > br.value_width
                             || br.comparison_signed) return false;
-                        uint64_t span = 1;
+                        dist_wide_uint_t span = dist_wide_uint_t::from_u64(1);
                         uint64_t first = br.lo;
                         uint64_t last = br.is_range ? br.hi : br.lo;
                         if (br.is_range) {
                               if (br.hi < br.lo) continue;
-                              span = br.hi - br.lo + 1;
-                              if (!span) return false;
+                              span = dist_wide_uint_t::add(
+                                    dist_wide_uint_t::from_u64(br.hi - br.lo),
+                                    dist_wide_uint_t::from_u64(1));
                         }
                         uint64_t sample_first = first;
-                        uint64_t declared_span = span;
-                        uint64_t weight = (uint64_t)br.weight;
+                        dist_wide_uint_t declared_span = span;
+                        dist_wide_uint_t weight =
+                              dist_wide_uint_t::from_u64(br.weight);
                         if (br.range_weight_per_value) {
-                              if (span > UINT64_MAX / weight) return false;
-                              weight *= span;
+                              weight = dist_wide_uint_t::mul_small(
+                                    span, br.weight);
                         }
                         uint64_t image_hi = physical_width == 64 ? UINT64_MAX
                               : (((uint64_t)1 << physical_width) - 1);
@@ -10507,16 +10509,20 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                   static const unsigned DRAW_TRIALS = 256;
                   unsigned legacy_rejected_trials = 0;
                   while (!draws.empty()) {
-                        uint64_t total = 0;
-                        for (const auto&item : draws) {
-                              if (total > UINT64_MAX - item.weight) return false;
-                              total += item.weight;
-                        }
-                        uint64_t ticket = rng.uniform_u64(total);
+                        dist_wide_uint_t total;
+                        for (const auto&item : draws)
+                              total = dist_wide_uint_t::add(total, item.weight);
+                        dist_wide_uint_t ticket =
+                              dist_wide_uint_t::uniform_below(rng, total);
                         size_t idx = draws.size() - 1;
                         for (size_t i = 0; i < draws.size(); ++i) {
-                              if (ticket < draws[i].weight) { idx = i; break; }
-                              ticket -= draws[i].weight;
+                              if (dist_wide_uint_t::cmp(
+                                      ticket, draws[i].weight) < 0) {
+                                    idx = i;
+                                    break;
+                              }
+                              ticket = dist_wide_uint_t::sub(
+                                    ticket, draws[i].weight);
                         }
                         const DrawItem item = draws[idx];
                         Z3_lbool any = range_feasible(item);
@@ -10527,20 +10533,30 @@ static bool z3_resolve_dist_exact_core(Z3_context ctx, Z3_solver base,
                         }
                         uint64_t sample_first = has_legacy_range_weight
                               ? item.sample_first : item.first;
-                        uint64_t span = has_legacy_range_weight
+                        dist_wide_uint_t span = has_legacy_range_weight
                               ? item.declared_span
-                              : item.last - item.first + 1;
+                              : dist_wide_uint_t::add(
+                                    dist_wide_uint_t::from_u64(
+                                          item.last - item.first),
+                                    dist_wide_uint_t::from_u64(1));
                         unsigned item_trials = has_legacy_range_weight
                               ? 1 : DRAW_TRIALS;
                         for (unsigned trial = 0; trial < item_trials; ++trial) {
-                              uint64_t coordinate = span == 1 ? sample_first
-                                    : sample_first + (span ? rng.uniform_u64(span)
-                                                           : rng.uniform_u64(UINT64_MAX));
+                              dist_wide_uint_t offset = span.bit_length() <= 1
+                                    ? dist_wide_uint_t()
+                                    : dist_wide_uint_t::uniform_below(rng, span);
+                              dist_wide_uint_t coordinate_wide =
+                                    dist_wide_uint_t::add(
+                                          dist_wide_uint_t::from_u64(sample_first),
+                                          offset);
                               uint64_t image_hi = physical_width == 64
                                     ? UINT64_MAX
                                     : (((uint64_t)1 << physical_width) - 1);
                               if (has_legacy_range_weight
-                                  && coordinate > image_hi) continue;
+                                  && dist_wide_uint_t::cmp(coordinate_wide,
+                                        dist_wide_uint_t::from_u64(image_hi)) > 0)
+                                    continue;
+                              uint64_t coordinate = coordinate_wide.low64();
                               Z3_ast pin = candidate_pin(coordinate,
                                     item.branch->value_width, false);
                               Z3_lbool feasible = Z3_solver_check_assumptions(
