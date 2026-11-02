@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue824_extern_forkjoin.sv",
+  "iverilog-args": ["-g2023", "-s", "issue824_extern_forkjoin"],
+  "output-contains": ["SLAVES 2"]
+}

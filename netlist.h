@@ -874,6 +874,7 @@ class NetNet  : public NetObj, public PortType {
       void bind_interface_scope(unsigned word, NetScope*scope);
       void bind_interface_signal(unsigned word, NetNet*signal,
                                  unsigned signal_word);
+      NetScope* resolve_interface_scope(unsigned word) const;
       void bind_interface_member(unsigned word, size_t property_idx,
                                  NetNet*member);
       NetNet* resolve_interface_member(unsigned word,
