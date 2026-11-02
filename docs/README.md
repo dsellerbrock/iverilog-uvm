@@ -16,6 +16,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | OpenTitan census setup and classification | [Matrix runner](conformance/opentitan_matrix.md) |
 | Pinned OpenTitan/Caliptra patches and run profiles | [Release overlays](conformance/release_overlays/README.md) |
 | Windows packaging | [MSYS2 recipe](../msys2/README.md) |
+| Developer trace environment variables (`IVL_*_TRACE`) | [Diagnostic traces](debug_env.md) |
 | Personal IEEE reference files | [Standards references](standards/README.md) |
 | Upstream compiler/target/VPI documentation | [Documentation/](../Documentation) |
 
