@@ -47,6 +47,16 @@ static ivl_signal_t find_path_source_port(ivl_delaypath_t path)
       return 0;
 }
 
+static void draw_quoted_condition(const char*text)
+{
+      fputc('"', vvp_out);
+      while (*text) {
+	    if (*text == '"' || *text == '\\') fputc('\\', vvp_out);
+	    fputc(*text++, vvp_out);
+      }
+      fputc('"', vvp_out);
+}
+
 /*
 * Draw a .modpath record. The label is the label to use for this
 * record. The driver is the label of the net that feeds into the
@@ -62,11 +72,13 @@ static void draw_modpath_record(const char*label, const char*driver,
       typedef const char*ccharp;
       ccharp*src_drivers;
       ccharp*con_drivers;
+      ccharp*condition_texts;
 
       unsigned width = ivl_signal_width(path_sig);
 
       src_drivers = calloc(ivl_signal_npath(path_sig), sizeof(ccharp));
       con_drivers = calloc(ivl_signal_npath(path_sig), sizeof(ccharp));
+      condition_texts = calloc(ivl_signal_npath(path_sig), sizeof(ccharp));
       for (idx = 0 ;  idx < ivl_signal_npath(path_sig) ;  idx += 1) {
 	    ivl_delaypath_t path = ivl_signal_path(path_sig, idx);
 	    ivl_nexus_t src = ivl_path_source(path);
@@ -77,6 +89,7 @@ static void draw_modpath_record(const char*label, const char*driver,
 	    if (con) con_drivers[idx] = draw_net_input(con);
 	    else if (ivl_path_is_condit(path)) con_drivers[idx] = "";
 	    else con_drivers[idx] = 0;
+	    condition_texts[idx] = ivl_path_condition_text(path);
       }
 
       fprintf(vvp_out, "  .scope S_%p;\n", ivl_path_scope(ivl_signal_path(path_sig,0)));
@@ -110,6 +123,10 @@ static void draw_modpath_record(const char*label, const char*driver,
 
 	    if (con_drivers[idx]) {
 		  fprintf(vvp_out, " ? %s", con_drivers[idx]);
+		  if (condition_texts[idx]) {
+			fputc(' ', vvp_out);
+			draw_quoted_condition(condition_texts[idx]);
+		  }
 	    }
 
 	    fprintf(vvp_out, ")");
@@ -122,6 +139,7 @@ static void draw_modpath_record(const char*label, const char*driver,
 
       free(src_drivers);
       free(con_drivers);
+      free(condition_texts);
 }
 
 struct modpath_item {

@@ -3968,6 +3968,8 @@ bool dll_target::signal_paths(const NetNet*net)
 		  aux->path[ptr].scope = lookup_scope_(src->scope());
 		  aux->path[ptr].src = nex->t_cookie();
 		  aux->path[ptr].condit = path_condit;
+		  aux->path[ptr].condition_text = src->condition_text().empty()
+				? 0 : src->condition_text().c_str();
 		  aux->path[ptr].conditional = src->is_condit();
 		  aux->path[ptr].parallel = src->is_parallel();
 		  aux->path[ptr].posedge = src->is_posedge();

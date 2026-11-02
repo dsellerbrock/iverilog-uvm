@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1562_conditional_iopath.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "output-contains": ["PASSED"]
+}

@@ -6506,3 +6506,5 @@ sv_if_violation_observed_2023 normal,-g2023,-s,sv_if_violation_observed ivltests
 issue1215_duplicate_extern_method_2017 CE,-g2017 ivltests gold=issue1215_duplicate_extern_method_2017.gold
 issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplicate_extern_method_2023.gold
 issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_scope.gold
+issue1562_conditional_iopath_2017 normal,-g2017,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
+issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold

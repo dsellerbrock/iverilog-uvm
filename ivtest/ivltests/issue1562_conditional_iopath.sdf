@@ -1,0 +1,16 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue1562_conditional_iopath_dut")
+  (DIVIDER /)
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue1562_conditional_iopath_dut")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (COND mode == 1'b1 (IOPATH A Y (4) (6)))
+        (CONDELSE (IOPATH A Y (7) (8)))
+      )
+    )
+  )
+)
