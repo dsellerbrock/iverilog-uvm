@@ -452,6 +452,36 @@ const char* vpi_type_as_string(PLI_INT32 code)
 {
       static char buf[32];
       switch (code) {
+	  case vpiBegin: return "vpiBegin";
+	  case vpiAssignment: return "vpiAssignment";
+	  case vpiContAssign: return "vpiContAssign";
+	  case vpiDeassign: return "vpiDeassign";
+	  case vpiDoWhile: return "vpiDoWhile";
+	  case vpiEventStmt: return "vpiEventStmt";
+	  case vpiFork: return "vpiFork";
+	  case vpiForce: return "vpiForce";
+	  case vpiIfElse: return "vpiIfElse";
+	  case vpiForInitStmt: return "vpiForInitStmt";
+	  case vpiForIncStmt: return "vpiForIncStmt";
+	  case vpiNullStmt: return "vpiNullStmt";
+	  case vpiOrderedWait: return "vpiOrderedWait";
+	  case vpiWaitFork: return "vpiWaitFork";
+	  case vpiDisableFork: return "vpiDisableFork";
+	  case vpiBreak: return "vpiBreak";
+	  case vpiContinue: return "vpiContinue";
+	  case vpiReturnStmt: return "vpiReturnStmt";
+	  case vpiRelease: return "vpiRelease";
+	  case vpiAssignStmt: return "vpiAssignStmt";
+	  case vpiCase: return "vpiCase";
+	  case vpiDelayControl: return "vpiDelayControl";
+	  case vpiDisable: return "vpiDisable";
+	  case vpiEventControl: return "vpiEventControl";
+	  case vpiForever: return "vpiForever";
+	  case vpiIf: return "vpiIf";
+	  case vpiRepeat: return "vpiRepeat";
+	  case vpiTaskCall: return "vpiTaskCall";
+	  case vpiWait: return "vpiWait";
+	  case vpiWhile: return "vpiWhile";
 	  case vpiFor:
 	    return "vpiFor";
 	  case vpiArrayType:

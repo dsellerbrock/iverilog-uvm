@@ -275,7 +275,14 @@ typedef struct t_vpi_delay  {
 
 /* OBJECT CODES */
 #define vpiAliasStmt    646 /* alias statement */
+#define vpiBegin          4 /* block statement */
+#define vpiDisable       12 /* named block disable statement */
+#define vpiEventControl  13 /* wait on event, e.g., @e */
+#define vpiEventStmt     14 /* event trigger, e.g., ->e */
 #define vpiAssignStmt    2 /* quasi-continuous assignment */
+#define vpiAssignment    3 /* procedural assignment */
+#define vpiContAssign   8
+#define vpiDeassign     9
 #define vpiConstant     7
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
@@ -284,6 +291,7 @@ typedef struct t_vpi_delay  {
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
 #define vpiFunction    20
+#define vpiFork        18 /* fork-join block */
 #define vpiIf          22 /* if statement */
 #define vpiIfElse      23 /* if-else statement */
 #define vpiIntegerVar  25
@@ -307,6 +315,7 @@ typedef struct t_vpi_delay  {
 #define vpiDisableFork 673
 #define vpiReturnStmt  691
 #define vpiNet         36
+#define vpiNullStmt    38 /* a semicolon */
 #define vpiNetBit      37
 #define vpiNettypeDecl 523
 #define vpiParameter   41
@@ -322,12 +331,15 @@ typedef struct t_vpi_delay  {
 #define vpiSysTaskCall 57
 #define vpiTableEntry  58 /* UDP state table entry */
 #define vpiTask        59
+#define vpiTaskCall    60
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
 #define vpiRepeat      51 /* repeat statement */
 #define vpiUdpDefn     66
 #define vpiUserSystf   67
 #define vpiWhile       70 /* while statement */
+#define vpiBreak       684
+#define vpiContinue    685
 #define vpiNetArray   114
 #define vpiRange      115
 #define vpiIndex       78
@@ -344,6 +356,7 @@ typedef struct t_vpi_delay  {
 #define vpiVariables   100
 #define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
+#define vpiStmt        104 /* statement in process or task */
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
 #define vpiAnyPattern     667
