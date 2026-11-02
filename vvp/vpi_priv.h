@@ -791,6 +791,12 @@ struct __vpiInterModPath : public __vpiHandle {
  */
 
 extern struct __vpiInterModPath* vpip_make_intermodpath(vvp_net_t *net, vpiPortInfo* port1, vpiPortInfo* port2);
+extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
+                                                        vpiHandle load);
+extern "C" bool vpip_interconnect_through_net(vpiHandle net,
+                                               vpiHandle load);
+extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
+                                                   vpiHandle load);
 
 /* Reset the bounded loader-side accounting for .port_info/evcd records. */
 extern void vpip_reset_port_info_evcd_budget(void);
