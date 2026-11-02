@@ -18513,13 +18513,20 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 		  }
 		  return r;
 	    };
-	    for (uint64_t v = 0; v <= window && !unknown && !unsupported; ++v) {
+	    if (!full_candidates) {
+	      /* The initial optimization model already satisfies the complete
+	         size-only formula. No size enumeration is needed to prove that
+	         scope randomization has a legal queue size. */
+	      feasible.push_back(size);
+	    }
+	    for (uint64_t v = 0; full_candidates && v <= window
+		 && !unknown && !unsupported; ++v) {
 		  Z3_lbool r = check_candidate(v);
 		  if (r == Z3_L_TRUE) feasible.push_back(v);
 		  else if (r == Z3_L_UNDEF) unknown = true;
 	    }
 	    bool beyond = false;
-	    if (!unknown && !unsupported) {
+	    if (full_candidates && !unknown && !unsupported) {
 		  Z3_ast gt = Z3_mk_bvugt(ctx, first.size_vars[0].var,
 					  Z3_mk_unsigned_int64(ctx, window, s32));
 		  if (declared_max && declared_max < UINT32_MAX) {
