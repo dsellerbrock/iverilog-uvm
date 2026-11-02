@@ -1926,6 +1926,8 @@ sv_covergroup_wide_open_array_named_cross normal,-g2017,-gno-icarus-misc,-gno-xt
 sv_covergroup_wide_open_array_named_cross_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_open_array_named_cross.gold
 sv_covergroup_wide_reject_unsupported CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_reject_unsupported.gold
 sv_covergroup_wide_reject_unsupported_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_reject_unsupported.gold
+issue834_wide_explicit_range_2017 normal,-g2017,-s,top ivltests gold=issue834_wide_explicit_range.gold
+issue834_wide_explicit_range_2023 normal,-g2023,-s,top ivltests gold=issue834_wide_explicit_range.gold
 sv_covergroup_cross_retain_auto_bins_2017 CE,-g2017 ivltests gold=sv_covergroup_cross_retain_auto_bins_2017.gold
 sv_covergroup_cross_retain_auto_bins_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_retain_auto_bins_2023.gold
 sv_covergroup_cross_retain_scope_fail CE,-g2023 ivltests gold=sv_covergroup_cross_retain_scope_fail.gold

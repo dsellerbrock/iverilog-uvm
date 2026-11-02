@@ -8,7 +8,6 @@ class wide_bad_cov;
       illegal_bins illegal = {128'h3};
       wildcard bins wild = {128'h1_0000_0000_0000_0000};
       bins trans = (128'h1 => 128'h2);
-      bins interval = {[128'h2:128'h3]};
       bins sized[2] = {128'h4, 128'h5};
       bins fill_math = {'1 - 1};
     }
