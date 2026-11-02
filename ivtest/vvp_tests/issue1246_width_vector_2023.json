@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1246_width_vector.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-s", "issue1246_width_vector"],
+    "gold": "issue1246_width_vector"
+}
