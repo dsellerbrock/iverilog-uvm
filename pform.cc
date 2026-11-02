@@ -8919,6 +8919,21 @@ struct sva_scoped_name_t {
 
 static std::map<sva_scoped_name_t, sva_property_t*> sva_module_properties;
 static std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*> sva_module_sequences;
+/* A named sequence's assertion-local declarations travel with its body so
+   nested instances can preserve the identity and assignment type of a local
+   variable passed through an untyped sequence formal. */
+struct sva_local_decl_type_t {
+      PExpr*width = nullptr;
+      bool signed_flag = false;
+      long packed_left = 0;
+      long packed_right = 0;
+      bool packed_range_known = true;
+      bool two_state = false;
+};
+typedef std::map<perm_string,sva_local_decl_type_t> sva_local_decl_map_t;
+static sva_local_decl_map_t sva_local_decl_types_;
+static std::map<sva_scoped_name_t,sva_local_decl_map_t>
+      sva_module_sequence_local_types;
 /* Complete (clocked, multiclocked, or combinator) sequence declarations use
    the property-shaped map so assertion instantiation can retain their full
    IR.  This tag distinguishes them from actual property declarations when a
@@ -8934,6 +8949,7 @@ static unsigned sva_gensym_counter = 0;
 struct sva_param_seq_t {
       std::vector<sva_sequence_formal_t> formals;
       std::vector<sva_seq_step_t>* body = nullptr;
+      sva_local_decl_map_t local_types;
 };
 struct sva_param_prop_t {
       std::vector<sva_property_formal_t> formals;
@@ -8942,6 +8958,13 @@ struct sva_param_prop_t {
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
 static std::set<const PGenerate*> sva_default_disable_scopes;
+
+static PExpr* sva_clone_expr_(PExpr*e);
+static bool sva_copy_local_decl_types_(
+	const sva_local_decl_map_t&source, sva_local_decl_map_t&target);
+static bool sva_copy_current_local_decl_types_(
+	const struct vlltype&loc, sva_local_decl_map_t&target);
+static void sva_destroy_local_decl_types_(sva_local_decl_map_t&types);
 
 /* Sampled calls in a DECLARATION acquire their clock only when the named
    property/sequence is instantiated. They must not remain in the generic
@@ -9788,6 +9811,15 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 				std::vector<sva_seq_step_t>*steps)
 {
+	  sva_local_decl_map_t local_types;
+	  if (!sva_copy_current_local_decl_types_(loc, local_types)) {
+		cerr << loc << ": sorry: sequence local-variable types cannot be "
+		     << "preserved for instantiation." << endl;
+		error_count += 1;
+		pform_sva_destroy_sequence(steps);
+		pform_sva_end_local_declarations();
+		return;
+	  }
 	  std::map<perm_string,unsigned> caller_locals;
 	  for (perm_string local : sva_current_local_decl_names_())
 		caller_locals[local] = 0;
@@ -9799,6 +9831,7 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
+	    sva_destroy_local_decl_types_(local_types);
 	    pform_sva_destroy_sequence(steps);
 	    return;
       }
@@ -9811,12 +9844,14 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 			      caller_locals[step.items[m].lv_name] = 0;
 	    if (!sva_validate_sequence_local_visibility_(loc, *steps,
 							 caller_locals)) {
+		  sva_destroy_local_decl_types_(local_types);
 		  pform_sva_destroy_sequence(steps);
 		  return;
 	    }
       }
       sva_decl_sequence_forget_sampled_(steps);
       sva_module_sequences[key] = steps;
+	  sva_module_sequence_local_types[key] = local_types;
 }
 
 void pform_sva_declare_sequence_spec(const struct vlltype&loc,
@@ -9947,6 +9982,16 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 				  std::list<sva_sequence_formal_t>*formals,
 				  std::vector<sva_seq_step_t>*steps)
 {
+	  sva_local_decl_map_t local_types;
+	  if (!sva_copy_current_local_decl_types_(loc, local_types)) {
+		cerr << loc << ": sorry: sequence local-variable types cannot be "
+		     << "preserved for instantiation." << endl;
+		error_count += 1;
+		delete formals;
+		pform_sva_destroy_sequence(steps);
+		pform_sva_end_local_declarations();
+		return;
+	  }
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       if (sva_param_sequences.count(sva_decl_key_(use_name))
@@ -9954,6 +9999,7 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
+	    sva_destroy_local_decl_types_(local_types);
 	    delete formals;
 	    pform_sva_destroy_sequence(steps);
 	    return;
@@ -9963,6 +10009,7 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 	    for (sva_sequence_formal_t f : *formals)
 	      rec.formals.push_back(f);
       }
+	  rec.local_types.swap(local_types);
       sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
       sva_param_sequences[sva_decl_key_(use_name)] = rec;
@@ -9983,10 +10030,17 @@ void pform_sva_module_done(void)
 		sva_module_sequences.begin() ;
 	   it != sva_module_sequences.end() ; ++it)
 	    pform_sva_destroy_sequence(it->second);
+	  for (std::map<sva_scoped_name_t,sva_local_decl_map_t>::iterator it =
+		sva_module_sequence_local_types.begin() ;
+	   it != sva_module_sequence_local_types.end() ; ++it)
+	    sva_destroy_local_decl_types_(it->second);
       for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
 		sva_param_sequences.begin() ;
 	   it != sva_param_sequences.end() ; ++it)
+	  {
 	    pform_sva_destroy_sequence(it->second.body);
+	    sva_destroy_local_decl_types_(it->second.local_types);
+	  }
       for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
 		sva_param_properties.begin() ;
 	   it != sva_param_properties.end() ; ++it) {
@@ -9996,6 +10050,7 @@ void pform_sva_module_done(void)
 	   }
       sva_module_properties.clear();
       sva_module_sequences.clear();
+	  sva_module_sequence_local_types.clear();
       sva_property_shaped_sequences.clear();
       sva_param_sequences.clear();
       sva_param_properties.clear();
@@ -10398,6 +10453,38 @@ static PExpr* sva_clone_expr_(PExpr*e)
       return sva_clone_subst_(e, nullptr);
 }
 
+static void sva_destroy_local_decl_types_(sva_local_decl_map_t&types)
+{
+      for (sva_local_decl_map_t::iterator it = types.begin() ;
+	   it != types.end() ; ++it)
+	    delete it->second.width;
+      types.clear();
+}
+
+static bool sva_copy_local_decl_types_(
+	const sva_local_decl_map_t&source, sva_local_decl_map_t&target)
+{
+      for (sva_local_decl_map_t::const_iterator it = source.begin() ;
+	   it != source.end() ; ++it) {
+	    sva_local_decl_type_t copy = it->second;
+	    copy.width = it->second.width ? sva_clone_expr_(it->second.width)
+					  : nullptr;
+	    if (it->second.width && !copy.width) {
+		  delete copy.width;
+		  sva_destroy_local_decl_types_(target);
+		  return false;
+	    }
+	    target[it->first] = copy;
+      }
+      return true;
+}
+
+static bool sva_copy_current_local_decl_types_(
+	const struct vlltype&, sva_local_decl_map_t&target)
+{
+      return sva_copy_local_decl_types_(sva_local_decl_types_, target);
+}
+
 /* Single cycle delays share the range path's instance-elaboration boundary.
    -6 identifies an exact symbolic delay, as distinct from a general window. */
 void pform_sva_single_delay(const struct vlltype&loc,
@@ -10463,22 +10550,12 @@ void pform_sva_single_delay(const struct vlltype&loc,
       delete delay;
 }
 
-struct sva_local_decl_type_t {
-      PExpr*width = nullptr;
-      bool signed_flag = false;
-      long packed_left = 0;
-      long packed_right = 0;
-      bool packed_range_known = true;
-      bool two_state = false;
-};
-
 /* Named property/sequence local declarations are not ordinary module wires,
    but their assignment conversion still has to be preserved in the lowered
    checker (IEEE 1800-2023 16.10). Keep the declaration type only while the
    declaration body is parsed and embed its conversion directly into each
    match-item RHS. The resulting expression then survives every existing
    property/sequence clone without adding parallel type ownership to the IR. */
-static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
 static std::set<perm_string> sva_local_formal_names_;
 
 static std::vector<perm_string> sva_current_local_decl_names_()
@@ -10663,6 +10740,10 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 			     packed_right, packed_range_known);
 }
 
+static PExpr* sva_coerce_local_assignment_type_(
+	const struct vlltype&loc, const sva_local_decl_type_t&type,
+	const char*name, PExpr*rhs);
+
 PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
 						  const char*name, PExpr*rhs,
 						  bool require_declared)
@@ -10676,7 +10757,14 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
 	    delete rhs;
 	    return nullptr;
       }
-      PExpr*width = sva_clone_expr_(it->second.width);
+	  return sva_coerce_local_assignment_type_(loc, it->second, name, rhs);
+}
+
+static PExpr* sva_coerce_local_assignment_type_(
+	const struct vlltype&loc, const sva_local_decl_type_t&type,
+	const char*name, PExpr*rhs)
+{
+      PExpr*width = sva_clone_expr_(type.width);
       if (!width) {
 	    cerr << loc << ": sorry: assertion local variable `" << name
 		 << "' has a declaration width that cannot be applied to its "
@@ -10686,9 +10774,9 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       }
       PECastSize*size = new PECastSize(width, rhs);
       FILE_NAME(size, loc);
-      PECastSign*sign = new PECastSign(it->second.signed_flag, size);
+      PECastSign*sign = new PECastSign(type.signed_flag, size);
       FILE_NAME(sign, loc);
-	  if (it->second.two_state) {
+	  if (type.two_state) {
 		PENumber*one = new PENumber(new verinum((uint64_t)1, 1));
 		FILE_NAME(one, loc);
 		PEBComp*is_one = new PEBComp('E', sign, one);
@@ -12171,13 +12259,41 @@ static bool sva_prepend_property_formal_inits_(
 
 /* M9D: instantiate a parameterized sequence — clone its body with the
    formals substituted. Returns nullptr (diagnosed) on failure. */
+static bool sva_sequence_formal_flows_out_(
+	const sva_param_seq_t&decl, perm_string name)
+{
+      bool assigned = false;
+      if (!decl.body) return false;
+      for (const sva_seq_step_t&step : *decl.body) {
+	    for (const sva_match_item_t&item : step.items) {
+		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+		      || item.lv_name != name) continue;
+		  /* A variable-length/repeated operand can complete without the
+		     assignment. Do not expose its actual as assigned after the
+		     instance unless the supported linear path guarantees the write. */
+		  if (step.rep_kind != 0 || step.rep_tail != 0
+		      || step.grouped_repeat) return false;
+		  assigned = true;
+	    }
+      }
+      return assigned;
+}
+
 static std::vector<sva_seq_step_t>*
 sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     const sva_param_seq_t&decl,
-		     const std::vector<named_pexpr_t>&parms)
+		     const std::vector<named_pexpr_t>&parms,
+		     const sva_local_decl_map_t*caller_local_types = nullptr,
+		     sva_local_decl_map_t*instance_local_types = nullptr)
 {
       std::map<perm_string,PExpr*> subst;
       std::vector<PExpr*> owned_subst;
+      std::map<perm_string,perm_string> declared_local_names;
+      std::map<perm_string,perm_string> local_input_names;
+      std::map<perm_string,perm_string> flow_out_actuals;
+	  sva_local_decl_map_t ignored_instance_types;
+	  sva_local_decl_map_t&instance_types = instance_local_types
+		? *instance_local_types : ignored_instance_types;
       std::vector<const named_pexpr_t*> actuals(decl.formals.size(), nullptr);
       size_t positional = 0;
       for (size_t k = 0 ; k < parms.size() ; k += 1) {
@@ -12225,6 +12341,23 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    }
       }
 
+	  for (sva_local_decl_map_t::const_iterator local = decl.local_types.begin() ;
+	       local != decl.local_types.end() ; ++local) {
+	    char name_buf[64];
+	    snprintf(name_buf, sizeof name_buf, "_ivl_sva_seq_local_%u",
+		     sva_gensym_counter++);
+	    perm_string local_name = lex_strings.make(name_buf);
+	    PExpr*local_id = sva_id_(loc, local_name);
+	    if (!local_id) {
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    subst[local->first] = local_id;
+	    owned_subst.push_back(local_id);
+	    declared_local_names[local->first] = local_name;
+	    instance_types[local_name] = local->second;
+	  }
+
       std::vector<sva_seq_step_t> initializers;
       for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
 	    const sva_sequence_formal_t&formal = decl.formals[k];
@@ -12238,6 +12371,18 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    }
 	    if (!formal.local_input) {
 		  subst[formal.name] = actuals[k]->parm;
+		  if (caller_local_types) {
+			PEIdent*actual = dynamic_cast<PEIdent*>(actuals[k]->parm);
+			if (actual && !actual->path().package
+			    && actual->path().name.size() == 1
+			    && actual->path().name.front().index.empty()) {
+			      perm_string actual_name =
+				    actual->path().name.front().name;
+			      if (caller_local_types->count(actual_name)
+				  && sva_sequence_formal_flows_out_(decl, formal.name))
+				    flow_out_actuals[formal.name] = actual_name;
+			}
+		  }
 		  continue;
 	    }
 
@@ -12247,6 +12392,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    perm_string local_name = lex_strings.make(name_buf);
 	    subst[formal.name] = sva_id_(loc, local_name);
 	    owned_subst.push_back(subst[formal.name]);
+	    local_input_names[formal.name] = local_name;
 
 	    PExpr*actual = sva_clone_subst_(actuals[k]->parm, nullptr);
 	    if (!actual) {
@@ -12283,6 +12429,40 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		? sva_clone_subst_((*decl.body)[k].rep_hi_expr, &subst) : nullptr;
 	    bool items_ok = sva_clone_match_items_(
 		  (*decl.body)[k].items, st.items, &subst);
+	    if (items_ok) {
+		  const std::vector<sva_match_item_t>&source_items =
+			(*decl.body)[k].items;
+		  for (size_t m = 0 ; m < source_items.size() ; m += 1) {
+			if (source_items[m].kind != sva_match_item_t::LOCAL_ASSIGNMENT)
+			      continue;
+			std::map<perm_string,perm_string>::const_iterator local =
+			      declared_local_names.find(source_items[m].lv_name);
+			if (local != declared_local_names.end()) {
+			      st.items[m].lv_name = local->second;
+			      continue;
+			}
+			local = local_input_names.find(source_items[m].lv_name);
+			if (local != local_input_names.end()) {
+			      st.items[m].lv_name = local->second;
+			      continue;
+			}
+			std::map<perm_string,perm_string>::const_iterator actual =
+			      flow_out_actuals.find(source_items[m].lv_name);
+			if (actual == flow_out_actuals.end()) continue;
+			std::map<perm_string,sva_local_decl_type_t>::const_iterator type =
+			      caller_local_types->find(actual->second);
+			if (type == caller_local_types->end()) continue;
+			PExpr*converted = sva_coerce_local_assignment_type_(
+			      loc, type->second, actual->second.str(),
+			      st.items[m].lv_rhs);
+			if (!converted) {
+			      items_ok = false;
+			      break;
+			}
+			st.items[m].lv_rhs = converted;
+			st.items[m].lv_name = actual->second;
+		  }
+	    }
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.8 permits `$` as an untyped actual when its
 	       substituted reference is a delay upper bound. Resolve formal-backed
@@ -16293,7 +16473,8 @@ static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
    steps (first spliced delay adds the step's own delay). */
 static void sva_splice_sequences_(const struct vlltype&loc,
 				  std::vector<sva_seq_step_t>&steps,
-                                  const PGenerate*scope = pform_cur_generate)
+                                  const PGenerate*scope = pform_cur_generate,
+				  const sva_local_decl_map_t*caller_local_types = nullptr)
 {
       static std::set<sva_scoped_name_t> active;
       auto enter = [&](const sva_scoped_name_t&key) {
@@ -16321,9 +16502,12 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      sva_resolve_(sva_param_sequences, nm, scope);
 			if (pit != sva_param_sequences.end() && pit->second.body) {
                               if (!enter(pit->first)) { --splice_depth; return; }
+			      sva_local_decl_map_t instance_local_types;
 			      std::vector<sva_seq_step_t>*inst =
 				    sva_instantiate_seq_(loc, nm, pit->second,
-							 cf->get_parms());
+							 cf->get_parms(),
+							 caller_local_types,
+							 &instance_local_types);
 			      if (inst) {
 				sva_retag_first_match_groups_(*inst);
 				    if (!inst->empty()) {
@@ -16334,7 +16518,13 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 						steps[i].items.begin(), steps[i].items.end());
 					  steps[i].items.clear();
 				    }
-				    sva_splice_sequences_(loc, *inst, scope);
+				    sva_local_decl_map_t nested_local_types;
+				    if (caller_local_types)
+					  nested_local_types = *caller_local_types;
+				    nested_local_types.insert(instance_local_types.begin(),
+							     instance_local_types.end());
+				    sva_splice_sequences_(loc, *inst, scope,
+							  &nested_local_types);
                                     active.erase(pit->first);
 				    delete steps[i].expr;
 				    steps.erase(steps.begin() + i);
@@ -16366,27 +16556,96 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  continue;
 	    }
             if (!enter(seq_it->first)) { --splice_depth; return; }
+	    std::map<perm_string,PExpr*> local_subst;
+	    std::map<perm_string,perm_string> local_name_remap;
+	    std::vector<PExpr*> owned_local_subst;
+	    sva_local_decl_map_t instance_local_types;
+	    std::map<sva_scoped_name_t,sva_local_decl_map_t>::const_iterator decl_types =
+		  sva_module_sequence_local_types.find(seq_it->first);
+	    if (decl_types != sva_module_sequence_local_types.end()) {
+		  for (sva_local_decl_map_t::const_iterator local =
+			 decl_types->second.begin() ;
+		       local != decl_types->second.end() ; ++local) {
+			char name_buf[64];
+			snprintf(name_buf, sizeof name_buf, "_ivl_sva_seq_local_%u",
+				 sva_gensym_counter++);
+			perm_string local_name = lex_strings.make(name_buf);
+			PExpr*local_id = sva_id_(loc, local_name);
+			if (!local_id) {
+			      for (PExpr*expr : owned_local_subst) delete expr;
+			      active.erase(seq_it->first);
+			      --splice_depth;
+			      return;
+			}
+			local_subst[local->first] = local_id;
+			owned_local_subst.push_back(local_id);
+			local_name_remap[local->first] = local_name;
+			instance_local_types[local_name] = local->second;
+		  }
+	    }
 	    std::vector<sva_seq_step_t> body;
 	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
 		  sva_seq_step_t st = (*seq_it->second)[k];
 		  st.items.clear();
-		  PExpr*cp = sva_clone_expr_(st.expr);
+		  PExpr*cp = local_subst.empty()
+			? sva_clone_expr_(st.expr)
+			: sva_clone_subst_(st.expr, &local_subst);
 		  PExpr*dlo_cp = st.delay_lo_expr
-			? sva_clone_expr_(st.delay_lo_expr) : nullptr;
+			? (local_subst.empty()
+			   ? sva_clone_expr_(st.delay_lo_expr)
+			   : sva_clone_subst_(st.delay_lo_expr, &local_subst)) : nullptr;
 		  PExpr*dhi_cp = st.delay_hi_expr
-			? sva_clone_expr_(st.delay_hi_expr) : nullptr;
+			? (local_subst.empty()
+			   ? sva_clone_expr_(st.delay_hi_expr)
+			   : sva_clone_subst_(st.delay_hi_expr, &local_subst)) : nullptr;
 		  PExpr*rlo_cp = st.rep_lo_expr
-			? sva_clone_expr_(st.rep_lo_expr) : nullptr;
+			? (local_subst.empty()
+			   ? sva_clone_expr_(st.rep_lo_expr)
+			   : sva_clone_subst_(st.rep_lo_expr, &local_subst)) : nullptr;
 		  PExpr*rhi_cp = st.rep_hi_expr
-			? sva_clone_expr_(st.rep_hi_expr) : nullptr;
+			? (local_subst.empty()
+			   ? sva_clone_expr_(st.rep_hi_expr)
+			   : sva_clone_subst_(st.rep_hi_expr, &local_subst)) : nullptr;
 		  bool items_ok = sva_clone_match_items_(
-			(*seq_it->second)[k].items, st.items);
+			(*seq_it->second)[k].items, st.items,
+			local_subst.empty() ? nullptr : &local_subst);
+		  if (items_ok) {
+			for (size_t m = 0 ; m < (*seq_it->second)[k].items.size();
+			     m += 1) {
+			      const sva_match_item_t&source_item =
+				    (*seq_it->second)[k].items[m];
+			      if (source_item.kind != sva_match_item_t::LOCAL_ASSIGNMENT)
+				    continue;
+			      std::map<perm_string,perm_string>::const_iterator remap =
+				    local_name_remap.find(source_item.lv_name);
+			      if (remap != local_name_remap.end())
+				    st.items[m].lv_name = remap->second;
+			}
+		  }
 		  bool had_items = !(*seq_it->second)[k].items.empty();
 		  if (!cp || (had_items && !items_ok)
 		      || (st.delay_lo_expr && !dlo_cp)
 		      || (st.delay_hi_expr && !dhi_cp)
 		      || (st.rep_lo_expr && !rlo_cp)
 			  || (st.rep_hi_expr && !rhi_cp) || !items_ok) {
+			if (!local_subst.empty()) {
+			      cerr << loc << ": sorry: sequence `"
+				   << seq_it->first.name
+				   << "' with local variables cannot be copied for "
+				      "instantiation." << endl;
+			      error_count += 1;
+			      delete cp;
+			      delete dlo_cp;
+			      delete dhi_cp;
+			      delete rlo_cp;
+			      delete rhi_cp;
+			      sva_destroy_match_items_(st.items);
+			      pform_sva_destroy_sequence(&body);
+			      for (PExpr*expr : owned_local_subst) delete expr;
+			      active.erase(seq_it->first);
+			      --splice_depth;
+			      return;
+			}
 			  /* consume-once: move the tree and drop the
 			     declaration so a second use is diagnosed */
 			delete cp;
@@ -16448,9 +16707,17 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			steps[i].items.begin(), steps[i].items.end());
 		  steps[i].items.clear();
 	    }
-	    // This body has no substituted actuals: its nested sequence names
-            // belong to the alias declaration, not the caller's generate.
-            sva_splice_sequences_(loc, body, seq_it->first.gen);
+	    /* The local names in this clone are unique to this sequence instance;
+	       pass their types into nested sequence-actual bindings. Its nested
+	       sequence names still belong to the alias declaration's generate. */
+	    sva_local_decl_map_t nested_local_types;
+	    if (caller_local_types)
+		  nested_local_types = *caller_local_types;
+	    nested_local_types.insert(instance_local_types.begin(),
+				     instance_local_types.end());
+	    sva_splice_sequences_(loc, body, seq_it->first.gen,
+				  &nested_local_types);
+	    for (PExpr*expr : owned_local_subst) delete expr;
             active.erase(seq_it->first);
 	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
@@ -22731,10 +22998,13 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 		std::map<sva_scoped_name_t,sva_param_seq_t>::iterator seq_it =
 		      sva_resolve_(sva_param_sequences, seqname);
 		if (seq_it != sva_param_sequences.end() && seq_it->second.body) {
+		      sva_local_decl_map_t instance_local_types;
 		      std::vector<sva_seq_step_t>*body = sva_instantiate_seq_(
-			    loc, seqname, seq_it->second, instance->get_parms());
+			    loc, seqname, seq_it->second, instance->get_parms(),
+			    nullptr, &instance_local_types);
 		      if (!body) { failed = true; return e; }
-		      sva_splice_sequences_(loc, *body);
+		      sva_splice_sequences_(loc, *body, pform_cur_generate,
+				    &instance_local_types);
 		      PExpr*ind = sva_endpoint_indicator_body_(
 			    loc, seqname, perm_string::literal("triggered"),
 			    *body, failed);

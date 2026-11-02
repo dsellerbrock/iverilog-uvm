@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1378_local_sequence_actual.v:27: $finish called at 50 (1s)
