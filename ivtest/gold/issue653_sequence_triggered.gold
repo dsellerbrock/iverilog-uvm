@@ -1,0 +1,2 @@
+PASS named sequence triggered: endpoint and time-step lifetime
+./ivltests/issue653_sequence_triggered.v:29: $finish called at 35 (1s)
