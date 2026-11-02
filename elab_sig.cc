@@ -3867,7 +3867,7 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      if (interface_method_default)
 					    scope->need_const_func(true);
 				      tmp_def = elaborate_rval_expr(
-					    des, scope, formal_type,
+					    des, scope->parent(), formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func()
 					    || interface_method_default);
@@ -3884,7 +3884,7 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 					    || default_requires_procedural_context;
 				} else {
 				      tmp_def = elab_and_eval(
-					    des, scope, ports_->at(idx).defe, -1,
+					    des, scope->parent(), ports_->at(idx).defe, -1,
 					    scope->need_const_func());
 				}
 			if (tmp_def == 0) {

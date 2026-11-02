@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue905_default_argument_scope.v",
+  "iverilog-args": ["-g2017", "-s", "issue905_default_argument_scope"],
+  "gold": "issue905_default_argument_scope"
+}
