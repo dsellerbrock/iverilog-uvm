@@ -28675,6 +28675,67 @@ NetProc* PReturn::elaborate(Design*des, NetScope*scope) const
  * that is what I did in pform_make_task_ports, so there it is.
  */
 
+static bool covergroup_end_event_names_task_(
+	const class_type_t::pform_covergroup_t*cgdef, perm_string task_name)
+{
+	if (!cgdef) return false;
+	for (const PEEvent*event : cgdef->sample_events) {
+		if (!event || event->type() != PEEvent::BLOCK_END) continue;
+		const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+		if (!id || id->path().name.size() != 1) continue;
+		if (id->path().name.front().name == task_name) return true;
+	}
+	return false;
+}
+
+/* A same-scope task's normal fall-through is the end block event's
+   completion point. Put the sample call in that path so a `disable` or
+   `return` that unwinds the task skips it, as required by 19.3. */
+static std::vector<NetProc*> elaborate_task_end_samples_(
+	const PTask*ptask, Design*des, NetScope*task)
+{
+	std::vector<NetProc*> result;
+	if (!task || !task->parent()) return result;
+	NetScope*owner_scope = task->parent();
+	if (owner_scope->type() != NetScope::MODULE
+	    && owner_scope->type() != NetScope::PACKAGE)
+		return result;
+
+	for (const auto&sig_item : owner_scope->signals_map()) {
+		NetNet*sig = sig_item.second;
+		if (!sig) continue;
+		const netclass_t*cgct = dynamic_cast<const netclass_t*>(
+			sig->net_type());
+		if (!cgct || !cgct->is_covergroup()) continue;
+		const NetScope*cg_scope = cgct->class_scope();
+		const PClass*pcl = cg_scope ? cg_scope->class_pform() : nullptr;
+		if (!pcl || !pcl->type || !pcl->type->is_covergroup_standalone
+		    || pcl->type->covergroups.empty()) continue;
+		const class_type_t::pform_covergroup_t*cgdef =
+			pcl->type->covergroups.front();
+		if (!covergroup_end_event_names_task_(cgdef,
+						      ptask->pscope_name())) continue;
+
+		pform_name_t path;
+		path.push_back(name_component_t(sig->name()));
+		path.push_back(name_component_t(perm_string::literal("sample")));
+		std::list<named_pexpr_t> no_parms;
+		PCallTask call(path, no_parms);
+		call.set_line(*ptask);
+		PExprProceduralContextGuard procedural_context(true);
+		NetProc*sample = call.elaborate(des, task);
+		if (sample)
+			result.push_back(sample);
+		else {
+		std::cerr << ptask->get_fileline() << ": error: Unable to elaborate "
+			  << "end-event sampling call for covergroup instance `"
+			  << sig->name() << "`." << std::endl;
+		++des->errors;
+		}
+	}
+	return result;
+}
+
 void PTask::elaborate(Design*des, NetScope*task) const
 {
       if (task->elab_stage() > 2)
@@ -28757,6 +28818,20 @@ void PTask::elaborate(Design*des, NetScope*task) const
 		  NetProc*tmp = per_call_inits[idx-1]->elaborate(des, task);
 		  if (tmp) blk->prepend(tmp);
 	    }
+      }
+
+	/* An end block event is sampled after the named task's last statement.
+	   Appending these calls to the normal completion path also means a task
+	   disabled before completion does not generate the coverage event. */
+      std::vector<NetProc*> end_samples =
+		elaborate_task_end_samples_(this, des, task);
+      if (!end_samples.empty()) {
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, task);
+	    blk->set_line(*this);
+	    blk->append(st);
+	    for (NetProc*sample : end_samples)
+		  blk->append(sample);
+	    st = blk;
       }
 
       /* One-shot declaration initializers execute without a call to this
@@ -29692,6 +29767,47 @@ static perm_string covergroup_observed_clocking_event_(Design*des, NetScope*scop
 	return perm_string();
 }
 
+static bool covergroup_has_block_event_(
+	const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!cgdef) return false;
+	for (const PEEvent*event : cgdef->sample_events)
+		if (event && (event->type() == PEEvent::BLOCK_BEGIN
+			      || event->type() == PEEvent::BLOCK_END))
+			return true;
+	return false;
+}
+
+/* This implementation handles end events naming a task in the same
+   module/package scope. Reject other valid block-event forms until their
+   corresponding entry/exit hooks are implemented instead of installing a
+   sampler that never fires. */
+static bool covergroup_local_task_end_events_supported_(NetScope*scope,
+					 const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!scope || !cgdef || cgdef->sample_events.empty()) return false;
+	for (const PEEvent*event : cgdef->sample_events) {
+		if (!event || event->type() != PEEvent::BLOCK_END) return false;
+		const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+		if (!id || id->path().name.size() != 1) return false;
+		NetScope*task = scope->child(hname_t(id->path().name.front().name));
+		if (!task || !task->task_pform()) return false;
+	}
+	return true;
+}
+
+static void report_unsupported_covergroup_block_event_(NetScope*scope,
+					       const PClass*pcl,
+					       const class_type_t::pform_covergroup_t*cgdef)
+{
+	std::cerr << (pcl ? pcl->get_fileline() : std::string("<covergroup>"))
+		  << ": sorry: block-event sampling for covergroup `"
+		  << (cgdef ? cgdef->name : perm_string::literal("<unknown>"))
+		  << "` in scope `"
+		  << scope_path(scope) << "` is not supported for this block event."
+		  << std::endl;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -29712,6 +29828,11 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->is_covergroup_standalone) continue;
 	    for (auto*cgdef : pcl->type->covergroups) {
 		  if (!cgdef || cgdef->sample_events.empty()) continue;
+		  if (covergroup_has_block_event_(cgdef)) {
+			report_unsupported_covergroup_block_event_(scope, pcl, cgdef);
+			++des->errors;
+			continue;
+		  }
 		  perm_string observed_trigger =
 			covergroup_observed_clocking_event_(des, scope, cgdef);
 		  netclass_t*parent_ct = scope->find_class(des, pcl->pscope_name());
@@ -29787,6 +29908,13 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->covergroups.empty()) continue;
 	    class_type_t::pform_covergroup_t*cgdef = pcl->type->covergroups.front();
 	    if (!cgdef || cgdef->sample_events.empty()) continue;
+	    if (covergroup_has_block_event_(cgdef)) {
+		if (!covergroup_local_task_end_events_supported_(scope, cgdef)) {
+		      report_unsupported_covergroup_block_event_(scope, pcl, cgdef);
+		      ++des->errors;
+		}
+		continue;
+	    }
 	    perm_string observed_trigger =
 		  covergroup_observed_clocking_event_(des, scope, cgdef);
 

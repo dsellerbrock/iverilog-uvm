@@ -510,6 +510,12 @@ void PEEvent::dump(ostream&out) const
 	  case PEEvent::POSITIVE:
 	    out << "positive ";
 	    break;
+	  case PEEvent::BLOCK_BEGIN:
+	    out << "begin ";
+	    break;
+	  case PEEvent::BLOCK_END:
+	    out << "end ";
+	    break;
       }
       out << *expr_;
       if (condition_)

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue625_covergroup_block_event_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue625_covergroup_block_event"],
+  "output-contains": ["PASSED"]
+}
