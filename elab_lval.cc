@@ -3893,6 +3893,16 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			     << " (scope=" << scope_path(scope) << ")" << endl;
 			des->errors += 1;
 
+		  } else if (qual.test_protected()
+			     && !owner_class->get_prop_declaring_class(pidx)
+				 ->test_scope_is_protected_access(scope)) {
+			cerr << get_fileline() << ": error: "
+			     << "Protected property " << owner_class->get_prop_name(pidx)
+			     << " is not accessible (l-value) in this context."
+			     << " (scope=" << scope_path(scope) << ")" << endl;
+			des->errors += 1;
+			return 0;
+
 		  } else if (qual.test_static()) {
 			  if (qual.test_const()
 			      && !(read_only_ref && member_cur.index.empty()
