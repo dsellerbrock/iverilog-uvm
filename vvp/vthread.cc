@@ -19160,6 +19160,20 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	     * until the end-of-time-step deletion queue. */
       }
 
+	/* A detached descendant can outlive an intermediate process. In that
+	 * case it is reparented into this process's detached_children tree, but
+	 * is no longer in wait_fork_children (ordinary fork children are removed
+	 * from that set when their parent ends). disable fork is defined over the
+	 * full descendant tree, so drain any remaining detached descendants too. */
+	  while (! owner->detached_children.empty()) {
+		vthread_t child = *(owner->detached_children.begin());
+	    assert(child);
+	      /* do_disable owns the detached-child reap and reparents descendants
+	       * back to owner, so this loop walks the whole subtree. */
+	    bool res = do_disable(child, thr);
+	    assert(! res);
+	  }
+
       return true;
 }
 
