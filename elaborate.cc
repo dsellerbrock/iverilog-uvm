@@ -23376,12 +23376,20 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
    Only a selected VIF member needs the expression observer to rebind the
    member when its handle changes; class-property dependencies likewise have
    no static NetNet input. */
+static bool expr_has_user_function_call_(const NetExpr*expr);
+
 static bool selected_edge_requires_observer_(const NetExpr*expr)
 {
       if (has_class_property_mutation_dep_(expr))
             return true;
       if (!dynamic_cast<const NetESelect*>(expr))
             return false;
+      /* A selector function can read a class member through a global or
+         other hidden reference that is not represented by the call's
+         operands. The event-expression recipe records those concrete reads
+         at run time, so use it for the selected edge as well. */
+      if (expr_has_user_function_call_(expr))
+            return true;
       std::vector<vif_member_path_t> vif_paths;
       collect_vif_member_paths_(expr, vif_paths);
       return !vif_paths.empty();

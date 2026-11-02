@@ -1,0 +1,2 @@
+PASS whole-function-hidden-member-edge
+ivltests/sv_whole_function_event_hidden_member_edge_2017.v:25: $finish called at 2 (1s)
