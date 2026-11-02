@@ -1,0 +1,5 @@
+./ivltests/issue1246_width_vector.v:3: Timing violation: $width check in issue1246_width_vector.u_desc at time 12000
+./ivltests/issue1246_width_vector.v:3: Timing violation: $width check in issue1246_width_vector.u_desc at time 19000
+./ivltests/issue1246_width_vector.v:7: Timing violation: $width check in issue1246_width_vector.u_asc at time 26000
+./ivltests/issue1246_width_vector.v:7: Timing violation: $width check in issue1246_width_vector.u_asc at time 33000
+./ivltests/issue1246_width_vector.v:25: $finish called at 38000 (1ps)
