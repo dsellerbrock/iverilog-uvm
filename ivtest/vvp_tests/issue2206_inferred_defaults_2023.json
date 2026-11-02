@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2206_inferred_defaults.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"           : "issue2206_inferred_defaults"
+}

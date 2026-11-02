@@ -70,6 +70,7 @@ struct rs_rule_t {
 };
 struct rs_production_t {
       perm_string name;
+      perm_string return_var;
       bool explicit_void = false;
       data_type_t* return_type = nullptr;
       std::vector<rs_formal_t>* formals = nullptr;

@@ -1065,6 +1065,7 @@ vvp_net_t* vvp_net_lookup(const char*label)
 	    switch (vpi->get_type_code()) {
 		case vpiNet:
 		case vpiReg:
+		case vpiTimeVar:
 		case vpiBitVar:
 		case vpiByteVar:
 		case vpiShortIntVar:

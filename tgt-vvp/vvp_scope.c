@@ -975,6 +975,11 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    break;
       }
 
+      /* `time` is represented by a 64-bit logic vector in the target API.
+         Preserve its declared type for the VPI variable handle. */
+      if (ivl_signal_dimensions(sig) == 0 && ivl_signal_is_time(sig))
+	    datatype_flag = "/time";
+
 	/* If the reg objects are collected into an array, then first
 	   write out the .array record to declare the array indices. */
       if (ivl_signal_dimensions(sig) > 0 && vector_dims==0) {
@@ -3299,6 +3304,7 @@ int scope_needs_call_frame(ivl_scope_t net)
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 {
       unsigned idx;
+      int child_scopes_drawn = 0;
       const char *dumpports_flag =
             ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
       int emit_evcd_metadata = dumpports_flag && *dumpports_flag;
@@ -3748,6 +3754,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    draw_switch_in_scope(sw);
       }
 
+	/* A system-task call records the current scope when vvp reads its
+	   instruction. Emit a task's nested scopes before its body so a .scope
+	   recall in that body can resolve to the named block instead of
+	   retaining the enclosing task scope. */
+      if (ivl_scope_type(net) == IVL_SCT_TASK) {
+	    ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
+	    fprintf(vvp_out, "    .scope S_%p;\n", net);
+	    child_scopes_drawn = 1;
+      }
+
       if (ivl_scope_type(net) == IVL_SCT_TASK)
 	    vvp_errors += draw_task_definition(net);
 
@@ -3762,7 +3778,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	  && ivl_scope_is_dpi_export(net))
 	    note_dpi_export(net);
 
-      ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
+      if (!child_scopes_drawn)
+	    ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
       return 0;
 }
 

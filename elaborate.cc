@@ -15360,6 +15360,28 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  continue;
 	    }
 
+	    /* IEEE 1800-2023 20.4.2 permits $unit as a $printtimescale
+	       argument. It is lexed as a package scope identifier, but ordinary
+	       task-argument elaboration would look for a member named $unit
+	       inside that package. Pass the compilation-unit scope itself. */
+	    if ((name == "$printtimescale"
+		 || name == "$ivl_printtimescale_unit") && parm.parm) {
+		  const PEIdent*package_arg =
+			dynamic_cast<const PEIdent*>(parm.parm);
+		  if (package_arg) {
+			const pform_scoped_name_t&path = package_arg->path();
+			if (path.package && path.size() == 1
+			    && path.back().name == path.package->pscope_name()) {
+			      NetScope*target_scope =
+				    des->find_package(path.package->pscope_name());
+			      if (target_scope) {
+				    eparms[idx] = new NetEScope(target_scope);
+				    continue;
+			      }
+			}
+		  }
+	    }
+
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
 			    parm.parm);
 
@@ -23375,10 +23397,14 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
 /* A structural selected net keeps its ordinary NetPartSelect edge probe.
    Only a selected VIF member needs the expression observer to rebind the
    member when its handle changes; class-property dependencies likewise have
-   no static NetNet input. */
+   no static NetNet input. User functions also need the full expression to be
+   reevaluated when any source operand changes. */
+static bool expr_has_user_function_call_(const NetExpr*expr);
+
 static bool selected_edge_requires_observer_(const NetExpr*expr)
 {
-      if (has_class_property_mutation_dep_(expr))
+      if (has_class_property_mutation_dep_(expr)
+          || expr_has_user_function_call_(expr))
             return true;
       if (!dynamic_cast<const NetESelect*>(expr))
             return false;

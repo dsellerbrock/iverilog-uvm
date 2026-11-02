@@ -1733,6 +1733,25 @@ class PECastType  : public PExpr {
       void set_tolerance_range() { tolerance_range_ = true; }
       bool truncate_real_to_integral() const
             { return truncate_real_to_integral_; }
+      void set_property_formal_actual()
+      {
+	    property_formal_actual_ = true;
+	    property_formal_actual_error_reported_.reset(new bool(false));
+      }
+      void copy_property_formal_actual(const PECastType& source)
+      {
+	    property_formal_actual_ = source.property_formal_actual_;
+	    property_formal_actual_error_reported_ =
+		  source.property_formal_actual_error_reported_;
+      }
+      bool report_property_formal_actual_error() const
+      {
+	    if (!property_formal_actual_error_reported_
+		|| *property_formal_actual_error_reported_)
+		  return false;
+	    *property_formal_actual_error_reported_ = true;
+	    return true;
+      }
 
     private:
       data_type_t* target_;
@@ -1740,6 +1759,8 @@ class PECastType  : public PExpr {
       mutable const NetScope* positional_cast_error_scope_ = nullptr;
       PExpr* base_;
       bool truncate_real_to_integral_;
+      bool property_formal_actual_ = false;
+      std::shared_ptr<bool> property_formal_actual_error_reported_;
       bool tolerance_range_ = false;
 };
 

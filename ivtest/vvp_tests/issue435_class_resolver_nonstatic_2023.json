@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue435_class_resolver_nonstatic_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue435_class_resolver_nonstatic_2023"
+}

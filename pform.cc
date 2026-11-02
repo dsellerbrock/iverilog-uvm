@@ -7955,13 +7955,16 @@ static void pform_rs_mark_conditions_strict_(Statement*stmt)
 struct pform_rs_expand_ctx_t {
       const struct vlltype&loc;
       std::map<perm_string,rs_production_t*>&pmap;
+      LexicalScope* lexical_parent;
       std::set<perm_string> active;
       size_t nodes = 0;
+      unsigned scope_id = 0;
       bool bad = false;
 
       pform_rs_expand_ctx_t(const struct vlltype&l,
-			    std::map<perm_string,rs_production_t*>&m)
-      : loc(l), pmap(m) { }
+			    std::map<perm_string,rs_production_t*>&m,
+			    LexicalScope*parent)
+      : loc(l), pmap(m), lexical_parent(parent) { }
 };
 
 static bool pform_rs_budget_(pform_rs_expand_ctx_t&ctx)
@@ -8000,36 +8003,32 @@ static PBlock* pform_rs_block_(const struct vlltype&where,
       return blk;
 }
 
-static bool pform_rs_constant_actual_(PExpr*expr)
+static PBlock* pform_rs_scope_(pform_rs_expand_ctx_t&ctx)
 {
-      if (!expr) return false;
-      if (dynamic_cast<PENumber*>(expr) || dynamic_cast<PEFNumber*>(expr)
-	  || dynamic_cast<PEString*>(expr) || dynamic_cast<PETypename*>(expr))
-	    return true;
-      if (PEUnary*un = dynamic_cast<PEUnary*>(expr))
-	    return pform_rs_constant_actual_(un->get_expr());
-      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr))
-	    return pform_rs_constant_actual_(bin->get_left())
-		&& pform_rs_constant_actual_(bin->get_right());
-      if (PETernary*ter = dynamic_cast<PETernary*>(expr))
-	    return pform_rs_constant_actual_(ter->get_cond())
-		&& pform_rs_constant_actual_(ter->get_true())
-		&& pform_rs_constant_actual_(ter->get_false());
-      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_size())
-		&& pform_rs_constant_actual_(cast->cast_base());
-      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_base());
-      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
-	    return pform_rs_constant_actual_(cast->cast_base());
-      if (PEConcat*cat = dynamic_cast<PEConcat*>(expr)) {
-	    if (cat->has_repeat()
-		&& !pform_rs_constant_actual_(cat->repeat_expr())) return false;
-	    for (PExpr*part : cat->stream_parms())
-		  if (!pform_rs_constant_actual_(part)) return false;
-	    return true;
-      }
-      return false;
+      char name[48];
+      snprintf(name, sizeof name, "$__ivl_randsequence_%u", ctx.scope_id++);
+      PBlock*scope = new PBlock(lex_strings.make(name),
+				ctx.lexical_parent, PBlock::BL_SEQ);
+      FILE_NAME(scope, ctx.loc);
+      scope->default_lifetime = LexicalScope::AUTOMATIC;
+      return scope;
+}
+
+static unsigned pform_rs_return_var_id_ = 0;
+
+static perm_string pform_rs_return_var_(pform_rs_expand_ctx_t&ctx,
+					rs_production_t&prod)
+{
+      if (!prod.return_var.nil()) return prod.return_var;
+      std::ostringstream name;
+      name << "$ivl_randsequence_return_" << pform_rs_return_var_id_++;
+      prod.return_var = lex_strings.make(name.str().c_str());
+      PWire*wire = new PWire(prod.return_var, UINT_MAX, NetNet::REG,
+			     NetNet::NOT_A_PORT);
+	  wire->set_data_type(prod.return_type);
+	  FILE_NAME(wire, ctx.loc);
+      pform_put_wire_in_scope(prod.return_var, wire);
+      return prod.return_var;
 }
 
 static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
@@ -8043,7 +8042,10 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 				   const rs_production_t&prod,
 				   const std::list<named_pexpr_t>*actuals,
 				   const std::map<perm_string,PExpr*>*outer,
-				   std::map<perm_string,PExpr*>&bound)
+				   std::map<perm_string,PExpr*>&bound,
+				   PBlock*scope,
+				   std::vector<Statement*>&initializers,
+				   perm_string local_prefix = perm_string())
 {
       const size_t count = prod.formals ? prod.formals->size() : 0;
       std::vector<PExpr*> values(count, nullptr);
@@ -8078,13 +8080,9 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    values[idx] = actual.parm
 		? sva_clone_subst_(actual.parm, outer) : nullptr;
-	    const bool input_formal =
-		(*prod.formals)[idx].direction == NetNet::PINPUT;
-	    if (!values[idx]
-		|| (input_formal && !pform_rs_constant_actual_(values[idx]))) {
-		  cerr << ctx.loc << ": sorry: randsequence input actuals must be "
-		       << "side-effect-free constant expressions; production `"
-		       << prod.name << "' has a nonconstant actual." << endl;
+	    if (!values[idx]) {
+		  cerr << ctx.loc << ": error: randsequence actual for production `"
+		       << prod.name << "' cannot be represented." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
       }
@@ -8106,15 +8104,43 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 	    }
 	    if (!values[idx] && formal.default_expr)
 		  values[idx] = sva_clone_subst_(formal.default_expr, &bound);
-	    if (!values[idx] || (formal.direction == NetNet::PINPUT
-				  && !pform_rs_constant_actual_(values[idx]))) {
+	    if (!values[idx]) {
 		  cerr << ctx.loc << ": error: randsequence production `"
-		       << prod.name << "' has no constant actual for formal `"
+		       << prod.name << "' has no actual for formal `"
 		       << formal.name << "'." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
-	    bound[formal.name] = values[idx];
-	    values[idx] = nullptr;
+	    if (formal.direction == NetNet::PINPUT) {
+		  if (!scope || !formal.type) {
+			cerr << formal.get_fileline() << ": sorry: randsequence input "
+			     << "formal storage is not available for this production."
+			     << endl;
+			error_count += 1; ctx.bad = true; break;
+		  }
+		  perm_string local_name = formal.name;
+		  if (!local_prefix.nil()) {
+			char buffer[128];
+			snprintf(buffer, sizeof buffer, "%s_%s",
+				 local_prefix.str(), formal.name.str());
+			local_name = lex_strings.make(buffer);
+		  }
+		  PWire*wire = new PWire(local_name, 0, NetNet::REG,
+					 NetNet::NOT_A_PORT, SR_NET);
+		  wire->set_line(formal);
+		  wire->lifetime_override(IVL_VLT_AUTOMATIC);
+		  wire->set_data_type(new type_reference_t(formal.type));
+		  scope->wires[local_name] = wire;
+		  scope->local_symbols[local_name] = wire;
+		  PExpr*lhs = new PEIdent(local_name, 0, true);
+		  PAssign*init = new PAssign(lhs, values[idx]);
+		  init->set_line(formal);
+		  initializers.push_back(init);
+		  values[idx] = nullptr;
+		  bound[formal.name] = new PEIdent(local_name, 0, true);
+	    } else {
+		  bound[formal.name] = values[idx];
+		  values[idx] = nullptr;
+	    }
       }
       for (PExpr*value : values) delete value;
       if (ctx.bad) pform_rs_delete_subst_(bound);
@@ -8124,7 +8150,8 @@ static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
 static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 				       Statement*stmt,
 				       const std::map<perm_string,PExpr*>*subst,
-				       unsigned loop_depth)
+				       unsigned loop_depth,
+				       perm_string return_target)
 {
       if (!stmt || !pform_rs_budget_(ctx)) return nullptr;
 
@@ -8139,7 +8166,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    std::vector<Statement*> children;
 	    for (Statement*child : block->statements()) {
 		  Statement*copy = pform_rs_clone_stmt_(ctx, child, subst,
-						 loop_depth);
+							 loop_depth, return_target);
 		  if (copy) children.push_back(copy);
 	    }
 	    return pform_rs_block_(*stmt, children,
@@ -8167,9 +8194,10 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
       if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
 	    PExpr*expr = sva_clone_subst_(cond->cond_expr(), subst);
 	    Statement*yes = pform_rs_clone_stmt_(ctx, cond->if_clause(), subst,
-						 loop_depth);
+						 loop_depth, return_target);
 	    Statement*no = cond->else_clause()
-		? pform_rs_clone_stmt_(ctx, cond->else_clause(), subst, loop_depth)
+		? pform_rs_clone_stmt_(ctx, cond->else_clause(), subst, loop_depth,
+				       return_target)
 		: nullptr;
 	    if (!expr) { delete yes; delete no; goto unsupported; }
 	    sva_mark_strict_(expr);
@@ -8182,7 +8210,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
       if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
 	    PExpr*count = sva_clone_subst_(repeat->count_expr(), subst);
 	    Statement*body = pform_rs_clone_stmt_(ctx, repeat->body(), subst,
-						   loop_depth + 1);
+						   loop_depth + 1, return_target);
 	    if (!count || !body) { delete count; delete body; goto unsupported; }
 	    sva_mark_strict_(count);
 	    PRepeat*copy = new PRepeat(count, body);
@@ -8253,9 +8281,18 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
       }
       if (PReturn*ret = dynamic_cast<PReturn*>(stmt)) {
 	    if (ret->expr()) {
-		  cerr << ret->get_fileline() << ": sorry: value-returning "
-		       << "randsequence productions are not supported yet." << endl;
-		  error_count += 1; ctx.bad = true; return nullptr;
+		  if (return_target.nil()) goto unsupported;
+		  PExpr*rhs = sva_clone_subst_(ret->expr(), subst);
+		  if (!rhs) goto unsupported;
+		  PAssign*assign = new PAssign(
+		  new PEIdent(return_target, UINT_MAX), rhs);
+		  assign->set_line(*ret);
+		  PBreak*done = new PBreak(IVL_FLOW_RANDSEQ_RETURN);
+		  done->set_line(*ret);
+		  std::vector<Statement*> stmts;
+		  stmts.push_back(assign);
+		  stmts.push_back(done);
+		  return pform_rs_block_(*ret, stmts);
 	    }
 	    PBreak*copy = new PBreak(IVL_FLOW_RANDSEQ_RETURN);
 	    copy->set_line(*stmt);
@@ -8281,7 +8318,8 @@ static Statement* pform_rs_expand_production_(
 
 static Statement* pform_rs_expand_item_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
-      const std::map<perm_string,PExpr*>*subst);
+	  std::map<perm_string,PExpr*>*subst,
+	  perm_string return_target);
 
 struct pform_rs_join_lane_t {
       const rs_production_t*production = nullptr;
@@ -8374,12 +8412,26 @@ static Statement* pform_rs_expand_join_(
       if (!pform_rs_join_probability_(ctx, item.expr, outer,
 				      stay_probability)) return nullptr;
 
-      std::vector<pform_rs_join_lane_t> lanes;
       if (!item.join_items || item.join_items->size() < 2) {
 	    cerr << ctx.loc << ": error: randsequence rand join requires at "
 		 << "least two productions." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
+
+      std::vector<pform_rs_join_lane_t> lanes;
+      bool has_input_formals = false;
+      for (const rs_item_t&call : *item.join_items) {
+	    std::map<perm_string,rs_production_t*>::const_iterator found =
+		  ctx.pmap.find(call.name);
+	    if (found != ctx.pmap.end() && found->second->formals)
+		  for (const rs_formal_t&formal : *found->second->formals)
+			if (formal.direction == NetNet::PINPUT)
+			      has_input_formals = true;
+      }
+      PBlock*join_scope = has_input_formals ? pform_rs_scope_(ctx) : nullptr;
+      std::vector<Statement*> initializers;
+      LexicalScope*saved_parent = ctx.lexical_parent;
+      if (join_scope) ctx.lexical_parent = join_scope;
       for (const rs_item_t&call : *item.join_items) {
 	    std::map<perm_string,rs_production_t*>::iterator found =
 		  ctx.pmap.find(call.name);
@@ -8405,10 +8457,15 @@ static Statement* pform_rs_expand_join_(
 	    pform_rs_join_lane_t lane;
 	    lane.production = prod;
 	    lane.rule = &rule;
+	    char prefix[48];
+	    snprintf(prefix, sizeof prefix, "$lane_%lu",
+		     (unsigned long)lanes.size());
 	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
-					  lane.subst)) break;
+					  lane.subst, join_scope, initializers,
+					  lex_strings.make(prefix))) break;
 	    lanes.push_back(lane);
       }
+      ctx.lexical_parent = saved_parent;
       if (ctx.bad) {
 	    for (pform_rs_join_lane_t&lane : lanes)
 		  pform_rs_delete_subst_(lane.subst);
@@ -8417,9 +8474,11 @@ static Statement* pform_rs_expand_join_(
 
       std::vector<size_t> positions(lanes.size(), 0), order;
       std::vector<pform_rs_join_schedule_t> schedules;
+      if (join_scope) ctx.lexical_parent = join_scope;
       pform_rs_join_schedules_(ctx, lanes, positions, -1,
 				      stay_probability, 1.0, order, schedules);
       if (ctx.bad) {
+	    ctx.lexical_parent = saved_parent;
 	    for (pform_rs_join_lane_t&lane : lanes)
 		  pform_rs_delete_subst_(lane.subst);
 	    return nullptr;
@@ -8430,10 +8489,10 @@ static Statement* pform_rs_expand_join_(
 	    std::vector<size_t> used(lanes.size(), 0);
 	    std::vector<Statement*> statements;
 	    for (size_t lane_index : schedule.lanes) {
-		  const pform_rs_join_lane_t&lane = lanes[lane_index];
+		  pform_rs_join_lane_t&lane = lanes[lane_index];
 		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
 		  Statement*expanded = pform_rs_expand_item_(ctx, part,
-							     &lane.subst);
+							     &lane.subst, perm_string());
 		  if (expanded) statements.push_back(expanded);
 	    }
 	    PCase::Item*branch = new PCase::Item;
@@ -8452,31 +8511,54 @@ static Statement* pform_rs_expand_join_(
 	    (*branches)[0]->stat = nullptr;
 	    delete (*branches)[0];
 	    delete branches;
-	    return only;
+	    if (join_scope) {
+		  initializers.push_back(only);
+		  join_scope->set_statement(initializers);
+	    }
+	    ctx.lexical_parent = saved_parent;
+	    return join_scope ? static_cast<Statement*>(join_scope) : only;
       }
       PRandCase*choice = new PRandCase(branches);
       choice->set_line(item);
-      return choice;
+      if (join_scope) {
+	    std::vector<Statement*> body = initializers;
+	    body.push_back(choice);
+	    join_scope->set_statement(body);
+      }
+      ctx.lexical_parent = saved_parent;
+      return join_scope ? static_cast<Statement*>(join_scope) : choice;
 }
 
 static Statement* pform_rs_expand_item_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
-      const std::map<perm_string,PExpr*>*subst)
+      std::map<perm_string,PExpr*>*subst, perm_string return_target)
 {
       switch (item.kind) {
-      case rs_item_t::CALL:
-	    return pform_rs_expand_production_(ctx, item.name, item.actuals, subst);
+      case rs_item_t::CALL: {
+	    Statement*expanded = pform_rs_expand_production_(
+		  ctx, item.name, item.actuals, subst);
+	    std::map<perm_string,rs_production_t*>::iterator found =
+		  ctx.pmap.find(item.name);
+	    if (found != ctx.pmap.end() && found->second->return_type) {
+		  perm_string name = pform_rs_return_var_(ctx, *found->second);
+		  std::map<perm_string,PExpr*>::iterator old = subst->find(item.name);
+		  if (old != subst->end()) delete old->second;
+		  (*subst)[item.name] = new PEIdent(name, UINT_MAX);
+	    }
+	    return expanded;
+	  }
       case rs_item_t::CODE: {
-	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst, 0);
+	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst, 0,
+							 return_target);
 	    pform_rs_mark_conditions_strict_(copy);
 	    return copy;
       }
       case rs_item_t::IF_ELSE: {
 	    PExpr*condition = sva_clone_subst_(item.expr, subst);
 	    Statement*yes = item.first
-		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.first, subst, return_target) : nullptr;
 	    Statement*no = item.second
-		? pform_rs_expand_item_(ctx, *item.second, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.second, subst, return_target) : nullptr;
 	    if (!condition) {
 		  cerr << item.get_fileline() << ": sorry: cannot clone this "
 		       << "randsequence if condition." << endl;
@@ -8492,7 +8574,7 @@ static Statement* pform_rs_expand_item_(
       case rs_item_t::REPEAT: {
 	    PExpr*count = sva_clone_subst_(item.expr, subst);
 	    Statement*body = item.first
-		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+		? pform_rs_expand_item_(ctx, *item.first, subst, return_target) : nullptr;
 	    if (!count || !body) {
 		  cerr << item.get_fileline() << ": sorry: cannot lower this "
 		       << "randsequence repeat production." << endl;
@@ -8521,7 +8603,8 @@ static Statement* pform_rs_expand_item_(
 			      else target->expr.push_back(copy);
 			}
 		  target->stat = source.item
-			? pform_rs_expand_item_(ctx, *source.item, subst) : nullptr;
+			? pform_rs_expand_item_(ctx, *source.item, subst,
+						return_target) : nullptr;
 		  items->push_back(target);
 	    }
 	    PCase*result = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ,
@@ -8538,13 +8621,18 @@ static Statement* pform_rs_expand_item_(
 static Statement* pform_rs_expand_rule_(
       pform_rs_expand_ctx_t&ctx, const rs_rule_t&rule,
       const std::map<perm_string,PExpr*>*subst,
-      const struct vlltype&where)
+      const struct vlltype&where, perm_string return_target)
 {
+      std::map<perm_string,PExpr*> local_subst;
+      if (subst) for (const auto&entry : *subst)
+	    local_subst[entry.first] = sva_clone_subst_(entry.second, nullptr);
       std::vector<Statement*> statements;
       if (rule.items) for (const rs_item_t&item : *rule.items) {
-	    Statement*expanded = pform_rs_expand_item_(ctx, item, subst);
+	    Statement*expanded = pform_rs_expand_item_(ctx, item, &local_subst,
+							 return_target);
 	    if (expanded) statements.push_back(expanded);
       }
+      pform_rs_delete_subst_(local_subst);
       return pform_rs_block_(where, statements);
 }
 
@@ -8566,23 +8654,31 @@ static Statement* pform_rs_expand_production_(
 		 << name << "' is not supported." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
       }
-      if (prod.return_type) {
-	    cerr << ctx.loc << ": sorry: value-returning randsequence production `"
-		 << name << "' is not supported yet." << endl;
-	    error_count += 1; ctx.bad = true; return nullptr;
-      }
+      perm_string return_target = prod.return_type
+	    ? pform_rs_return_var_(ctx, prod) : perm_string();
+
+      bool has_input_formals = false;
+      if (prod.formals) for (const rs_formal_t&formal : *prod.formals)
+	    if (formal.direction == NetNet::PINPUT) has_input_formals = true;
+      PBlock*scope = has_input_formals ? pform_rs_scope_(ctx) : nullptr;
+      if (scope) scope->randsequence_block(IVL_RANDSEQ_BLOCK_PRODUCTION);
 
       std::map<perm_string,PExpr*> subst;
-      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst))
+      std::vector<Statement*> initializers;
+      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst,
+				      scope, initializers))
 	    return nullptr;
       ctx.active.insert(name);
 
       Statement*body = nullptr;
+      LexicalScope*saved_parent = ctx.lexical_parent;
+      if (scope) ctx.lexical_parent = scope;
       if (!prod.rules || prod.rules->empty()) {
 	    std::vector<Statement*> empty;
 	    body = pform_rs_block_(ctx.loc, empty);
 	  } else if (prod.rules->size() == 1 && !(*prod.rules)[0].weight) {
-	    body = pform_rs_expand_rule_(ctx, (*prod.rules)[0], &subst, ctx.loc);
+	    body = pform_rs_expand_rule_(ctx, (*prod.rules)[0], &subst, ctx.loc,
+					 return_target);
 	  } else {
 	    std::vector<PCase::Item*>*alternatives =
 		  new std::vector<PCase::Item*>;
@@ -8597,19 +8693,26 @@ static Statement* pform_rs_expand_production_(
 			error_count += 1; ctx.bad = true;
 		  } else alternative->expr.push_back(weight);
 		  alternative->stat = pform_rs_expand_rule_(ctx, rule, &subst,
-							ctx.loc);
+							ctx.loc, return_target);
 		  alternatives->push_back(alternative);
 	    }
 	    PRandCase*choice = new PRandCase(alternatives);
 	    FILE_NAME(choice, ctx.loc);
 	    body = choice;
       }
+      ctx.lexical_parent = saved_parent;
       ctx.active.erase(name);
       pform_rs_delete_subst_(subst);
 
+      if (scope) {
+	    if (body) initializers.push_back(body);
+	    scope->set_statement(initializers);
+	    body = scope;
+      }
       std::vector<Statement*> one;
       if (body) one.push_back(body);
-      return pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
+      return scope ? pform_rs_block_(ctx.loc, one)
+	    : pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
 }
 
 static void pform_rs_destroy_item_(rs_item_t&item)
@@ -8688,7 +8791,7 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       }
 
       perm_string start_name = start.nil() ? prods->front().name : start;
-      pform_rs_expand_ctx_t ctx(loc, pmap);
+      pform_rs_expand_ctx_t ctx(loc, pmap, lexical_scope);
       ctx.bad = duplicate;
       if (!ctx.bad) {
 	    Statement*body = pform_rs_expand_production_(ctx, start_name,
@@ -8972,7 +9075,8 @@ static std::vector<sva_seq_step_t>* sva_clone_steps_subst_(
 static PEventStatement* sva_clone_event_control_(
 					 const PEventStatement*src,
 					 const struct vlltype&loc,
-					 const std::map<perm_string,PExpr*>*subst);
+					 const std::map<perm_string,PExpr*>*subst = nullptr,
+					 const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
 
 Statement* pform_sva_sequence_event(const struct vlltype&loc,
 					    PEventStatement*ctl)
@@ -10201,6 +10305,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    PExpr*base = sva_clone_subst_(cast->cast_base(), subst);
 	    if (!base) return nullptr;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -11603,6 +11708,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 					   unsampled_locals);
 	    if (!base) return nullptr;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -11841,7 +11947,10 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 				      perm_string nm,
 				      const std::vector<sva_property_formal_t>&formals,
 				      const std::vector<named_pexpr_t>&parms,
+				      const PEventStatement*inferred_clock,
+				      PExpr*inferred_disable,
 				      std::map<perm_string,PExpr*>&subst,
+				      std::map<perm_string,const PEventStatement*>&event_subst,
 				      std::vector<PExpr*>&owned,
 				      std::vector<sva_seq_step_t>&initializers,
 				      std::map<perm_string,perm_string>&local_carriers,
@@ -11892,6 +12001,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 			value = sva_clone_subst_(actuals[k]->parm, nullptr);
 			if (value) {
 			      PECastType*cast = new PECastType(formal.type, value);
+			      cast->set_property_formal_actual();
 			      FILE_NAME(cast, loc);
 			      value = cast;
 			}
@@ -11899,9 +12009,42 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 			value = actuals[k]->parm;
 		  }
 	    } else if (formal.default_expr) {
-		  value = sva_clone_subst_(formal.default_expr, nullptr);
+		  PECallFunction*inferred =
+			 dynamic_cast<PECallFunction*>(formal.default_expr);
+		  bool inferred_clock_default = inferred
+			 && !inferred->path().package
+			 && inferred->path().name.size() == 1
+			 && inferred->path().name.front().name
+			      == perm_string::literal("$inferred_clock");
+		  bool inferred_disable_default = inferred
+			 && !inferred->path().package
+			 && inferred->path().name.size() == 1
+			 && inferred->path().name.front().name
+			      == perm_string::literal("$inferred_disable");
+		  if (inferred_clock_default) {
+			if (formal.formal_type != sva_property_formal_t::EVENT
+			    && formal.formal_type != sva_property_formal_t::UNTYPED) {
+			      cerr << loc << ": error: $inferred_clock requires an event or untyped property formal (IEEE 1800-2017/2023 16.14.7)." << endl;
+			      error_count += 1;
+			      return false;
+			}
+			if (!inferred_clock) {
+			      cerr << loc << ": error: $inferred_clock has no current resolved event expression (IEEE 1800-2017/2023 16.14.7)." << endl;
+			      error_count += 1;
+			      return false;
+			}
+			event_subst[formal.name] = inferred_clock;
+			continue;
+		  } else if (inferred_disable_default) {
+			value = inferred_disable
+			      ? sva_clone_subst_(inferred_disable, nullptr)
+			      : sva_bit_(loc, 0);
+		  } else {
+			value = sva_clone_subst_(formal.default_expr, nullptr);
+		  }
 		  if (value && formal.type) {
 			PECastType*cast = new PECastType(formal.type, value);
+			cast->set_property_formal_actual();
 			FILE_NAME(cast, loc);
 			value = cast;
 		  }
@@ -14898,6 +15041,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 					     cur_live, reactive_past_offset);
 	    if (base == cast->cast_base()) return e;
 	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->copy_property_formal_actual(*cast);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -18272,7 +18416,8 @@ static sva_stree_t* sva_prop_take_tree_(sva_property_t*p);
 static PEventStatement* sva_clone_event_control_(
 				 const PEventStatement*src,
 				 const struct vlltype&loc,
-				 const std::map<perm_string,PExpr*>*subst = nullptr);
+					 const std::map<perm_string,PExpr*>*subst,
+					 const std::map<perm_string,const PEventStatement*>*event_subst);
 
 static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
 {
@@ -26714,7 +26859,8 @@ class sva_assertion_label_scope_t {
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 						 const struct vlltype&loc,
-			 const std::map<perm_string,PExpr*>*subst)
+				 const std::map<perm_string,PExpr*>*subst,
+				 const std::map<perm_string,const PEventStatement*>*event_subst)
 {
       if (!src) return nullptr;
       const std::vector<PEEvent*>&evs = src->event_expressions();
@@ -26725,6 +26871,37 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
       std::vector<PEEvent*> copy;
       for (size_t idx = 0 ; idx < evs.size() ; idx += 1) {
 	    if (!evs[idx]) continue;
+	    /* `@(event_formal)' adopts the inferred clock event expression,
+	       including each edge and iff condition, instead of treating the
+	       event formal as a signal. */
+	    const PEIdent*event_id = dynamic_cast<const PEIdent*>(evs[idx]->expr());
+	    const PEventStatement*event_control = nullptr;
+	    if (event_subst && event_id && !event_id->path().package
+		&& event_id->path().name.size() == 1
+		&& event_id->path().name.front().index.empty()) {
+		  std::map<perm_string,const PEventStatement*>::const_iterator found =
+			 event_subst->find(event_id->path().name.front().name);
+		  if (found != event_subst->end()) event_control = found->second;
+	    }
+	    if (event_control) {
+		  const std::vector<PEEvent*>&inferred_events =
+			 event_control->event_expressions();
+		  for (const PEEvent*inferred : inferred_events) {
+			if (!inferred) continue;
+			PExpr*expr = sva_clone_subst_(inferred->expr(), nullptr);
+			PExpr*condition = inferred->condition()
+			      ? sva_clone_subst_(inferred->condition(), nullptr) : nullptr;
+			if (!expr || (inferred->condition() && !condition)) {
+			      delete expr; delete condition;
+			      for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+			      return nullptr;
+			}
+			PEEvent*event = new PEEvent(inferred->type(), expr, condition);
+			FILE_NAME(event, loc);
+			copy.push_back(event);
+		  }
+		  continue;
+	    }
 	    PExpr*sub = sva_clone_subst_(evs[idx]->expr(), subst);
 	    if (!sub) {
 		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
@@ -29483,8 +29660,29 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  caller_locals.push_back(local);
 			      std::vector<perm_string> actual_local_reads =
 				    prop->local_input_actual_names;
+			      std::map<perm_string,const PEventStatement*> event_subst;
+			      PEventStatement*inferred_clock = prop->clk_evt;
+			      bool owns_inferred_clock = false;
+			      if (!inferred_clock) {
+				    Module*mod = pform_cur_module.empty() ? nullptr
+					  : pform_cur_module.front();
+				    if (mod && !mod->default_clocking.nil()) {
+					  std::list<named_pexpr_t> no_parms;
+					  PECallFunction*mark = new PECallFunction(
+						perm_string::literal("$ivl_default_clock"), no_parms);
+					  FILE_NAME(mark, loc);
+					  PEEvent*event = new PEEvent(PEEvent::ANYEDGE, mark);
+					  std::vector<PEEvent*> events;
+					  events.push_back(event);
+					  inferred_clock = new PEventStatement(events);
+					  FILE_NAME(inferred_clock, loc);
+					  owns_inferred_clock = true;
+				    }
+			      }
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
-				    pit->second.formals, cf->get_parms(), subst,
+				    pit->second.formals, cf->get_parms(), inferred_clock,
+				    sva_default_disable, subst,
+				    event_subst,
 				    owned_subst, *formal_initializers, local_carriers,
 				    caller_locals, actual_local_reads))
 				    fatal = true;
@@ -29527,13 +29725,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						ok = false;
 					  } else {
 						inst->clk_evt = sva_clone_event_control_(
-						      decl->clk_evt, loc, &subst);
+						      decl->clk_evt, loc, &subst,
+						      &event_subst);
 						if (!inst->clk_evt) ok = false;
 					  }
 				    }
 				    if (ok && decl->seq_clk_evt) {
 					  inst->seq_clk_evt = sva_clone_event_control_(
-						decl->seq_clk_evt, loc, &subst);
+						decl->seq_clk_evt, loc, &subst,
+						&event_subst);
 					  if (!inst->seq_clk_evt) ok = false;
 				    }
 				    if (ok && decl->disable_iff_expr) {
@@ -29584,6 +29784,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  fatal = true;
 				    }
 			      }
+			      if (owns_inferred_clock) delete inferred_clock;
 			      pform_sva_destroy_sequence(formal_initializers);
 			      formal_initializers = nullptr;
 			      for (PExpr*value : owned_subst) delete value;

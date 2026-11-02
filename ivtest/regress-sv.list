@@ -11,6 +11,8 @@ issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range
 
 issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
 issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
+issue2206_inferred_defaults_2017 normal,-g2017,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
+issue2206_inferred_defaults_2023 normal,-g2023,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
 issue801_assoc_struct_p normal,-g2017,-s,issue801_assoc_struct_p ivltests gold=issue801_assoc_struct_p.gold
 
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
@@ -53,6 +55,8 @@ issue1556_checker_initial_assignment_2017 CE,-g2017 ivltests gold=issue1556_chec
 issue1556_checker_initial_assignment_2023 CE,-g2023 ivltests gold=issue1556_checker_initial_assignment_2023.gold
 issue1462_step_global_precision_2017 normal,-g2017,-s,tb ivltests gold=issue1462_step_global_precision_2017.gold
 issue1462_step_global_precision_2023 normal,-g2023,-s,tb ivltests gold=issue1462_step_global_precision_2023.gold
+issue926_printtimescale_2017 normal,-g2017,-Iivltests ivltests gold=issue926_printtimescale_2017.gold
+issue926_printtimescale_2023 normal,-g2023,-Iivltests ivltests gold=issue926_printtimescale_2023.gold
 issue1516_escaped_hash_2017 normal,-g2017,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1516_escaped_hash_2023 normal,-g2023,-s,issue1516_escaped_hash ivltests gold=issue1516_escaped_hash.gold
 issue1535_negative_clocking_skew_2017 CE,-g2017,-s,issue1535_negative_clocking_skew ivltests
@@ -1532,9 +1536,9 @@ sv_disable_soft normal,-g2012 ivltests
 sv_randsequence normal,-g2012 ivltests gold=sv_randsequence.gold
 sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control_flow.gold
 sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
-sv_randsequence_nonconstant_actual_fail CE,-g2012 ivltests gold=sv_randsequence_nonconstant_actual_fail.gold
+sv_randsequence_nonconstant_actual_fail normal,-g2012,-s,sv_randsequence_nonconstant_actual_fail ivltests gold=issue1174_randsequence_runtime_input-vvp-stdout.gold
 sv_randsequence_join_nested_lanes normal,-g2012 ivltests gold=sv_randsequence_join_nested_lanes.gold
-sv_randsequence_value_return_fail CE,-g2012 ivltests gold=sv_randsequence_value_return_fail.gold
+sv_randsequence_value_return_fail normal,-g2012 ivltests gold=sv_randsequence_value_return_fail-vvp-stdout.gold
 sv_randsequence_output_formal_2017 normal,-g2017 ivltests gold=sv_randsequence_output_formal-vvp-stdout.gold
 sv_randsequence_output_formal_2023 normal,-g2023 ivltests gold=sv_randsequence_output_formal-vvp-stdout.gold
 sv_param_spec_audit normal,-g2012 ivltests
@@ -2755,6 +2759,12 @@ sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_c
 sv_package_param_interface_relations normal,-g2012 ivltests gold=sv_package_param_interface_relations.gold
 
 # IEEE 1800-2017 6.6.7 user-defined nettypes and 6.6.8 interconnect
+issue435_class_resolver_2017 normal,-g2017,-s,issue435_class_resolver ivltests gold=issue435_class_resolver.gold
+issue435_class_resolver_2023 normal,-g2023,-s,issue435_class_resolver ivltests gold=issue435_class_resolver.gold
+issue435_class_resolver_nonstatic_2017 CE,-g2017 ivltests gold=issue435_class_resolver_nonstatic_2017.gold
+issue435_class_resolver_nonstatic_2023 CE,-g2023 ivltests gold=issue435_class_resolver_nonstatic_2023.gold
+issue435_class_resolver_boundary_2017 normal,-g2017,-s,issue435_class_resolver_boundary ivltests gold=issue435_class_resolver_boundary.gold
+issue435_class_resolver_boundary_2023 normal,-g2023,-s,issue435_class_resolver_boundary ivltests gold=issue435_class_resolver_boundary.gold
 sv_nettype_corpus_decl CN,-g2012 ivltests
 sv_nettype_corpus_resolution_fn CN,-g2012 ivltests
 sv_interconnect_corpus CN,-g2012 ivltests
@@ -6450,3 +6460,7 @@ issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fix
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold
 issue2120_class_handle_collections normal,-g2017,-s,main ivltests gold=issue2120_class_handle_collections.gold
 issue2120_class_handle_collections_2023 normal,-g2023,-s,main ivltests gold=issue2120_class_handle_collections.gold
+issue2178_delay_overflow_2017 normal,-g2017,-s,issue2178_delay_overflow_2017 ivltests gold=issue2178_delay_overflow_2017.gold
+issue2178_delay_overflow_2023 normal,-g2023,-s,issue2178_delay_overflow_2023 ivltests gold=issue2178_delay_overflow_2023.gold
+
+sv_randsequence_value_return normal,-g2017 ivltests gold=sv_randsequence_value_return-vvp-stdout.gold

@@ -1852,6 +1852,14 @@ void schedule_simulate(void)
 	    if (ctim->delay > 0) {
 
 		  if (!schedule_runnable) break;
+		  // Simulation time is a 64-bit unsigned value.  An event
+		  // beyond its maximum cannot be represented; advancing by
+		  // its relative delay must not wrap the simulation into the
+		  // past.  Equality is allowed so an event at UINT64_MAX runs.
+		  if (ctim->delay > static_cast<vvp_time64_t>(-1) - schedule_time) {
+			schedule_runnable = false;
+			break;
+		  }
 		  schedule_time += ctim->delay;
 		  if (time_trace_step_ns > 0
 		      && schedule_time >= last_trace_time + time_trace_step_ns * 1000) {

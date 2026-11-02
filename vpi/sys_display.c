@@ -1309,26 +1309,13 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
       case vpiIntVar:
       case vpiLongIntVar:
       case vpiIntegerVar:
+      case vpiTimeVar:
       case vpiMemoryWord:
       case vpiPartSelect:
         width = get_numeric(&result, info, item);
         rtn = realloc(rtn, (size+width)*sizeof(char));
         memcpy(rtn+size-1, result, width);
         free(result);
-        break;
-
-      /* It appears that this is not currently used! A time variable is
-         passed as an integer and processed above. Hence this code has
-         only been visually checked. */
-      case vpiTimeVar:
-        value.format = vpiDecStrVal;
-        vpi_get_value(item, &value);
-        get_time(buf, value.value.str, timeformat_info.prec,
-                 vpi_get(vpiTimeUnit, info->scope));
-        width = strlen(buf);
-        if (width  < timeformat_info.width) width = timeformat_info.width;
-        rtn = realloc(rtn, (size+width)*sizeof(char));
-        sprintf(rtn+size-1, "%*s", width, buf);
         break;
 
       /* Realtime variables are also processed here. */
@@ -2404,6 +2391,7 @@ static PLI_INT32 sys_printtimescale_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 //		case vpiRegBit: // Unused and unavailable in Icarus
 		case vpiTask:
 		case vpiTimeVar: // Unused in Icarus
+		case vpiPackage:
 		  break;
 
 		default:
@@ -2428,7 +2416,12 @@ static PLI_INT32 sys_printtimescale_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
       vpiHandle item, scope;
 
-      (void)name; /* Parameter is not used. */
+      if (strcmp(name, "$root") == 0) {
+	    int precision = vpi_get(vpiTimePrecision, 0);
+	    vpi_printf("Time scale of ($root) is %s / %s\n",
+		       pts_convert(precision), pts_convert(precision));
+	    return 0;
+      }
 
       if (!argv) {
             item = sys_func_module(callh);
@@ -2438,7 +2431,9 @@ static PLI_INT32 sys_printtimescale_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
       scope = sys_func_module(item);
 
-      vpi_printf("Time scale of (%s) is ", vpi_get_str(vpiFullName, item));
+      const char*item_name = strcmp(name, "$unit") == 0
+	    ? "$unit" : vpi_get_str(vpiFullName, item);
+      vpi_printf("Time scale of (%s) is ", item_name);
       vpi_printf("%s / ", pts_convert(vpi_get(vpiTimeUnit, scope)));
       vpi_printf("%s\n", pts_convert(vpi_get(vpiTimePrecision, scope)));
 
@@ -3015,6 +3010,20 @@ void sys_display_register(void)
       tf_data.compiletf = sys_printtimescale_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$printtimescale";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+	  /* $root has no design-scope handle. The parser lowers only the
+	     $printtimescale($root) task form to this private alias. */
+      tf_data.tfname    = "$ivl_printtimescale_root";
+      tf_data.user_data = "$root";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+	  /* The compilation-unit package's VPI full name has a trailing ::;
+	     print the standard-mandated $unit label for this explicit form. */
+      tf_data.tfname    = "$ivl_printtimescale_unit";
+      tf_data.user_data = "$unit";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 

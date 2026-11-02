@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue435_class_resolver_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue435_class_resolver"
+}
