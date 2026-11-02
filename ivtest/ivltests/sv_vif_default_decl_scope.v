@@ -22,6 +22,9 @@ interface vif_default_leaf_if;
   import vif_default_decl_pkg::*;
 
   localparam int LOCAL_STEP = 10;
+  // Same-named declaration-scope state supplies b's default; the a formal
+  // must not shadow this value while evaluating b = a + 1.
+  int a = 0;
   logic [31:0] local_seed = 0;
   int task_a = 0;
   int task_b = 0;
@@ -101,6 +104,10 @@ module sv_vif_default_decl_scope;
     direct1.direct_i.local_seed = 20;
     outer0.nested.local_seed = 30;
     outer1.nested.local_seed = 40;
+    direct0.direct_i.a = 100;
+    direct1.direct_i.a = 200;
+    outer0.nested.a = 400;
+    outer1.nested.a = 300;
 
     runner.direct_vif = direct0.direct_i;
     runner.run_direct();
@@ -112,21 +119,21 @@ module sv_vif_default_decl_scope;
     runner.outer_vif = outer1;
     runner.run_nested();
 
-    if (direct0.direct_i.task_a != 11 || direct0.direct_i.task_b != 12
+    if (direct0.direct_i.task_a != 11 || direct0.direct_i.task_b != 101
         || direct0.direct_i.task_mode !== 2
         || direct0.direct_i.task_stamp != 1
-        || direct0.direct_i.func_a != 11 || direct0.direct_i.func_b != 12
+        || direct0.direct_i.func_a != 11 || direct0.direct_i.func_b != 101
         || direct0.direct_i.func_mode !== 2
         || direct0.direct_i.func_stamp != 2
-        || direct1.direct_i.task_a != 30 || direct1.direct_i.task_b != 31
+        || direct1.direct_i.task_a != 30 || direct1.direct_i.task_b != 201
         || direct1.direct_i.task_mode !== 2
         || direct1.direct_i.task_stamp != 3
-        || direct1.direct_i.func_a != 30 || direct1.direct_i.func_b != 31
+        || direct1.direct_i.func_a != 30 || direct1.direct_i.func_b != 201
         || direct1.direct_i.func_mode !== 2
         || direct1.direct_i.func_stamp != 4
-        || outer1.nested.task_a != 50 || outer1.nested.task_b != 51
+        || outer1.nested.task_a != 50 || outer1.nested.task_b != 301
         || outer1.nested.task_mode !== 2 || outer1.nested.task_stamp != 5
-        || outer1.nested.func_a != 50 || outer1.nested.func_b != 51
+        || outer1.nested.func_a != 50 || outer1.nested.func_b != 301
         || outer1.nested.func_mode !== 2 || outer1.nested.func_stamp != 6
         || outer0.nested.task_a != 0 || outer0.nested.task_b != 0
         || outer0.nested.func_a != 0 || outer0.nested.func_b != 0

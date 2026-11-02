@@ -19,6 +19,7 @@ typedef int vif_function_dispatch_darray_t[];
 interface vif_function_dispatch_if(input logic pin, input int tag);
   int explicit_calls = 0;
   int static_calls = 0;
+  int first = 0;
   int default_calls = 0;
   int static_default_calls = 0;
   int real_calls = 0;
@@ -45,18 +46,16 @@ interface vif_function_dispatch_if(input logic pin, input int tag);
     return tag * 10 + value;
   endfunction
 
-  // IEEE 1800-2017/2023 13.5.3: an omitted argument may depend on an earlier
-  // formal. The interface member additionally makes the default specific to
-  // the selected concrete instance.
+  // IEEE 1800-2017/2023 13.5.3: the default is evaluated in the interface
+  // declaration scope. The same-named formal must not shadow this member, and
+  // virtual-interface dispatch must select the member on the current instance.
   function automatic int selected_default(
       input int first, input int second = first + tag);
     default_calls += 1;
     return tag * 100 + second;
   endfunction
 
-  // The same default rule applies to a static function. Argument lowering
-  // must expose first while evaluating second, then restore both formals if a
-  // nested call overwrote the shared static storage.
+  // The same declaration-scope lookup applies to a static function.
   function int selected_static_default(
       input int first, input int second = first + tag);
     static_default_calls += 1;
@@ -128,6 +127,8 @@ module sv_vif_function_dispatch;
   endfunction
 
   initial begin
+    p0.first = 3;
+    p1.first = 8;
     vif = p0;
     #1;
     if (vif.sample() !== 1'b0)
@@ -158,14 +159,14 @@ module sv_vif_function_dispatch;
       $fatal(1, "nested static VIF function used the wrong instance");
 
     result = vif.selected_default(5);
-    if (result != 712)
-      $fatal(1, "VIF default missed earlier formal or selected state");
+    if (result != 715)
+      $fatal(1, "VIF default missed declaration-scope or selected state");
     if (p0.default_calls != 0 || p1.default_calls != 1)
       $fatal(1, "automatic VIF default used an unselected instance");
 
     result = vif.selected_static_default(5);
-    if (result != 7012)
-      $fatal(1, "static VIF default missed the current earlier formal");
+    if (result != 7015)
+      $fatal(1, "static VIF default missed declaration-scope state");
     if (p0.static_default_calls != 0 || p1.static_default_calls != 1)
       $fatal(1, "static VIF default used an unselected instance");
 
