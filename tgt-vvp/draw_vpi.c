@@ -1024,7 +1024,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		       with VPI handles of their own. Therefore, skip
 		       them in the process of evaluating expressions. */
 		case IVL_EX_NONE:
-		  args[idx].text = strdup("\" \"");
+		  /* Preserve an omitted argument as a distinct VPI expression. */
+		  args[idx].text = strdup("__ivl_vpi_null_op__");
 		  continue;
 
 		case IVL_EX_ARRAY:

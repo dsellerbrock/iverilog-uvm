@@ -293,6 +293,7 @@ typedef struct t_vpi_delay  {
 #define vpiMemoryWord  30
 #define vpiModPath     31
 #define vpiModule      32
+#define vpiOperation   39 /* behavioral operation */
 #define vpiNamedBegin  33
 #define vpiNamedEvent  34
 #define vpiNamedFork   35
@@ -440,6 +441,7 @@ typedef struct t_vpi_delay  {
 #   define vpiOctConst    4
 #   define vpiHexConst    5
 #   define vpiStringConst 6
+#   define vpiNullConst  11
 #define vpiFuncType  44
 #   define vpiIntFunc     1
 #   define vpiRealFunc    2

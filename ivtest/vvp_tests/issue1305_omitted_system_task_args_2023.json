@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1305_omitted_system_task_args.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1305_omitted_system_task_args"],
+  "vpi-sources": ["vpi/issue1305_omitted_system_task_args.c"],
+  "output-contains": ["PASSED"]
+}

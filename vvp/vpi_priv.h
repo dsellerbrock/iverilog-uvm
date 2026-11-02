@@ -1471,6 +1471,7 @@ class __vpiNullConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_null_const();
+vpiHandle vpip_make_null_op();
 
 /*
  *  This one looks like a constant, but really is a vector in the current

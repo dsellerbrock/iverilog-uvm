@@ -21,6 +21,7 @@
 # include  "compile.h"
 # include  <cstdio>
 # include  <cstdlib>
+# include  <cstring>
 # include  "ivl_alloc.h"
 
 const char*yypath;
@@ -93,7 +94,11 @@ void argv_sym_lookup(struct argv_s*obj)
       if (!obj->syms)
 	    return;
       for (unsigned i=0; i < obj->argc; i++)
-	    if (!obj->argv[i])
-		  compile_vpi_lookup(&obj->argv[i], obj->syms[i]);
+	    if (!obj->argv[i]) {
+		  if (strcmp(obj->syms[i], "__ivl_vpi_null_op__") == 0)
+			obj->argv[i] = vpip_make_null_op();
+		  else
+			compile_vpi_lookup(&obj->argv[i], obj->syms[i]);
+	    }
       free(obj->syms);
 }

@@ -30,6 +30,17 @@
 # include  <cassert>
 # include  "ivl_alloc.h"
 
+class __vpiNullOp : public __vpiHandle {
+    public:
+      int get_type_code(void) const override { return vpiOperation; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiOpType)
+		  return vpiNullOp;
+	    return 0;
+      }
+};
+
 class __vpiStringConst : public __vpiHandle {
     public:
       explicit __vpiStringConst(char*val);
@@ -877,6 +888,11 @@ vpiHandle vpip_make_null_const()
 {
       __vpiNullConst*obj = new __vpiNullConst;
       return obj;
+}
+
+vpiHandle vpip_make_null_op()
+{
+      return new __vpiNullOp;
 }
 
 #ifdef CHECK_WITH_VALGRIND
