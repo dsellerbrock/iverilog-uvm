@@ -1,0 +1,2 @@
+PASS: default covergroup names are nonempty and unique
+./ivltests/issue1466_covergroup_default_name.sv:15: $finish called at 0 (1s)
