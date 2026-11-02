@@ -18616,6 +18616,10 @@ static NetProc* elaborate_implicit_randomization_hook_(
       return discard;
 }
 
+static NetProc* elaborate_covergroup_set_inst_name_(
+		const PCallTask*call, Design*des, NetScope*scope,
+		const netclass_t*covergroup_type, NetExpr*receiver);
+
 /*
  * Elaborate a method-call statement whose target is an arbitrary
  * receiver expression, e.g. f().method(args); or
@@ -18688,6 +18692,11 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
 							class_type->get_name()))
 		  class_type = visible_class;
       }
+
+      if (class_type->is_covergroup()
+	  && method_name == perm_string::literal("set_inst_name"))
+	    return elaborate_covergroup_set_inst_name_(
+		  this, des, scope, class_type, sub_expr);
 
       if (method_name == perm_string::literal("randomize")
 	  && (!with_constraints().empty()
@@ -18782,6 +18791,51 @@ static const data_type_t* task_method_property_declared_type_(
 		  return prop->second.type.get();
       }
       return 0;
+}
+
+static NetProc* elaborate_covergroup_set_inst_name_(
+		const PCallTask*call, Design*des, NetScope*scope,
+		const netclass_t*covergroup_type, NetExpr*receiver)
+{
+      const std::vector<named_pexpr_t>&parms = call->parms();
+      if (parms.size() != 1 || !parms.front().parm) {
+	    cerr << call->get_fileline()
+		 << ": error: Covergroup method set_inst_name expects one string "
+		 << "argument (IEEE 1800-2017/2023 19.8)." << endl;
+	    des->errors += 1;
+	    delete receiver;
+	    return 0;
+      }
+
+      int name_prop = covergroup_type->covgrp_option_prop(
+	    perm_string::literal("name"));
+      if (name_prop < 0) {
+	    cerr << call->get_fileline()
+		 << ": error: Covergroup instance name state is unavailable for "
+		 << "set_inst_name." << endl;
+	    des->errors += 1;
+	    delete receiver;
+	    return 0;
+      }
+
+      NetExpr*name = elab_and_eval(des, scope, parms.front().parm,
+	    &netstring_t::type_string, false);
+      if (!name) {
+	    delete receiver;
+	    return 0;
+      }
+
+      vector<NetExpr*>argv;
+      argv.push_back(receiver);
+      argv.push_back(name);
+      NetEConst*prop_arg = new NetEConst(verinum((uint64_t)name_prop, 32));
+      prop_arg->set_line(*call);
+      argv.push_back(prop_arg);
+      NetSTask*sys = new NetSTask(
+	    "$ivl_class_method$covgrp_set_inst_name",
+	    IVL_SFUNC_AS_TASK_IGNORE, argv);
+      sys->set_line(*call);
+      return sys;
 }
 
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
@@ -19054,6 +19108,18 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
 		  sr.path_tail.pop_front();
 	    }
+      }
+
+	// IEEE 1800-2017/2023 19.8, Table 19-5: set_inst_name(string)
+	// updates the per-instance option.name value. Store through the ordinary
+	// class-property path so the existing runtime string-property machinery
+	// supplies the mutable instance state.
+      const netclass_t*covergroup_type =
+	    dynamic_cast<const netclass_t*>(obj_type);
+      if (covergroup_type && covergroup_type->is_covergroup()
+	  && method_name == perm_string::literal("set_inst_name")) {
+	    return elaborate_covergroup_set_inst_name_(
+		  this, des, scope, covergroup_type, obj_expr);
       }
 
       if (debug_elaborate) {
@@ -45630,6 +45696,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   "__covgrp_group_option_goal");
             group_options.comment_prop = add_unique_cov_property(
                   "__covgrp_group_option_comment", &netstring_t::type_string);
+            group_options.name_prop = add_unique_cov_property(
+                  "__covgrp_group_option_name", &netstring_t::type_string);
             if (cgdef->is_extension) {
                   int inherited_idx = property_idx_from_name(cgdef->name);
                   ivl_assert(*pclass, get_super() && inherited_idx >= 0

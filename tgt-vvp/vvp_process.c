@@ -7623,6 +7623,28 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* set_inst_name(string) stores option.name in its synthesized
+       * per-instance string property. Reuse %store/prop/str so the ordinary
+       * class-property runtime handles the mutation. */
+      if (strcmp(stmt_name,
+		 "$ivl_class_method$covgrp_set_inst_name") == 0) {
+	    unsigned nparms = ivl_stmt_parm_count(net);
+	    ivl_expr_t obj_arg = nparms == 3 ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_t name_arg = nparms == 3 ? ivl_stmt_parm(net, 1) : 0;
+	    ivl_expr_t prop_arg = nparms == 3 ? ivl_stmt_parm(net, 2) : 0;
+	    if (!obj_arg || !name_arg || !prop_arg
+		|| ivl_expr_type(prop_arg) != IVL_EX_NUMBER) {
+		  fprintf(stderr, "internal error: malformed covergroup set_inst_name payload\n");
+		  return -1;
+	    }
+	    draw_eval_object(obj_arg);
+	    draw_eval_string(name_arg);
+	    fprintf(vvp_out, "    %%store/prop/str %lu; set_inst_name option.name\n",
+		    ivl_expr_uvalue(prop_arg));
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; set_inst_name receiver\n");
+	    return 0;
+      }
+
       /* M11: covergroup start()/stop() — per-instance sampling enable. */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
 	  || strcmp(stmt_name, "$ivl_class_method$covgrp_stop") == 0) {

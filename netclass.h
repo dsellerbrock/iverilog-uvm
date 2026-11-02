@@ -652,7 +652,7 @@ class netclass_t : public ivl_type_s {
             NetScope* declaration_scope = nullptr;
             int weight_prop = -1, per_instance_prop = -1;
             int get_inst_coverage_prop = -1;
-            int goal_prop = -1, comment_prop = -1;
+            int goal_prop = -1, comment_prop = -1, name_prop = -1;
       };
       covgrp_options_t& covgrp_options() { return covgrp_options_; }
       const covgrp_options_t& covgrp_options() const { return covgrp_options_; }
@@ -667,6 +667,8 @@ class netclass_t : public ivl_type_s {
                   return covgrp_options_.goal_prop;
             if (name == perm_string::literal("comment"))
                   return covgrp_options_.comment_prop;
+            if (name == perm_string::literal("name"))
+                  return covgrp_options_.name_prop;
             return -1;
       }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
