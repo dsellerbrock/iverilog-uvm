@@ -2158,6 +2158,7 @@ class PEInside : public PExpr {
 
       PExpr* get_expr() const { return expr_; }
       const std::vector<inside_range_t>& get_ranges() const { return ranges_; }
+      void set_case_context_width(unsigned width) { case_context_width_ = width; }
 
       // C7: PEInside doubles as the `dist` lowering target. Preserve the
 	// source operator explicitly: an unweighted dist list is still dist,
@@ -2175,6 +2176,7 @@ class PEInside : public PExpr {
       PExpr* expr_;
       std::vector<inside_range_t> ranges_;
       bool is_dist_;
+      unsigned case_context_width_ = 0;
 };
 
 /*

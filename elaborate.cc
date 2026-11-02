@@ -14563,6 +14563,40 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 	    return res;
       }
 
+	/* case ... inside is lowered to a list of PEInside predicates. The
+	   operands of each predicate still share the case statement's common
+	   width, so compute that width across the selector and every set member
+	   before any predicate is elaborated. */
+      unsigned case_inside_width = 0;
+      for (unsigned idx = 0; idx < items_->size(); idx += 1) {
+	    PCase::Item*cur = (*items_)[idx];
+	    for (PExpr*item : cur->expr) {
+		  PEInside*inside = dynamic_cast<PEInside*>(item);
+		  if (!inside) continue;
+		  PExpr::width_mode_t mode = PExpr::SIZED;
+		  unsigned width = test_case_width(des, scope, inside->get_expr(), mode);
+		  if (width > case_inside_width) case_inside_width = width;
+		  for (const inside_range_t&range : inside->get_ranges()) {
+			if (range.lo) {
+			      width = test_case_width(des, scope, range.lo, mode);
+			      if (width > case_inside_width) case_inside_width = width;
+			}
+			if (range.hi) {
+			      width = test_case_width(des, scope, range.hi, mode);
+			      if (width > case_inside_width) case_inside_width = width;
+			}
+		  }
+	    }
+      }
+      if (case_inside_width) {
+	    for (unsigned idx = 0; idx < items_->size(); idx += 1) {
+		  PCase::Item*cur = (*items_)[idx];
+		  for (PExpr*item : cur->expr)
+			if (PEInside*inside = dynamic_cast<PEInside*>(item))
+			      inside->set_case_context_width(case_inside_width);
+	    }
+      }
+
 	/* The type of the case expression and case item expressions is
 	   determined according to the following rules:
 
