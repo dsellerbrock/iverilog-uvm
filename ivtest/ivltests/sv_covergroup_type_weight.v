@@ -8,7 +8,7 @@ module test;
     cp: coverpoint v { bins b[]={[0:1]}; }
   endgroup
   covergroup zero_weight with function sample(int v);
-    type_option.weight='x;
+    type_option.weight=0;
     cp: coverpoint v { bins b[]={[0:1]}; }
   endgroup
   covergroup empty(int lo,int hi) with function sample(int v);
