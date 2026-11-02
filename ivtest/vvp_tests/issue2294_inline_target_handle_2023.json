@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2294_inline_target_handle_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue2294_inline_target_handle"
+}

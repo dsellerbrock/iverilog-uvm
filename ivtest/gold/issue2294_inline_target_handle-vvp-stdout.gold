@@ -1,0 +1,2 @@
+target name: ok=1 a.h.value=5
+alias:       ok=1 a.h.value=7

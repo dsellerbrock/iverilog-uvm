@@ -38231,7 +38231,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    }
 
-	    if (!target_path && !local_qualified && cls && value_slots) {
+	    if (!local_qualified && cls && value_slots) {
 	  string alias_ir;
 	  if (constraint_inline_alias_field_ir_(id, scope, alias_ir))
 		return alias_ir;
