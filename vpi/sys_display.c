@@ -1400,6 +1400,19 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
         }
         break;
 
+      case vpiOperation:
+        if (vpi_get(vpiOpType, item) == vpiNullOp) {
+          /* An omitted display argument separates adjacent items just as
+           * the placeholder string used before it was exposed through VPI. */
+          result = strdup(" ");
+          width = 1;
+          rtn = realloc(rtn, (size+width)*sizeof(char));
+          memcpy(rtn+size-1, result, width);
+          free(result);
+          break;
+        }
+        /* fall through */
+
       default:
         vpi_printf("WARNING: %s:%d: unknown argument type (%s) given to %s!\n",
                    info->filename, info->lineno, vpi_get_str(vpiType, item),
@@ -1437,6 +1450,17 @@ static int sys_check_args(vpiHandle callh, vpiHandle argv, const PLI_BYTE8*name,
                   vpi_printf("%s argument \"%s\" is an automatic variable.\n",
                              name, vpi_get_str(vpiName, arg));
                   ret = 1;
+	    }
+
+	    if (vpi_get(vpiType, arg) == vpiOperation) {
+		  if (vpi_get(vpiOpType, arg) != vpiNullOp) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+			           (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s does not support argument type (%s).\n", name,
+			           vpi_get_str(vpiType, arg));
+			ret = 1;
+		  }
+		  continue;
 	    }
 
 	    switch (vpi_get(vpiType, arg)) {
