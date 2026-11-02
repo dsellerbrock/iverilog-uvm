@@ -69,6 +69,19 @@ class PTaskFunc : public PScope, public PNamedItem {
       property_qualifier_t method_qualifiers() const { return method_qualifiers_; }
       void set_method_qualifiers(property_qualifier_t q) { method_qualifiers_ = q; }
 
+      bool is_extern_method_declaration() const {
+	    return is_extern_method_declaration_;
+      }
+      void set_extern_method_declaration(bool value) {
+	    is_extern_method_declaration_ = value;
+      }
+      bool has_extern_method_definition() const {
+	    return has_extern_method_definition_;
+      }
+      void set_extern_method_definition(bool value) {
+	    has_extern_method_definition_ = value;
+      }
+
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
 
@@ -144,6 +157,8 @@ class PTaskFunc : public PScope, public PNamedItem {
     private:
       class_type_t*this_type_;
       property_qualifier_t method_qualifiers_ = property_qualifier_t::make_none();
+      bool is_extern_method_declaration_ = false;
+      bool has_extern_method_definition_ = false;
       bool is_virtual_ = false;
       bool is_pure_ = false;
       unsigned method_override_specifiers_ = 0;
