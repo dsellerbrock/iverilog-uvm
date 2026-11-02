@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1204_sample_formal_option_scope_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1204_sample_formal_option_scope"],
+  "output-contains": ["PASSED"]
+}

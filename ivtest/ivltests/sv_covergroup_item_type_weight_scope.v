@@ -1,6 +1,6 @@
 module test;
   localparam int arg=9;
-  localparam int packet=9;
+  localparam logic [4:0] outer_packet=9;
   localparam int outer_weight=3;
   covergroup cg(logic [2:0] arg) with function sample(int x,bit y,logic [4:0] packet);
     type_option.merge_instances=1;
@@ -8,7 +8,7 @@ module test;
     option.get_inst_coverage=1;
     cx: coverpoint x { type_option.weight=$bits(arg); bins b[]={0,1}; }
     cy: coverpoint y { option.weight=0; type_option.weight=0; }
-    xy: cross cx,cy { type_option.weight=$bits(packet); }
+    xy: cross cx,cy { type_option.weight=$bits(outer_packet); }
   endgroup
   covergroup outer_cg with function sample(int x,int y);
     type_option.merge_instances=1;
