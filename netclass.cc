@@ -1036,6 +1036,28 @@ bool netclass_t::test_equivalence(ivl_type_t that) const
       return same_symbolic_family_(this, class_type);
 }
 
+bool netclass_t::test_scope_is_protected_access(const NetScope*scope) const
+{
+      const NetScope*access_scope = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*access_type = access_scope
+	    ? access_scope->class_def() : nullptr;
+      for (; access_type; access_type = access_type->get_super()) {
+	    if (access_type == this)
+		  return true;
+
+	    // A class specialization is still a member of the same class
+	    // declaration for access-control purposes. This also handles a
+	    // specialization in the accessor's extends chain.
+	    const NetScope*decl_scope = class_scope();
+	    const NetScope*base_scope = access_type->class_scope();
+	    if (decl_scope && base_scope && decl_scope->class_pform()
+		&& decl_scope->class_pform() == base_scope->class_pform())
+		  return true;
+      }
+
+      return false;
+}
+
 void netclass_t::set_interface_identity(const Module*definition,
                                         const std::string&parameter_key,
                                         const std::string&layout_parameter_key,
