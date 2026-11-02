@@ -12903,7 +12903,8 @@ static bool assertion_nonstatic_class_property_(const NetEProperty*prop)
 
 /* Return the bit-stream width of a fixed-size data type. Dynamic members
    make the width depend on a value and are deliberately rejected here. */
-static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
+static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width,
+				  bool include_class_properties = false)
 {
       if (!type) return false;
 
@@ -12916,7 +12917,8 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
 
       if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
 	    uint64_t element_width = 0;
-	    if (!fixed_bitstream_width_(array->element_type(), element_width))
+	    if (!fixed_bitstream_width_(array->element_type(), element_width,
+					include_class_properties))
 		  return false;
 	    unsigned long count = netrange_width(array->static_dimensions(), 1);
 	    if (count == 0 || element_width > UINT64_MAX / count) return false;
@@ -12928,7 +12930,8 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
 	    uint64_t total_width = 0;
 	    for (const netstruct_t::member_t&member : record->members()) {
 		  uint64_t member_width = 0;
-		  if (!fixed_bitstream_width_(member.net_type, member_width))
+		  if (!fixed_bitstream_width_(member.net_type, member_width,
+					      include_class_properties))
 			return false;
 		  if (record->union_flag()) {
 			if (member_width > total_width) total_width = member_width;
@@ -12940,6 +12943,28 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
 	    if (total_width == 0) return false;
 	    width = total_width;
 	    return true;
+      }
+
+      if (include_class_properties) {
+	    const netclass_t*class_type =
+		  dynamic_cast<const netclass_t*>(type);
+	    if (class_type) {
+		  uint64_t total_width = 0;
+		  for (size_t idx = 0; idx < class_type->get_properties(); idx += 1) {
+			if (class_type->get_prop_qual(idx).test_static())
+			      continue;
+			uint64_t property_width = 0;
+			if (!fixed_bitstream_width_(class_type->get_prop_type(idx),
+						    property_width,
+						    include_class_properties)
+			    || property_width > UINT64_MAX - total_width)
+			      return false;
+			total_width += property_width;
+		  }
+		  if (total_width == 0) return false;
+		  width = total_width;
+		  return true;
+	    }
       }
 
       return false;
@@ -21957,6 +21982,279 @@ static unsigned fixed_struct_stream_width_(ivl_type_t type)
       return width;
 }
 
+/* Resolve a whole fixed unpacked-array identifier for a 6.24.3 cast.
+ * Ordinary expression elaboration quite properly requires an array index,
+ * while a bit-stream cast consumes the complete array value. */
+static int bitstream_fixed_array_source_(Design*des, NetScope*scope,
+					 PExpr*source, NetExpr*&value,
+					 ivl_type_t&value_type)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(source);
+	if (!id || id->path().name.empty()
+	  || !id->path().back().index.empty())
+	    return 0;
+
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net)
+	    return 0;
+
+      if (sr.path_tail.empty()) {
+	    if (!sr.path_head.empty() && !sr.path_head.back().index.empty())
+		  return 0;
+	    const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+		  sr.net->array_type());
+	    if (!array) return 0;
+	    value_type = array;
+	    value = new NetESignal(sr.net, nullptr);
+	    value->set_line(*id);
+	    return 1;
+      }
+
+      if (sr.path_tail.size() != 1
+	  || !sr.path_tail.front().index.empty())
+	    return 0;
+      const netclass_t*class_type =
+	    dynamic_cast<const netclass_t*>(sr.net->net_type());
+      if (!class_type) return 0;
+      int pidx = class_type->property_idx_from_name(
+	    sr.path_tail.front().name);
+      if (pidx < 0 || class_type->get_prop_qual(pidx).test_static())
+	    return 0;
+      const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+	    class_type->get_prop_type(pidx));
+      if (!array) return 0;
+      if (!stream_property_readable_(des, scope, id, sr.net, class_type,
+				     pidx, sr.path_tail.front().name, false))
+	    return -1;
+
+      NetESignal*base = new NetESignal(sr.net);
+      base->set_line(*id);
+      NetEProperty*property = new NetEProperty(base, (size_t)pidx);
+      property->set_line(*id);
+      value_type = array;
+      value = property;
+      return 1;
+}
+
+static ivl_type_t bitstream_fixed_array_leaf_type_(ivl_type_t type)
+{
+	  const netuarray_t*array = nullptr;
+	  while ((array = dynamic_cast<const netuarray_t*>(type)) != nullptr)
+	    type = array->element_type();
+      return type;
+}
+
+static string bitstream_fixed_array_stream_name_(const netuarray_t*array)
+{
+      string name = "$ivl_stream$cast$fixed$";
+      const netranges_t&dims = array->static_dimensions();
+      for (size_t idx = 0; idx < dims.size(); idx += 1) {
+	    if (idx) name += ",";
+	    name += std::to_string(dims[idx].get_msb());
+	    name += ":";
+	    name += std::to_string(dims[idx].get_lsb());
+      }
+      return name;
+}
+
+static NetExpr* bitstream_fixed_array_cast_(const LineInfo&loc,
+					    const netuarray_t*target,
+					    NetExpr*packed)
+{
+	  string name = bitstream_fixed_array_stream_name_(target);
+      NetESFunc*cast = new NetESFunc(
+	    name.c_str(), target, 1);
+      cast->parm(0, packed);
+      cast->set_line(loc);
+      return cast;
+}
+
+/* Flatten a fixed-size bit-stream value into packed leaves. Array leaves
+ * are visited in declared order, unpacked struct members in declaration
+ * order, and class instance properties in declaration order. */
+static bool bitstream_flatten_fixed_value_(const LineInfo&loc,
+					   NetExpr*value,
+					   ivl_type_t value_type,
+					   vector<NetExpr*>&leaves,
+					   bool&has_four_state)
+{
+      if (!value || !value_type) {
+		  delete value;
+		  return false;
+      }
+
+      if (value_type->packed()) {
+	    long width = value_type->packed_width();
+	    if (width <= 0) {
+		  delete value;
+		  return false;
+	    }
+	    has_four_state = has_four_state
+		  || value_type->base_type() == IVL_VT_LOGIC;
+	    leaves.push_back(value);
+	    return true;
+      }
+
+      if (const netuarray_t*array =
+		    dynamic_cast<const netuarray_t*>(value_type)) {
+	    const NetESignal*signal = dynamic_cast<const NetESignal*>(value);
+	    const NetEProperty*property =
+		  dynamic_cast<const NetEProperty*>(value);
+	    bool signal_array = signal && !signal->word_index()
+		  && signal->sig()->unpacked_dimensions() > 0;
+	    bool property_array = property && !property->get_index();
+	    if (!signal_array && !property_array) {
+		  delete value;
+		  return false;
+	    }
+
+	    const netranges_t&dims = array->static_dimensions();
+	    if (dims.empty()) {
+		  delete value;
+		  return false;
+	    }
+	    vector<long>indices;
+	    indices.reserve(dims.size());
+	    bool ok = true;
+	    function<void(size_t)>append_dimension = [&](size_t dim) {
+		  if (!ok) return;
+		  if (dim == dims.size()) {
+			list<long>index_list(indices.begin(), indices.end());
+			NetExpr*canonical = signal_array
+			      ? normalize_variable_unpacked(signal->sig(), index_list)
+			      : normalize_variable_unpacked(
+				    static_cast<const netsarray_t*>(array),
+				    index_list);
+			if (!canonical) {
+			      ok = false;
+			      return;
+			}
+			canonical->set_line(loc);
+			NetExpr*element = nullptr;
+			if (signal_array) {
+			      element = new NetESignal(
+				    const_cast<NetNet*>(signal->sig()), canonical);
+			} else if (property->get_base()) {
+			      element = new NetEProperty(
+				    property->get_base()->dup_expr(),
+				    property->property_idx(), canonical);
+			} else {
+			      element = new NetEProperty(
+				    const_cast<NetNet*>(property->get_sig()),
+				    property->property_idx(), canonical);
+			}
+			element->set_line(loc);
+			if (!bitstream_flatten_fixed_value_(
+			      loc, element, array->element_type(), leaves,
+			      has_four_state))
+			      ok = false;
+			return;
+		  }
+
+		  const netrange_t&range = dims[dim];
+		  long left = range.get_msb();
+		  long right = range.get_lsb();
+		  long step = left <= right ? 1 : -1;
+		  for (long index = left; ; index += step) {
+			indices.push_back(index);
+			append_dimension(dim + 1);
+			indices.pop_back();
+			if (!ok || index == right) break;
+		  }
+	    };
+	    append_dimension(0);
+	    delete value;
+	    return ok;
+      }
+
+      if (const netstruct_t*record =
+		    dynamic_cast<const netstruct_t*>(value_type)) {
+	    if (record->packed() || record->union_flag()
+		|| record->members().empty()) {
+		  delete value;
+		  return false;
+	    }
+	    bool ok = true;
+	    for (size_t idx = 0; idx < record->members().size(); idx += 1) {
+		  NetEProperty*member = new NetEProperty(value->dup_expr(), idx);
+		  member->set_line(loc);
+		  if (!bitstream_flatten_fixed_value_(
+			loc, member, record->members()[idx].net_type,
+			leaves, has_four_state)) {
+			ok = false;
+			break;
+		  }
+	    }
+	    delete value;
+	    return ok;
+      }
+
+      if (const netclass_t*class_type =
+		    dynamic_cast<const netclass_t*>(value_type)) {
+	    bool ok = true;
+	    size_t property_count = 0;
+	    for (size_t idx = 0; idx < class_type->get_properties(); idx += 1) {
+		  property_qualifier_t qual = class_type->get_prop_qual(idx);
+		  if (qual.test_static()) continue;
+		  property_count += 1;
+		  if (qual.test_local() || qual.test_protected()) {
+			ok = false;
+			break;
+		  }
+		  NetEProperty*member = new NetEProperty(value->dup_expr(), idx);
+		  member->set_line(loc);
+		  if (!bitstream_flatten_fixed_value_(
+			loc, member, class_type->get_prop_type(idx),
+			leaves, has_four_state)) {
+			ok = false;
+			break;
+		  }
+	    }
+	    delete value;
+	    return ok && property_count != 0;
+      }
+
+      delete value;
+      return false;
+}
+
+static NetExpr* bitstream_pack_fixed_value_(
+	      const LineInfo&loc, NetExpr*value, ivl_type_t value_type,
+	      uint64_t&width)
+{
+      vector<NetExpr*>leaves;
+      bool has_four_state = false;
+      if (!bitstream_flatten_fixed_value_(
+		loc, value, value_type, leaves, has_four_state)) {
+	    for (NetExpr*leaf : leaves) delete leaf;
+	    return nullptr;
+      }
+
+      if (leaves.empty()) return nullptr;
+      if (leaves.size() > UINT_MAX) {
+	    for (NetExpr*leaf : leaves) delete leaf;
+	    return nullptr;
+      }
+      uint64_t total_width = 0;
+      for (NetExpr*leaf : leaves) {
+	    if (leaf->expr_width() > UINT64_MAX - total_width) {
+		  for (NetExpr*item : leaves) delete item;
+		  return nullptr;
+	    }
+	    total_width += leaf->expr_width();
+      }
+
+      NetEConcat*packed = new NetEConcat(
+	    static_cast<unsigned>(leaves.size()), 1,
+	    has_four_state ? IVL_VT_LOGIC : IVL_VT_BOOL);
+      packed->set_line(loc);
+      for (size_t idx = 0; idx < leaves.size(); idx += 1)
+	    packed->set(static_cast<unsigned>(idx), leaves[idx]);
+      width = total_width;
+      return packed;
+}
+
 static bool positional_container_integral_elements_(ivl_type_t type)
 {
       const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
@@ -22240,6 +22538,11 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	   retains T's width and type, including when it is an operand of a
 	   concatenation replication. */
       NetExpr*sub = nullptr;
+      const netuarray_t*fixed_array_target =
+	    dynamic_cast<const netuarray_t*>(target_type_);
+      const bool packed_target = target_type_ && target_type_->packed();
+      bool fixed_array_source = false;
+      uint64_t fixed_array_source_width = 0;
       if (const PEAssignPattern*pat =
 	      dynamic_cast<const PEAssignPattern*>(base_)) {
 	    /* A parse-form expression is shared by every elaboration of a
@@ -22253,6 +22556,90 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    if (use_type)
 		  sub = pat->elaborate_expr(des, scope, use_type, flags);
       } else {
+	    /* A whole fixed-array identifier is not a scalar expression, so
+	       elaborate it as a bit stream before the ordinary identifier path
+	       asks for an array index. */
+	    if (fixed_array_target || packed_target) {
+		  ivl_type_t source_type = nullptr;
+		  NetExpr*source_value = nullptr;
+		  int source_status = bitstream_fixed_array_source_(
+			des, scope, base_, source_value, source_type);
+		  if (source_status < 0) return nullptr;
+		  if (source_status > 0) {
+			if (!bitstream_cast_type_(source_type, false)) {
+			      cerr << get_fileline() << ": error: source type is not "
+				   << "a bit-stream type (IEEE 1800-2017/2023 "
+				      "6.24.3)." << endl;
+			      des->errors += 1;
+			      delete source_value;
+			      return nullptr;
+			}
+			if (!fixed_bitstream_width_(source_type,
+						    fixed_array_source_width,
+						    true)
+			    || fixed_array_source_width > UINT_MAX) {
+			      cerr << get_fileline() << ": sorry: bit-stream cast "
+				      "from this fixed unpacked array type is not yet "
+				      "implemented (IEEE 1800-2017/2023 6.24.3)."
+				   << endl;
+			      des->errors += 1;
+			      delete source_value;
+			      return nullptr;
+			}
+			uint64_t destination_width = 0;
+			if (fixed_array_target) {
+			      if (!bitstream_cast_type_(target_type_, true)
+				  || !fixed_bitstream_width_(target_type_,
+							    destination_width,
+							    true)) {
+				    cerr << get_fileline() << ": error: target type is not "
+					 << "a fixed-size bit-stream type (IEEE "
+					    "1800-2017/2023 6.24.3)." << endl;
+				    des->errors += 1;
+				    delete source_value;
+				    return nullptr;
+			      }
+			} else if (target_type_->packed_width() > 0) {
+			      destination_width = static_cast<uint64_t>(
+				    target_type_->packed_width());
+			}
+			if (destination_width != 0
+			    && destination_width != fixed_array_source_width) {
+			      cerr << get_fileline() << ": error: bit-stream cast "
+				      "between fixed-size types of different sizes."
+				   << endl;
+			      des->errors += 1;
+			      delete source_value;
+			      return nullptr;
+			}
+			sub = bitstream_pack_fixed_value_(
+			      *this, source_value, source_type,
+			      fixed_array_source_width);
+			if (!sub) {
+			      cerr << get_fileline() << ": sorry: bit-stream cast "
+				      "from this fixed unpacked array shape is not yet "
+				      "implemented (IEEE 1800-2017/2023 6.24.3)."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			fixed_array_source = true;
+			if (fixed_array_target) {
+			      if (!bitstream_fixed_array_leaf_type_(target_type_)->packed()) {
+				    cerr << get_fileline() << ": sorry: bit-stream cast "
+					    "to a fixed unpacked array with unpacked "
+					    "aggregate elements is not yet implemented "
+					    "(IEEE 1800-2017/2023 6.24.3)." << endl;
+				    des->errors += 1;
+				    delete sub;
+				    return nullptr;
+			      }
+			      return bitstream_fixed_array_cast_(
+				    *this, fixed_array_target, sub);
+			}
+		  }
+	    }
+	    if (!sub) {
 	    // A cast behaves exactly like an assignment to a temporary variable,
 	    // so the temporary result size may affect the sub-expression width.
 	    unsigned cast_width = base_->expr_width();
@@ -22261,9 +22648,106 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		  cast_width = expr_width_;
 
 	    sub = base_->elaborate_expr(des, scope, cast_width, flags);
+	    }
       }
       if (sub == 0)
 	    return 0;
+
+	/* A packed source is already a fixed-size bit stream. Slice it in
+	 * left-to-right stream order and materialize the fixed unpacked target. */
+      if (fixed_array_target && !fixed_array_source
+	  && type_is_vectorable(sub->expr_type())) {
+	    uint64_t source_width = sub->expr_width();
+	    uint64_t target_width = 0;
+	    if (!bitstream_cast_type_(target_type_, true)
+		|| !fixed_bitstream_width_(target_type_, target_width, true)) {
+		  cerr << get_fileline() << ": error: target type is not a "
+		       << "fixed-size bit-stream type (IEEE 1800-2017/2023 "
+			  "6.24.3)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    if (source_width != target_width) {
+		  cerr << get_fileline() << ": error: bit-stream cast between "
+		       << "fixed-size types of different sizes." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    if (!bitstream_fixed_array_leaf_type_(target_type_)->packed()) {
+		  cerr << get_fileline() << ": sorry: bit-stream cast to a fixed "
+			  "unpacked array with unpacked aggregate elements is not yet "
+			  "implemented (IEEE 1800-2017/2023 6.24.3)." << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    return bitstream_fixed_array_cast_(
+		  *this, fixed_array_target, sub);
+      }
+
+	/* A fixed unpacked struct or class can already reach this point as an
+	 * aggregate expression. Flatten its recursive, fixed-size members before
+	 * converting to a packed scalar or a fixed-array destination. */
+      if (!fixed_array_source && sub->net_type()
+	  && !sub->net_type()->packed()
+	  && (packed_target || fixed_array_target)
+	  && bitstream_cast_type_(sub->net_type(), false)) {
+	    uint64_t source_width = 0;
+	    uint64_t destination_width = 0;
+	    if (fixed_bitstream_width_(sub->net_type(), source_width, true)
+		&& source_width <= UINT_MAX) {
+		  if (fixed_array_target) {
+			if (!bitstream_cast_type_(target_type_, true)
+			    || !fixed_bitstream_width_(target_type_,
+						      destination_width, true)) {
+			      cerr << get_fileline() << ": error: target type is not "
+				   << "a fixed-size bit-stream type (IEEE "
+				      "1800-2017/2023 6.24.3)." << endl;
+			      des->errors += 1;
+			      delete sub;
+			      return nullptr;
+			}
+		  } else if (target_type_->packed_width() > 0) {
+			destination_width = static_cast<uint64_t>(
+			      target_type_->packed_width());
+		  }
+		  if (destination_width != 0
+		      && destination_width != source_width) {
+			cerr << get_fileline() << ": error: bit-stream cast "
+			        "between fixed-size types of different sizes."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+		  ivl_type_t source_type = sub->net_type();
+		  NetExpr*packed = bitstream_pack_fixed_value_(
+			*this, sub, source_type, source_width);
+		  if (!packed) {
+			cerr << get_fileline() << ": sorry: bit-stream cast from "
+			        "this fixed aggregate shape is not yet implemented "
+			        "(IEEE 1800-2017/2023 6.24.3)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  sub = packed;
+		  if (fixed_array_target) {
+			if (!bitstream_fixed_array_leaf_type_(target_type_)->packed()) {
+			      cerr << get_fileline() << ": sorry: bit-stream cast "
+				      "to a fixed unpacked array with unpacked "
+				      "aggregate elements is not yet implemented "
+				      "(IEEE 1800-2017/2023 6.24.3)." << endl;
+			      des->errors += 1;
+			      delete sub;
+			      return nullptr;
+			}
+			return bitstream_fixed_array_cast_(
+			      *this, fixed_array_target, sub);
+		  }
+	    }
+      }
 
 	/* IEEE 1800-2017/2023 6.24.3 excludes class-handle sources whose
 	 * class declares local or protected instance properties. The sole

@@ -27675,6 +27675,7 @@ struct stream_container_encoding_t {
       bool four_state;
       bool strict_cast;
       uint64_t queue_max;
+      vector<pair<int32_t,int32_t> > fixed_dimensions;
 };
 
 static bool decode_stream_container_encoding_(
@@ -27684,6 +27685,7 @@ static bool decode_stream_container_encoding_(
       enc.four_state = false;
       enc.strict_cast = false;
       enc.queue_max = 0;
+      enc.fixed_dimensions.clear();
       if (!text)
 	    return false;
 
@@ -27724,6 +27726,38 @@ static bool decode_stream_container_encoding_(
 	    cursor = end;
       }
 
+	/* Fixed-array bit-stream casts append their declared dimensions as
+	 * @left:right pairs. Dynamic-container encodings retain their existing
+	 * grammar and cannot carry this suffix. */
+      if (*cursor == '@') {
+	    if (as_queue) return false;
+	    cursor += 1;
+	    while (*cursor) {
+		  errno = 0;
+		  char*dim_end = 0;
+		  long long left = strtoll(cursor, &dim_end, 10);
+		  if (errno == ERANGE || dim_end == cursor || *dim_end != ':'
+		      || left < INT32_MIN || left > INT32_MAX)
+			return false;
+		  cursor = dim_end + 1;
+		  errno = 0;
+		  long long right = strtoll(cursor, &dim_end, 10);
+		  if (errno == ERANGE || dim_end == cursor
+		      || right < INT32_MIN || right > INT32_MAX
+		      || (*dim_end != ',' && *dim_end != 0))
+			return false;
+		  __int128 span = left >= right ? (__int128)left-right
+						 : (__int128)right-left;
+		  if (span >= UINT32_MAX) return false;
+		  enc.fixed_dimensions.push_back(make_pair(
+			(int32_t)left, (int32_t)right));
+		  cursor = dim_end;
+		  if (*cursor == ',') cursor += 1;
+		  else break;
+	    }
+	    if (enc.fixed_dimensions.empty()) return false;
+      }
+
       return *cursor == 0;
 }
 
@@ -27731,6 +27765,47 @@ bool vvp_stream_container_encoding_is_valid(const char*text, bool as_queue)
 {
       stream_container_encoding_t enc;
       return decode_stream_container_encoding_(text, as_queue, enc);
+}
+
+static vvp_object_t stream_fixed_array_build_(
+	  const vvp_vector4_t&stream, const stream_container_encoding_t&enc,
+	  size_t dim, size_t&stream_index)
+{
+      const pair<int32_t,int32_t>&range = enc.fixed_dimensions[dim];
+      size_t count = range.first >= range.second
+	    ? (size_t)((int64_t)range.first-range.second+1)
+	    : (size_t)((int64_t)range.second-range.first+1);
+
+      if (dim + 1 == enc.fixed_dimensions.size()) {
+	    vvp_darray*leaf = enc.four_state
+		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(
+			count, enc.element_width))
+		  : static_cast<vvp_darray*>(new vvp_darray_vec2(
+			count, enc.element_width));
+	    for (size_t idx = 0; idx < count; idx += 1) {
+		  unsigned top = stream.size()
+			- (unsigned)(stream_index * enc.element_width);
+		  vvp_vector4_t elem(enc.element_width, BIT4_0);
+		  if (top >= enc.element_width)
+			elem = stream.subvalue(top - enc.element_width,
+					       enc.element_width);
+		  else if (top)
+			elem.set_vec(enc.element_width - top,
+				     stream.subvalue(0, top));
+		  leaf->set_word((unsigned)idx,
+				 coerce_stream_elem_(elem, enc.four_state));
+		  stream_index += 1;
+	    }
+	    leaf->dpi_set_decl_range(range.first, range.second);
+	    return vvp_object_t(leaf);
+      }
+
+      vvp_darray_object*outer = new vvp_darray_object(count);
+      outer->dpi_set_decl_range(range.first, range.second);
+      for (size_t idx = 0; idx < count; idx += 1)
+	    outer->set_word((unsigned)idx, stream_fixed_array_build_(
+		  stream, enc, dim + 1, stream_index));
+      return vvp_object_t(outer);
 }
 
 static bool container_opcode_runtime_fatal_();
@@ -27767,7 +27842,23 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 
       unsigned w = val.size();
       size_t count = w / ewid + ((w % ewid) != 0);
-      bool cast_size_error = strict_cast && (w % ewid) != 0;
+      uint64_t fixed_count = 1;
+      bool fixed_count_valid = true;
+      for (size_t idx = 0; idx < enc.fixed_dimensions.size(); idx += 1) {
+	    const pair<int32_t,int32_t>&range = enc.fixed_dimensions[idx];
+	    uint64_t dim_count = range.first >= range.second
+		  ? (uint64_t)((int64_t)range.first-range.second+1)
+		  : (uint64_t)((int64_t)range.second-range.first+1);
+	    if (dim_count == 0 || fixed_count > UINT64_MAX / dim_count) {
+		  fixed_count_valid = false;
+		  break;
+	    }
+	    fixed_count *= dim_count;
+      }
+      bool fixed_shape_error = !enc.fixed_dimensions.empty()
+	    && (!fixed_count_valid || count != fixed_count);
+      bool cast_size_error = (strict_cast && (w % ewid) != 0)
+	    || fixed_shape_error;
       bool cast_bound_error = strict_cast && as_queue && queue_max
 	    && count > queue_max;
       if (cast_size_error || cast_bound_error) {
@@ -27782,6 +27873,11 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 	    count = 0;
       }
       bool runtime_limit_error = count > STREAM_WITH_MAX_BITS/ewid;
+      if (!enc.fixed_dimensions.empty()
+	  && (!fixed_count_valid
+	      || fixed_count > STREAM_WITH_MAX_ELEMENTS
+	      || fixed_count > STREAM_WITH_MAX_BITS/ewid))
+	    runtime_limit_error = true;
       if (runtime_limit_error) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: streaming target container exceeds the bounded "
@@ -27812,7 +27908,13 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  VVP_CONTAINER_QUEUE, true, queue_max,
 		  vvp_container_layout_t()));
 	    thr->push_object(obj);
-      } else {
+      } else if (!enc.fixed_dimensions.empty()) {
+	    size_t stream_index = 0;
+	    vvp_object_t obj;
+	    if (!cast_size_error && !runtime_limit_error)
+		  obj = stream_fixed_array_build_(val, enc, 0, stream_index);
+	    thr->push_object(obj);
+	      } else {
 	    vvp_darray*res = four_state
 		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(count, ewid))
 		  : static_cast<vvp_darray*>(new vvp_darray_vec2(count, ewid));

@@ -148,6 +148,21 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
       if (strncmp(name, "$ivl_stream$", 12) != 0)
 	    return -1;
 
+	/* A fixed-array destination cast evaluates its packed source once. The
+	 * object evaluator follows this with %stream/to/dar, which constructs the
+	 * declared nested array shape. */
+      const char*fixed_cast_prefix = "$ivl_stream$cast$fixed$";
+      if (strncmp(name, fixed_cast_prefix, strlen(fixed_cast_prefix)) == 0) {
+	    if (ivl_expr_parms(expr) != 1) {
+		  fprintf(stderr, "%s:%u: internal error: malformed fixed-array "
+			  "bit-stream cast.\n", ivl_expr_file(expr),
+			  ivl_expr_lineno(expr));
+		  return 1;
+	    }
+	    draw_eval_vec4(ivl_expr_parm(expr, 0));
+	    return 0;
+      }
+
       const char*tail = name + 12;
       int unpack = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
@@ -2606,7 +2621,19 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    stream_elem_type_text(ivl_type_element(net_type),
 				  elem_text, sizeof elem_text);
 	    draw_stream_pack_pieces(expr, 0);
-	    if (ivl_type_base(net_type) == IVL_VT_QUEUE) {
+	    const char*fixed_cast_prefix = "$ivl_stream$cast$fixed$";
+	    if (strncmp(name, fixed_cast_prefix, strlen(fixed_cast_prefix)) == 0) {
+		  const char*dimensions = name + strlen(fixed_cast_prefix);
+		  if (*dimensions == 0) {
+			fprintf(stderr, "%s:%u: internal error: fixed-array "
+				"bit-stream cast has no dimensions.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			return 1;
+		  }
+		  fprintf(vvp_out,
+			  "    %%stream/to/dar \"%s!@%s\"; fixed bit-stream cast\n",
+			  elem_text, dimensions);
+	    } else if (ivl_type_base(net_type) == IVL_VT_QUEUE) {
 		  uint64_t max_size = ivl_type_queue_max_size(net_type);
 		  fprintf(vvp_out, "    %%stream/to/queue \"%s%s:%" PRIu64
 			  "\";\n", elem_text, strict_cast ? "!" : "",
