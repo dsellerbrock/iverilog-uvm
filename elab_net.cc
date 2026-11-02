@@ -1318,6 +1318,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	   an unresolved wire (see the note where this test used to live). */
       if (gn_var_can_be_uwire() && var_allowed_in_sv
 	  && (sig->type() == NetNet::REG)) {
+	    if (sig->data_type() == IVL_VT_LOGIC)
+		  sig->attribute(perm_string::literal("_ivl_var_cont_assign"),
+				 verinum("1"));
 	    sig->type(NetNet::UNRESOLVED_WIRE);
       }
 
@@ -1378,6 +1381,10 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			midx, lidx, selected_word_base + idx);
 		  ivl_assert(*this, !overlap);
 	    }
+	    if (sig->coerced_to_uwire()
+		&& sig->data_type() == IVL_VT_LOGIC)
+		  sig->attribute(perm_string::literal("_ivl_var_cont_assign"),
+				 verinum::from_raw_string(sig->part_driver_mask()));
 	    if (sig->coerced_to_uwire()) {
 		  ivl_note_clocking_output_continuous_write(sig, this);
 		  if (sig->scope() && sig->scope()->is_interface()

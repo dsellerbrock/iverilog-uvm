@@ -21,6 +21,7 @@
 
 # include  "config.h"
 # include  "vvp_net.h"
+# include  <string>
 # include  <vector>
 
 /*
@@ -129,7 +130,9 @@ class resolv_tri : public resolv_core {
 
     public:
       explicit resolv_tri(unsigned nports, vvp_net_t*net,
-                          vvp_scalar_t hiz_value);
+                          vvp_scalar_t hiz_value,
+                          const std::string& variable_driver_mask =
+			  std::string());
       ~resolv_tri() override;
 
       void count_drivers(unsigned bit_idx, unsigned counts[3]) override;
@@ -142,6 +145,7 @@ class resolv_tri : public resolv_core {
     private:
         // The puller value to be used when a bit is not driven.
       vvp_scalar_t hiz_value_;
+      std::string variable_driver_mask_;
         // The array of input values.
       vvp_vector8_t*val_;
 };

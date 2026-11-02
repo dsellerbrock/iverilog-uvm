@@ -126,6 +126,28 @@ static int unresolved_user_nettype_of_nexus(ivl_nexus_t nex)
       return 0;
 }
 
+static char *variable_cont_assign_mask_of_nexus(ivl_nexus_t nex)
+{
+      unsigned idx;
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    const char *mask = sig
+		  ? ivl_signal_attr(sig, "_ivl_var_cont_assign") : 0;
+	    if (mask) {
+		  size_t offset = ivl_nexus_ptr_pin(ptr) * ivl_signal_width(sig);
+		  size_t width = ivl_signal_width(sig);
+		  if (strlen(mask) < offset + width)
+			return 0;
+		  char *word_mask = malloc(width + 1);
+		  memcpy(word_mask, mask + offset, width);
+		  word_mask[width] = 0;
+		  return word_mask;
+	    }
+      }
+	return 0;
+}
+
 static char* draw_C4_to_string(ivl_net_const_t cptr)
 {
       const char*bits = ivl_const_bits(cptr);
@@ -701,6 +723,9 @@ static void draw_net_input_x(ivl_nexus_t nex,
       unsigned ndrivers = 0;
       ivl_scope_t user_resolver = resolution_function_of_nexus(nex);
       int unresolved_user_nettype = unresolved_user_nettype_of_nexus(nex);
+      char *variable_cont_assign_mask =
+	    variable_cont_assign_mask_of_nexus(nex);
+      char *variable_resolv_type = 0;
 
       const char*resolv_type;
 
@@ -734,6 +759,14 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    assert(0);
 	    resolv_type = "tri";
 	    break;
+      }
+
+      if (variable_cont_assign_mask) {
+	    size_t type_len = strlen(variable_cont_assign_mask) + 5;
+	    variable_resolv_type = malloc(type_len);
+	    snprintf(variable_resolv_type, type_len, "var_%s",
+		     variable_cont_assign_mask);
+	    resolv_type = variable_resolv_type;
       }
 
 
@@ -996,7 +1029,8 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	/* If the nexus has exactly one driver, then simply draw
 	   it. Note that this will *not* work if the nexus is not a
 	   TRI type nexus. */
-      if (ndrivers == 1 && res == IVL_SIT_TRI) {
+      if (ndrivers == 1 && res == IVL_SIT_TRI
+	  && !variable_cont_assign_mask) {
 	    ivl_signal_t path_sig = find_modpath(nex);
 	    if (path_sig) {
 		  char*nex_str = draw_net_input_drive(nex, drivers[0]);
@@ -1016,6 +1050,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    }
 	    assert(nex_data->net_input == 0);
 	    nex_data->net_input = nex_private;
+	    free(variable_cont_assign_mask);
 	    return;
       }
 
@@ -1047,6 +1082,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
       }
       fprintf(vvp_out, ";\n");
       free(driver_labels);
+      free(variable_resolv_type);
 
       snprintf(result, sizeof result, "RS_%p", nex);
 
@@ -1057,6 +1093,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 
       assert(nex_data->net_input == 0);
       nex_data->net_input = nex_private;
+      free(variable_cont_assign_mask);
 }
 
 /*

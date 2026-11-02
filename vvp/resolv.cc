@@ -136,8 +136,10 @@ resolv_extend::~resolv_extend()
 }
 
 
-resolv_tri::resolv_tri(unsigned nports, vvp_net_t*net, vvp_scalar_t hiz_value)
-: resolv_core(nports, net), hiz_value_(hiz_value)
+resolv_tri::resolv_tri(unsigned nports, vvp_net_t*net, vvp_scalar_t hiz_value,
+                       const std::string& variable_driver_mask)
+: resolv_core(nports, net), hiz_value_(hiz_value),
+  variable_driver_mask_(variable_driver_mask)
 {
         // count the input (leaf) nodes
       unsigned nnodes = nports;
@@ -216,7 +218,18 @@ void resolv_tri::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 	    }
       }
 
-      net_->send_vec8(val_[base]);
+
+	  if (!variable_driver_mask_.empty()) {
+	    vvp_vector8_t out = val_[base];
+	    for (unsigned idx = 0; idx < out.size(); idx += 1) {
+		  if (idx < variable_driver_mask_.size()
+		      && variable_driver_mask_[idx] == '0')
+			out.set_bit(idx, vvp_scalar_t(BIT4_X, 6, 6));
+	    }
+	    net_->send_vec8(out);
+      } else {
+	    net_->send_vec8(val_[base]);
+      }
 }
 
 void resolv_tri::count_drivers(unsigned bit_idx, unsigned counts[3])

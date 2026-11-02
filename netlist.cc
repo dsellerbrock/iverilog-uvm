@@ -1343,6 +1343,14 @@ bool NetNet::test_and_set_part_driver(unsigned pmsb, unsigned plsb, int widx)
       return rc;
 }
 
+std::string NetNet::part_driver_mask() const
+{
+      std::string mask(vector_width() * pin_count(), '0');
+      for (unsigned idx = 0; idx < lref_mask_.size(); idx += 1)
+	    if (lref_mask_[idx]) mask[idx] = '1';
+      return mask;
+}
+
 void NetNet::incr_lref()
 {
       lref_count_ += 1;

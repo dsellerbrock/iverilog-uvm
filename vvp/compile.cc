@@ -2871,7 +2871,19 @@ void compile_resolver(char*label, char*type, unsigned argc, struct symb_s*argv)
 
       resolv_core*core = 0;
 
-      if (strcmp(type,"tri") == 0) {
+      if (strncmp(type, "var_", 4) == 0 && type[4] != 0) {
+	    bool valid_mask = true;
+	    for (const char*bit = type + 4; *bit; ++bit)
+		  if (*bit != '0' && *bit != '1') valid_mask = false;
+	    if (valid_mask)
+		  core = new resolv_tri(argc, net,
+				vvp_scalar_t(BIT4_Z, 0,0), type + 4);
+	    else {
+		  yyerror("invalid variable driver mask in resolver");
+		  compile_errors += 1;
+	    }
+
+	  } else if (strcmp(type,"tri") == 0) {
 	    core = new resolv_tri(argc, net, vvp_scalar_t(BIT4_Z, 0,0));
 
       } else if (strcmp(type,"tri0") == 0) {

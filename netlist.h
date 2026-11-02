@@ -1054,6 +1054,7 @@ class NetNet  : public NetObj, public PortType {
 	// The msb and lsb are the part select of the signal, and the
 	// widx is the word index if this is an unpacked array.
       bool test_and_set_part_driver(unsigned msb, unsigned lsb, int widx =0);
+      std::string part_driver_mask() const;
 
       unsigned get_refs() const;
 

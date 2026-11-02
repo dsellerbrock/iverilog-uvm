@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue2337_partial_cont_assign.sv",
+    "iverilog-args" : [ "-g2023", "-s", "issue2337_partial_cont_assign" ],
+    "gold" : "issue2337_partial_cont_assign"
+}
