@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1374_sva_local_variable_selects_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue1374_sva_local_variable_selects" ],
+    "gold"          : "issue1374_sva_local_variable_selects"
+}

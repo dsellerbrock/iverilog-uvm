@@ -14695,6 +14695,52 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   long reactive_past_offset)
 {
       if (!e) return e;
+	/* Local-variable lowering can place sampled-value expressions inside
+	   identifier selects. Rewrite those expressions too; otherwise a
+	   $past(...) in a bit/part/array index remains live in the checker. */
+	if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	      pform_name_t path = id->path().name;
+	      bool has_select = false;
+	      pform_name_t::const_iterator src_comp = id->path().name.begin();
+	      pform_name_t::iterator dst_comp = path.begin();
+	      for (; src_comp != id->path().name.end(); ++src_comp, ++dst_comp) {
+		    std::list<index_component_t>::const_iterator src_idx =
+			  src_comp->index.begin();
+		    std::list<index_component_t>::iterator dst_idx =
+			  dst_comp->index.begin();
+		    for (; src_idx != src_comp->index.end(); ++src_idx, ++dst_idx) {
+			  has_select = true;
+			  PExpr*msb_copy = src_idx->msb
+				? sva_clone_expr_(src_idx->msb) : nullptr;
+			  if (src_idx->msb && !msb_copy) return e;
+			  PExpr*msb = msb_copy
+				? sva_rewrite_sampled_(loc, msb_copy, inst,
+				      hist_idx, pre, post, init, cur_live,
+				      reactive_past_offset) : nullptr;
+			  if (msb_copy && msb != msb_copy) delete msb_copy;
+			  PExpr*lsb_copy = src_idx->lsb == src_idx->msb ? nullptr
+				: (src_idx->lsb ? sva_clone_expr_(src_idx->lsb) : nullptr);
+			  if (src_idx->lsb && src_idx->lsb != src_idx->msb
+			      && !lsb_copy) { delete msb; return e; }
+			  PExpr*lsb = src_idx->lsb == src_idx->msb ? msb
+				: (lsb_copy
+				   ? sva_rewrite_sampled_(loc, lsb_copy, inst,
+				      hist_idx, pre, post, init, cur_live,
+				      reactive_past_offset) : nullptr);
+			  if (lsb_copy && lsb != lsb_copy) delete lsb_copy;
+			  dst_idx->msb = msb;
+			  dst_idx->lsb = lsb;
+		    }
+	      }
+	      if (!has_select) return e;
+	      PEIdent*copy = id->path().package
+		    ? new PEIdent(id->path().package, path, id->lexical_pos())
+		    : new PEIdent(path, id->lexical_pos());
+	      copy->set_scoped_type_prefix(id->has_scoped_type_prefix());
+	      copy->set_dotted_suffix(id->has_dotted_suffix());
+	      copy->set_line(*e);
+	      return copy;
+	}
 
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    bool is_let = false;
