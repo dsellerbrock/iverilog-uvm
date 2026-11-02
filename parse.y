@@ -2544,9 +2544,6 @@ static Module::port_t *module_declare_explicit_port(
       sva_match_item_t* sva_item;
       std::vector<sva_match_item_t>* sva_items;
 
-      // IEEE 1800-2017 16.11 sequence match-item calls, in source order.
-      std::vector<PCallTask*>* sva_calls;
-
       // M9-7 residual: extra clock-flow segments after the first
       // boundary (`@(c2) b ##1 @(c3) c ...').
       std::vector<sva_mc_seg_t>* sva_mc_ext;
@@ -2856,7 +2853,6 @@ static Module::port_t *module_declare_explicit_port(
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
-%type <sva_calls> sva_match_call_list
 %type <sva_item> sva_match_item
 %type <sva_items> sva_match_item_list
 %destructor { delete $$->lv_rhs; delete $$->call; delete $$; } <sva_item>
@@ -9955,14 +9951,6 @@ sva_match_call
       }
   ;
 
-sva_match_call_list
-  : sva_match_call
-      { $$ = new std::vector<PCallTask*>;
-	$$->push_back($1); }
-  | sva_match_call_list ',' sva_match_call
-      { $1->push_back($3); $$ = $1; }
-  ;
-
 sva_match_item
   : sva_match_call
       { $$ = new sva_match_item_t;
@@ -10057,6 +10045,31 @@ sva_seq_atom
 	  } else delete $6;
 	delete[] $4;
 	$$ = $2; }
+  | '(' sva_seq_expr ',' sva_match_item_list ')'
+      { if (!$2->empty()) {
+	    sva_seq_step_t&st = $2->back();
+	    st.items.insert(st.items.end(), $4->begin(), $4->end());
+	    $4->clear();
+	  } else {
+	    for (size_t i = 0; i < $4->size(); i += 1) {
+		  delete (*$4)[i].lv_rhs;
+		  delete (*$4)[i].call;
+	    }
+	  }
+	delete $4;
+	$$ = $2; }
+  /* For a bare boolean, keep an explicit expression path: reducing the
+     expression to sva_seq_expr at this comma loses the match-item list in
+     the existing SVA precedence conflicts. */
+  | '(' expression ',' sva_match_item_list ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.items.insert(st.items.end(), $4->begin(), $4->end());
+	$4->clear();
+	delete $4;
+	steps->push_back(st);
+	$$ = steps; }
   | '(' sva_seq_expr ',' IDENTIFIER compressed_operator expression ')'
       { if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
@@ -10141,43 +10154,6 @@ sva_seq_atom
 	      @5, $5, new PEBinary('-', lval, one));
 	st.items.push_back(item);
 	delete[] $5;
-	steps->push_back(st);
-	$$ = steps; }
-  /* 16.11 bounded executable slice: calls alone, or calls after the local
-     assignment. The latter order is semantically significant: the call's
-     input arguments observe the value assigned by the preceding item. */
-  | '(' expression ',' sva_match_call_list ')'
-      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
-	sva_seq_step_t st;
-	st.expr = $2;
-	for (size_t i = 0; i < $4->size(); i += 1) {
-	      sva_match_item_t item;
-	      item.kind = sva_match_item_t::SUBROUTINE_CALL;
-	      item.call = (*$4)[i];
-	      st.items.push_back(item);
-	}
-	$4->clear();
-	delete $4;
-	steps->push_back(st);
-	$$ = steps; }
-  | '(' expression ',' IDENTIFIER '=' expression ',' sva_match_call_list ')'
-      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
-	sva_seq_step_t st;
-	st.expr = $2;
-	sva_match_item_t assignment;
-	assignment.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
-	assignment.lv_name = lex_strings.make($4);
-	assignment.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
-	st.items.push_back(assignment);
-	for (size_t i = 0; i < $8->size(); i += 1) {
-	      sva_match_item_t item;
-	      item.kind = sva_match_item_t::SUBROUTINE_CALL;
-	      item.call = (*$8)[i];
-	      st.items.push_back(item);
-	}
-	$8->clear();
-	delete[] $4;
-	delete $8;
 	steps->push_back(st);
 	$$ = steps; }
   /* IEEE 1800-2017/2023 Annex A.2.10 permits a variable_lvalue in an
