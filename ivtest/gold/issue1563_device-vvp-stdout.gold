@@ -1,0 +1,4 @@
+Y 0 0
+Y 14000 1
+Y 26000 0
+ivltests/issue1563_device.v:19: $finish called at 40000 (1ps)

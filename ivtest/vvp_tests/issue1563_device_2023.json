@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1563_device.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue1563_device"],
+  "gold": "issue1563_device"
+}

@@ -76,6 +76,10 @@ extern void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
                               const struct sdf_delval_list_s*delval,
                               const int sdf_lineno);
 
+extern void sdf_device_delays(const char*dst,
+                              const struct sdf_delval_list_s*delval,
+                              const int sdf_lineno);
+
 extern void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
                                  const struct sdf_delay_s*reject,
                                  const struct sdf_delay_s*error,

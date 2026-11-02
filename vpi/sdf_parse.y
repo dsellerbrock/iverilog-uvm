@@ -47,7 +47,7 @@ char sdf_use_hchar = '.';
 };
 
 %token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE
-%token K_DELAY K_DESIGN K_DIVIDER K_HOLD K_INCREMENT K_INSTANCE
+%token K_DELAY K_DESIGN K_DEVICE K_DIVIDER K_HOLD K_INCREMENT K_INSTANCE
 %token K_INTERCONNECT K_IOPATH K_NEGEDGE K_PATHPULSE K_PATHPULSEPERCENT
 %token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM
 %token K_RECREM K_RECOVERY K_REMOVAL K_SDFVERSION K_SETUP K_SETUPHOLD
@@ -330,7 +330,11 @@ del_def_list
   ;
 
 del_def
-  : '(' K_IOPATH port_spec port_instance delval_list ')'
+  : '(' K_DEVICE port_instance delval_list ')'
+      { sdf_device_delays($3, &$4, @2.first_line);
+	free($3);
+      }
+  | '(' K_IOPATH port_spec port_instance delval_list ')'
       { sdf_iopath_delays($3.vpi_edge, $3.string_val, $4, &$5, @2.first_line);
 	free($3.string_val);
 	free($4);

@@ -411,6 +411,50 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
       }
 }
 
+void sdf_device_delays(const char*dst,
+                      const struct sdf_delval_list_s*delval_list,
+                      const int sdf_lineno)
+{
+      vpiHandle iter, path;
+      int match_count = 0;
+
+      if (sdf_cur_cell == 0)
+	    return;
+
+      iter = vpi_iterate(vpiModPath, sdf_cur_cell);
+      if (iter) while ((path = vpi_scan(iter))) {
+	    s_vpi_delay delays;
+	    struct t_vpi_time delay_vals[12];
+	    vpiHandle path_t_out = vpi_handle(vpiModPathOut, path);
+	    vpiHandle path_out = vpi_handle(vpiExpr, path_t_out);
+	    int idx;
+
+	    if (strcmp(dst, vpi_get_str(vpiName, path_out)) != 0)
+		  continue;
+
+	    delays.da = delay_vals;
+	    delays.no_of_delays = 12;
+	    delays.time_type = vpiScaledRealTime;
+	    delays.mtm_flag = 0;
+	    delays.append_flag = 0;
+	    delays.pulsere_flag = 0;
+	    vpi_get_delays(path, &delays);
+
+	    for (idx = 0 ; idx < delval_list->count ; idx += 1) {
+		  delay_vals[idx].type = vpiScaledRealTime;
+		  if (delval_list->val[idx].defined)
+			delay_vals[idx].real = delval_list->val[idx].value;
+	    }
+	    vpi_put_delays(path, &delays);
+	    match_count += 1;
+      }
+
+      if (match_count == 0)
+	    vpi_printf("SDF ERROR: %s:%d: Unable to match DEVICE output %s in %s\n",
+		       sdf_fname, sdf_lineno, dst,
+		       vpi_get_str(vpiFullName, sdf_cur_cell));
+}
+
 void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
                           const struct sdf_delay_s*reject,
                           const struct sdf_delay_s*error,

@@ -157,6 +157,7 @@ static struct {
       { "DELAY",        K_DELAY },
       { "DELAYFILE",    K_DELAYFILE },
       { "DESIGN",       K_DESIGN },
+      { "DEVICE",       K_DEVICE },
       { "DIVIDER",      K_DIVIDER },
       { "HOLD",         K_HOLD },
       { "INCREMENT",    K_INCREMENT },
