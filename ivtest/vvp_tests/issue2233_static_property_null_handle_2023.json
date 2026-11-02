@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "issue2233_static_property_null_handle.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "issue2233_static_property_null_handle"
+}
