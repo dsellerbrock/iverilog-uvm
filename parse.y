@@ -8477,26 +8477,26 @@ dpi_import_export_declaration
       }
   | K_export STRING K_function function_identifier ';'
       { pform_check_dpi_linkage_version_(@1, $4, $2);
-	pform_set_dpi_export(@1, $4, $4, false);
+	pform_set_dpi_export(@1, $4, $4, false, strcmp($2, "DPI") == 0);
 	if ($2) delete[] $2;
 	delete[] $4;
       }
   | K_export STRING IDENTIFIER '=' K_function function_identifier ';'
       { pform_check_dpi_linkage_version_(@1, $3, $2);
-	pform_set_dpi_export(@1, $3, $6, false);
+	pform_set_dpi_export(@1, $3, $6, false, strcmp($2, "DPI") == 0);
 	if ($2) delete[] $2;
 	delete[] $3;
 	delete[] $6;
       }
   | K_export STRING K_task IDENTIFIER ';'
       { pform_check_dpi_linkage_version_(@1, $4, $2);
-	pform_set_dpi_export(@1, $4, $4, true);
+	pform_set_dpi_export(@1, $4, $4, true, strcmp($2, "DPI") == 0);
 	if ($2) delete[] $2;
 	delete[] $4;
       }
   | K_export STRING IDENTIFIER '=' K_task IDENTIFIER ';'
       { pform_check_dpi_linkage_version_(@1, $3, $2);
-	pform_set_dpi_export(@1, $3, $6, true);
+	pform_set_dpi_export(@1, $3, $6, true, strcmp($2, "DPI") == 0);
 	if ($2) delete[] $2;
 	delete[] $3;
 	delete[] $6;
