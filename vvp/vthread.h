@@ -23,6 +23,7 @@
 
 # include  <string>
 # include  <set>
+# include  <memory>
 # include  <vector>
 
 /*
@@ -167,7 +168,9 @@ extern void vthread_unpin(vthread_t thr);
 /* Insert THR at the intrusive wait-list HEAD and remember the exact link that
  * owns it. This makes an ordinary event wait cancellable in O(1) when a
  * disabled fork kills the waiting branch. */
-extern vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head);
+extern vthread_t vthread_add_event_wait(
+      vthread_t thr, vthread_t*head,
+      std::shared_ptr<void> keepalive = std::shared_ptr<void>());
 extern vthread_t vthread_event_wait_next(vthread_t thr);
 extern void vthread_cancel_event_wait(vthread_t thr);
 extern void vthread_cancel_mutation_wait(vthread_t thr);

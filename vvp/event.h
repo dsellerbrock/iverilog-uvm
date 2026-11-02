@@ -27,6 +27,7 @@
 # include  <map>
 # include  <functional>
 # include  <cstdint>
+# include  <memory>
 # include  <vector>
 
 class scalar_event_history;
@@ -232,13 +233,22 @@ struct waitable_state_s {
       vthread_t threads;
 };
 
-struct named_event_aa_state_s : waitable_state_s {
-      named_event_aa_state_s() : triggered_change_threads(0),
-            last_trigger_time(0), ever_triggered(false), context(0) {}
+/* A named-event variable refers to a synchronization queue. Queue state is
+ * independently shared so rebinding the variable leaves already-armed
+ * waiters on their original queue (IEEE 1800-2017 15.5.5). */
+struct named_event_state_s : waitable_state_s {
+      named_event_state_s() : triggered_change_threads(0),
+            last_trigger_time(0), ever_triggered(false) {}
       vthread_t triggered_change_threads;
       vvp_time64_t last_trigger_time;
       bool ever_triggered;
+};
+
+typedef std::shared_ptr<named_event_state_s> named_event_state_ptr;
+
+struct named_event_aa_state_s {
       vvp_context_t context;
+      named_event_state_ptr event_state;
 };
 
 /*
@@ -554,11 +564,12 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
       explicit vvp_named_event(class __vpiHandle*eh);
       ~vvp_named_event() override;
 
-	// IEEE 1800-2017 15.5.3 triggered property: record each trigger
-	// and report whether the event fired in the current time step.
-      void note_triggered(void);
+	// IEEE 1800-2017 15.5.3 triggered property reads the associated queue.
       virtual bool triggered_now(void) const;
       virtual void collect_waiting_threads(std::vector<vthread_t>&threads) const = 0;
+      virtual named_event_state_ptr event_state(bool write_context) const = 0;
+      virtual void set_event_state(const named_event_state_ptr&state,
+                                   bool write_context) = 0;
       void add_wait_order_observer(vvp_fun_wait_order*observer);
       void remove_wait_order_observer(vvp_fun_wait_order*observer);
 
@@ -568,8 +579,6 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
       class __vpiHandle*handle_;
 
     private:
-      vvp_time64_t last_trigger_time_ = 0;
-      bool ever_triggered_ = false;
       std::set<vvp_fun_wait_order*> wait_order_observers_;
 };
 
@@ -585,14 +594,16 @@ class vvp_named_event_sa : public vvp_named_event {
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
       void triggered_time_advance();
+      named_event_state_ptr event_state(bool write_context) const override;
+      void set_event_state(const named_event_state_ptr&state,
+                           bool write_context) override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
     private:
-      vthread_t threads_;
-      vthread_t triggered_change_threads_;
+      named_event_state_ptr event_state_;
 };
 
 /* Notify triggered-property observers only when simulation time advances. */
@@ -616,6 +627,9 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
       bool triggered_now(void) const override;
+      named_event_state_ptr event_state(bool write_context) const override;
+      void set_event_state(const named_event_state_ptr&state,
+                           bool write_context) override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -649,9 +663,12 @@ class vvp_named_event_dyn : public vvp_named_event {
                      vvp_context_t) override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
       void set_vpi_handle(class __vpiHandle*handle) { handle_ = handle; }
+      named_event_state_ptr event_state(bool write_context) const override;
+      void set_event_state(const named_event_state_ptr&state,
+                           bool write_context) override;
 
     private:
-      vthread_t threads_;
+      named_event_state_ptr event_state_;
 };
 
 /*

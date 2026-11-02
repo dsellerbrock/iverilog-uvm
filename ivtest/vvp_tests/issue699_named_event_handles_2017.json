@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue699_named_event_handles.v",
+  "iverilog-args": ["-g2017", "-s", "issue699_named_event_handles"],
+  "gold": "issue699_named_event_handles",
+  "output-contains": ["PASS"]
+}

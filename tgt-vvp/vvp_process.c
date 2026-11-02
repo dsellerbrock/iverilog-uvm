@@ -6317,6 +6317,28 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
+      if (strcmp(stmt_name, "$ivl_event_method$assign") == 0) {
+	    if (ivl_stmt_parm_count(net) != 2
+		|| ivl_expr_type(ivl_stmt_parm(net, 0)) != IVL_EX_EVENT
+		|| (ivl_expr_type(ivl_stmt_parm(net, 1)) != IVL_EX_EVENT
+		    && ivl_expr_type(ivl_stmt_parm(net, 1)) != IVL_EX_NULL)) {
+		  fprintf(stderr, "%s:%u: internal error: malformed named-event "
+			  "assignment.\n", ivl_stmt_file(net),
+			  ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    show_stmt_file_line(net, "Named-event handle assignment.");
+	    ivl_expr_t dest = ivl_stmt_parm(net, 0);
+	    ivl_expr_t source = ivl_stmt_parm(net, 1);
+	    if (ivl_expr_type(source) == IVL_EX_EVENT)
+		  fprintf(vvp_out, "    %%evassign E_%p, E_%p;\n",
+			  ivl_expr_event(dest), ivl_expr_event(source));
+	    else
+		  fprintf(vvp_out, "    %%evassign/null E_%p;\n",
+			  ivl_expr_event(dest));
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_wait_event_triggered_change") == 0) {
 	    if (ivl_stmt_parm_count(net) != 1
 		|| ivl_expr_type(ivl_stmt_parm(net, 0)) != IVL_EX_EVENT) {

@@ -1,6 +1,8 @@
 
 # Test list files are a list of test names and the json that
 # describes the test.
+issue699_named_event_handles_2017 vvp_tests/issue699_named_event_handles_2017.json
+issue699_named_event_handles_2023 vvp_tests/issue699_named_event_handles_2023.json
 issue2150_explicit_named_package_ports_2017 vvp_tests/issue2150_explicit_named_package_ports_2017.json
 issue2150_explicit_named_package_ports_2023 vvp_tests/issue2150_explicit_named_package_ports_2023.json
 issue2269_clocking_end_label_2017 vvp_tests/issue2269_clocking_end_label_2017.json

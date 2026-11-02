@@ -11796,6 +11796,83 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       if (op_ != 0)
 	    return elaborate_compressed_(des, scope);
 
+	/* Named event variables have a run-time identity (their current
+	 * synchronization queue), rather than a vector l-value. Lower their
+	 * assignment as an event-handle operation before generic l-value
+	 * elaboration. */
+      if (gn_system_verilog()) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(lval());
+	    if (id) {
+		  symbol_search_results target;
+		  if (symbol_search(this, des, scope, id->path(),
+				    id->lexical_pos(), &target)
+		      && target.eve && target.path_tail.empty()) {
+			bool selected = false;
+			for (const name_component_t&component : id->path().name)
+			      selected = selected || !component.index.empty();
+			if (selected || target.eve->is_event_array()) {
+			      cerr << get_fileline() << ": sorry: assignment to a "
+				      "named-event array element is not yet supported."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			if (delay_ || event_ || count_) {
+			      cerr << get_fileline() << ": error: named event "
+				      "assignment does not allow a delay or event control."
+			   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+
+			vector<NetExpr*>argv;
+			NetEEvent*dest = new NetEEvent(target.eve);
+			dest->set_line(*this);
+			argv.push_back(dest);
+
+			if (dynamic_cast<const PENull*>(rval())) {
+			      NetENull*source = new NetENull;
+			      source->set_line(*this);
+			      argv.push_back(source);
+			} else {
+			      const PEIdent*source_id =
+				    dynamic_cast<const PEIdent*>(rval());
+			      symbol_search_results source;
+			      bool valid_source = source_id
+				    && symbol_search(this, des, scope,
+					     source_id->path(),
+					     source_id->lexical_pos(), &source)
+				    && source.eve && source.path_tail.empty();
+			      bool source_selected = false;
+			      if (source_id)
+				    for (const name_component_t&component :
+					 source_id->path().name)
+					  source_selected = source_selected
+						|| !component.index.empty();
+			      if (!valid_source || source_selected
+				  || source.eve->is_event_array()) {
+				    cerr << rval()->get_fileline()
+					 << ": error: named event assignment requires "
+					    "another scalar named event or null."
+					 << endl;
+				    des->errors += 1;
+				    for (NetExpr*arg : argv) delete arg;
+				    return nullptr;
+			      }
+			      NetEEvent*source_expr = new NetEEvent(source.eve);
+			      source_expr->set_line(*rval());
+			      argv.push_back(source_expr);
+			}
+
+			NetSTask*assign = new NetSTask(
+			      "$ivl_event_method$assign",
+			      IVL_SFUNC_AS_TASK_IGNORE, argv);
+			assign->set_line(*this);
+			return assign;
+	    }
+	    }
+      }
+
 	// Chained dynamic-container element store:
 	//   container_of_container[k1][k2] = value
 	// (assoc/queue outer x assoc/queue inner).  The NetAssign_
@@ -15103,6 +15180,12 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 		  return new NetBlock(NetBlock::SEQU, 0);
       }
       }
+
+	/* Event variables are zero-width handle expressions in the IR. Convert
+	 * a condition before the generic zero-width recovery can mistake it for an
+	 * unsupported class expression. */
+	if (dynamic_cast<NetEEvent*>(expr))
+	      expr = condition_reduce(expr);
 
 	// If the condition expression is more than 1 bits, then
 	// generate a comparison operator to get the result down to
@@ -24082,6 +24165,9 @@ NetProc* PEventStatement::elaborate_conditional_(Design*des, NetScope*scope,
 			return nullptr;
 		  }
 
+		  if (dynamic_cast<NetEEvent*>(condition))
+			condition = condition_reduce(condition);
+
 		  if (condition->expr_width() < 1) {
 			cerr << guard->get_fileline() << ": error: Conditional event "
 			     << "guard expression has zero width." << endl;
@@ -26033,6 +26119,9 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 		  return 0;
 	    }
       }
+
+	if (dynamic_cast<NetEEvent*>(expr))
+	      expr = condition_reduce(expr);
 
 	// If the condition expression is more than 1 bits, then
 	// generate a reduction operator to get the result down to

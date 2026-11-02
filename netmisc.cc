@@ -1864,6 +1864,18 @@ NetNet* make_const_z(Design*des, NetScope*scope, unsigned long wid)
 
 NetExpr* condition_reduce(NetExpr*expr)
 {
+      /* IEEE 1800-2017/2023 15.5.5: an event variable used as a Boolean
+       * condition is true exactly when it still has a queue association.
+       * Keep a bare event as an event handle everywhere else (e.g. VPI task
+       * arguments); only condition contexts perform this conversion. */
+      if (dynamic_cast<NetEEvent*>(expr)) {
+	    NetESFunc*truth = new NetESFunc(
+		  "$ivl_event_method$truth", IVL_VT_BOOL, 1, 1);
+	    truth->parm(0, expr);
+	    truth->set_line(*expr);
+	    return truth;
+      }
+
       if (expr->expr_type() == IVL_VT_REAL) {
 	    if (const NetECReal *tmp = dynamic_cast<NetECReal*>(expr)) {
 		  verinum::V res;

@@ -1916,6 +1916,42 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%evtest E_%p;\n", ivl_expr_event(earg));
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),"$ivl_event_method$truth")==0) {
+	      /* IEEE 1800-2017/2023 15.5.5: Boolean conversion is true
+	         exactly when the event variable has a non-null association. */
+	    ivl_expr_t earg = ivl_expr_parm(expr, 0);
+	    assert(earg && ivl_expr_type(earg) == IVL_EX_EVENT);
+	    fprintf(vvp_out, "    %%evtruth E_%p;\n", ivl_expr_event(earg));
+	    return;
+      }
+	  if (strcmp(ivl_expr_name(expr),
+		 "$ivl_event_method$compare_eq")==0
+	      || strcmp(ivl_expr_name(expr),
+		 "$ivl_event_method$compare_ne")==0) {
+	      /* Event comparisons use runtime queue identity. Case equality has
+	         the same semantics and shares this path with ==/!=. */
+	    ivl_expr_t larg = ivl_expr_parm(expr, 0);
+	    ivl_expr_t rarg = ivl_expr_parm(expr, 1);
+	    int not_equal = strcmp(ivl_expr_name(expr),
+			    "$ivl_event_method$compare_ne")==0;
+	    assert(larg && rarg);
+	    if (ivl_expr_type(larg) == IVL_EX_EVENT
+		&& ivl_expr_type(rarg) == IVL_EX_EVENT) {
+		  fprintf(vvp_out, not_equal
+			  ? "    %%evcmp/ne E_%p, E_%p;\n"
+			  : "    %%evcmp E_%p, E_%p;\n",
+			  ivl_expr_event(larg), ivl_expr_event(rarg));
+	    } else {
+		  ivl_expr_t earg = ivl_expr_type(larg) == IVL_EX_EVENT
+			? larg : rarg;
+		  assert(ivl_expr_type(earg) == IVL_EX_EVENT);
+		  fprintf(vvp_out, not_equal
+			  ? "    %%evcmp/null/ne E_%p;\n"
+			  : "    %%evcmp/null E_%p;\n",
+			  ivl_expr_event(earg));
+	    }
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),
 		 "$ivl_class_event_method$triggered")==0) {
 	      /* IEEE 1800-2017/2023 15.5.3: query the selected object's

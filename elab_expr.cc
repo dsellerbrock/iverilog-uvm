@@ -6909,6 +6909,33 @@ static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
       return nullptr;
 }
 
+/* Return true when EXPR denotes a named event. A named-event array, a
+ * selected reference, or a member path is recognized but is not a scalar
+ * handle supported by the scalar comparison operators. */
+static bool find_named_event_expression_(Design*des, NetScope*scope,
+					 const PExpr*expr,
+					 NetEvent*&event,
+					 bool&scalar)
+{
+      event = nullptr;
+      scalar = false;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id) return false;
+
+      symbol_search_results result;
+      if (!symbol_search(expr, des, scope, id->path(),
+			 id->lexical_pos(), &result) || !result.eve)
+	    return false;
+
+      event = result.eve;
+      bool selected = false;
+      for (const name_component_t&component : id->path().name)
+	    selected = selected || !component.index.empty();
+      scalar = result.path_tail.empty() && !selected
+	    && !event->is_event_array();
+      return true;
+}
+
 static NetScope* visible_interface_instance_array_(
 		Design*des, NetScope*scope, perm_string name,
 		unsigned lexical_pos);
@@ -6926,6 +6953,33 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
       expr_width_  = 1;
       min_width_   = 1;
       signed_flag_ = false;
+
+	/* IEEE 1800-2017/2023 15.5.5 compares event identities, not vector
+	 * encodings. Keep these operands out of ordinary vector width inference. */
+      NetEvent*left_event = nullptr;
+      NetEvent*right_event = nullptr;
+      bool left_scalar = false, right_scalar = false;
+      bool left_named = find_named_event_expression_(
+	    des, scope, left_, left_event, left_scalar);
+      bool right_named = find_named_event_expression_(
+	    des, scope, right_, right_event, right_scalar);
+      if (left_named || right_named) {
+	    bool equality_op = op_ == 'e' || op_ == 'n'
+		  || op_ == 'E' || op_ == 'N';
+	    bool left_ok = left_named ? left_scalar
+		  : dynamic_cast<const PENull*>(left_) != nullptr;
+	    bool right_ok = right_named ? right_scalar
+		  : dynamic_cast<const PENull*>(right_) != nullptr;
+	    if (!equality_op || !left_ok || !right_ok) {
+		  cerr << get_fileline() << ": error: named events support only "
+			  "equality, inequality, case equality, case inequality, "
+			  "and comparison with null (IEEE 1800-2017/2023 15.5.5)."
+		       << endl;
+		  des->errors += 1;
+	    }
+	    l_width_ = r_width_ = 1;
+	    return expr_width_;
+      }
 
       { const type_reference_t*l_tref = type_operator_reference(left_);
 	const type_reference_t*r_tref = type_operator_reference(right_);
@@ -7391,6 +7445,52 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
+
+	  if (gn_system_verilog()) {
+	    NetEvent*left_event = nullptr;
+	    NetEvent*right_event = nullptr;
+	    bool left_scalar = false, right_scalar = false;
+	    bool left_named = find_named_event_expression_(
+		  des, scope, left_, left_event, left_scalar);
+	    bool right_named = find_named_event_expression_(
+		  des, scope, right_, right_event, right_scalar);
+	    if (left_named || right_named) {
+		  bool equality_op = op_ == 'e' || op_ == 'n'
+			|| op_ == 'E' || op_ == 'N';
+		  bool left_ok = left_named ? left_scalar
+			: dynamic_cast<const PENull*>(left_) != nullptr;
+		  bool right_ok = right_named ? right_scalar
+			: dynamic_cast<const PENull*>(right_) != nullptr;
+		  if (!equality_op || !left_ok || !right_ok)
+			return nullptr; // PEBComp::test_width diagnosed this form.
+
+		  const bool not_equal = op_ == 'n' || op_ == 'N';
+		  NetESFunc*compare = new NetESFunc(
+			  not_equal ? "$ivl_event_method$compare_ne"
+				    : "$ivl_event_method$compare_eq",
+			  IVL_VT_BOOL, 1, 2);
+		  NetExpr*left_value;
+		  NetExpr*right_value;
+		  if (left_named) {
+			left_value = new NetEEvent(left_event);
+			left_value->set_line(*left_);
+		  } else {
+			left_value = new NetENull;
+			left_value->set_line(*left_);
+		  }
+		  if (right_named) {
+			right_value = new NetEEvent(right_event);
+			right_value->set_line(*right_);
+		  } else {
+			right_value = new NetENull;
+			right_value->set_line(*right_);
+		  }
+		  compare->parm(0, left_value);
+		  compare->parm(1, right_value);
+		  compare->set_line(*this);
+		  return compare;
+	    }
+	  }
 
       perm_string left_instance_modport;
       perm_string right_instance_modport;
@@ -24564,6 +24664,19 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	  if (sr.eve && sr.path_tail.empty() && !sr.eve->is_event_array()) {
+	    bool selected_event = false;
+	    for (const name_component_t&component : path_.name)
+		  selected_event = selected_event || !component.index.empty();
+	    if (!selected_event) {
+		  expr_type_ = IVL_VT_CLASS;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	  }
+
 	  if (!modport_expression_access() && sr.net
 	      && sr.path_tail.size() == 1 && sr.type) {
 	    const netclass_t*interface_type =
@@ -27590,9 +27703,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  des->errors += 1;
 	    }
 
-	    NetEEvent*tmp = new NetEEvent(sr.eve);
-	    tmp->set_line(*this);
-	    return tmp;
+	    NetEEvent*event_value = new NetEEvent(sr.eve);
+	    event_value->set_line(*this);
+	    return event_value;
       }
 
 	// Hmm... maybe this is a genvar? This is only possible while
@@ -33516,6 +33629,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    delete inc_lval;
 	    return 0;
       }
+
+	/* Logical negation is a Boolean context for an event variable; its
+	 * value is one exactly while it retains a queue association. */
+	if (op_ == '!' && dynamic_cast<NetEEvent*>(ip))
+	      ip = condition_reduce(ip);
 
       if (op_ != '!' && netexpr_is_chandle_(ip)) {
 	    cerr << get_fileline() << ": error: chandle is not permitted with the '"

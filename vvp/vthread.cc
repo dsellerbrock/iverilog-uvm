@@ -1011,6 +1011,9 @@ struct vthread_s {
 	   disable/reap O(1), and is null for scheduler chains and the separate
 	   resource/object/VIF-multi waiter families. */
       struct vthread_s**event_wait_link;
+	/* An event queue can outlive its variable while an existing waiter stays
+	   blocked on that queue. */
+      std::shared_ptr<void> event_wait_keepalive;
 	/* These are used to access automatically allocated items. */
       vvp_context_t wt_context, rd_context;
       vvp_context_t owned_context;
@@ -11682,7 +11685,8 @@ void vthread_mark_scheduled(vthread_t thr)
  * waiter so disable/reap can unlink it without scanning or dereferencing a
  * thread after its storage is released.
  */
-vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
+vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head,
+                                 std::shared_ptr<void> keepalive)
 {
       assert(thr);
       assert(head);
@@ -11691,6 +11695,7 @@ vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
       assert(thr->wait_next == 0);
 
       thr->post_finish_wait = schedule_finished() ? 1 : 0;
+      thr->event_wait_keepalive = std::move(keepalive);
 
       vthread_t previous = *head;
       thr->wait_next = previous;
@@ -11722,6 +11727,7 @@ static void unlink_event_wait_only_(vthread_t thr)
             thr->wait_next->event_wait_link = link;
       thr->event_wait_link = 0;
       thr->wait_next = 0;
+      thr->event_wait_keepalive.reset();
 }
 
 static void cancel_event_expr_observer_(vthread_t thr)
@@ -11779,6 +11785,7 @@ void vthread_cancel_event_wait(vthread_t thr)
       if (removed) {
             thr->waiting_for_event = 0;
             thr->post_finish_wait = 0;
+            thr->event_wait_keepalive.reset();
       }
 }
 
@@ -12446,6 +12453,7 @@ void vthread_schedule_list(vthread_t thr)
             cur->wait_next = 0;
             cur->waiting_for_event = 0;
             cur->post_finish_wait = 0;
+            cur->event_wait_keepalive.reset();
       }
 
 	/* A single event functor can wake both design processes and
@@ -19709,6 +19717,88 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
       vvp_net_ptr_t ptr (cp->net, 0);
       vvp_vector4_t tmp (1, BIT4_X);
       vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "assign-vec4"));
+      return true;
+}
+
+static vvp_named_event* named_event_handle_(vvp_net_t*net, const char*op)
+{
+      vvp_named_event*event = net
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event) {
+	    fprintf(stderr, "vvp: malformed %s event handle\n", op);
+	    if (!schedule_finished()) schedule_finish(0);
+      }
+      return event;
+}
+
+/* Copy the source event's current synchronization-queue association into the
+ * destination event variable. Existing waiters retain the queue they armed
+ * on, while subsequent operations resolve through the new association. */
+bool of_EVASSIGN(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event*dest = named_event_handle_(cp->net, "%evassign");
+      vvp_named_event*source = named_event_handle_(cp->net2, "%evassign");
+      if (!dest || !source) return true;
+      dest->set_event_state(source->event_state(true), true);
+      return true;
+}
+
+bool of_EVASSIGN_NULL(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event*dest = named_event_handle_(cp->net, "%evassign/null");
+      if (dest) dest->set_event_state(named_event_state_ptr(), true);
+      return true;
+}
+
+static bool named_event_compare_(vthread_t thr, vvp_code_t cp,
+				bool not_equal)
+{
+	  vvp_named_event*left = named_event_handle_(cp->net, "%evcmp");
+	  vvp_named_event*right = named_event_handle_(cp->net2, "%evcmp");
+      if (!left || !right) return true;
+      bool equal = left->event_state(false) == right->event_state(false);
+	  if (not_equal) equal = !equal;
+      thr->push_vec4(vvp_vector4_t(1, equal ? BIT4_1 : BIT4_0));
+      return true;
+}
+
+bool of_EVCMP(vthread_t thr, vvp_code_t cp)
+{
+	  return named_event_compare_(thr, cp, false);
+}
+
+bool of_EVCMP_NE(vthread_t thr, vvp_code_t cp)
+{
+	  return named_event_compare_(thr, cp, true);
+}
+
+static bool named_event_compare_null_(vthread_t thr, vvp_code_t cp,
+				      bool not_equal)
+{
+	  vvp_named_event*event = named_event_handle_(cp->net, "%evcmp/null");
+	  if (!event) return true;
+	  bool equal = !event->event_state(false);
+	  if (not_equal) equal = !equal;
+	  thr->push_vec4(vvp_vector4_t(1, equal ? BIT4_1 : BIT4_0));
+	  return true;
+}
+
+bool of_EVCMP_NULL(vthread_t thr, vvp_code_t cp)
+{
+	  return named_event_compare_null_(thr, cp, false);
+}
+
+bool of_EVCMP_NULL_NE(vthread_t thr, vvp_code_t cp)
+{
+	  return named_event_compare_null_(thr, cp, true);
+}
+
+bool of_EVTRUTH(vthread_t thr, vvp_code_t cp)
+{
+      vvp_named_event*event = named_event_handle_(cp->net, "%evtruth");
+      if (!event) return true;
+      thr->push_vec4(vvp_vector4_t(1,
+	    event->event_state(false) ? BIT4_1 : BIT4_0));
       return true;
 }
 
