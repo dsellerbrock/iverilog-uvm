@@ -30146,7 +30146,7 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 	    packed_indices.pop_front();
       const bool final_indexed_packed =
 	    !packed_indices.empty()
-	    && packed_indices.size() == net->packed_dimensions()
+	    && packed_indices.size() <= net->packed_dimensions()
 	    && (packed_indices.back().sel == index_component_t::SEL_IDX_UP
 		|| packed_indices.back().sel == index_component_t::SEL_IDX_DO);
       if (!need_const && !final_indexed_packed
@@ -30410,7 +30410,9 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
  */
 static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 					const PEIdent*ident, NetESignal*net,
-					bool need_const, NetExpr*&carrier)
+					bool need_const, NetExpr*&carrier,
+					const netrange_t*&select_range,
+					unsigned long&element_width)
 {
       const NetNet*sig = net->sig();
       const netranges_t&dims = sig->packed_dims();
@@ -30423,7 +30425,7 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
       for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
 	    indices.pop_front();
 
-      if (indices.size() != dims.size())
+      if (indices.empty() || indices.size() > dims.size())
 	    return false;
       list<index_component_t>::const_iterator last = indices.end();
       --last;
@@ -30470,6 +30472,13 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 	    slice->set_line(*ident);
 	    carrier = slice;
       }
+
+      // The indexed part-select applies to the next packed dimension, and
+      // its width counts elements of that dimension. Keep the remaining
+      // dimensions as the element stride so an out-of-range element cannot
+      // alias a neighboring packed dimension in the flattened signal.
+      select_range = &*dim;
+      element_width = sig->slice_width(used + 1);
       return true;
 }
 
@@ -30500,15 +30509,20 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+      const netrange_t*select_range = nullptr;
+      unsigned long element_width = 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     carrier, select_range, element_width)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
-	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, true, 0);
+	    ivl_assert(*this, select_range && element_width > 0
+		       && wid % element_width == 0);
+	    base = normalize_variable_base(base, select_range->get_msb(),
+					   select_range->get_lsb(),
+					   wid / element_width, true, 0);
+	    base = scale_index_to_bits(base, element_width, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_UP);
       }
@@ -30682,15 +30696,20 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+      const netrange_t*select_range = nullptr;
+      unsigned long element_width = 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     carrier, select_range, element_width)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
-	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, false, 0);
+	    ivl_assert(*this, select_range && element_width > 0
+		       && wid % element_width == 0);
+	    base = normalize_variable_base(base, select_range->get_msb(),
+					   select_range->get_lsb(),
+					   wid / element_width, false, 0);
+	    base = scale_index_to_bits(base, element_width, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_DOWN);
       }
@@ -31442,7 +31461,7 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	// stays in charge of them.
       const bool final_indexed_packed =
 	    !path_.back().index.empty()
-	    && path_.back().index.size() == node->sig()->packed_dimensions()
+	    && path_.back().index.size() <= node->sig()->packed_dimensions()
 	    && (path_.back().index.back().sel == index_component_t::SEL_IDX_UP
 		|| path_.back().index.back().sel == index_component_t::SEL_IDX_DO);
       if (!final_indexed_packed && node->sig()->unpacked_dimensions() == 0

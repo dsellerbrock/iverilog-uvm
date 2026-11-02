@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2335_packed_nonleaf_read.v",
+  "iverilog-args": ["-g2017", "-s", "issue2335_packed_nonleaf_read"],
+  "gold": "issue2335_packed_nonleaf_read_2017"
+}
