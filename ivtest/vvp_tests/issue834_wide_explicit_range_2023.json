@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue834_wide_explicit_range.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "top"],
+  "gold": "issue834_wide_explicit_range"
+}
