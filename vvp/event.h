@@ -631,11 +631,11 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
  * Per-instance dynamic named event (IEEE 1800-2017 15.5): the runtime
  * backing for a non-static class `event` property. Each class object
  * instance owns its own vvp_net_t whose functor is one of these, so a
- * trigger on one object's event wakes only that object's waiters. Unlike
- * vvp_named_event_sa it carries no VPI __vpiNamedEvent handle (the event
- * has no static compile-time identity), so recv_vec4 skips the VPI
- * callback dispatch. It reuses the standard waitable_hooks_s wait list and
- * the triggered_now() bookkeeping so @, ->, ->>, and .triggered all work.
+ * trigger on one object's event wakes only that object's waiters. Class
+ * events have no static VPI handle; named-event array elements may attach
+ * one after indexed VPI access. It reuses the standard waitable_hooks_s
+ * wait list and triggered_now() bookkeeping so @, ->, ->>, and .triggered
+ * all work.
  */
 class vvp_named_event_dyn : public vvp_named_event {
 
@@ -648,6 +648,7 @@ class vvp_named_event_dyn : public vvp_named_event {
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
+      void set_vpi_handle(class __vpiHandle*handle) { handle_ = handle; }
 
     private:
       vthread_t threads_;

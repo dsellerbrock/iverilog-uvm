@@ -437,6 +437,18 @@ extern "C" unsigned ivl_event_array_count(ivl_event_t net)
       return net->array_count;
 }
 
+extern "C" long ivl_event_array_msb(ivl_event_t net)
+{
+      assert(net);
+      return net->array_msb;
+}
+
+extern "C" long ivl_event_array_lsb(ivl_event_t net)
+{
+      assert(net);
+      return net->array_lsb;
+}
+
 extern "C" unsigned ivl_event_nany(ivl_event_t net)
 {
       assert(net);
