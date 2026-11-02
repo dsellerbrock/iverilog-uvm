@@ -498,6 +498,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiNamedBegin";
 	  case vpiNamedEvent:
 	    return "vpiNamedEvent";
+	  case vpiNamedEventArray:
+	    return "vpiNamedEventArray";
 	  case vpiNamedFork:
 	    return "vpiNamedFork";
 	  case vpiPackage:

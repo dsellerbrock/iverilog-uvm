@@ -4351,6 +4351,8 @@ class NetEvent : public LineInfo {
       void set_event_array(long msb, long lsb, unsigned count);
       unsigned array_count() const { return array_count_; }
       unsigned array_base_slot() const { return array_base_slot_; }
+      long array_msb() const { return array_msb_; }
+      long array_lsb() const { return array_lsb_; }
 	// Map a user index to a 0-based element offset. Returns false
 	// (leaving word unset) if index is out of the declared bounds.
       bool array_index_to_word(long index, unsigned&word) const;

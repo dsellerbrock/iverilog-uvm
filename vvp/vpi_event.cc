@@ -24,6 +24,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <algorithm>
 # include  "ivl_alloc.h"
 
 inline __vpiNamedEvent::__vpiNamedEvent(__vpiScope*sc, const char*nam,
@@ -35,8 +36,25 @@ inline __vpiNamedEvent::__vpiNamedEvent(__vpiScope*sc, const char*nam,
       callbacks_ = 0;
 }
 
+__vpiNamedEvent::__vpiNamedEvent(__vpiScope*sc, const char*nam,
+                                 bool automatic_storage, unsigned array_base,
+                                 int array_msb, int array_lsb,
+                                 unsigned array_count)
+: __vpiNamedEvent(sc, nam, automatic_storage)
+{
+      is_array_ = true;
+      array_base_ = array_base;
+      array_msb_ = array_msb;
+      array_lsb_ = array_lsb;
+      array_count_ = array_count;
+      array_members_.resize(array_count, 0);
+}
+
 __vpiNamedEvent::~__vpiNamedEvent()
 {
+      for (std::vector<__vpiNamedEvent*>::iterator cur = array_members_.begin();
+           cur != array_members_.end(); ++cur)
+            delete *cur;
       while (callbacks_) {
 	    struct __vpiCallback *tmp = callbacks_->next;
 	    delete callbacks_;
@@ -45,10 +63,20 @@ __vpiNamedEvent::~__vpiNamedEvent()
 }
 
 int __vpiNamedEvent::get_type_code(void) const
-{ return vpiNamedEvent; }
+{ return is_array_ ? vpiNamedEventArray : vpiNamedEvent; }
 
 vpiHandle __vpiNamedEvent::vpi_iterate(int code)
 {
+      if (is_array_ && code == vpiRange)
+            return vpip_make_iterator(1,
+                  new vpiHandle[1]{vpip_make_range(array_msb_, array_lsb_)}, true);
+
+      if (is_array_member_ && code == vpiIndex) {
+            vpiHandle*args = new vpiHandle[1];
+            args[0] = &index_value_;
+            return vpip_make_iterator(1, args, true);
+      }
+
 #ifndef vpiWaitingProcesses
 # define vpiWaitingProcesses 734
 #endif
@@ -79,6 +107,9 @@ int __vpiNamedEvent::vpi_get(int code)
 
 	  case vpiAutomatic:
 	    return automatic_storage_ ? 1 : 0;
+
+	  case vpiArrayMember:
+	    return is_array_member_ ? 1 : 0;
       }
 
       return 0;
@@ -94,6 +125,10 @@ char* __vpiNamedEvent::vpi_get_str(int code)
 
 vpiHandle __vpiNamedEvent::vpi_put_value(p_vpi_value, int)
 {
+	/* The array itself is not an event; callers must select an element. */
+      if (is_array_)
+	    return 0;
+
 	// p_vpi_value may be NULL, and an event doesn't care
 	// what the value is
       vvp_vector4_t val;
@@ -116,6 +151,35 @@ vpiHandle __vpiNamedEvent::vpi_handle(int code)
       return 0;
 }
 
+vpiHandle __vpiNamedEvent::vpi_index(int index)
+{
+      if (!is_array_ || index < std::min(array_msb_, array_lsb_) ||
+          index > std::max(array_msb_, array_lsb_))
+            return 0;
+
+      unsigned offset = static_cast<unsigned>(index -
+            std::min(array_msb_, array_lsb_));
+      if (offset >= array_count_)
+            return 0;
+
+      if (!array_members_[offset]) {
+            std::string member_name(name_);
+            member_name += "[" + std::to_string(index) + "]";
+            __vpiNamedEvent*member = new __vpiNamedEvent(
+                  scope_, member_name.c_str(), automatic_storage_);
+            member->is_array_member_ = true;
+            member->index_value_.set_value(index);
+            vvp_net_t*net = event_array_slot_net(array_base_ + offset);
+            member->funct = net;
+            vvp_named_event_dyn*event =
+                  dynamic_cast<vvp_named_event_dyn*>(net->fun);
+            assert(event);
+            event->set_vpi_handle(member);
+            array_members_[offset] = member;
+      }
+      return array_members_[offset];
+}
+
 
 vpiHandle vpip_make_named_event(const char*name, vvp_net_t*funct,
 				bool automatic_storage)
@@ -126,6 +190,16 @@ vpiHandle vpip_make_named_event(const char*name, vvp_net_t*funct,
       obj->funct = funct;
 
       return obj;
+}
+
+vpiHandle vpip_make_named_event_array(const char*name, unsigned array_base,
+                                     int array_msb, int array_lsb,
+                                     unsigned array_count,
+                                     bool automatic_storage)
+{
+      return new __vpiNamedEvent(vpip_peek_current_scope(), name,
+                                 automatic_storage, array_base, array_msb,
+                                 array_lsb, array_count);
 }
 
 /*

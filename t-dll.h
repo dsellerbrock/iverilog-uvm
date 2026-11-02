@@ -341,6 +341,8 @@ struct ivl_event_s {
       bool is_array;
       unsigned array_base;
       unsigned array_count;
+      long array_msb;
+      long array_lsb;
 
       void* operator new (size_t s);
       void  operator delete(void*obj, size_t s); // Not implemented

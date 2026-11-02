@@ -44,6 +44,8 @@ ivl_event_any
 ivl_event_any_is_obj_handle_change
 ivl_event_array_base
 ivl_event_array_count
+ivl_event_array_lsb
+ivl_event_array_msb
 ivl_event_basename
 ivl_event_edg
 ivl_event_is_array

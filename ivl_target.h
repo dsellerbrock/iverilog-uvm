@@ -843,6 +843,8 @@ extern ivl_lifetime_t ivl_event_lifetime(ivl_event_t net);
 extern unsigned    ivl_event_is_array(ivl_event_t net);
 extern unsigned    ivl_event_array_base(ivl_event_t net);
 extern unsigned    ivl_event_array_count(ivl_event_t net);
+extern long        ivl_event_array_msb(ivl_event_t net);
+extern long        ivl_event_array_lsb(ivl_event_t net);
 
 extern unsigned    ivl_event_nany(ivl_event_t net);
 extern ivl_nexus_t ivl_event_any(ivl_event_t net, unsigned idx);

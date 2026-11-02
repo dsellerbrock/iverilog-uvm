@@ -1802,6 +1802,8 @@ void dll_target::event(const NetEvent*net)
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
+      obj->array_msb = net->array_msb();
+      obj->array_lsb = net->array_lsb();
 
       if (net->nprobe() >= 1) {
 

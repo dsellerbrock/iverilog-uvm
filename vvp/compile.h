@@ -515,6 +515,9 @@ extern void compile_event_order(char*label, unsigned argc,
 				struct symb_s*argv);
 extern void compile_named_event(char*label, char*type, int lifetime_flag=0,
 				bool local_flag=false);
+extern void compile_named_event_array(char*label, char*name,
+                                      int lifetime_flag, unsigned base,
+                                      long msb, long lsb, unsigned count);
 
 
 /*

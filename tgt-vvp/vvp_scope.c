@@ -1902,6 +1902,15 @@ static void draw_event_in_scope(ivl_event_t obj)
 {
       char tmp[4][32];
 
+      if (ivl_event_is_array(obj)) {
+	    fprintf(vvp_out, "E_%p .event %s\"%s\", %u, %ld, %ld, %u;\n",
+		    obj, event_storage_flag_str(obj),
+		    vvp_mangle_name(ivl_event_basename(obj)),
+		    ivl_event_array_base(obj), ivl_event_array_msb(obj),
+		    ivl_event_array_lsb(obj), ivl_event_array_count(obj));
+	    return;
+      }
+
       const unsigned ntmp = sizeof(tmp) / sizeof(tmp[0]);
 
 	/* A virtual-interface edge event (@(edge vif.sig) / a direct

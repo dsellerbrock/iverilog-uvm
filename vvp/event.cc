@@ -2456,9 +2456,13 @@ void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
       note_triggered();
       notify_wait_order_observers(context);
       run_waiting_threads_(threads_);
-	/* A per-instance dynamic event has no fanout net graph and no
-	   VPI __vpiNamedEvent handle, so unlike vvp_named_event_sa there
-	   is nothing to propagate to and no VPI callbacks to run. */
+	/* Class events have no VPI handle. Named-event array slots attach
+	   their member handle when VPI first resolves that element. */
+      if (handle_) {
+	    __vpiNamedEvent*obj = dynamic_cast<__vpiNamedEvent*>(handle_);
+	    assert(obj);
+	    obj->run_vpi_callbacks();
+      }
 }
 
 /*
@@ -3054,6 +3058,23 @@ void compile_named_event(char*label, char*name, int lifetime_flag,
       compile_vpi_symbol(label, obj);
       if (! local_flag) vpip_attach_to_current_scope(obj);
 
+      free(label);
+      delete[] name;
+}
+
+void compile_named_event_array(char*label, char*name, int lifetime_flag,
+                               unsigned base, long msb, long lsb,
+                               unsigned count)
+{
+      bool use_auto = lifetime_flag > 0
+		   || (lifetime_flag == 0
+		       && vpip_peek_current_scope()->is_automatic());
+      vpiHandle obj = vpip_make_named_event_array(name, base,
+						   static_cast<int>(msb),
+						   static_cast<int>(lsb),
+						   count, use_auto);
+      compile_vpi_symbol(label, obj);
+      vpip_attach_to_current_scope(obj);
       free(label);
       delete[] name;
 }
