@@ -7990,8 +7990,33 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_default K_disable K_iff expression ';'
       { pform_sva_set_default_disable(@2, $4); }
   | property_declaration
-  /* An ordinary unclocked named sequence keeps the flat splice table. */
-  | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
+  | sequence_declaration
+  /* SV `sequence ... endsequence` and `property ... endproperty` —
+     parameterized/complex forms are parsed and dropped via bison
+     error recovery so SVA-rich modules still compile. */
+  | K_sequence error K_endsequence
+      { if (gn_supported_assertions_flag) {
+              /* silently recover */
+              error_count -= 1; /* offset the error from `error` token */
+        }
+        yyerrok;
+      }
+  | K_property error K_endproperty
+      { if (gn_supported_assertions_flag) {
+              error_count -= 1;
+        }
+        yyerrok;
+      }
+
+  /* IEEE 1800-2017 A.6.11. Directions and skews (14.4) are recorded
+     per signal; input #1step samples the Preponed value, numeric
+     input skews sample a delayed shadow, output skews delay the
+     drive landing. Edge qualifiers on skews are recorded but not
+     applied. */
+/* Reuse the property declaration forms supported at module-like scope,
+   without making clocking-block declarations legal in package/$unit scope. */
+sequence_declaration /* IEEE 1800-2017/2023 16.8 */
+  : K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence(@2, $2, $4);
 	delete[] $2;
       }
@@ -8104,30 +8129,8 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
-  /* SV `sequence ... endsequence` and `property ... endproperty` —
-     parameterized/complex forms are parsed and dropped via bison
-     error recovery so SVA-rich modules still compile. */
-  | K_sequence error K_endsequence
-      { if (gn_supported_assertions_flag) {
-              /* silently recover */
-              error_count -= 1; /* offset the error from `error` token */
-        }
-        yyerrok;
-      }
-  | K_property error K_endproperty
-      { if (gn_supported_assertions_flag) {
-              error_count -= 1;
-        }
-        yyerrok;
-      }
+  ;
 
-  /* IEEE 1800-2017 A.6.11. Directions and skews (14.4) are recorded
-     per signal; input #1step samples the Preponed value, numeric
-     input skews sample a delayed shadow, output skews delay the
-     drive landing. Edge qualifiers on skews are recorded but not
-     applied. */
-/* Reuse the property declaration forms supported at module-like scope,
-   without making clocking-block declarations legal in package/$unit scope. */
 property_declaration
   : K_property IDENTIFIER ';' property_spec ';' K_endproperty
       { pform_sva_declare_property(@2, $2, $4);
@@ -8605,9 +8608,10 @@ package_export_item_list
 
 package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
-  /* Named properties are assertion declarations in package and $unit
-     scope too (IEEE 1800-2017/2023 16.12). */
+  /* Named properties and sequences are assertion declarations in package
+     and $unit scope too (IEEE 1800-2017/2023 16.8, 16.12). */
   | property_declaration
+  | sequence_declaration
   | K_let IDENTIFIER let_port_list_opt '=' expression ';'
       { perm_string tmp2 = lex_strings.make($2);
         pform_make_let(@2, tmp2, $3, $5);

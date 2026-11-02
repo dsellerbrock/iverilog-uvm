@@ -8909,10 +8909,14 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
 struct sva_scoped_name_t {
       perm_string name;
       const PGenerate*gen;   // nullptr == module scope
+      const PPackage*package; // nullptr unless declared in a package
+      const PPackage*unit; // compilation-unit declarations outlive modules
 
       bool operator< (const sva_scoped_name_t&that) const
       {
 	    if (name != that.name) return name < that.name;
+	    if (package != that.package) return package < that.package;
+	    if (unit != that.unit) return unit < that.unit;
 	    return gen < that.gen;
       }
 };
@@ -9022,6 +9026,10 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
       sva_scoped_name_t k;
       k.name = nm;
       k.gen  = pform_cur_generate;
+	  k.unit = pform_in_compilation_unit_scope()
+		? dynamic_cast<const PPackage*>(pform_peek_scope()) : nullptr;
+	  k.package = k.unit ? nullptr
+		: dynamic_cast<const PPackage*>(pform_peek_scope());
       return k;
 }
 
@@ -9044,12 +9052,24 @@ static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
 	    sva_scoped_name_t k;
 	    k.name = nm;
 	    k.gen  = g;
+	    k.package = nullptr;
+	    k.unit = nullptr;
 	    typename MAP::iterator it = m.find(k);
 	    if (it != m.end()) return it;
 	    if (!g) break;
 	    const LexicalScope*up = g->parent_scope();
 	    g = dynamic_cast<const PGenerate*>(up);
       }
+      sva_scoped_name_t unit_key;
+      unit_key.name = nm;
+      unit_key.gen = nullptr;
+      unit_key.package = nullptr;
+      unit_key.unit = !pform_cur_module.empty()
+		? dynamic_cast<const PPackage*>(pform_cur_module.front()->parent_scope())
+		: nullptr;
+      if (!unit_key.unit) return m.end();
+      typename MAP::iterator unit_it = m.find(unit_key);
+      if (unit_it != m.end()) return unit_it;
       return m.end();
 }
 
@@ -9976,29 +9996,37 @@ void pform_sva_module_done(void)
          expressions or let them affect a later module. */
       pform_sva_end_local_declarations();
       for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
-		sva_module_properties.begin() ;
-	   it != sva_module_properties.end() ; ++it)
+		sva_module_properties.begin() ; it != sva_module_properties.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_property(it->second);
+	    sva_module_properties.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-		sva_module_sequences.begin() ;
-	   it != sva_module_sequences.end() ; ++it)
+		sva_module_sequences.begin() ; it != sva_module_sequences.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_sequence(it->second);
+	    sva_module_sequences.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
-		sva_param_sequences.begin() ;
-	   it != sva_param_sequences.end() ; ++it)
+		sva_param_sequences.begin() ; it != sva_param_sequences.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    pform_sva_destroy_sequence(it->second.body);
+	    sva_param_sequences.erase(it++);
+	  }
       for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
-		sva_param_properties.begin() ;
-	   it != sva_param_properties.end() ; ++it) {
+		sva_param_properties.begin() ; it != sva_param_properties.end() ; ) {
+	    if (it->first.package || it->first.unit) { ++it; continue; }
 	    for (sva_property_formal_t&formal : it->second.formals)
 		  delete formal.default_expr;
 	    pform_sva_destroy_property(it->second.body);
-	   }
-      sva_module_properties.clear();
-      sva_module_sequences.clear();
-      sva_property_shaped_sequences.clear();
-      sva_param_sequences.clear();
-      sva_param_properties.clear();
+	    sva_param_properties.erase(it++);
+	  }
+	  for (std::set<sva_scoped_name_t>::iterator it =
+		sva_property_shaped_sequences.begin();
+	       it != sva_property_shaped_sequences.end(); ) {
+	    if (it->package || it->unit) { ++it; continue; }
+	    sva_property_shaped_sequences.erase(it++);
+	  }
       sva_default_disable_scopes.clear();
       delete sva_default_disable;
       sva_default_disable = nullptr;
@@ -16354,13 +16382,23 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 	    }
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!id || id->path().package || id->path().name.size() != 1
+	    if (!id || id->path().name.size() != 1
 		|| !id->path().name.front().index.empty()) {
 		  i += 1;
 		  continue;
 	    }
-	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
-		  sva_resolve_(sva_module_sequences, id->path().name.front().name, scope);
+	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it;
+	    if (id->path().package) {
+		  sva_scoped_name_t key;
+		  key.name = id->path().name.front().name;
+		  key.gen = nullptr;
+		  key.package = id->path().package;
+	  key.unit = nullptr;
+		  seq_it = sva_module_sequences.find(key);
+	    } else {
+		  seq_it = sva_resolve_(sva_module_sequences,
+				id->path().name.front().name, scope);
+	    }
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
