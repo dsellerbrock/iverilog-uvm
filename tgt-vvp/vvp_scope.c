@@ -612,12 +612,36 @@ static const char *storage_flag_str(ivl_signal_t sig)
       }
 }
 
+/* Return the number of leading packed dimensions that wrap a packed
+ * struct, union, or enum element. */
+static unsigned packed_aggregate_array_dimensions_(ivl_signal_t sig)
+{
+      if (ivl_signal_dimensions(sig) > 0) return 0;
+      ivl_type_t type = ivl_signal_net_type(sig);
+      if (!type) return 0;
+
+      unsigned dimensions = 0;
+      while (ivl_type_element(type)) {
+            ivl_type_t element = ivl_type_element(type);
+            unsigned type_dimensions = ivl_type_packed_dimensions(type);
+            unsigned element_dimensions = ivl_type_packed_dimensions(element);
+            if (type_dimensions < element_dimensions) return 0;
+            dimensions += type_dimensions - element_dimensions;
+            type = element;
+      }
+      if (!ivl_type_enum(type) && ivl_type_properties(type) == 0)
+            return 0;
+      return dimensions;
+}
+
 static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
 {
       unsigned dims = ivl_signal_packed_dimensions(sig);
-      if (dims < 2)
+      unsigned array_dims = packed_aggregate_array_dimensions_(sig);
+      if (dims < 2 && array_dims == 0)
             return;
       fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
+      if (array_dims > 0) fprintf(vvp_out, "A%u;", array_dims);
       for (unsigned idx = 0; idx < dims; idx += 1) {
             if (idx) fputc(',', vvp_out);
             fprintf(vvp_out, "%d:%d", ivl_signal_packed_msb(sig, idx),
@@ -631,7 +655,9 @@ static void emit_declared_packed_dims_(ivl_signal_t sig, const char*suffix)
       unsigned dims = ivl_signal_packed_dimensions(sig);
       if (dims == 0)
             return;
+      unsigned array_dims = packed_aggregate_array_dimensions_(sig);
       fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
+      if (array_dims > 0) fprintf(vvp_out, "A%u;", array_dims);
       for (unsigned idx = 0; idx < dims; idx += 1) {
             if (idx) fputc(',', vvp_out);
             fprintf(vvp_out, "%d:%d", ivl_signal_packed_msb(sig, idx),
@@ -664,6 +690,8 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
  */
 struct vartype_note_s {
       ivl_signal_t sig;
+      ivl_type_t type;
+      unsigned width;
       char suffix[16];
 };
 static struct vartype_note_s*vartype_notes = 0;
@@ -676,10 +704,18 @@ static int type_has_vartype_(ivl_type_t type)
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
 {
-      if (!type_has_vartype_(ivl_signal_net_type(sig))) return;
+      ivl_type_t type = ivl_signal_net_type(sig);
+      unsigned width = ivl_signal_width(sig);
+      if (ivl_signal_dimensions(sig) == 0) {
+            while (ivl_type_element(type)) type = ivl_type_element(type);
+            width = ivl_type_packed_width(type);
+      }
+      if (!type_has_vartype_(type)) return;
       vartype_notes = realloc(vartype_notes,
                               (nvartype_notes+1) * sizeof(*vartype_notes));
       vartype_notes[nvartype_notes].sig = sig;
+      vartype_notes[nvartype_notes].type = type;
+      vartype_notes[nvartype_notes].width = width;
       snprintf(vartype_notes[nvartype_notes].suffix,
                sizeof vartype_notes[nvartype_notes].suffix, "%s", suffix);
       nvartype_notes += 1;
@@ -768,9 +804,10 @@ void emit_signal_vartypes(void)
 
       for (idx = 0 ; idx < nvartype_notes ; idx += 1) {
 	    ivl_signal_t sig = vartype_notes[idx].sig;
+	    ivl_type_t type = vartype_notes[idx].type;
 	    buf.len = 0;
 	    vartype_put_(&buf, "");
-	    if (vartype_spec_(&buf, ivl_signal_net_type(sig)) == ivl_signal_width(sig))
+	    if (vartype_spec_(&buf, type) == vartype_notes[idx].width)
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }

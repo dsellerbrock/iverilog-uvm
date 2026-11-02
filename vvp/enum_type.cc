@@ -353,8 +353,41 @@ class vartype_resolv_t : public resolv_list_s {
 	    vpiHandle spec = (sig || array)
 		  ? parse_vartype(cp, width, missing) : 0;
 	    if (((!sig && !array) || missing) && !message_flag) return false;
-	    if ((!sig && !array) || !spec || *cp ||
-	        width != (sig ? sig->width() : array->get_word_size())) {
+            bool width_valid = false;
+            if (sig) {
+                  if (width != sig->width() &&
+                      sig->packed_array_dimensions == 0 && !message_flag)
+                        return false;
+                  width_valid = width == sig->width();
+                  if (sig->packed_array_dimensions > 0 && spec &&
+                      (spec->get_type_code() == vpiStructTypespec ||
+                       spec->get_type_code() == vpiUnionTypespec ||
+                       spec->get_type_code() == vpiEnumTypespec)) {
+                        const auto&ranges = sig->declared_packed_ranges;
+                        uint64_t element_width = 1;
+                        if (sig->packed_array_dimensions <= ranges.size()) {
+                              for (size_t idx = sig->packed_array_dimensions;
+                                   idx < ranges.size(); idx += 1) {
+                                    int64_t left = ranges[idx].left;
+                                    int64_t right = ranges[idx].right;
+                                    uint64_t dim = static_cast<uint64_t>(
+                                          left >= right ? left - right :
+                                                          right - left) + 1;
+                                    if (element_width > UINT_MAX / dim) {
+                                          element_width = 0;
+                                          break;
+                                    }
+                                    element_width *= dim;
+                              }
+                              if (element_width == width)
+                                    width_valid = true;
+                        }
+                  }
+            } else if (array) {
+                  width_valid = width ==
+                        static_cast<unsigned>(array->get_word_size());
+            }
+            if ((!sig && !array) || !spec || *cp || !width_valid) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;

@@ -42,9 +42,11 @@ class packed_dims_resolv_t : public resolv_list_s {
     public:
       packed_dims_resolv_t(char*label,
             const vector<__vpiSignal::packed_range_t>&ranges,
-            unsigned width, bool unpacked)
+            unsigned width, bool unpacked,
+            unsigned packed_array_dimensions)
       : resolv_list_s(label), ranges_(ranges), width_(width),
-        unpacked_(unpacked), obj_(0)
+        unpacked_(unpacked), packed_array_dimensions_(packed_array_dimensions),
+        obj_(0)
       {
             if (__vpiArray*array = array_find(label)) obj_ = array;
       }
@@ -65,8 +67,10 @@ class packed_dims_resolv_t : public resolv_list_s {
                         compile_errors += 1;
                   } else {
                         sig->declared_packed_ranges = ranges_;
-                        if (ranges_.size() > 1)
+                        if (ranges_.size() > 1 || packed_array_dimensions_ > 0)
                               sig->packed_ranges = ranges_;
+                        sig->packed_array_dimensions =
+                              packed_array_dimensions_;
                         sig->packed_depth = 0;
                         sig->value_base = 0;
                         sig->value_width = width_;
@@ -114,6 +118,7 @@ class packed_dims_resolv_t : public resolv_list_s {
       vector<__vpiSignal::packed_range_t> ranges_;
       unsigned width_;
       bool unpacked_;
+      unsigned packed_array_dimensions_;
       vpiHandle obj_;
 };
 
@@ -157,6 +162,18 @@ void compile_packed_dims(char*label, char*layout)
       bool unpacked = cur[0] == 'U' && cur[1] == ':';
       if (unpacked) cur += 2;
       bool syntax_valid = true;
+      unsigned packed_array_dimensions = 0;
+      if (*cur == 'A') {
+            char*end = 0;
+            unsigned long count = strtoul(cur + 1, &end, 10);
+            if (end == cur + 1 || *end != ';' || count == 0 ||
+                count > UINT_MAX) {
+                  syntax_valid = false;
+            } else {
+                  packed_array_dimensions = static_cast<unsigned>(count);
+                  cur = end + 1;
+            }
+      }
       while (*cur) {
             char*end = 0;
             long left = strtol(cur, &end, 10);
@@ -180,6 +197,7 @@ void compile_packed_dims(char*label, char*layout)
 
       uint64_t width = 1;
       bool valid = syntax_valid && !ranges.empty() && *cur == 0;
+      if (packed_array_dimensions > ranges.size()) valid = false;
       for (const auto&range : ranges) {
             int64_t left = range.left;
             int64_t right = range.right;
@@ -195,7 +213,8 @@ void compile_packed_dims(char*label, char*layout)
             free(label);
       } else {
             packed_dims_resolv_t*res = new packed_dims_resolv_t(
-                  label, ranges, static_cast<unsigned>(width), unpacked);
+                  label, ranges, static_cast<unsigned>(width), unpacked,
+                  packed_array_dimensions);
             if (array_find(label)) {
                   resolv_submit(res);
             } else {

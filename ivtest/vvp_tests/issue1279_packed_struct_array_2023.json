@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1279_packed_struct_array.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1279_packed_struct_array"],
+  "vpi-sources": ["vpi/issue1279_packed_struct_array.c"],
+  "output-contains": ["PASS issue1279"]
+}

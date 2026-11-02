@@ -473,6 +473,7 @@ struct __vpiSignal : public __vpiHandle {
 
     public:
       unsigned width() const;
+      int variable_type_code(int fallback) const;
       vpiHandle get_index(int index);
       void set_source_location(unsigned file_idx, unsigned lineno)
       { source_file_idx = file_idx; source_lineno = lineno;
@@ -495,6 +496,7 @@ struct __vpiSignal : public __vpiHandle {
       std::vector<packed_range_t> declared_packed_ranges;
       std::vector<packed_range_t> packed_ranges;
       std::vector<vpiHandle> packed_children;
+      unsigned packed_array_dimensions = 0;
       unsigned packed_depth = 0;
       unsigned value_base = 0;
       unsigned value_width = 0;
