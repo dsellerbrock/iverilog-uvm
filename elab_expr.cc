@@ -120,6 +120,27 @@ static bool report_chandle_arithmetic_error_(Design*des,
       return false;
 }
 
+static bool protected_method_accessible_(Design*des, const LineInfo*loc,
+					 NetScope*scope, NetScope*method)
+{
+      const PTaskFunc*definition = method ? method->func_pform() : nullptr;
+      if (!definition && method)
+	    definition = method->task_pform();
+      if (!definition || !definition->method_qualifiers().test_protected())
+	    return true;
+
+      const NetScope*owner_scope = method->get_class_scope();
+      const netclass_t*owner = owner_scope ? owner_scope->class_def() : nullptr;
+      if (owner && owner->test_scope_is_protected_access(scope))
+	    return true;
+
+      cerr << loc->get_fileline() << ": error: Protected method `"
+	   << method->basename() << "' is not accessible in this context."
+	   << endl;
+      des->errors += 1;
+      return false;
+}
+
 static bool cast_operands_nonsingular_(const NetExpr*dest,
 				       const NetExpr*source)
 {
@@ -8180,6 +8201,15 @@ static bool stream_property_readable_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return false;
       }
+      if (ct->get_prop_qual(pidx).test_protected()
+	  && !ct->get_prop_declaring_class(pidx)
+		  ->test_scope_is_protected_access(scope)) {
+	    cerr << inner->get_fileline() << ": error: Protected property "
+		 << ct->get_prop_name(pidx)
+		 << " is not accessible in this context." << endl;
+	    des->errors += 1;
+	    return false;
+      }
       if (ct->is_interface()) {
 	    verinum mp_attr = receiver->attribute(
 		  perm_string::literal("ivl_modport"));
@@ -15901,10 +15931,22 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
+	  const netclass_t*property_owner =
+		class_type->get_prop_declaring_class(pidx);
       if (qual.test_local()
-	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
+	  && !property_owner->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return 0;
+      }
+      if (qual.test_protected()
+	  && !property_owner->test_scope_is_protected_access(scope)) {
+	    cerr << li->get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
@@ -16943,6 +16985,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
 			if (NetScope*mscope =
 			      cur_class->method_from_name(tail_comp.name)) {
+			      if (!protected_method_accessible_(
+				    des, this, scope, mscope)) {
+				    delete base_expr;
+				    return nullptr;
+			      }
 			      const NetFuncDef*mdef =
 				    mscope->type() == NetScope::FUNC
 					  ? mscope->func_def() : 0;
@@ -17402,6 +17449,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
                   NetScope*method =
                         class_type->resolve_method_call_scope(des, comp.name);
                   if (method && method->type() == NetScope::FUNC) {
+                        if (!protected_method_accessible_(
+			  des, this, scope, method))
+			  return nullptr;
                         std::vector<named_pexpr_t> empty_parms;
                         PECallFunction*call = path_.package
                               ? new PECallFunction(path_.package, path_.name,
@@ -17477,6 +17527,16 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
+      }
+      if (qual.test_protected()
+	  && !class_type->get_prop_declaring_class(pidx)
+		  ->test_scope_is_protected_access(scope)) {
+	    cerr << get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    return nullptr;
       }
 
       // Modport member visibility (IEEE 1800-2017 25.5).
@@ -18529,6 +18589,9 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  return 0;
 	    }
+	    if (scoped_static_func && !protected_method_accessible_(
+		  des, this, scope, scoped_static_func))
+		  return nullptr;
 
 	    if (scoped_static_func
 		&& !skip_static_typecall_override_(scoped_static_func)
@@ -21149,6 +21212,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			  tmp->parm(0, sub_expr);
 			  return tmp;
 		    }
+	    if (method && !protected_method_accessible_(
+		  des, this, scope, method)) {
+		  delete sub_expr;
+		  return nullptr;
+	    }
 	    if (method == 0) {
 		  cerr << get_fileline() << ": Error: " << method_name
 		       << " is not a method of class " << class_type->get_name()
@@ -32124,6 +32192,17 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
                   ? owner_scope->class_def() : nullptr;
             if (!owner || !owner->test_scope_is_method(scope)) {
                   cerr << get_fileline() << ": error: Local constructor of class `"
+                       << (owner ? owner->get_name() : ctype->get_name())
+                       << "` is not accessible in this context." << endl;
+                  des->errors += 1;
+                  return obj;
+            }
+      } else if (ctor && ctor->method_qualifiers().test_protected()) {
+            const NetScope*owner_scope = new_scope->parent();
+            const netclass_t*owner = owner_scope
+                  ? owner_scope->class_def() : nullptr;
+            if (!owner || !owner->test_scope_is_protected_access(scope)) {
+                  cerr << get_fileline() << ": error: Protected constructor of class `"
                        << (owner ? owner->get_name() : ctype->get_name())
                        << "` is not accessible in this context." << endl;
                   des->errors += 1;
