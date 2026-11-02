@@ -879,6 +879,24 @@ vpiHandle vpip_make_null_const()
       return obj;
 }
 
+int __vpiNullOp::get_type_code(void) const
+{ return vpiOperation; }
+
+int __vpiNullOp::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiOpType:
+	    return vpiNullOp;
+	  default:
+	    return 0;
+      }
+}
+
+vpiHandle vpip_make_null_op()
+{
+      return new __vpiNullOp;
+}
+
 #ifdef CHECK_WITH_VALGRIND
 void constant_delete(vpiHandle item)
 {

@@ -1510,6 +1510,14 @@ class __vpiNullConst : public __vpiHandle {
 
 vpiHandle vpip_make_null_const();
 
+class __vpiNullOp : public __vpiHandle {
+    public:
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+};
+
+vpiHandle vpip_make_null_op();
+
 /*
  *  This one looks like a constant, but really is a vector in the current
  *  thread.
