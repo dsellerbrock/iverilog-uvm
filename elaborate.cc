@@ -49717,6 +49717,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
+	    group_options.name_prop = add_unique_cov_property(
+		  "__covgrp_group_option_name", &netstring_t::type_string);
 	    if (!cg_standalone) {
 				  int parent_prop = add_unique_cov_property(
 					"__covgrp_parent", this);

@@ -550,6 +550,7 @@ class class_type : public __vpiHandle {
             int weight_prop = -1, get_inst_coverage_prop = -1;
             int per_instance_prop = -1;
             int goal_prop = -1, comment_prop = -1;
+            int name_prop = -1;
       };
       void set_covgrp_options(const covgrp_options_t&options)
       { covgrp_options_ = options; covgrp_options_present_ = true; }

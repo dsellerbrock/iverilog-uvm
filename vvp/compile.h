@@ -756,6 +756,7 @@ extern void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
 extern void compile_class_covgrp_option_values(uint64_t goal_prop,
 					       uint64_t goal,
 					       uint64_t comment_prop,
+					       uint64_t name_prop,
 					       char*comment);
 extern void compile_class_covgrp_per_instance(uint64_t value,
       uint64_t property);

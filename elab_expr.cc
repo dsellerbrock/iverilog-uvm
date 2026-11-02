@@ -16993,6 +16993,19 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		    // diagnostic at all. Keep the constant-0 result so
 		    // code compiles, but say so.
 		  if (cur_class && cur_class->is_covergroup()
+		      && tail_comp.name == perm_string::literal("option")
+		      && std::next(tail_it) != sr.path_tail.end()
+		      && std::next(tail_it)->name == perm_string::literal("name")
+		      && std::next(tail_it)->index.empty()) {
+			int property = cur_class->covgrp_option_prop(
+			      perm_string::literal("name"));
+			if (property >= 0) {
+			      tail_comp.name = lex_strings.make(
+				    cur_class->get_prop_name(property));
+			      ++tail_it;
+			}
+		  }
+		  if (cur_class && cur_class->is_covergroup()
 		      && (tail_comp.name == perm_string::literal("option")
 			  || tail_comp.name == perm_string::literal("type_option"))
 		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
