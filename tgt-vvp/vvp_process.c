@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
 # include  <string.h>
 # include  <assert.h>
 # include  <stdlib.h>
@@ -8590,26 +8591,197 @@ int draw_process(ivl_process_t net, void*x)
 
 static void draw_dpi_func_body(ivl_scope_t scope, int is_task);
 
+/* VPI exposes the elaborated statement tree of tasks and functions. The
+ * execution bytecode below is intentionally separate from this metadata:
+ * vpiStmt describes source statements, not VVP instructions. */
+static unsigned vpi_statement_type_(ivl_statement_t stmt)
+{
+      switch (ivl_statement_type(stmt)) {
+          case IVL_ST_NOOP: return vpiNullStmt;
+          case IVL_ST_BLOCK: return vpiBegin;
+          case IVL_ST_FORK:
+          case IVL_ST_FORK_JOIN_ANY:
+          case IVL_ST_FORK_JOIN_NONE: return vpiFork;
+          case IVL_ST_ASSIGN:
+          case IVL_ST_ASSIGN_NB: return vpiAssignment;
+          case IVL_ST_CASSIGN: return vpiAssignStmt;
+          case IVL_ST_DEASSIGN: return vpiDeassign;
+          case IVL_ST_FORCE: return vpiForce;
+          case IVL_ST_RELEASE: return vpiRelease;
+          case IVL_ST_STASK: return vpiSysTaskCall;
+          case IVL_ST_UTASK: return vpiTaskCall;
+          case IVL_ST_CONDIT:
+            return ivl_stmt_cond_false(stmt) ? vpiIfElse : vpiIf;
+          case IVL_ST_CASE:
+          case IVL_ST_CASER:
+          case IVL_ST_CASEX:
+          case IVL_ST_CASEZ: return vpiCase;
+          case IVL_ST_DELAY:
+          case IVL_ST_DELAYX: return vpiDelayControl;
+          case IVL_ST_DISABLE: return vpiDisable;
+          case IVL_ST_FOREVER: return vpiForever;
+          case IVL_ST_REPEAT: return vpiRepeat;
+          case IVL_ST_WAIT: return vpiWait;
+          case IVL_ST_WHILE: return vpiWhile;
+          case IVL_ST_DO_WHILE: return vpiDoWhile;
+          case IVL_ST_FORLOOP: return vpiFor;
+          case IVL_ST_TRIGGER:
+          case IVL_ST_NB_TRIGGER:
+          case IVL_ST_TRIGGER_OBJ:
+          case IVL_ST_NB_TRIGGER_OBJ:
+          case IVL_ST_TRIGGER_ARR:
+          case IVL_ST_NB_TRIGGER_ARR: return vpiEventStmt;
+          case IVL_ST_WAIT_OBJ:
+          case IVL_ST_WAIT_ARR: return vpiWait;
+          case IVL_ST_WAIT_ORDER: return vpiOrderedWait;
+          case IVL_ST_BREAK: return vpiBreak;
+          case IVL_ST_CONTINUE: return vpiContinue;
+          case IVL_ST_CONTRIB: return vpiContAssign;
+          default: return vpiNullStmt;
+      }
+}
+
+static void emit_vpi_stmt_name_(const char *name)
+{
+      const unsigned char *cur = (const unsigned char *)name;
+      fputc('"', vvp_out);
+      while (*cur) {
+	    if (*cur == '"' || *cur == '\\') fputc('\\', vvp_out);
+	    if (*cur == '\n') {
+		  fputs("\\n", vvp_out);
+	    } else if (*cur == '\r') {
+		  fputs("\\r", vvp_out);
+	    } else {
+		  fputc(*cur, vvp_out);
+	    }
+	    cur += 1;
+      }
+      fputc('"', vvp_out);
+}
+
+static int vpi_statement_visible_(ivl_statement_t stmt)
+{
+      if (!stmt) return 0;
+      switch (ivl_statement_type(stmt)) {
+          case IVL_ST_NONE:
+          case IVL_ST_NOOP:
+          case IVL_ST_ALLOC:
+          case IVL_ST_FREE:
+            return 0;
+          default:
+            return 1;
+      }
+}
+
+static void emit_vpi_stmt_tree_(ivl_statement_t stmt, unsigned parent,
+                                unsigned *next_id)
+{
+      unsigned id, type, idx, count = 0;
+      const char *name = "";
+      if (!vpi_statement_visible_(stmt)) return;
+      id = ++*next_id;
+      type = vpi_statement_type_(stmt);
+      if (ivl_statement_type(stmt) == IVL_ST_STASK && ivl_stmt_name(stmt))
+            name = ivl_stmt_name(stmt);
+      else if (ivl_statement_type(stmt) == IVL_ST_UTASK
+               && ivl_stmt_call(stmt))
+            name = ivl_scope_name(ivl_stmt_call(stmt));
+      fprintf(vvp_out, "    .stmt_node %u %u %u ", id, parent, type);
+      emit_vpi_stmt_name_(name);
+      fputs(";\n", vvp_out);
+      switch (ivl_statement_type(stmt)) {
+          case IVL_ST_BLOCK:
+          case IVL_ST_FORK:
+          case IVL_ST_FORK_JOIN_ANY:
+          case IVL_ST_FORK_JOIN_NONE:
+            count = ivl_stmt_block_count(stmt);
+            for (idx = 0; idx < count; idx += 1)
+                  emit_vpi_stmt_tree_(ivl_stmt_block_stmt(stmt, idx), id,
+                                      next_id);
+            break;
+          case IVL_ST_CONDIT:
+            emit_vpi_stmt_tree_(ivl_stmt_cond_true(stmt), id, next_id);
+            emit_vpi_stmt_tree_(ivl_stmt_cond_false(stmt), id, next_id);
+            break;
+          case IVL_ST_CASE:
+          case IVL_ST_CASER:
+          case IVL_ST_CASEX:
+          case IVL_ST_CASEZ:
+            count = ivl_stmt_case_count(stmt);
+            for (idx = 0; idx < count; idx += 1)
+                  emit_vpi_stmt_tree_(ivl_stmt_case_stmt(stmt, idx), id,
+                                      next_id);
+            break;
+          case IVL_ST_DELAY:
+          case IVL_ST_DELAYX:
+          case IVL_ST_FOREVER:
+          case IVL_ST_REPEAT:
+          case IVL_ST_WAIT:
+          case IVL_ST_WHILE:
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, next_id);
+            break;
+          case IVL_ST_FORLOOP:
+            emit_vpi_stmt_tree_(ivl_stmt_init_stmt(stmt), id, next_id);
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, next_id);
+            emit_vpi_stmt_tree_(ivl_stmt_step_stmt(stmt), id, next_id);
+            break;
+          default:
+            break;
+      }
+}
+
+static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
+{
+      unsigned count = 0, idx, next_id = 0;
+      ivl_statement_t only_stmt = 0;
+      if (!def || !vpi_statement_visible_(def)) return;
+      if (ivl_statement_type(def) == IVL_ST_BLOCK) {
+	    for (idx = 0; idx < ivl_stmt_block_count(def); idx += 1) {
+		  ivl_statement_t stmt = ivl_stmt_block_stmt(def, idx);
+		  if (!vpi_statement_visible_(stmt)) continue;
+		  only_stmt = stmt;
+		  count += 1;
+	    }
+	    if (count == 0) return;
+	    if (count == 1) {
+		  emit_vpi_stmt_tree_(only_stmt, 0, &next_id);
+		  return;
+	    }
+      }
+      emit_vpi_stmt_tree_(def, 0, &next_id);
+}
+
 int draw_task_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
-      const char*label = vvp_mangle_id(ivl_scope_name(scope));
+      char*label;
 
 	/* A DPI import task has no pform body; synthesize the
 	   marshaling body instead. */
       if (ivl_scope_is_dpi_import(scope)) {
+	    label = strdup(vvp_mangle_id(ivl_scope_name(scope)));
+	    assert(label);
 	    fprintf(vvp_out, "TD_%s ;\n", label);
 	    note_td_definition(label);
 	    draw_dpi_func_body(scope, 1);
 	    fprintf(vvp_out, "    %%end;\n");
 	    thread_count += 1;
+	    free(label);
 	    return 0;
       }
 
       if (def == 0)
 	    return 0;
 
+	/* Preserve task/function source statements for the VPI statement
+	 * relation. The root uses parent id zero; child records follow it in
+	 * preorder so the runtime can build stable parent/child handles. */
+      {
+	    emit_vpi_task_stmt_tree_(def);
+      }
+      label = strdup(vvp_mangle_id(ivl_scope_name(scope)));
+      assert(label);
       fprintf(vvp_out, "TD_%s ;\n", label);
       note_td_definition(label);
 
@@ -8618,6 +8790,7 @@ int draw_task_definition(ivl_scope_t scope)
       fprintf(vvp_out, "    %%end;\n");
 
       thread_count += 1;
+      free(label);
       return rc;
 }
 
@@ -9025,10 +9198,15 @@ int draw_func_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
-      const char*label = vvp_mangle_id(ivl_scope_name(scope));
+      char*label;
 
       if (def == 0)
 	    return 0;
+
+	/* Functions use the same source statement relation as tasks. */
+      emit_vpi_task_stmt_tree_(def);
+      label = strdup(vvp_mangle_id(ivl_scope_name(scope)));
+      assert(label);
 
       fprintf(vvp_out, "TD_%s ;\n", label);
       note_td_definition(label);
@@ -9043,5 +9221,6 @@ int draw_func_definition(ivl_scope_t scope)
       fprintf(vvp_out, "    %%end;\n");
 
       thread_count += 1;
+      free(label);
       return rc;
 }

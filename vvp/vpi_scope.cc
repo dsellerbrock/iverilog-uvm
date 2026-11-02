@@ -141,6 +141,39 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiArrayVar:
 		  array_delete(item);
 		  break;
+		case vpiBegin:
+		case vpiAssignment:
+		case vpiContAssign:
+		case vpiDeassign:
+		case vpiDoWhile:
+		case vpiEventStmt:
+		case vpiFork:
+		case vpiForce:
+		case vpiIfElse:
+		case vpiForInitStmt:
+		case vpiForIncStmt:
+		case vpiNullStmt:
+		case vpiOrderedWait:
+		case vpiWaitFork:
+		case vpiDisableFork:
+		case vpiBreak:
+		case vpiContinue:
+		case vpiReturnStmt:
+		case vpiRelease:
+		case vpiAssignStmt:
+		case vpiCase:
+		case vpiDelayControl:
+		case vpiDisable:
+		case vpiEventControl:
+		case vpiForever:
+		case vpiIf:
+		case vpiRepeat:
+		case vpiSysTaskCall:
+		case vpiTaskCall:
+		case vpiWait:
+		case vpiWhile:
+		  delete item;
+		  break;
 		default:
 		  fprintf(stderr, "Need support for type: %d\n",
 		          item->get_type_code());
@@ -149,6 +182,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 	    }
       }
       scope->intern.clear();
+	for (size_t idx = 0; idx < scope->statement_nodes.size(); idx += 1)
+	      delete scope->statement_nodes[idx];
+	scope->statement_nodes.clear();
 
 	/* Save any class definitions to clean up later. */
       map<std::string, class_type*>::iterator citer;
@@ -270,6 +306,11 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
       assert(rfp);
 
       switch (code) {
+	  case vpiStmt:
+	    if (rfp->get_type_code() == vpiTask
+		|| rfp->get_type_code() == vpiFunction)
+		  return rfp->statement_root;
+	    return 0;
 	  case vpiIndex:
 	    if (rfp->get_type_code() == vpiModule &&
 	        rfp->has_module_array_index_)
@@ -288,6 +329,40 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
 
       return 0;
 }
+
+class __vpiStmtNode : public __vpiHandle {
+    public:
+      __vpiStmtNode(int type, const char*name)
+      : type_(type), name_(vpip_name_string(name)), parent_(0) { }
+      int get_type_code(void) const override { return type_; }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName && name_ && *name_)
+		  return const_cast<char*>(name_);
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiParent) return parent_;
+	    return __vpiHandle::vpi_handle(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiStmt || children_.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(
+		  calloc(children_.size(), sizeof(vpiHandle)));
+	    for (size_t idx = 0; idx < children_.size(); idx += 1)
+		  args[idx] = children_[idx];
+	    return vpip_make_iterator(children_.size(), args, true);
+      }
+      void add_child(__vpiStmtNode*child)
+      { children_.push_back(child); child->parent_ = this; }
+    private:
+      int type_;
+      const char*name_;
+      __vpiStmtNode*parent_;
+      std::vector<__vpiStmtNode*> children_;
+};
 
 /* compares vpiType's considering object classes */
 static int compare_types(int code, int type, bool is_typedef = false)
@@ -563,6 +638,7 @@ void compile_nettype_decl(char*name, char*alias, char*with)
 __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
 : is_automatic_(auto_flag)
 {
+      statement_root = 0;
       name_ = vpip_name_string(nam);
       tname_ = vpip_name_string(tnam? tnam : "");
       has_module_array_index_ = false;
@@ -1594,6 +1670,29 @@ void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 {
       assert(scope);
       scope->intern.push_back(obj);
+}
+
+void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope && (scope->get_type_code() == vpiTask
+		       || scope->get_type_code() == vpiFunction));
+      assert(id != 0 && type <= INT_MAX);
+      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name);
+      assert(scope->statement_node_by_id.find(id)
+	     == scope->statement_node_by_id.end());
+      if (parent == 0) {
+	    assert(scope->statement_root == 0);
+	    scope->statement_root = obj;
+      } else {
+	    std::map<uint64_t, vpiHandle>::iterator par =
+		  scope->statement_node_by_id.find(parent);
+	    assert(par != scope->statement_node_by_id.end());
+	    static_cast<__vpiStmtNode*>(par->second)->add_child(obj);
+      }
+      scope->statement_node_by_id[id] = obj;
+      scope->statement_nodes.push_back(obj);
+      delete[] name;
 }
 
 /*
