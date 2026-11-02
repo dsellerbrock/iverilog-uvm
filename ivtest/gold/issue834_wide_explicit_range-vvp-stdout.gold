@@ -1,0 +1,2 @@
+WIDE_EXPLICIT_RANGE_OK
+./ivltests/issue834_wide_explicit_range.v:38: $finish called at 0 (1s)

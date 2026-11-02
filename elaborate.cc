@@ -44823,6 +44823,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  perm_string name;
 		  std::vector<std::pair<uint64_t,uint64_t>> ranges;
 		  std::vector<std::vector<uint64_t>> wide_values;
+		  std::vector<unsigned> wide_ranges;
 		  std::vector<std::vector<uint64_t>> xz_values;
 		  bool wide_auto = false;
 		  uint64_t wide_auto_value = 0;
@@ -47282,11 +47283,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
-				// Exact unsigned wide values use one existing metadata
-				// record per 64-bit word. Records in one tuple are ANDed;
-					// separate values of the same bin are ORed. Bit 6 marks
-				// an exact word; hi carries source width, word index and
-				// the number of valid bits in that word.
+				// Exact unsigned wide values use one metadata record per
+				// 64-bit word. Explicit ranges use endpoint metadata and a
+				// wide comparison at sample time.
 				if (cp_value_width > 64) {
 				      bool supported = cp_wide_exact_supported
 					&& base_kind == 0 && !bin.array_size
@@ -47294,6 +47293,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					&& !bin.set_expr && bin.source_coverpoint.nil()
 					&& bin.trans_seqs.empty() && !bin.ranges.empty();
 				      std::vector<std::vector<uint64_t>> values;
+				  typedef std::pair<std::vector<uint64_t>,
+					    std::vector<uint64_t>> wide_range_t;
+				  std::vector<wide_range_t> wide_bounds;
+				  bool has_wide_range = false;
 			      auto read_value = [&](PExpr*expr,
 						 std::vector<uint64_t>&words) -> bool {
 					if (!expr || range_references_runtime(expr))
@@ -47340,12 +47343,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (supported) for (auto&range : bin.ranges) {
 					std::vector<uint64_t> lo, hi;
 					if (!read_value(range.first, lo)
-					    || !read_value(range.second, hi) || lo != hi) {
+					    || !read_value(range.second, hi)) {
 					      supported = false;
 					      break;
 					}
-					values.push_back(std::move(lo));
+					if (lo != hi) has_wide_range = true;
+					values.push_back(lo);
+					wide_bounds.push_back(std::make_pair(
+					      std::move(lo), std::move(hi)));
 				      }
+				  if (has_wide_range && bin.arrayed) supported = false;
 				      if (!supported) {
 					cerr << pclass->get_fileline()
 					     << ": error: wide covergroup bin '" << bin.name
@@ -47356,6 +47363,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					if (base_kind == 0) has_value_bins = true;
 					continue;
 				      }
+				  if (has_wide_range) {
+					int added = add_unique_cov_counter(bstem);
+					if (added < 0) continue;
+					xbin_desc_t d;
+					d.name = bin.name;
+					d.source_prop = added;
+					d.guard_idx = bin_guard;
+					for (unsigned tuple = 0; tuple < wide_bounds.size(); ++tuple) {
+					      size_t range_idx = cg_class->add_covgrp_wide_range(
+						    cp_value_width, wide_bounds[tuple].first,
+						    wide_bounds[tuple].second);
+					      cg_class->add_covgrp_bin(cp_idx, (unsigned)added,
+						    range_idx, 0,
+						    netclass_t::COVGRP_WIDE_RANGE_BIN,
+						    tuple, cp_idx);
+					      cg_class->set_last_covgrp_bin_guard(bin_guard);
+					      d.wide_ranges.push_back((unsigned)range_idx);
+					}
+					vbins.push_back(std::move(d));
+					has_value_bins = true;
+					continue;
+				  }
 				      if (bin.arrayed) {
 					// An open bin array is keyed by each distinct value.
 					// Keep the source list bounded; ranges and sized
@@ -48772,14 +48801,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (const xbin_desc_t&desc : cp_value_bins[cpi])
 				      {
 					if (desc.dyn_family >= 0) has_dynamic_family = true;
-					if (desc.wide_auto || !desc.wide_values.empty())
+					if (desc.wide_auto || !desc.wide_values.empty()
+					    || !desc.wide_ranges.empty())
 					      has_wide_bin = true;
 				      }
 			  if (has_dynamic_family && has_wide_bin) {
 				cerr << pclass->get_fileline()
 				     << ": error: cross '"
 				     << (cross.label.nil() ? "(unnamed)" : cross.label.str())
-				     << "' mixes wide exact and dynamic bins; the "
+					     << "' mixes wide and dynamic bins; the "
 					"product cannot be represented." << endl;
 				des->errors += 1;
 				continue;
@@ -49816,7 +49846,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
-					    rsizes[k] = !d.wide_values.empty()
+					    rsizes[k] = !d.wide_ranges.empty()
+						? d.wide_ranges.size()
+						: !d.wide_values.empty()
 						? d.wide_values.size()
 						: d.ranges.size() + d.xz_values.size();
 					    if (rsizes[k] == 0) rsizes[k] = 1;
@@ -49883,6 +49915,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    d.guard_idx);
 							      continue;
 							}
+								if (!d.wide_ranges.empty()) {
+							      cg_class->add_covgrp_bin(cp_indexes[k],
+								    tgt.first, d.wide_ranges[ridx[k]], 0,
+								    tgt.second
+								      | netclass_t::COVGRP_WIDE_RANGE_BIN,
+								    tup, item_idx);
+							      cg_class->set_last_covgrp_bin_guard(
+								    d.guard_idx);
+							      continue;
+						}
 								if (!d.wide_values.empty()) {
 								      const auto&words = d.wide_values[ridx[k]];
 								      unsigned width = cp_value_widths[cp_indexes[k]];

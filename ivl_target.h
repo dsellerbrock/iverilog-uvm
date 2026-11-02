@@ -2806,6 +2806,12 @@ extern unsigned ivl_type_constraint_state_call_dep_leaf(ivl_type_t net, int idx,
  * Only valid when the class type represents a covergroup. */
 extern int      ivl_type_covgrp_bins(ivl_type_t net);
 extern int      ivl_type_covgrp_ncoverpoints(ivl_type_t net);
+extern int      ivl_type_covgrp_wide_ranges(ivl_type_t net);
+extern unsigned ivl_type_covgrp_wide_range_width(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_wide_range_low(ivl_type_t net, int idx,
+					       unsigned word);
+extern uint64_t ivl_type_covgrp_wide_range_high(ivl_type_t net, int idx,
+					        unsigned word);
 extern unsigned ivl_type_covgrp_bin_cp(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_bin_prop(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);
