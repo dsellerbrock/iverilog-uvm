@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1223_udnt_resolver_empty.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"           : "issue1223_udnt_resolver_empty"
+}

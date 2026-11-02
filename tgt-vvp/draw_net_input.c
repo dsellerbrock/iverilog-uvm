@@ -791,7 +791,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	/* If the nexus has no drivers, then send a constant HiZ or
 	   0.0 into the net. Use a lower case 'c' prefix for the
 	   constant to inform vvp that this is an undriven value. */
-      if (ndrivers == 0) {
+	  if (ndrivers == 0 && !user_resolver) {
 	    unsigned wid = width_of_nexus(nex);
 	    int pull = (res == IVL_SIT_TRI0) || (res == IVL_SIT_TRI1);
 	      /* For real nets put 0.0. */
@@ -942,6 +942,11 @@ static void draw_net_input_x(ivl_nexus_t nex,
 			fprintf(vvp_out, ", %s", driver_labels[idx]);
 			free(driver_labels[idx]);
 		  }
+		  /* The VVP grammar requires a symbol list. Use its existing
+		   * time-zero activation sentinel to represent an empty driver list;
+		   * the runtime treats it as an activation, not a driver value. */
+		  if (ndrivers == 0)
+			fprintf(vvp_out, ", E_0x0");
 		  fprintf(vvp_out, " (v%p_0) S_%p;\n", formal_sig,
 			  user_resolver);
 		  free(driver_labels);
