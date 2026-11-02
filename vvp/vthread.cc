@@ -26669,6 +26669,36 @@ bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_STREAM_FLATTEN_ASSOC(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>();
+      if (!assoc) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: associative bit-stream cast source is not an associative array."
+		 << endl;
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    schedule_stop(0);
+	    return false;
+      }
+
+	  unsigned key_kind = static_cast<unsigned>(cp->number) & 3U;
+	  bool signed_order = key_kind == 3U;
+	  if (key_kind == 3U) key_kind = 2U;
+	  vvp_vector4_t stream;
+	  if (!assoc->get_vec4_bitstream(key_kind, signed_order, stream)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: unsupported associative bit-stream element or size."
+		 << endl;
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    schedule_stop(0);
+	    return false;
+	  }
+      thr->push_vec4(stream);
+      return true;
+}
+
 namespace {
 
 /* Keep every range-derived allocation below a process-independent cap.  The
