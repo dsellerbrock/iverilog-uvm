@@ -1,0 +1,2 @@
+issue2232_constraint_short_circuit_null_handle_2017 normal,-g2017,-s,top ivltests gold=issue2232_constraint_short_circuit_null_handle-vvp-stdout.gold
+issue2232_constraint_short_circuit_null_handle_2023 normal,-g2023,-s,top ivltests gold=issue2232_constraint_short_circuit_null_handle-vvp-stdout.gold

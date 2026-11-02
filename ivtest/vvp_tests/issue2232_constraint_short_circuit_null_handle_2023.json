@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2232_constraint_short_circuit_null_handle.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2232_constraint_short_circuit_null_handle"
+}

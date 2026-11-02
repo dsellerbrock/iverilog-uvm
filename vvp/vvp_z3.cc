@@ -2473,7 +2473,7 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
       }
 
       if (!path_error.empty()) {
-            b.state_errors.push_back(path_error);
+            b.state_checks.push_back({Z3_mk_true(b.ctx), path_error});
             return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
       }
 
