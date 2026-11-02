@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1257_vpi_signed.sv",
+  "iverilog-args": ["-g2017", "-Lwork", "-missue1257_vpi_signed_2017"],
+  "vpi-modules": ["issue1257_vpi_signed_2017"],
+  "vpi-sources": ["vpi/issue1257_vpi_signed.c"],
+  "output-contains": ["VPI_SIGNED_SIZE=7", "VPI_SIGNED_BITS=7 VALUE=55"]
+}
