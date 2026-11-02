@@ -303,6 +303,7 @@ typedef struct t_vpi_delay  {
 #define vpiModule      32
 #define vpiNamedBegin  33
 #define vpiNamedEvent  34
+#define vpiNamedEventArray 129
 #define vpiNamedFork   35
 #define vpiWait        69
 #define vpiElseStmt    73
@@ -465,6 +466,12 @@ typedef struct t_vpi_delay  {
 #   define vpiExternAcc   2
 #   define vpiDPIExportAcc 3
 #   define vpiDPIImportAcc 4
+#define vpiDPIPure 665
+#define vpiDPIContext 666
+#define vpiDPICStr 667
+#   define vpiDPI 1
+#   define vpiDPIC 2
+#define vpiDPICIdentifier 668
 #define vpiVisibility 620
 #   define vpiPublicVis 1
 /* IEEE 1800-2017 / 1800-2023 37.63 and Annex M */

@@ -843,6 +843,8 @@ extern ivl_lifetime_t ivl_event_lifetime(ivl_event_t net);
 extern unsigned    ivl_event_is_array(ivl_event_t net);
 extern unsigned    ivl_event_array_base(ivl_event_t net);
 extern unsigned    ivl_event_array_count(ivl_event_t net);
+extern long        ivl_event_array_msb(ivl_event_t net);
+extern long        ivl_event_array_lsb(ivl_event_t net);
 
 extern unsigned    ivl_event_nany(ivl_event_t net);
 extern ivl_nexus_t ivl_event_any(ivl_event_t net, unsigned idx);
@@ -2153,6 +2155,12 @@ extern int ivl_scope_func_signed(ivl_scope_t net);
 extern unsigned ivl_scope_func_width(ivl_scope_t net);
 extern int ivl_scope_is_dpi_import(ivl_scope_t net);
 extern const char*ivl_scope_dpi_c_name(ivl_scope_t net);
+/* The DPI qualifier returned by ivl_scope_dpi_cstr(). */
+#define IVL_DPI 1
+#define IVL_DPI_C 2
+extern int ivl_scope_dpi_pure(ivl_scope_t net);
+extern int ivl_scope_dpi_context(ivl_scope_t net);
+extern int ivl_scope_dpi_cstr(ivl_scope_t net);
 /* DPI export (IEEE 1800-2017 35.5): a normal SV subroutine additionally
    made callable from C under ivl_scope_dpi_export_c_name(). */
 extern int ivl_scope_is_dpi_export(ivl_scope_t net);

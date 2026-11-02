@@ -446,6 +446,7 @@ static data_type_t*pform_pending_modport_tf_return_type = nullptr;
 static vector<pform_tf_port_t>*pform_pending_modport_tf_ports = nullptr;
 static Module::PClocking*pform_cur_clocking = 0;
 static bool pform_cur_clocking_is_global = false;
+static const char* pform_cur_clocking_name = nullptr;
 
 static void delete_modport_tf_prototype_(data_type_t*return_type,
                                          vector<pform_tf_port_t>*ports)
@@ -1022,12 +1023,13 @@ struct pending_dpi_export_s {
       perm_string sv_name;
       perm_string c_name;
       bool is_task;
+      bool legacy;
       std::string loc_str;
 };
 static std::vector<pending_dpi_export_s> pending_dpi_exports_;
 
 void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
-			  const char*sv_name, bool is_task)
+			  const char*sv_name, bool is_task, bool legacy)
 {
       PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
       if (scopex == 0) {
@@ -1077,6 +1079,7 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
       pend.sv_name = lex_strings.make(sv_name);
       pend.c_name  = lex_strings.make(c_name);
       pend.is_task = is_task;
+      pend.legacy  = legacy;
       pend.loc_str = tmp.str();
       pending_dpi_exports_.push_back(pend);
 }
@@ -1135,7 +1138,7 @@ int pform_resolve_dpi_exports(void)
 		  continue;
 	    }
 
-	    sub->set_dpi_export(cur->c_name.str());
+	    sub->set_dpi_export(cur->c_name.str(), cur->legacy);
       }
       pending_dpi_exports_.clear();
       return resolve_errors;
@@ -7787,6 +7790,10 @@ void pform_start_clocking_block(const struct vlltype&loc,
 				bool is_global)
 {
       Module*scope = pform_cur_module.front();
+	/* Keep the source name alive for the matching end-label check. The
+	   lexer-owned name is consumed below, but parsing the clocking items
+	   continues before the end label is compared. */
+      pform_cur_clocking_name = name ? lex_strings.make(name).str() : nullptr;
 	/* IEEE 1800-2017 14.3: clocking blocks may be declared in a
 	   module, interface, program, or checker. */
       ivl_assert(loc, scope);
@@ -7851,6 +7858,11 @@ void pform_start_clocking_block(const struct vlltype&loc,
 	    scope->global_clocking = use_name;
 
       delete[] name;
+}
+
+const char* pform_clocking_block_name()
+{
+      return pform_cur_clocking_name;
 }
 
 void pform_set_default_clocking_ref(const struct vlltype&loc,

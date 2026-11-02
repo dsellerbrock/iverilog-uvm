@@ -349,6 +349,10 @@ class __vpiScope : public __vpiHandle {
       signed int time_precision :8;
       int join_type = vpiUndefined;
       int access_type = vpiUndefined;
+      int dpi_pure = 0;
+      int dpi_context = 0;
+      int dpi_cstr = vpiUndefined;
+      const char*dpi_c_identifier = 0;
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);
@@ -801,6 +805,9 @@ class __vpiNamedEvent : public __vpiHandle {
     public:
       __vpiNamedEvent(__vpiScope*scope, const char*name,
 		      bool automatic_storage);
+      __vpiNamedEvent(__vpiScope*scope, const char*name,
+                      bool automatic_storage, unsigned array_base,
+                      int array_msb, int array_lsb, unsigned array_count);
       ~__vpiNamedEvent() override;
 
       __vpiNamedEvent(const __vpiNamedEvent&) = delete;
@@ -813,6 +820,7 @@ class __vpiNamedEvent : public __vpiHandle {
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
+      vpiHandle vpi_index(int index) override;
 
       inline void add_vpi_callback(__vpiCallback*cb)
       { cb->next = callbacks_;
@@ -831,12 +839,26 @@ class __vpiNamedEvent : public __vpiHandle {
       __vpiScope*scope_;
 	/* Effective declared storage lifetime, which can override scope_. */
       bool automatic_storage_;
+	/* Array metadata is present only on a vpiNamedEventArray handle. */
+      bool is_array_ = false;
+      bool is_array_member_ = false;
+      unsigned array_base_ = 0;
+      int array_msb_ = 0;
+      int array_lsb_ = 0;
+      unsigned array_count_ = 0;
+      __vpiDecConst index_value_;
+      std::vector<__vpiNamedEvent*> array_members_;
 	/* List of callbacks interested in this event. */
       __vpiCallback*callbacks_;
 };
 
 extern vpiHandle vpip_make_named_event(const char*name, vvp_net_t*f,
 			       bool automatic_storage);
+extern vpiHandle vpip_make_named_event_array(const char*name,
+                                             unsigned array_base,
+                                             int array_msb, int array_lsb,
+                                             unsigned array_count,
+                                             bool automatic_storage);
 extern vpiHandle vpip_make_process_handle(vthread_t thread);
 
 /*

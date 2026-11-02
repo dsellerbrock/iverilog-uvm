@@ -131,9 +131,10 @@ class PTaskFunc : public PScope, public PNamedItem {
 	// DPI export linkage (35.5): a normal SV function/task (with a
 	// body) that is additionally made callable from C under a C name.
 	// Marked by a separate `export "DPI-C"' declaration that names it.
-      void set_dpi_export(const char*c_name) {
+      void set_dpi_export(const char*c_name, bool legacy) {
 	    is_dpi_export_ = true;
 	    dpi_export_c_name_ = c_name;
+	    dpi_legacy_ = legacy;
       }
       bool is_dpi_export() const { return is_dpi_export_; }
       const std::string& dpi_export_c_name() const { return dpi_export_c_name_; }

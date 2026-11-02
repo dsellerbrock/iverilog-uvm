@@ -437,6 +437,18 @@ extern "C" unsigned ivl_event_array_count(ivl_event_t net)
       return net->array_count;
 }
 
+extern "C" long ivl_event_array_msb(ivl_event_t net)
+{
+      assert(net);
+      return net->array_msb;
+}
+
+extern "C" long ivl_event_array_lsb(ivl_event_t net)
+{
+      assert(net);
+      return net->array_lsb;
+}
+
 extern "C" unsigned ivl_event_nany(ivl_event_t net)
 {
       assert(net);
@@ -2879,6 +2891,26 @@ extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
       assert(net);
       ivl_scope_proc_s*proc = net->proc_();
       return proc ? proc->dpi_c_name : 0;
+}
+
+extern "C" int ivl_scope_dpi_pure(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_pure ? 1 : 0;
+}
+
+extern "C" int ivl_scope_dpi_context(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_context ? 1 : 0;
+}
+
+extern "C" int ivl_scope_dpi_cstr(ivl_scope_t net)
+{
+      assert(net);
+      if (!net->is_dpi_import && !net->is_dpi_export)
+	    return 0;
+      return net->dpi_legacy ? IVL_DPI : IVL_DPI_C;
 }
 
 extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)

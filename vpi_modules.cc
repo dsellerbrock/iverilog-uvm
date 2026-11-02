@@ -22,6 +22,7 @@
 #include "vpi_user.h"
 #include "sv_vpi_user.h"
 #include "vvp/ivl_dlfcn.h"
+#include <cstring>
 
 using namespace std;
 
@@ -190,7 +191,8 @@ vpiHandle vpi_register_systf(const struct t_vpi_systf_data*ss)
         ret_type.signed_flag = false;
         break;
     }
-    ret_type.override_flag = false;
+    ret_type.override_flag = std::strcmp(ss->tfname, "$signed") == 0
+	  || std::strcmp(ss->tfname, "$unsigned") == 0;
     add_sys_func(ret_type);
     return 0;
 }

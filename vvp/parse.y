@@ -799,6 +799,9 @@ statement
 	| T_LABEL K_EVENT storage_flag T_STRING ';'
 		{ compile_named_event($1, $4, $3); }
 
+	| T_LABEL K_EVENT storage_flag T_STRING ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ';'
+		{ compile_named_event_array($1, $4, $3, $6, $8, $10, $12); }
+
 	| T_LABEL K_EVENT_OR symbols ';'
                 { compile_event($1, 0, $3.cnt, $3.vect); }
 

@@ -358,6 +358,7 @@ extern void pform_start_clocking_block(const struct vlltype&loc,
 				       PEventStatement*event,
 				       bool is_default = false,
 				       bool is_global = false);
+extern const char* pform_clocking_block_name();
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 				      NetNet::PortType dir,
 				      const pform_clocking_skew_t*in_skew,
@@ -730,7 +731,7 @@ extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, con
 // same scope; sv_name names the SV subroutine, c_name is the exported C
 // symbol (== sv_name for the plain form). is_task selects the tasks map.
 extern void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
-				 const char*sv_name, bool is_task);
+				 const char*sv_name, bool is_task, bool legacy);
 // Resolve all deferred `export "DPI-C"' declarations once every source
 // file has been parsed (an export may precede its subroutine definition).
 extern int pform_resolve_dpi_exports(void);

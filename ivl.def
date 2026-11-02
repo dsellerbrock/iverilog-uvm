@@ -44,6 +44,8 @@ ivl_event_any
 ivl_event_any_is_obj_handle_change
 ivl_event_array_base
 ivl_event_array_count
+ivl_event_array_lsb
+ivl_event_array_msb
 ivl_event_basename
 ivl_event_edg
 ivl_event_is_array
@@ -577,6 +579,9 @@ ivl_event_obj_mutation_owner_expr
 
 ivl_scope_is_dpi_import
 ivl_scope_dpi_c_name
+ivl_scope_dpi_pure
+ivl_scope_dpi_context
+ivl_scope_dpi_cstr
 ivl_scope_is_dpi_export
 ivl_scope_dpi_export_c_name
 ivl_scope_is_virtual_method

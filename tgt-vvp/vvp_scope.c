@@ -1902,6 +1902,15 @@ static void draw_event_in_scope(ivl_event_t obj)
 {
       char tmp[4][32];
 
+      if (ivl_event_is_array(obj)) {
+	    fprintf(vvp_out, "E_%p .event %s\"%s\", %u, %ld, %ld, %u;\n",
+		    obj, event_storage_flag_str(obj),
+		    vvp_mangle_name(ivl_event_basename(obj)),
+		    ivl_event_array_base(obj), ivl_event_array_msb(obj),
+		    ivl_event_array_lsb(obj), ivl_event_array_count(obj));
+	    return;
+      }
+
       const unsigned ntmp = sizeof(tmp) / sizeof(tmp[0]);
 
 	/* A virtual-interface edge event (@(edge vif.sig) / a direct
@@ -3430,8 +3439,29 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	       && ivl_scope_is_interface(ivl_scope_parent(net)))
 	    strcpy(access_suffix, ".acc2");
 
-	  fprintf(vvp_out, "S_%p .scope %s%s%s%s, \"%s\" \"%s\" %u %u",
-	      net, prefix, type, suffix, access_suffix,
+	  fprintf(vvp_out, "S_%p .scope %s%s%s%s",
+	      net, prefix, type, suffix, access_suffix);
+
+	/* Keep the DPI VPI declaration properties with the runtime scope. The
+	   identifier is hex-encoded so it cannot collide with scope type syntax. */
+	  int dpi_cstr = ivl_scope_dpi_cstr(net);
+	  if (dpi_cstr) {
+	        const char*c_name = ivl_scope_is_dpi_import(net)
+	              ? ivl_scope_dpi_c_name(net)
+	              : ivl_scope_dpi_export_c_name(net);
+	        fprintf(vvp_out, ".dpi%d%d%d_",
+	                ivl_scope_dpi_pure(net), ivl_scope_dpi_context(net),
+	                dpi_cstr);
+	        if (c_name) {
+	              const unsigned char*cur = (const unsigned char*)c_name;
+	              while (*cur) {
+	                    fprintf(vvp_out, "%02x", (unsigned)*cur);
+	                    cur += 1;
+	              }
+	        }
+	  }
+
+	  fprintf(vvp_out, ", \"%s\" \"%s\" %u %u",
 	      vvp_mangle_name(ivl_scope_basename(net)),
               vvp_mangle_name(ivl_scope_tname(net)),
 	      ivl_file_table_index(ivl_scope_file(net)),

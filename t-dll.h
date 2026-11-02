@@ -341,6 +341,8 @@ struct ivl_event_s {
       bool is_array;
       unsigned array_base;
       unsigned array_count;
+      long array_msb;
+      long array_lsb;
 
       void* operator new (size_t s);
       void  operator delete(void*obj, size_t s); // Not implemented
@@ -927,6 +929,9 @@ struct ivl_scope_s {
       unsigned func_signed : 1;
       unsigned is_dpi_import : 1;
       unsigned is_dpi_export : 1;
+      unsigned dpi_pure : 1;
+      unsigned dpi_context : 1;
+      unsigned dpi_legacy : 1;
 
       signed int time_precision :8;
       signed int time_units :8;
