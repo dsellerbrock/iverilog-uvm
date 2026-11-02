@@ -1,6 +1,8 @@
+SDF WARNING: ivltests/sdf_timingenv.sdf:19: INTERCONNECT source port a has input direction; source ports must be output or inout.
+SDF WARNING: ivltests/sdf_timingenv.sdf:22: INTERCONNECT load port b has output direction; load ports must be input or inout.
 time=0 a=x b=x
 time=5000 a=0 b=x
-time=5680 a=0 b=0
+time=5640 a=0 b=0
 time=15000 a=1 b=0
-time=15680 a=1 b=1
+time=15640 a=1 b=1
 ivltests/sdf_timingenv.v:59: $finish called at 25000 (1ps)
