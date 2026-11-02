@@ -3807,6 +3807,17 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	    formal_signals[idx] = scope->find_signal(port_name);
 	    if (port_name == perm_string::literal(THIS_TOKEN))
 		  continue;
+	    // Keep the legacy earlier-formal lookup when the declaration scope
+	    // has no declaration with this name. If it does, hide the formal so
+	    // the declaration-scope name wins while elaborating the default.
+	    pform_name_t declaration_name;
+	    declaration_name.push_back(name_component_t(port_name));
+	    symbol_search_results declaration_result;
+	    bool declaration_has_name = scope->parent()
+		  && symbol_search(this, des, scope->parent(), declaration_name,
+				   UINT_MAX, &declaration_result);
+	    if (!declaration_has_name)
+		  continue;
 	    if (formal_signals[idx]) {
 		  scope->rem_signal(formal_signals[idx]);
 		  removed_formals = true;
