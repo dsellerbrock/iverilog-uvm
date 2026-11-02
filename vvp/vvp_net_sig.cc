@@ -2609,14 +2609,6 @@ static signal_object_aa_slot* signal_object_aa_slot_from_raw(void*raw)
       return slot;
 }
 
-static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*raw)
-{
-      const signal_object_aa_slot*slot = static_cast<const signal_object_aa_slot*>(raw);
-      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != signal_object_aa_slot::MAGIC)
-            return 0;
-      return slot;
-}
-
 static signal_object_aa_slot* signal_object_aa_get_or_make_slot(vvp_context_t context,
                                                                  unsigned context_idx)
 {
