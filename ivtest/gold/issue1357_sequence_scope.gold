@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1357_sequence_scope.v:30: $finish called at 26 (1s)

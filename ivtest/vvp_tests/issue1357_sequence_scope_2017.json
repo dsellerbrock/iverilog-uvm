@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1357_sequence_scope.v",
+  "iverilog-args": ["-g2017", "-gno-icarus-misc", "-s", "top"],
+  "gold": "issue1357_sequence_scope"
+}
