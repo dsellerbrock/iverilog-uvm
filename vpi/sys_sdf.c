@@ -19,6 +19,13 @@
 
 # include  "sys_priv.h"
 # include  "sdf_priv.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern const char* vpip_modpath_condition(vpiHandle path);
+#ifdef __cplusplus
+}
+#endif
 # include  <ctype.h>
 # include  <stdlib.h>
 # include  <string.h>
@@ -338,6 +345,7 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 }
 
 void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
+                       const char*condition, int conditional, int ifnone,
                        const struct sdf_delval_list_s*delval_list,
                        const int sdf_lineno)
 {
@@ -362,6 +370,7 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 
 	    vpiHandle path_in = vpi_handle(vpiExpr,path_t_in);
 	    vpiHandle path_out = vpi_handle(vpiExpr,path_t_out);
+	    const char*path_condition = vpip_modpath_condition(path);
 
 	      /* The expressions for the path terms must be signals,
 	         vpiNet or vpiReg. */
@@ -382,6 +391,15 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	      /* If the dst name doesn't match, go on. */
 	    if (strcmp(dst,vpi_get_str(vpiName,path_out)) != 0)
 		  continue;
+
+	      /* Conditional SDF entries annotate only the matching specify path. */
+	    if (ifnone) {
+		  if (!path_condition || strcmp(path_condition, "ifnone") != 0)
+			continue;
+	    } else if (conditional) {
+		  if (!path_condition || strcmp(path_condition, condition) != 0)
+			continue;
+	    }
 
 	      /* Ah, this must be a match! */
 	    delays.da = delay_vals;

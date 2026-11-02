@@ -29282,7 +29282,11 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
       }
 
       NetNet*condit_sig = 0;
+      std::string condition_text;
       if (conditional && condition) {
+	    std::ostringstream condition_stream;
+	    condition->dump(condition_stream);
+	    condition_text = condition_stream.str();
 
 	    NetExpr*tmp = elab_and_eval(des, scope, condition, -1);
 	    ivl_assert(*condition, tmp);
@@ -29391,7 +29395,7 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 
 	    NetDelaySrc*path = new NetDelaySrc(scope, scope->local_symbol(),
 					       src.size(), condit_sig,
-					       conditional, !full_flag_);
+					       conditional, !full_flag_, condition_text);
 	    path->set_line(*this);
 
 	      // The presence of the data_source_expression indicates

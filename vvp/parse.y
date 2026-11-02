@@ -1763,18 +1763,24 @@ modpath_src
       { compile_modpath_src(modpath_dst, 0, $1, $3, 0, $6, true); }
   | symbol '(' numbers '?' symbol ')' symbol
       { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $7); }
+  | symbol '(' numbers '?' symbol T_STRING ')' symbol
+      { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $6, $8); }
   | symbol '+' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $6, false); }
   | symbol '+' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $7, true); }
   | symbol '+' '(' numbers '?' symbol ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $8); }
+  | symbol '+' '(' numbers '?' symbol T_STRING ')' symbol
+      { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $7, $9); }
   | symbol '-' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $6, false); }
   | symbol '-' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $7, true); }
   | symbol '-' '(' numbers '?' symbol ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $8); }
+  | symbol '-' '(' numbers '?' symbol T_STRING ')' symbol
+      { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $7, $9); }
   ;
 
 udp_table

@@ -32,6 +32,17 @@ static void yyerror(const char*msg);
 /* This is the hierarchy separator to use. */
 char sdf_use_hchar = '.';
 
+static char* sdf_join_condition(char*left, const char*op, char*right)
+{
+      size_t len = strlen(left) + strlen(op) + strlen(right) + 3;
+      char*result = (char*)malloc(len);
+      if (result)
+	    snprintf(result, len, "(%s%s%s)", left, op, right);
+      free(left);
+      free(right);
+      return result;
+}
+
 %}
 
 %union {
@@ -66,6 +77,7 @@ char sdf_use_hchar = '.';
 %type <string_val> cell_instance
 %type <string_val> hierarchical_identifier
 %type <string_val> port port_instance
+%type <string_val> conditional_port_expr scalar_constant
 
 %type <interconnect_port> port_interconnect
 %type <pathpulse> input_output_path_opt input_output_path
@@ -331,7 +343,7 @@ del_def_list
 
 del_def
   : '(' K_IOPATH port_spec port_instance delval_list ')'
-      { sdf_iopath_delays($3.vpi_edge, $3.string_val, $4, &$5, @2.first_line);
+      { sdf_iopath_delays($3.vpi_edge, $3.string_val, $4, 0, 0, 0, &$5, @2.first_line);
 	free($3.string_val);
 	free($4);
       }
@@ -340,18 +352,16 @@ del_def
 	           sdf_parse_path, @2.first_line); }
   | '(' K_COND conditional_port_expr
     '(' K_IOPATH port_spec port_instance delval_list ')' ')'
-      { if (sdf_flag_warning) vpi_printf("SDF WARNING: %s:%d: "
-	                                 "COND not supported.\n",
-	                                 sdf_parse_path, @2.first_line);
+	  { sdf_iopath_delays($6.vpi_edge, $6.string_val, $7, $3, 1, 0, &$8, @2.first_line);
+	free($3);
 	free($6.string_val);
 	free($7);
       }
   | '(' K_COND QSTRING conditional_port_expr
     '(' K_IOPATH port_spec port_instance delval_list ')' ')'
-      { if (sdf_flag_warning) vpi_printf("SDF WARNING: %s:%d: "
-	                                 "COND not supported.\n",
-	                                 sdf_parse_path, @2.first_line);
+	  { sdf_iopath_delays($7.vpi_edge, $7.string_val, $8, $4, 1, 0, &$9, @2.first_line);
 	free($3);
+	free($4);
 	free($7.string_val);
 	free($8);
       }
@@ -359,9 +369,7 @@ del_def
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed COND\n",
 	           sdf_parse_path, @2.first_line); }
   | '(' K_CONDELSE '(' K_IOPATH port_spec port_instance delval_list ')' ')'
-      { if (sdf_flag_warning) vpi_printf("SDF WARNING: %s:%d: "
-	                                 "CONDELSE not supported.\n",
-	                                 sdf_parse_path, @2.first_line);
+	  { sdf_iopath_delays($5.vpi_edge, $5.string_val, $6, 0, 0, 1, &$7, @2.first_line);
 	free($5.string_val);
 	free($6);
       }
@@ -447,15 +455,23 @@ timing_check_condition
   /* This is not complete! */
 conditional_port_expr
   : port
-      { free($1); }
+      { $$ = $1; }
   | scalar_constant
+      { $$ = $1; }
   | '(' conditional_port_expr ')'
+      { $$ = $2; }
   | conditional_port_expr K_LAND conditional_port_expr
+      { $$ = sdf_join_condition($1, "&&", $3); }
   | conditional_port_expr K_LOR conditional_port_expr
+      { $$ = sdf_join_condition($1, "||", $3); }
   | conditional_port_expr K_EQ conditional_port_expr
+      { $$ = sdf_join_condition($1, "==", $3); }
   | conditional_port_expr K_NE conditional_port_expr
+      { $$ = sdf_join_condition($1, "!=", $3); }
   | conditional_port_expr K_CEQ conditional_port_expr
+      { $$ = sdf_join_condition($1, "===", $3); }
   | conditional_port_expr K_CNE conditional_port_expr
+      { $$ = sdf_join_condition($1, "!==", $3); }
   ;
 
 equality_operator
@@ -466,8 +482,8 @@ equality_operator
   ;
 
 scalar_constant
-  : K_LOGICAL_ONE
-  | K_LOGICAL_ZERO
+  : K_LOGICAL_ONE { $$ = strdup("1"); }
+  | K_LOGICAL_ZERO { $$ = strdup("0"); }
   ;
 
 input_output_path_opt

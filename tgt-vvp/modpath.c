@@ -110,6 +110,8 @@ static void draw_modpath_record(const char*label, const char*driver,
 
 	    if (con_drivers[idx]) {
 		  fprintf(vvp_out, " ? %s", con_drivers[idx]);
+		  if (ivl_path_condit(path))
+			fprintf(vvp_out, " \"%s\"", ivl_path_condition_text(path));
 	    }
 
 	    fprintf(vvp_out, ")");

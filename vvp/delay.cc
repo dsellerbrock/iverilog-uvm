@@ -1564,6 +1564,16 @@ struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
       return obj;
 }
 
+extern "C" const char* vpip_modpath_condition(vpiHandle path)
+{
+      struct __vpiModPathSrc*src = dynamic_cast<__vpiModPathSrc*>(path);
+      if (!src)
+	    return 0;
+      if (src->condition_text)
+	    return src->condition_text;
+      return src->ifnone ? "ifnone" : 0;
+}
+
 vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, unsigned width)
 : net_(net)
 {

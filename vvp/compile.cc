@@ -2805,6 +2805,8 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 
       vvp_net_t*net = new vvp_net_t;
       struct __vpiModPathSrc* srcobj = vpip_make_modpath_src(path, net) ;
+      srcobj->condition_text = 0;
+      srcobj->ifnone = ifnone;
       vpip_attach_to_current_scope(srcobj);
       net->fun = obj;
 
@@ -2822,9 +2824,20 @@ void compile_modpath_src(struct __vpiModPath*dst, char edge,
 			 const struct symb_s&condit_src,
 			 const struct symb_s&path_term_in)
 {
+      compile_modpath_src(dst, edge, src, vals, condit_src, 0, path_term_in);
+}
+
+void compile_modpath_src(struct __vpiModPath*dst, char edge,
+			 const struct symb_s&src,
+			 struct numbv_s&vals,
+			 const struct symb_s&condit_src,
+			 const char*condition_text,
+			 const struct symb_s&path_term_in)
+{
       struct __vpiModPathSrc*obj =
 	    make_modpath_src(dst, edge, src, vals, false);
       dst->modpath->set_has_conditional_paths();
+      obj->condition_text = condition_text;
       input_connect(obj->net, 1, condit_src.text);
       compile_vpi_lookup(&obj->path_term_in.expr, path_term_in.text);
 }

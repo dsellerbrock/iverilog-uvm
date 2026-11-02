@@ -723,6 +723,8 @@ struct __vpiModPathSrc : public __vpiHandle {
 	   are used to determine the modpath. They are *not* propagated
 	   anywhere. */
       vvp_net_t *net;
+      const char* condition_text;
+      bool ifnone;
 } ;
 
 

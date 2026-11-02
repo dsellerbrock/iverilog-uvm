@@ -314,6 +314,13 @@ extern void compile_modpath_src(__vpiModPath*dst,
 				char edge,
 				const struct symb_s&src,
 				struct numbv_s&vals,
+				const struct symb_s&condit_src,
+				const char*condition_text,
+				const struct symb_s&path_term_in);
+extern void compile_modpath_src(__vpiModPath*dst,
+				char edge,
+				const struct symb_s&src,
+				struct numbv_s&vals,
 				int condit_src, /* match with '0' */
 				const struct symb_s&path_term_in,
 				bool ifnone);

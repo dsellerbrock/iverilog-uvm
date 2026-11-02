@@ -599,6 +599,7 @@ extern ivl_scope_t ivl_path_scope(ivl_delaypath_t obj);
 extern ivl_nexus_t ivl_path_source(ivl_delaypath_t obj);
 extern uint64_t ivl_path_delay(ivl_delaypath_t obj, ivl_path_edge_t pt);
 extern ivl_nexus_t ivl_path_condit(ivl_delaypath_t obj);
+extern const char* ivl_path_condition_text(ivl_delaypath_t obj);
 extern int ivl_path_is_condit(ivl_delaypath_t obj);
 
 extern int ivl_path_is_parallel(ivl_delaypath_t obj);

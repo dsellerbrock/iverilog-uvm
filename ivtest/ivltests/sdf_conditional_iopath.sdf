@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "sdf_conditional_iopath_dut")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (CONDELSE (IOPATH A Y (7) (8)))
+      (COND mode (IOPATH A Y (4) (6)))
+    ))
+  )
+)

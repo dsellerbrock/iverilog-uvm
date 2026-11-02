@@ -1,5 +1,6 @@
 #ifndef IVL_sdf_priv_h
 #define IVL_sdf_priv_h
+
 /*
  * Copyright (c) 2007-2023 Stephen Williams (steve@icarus.com)
  *
@@ -73,6 +74,8 @@ extern void sdf_select_instance(const char*celltype, const char*inst,
                                 const int sdf_lineno);
 
 extern void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
+                              const char*condition, int conditional,
+                              int ifnone,
                               const struct sdf_delval_list_s*delval,
                               const int sdf_lineno);
 

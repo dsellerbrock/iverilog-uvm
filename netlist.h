@@ -630,7 +630,8 @@ class NetDelaySrc  : public NetObj {
 
     public:
       explicit NetDelaySrc(NetScope*s, perm_string n, unsigned nsrc,
-                           bool condit_src, bool conditional, bool parallel);
+                           bool condit_src, bool conditional, bool parallel,
+                           const std::string& condition_text);
       ~NetDelaySrc() override;
 
 	// These functions set the delays from the values in the
@@ -662,6 +663,7 @@ class NetDelaySrc  : public NetObj {
       const Link&src_pin(unsigned) const;
 
       bool is_condit() const;
+      const std::string& condition_text() const;
       bool has_condit() const;
       Link&condit_pin();
       const Link&condit_pin() const;
@@ -677,6 +679,7 @@ class NetDelaySrc  : public NetObj {
       bool parallel_;
       bool posedge_;
       bool negedge_;
+      std::string condition_text_;
 
     private: // Not implemented
       NetDelaySrc(const NetDelaySrc&);
