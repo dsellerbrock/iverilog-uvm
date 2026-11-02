@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1422_real_auto_bins_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue1422_real_auto_bins_fail"],
+  "gold": "issue1422_real_auto_bins_fail_2023"
+}
