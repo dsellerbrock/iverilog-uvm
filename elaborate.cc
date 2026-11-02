@@ -9620,6 +9620,18 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 		  delete tmp;
 		  return 0;
 	    }
+	    /* IEEE 1800-2017 14.3 requires an integer constant skew to be
+	       positive. Keep this on the integer-constant path so a zero time
+	       literal (handled as a real constant above) remains legal. */
+	    if (clocking_skew && generation_flag == GN_VER2017
+		&& fn.is_defined() && fn.is_zero()) {
+		  cerr << expr->get_fileline() << ": error: A clocking skew must "
+		       << "evaluate to a positive integer value in IEEE 1800-2017."
+		       << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
 	    uint64_t delay_value = fn.is_negative()
 		  ? verinum(fn, 64).as_ulong64() : fn.as_ulong64();
 	    uint64_t delay = des->scale_to_precision(delay_value, scope);

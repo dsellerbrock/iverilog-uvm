@@ -7,7 +7,7 @@ interface cycle_drive_if(input logic clk);
   logic [7:0] dynamic_data = 0;
 
   clocking cb @(posedge clk);
-    default input #1step output #0;
+    default input #1step;
     output data, dynamic_data;
   endclocking
 endinterface
