@@ -1,0 +1,2 @@
+issue1203_coverage_weight_invalid_2017 CE,-g2017 ivltests gold=issue1203_coverage_weight_invalid.gold
+issue1203_coverage_weight_invalid_2023 CE,-g2023 ivltests gold=issue1203_coverage_weight_invalid.gold
