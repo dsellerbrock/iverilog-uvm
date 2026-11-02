@@ -262,6 +262,11 @@ struct sva_property_t {
       // list; the 2-domain `pform_make_multiclock_assertion_' is not
       // touched by it.
       std::vector<sva_mc_seg_t>* mc_more = nullptr;
+      // Number of clock-flow domains after the initial clock whose matches
+      // still belong to a multiclocked implication antecedent. These domains
+      // forward only successful matches; mismatches are vacuous antecedent
+      // failures, not property failures.
+      size_t mc_antecedent_domains = 0;
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence

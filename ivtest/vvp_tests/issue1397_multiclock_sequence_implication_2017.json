@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1397_multiclock_sequence_implication_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue1397_multiclock_sequence_implication"],
+  "output-contains": [
+    "PASSED"
+  ]
+}
