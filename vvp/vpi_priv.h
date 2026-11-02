@@ -682,12 +682,22 @@ struct __vpiPV : public __vpiHandle {
       vpiHandle parent;
       vvp_net_t*net;
       vpiHandle sbase;
+      vpiHandle base_expr;
+      vpiHandle width_expr;
       int64_t tbase;
       unsigned width;
+      bool indexed;
+      bool own_base_expr;
 };
 extern vpiHandle vpip_make_PV(char*name, int64_t base, int width);
 extern vpiHandle vpip_make_PV(char*name, char*symbol, int width);
 extern vpiHandle vpip_make_PV(char*name, vpiHandle handle, int width);
+extern vpiHandle vpip_make_PV(char*name, int64_t base, int width,
+                              bool indexed);
+extern vpiHandle vpip_make_PV(char*name, char*symbol, int width,
+                              bool indexed);
+extern vpiHandle vpip_make_PV(char*name, vpiHandle handle, int width,
+                              bool indexed);
 
 struct __vpiModPathTerm : public __vpiHandle {
       __vpiModPathTerm();

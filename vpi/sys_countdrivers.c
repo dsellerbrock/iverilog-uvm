@@ -31,6 +31,7 @@ static void check_net_arg(vpiHandle arg, vpiHandle callh, const char *name)
 
       switch (vpi_get(vpiType, arg)) {
 	  case vpiPartSelect:
+	  case vpiIndexedPartSelect:
             if (vpi_get(vpiType, vpi_handle(vpiParent, arg)) != vpiNet)
                   break;
 	    // fallthrough
@@ -59,6 +60,7 @@ static void check_var_arg(vpiHandle arg, vpiHandle callh, const char *name,
 
       switch (vpi_get(vpiType, arg)) {
 	  case vpiPartSelect:
+	  case vpiIndexedPartSelect:
             if (vpi_get(vpiType, vpi_handle(vpiParent, arg)) == vpiNet)
                   break;
 	  case vpiMemoryWord:
@@ -156,7 +158,8 @@ static PLI_INT32 sys_countdrivers_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       idx = 0;
       arg = vpi_scan(argv);
       assert(arg);
-      if (vpi_get(vpiType, arg) == vpiPartSelect) {
+      if (vpi_get(vpiType, arg) == vpiPartSelect ||
+          vpi_get(vpiType, arg) == vpiIndexedPartSelect) {
             idx = vpi_get(vpiLeftRange, arg);
             arg = vpi_handle(vpiParent, arg);
             assert(arg);

@@ -3093,6 +3093,7 @@ void A_delete(vpiHandle item)
 		  }
 		  break;
 		case vpiPartSelect:
+		case vpiIndexedPartSelect:
 		  assert(vpi_get(_vpiFromThr, obj->address_handle) ==
 		         _vpi_at_PV);
 		  PV_delete(obj->address_handle);

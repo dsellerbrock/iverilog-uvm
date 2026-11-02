@@ -1643,12 +1643,20 @@ symbol_access
       { $$ = vpip_make_vthr_A($3, $5); }
   | K_PV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, $5, $7); }
+  | K_PV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_PV($3, $5, $7, $9 != 0); }
   | K_PV '<' T_SYMBOL ',' '-' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, -$6, $8); }
+  | K_PV '<' T_SYMBOL ',' '-' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_PV($3, -$6, $8, $10 != 0); }
   | K_PV '<' T_SYMBOL ',' T_SYMBOL ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, $5, $7); }
+  | K_PV '<' T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_PV($3, $5, $7, $9 != 0); }
   | K_PV '<' T_SYMBOL ',' symbol_access ',' T_NUMBER '>'
       { $$ = vpip_make_PV($3, $5, $7); }
+  | K_PV '<' T_SYMBOL ',' symbol_access ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_PV($3, $5, $7, $9 != 0); }
   | K_APV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
   | K_CPS '<' T_SYMBOL ',' numbers '>'

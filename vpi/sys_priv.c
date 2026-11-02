@@ -207,6 +207,7 @@ unsigned is_numeric_obj(vpiHandle obj)
       case vpiMemoryWord:
       case vpiNet:
       case vpiPartSelect:
+      case vpiIndexedPartSelect:
       case vpiRealVar:
       case vpiReg:
       case vpiTimeVar:
@@ -247,6 +248,7 @@ unsigned is_string_obj(vpiHandle obj)
       case vpiMemoryWord:
       case vpiNet:
       case vpiPartSelect:
+      case vpiIndexedPartSelect:
       case vpiReg:
       case vpiTimeVar:
       case vpiStringVar:
