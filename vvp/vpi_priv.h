@@ -608,13 +608,15 @@ class vpiPortInfo  : public __vpiHandle {
                     int vpi_direction,
                     unsigned width,
                     const char *name,
-                    char* buffer );
+                    char* buffer,
+                    int vpi_port_type = 44 );
       ~vpiPortInfo() override;
 
       int get_type_code(void) const override { return vpiPort; }
       int get_direction(void) { return direction_; }
       unsigned get_index(void) { return index_; }
       int get_width(void) { return width_; }
+      int get_port_type(void) const { return vpi_port_type_; }
       void add_port_bit(vpiPortBitInfo* port_bit) { port_bits_.push_back(port_bit); }
       void add_evcd_component(vpiPortComponentInfo*component)
       { evcd_components_.push_back(component); }
@@ -632,6 +634,7 @@ class vpiPortInfo  : public __vpiHandle {
       __vpiScope *parent_;
       unsigned  index_;
       int       direction_;
+      int       vpi_port_type_;
       unsigned  width_;
       const char *name_;
       vvp_net_t *ref_;

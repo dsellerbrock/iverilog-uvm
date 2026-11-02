@@ -733,6 +733,7 @@ struct PortInfo
     unsigned long   width;
     perm_string     name;
     ivl_net_logic_t buffer;
+    int             vpi_port_type;
 };
 
 /*
@@ -1611,7 +1612,8 @@ class NetScope : public Definitions, public Attrib {
       void add_module_port_info( unsigned idx,
                             perm_string name,  // May be "" for undeclared port
                             PortType::Enum type,
-                            unsigned long width );
+                            unsigned long width,
+                            int vpi_port_type = 44 );
 
       PortInfo* get_module_port_info(unsigned idx);
 

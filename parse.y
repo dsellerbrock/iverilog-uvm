@@ -2198,6 +2198,11 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       Module::port_t *port = pform_module_port_reference(loc, name.first);
 
+	  // Preserve the formal declaration kind for VPI port metadata.
+	  if (const interface_type_t* interface_type =
+	      dynamic_cast<const interface_type_t*>(data_type))
+		port->vpi_port_type = interface_type->modport ? 2 : 1;
+
       if (default_value && pform_module_is_checker()) {
 	    set<const typedef_t*>seen;
 	    bool aggregate = unpacked_dims != nullptr

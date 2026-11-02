@@ -3045,6 +3045,15 @@ extern "C" unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned id
     return ports[idx].width;
 }
 
+extern "C" int ivl_scope_mod_module_port_vpi_type(ivl_scope_t net, unsigned idx )
+{
+    assert(net);
+    assert(net->net_);
+    const vector<PortInfo>&ports = net->net_->module_port_info();
+    assert(idx < ports.size());
+    return ports[idx].vpi_port_type;
+}
+
 extern "C" ivl_net_logic_t ivl_scope_mod_module_port_buffer(ivl_scope_t net, unsigned idx )
 {
     assert(net);

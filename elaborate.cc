@@ -6755,6 +6755,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    if (!generic_iface && (!formal_ifc || !formal_ifc->is_interface()))
 		  continue;
 	    perm_string port_name = rmod->get_port_name(idx);
+	    if (rmod->ports[idx]->vpi_port_type == 44)
+		  rmod->ports[idx]->vpi_port_type = 1;
 	    if (!pins[idx]) {
 		  if (generic_iface) {
 			cerr << get_fileline() << ": error: Generic interface "
@@ -7116,7 +7118,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			prt_vector_width += port_width;
 			ptype = PortType::merged(netnet->port_type(), ptype);
 		  }
-		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width );
+		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width,
+		                                      rmod->ports[idx]->vpi_port_type );
 	    }
 
 	      // Interface-typed port (IEEE 1800-2017 25.3): the formal
@@ -51005,6 +51008,7 @@ Design* elaborate(list<perm_string>roots)
 	    for (unsigned idx = 0; idx < rmod->port_count(); idx += 1) {
 		  vector<PEIdent*> mport = rmod->get_port(idx);
                   unsigned int prt_vector_width = 0;
+		  int vpi_port_type = rmod->ports[idx]->vpi_port_type;
 		  PortType::Enum ptype = rmod->is_event_port(idx)
 			? rmod->get_event_port_direction(idx) : PortType::PIMPLICIT;
 		  if (rmod->is_event_port(idx)) {
@@ -51017,6 +51021,12 @@ Design* elaborate(list<perm_string>roots)
 			  // stuff to the design that should be cleaned later.
 			const NetNet *netnet = mport[pin]->elaborate_subport(des, scope);
 			if (netnet != 0) {
+			  const netclass_t*formal_ifc = dynamic_cast<const netclass_t*>(netnet->net_type());
+			  bool generic_iface = netnet->attribute(
+			      perm_string::literal("ivl_generic_iface")).len() != 0;
+			  if (vpi_port_type == 44 &&
+			      (generic_iface || (formal_ifc && formal_ifc->is_interface())))
+				vpi_port_type = 1;
 			  // Elaboration may actually fail with
 			  // erroneous input source
                           prt_vector_width += netnet->vector_width() * netnet->pin_count();
@@ -51028,7 +51038,9 @@ Design* elaborate(list<perm_string>roots)
                                 << ": adding module port "
                                 << rmod->get_port_name(idx) << endl;
                      }
-		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype, prt_vector_width );
+		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype,
+		                              prt_vector_width,
+		                              vpi_port_type );
 		    }
 	      }
 

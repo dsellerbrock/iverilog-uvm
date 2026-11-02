@@ -3496,14 +3496,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		  const char *name =  ivl_scope_mod_module_port_name(net,idx);
 		  ivl_signal_port_t ptype = ivl_scope_mod_module_port_type(net,idx);
 		  unsigned width = ivl_scope_mod_module_port_width(net,idx);
+		  int vpi_port_type = ivl_scope_mod_module_port_vpi_type(net,idx);
 		  ivl_net_logic_t buffer = ivl_scope_mod_module_port_buffer(net,idx);
 		  if( name == 0 )
 			name = "";
 		  fprintf( vvp_out, "    .port_info %u %s %u \"%s\"",
 		           idx, vvp_port_info_type_str(ptype), width,
 		           vvp_mangle_name(name) );
-		  if (buffer) fprintf( vvp_out, " L_%p;\n", buffer);
-		  else fprintf( vvp_out, ";\n");
+		  if (buffer) fprintf( vvp_out, " L_%p %d;\n", buffer, vpi_port_type);
+		  else fprintf( vvp_out, " %d;\n", vpi_port_type);
 
 		  /* Preserve the flattened declaration components for EVCD.  A
 		   * concatenated module port is one vpiPort signature but each

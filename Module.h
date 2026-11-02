@@ -109,6 +109,7 @@ class Module : public PScopeExtra, public PNamedItem {
 	    perm_string name;
 	    std::vector<PEIdent*> expr;
 	    PExpr*default_value;
+	    int vpi_port_type = 44;
 	    bool event_port = false;
 	    NetNet::PortType event_direction = NetNet::PINPUT;
       };

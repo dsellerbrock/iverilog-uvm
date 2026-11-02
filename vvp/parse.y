@@ -930,10 +930,14 @@ statement
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING T_SYMBOL ';'
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, $6 /* buffer */ ); }
+	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING T_SYMBOL T_NUMBER ';'
+		{ compile_port_info( $2, $3, $4, $5, $6, $7 ); }
 
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING ';'
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
+	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING T_NUMBER ';'
+		{ compile_port_info( $2, $3, $4, $5, nullptr, $6 ); }
 
 	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING ';'
 		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,

@@ -1919,10 +1919,12 @@ vpiPortInfo::vpiPortInfo( __vpiScope *parent,
               int vpi_direction,
               unsigned width,
               const char *name,
-              char* buffer) :
+              char* buffer,
+              int vpi_port_type) :
       parent_(parent),
       index_(index),
       direction_(vpi_direction),
+      vpi_port_type_(vpi_port_type),
       width_(width),
       name_(name)
 {
@@ -1953,6 +1955,8 @@ int vpiPortInfo::vpi_get(int code)
           return direction_;
         case vpiPortIndex :
           return index_;
+        case 611: /* vpiPortType */
+          return vpi_port_type_;
         case vpiSize :
           return width_;
         case vpiScalar :
@@ -2067,10 +2071,12 @@ int vpiPortBitInfo::vpi_get(int code)
  * code-generators etc.  There are no actual nets corresponding to instances of module ports
  * as elaboration directly connects nets connected through module ports.
  */
-void compile_port_info( unsigned index, int vpi_direction, unsigned width, const char *name, char* buffer )
+void compile_port_info( unsigned index, int vpi_direction, unsigned width,
+                        const char *name, char* buffer, int vpi_port_type )
 {
       vpiPortInfo* obj = new vpiPortInfo( vpip_peek_current_scope(),
-                                          index, vpi_direction, width, name, buffer );
+                                          index, vpi_direction, width, name, buffer,
+                                          vpi_port_type );
       vpip_attach_to_current_scope(obj);
 
 	// Create vpiPortBit objects
