@@ -1,0 +1,2 @@
+issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
+issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold

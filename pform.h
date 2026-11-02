@@ -411,6 +411,10 @@ extern void pform_sva_infer_procedural_clock(PEventStatement*ctl);
 extern Statement* pform_sva_sequence_event(
 						  const struct vlltype&loc,
 						  PEventStatement*ctl);
+/* Rewrite procedural `sequence_name.triggered` references to the hidden
+   endpoint event that continuously monitors the named sequence. */
+extern PExpr* pform_sva_sequence_triggered(const struct vlltype&loc,
+						   PExpr*expr);
 extern void pform_sva_flush_pending_procedural(void);
 extern void pform_sva_flush_pending_named_properties(void);
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
