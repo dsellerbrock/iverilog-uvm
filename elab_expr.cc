@@ -5247,10 +5247,16 @@ bool PEAssignPattern::resolve_keyed_dimension_(Design*des, NetScope*scope,
       }
 
       out.resize(count);
+      const bool aggregate_element = dynamic_cast<const netstruct_t*>(element_type)
+	    || dynamic_cast<const netuarray_t*>(element_type);
+      const bool recursive_keys = aggregate_element
+	    && allow_unmatched
+	    && (type_value != nullptr || default_seen);
       for (size_t idx = 0 ; idx < count ; idx += 1) {
 	    out[idx] = explicit_values[idx]
 		  ? explicit_values[idx]
-		  : (type_value ? type_value : default_value);
+		  : (type_value ? type_value
+		     : (recursive_keys ? nullptr : default_value));
 	    if (!out[idx] && !allow_unmatched) {
 		  long declared_index = left <= right
 			? left + static_cast<long>(idx)
@@ -5365,15 +5371,32 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 			remaining, uarray_type->element_type()));
 		  default_element_type = default_element_view.get();
 
-		  /* An array-valued function may stand for each unmatched
-		     subarray. Scalar-valued defaults still recurse to the leaf. */
-		  if (PECallFunction*call = dynamic_cast<PECallFunction*>(dflt)) {
+		  /* A value with the self-determined type of this subarray assigns
+		     the whole subarray. Otherwise, scalar defaults recurse to the
+		     leaves and aggregate defaults are handled by their pattern
+		     rules. */
+		  if (const PEIdent*ident = dynamic_cast<const PEIdent*>(dflt)) {
+			bool unindexed = true;
+			for (const name_component_t&part : ident->path().name)
+			      if (!part.index.empty())
+				    unindexed = false;
+			if (unindexed) {
+			      symbol_search_results sr;
+			      if (symbol_search(ident, des, scope, ident->path(),
+					ident->lexical_pos(), &sr)
+				  && sr.net
+				  && assignment_pattern_types_equivalent_(
+					     default_element_type, sr.net->array_type()))
+				    array_default = true;
+			}
+		  }
+		  if (!array_default) {
 			unsigned errors_before = des->errors;
 			PExpr::width_mode_t mode = PExpr::SIZED;
-			unsigned width = call->test_width(des, scope, mode);
+			unsigned width = dflt->test_width(des, scope, mode);
 			if (des->errors != errors_before)
 			      return nullptr;
-			NetExpr*probe = call->elaborate_expr(
+			NetExpr*probe = dflt->elaborate_expr(
 			      des, scope, width,
 			      need_const ? PExpr::NEED_CONST : PExpr::NO_FLAGS);
 			if (des->errors != errors_before) {
