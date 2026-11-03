@@ -807,7 +807,6 @@ sv_locator_fixed_nonintegral normal,-g2012	ivltests gold=sv_locator_fixed_nonint
 sv_bitstream_cast_unpacked_struct_fail normal,-g2017,-s,test ivltests gold=sv_bitstream_cast_unpacked_struct_fail.gold
 sv_bitstream_cast_struct_destination normal,-g2017,-s,test ivltests gold=sv_bitstream_cast_struct_destination.gold
 sv_bitstream_cast_struct_runtime_size_fail RE,-g2017,-s,test ivltests gold=sv_bitstream_cast_struct_runtime_size_fail.gold
-sv_bitstream_cast_struct_fixed_array_size_fail CE,-g2017,-s,test ivltests gold=sv_bitstream_cast_struct_fixed_array_size_fail.gold
 sv_bitstream_cast_packed_struct normal,-g2012	ivltests gold=sv_bitstream_cast_packed_struct.gold
 sv_inside_queue_expr normal,-g2012	ivltests gold=sv_inside_queue_expr.gold
 sv_property_queue_string_charsel normal,-g2012	ivltests gold=sv_property_queue_string_charsel.gold

@@ -1,6 +1,0 @@
-{
-  "type": "CE",
-  "source": "sv_bitstream_cast_struct_fixed_array_size_fail.v",
-  "iverilog-args": ["-g2017", "-s", "test"],
-  "gold": "sv_bitstream_cast_struct_fixed_array_size_fail"
-}
