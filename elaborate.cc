@@ -35726,17 +35726,19 @@ static bool constraint_fixed_index_offset_(
       const constraint_const_ir_t&value, int64_t low, uint64_t span,
       uint64_t&offset);
 
-/* Select from a 0-based packed value of TYPE. For `logic [1:0][15:0] s',
- * s[1] is the 16-bit element at bits [31:16], not bit 1, and a declared
- * range that does not end at 0 shifts every index. A single 0-based packed
- * dimension, including a scalar or packed struct, maps a symbolic index to
- * a bit. A packed-array index maps to its fixed-width slice in
- * std::randomize; class constraints use this path only for one-dimensional
- * arrays of packed structs. Other unsupported selects still fail explicitly. */
+/* Select from a packed value of TYPE. For `logic [1:0][15:0] s', s[1] is
+ * the 16-bit element at bits [31:16], not bit 1, and a declared range that
+ * does not end at 0 shifts every index. A single 0-based packed dimension,
+ * including a scalar or packed struct, maps a symbolic index to a bit.
+ * Packed-array indices map to fixed-width slices; class constraints enable
+ * symbolic slices only for packed-struct arrays and multidimensional
+ * two- or four-state packed properties. Other unsupported selects still
+ * fail explicitly. */
 static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
-      const NetScope*scope, const map<perm_string,uint64_t>*loop_env)
+      const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
+      bool allow_symbolic_element = false)
 {
       const netenum_t*en = dynamic_cast<const netenum_t*>(type);
       ivl_type_t packed_type = en ? en->base_type_obj() : type;
@@ -35873,7 +35875,8 @@ static string packed_typed_select_ir_(
 	    uint64_t off = 0;
 	    string index;
 	    if (!offset_of(ic.msb, off, &index)) {
-		  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array) || !scope
+		  if ((!scope_randomize_emit_ctx_ && !class_packed_record_array
+		       && !allow_symbolic_element) || !scope
 		      || !constraint_ir_design_ctx_) return "";
 		  /* part has constant bounds in the solver. Keep the selected
 		   * value's width by choosing among constant slices instead of
@@ -40456,13 +40459,19 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  bool packed_scalar = constraint_state_prop_ok_(ptype, false);
 		  bool packed_select = packed_scalar
 		    && id->path().back().index.size() == 1;
+		  const netenum_t*packed_enum =
+			dynamic_cast<const netenum_t*>(ptype);
+		  const netvector_t*packed_vec =
+			dynamic_cast<const netvector_t*>(
+			      packed_enum ? packed_enum->base_type_obj() : ptype);
+		  bool packed_multidimensional = !packed_enum && packed_vec
+			&& packed_vec->packed_dims().size() > 1
+			&& (packed_vec->base_type() == IVL_VT_BOOL
+			    || packed_vec->base_type() == IVL_VT_LOGIC);
 		  bool packed_multi_select = false;
 		  if (packed_scalar && id->path().back().index.size() > 1) {
-		    const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
-		    const netvector_t*pvec = dynamic_cast<const netvector_t*>(
-			  penum ? penum->base_type_obj() : ptype);
-		    packed_multi_select = pvec
-			  && pvec->packed_dims().size()
+		    packed_multi_select = packed_vec
+			  && packed_vec->packed_dims().size()
 			       == id->path().back().index.size();
 		  }
 		    // A property that is not `rand` is a STATE VARIABLE
@@ -40504,15 +40513,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + to_string(pwid) + psfx;
 			      return packed_typed_select_ir_(
 				    base, ptype, id->path().back().index.front(),
-				    cls, value_slots, scope, loop_env);
+				    cls, value_slots, scope, loop_env,
+				    packed_multidimensional);
 			}
 			if (packed_multi_select) {
-			      const netenum_t*penum = dynamic_cast<const netenum_t*>(ptype);
-			      const netvector_t*pvec = dynamic_cast<const netvector_t*>(
-				    penum ? penum->base_type_obj() : ptype);
-			      const netranges_t&dims = pvec->packed_dims();
+			      const netranges_t&dims = packed_vec->packed_dims();
 			      uint64_t offset = 0;
 			      uint64_t long_width = 1;
+			      bool symbolic_index = false;
 			      auto select = id->path().back().index.begin();
 			      for (size_t dim = 0; dim < dims.size(); ++dim) {
 				    const netrange_t&range = dims[dim];
@@ -40524,28 +40532,63 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    string index_ir = pexpr_to_constraint_ir(
 					  component.msb, cls, value_slots, scope, loop_env);
 				    constraint_const_ir_t index;
+				    if (index_ir.empty())
+					  return "";
 				    uint64_t digit = 0;
-				    if (!constraint_parse_const_ir_(index_ir, index)
-					|| index.width > 64
-					|| !constraint_fixed_index_offset_(
-					      index, min(range.get_msb(), range.get_lsb()),
-					      range.width(), digit))
-					  return "";
-				    uint64_t position = range.get_msb() >= range.get_lsb()
-					  ? range.width() - 1 - digit : digit;
-				    if (position > UINT_MAX
-					|| offset > (UINT_MAX - position) / range.width())
-					  return "";
-				    offset = offset * range.width() + position;
+				    if (!constraint_parse_const_ir_(index_ir, index)) {
+					  symbolic_index = true;
+				    } else {
+					  if (index.width > 64
+					      || !constraint_fixed_index_offset_(
+						    index, min(range.get_msb(), range.get_lsb()),
+						    range.width(), digit))
+						return "";
+					  if (!symbolic_index) {
+						uint64_t position = range.get_msb() >= range.get_lsb()
+						      ? range.width() - 1 - digit : digit;
+						if (position > UINT_MAX
+						    || offset > (UINT_MAX - position) / range.width())
+						      return "";
+						offset = offset * range.width() + position;
+					  }
+				    }
 				    if (range.width() > UINT64_MAX / long_width)
 					  return "";
 				    long_width *= range.width();
 			      }
-			      if (long_width != (uint64_t)pvec->packed_width())
+			      if (long_width != (uint64_t)packed_vec->packed_width())
 				    return "";
 			      string base = "p:" + to_string(idx) + ":"
 				    + to_string(ptype->packed_width())
 				    + (ptype->get_signed() ? ":s" : "");
+			      if (symbolic_index) {
+				    if (!packed_multidimensional) return "";
+				    /* Preserve the element width after each packed dimension so
+				     * symbolic outer indices can select whole subarrays. */
+				    string selected = base;
+				    ivl_type_t selected_type = ptype;
+				    select = id->path().back().index.begin();
+				    for (size_t dim = 0; dim < dims.size(); ++dim, ++select) {
+					  selected = packed_typed_select_ir_(selected,
+						selected_type, *select, cls, value_slots,
+						scope, loop_env, true);
+					  if (selected.empty()) return "";
+					  if (dim + 1 < dims.size()) {
+						const netvector_t*current =
+						      dynamic_cast<const netvector_t*>(selected_type);
+						if (!current || current->packed_dims().size() < 2)
+						      return "";
+						netranges_t remaining(
+						      current->packed_dims().begin() + 1,
+						      current->packed_dims().end());
+						netvector_t*reduced = new netvector_t(
+						      remaining, current->base_type());
+						reduced->set_signed(current->get_signed());
+						selected_type = reduced;
+					  }
+			    }
+			    return selected;
+		      }
 			      return string(ptype->base_type() == IVL_VT_LOGIC
 				    ? "(bit4 " : "(bit ") + base + " c:"
 				    + to_string(offset) + ")";
