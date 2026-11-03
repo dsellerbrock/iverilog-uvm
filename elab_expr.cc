@@ -13410,7 +13410,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    /* IEEE 1800-2017/2023 20.6.2: $bits of a dynamically sized
 	       expression is a runtime value (zero when empty), not the
 	       expression's placeholder elaboration width. */
-	    if (name == "$bits" && expr->expr_type() == IVL_VT_QUEUE) {
+	    if (name == "$bits"
+		&& (expr->expr_type() == IVL_VT_QUEUE
+		    || expr->expr_type() == IVL_VT_DARRAY)) {
 		  if (flags & NEED_CONST) {
 			cerr << get_fileline() << ": error: $bits of a dynamically sized "
 			     << "expression is not an elaboration-time constant. "
@@ -13426,26 +13428,31 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			return nullptr;
 		  }
 
-		  NetExpr*queue_expr = expr->elaborate_expr(des, scope, 0u, 0u);
-		  if (!queue_expr) return nullptr;
+		  NetExpr*container_expr = expr->elaborate_expr(des, scope, 0u, 0u);
+		  if (!container_expr) return nullptr;
 		  const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(
-			queue_expr->net_type());
+			container_expr->net_type());
+		  const netdarray_t*darray_type = dynamic_cast<const netdarray_t*>(
+			container_expr->net_type());
 		  uint64_t element_width = 0;
-		  if (!queue_type || queue_type->assoc_compat()
-		      || !fixed_bitstream_width_(queue_type->element_type(),
-					 element_width)) {
-			cerr << get_fileline() << ": sorry: $bits of this queue type "
+		  ivl_type_t element_type = queue_type ? queue_type->element_type()
+			: darray_type ? darray_type->element_type() : nullptr;
+		  if ((!queue_type && !darray_type)
+		      || (queue_type && queue_type->assoc_compat())
+		      || !fixed_bitstream_width_(element_type, element_width)) {
+			cerr << get_fileline() << ": sorry: $bits of this dynamically sized "
+			     << "expression "
 			     << "with variable-sized elements is not yet implemented."
 			     << endl;
 			des->errors += 1;
-			delete queue_expr;
+			delete container_expr;
 			return nullptr;
 		  }
 
 		  NetESFunc*size_expr = new NetESFunc("$ivl_queue_method$size",
 						      &netvector_t::atom2s32, 1);
 		  size_expr->set_line(*this);
-		  size_expr->parm(0, queue_expr);
+		  size_expr->parm(0, container_expr);
 
 		  NetEConst*element_width_expr = new NetEConst(
 			verinum(element_width, integer_width));

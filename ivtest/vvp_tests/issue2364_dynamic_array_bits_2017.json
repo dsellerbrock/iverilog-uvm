@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2364_dynamic_array_bits.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "output-contains": ["PASSED"]
+}
