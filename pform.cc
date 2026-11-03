@@ -28000,7 +28000,8 @@ static bool sva_parameter_repeat_try_assertion_(
 	  || !prop->antecedent
 	  || (prop->antecedent->size() != 1
 	      && prop->antecedent->size() != 2)
-	  || !prop->seq || prop->seq->size() != 1)
+	  || !prop->seq
+	  || (prop->seq->size() != 1 && prop->seq->size() != 2))
 	    {
 	      restore_standalone_cover();
 	      return false;
@@ -28010,7 +28011,9 @@ static bool sva_parameter_repeat_try_assertion_(
       sva_seq_step_t*prefix = direct_repeat
 			     ? nullptr : &(*prop->antecedent)[0];
       sva_seq_step_t&repeat = prop->antecedent->back();
-      sva_seq_step_t&cons = (*prop->seq)[0];
+      sva_seq_step_t*prefix_cons = prop->seq->size() == 2
+			     ? &(*prop->seq)[0] : nullptr;
+      sva_seq_step_t&cons = prop->seq->back();
 	/* OpenTitan rstmgr uses a named antecedent with an exact
 	   parameter-valued repetition, followed by the nonoverlapped bounded
 	   window ##[0:RiseMax-RiseMin].  The upper bound is deliberately kept
@@ -28026,6 +28029,17 @@ static bool sva_parameter_repeat_try_assertion_(
             || ((prop->op_type == 1 || !cover)
                 && cons.delay_lo == cons.delay_hi && cons.delay_lo >= 0
                 && (!cover || cons.delay_lo <= 1));
+      bool prefix_cons_ok = !prefix_cons
+	    || (fixed_ante && prop->op_type == 1 && prefix_cons->expr
+		&& prefix_cons->delay_lo == 0 && prefix_cons->delay_hi == 0
+		&& !prefix_cons->delay_lo_expr && !prefix_cons->delay_hi_expr
+		&& prefix_cons->delay_genvar.nil()
+		&& prefix_cons->rep_tail == 0 && prefix_cons->rep_kind == 0
+		&& !prefix_cons->fm && !prefix_cons->grouped_repeat
+		&& !prefix_cons->group_repeat_start
+		&& prefix_cons->group_repeat_opens.empty()
+		&& !sva_step_has_assignment_(*prefix_cons)
+		&& !sva_step_has_call_(*prefix_cons));
       bool replay_checker = !windowed_cons && (!cover || point_delay);
       bool prefix_ok = direct_repeat
 	    || (prefix->expr && prefix->delay_lo == 0 && prefix->delay_hi == 0
@@ -28041,6 +28055,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	  || repeat.rep_kind != 4 || repeat.fm
 	  || sva_step_has_assignment_(repeat)
 	  || !repeat.rep_lo_expr
+          || !prefix_cons_ok
 	  || !cons.expr || (!fixed_cons && !windowed_cons)
 	  || !cons.delay_genvar.nil() || cons.rep_tail != 0
 	  || cons.rep_kind != 0 || cons.fm
@@ -28135,6 +28150,9 @@ static bool sva_parameter_repeat_try_assertion_(
 	    r_prefix = capture(prefix->expr, capture_idx++);
       perm_string r_keep;
       if (!fixed_ante) r_keep = capture(repeat.expr, capture_idx++);
+      perm_string r_prefix_cons;
+      if (prefix_cons)
+	    r_prefix_cons = capture(prefix_cons->expr, capture_idx++);
       perm_string r_cons = capture(cons.expr, capture_idx++);
 
       bool shadow_prefix = !direct_repeat || prop->op_type == 2;
@@ -28631,13 +28649,28 @@ static bool sva_parameter_repeat_try_assertion_(
 	    FILE_NAME(total_end, loc);
 	    body.push_back(sva_assign_(loc, r_end, total_end));
       }
+      if (prefix_cons && !cover) {
+	    PExpr*not_matched = sva_not_(loc,
+		  exact_true(sva_id_(loc, r_prefix_cons)));
+	    PExpr*failed = new PETernary(not_matched,
+		  sva_id_(loc, r_end), number32(0));
+	    FILE_NAME(failed, loc);
+	    PEBinary*fail_add = new PEBinary(
+		  '+', sva_id_(loc, r_fail_req), failed);
+	    FILE_NAME(fail_add, loc);
+	    body.push_back(sva_assign_(loc, r_fail_req, fail_add));
+      }
       if (windowed_cons) {
+	    PExpr*end_event = exact_true(sva_id_(loc, r_end));
+	    if (prefix_cons)
+		  end_event = sva_logic_(loc, 'a', end_event,
+				exact_true(sva_id_(loc, r_prefix_cons)));
             Statement*next_tick = nullptr;
             std::vector<Statement*> same_tick;
             {
 		  PEBinary*inject_cons = new PEBinary(
 			'|', sva_id_(loc, r_cpipe),
-			exact_true(sva_id_(loc, r_end)));
+			end_event);
 		  FILE_NAME(inject_cons, loc);
                   next_tick = sva_assign_(loc, r_cpipe, inject_cons);
             }
@@ -28687,7 +28720,7 @@ static bool sva_parameter_repeat_try_assertion_(
 		  Statement*dispatch_new = sva_if_(
 			loc, lo_zero, at_zero, inject_age_one());
                   same_tick.push_back(sva_if_(
-                        loc, exact_true(sva_id_(loc, r_end)),
+			loc, sva_clone_expr_(end_event),
                         dispatch_new, nullptr));
             }
             Statement*now = sva_block_(loc, same_tick);
@@ -29003,8 +29036,23 @@ static bool sva_parameter_window_try_assertion_(
       } else if (prop->ante_tree) {
 	    return false;
       }
-      if (!cons_seq || cons_seq->size() != 1) return false;
-      sva_seq_step_t&cons = (*cons_seq)[0];
+      if (!cons_seq || (cons_seq->size() != 1 && cons_seq->size() != 2))
+	    return false;
+      sva_seq_step_t*prefix_cons = cons_seq->size() == 2
+			     ? &(*cons_seq)[0] : nullptr;
+      sva_seq_step_t&cons = cons_seq->back();
+      if (prefix_cons
+	  && (kind == 2 || prop->op_type != 1 || !prefix_cons->expr
+	      || prefix_cons->delay_lo != 0
+	      || prefix_cons->delay_hi != 0 || prefix_cons->delay_lo_expr
+	      || prefix_cons->delay_hi_expr || !prefix_cons->delay_genvar.nil()
+	      || prefix_cons->rep_tail != 0 || prefix_cons->rep_kind != 0
+	      || prefix_cons->fm || prefix_cons->grouped_repeat
+	      || prefix_cons->group_repeat_start
+	      || !prefix_cons->group_repeat_opens.empty()
+	      || sva_step_has_assignment_(*prefix_cons)
+	      || sva_step_has_call_(*prefix_cons)))
+	    return false;
       if (!cons.expr || (cons.delay_lo != -5 && cons.delay_lo != -6)
           || cons.delay_hi != cons.delay_lo
 	  || !cons.delay_lo_expr || !cons.delay_hi_expr
