@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2335_nonleaf_indexed_part_select.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue2335_nonleaf_indexed_part_select"
+}

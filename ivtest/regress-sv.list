@@ -3843,6 +3843,7 @@ sv_procedural_package_import normal,-g2017	ivltests gold=sv_procedural_package_i
 sv_procedural_package_import_late_fail CE,-g2017	ivltests
 sv_procedural_package_import_substatement_fail CE,-g2017	ivltests
 sv_packed_mixed_driver_compound normal,-g2017	ivltests gold=sv_packed_mixed_driver_compound.gold
+issue2335_nonleaf_indexed_part_select normal,-g2017,-s,issue2335_nonleaf_indexed_part_select ivltests gold=issue2335_nonleaf_indexed_part_select.gold
 sv_packed_indexed_subpart_read_bounds normal,-g2017 ivltests gold=sv_packed_indexed_subpart_read_bounds.gold
 sv_packed_wide_constant_select_read normal,-g2017 ivltests gold=sv_packed_wide_constant_select_read.gold
 sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_monitor.gold
