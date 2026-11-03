@@ -1919,7 +1919,7 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
-	    if (report.source_id && report.result)
+	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
@@ -2017,7 +2017,7 @@ void vvp_process::mature_final_deferred_asserts()
 		  continue;
 
 	    deferred_assert_report_s report = cur->second;
-	    if (report.source_id && report.result)
+	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
@@ -31585,6 +31585,26 @@ bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
       formal->bind_prop(cp->net, recv, cp->bit_idx[0]);
+      return true;
+}
+
+/* %ref/bind/pr/w <formal>, <pid>: bind one fixed unpacked-array word
+ * of a class property. The selected canonical index is on the vec4 stack. */
+bool of_REF_BIND_PR_W(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t index = -1;
+      bool defined = vector4_to_value(idxv, index, true, false);
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/pr/w error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_prop(cp->net, recv, cp->bit_idx[0], defined ? index : -1);
       return true;
 }
 

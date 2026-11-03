@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue843_large_joint_uniform_2023.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue843_large_joint_uniform"
+}

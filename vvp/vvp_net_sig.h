@@ -557,7 +557,8 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// cell with its last value, as required by 13.5.2; an initially
 	// out-of-range index reads the type default and drops writes.
 	// bind_word: a word of a fixed (static) unpacked array.
-      void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid);
+      void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid,
+                     int64_t index = 0);
       void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
                      int64_t index);
       void bind_assoc_elem(vvp_net_t*formal, vvp_assoc_base*container,

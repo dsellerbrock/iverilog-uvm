@@ -7323,11 +7323,11 @@ static unsigned deferred_assertion_source_id_ = 0;
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
  * selected call and result. The first arguments are mode (0 = #0, 1 = final),
- * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = no
- * result, 1 = pass, 2 = fail), and action kind (0 = null, 1 = `$error',
- * 2 = `$display'). Action markers then carry any original positional action
- * arguments; the VVP target evaluates those expressions before queueing the
- * report and snapshots their typed stack values. */
+ * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = cover
+ * miss, 1 = pass, 2 = assert/assume failure), and action kind (0 = null,
+ * 1 = `$error', 2 = `$display'). Action markers then carry any original
+ * positional action arguments; the VVP target evaluates those expressions
+ * before queueing the report and snapshots their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
@@ -7598,11 +7598,12 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
       if (!pass_marker && !is_final)
 	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 1, 0);
 
-      /* A false final cover selection replaces an earlier true pin from the
-	 same source assertion and logical process. For #0, a false evaluation
-	 simply adds no report; normal process flush points handle reactivation. */
-      Statement*false_marker = is_final
-	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0, 0) : 0;
+      /* Keep failed evaluations in the deferred report queue too: when they
+	 mature they contribute an evaluated-but-unsucceeded count, while a
+	 flush discards them with passing reports. A false final cover replaces
+	 an earlier true pin from the same source assertion and process. */
+	Statement*false_marker = deferred_enqueue_marker_(
+	      loc, is_final, source_id, 2, 0, 0);
 
       PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();
@@ -27999,7 +28000,8 @@ static bool sva_parameter_repeat_try_assertion_(
 	  || !prop->antecedent
 	  || (prop->antecedent->size() != 1
 	      && prop->antecedent->size() != 2)
-	  || !prop->seq || prop->seq->size() != 1)
+	  || !prop->seq
+	  || (prop->seq->size() != 1 && prop->seq->size() != 2))
 	    {
 	      restore_standalone_cover();
 	      return false;
@@ -28009,7 +28011,9 @@ static bool sva_parameter_repeat_try_assertion_(
       sva_seq_step_t*prefix = direct_repeat
 			     ? nullptr : &(*prop->antecedent)[0];
       sva_seq_step_t&repeat = prop->antecedent->back();
-      sva_seq_step_t&cons = (*prop->seq)[0];
+      sva_seq_step_t*prefix_cons = prop->seq->size() == 2
+			     ? &(*prop->seq)[0] : nullptr;
+      sva_seq_step_t&cons = prop->seq->back();
 	/* OpenTitan rstmgr uses a named antecedent with an exact
 	   parameter-valued repetition, followed by the nonoverlapped bounded
 	   window ##[0:RiseMax-RiseMin].  The upper bound is deliberately kept
@@ -28025,6 +28029,17 @@ static bool sva_parameter_repeat_try_assertion_(
             || ((prop->op_type == 1 || !cover)
                 && cons.delay_lo == cons.delay_hi && cons.delay_lo >= 0
                 && (!cover || cons.delay_lo <= 1));
+      bool prefix_cons_ok = !prefix_cons
+	    || (fixed_ante && prop->op_type == 1 && prefix_cons->expr
+		&& prefix_cons->delay_lo == 0 && prefix_cons->delay_hi == 0
+		&& !prefix_cons->delay_lo_expr && !prefix_cons->delay_hi_expr
+		&& prefix_cons->delay_genvar.nil()
+		&& prefix_cons->rep_tail == 0 && prefix_cons->rep_kind == 0
+		&& !prefix_cons->fm && !prefix_cons->grouped_repeat
+		&& !prefix_cons->group_repeat_start
+		&& prefix_cons->group_repeat_opens.empty()
+		&& !sva_step_has_assignment_(*prefix_cons)
+		&& !sva_step_has_call_(*prefix_cons));
       bool replay_checker = !windowed_cons && (!cover || point_delay);
       bool prefix_ok = direct_repeat
 	    || (prefix->expr && prefix->delay_lo == 0 && prefix->delay_hi == 0
@@ -28040,6 +28055,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	  || repeat.rep_kind != 4 || repeat.fm
 	  || sva_step_has_assignment_(repeat)
 	  || !repeat.rep_lo_expr
+          || !prefix_cons_ok
 	  || !cons.expr || (!fixed_cons && !windowed_cons)
 	  || !cons.delay_genvar.nil() || cons.rep_tail != 0
 	  || cons.rep_kind != 0 || cons.fm
@@ -28134,6 +28150,9 @@ static bool sva_parameter_repeat_try_assertion_(
 	    r_prefix = capture(prefix->expr, capture_idx++);
       perm_string r_keep;
       if (!fixed_ante) r_keep = capture(repeat.expr, capture_idx++);
+      perm_string r_prefix_cons;
+      if (prefix_cons)
+	    r_prefix_cons = capture(prefix_cons->expr, capture_idx++);
       perm_string r_cons = capture(cons.expr, capture_idx++);
 
       bool shadow_prefix = !direct_repeat || prop->op_type == 2;
@@ -28630,13 +28649,28 @@ static bool sva_parameter_repeat_try_assertion_(
 	    FILE_NAME(total_end, loc);
 	    body.push_back(sva_assign_(loc, r_end, total_end));
       }
+      if (prefix_cons && !cover) {
+	    PExpr*not_matched = sva_not_(loc,
+		  exact_true(sva_id_(loc, r_prefix_cons)));
+	    PExpr*failed = new PETernary(not_matched,
+		  sva_id_(loc, r_end), number32(0));
+	    FILE_NAME(failed, loc);
+	    PEBinary*fail_add = new PEBinary(
+		  '+', sva_id_(loc, r_fail_req), failed);
+	    FILE_NAME(fail_add, loc);
+	    body.push_back(sva_assign_(loc, r_fail_req, fail_add));
+      }
       if (windowed_cons) {
+	    PExpr*end_event = exact_true(sva_id_(loc, r_end));
+	    if (prefix_cons)
+		  end_event = sva_logic_(loc, 'a', end_event,
+				exact_true(sva_id_(loc, r_prefix_cons)));
             Statement*next_tick = nullptr;
             std::vector<Statement*> same_tick;
             {
 		  PEBinary*inject_cons = new PEBinary(
 			'|', sva_id_(loc, r_cpipe),
-			exact_true(sva_id_(loc, r_end)));
+			end_event);
 		  FILE_NAME(inject_cons, loc);
                   next_tick = sva_assign_(loc, r_cpipe, inject_cons);
             }
@@ -28686,7 +28720,7 @@ static bool sva_parameter_repeat_try_assertion_(
 		  Statement*dispatch_new = sva_if_(
 			loc, lo_zero, at_zero, inject_age_one());
                   same_tick.push_back(sva_if_(
-                        loc, exact_true(sva_id_(loc, r_end)),
+			loc, sva_clone_expr_(end_event),
                         dispatch_new, nullptr));
             }
             Statement*now = sva_block_(loc, same_tick);
@@ -29002,8 +29036,23 @@ static bool sva_parameter_window_try_assertion_(
       } else if (prop->ante_tree) {
 	    return false;
       }
-      if (!cons_seq || cons_seq->size() != 1) return false;
-      sva_seq_step_t&cons = (*cons_seq)[0];
+      if (!cons_seq || (cons_seq->size() != 1 && cons_seq->size() != 2))
+	    return false;
+      sva_seq_step_t*prefix_cons = cons_seq->size() == 2
+			     ? &(*cons_seq)[0] : nullptr;
+      sva_seq_step_t&cons = cons_seq->back();
+      if (prefix_cons
+	  && (kind == 2 || prop->op_type != 1 || !prefix_cons->expr
+	      || prefix_cons->delay_lo != 0
+	      || prefix_cons->delay_hi != 0 || prefix_cons->delay_lo_expr
+	      || prefix_cons->delay_hi_expr || !prefix_cons->delay_genvar.nil()
+	      || prefix_cons->rep_tail != 0 || prefix_cons->rep_kind != 0
+	      || prefix_cons->fm || prefix_cons->grouped_repeat
+	      || prefix_cons->group_repeat_start
+	      || !prefix_cons->group_repeat_opens.empty()
+	      || sva_step_has_assignment_(*prefix_cons)
+	      || sva_step_has_call_(*prefix_cons)))
+	    return false;
       if (!cons.expr || (cons.delay_lo != -5 && cons.delay_lo != -6)
           || cons.delay_hi != cons.delay_lo
 	  || !cons.delay_lo_expr || !cons.delay_hi_expr

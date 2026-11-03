@@ -1,6 +1,11 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
+issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
+issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
+issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
+
 issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue2364_dynamic_array_bits_2017 normal,-g2017,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
@@ -46,6 +51,8 @@ issue1827_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1827_pack
 issue1827_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1827_packed_foreach.gold
 issue1828_nested_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue1828_nested_packed_foreach-vvp-stdout.gold
 issue1828_nested_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1828_nested_packed_foreach-vvp-stdout.gold
+issue1847_packed_rand_index normal,-g2017,-s,test ivltests gold=issue1847_packed_rand_index.gold
+issue1847_packed_rand_index_2023 normal,-g2023,-s,test ivltests gold=issue1847_packed_rand_index.gold
 issue1838_scope_randomize_array_2017 normal,-g2017,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 issue1838_scope_randomize_array_2023 normal,-g2023,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 
@@ -59,6 +66,8 @@ issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_t
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue2343_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue2343_array_pattern.gold
 issue2343_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue2343_array_pattern.gold
+issue2389_fixed_array_concat_slice_2017 normal,-g2017,-s,top ivltests gold=issue2389_fixed_array_concat_slice.gold
+issue2389_fixed_array_concat_slice_2023 normal,-g2023,-s,top ivltests gold=issue2389_fixed_array_concat_slice.gold
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
@@ -3567,8 +3576,8 @@ sv_assert_cycle_delay_unknown_fail CE,-g2017 ivltests gold=sv_assert_cycle_delay
 sv_assert_cycle_delay_unknown_fail_2023 CE,-g2023 ivltests gold=sv_assert_cycle_delay_unknown_fail.gold
 sv_assert_cycle_delay_offset_negative_fail CE,-g2017 ivltests gold=sv_assert_cycle_delay_offset_negative_fail.gold
 sv_assert_cycle_delay_offset_negative_fail_2023 CE,-g2023 ivltests gold=sv_assert_cycle_delay_offset_negative_fail.gold
-sv_assert_cycle_delay_composition_fail CE,-g2017 ivltests gold=sv_assert_cycle_delay_composition_fail.gold
-sv_assert_cycle_delay_composition_fail_2023 CE,-g2023 ivltests gold=sv_assert_cycle_delay_composition_fail.gold
+sv_assert_cycle_delay_composition_fail normal,-g2017,-s,sv_assert_cycle_delay_composition_fail ivltests gold=sv_assert_cycle_delay_composition_fail-vvp-stdout.gold
+sv_assert_cycle_delay_composition_fail_2023 normal,-g2023,-s,sv_assert_cycle_delay_composition_fail ivltests gold=sv_assert_cycle_delay_composition_fail-vvp-stdout.gold
 sv_assert_cycle_delay_operand_width normal,-g2017 ivltests gold=sv_assert_cycle_delay_operand_width.gold
 sv_assert_cycle_delay_operand_width_2023 normal,-g2023 ivltests gold=sv_assert_cycle_delay_operand_width.gold
 sv_assert_nested_sequence_alias normal,-g2017 ivltests gold=sv_assert_nested_sequence_alias.gold
@@ -6532,3 +6541,7 @@ issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_condition
 issue626_set_inst_name normal,-g2017,-s,top ivltests gold=issue626_set_inst_name.gold
 issue2339_numeric_input_skew_initializer_2017 normal,-g2017,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
 issue2339_numeric_input_skew_initializer_2023 normal,-g2023,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
+issue443_deferred_cover_count_2017 normal,-g2017,-s,top ivltests gold=issue443_deferred_cover_count.gold
+issue443_deferred_cover_count_2023 normal,-g2023,-s,top ivltests gold=issue443_deferred_cover_count.gold
+issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
+issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold

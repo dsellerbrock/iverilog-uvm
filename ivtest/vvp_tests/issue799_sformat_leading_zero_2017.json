@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue799_sformat_leading_zero.v",
+  "iverilog-args": ["-g2017", "-s", "issue799_sformat_leading_zero"]
+}
