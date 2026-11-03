@@ -347,8 +347,8 @@ ivl_type_t NetAssign_::lval_type() const
 			etype = darray->element_type();
 		  else if (const netuarray_t *uarray = dynamic_cast<const netuarray_t*>(etype))
 			etype = uarray->element_type();
-		  if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(etype)) {
-			const auto&members = struct_type->members();
+		  if (const netstruct_t *element_struct = dynamic_cast<const netstruct_t*>(etype)) {
+			const auto&members = element_struct->members();
 			if ((member_idx_ >= 0) && ((size_t)member_idx_ < members.size()))
 			      return members[member_idx_].net_type;
 		  }
