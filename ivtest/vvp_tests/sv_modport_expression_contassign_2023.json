@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "sv_modport_expression_contassign.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_modport_expression_contassign" ],
+    "gold" : "sv_modport_expression_contassign"
+}
