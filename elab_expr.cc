@@ -22201,6 +22201,18 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	if (!base)
 	      return nullptr;
 
+	/* A string source is a dynamically sized byte stream for this cast.
+	 * Lower it before the packed-vector fallback expands the nominal string
+	 * width into repeated byte stores (IEEE 1800-2017/2023 6.24.3). */
+	if (dynamic_cast<const netstring_t*>(base->net_type())
+	    && positional_container_integral_elements_(target_type_)) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					     target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
+	}
+
 	/* Do not let the enclosing assignment's legacy packed-vector-to-array
 	 * path bypass this explicit cast's own source/target validation. */
 	positional_container_cast_status_t container_cast_status;
