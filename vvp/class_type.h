@@ -297,6 +297,7 @@ class class_type : public __vpiHandle {
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    // kind & 512: wide automatic bin; lo is the prefix, hi packs width and prefix bits.
+	    // kind & 4096: wide inclusive range; lo indexes covgrp_wide_ranges_.
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
@@ -310,6 +311,12 @@ class class_type : public __vpiHandle {
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
 	static const unsigned COV_REAL_BIN = 0x100;
+	static const unsigned COV_WIDE_RANGE_BIN = 0x1000;
+	struct cov_wide_range_t {
+	    unsigned width = 0;
+	    std::vector<uint64_t> low;
+	    std::vector<uint64_t> high;
+	};
       struct cov_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
@@ -421,6 +428,12 @@ class class_type : public __vpiHandle {
 	return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+	size_t add_covgrp_wide_range(unsigned width,
+				     const std::vector<uint64_t>&low,
+				     const std::vector<uint64_t>&high);
+	const cov_wide_range_t* covgrp_wide_range(size_t idx) const
+	{ return idx < covgrp_wide_ranges_.size() ? &covgrp_wide_ranges_[idx] : nullptr; }
+	size_t covgrp_wide_range_count() const { return covgrp_wide_ranges_.size(); }
 	bool covgrp_cp_real(size_t cp) const
 	{ return cp < covgrp_real_cps_.size() && covgrp_real_cps_[cp]; }
       void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
@@ -629,6 +642,7 @@ class class_type : public __vpiHandle {
       void covgrp_accumulate_instance_(covgrp_population_t&population,
                                        class vvp_cobject*obj) const;
       std::vector<cov_bin_t> covgrp_bins_;
+	std::vector<cov_wide_range_t> covgrp_wide_ranges_;
 	std::vector<bool> covgrp_real_cps_;
       std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<cov_cross_t> covgrp_crosses_;

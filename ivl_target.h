@@ -584,6 +584,9 @@ extern ivl_island_t ivl_branch_island(ivl_branch_t obj);
  * ivl_path_condit
  *    This returns the nexus that tracks the condition for the
  *    delay. If the delay path is unconditional, this returns nil.
+ * ivl_path_condition_text
+ *    This returns the source expression for a conditional delay path,
+ *    or nil when the path has no condition expression.
  * ivl_path_is_condit
  *    Is this a conditional structure? Needed for ifnone.
  *
@@ -599,6 +602,7 @@ extern ivl_scope_t ivl_path_scope(ivl_delaypath_t obj);
 extern ivl_nexus_t ivl_path_source(ivl_delaypath_t obj);
 extern uint64_t ivl_path_delay(ivl_delaypath_t obj, ivl_path_edge_t pt);
 extern ivl_nexus_t ivl_path_condit(ivl_delaypath_t obj);
+extern const char* ivl_path_condition_text(ivl_delaypath_t obj);
 extern int ivl_path_is_condit(ivl_delaypath_t obj);
 
 extern int ivl_path_is_parallel(ivl_delaypath_t obj);
@@ -2806,6 +2810,12 @@ extern unsigned ivl_type_constraint_state_call_dep_leaf(ivl_type_t net, int idx,
  * Only valid when the class type represents a covergroup. */
 extern int      ivl_type_covgrp_bins(ivl_type_t net);
 extern int      ivl_type_covgrp_ncoverpoints(ivl_type_t net);
+extern int      ivl_type_covgrp_wide_ranges(ivl_type_t net);
+extern unsigned ivl_type_covgrp_wide_range_width(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_wide_range_low(ivl_type_t net, int idx,
+					       unsigned word);
+extern uint64_t ivl_type_covgrp_wide_range_high(ivl_type_t net, int idx,
+					        unsigned word);
 extern unsigned ivl_type_covgrp_bin_cp(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_bin_prop(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);

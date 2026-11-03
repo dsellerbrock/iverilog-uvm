@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue834_wide_explicit_range_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue834_wide_explicit_range"
+}

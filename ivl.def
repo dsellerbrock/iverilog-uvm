@@ -227,6 +227,7 @@ ivl_parameter_signed
 ivl_parameter_width
 
 ivl_path_condit
+ivl_path_condition_text
 ivl_path_delay
 ivl_path_is_condit
 ivl_path_is_parallel
@@ -465,6 +466,10 @@ ivl_type_constraint_state_call_width
 ivl_type_constraint_state_calls
 ivl_type_covgrp_ncoverpoints
 ivl_type_covgrp_bins
+ivl_type_covgrp_wide_ranges
+ivl_type_covgrp_wide_range_width
+ivl_type_covgrp_wide_range_low
+ivl_type_covgrp_wide_range_high
 ivl_type_covgrp_bin_prop
 ivl_type_covgrp_bin_lo
 ivl_type_covgrp_bin_hi

@@ -103,7 +103,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_VIF K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
-%token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_OPTION_VALUES K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_OPTION_VALUES K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
+%token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_WIDE_RANGE K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_OPTION_VALUES K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_OPTION_VALUES K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
@@ -158,6 +158,7 @@ static bool is_force_release_opcode(const char* name)
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
 %type <text> label_opt
+%type <text> modpath_condition_text_opt
 %type <opa>  operand operands operands_opt
 %type <table> udp_table
 
@@ -1321,6 +1322,9 @@ class_properties
 class_property
   : T_NUMBER ':' T_STRING ',' T_STRING dimensions_opt
       { compile_class_property($1, $3, $5, $6); }
+  | K_COVGRP_WIDE_RANGE T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
+	  { std::vector<uint64_t> words = {$4, $5, $6, $7, $8, $9, $10, $11};
+	    compile_class_covgrp_wide_range($2, $3, words); }
   | K_IMPLEMENTS T_STRING
       { compile_class_interface($2); }
   | K_STATIC_PROP T_NUMBER T_SYMBOL
@@ -1764,25 +1768,33 @@ modport_ports_opt
                 { compile_modport_port($2, $3); }
         ;
 
+modpath_condition_text_opt
+        : /* empty */ { $$ = 0; }
+        | T_STRING { $$ = $1; }
+        ;
+
 modpath_src
   : symbol '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, 0, $1, $3, 0, $5, false); }
   | symbol '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, 0, $1, $3, 0, $6, true); }
-  | symbol '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $7); }
+  | symbol '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, 0, $1, $3, $5, $8, $6);
+	if ($6) free($6); }
   | symbol '+' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $6, false); }
   | symbol '+' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '+', $1, $4, 0, $7, true); }
-  | symbol '+' '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $8); }
+  | symbol '+' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, '+', $1, $4, $6, $9, $7);
+	if ($7) free($7); }
   | symbol '-' '(' numbers ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $6, false); }
   | symbol '-' '(' numbers '?' ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, 0, $7, true); }
-  | symbol '-' '(' numbers '?' symbol ')' symbol
-      { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $8); }
+  | symbol '-' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $9, $7);
+	if ($7) free($7); }
   ;
 
 udp_table

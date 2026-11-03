@@ -1,6 +1,9 @@
+SDF WARNING: ivltests/sdf_interconnect2.sdf:19: INTERCONNECT source port a has input direction; source ports must be output or inout.
+SDF WARNING: ivltests/sdf_interconnect2.sdf:20: INTERCONNECT source port a has input direction; source ports must be output or inout.
+SDF WARNING: ivltests/sdf_interconnect2.sdf:21: INTERCONNECT source port a has input direction; source ports must be output or inout.
 time=0 a=x b=x
 time=5000 a=0 b=x
-time=5110 a=0 b=0
+time=5100 a=0 b=0
 time=15000 a=1 b=0
-time=15330 a=1 b=1
+time=15300 a=1 b=1
 ivltests/sdf_interconnect2.v:61: $finish called at 25000 (1ps)

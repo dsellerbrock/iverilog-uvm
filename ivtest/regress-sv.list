@@ -6,9 +6,13 @@ issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_v
 
 issue1569_down_hierarchy_interconnect_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
 issue1569_down_hierarchy_interconnect_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
+issue625_covergroup_block_event_2017 normal,-g2017,-s,issue625_covergroup_block_event ivltests
+issue625_covergroup_block_event_2023 normal,-g2023,-s,issue625_covergroup_block_event ivltests
 
 issue2150_explicit_named_package_ports_2017 normal,-g2017,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
 issue2150_explicit_named_package_ports_2023 normal,-g2023,-s,issue2150_explicit_named_package_ports ivltests gold=issue2150_explicit_named_package_ports-legacy.gold
+issue1571_sdf_interconnect_source_direction_2017 normal,-g2017,-Ttyp,-ginterconnect,-gspecify ivltests gold=issue1571_sdf_interconnect_source_direction.gold
+issue1571_sdf_interconnect_source_direction_2023 normal,-g2023,-Ttyp,-ginterconnect,-gspecify ivltests gold=issue1571_sdf_interconnect_source_direction.gold
 issue2269_clocking_end_label_2017 normal,-g2017,-s,issue2269_clocking_end_label ivltests gold=issue2269_clocking_end_label_2017.gold
 issue2269_clocking_end_label_2023 normal,-g2023,-s,issue2269_clocking_end_label ivltests gold=issue2269_clocking_end_label_2023.gold
 issue2177_negative_constant_delay_2017 normal,-g2017,-s,issue2177_negative_constant_delay ivltests gold=issue2177_negative_constant_delay.gold
@@ -1934,6 +1938,8 @@ sv_covergroup_wide_open_array_named_cross normal,-g2017,-gno-icarus-misc,-gno-xt
 sv_covergroup_wide_open_array_named_cross_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_open_array_named_cross.gold
 sv_covergroup_wide_reject_unsupported CE,-g2017,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_reject_unsupported.gold
 sv_covergroup_wide_reject_unsupported_2023 CE,-g2023,-gno-icarus-misc,-gno-xtypes,-stop ivltests gold=sv_covergroup_wide_reject_unsupported.gold
+issue834_wide_explicit_range_2017 normal,-g2017,-s,top ivltests gold=issue834_wide_explicit_range.gold
+issue834_wide_explicit_range_2023 normal,-g2023,-s,top ivltests gold=issue834_wide_explicit_range.gold
 sv_covergroup_cross_retain_auto_bins_2017 CE,-g2017 ivltests gold=sv_covergroup_cross_retain_auto_bins_2017.gold
 sv_covergroup_cross_retain_auto_bins_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_retain_auto_bins_2023.gold
 sv_covergroup_cross_retain_scope_fail CE,-g2023 ivltests gold=sv_covergroup_cross_retain_scope_fail.gold
@@ -6351,6 +6357,8 @@ sv_function_const_ref_context_2017 normal,-g2017,-s,sv_function_const_ref_contex
 sv_function_const_ref_context_2023 normal,-g2023,-s,sv_function_const_ref_context ivltests gold=sv_function_const_ref_context_2023.gold
 sv_sva_composite_match_item normal,-g2017 ivltests gold=sv_sva_composite_match_item.gold
 sv_sva_composite_match_item_2023 normal,-g2023 ivltests gold=sv_sva_composite_match_item.gold
+issue716_multi_sequence_match_item_2017 normal,-g2017,-s,test ivltests gold=issue716_multi_sequence_match_item.gold
+issue716_multi_sequence_match_item_2023 normal,-g2023,-s,test ivltests gold=issue716_multi_sequence_match_item.gold
 sv_auto_trace_fail_2017 CE,-g2017 ivltests gold=sv_auto_trace_fail_2017.gold
 sv_auto_trace_fail_2023 CE,-g2023 ivltests gold=sv_auto_trace_fail_2023.gold
 issue859_sized_vector_array_concat normal,-g2017 ivltests gold=issue859_sized_vector_array_concat.gold
@@ -6498,3 +6506,5 @@ sv_if_violation_observed_2023 normal,-g2023,-s,sv_if_violation_observed ivltests
 issue1215_duplicate_extern_method_2017 CE,-g2017 ivltests gold=issue1215_duplicate_extern_method_2017.gold
 issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplicate_extern_method_2023.gold
 issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_scope.gold
+issue1562_conditional_iopath_2017 normal,-g2017,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
+issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold

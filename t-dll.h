@@ -289,6 +289,7 @@ struct ivl_delaypath_s {
       ivl_scope_t scope;
       ivl_nexus_t src;
       ivl_nexus_t condit;
+      const char* condition_text;
       bool conditional;
       bool parallel;
       bool posedge;

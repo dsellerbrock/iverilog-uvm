@@ -527,7 +527,8 @@ class PEEvent : public PExpr {
 
     public:
       bool refs_name(perm_string name) const override;
-      enum edge_t {ANYEDGE, POSEDGE, NEGEDGE, EDGE, POSITIVE};
+      enum edge_t {ANYEDGE, POSEDGE, NEGEDGE, EDGE, POSITIVE,
+		   BLOCK_BEGIN, BLOCK_END};
 
 	// Use this constructor to create events based on edges or levels.
 	// The optional condition is the IEEE 1800 event-expression `iff'

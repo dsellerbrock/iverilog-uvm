@@ -273,6 +273,30 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 	    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s not found; annotating load port anyway.\n",
 	               sdf_fname, sdf_lineno, port1.name);
 
+      /* Only output and inout module ports are legal INTERCONNECT sources. */
+      if (port1_handle) {
+	    int direction = vpi_get(vpiDirection, port1_handle);
+	    if (direction != vpiOutput && direction != vpiInout) {
+	          const char*name = vpi_get_str(vpiName, port1_handle);
+	          const char*direction_name = direction == vpiInput ? "input" : "neither output nor inout";
+	          vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s has %s direction; source ports must be output or inout.\n",
+	                     sdf_fname, sdf_lineno, name ? name : "<unknown>", direction_name);
+	          return;
+	    }
+      }
+
+      /* Only input and inout module ports are legal INTERCONNECT loads. */
+      if (port2_handle) {
+	    int direction = vpi_get(vpiDirection, port2_handle);
+	    if (direction != vpiInput && direction != vpiInout) {
+	          const char*name = vpi_get_str(vpiName, port2_handle);
+	          const char*direction_name = direction == vpiOutput ? "output" : "neither input nor inout";
+	          vpi_printf("SDF WARNING: %s:%d: INTERCONNECT load port %s has %s direction; load ports must be input or inout.\n",
+	                     sdf_fname, sdf_lineno, name ? name : "<unknown>", direction_name);
+	          return;
+	    }
+      }
+
 	// Check whether we have a single bit of a port for port1
       if (port1.has_index && port1_handle) {
 	    vpiHandle iter, vpi_port_bit;
@@ -488,6 +512,7 @@ void sdf_netdelay_delays(struct interconnect_port_s target,
 }
 
 void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
+                       const char*condition, int ifnone,
                        const struct sdf_delval_list_s*delval_list,
                        const int sdf_lineno)
 {
@@ -532,6 +557,19 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	      /* If the dst name doesn't match, go on. */
 	    if (strcmp(dst,vpi_get_str(vpiName,path_out)) != 0)
 		  continue;
+
+	      /* An unqualified IOPATH applies to every matching path. A COND
+	       * entry applies only to the path with the same condition, while a
+	       * CONDELSE entry applies only to an ifnone path. */
+	    if (ifnone) {
+		  if (!vpi_get(_vpiModPathIfNone, path)) continue;
+	    } else if (condition) {
+		  const char*path_condition =
+			vpi_get_str(_vpiModPathConditionText, path);
+		  if (vpi_get(_vpiModPathIfNone, path)
+		      || !path_condition || strcmp(condition, path_condition) != 0)
+			continue;
+	    }
 
 	      /* Ah, this must be a match! */
 	    delays.da = delay_vals;

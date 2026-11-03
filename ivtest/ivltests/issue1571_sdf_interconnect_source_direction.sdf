@@ -1,0 +1,14 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue1571_dut")
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "issue1571_dut")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (INTERCONNECT bad_a u_bad.a (3.0) (3.0))
+      (INTERCONNECT u_src.y u_good.a (3.0) (3.0))
+      (INTERCONNECT u_load_src.y u_bad_load.y (3.0) (3.0))
+    ))
+  )
+)

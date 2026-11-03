@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue716_multi_sequence_match_item_2017.v",
+    "iverilog-args": [ "-g2017", "-s", "test" ],
+    "output-contains": [ "PASSED" ]
+}

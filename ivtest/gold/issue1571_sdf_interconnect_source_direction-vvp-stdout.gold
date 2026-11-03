@@ -1,0 +1,4 @@
+SDF WARNING: ivltests/issue1571_sdf_interconnect_source_direction.sdf:9: INTERCONNECT source port bad_a has input direction; source ports must be output or inout.
+SDF WARNING: ivltests/issue1571_sdf_interconnect_source_direction.sdf:11: INTERCONNECT load port y has output direction; load ports must be input or inout.
+input source and output load rejected; output source delayed 3 ns
+ivltests/issue1571_sdf_interconnect_source_direction.v:54: $finish called at 14000 (1ps)

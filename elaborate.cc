@@ -28754,6 +28754,67 @@ NetProc* PReturn::elaborate(Design*des, NetScope*scope) const
  * that is what I did in pform_make_task_ports, so there it is.
  */
 
+static bool covergroup_end_event_names_task_(
+	const class_type_t::pform_covergroup_t*cgdef, perm_string task_name)
+{
+	if (!cgdef) return false;
+	for (const PEEvent*event : cgdef->sample_events) {
+		if (!event || event->type() != PEEvent::BLOCK_END) continue;
+		const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+		if (!id || id->path().name.size() != 1) continue;
+		if (id->path().name.front().name == task_name) return true;
+	}
+	return false;
+}
+
+/* A same-scope task's normal fall-through is the end block event's
+   completion point. Put the sample call in that path so a `disable` or
+   `return` that unwinds the task skips it, as required by 19.3. */
+static std::vector<NetProc*> elaborate_task_end_samples_(
+	const PTask*ptask, Design*des, NetScope*task)
+{
+	std::vector<NetProc*> result;
+	if (!task || !task->parent()) return result;
+	NetScope*owner_scope = task->parent();
+	if (owner_scope->type() != NetScope::MODULE
+	    && owner_scope->type() != NetScope::PACKAGE)
+		return result;
+
+	for (const auto&sig_item : owner_scope->signals_map()) {
+		NetNet*sig = sig_item.second;
+		if (!sig) continue;
+		const netclass_t*cgct = dynamic_cast<const netclass_t*>(
+			sig->net_type());
+		if (!cgct || !cgct->is_covergroup()) continue;
+		const NetScope*cg_scope = cgct->class_scope();
+		const PClass*pcl = cg_scope ? cg_scope->class_pform() : nullptr;
+		if (!pcl || !pcl->type || !pcl->type->is_covergroup_standalone
+		    || pcl->type->covergroups.empty()) continue;
+		const class_type_t::pform_covergroup_t*cgdef =
+			pcl->type->covergroups.front();
+		if (!covergroup_end_event_names_task_(cgdef,
+						      ptask->pscope_name())) continue;
+
+		pform_name_t path;
+		path.push_back(name_component_t(sig->name()));
+		path.push_back(name_component_t(perm_string::literal("sample")));
+		std::list<named_pexpr_t> no_parms;
+		PCallTask call(path, no_parms);
+		call.set_line(*ptask);
+		PExprProceduralContextGuard procedural_context(true);
+		NetProc*sample = call.elaborate(des, task);
+		if (sample)
+			result.push_back(sample);
+		else {
+		std::cerr << ptask->get_fileline() << ": error: Unable to elaborate "
+			  << "end-event sampling call for covergroup instance `"
+			  << sig->name() << "`." << std::endl;
+		++des->errors;
+		}
+	}
+	return result;
+}
+
 void PTask::elaborate(Design*des, NetScope*task) const
 {
       if (task->elab_stage() > 2)
@@ -28836,6 +28897,20 @@ void PTask::elaborate(Design*des, NetScope*task) const
 		  NetProc*tmp = per_call_inits[idx-1]->elaborate(des, task);
 		  if (tmp) blk->prepend(tmp);
 	    }
+      }
+
+	/* An end block event is sampled after the named task's last statement.
+	   Appending these calls to the normal completion path also means a task
+	   disabled before completion does not generate the coverage event. */
+      std::vector<NetProc*> end_samples =
+		elaborate_task_end_samples_(this, des, task);
+      if (!end_samples.empty()) {
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, task);
+	    blk->set_line(*this);
+	    blk->append(st);
+	    for (NetProc*sample : end_samples)
+		  blk->append(sample);
+	    st = blk;
       }
 
       /* One-shot declaration initializers execute without a call to this
@@ -29468,9 +29543,13 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 
+	    ostringstream condition_text;
+	    if (condition)
+		  condition->dump(condition_text);
 	    NetDelaySrc*path = new NetDelaySrc(scope, scope->local_symbol(),
 					       src.size(), condit_sig,
-					       conditional, !full_flag_);
+					       conditional, !full_flag_,
+					       condition_text.str());
 	    path->set_line(*this);
 
 	      // The presence of the data_source_expression indicates
@@ -29771,6 +29850,47 @@ static perm_string covergroup_observed_clocking_event_(Design*des, NetScope*scop
 	return perm_string();
 }
 
+static bool covergroup_has_block_event_(
+	const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!cgdef) return false;
+	for (const PEEvent*event : cgdef->sample_events)
+		if (event && (event->type() == PEEvent::BLOCK_BEGIN
+			      || event->type() == PEEvent::BLOCK_END))
+			return true;
+	return false;
+}
+
+/* This implementation handles end events naming a task in the same
+   module/package scope. Reject other valid block-event forms until their
+   corresponding entry/exit hooks are implemented instead of installing a
+   sampler that never fires. */
+static bool covergroup_local_task_end_events_supported_(NetScope*scope,
+					 const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!scope || !cgdef || cgdef->sample_events.empty()) return false;
+	for (const PEEvent*event : cgdef->sample_events) {
+		if (!event || event->type() != PEEvent::BLOCK_END) return false;
+		const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+		if (!id || id->path().name.size() != 1) return false;
+		NetScope*task = scope->child(hname_t(id->path().name.front().name));
+		if (!task || !task->task_pform()) return false;
+	}
+	return true;
+}
+
+static void report_unsupported_covergroup_block_event_(NetScope*scope,
+					       const PClass*pcl,
+					       const class_type_t::pform_covergroup_t*cgdef)
+{
+	std::cerr << (pcl ? pcl->get_fileline() : std::string("<covergroup>"))
+		  << ": sorry: block-event sampling for covergroup `"
+		  << (cgdef ? cgdef->name : perm_string::literal("<unknown>"))
+		  << "` in scope `"
+		  << scope_path(scope) << "` is not supported for this block event."
+		  << std::endl;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -29791,6 +29911,11 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->is_covergroup_standalone) continue;
 	    for (auto*cgdef : pcl->type->covergroups) {
 		  if (!cgdef || cgdef->sample_events.empty()) continue;
+		  if (covergroup_has_block_event_(cgdef)) {
+			report_unsupported_covergroup_block_event_(scope, pcl, cgdef);
+			++des->errors;
+			continue;
+		  }
 		  perm_string observed_trigger =
 			covergroup_observed_clocking_event_(des, scope, cgdef);
 		  netclass_t*parent_ct = scope->find_class(des, pcl->pscope_name());
@@ -29866,6 +29991,13 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    if (pcl->type->covergroups.empty()) continue;
 	    class_type_t::pform_covergroup_t*cgdef = pcl->type->covergroups.front();
 	    if (!cgdef || cgdef->sample_events.empty()) continue;
+	    if (covergroup_has_block_event_(cgdef)) {
+		if (!covergroup_local_task_end_events_supported_(scope, cgdef)) {
+		      report_unsupported_covergroup_block_event_(scope, pcl, cgdef);
+		      ++des->errors;
+		}
+		continue;
+	    }
 	    perm_string observed_trigger =
 		  covergroup_observed_clocking_event_(des, scope, cgdef);
 
@@ -44695,6 +44827,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  perm_string name;
 		  std::vector<std::pair<uint64_t,uint64_t>> ranges;
 		  std::vector<std::vector<uint64_t>> wide_values;
+		  std::vector<unsigned> wide_ranges;
 		  std::vector<std::vector<uint64_t>> xz_values;
 		  bool wide_auto = false;
 		  uint64_t wide_auto_value = 0;
@@ -47154,11 +47287,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
-				// Exact unsigned wide values use one existing metadata
-				// record per 64-bit word. Records in one tuple are ANDed;
-					// separate values of the same bin are ORed. Bit 6 marks
-				// an exact word; hi carries source width, word index and
-				// the number of valid bits in that word.
+				// Exact unsigned wide values use one metadata record per
+				// 64-bit word. Explicit ranges use endpoint metadata and a
+				// wide comparison at sample time.
 				if (cp_value_width > 64) {
 				      bool supported = cp_wide_exact_supported
 					&& base_kind == 0 && !bin.array_size
@@ -47166,6 +47297,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					&& !bin.set_expr && bin.source_coverpoint.nil()
 					&& bin.trans_seqs.empty() && !bin.ranges.empty();
 				      std::vector<std::vector<uint64_t>> values;
+				  typedef std::pair<std::vector<uint64_t>,
+					    std::vector<uint64_t>> wide_range_t;
+				  std::vector<wide_range_t> wide_bounds;
+				  bool has_wide_range = false;
 			      auto read_value = [&](PExpr*expr,
 						 std::vector<uint64_t>&words) -> bool {
 					if (!expr || range_references_runtime(expr))
@@ -47212,12 +47347,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (supported) for (auto&range : bin.ranges) {
 					std::vector<uint64_t> lo, hi;
 					if (!read_value(range.first, lo)
-					    || !read_value(range.second, hi) || lo != hi) {
+					    || !read_value(range.second, hi)) {
 					      supported = false;
 					      break;
 					}
-					values.push_back(std::move(lo));
+					if (lo != hi) has_wide_range = true;
+					values.push_back(lo);
+					wide_bounds.push_back(std::make_pair(
+					      std::move(lo), std::move(hi)));
 				      }
+				  if (has_wide_range && bin.arrayed) supported = false;
 				      if (!supported) {
 					cerr << pclass->get_fileline()
 					     << ": error: wide covergroup bin '" << bin.name
@@ -47228,6 +47367,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					if (base_kind == 0) has_value_bins = true;
 					continue;
 				      }
+				  if (has_wide_range) {
+					int added = add_unique_cov_counter(bstem);
+					if (added < 0) continue;
+					xbin_desc_t d;
+					d.name = bin.name;
+					d.source_prop = added;
+					d.guard_idx = bin_guard;
+					for (unsigned tuple = 0; tuple < wide_bounds.size(); ++tuple) {
+					      size_t range_idx = cg_class->add_covgrp_wide_range(
+						    cp_value_width, wide_bounds[tuple].first,
+						    wide_bounds[tuple].second);
+					      cg_class->add_covgrp_bin(cp_idx, (unsigned)added,
+						    range_idx, 0,
+						    netclass_t::COVGRP_WIDE_RANGE_BIN,
+						    tuple, cp_idx);
+					      cg_class->set_last_covgrp_bin_guard(bin_guard);
+					      d.wide_ranges.push_back((unsigned)range_idx);
+					}
+					vbins.push_back(std::move(d));
+					has_value_bins = true;
+					continue;
+				  }
 				      if (bin.arrayed) {
 					// An open bin array is keyed by each distinct value.
 					// Keep the source list bounded; ranges and sized
@@ -48644,14 +48805,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (const xbin_desc_t&desc : cp_value_bins[cpi])
 				      {
 					if (desc.dyn_family >= 0) has_dynamic_family = true;
-					if (desc.wide_auto || !desc.wide_values.empty())
+					if (desc.wide_auto || !desc.wide_values.empty()
+					    || !desc.wide_ranges.empty())
 					      has_wide_bin = true;
 				      }
 			  if (has_dynamic_family && has_wide_bin) {
 				cerr << pclass->get_fileline()
 				     << ": error: cross '"
 				     << (cross.label.nil() ? "(unnamed)" : cross.label.str())
-				     << "' mixes wide exact and dynamic bins; the "
+					     << "' mixes wide and dynamic bins; the "
 					"product cannot be represented." << endl;
 				des->errors += 1;
 				continue;
@@ -49688,7 +49850,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
-					    rsizes[k] = !d.wide_values.empty()
+					    rsizes[k] = !d.wide_ranges.empty()
+						? d.wide_ranges.size()
+						: !d.wide_values.empty()
 						? d.wide_values.size()
 						: d.ranges.size() + d.xz_values.size();
 					    if (rsizes[k] == 0) rsizes[k] = 1;
@@ -49755,6 +49919,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    d.guard_idx);
 							      continue;
 							}
+								if (!d.wide_ranges.empty()) {
+							      cg_class->add_covgrp_bin(cp_indexes[k],
+								    tgt.first, d.wide_ranges[ridx[k]], 0,
+								    tgt.second
+								      | netclass_t::COVGRP_WIDE_RANGE_BIN,
+								    tup, item_idx);
+							      cg_class->set_last_covgrp_bin_guard(
+								    d.guard_idx);
+							      continue;
+						}
 								if (!d.wide_values.empty()) {
 								      const auto&words = d.wide_values[ridx[k]];
 								      unsigned width = cp_value_widths[cp_indexes[k]];
