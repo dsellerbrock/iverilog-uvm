@@ -3433,6 +3433,8 @@ sv_randomize_global_components normal,-g2017,-s,main ivltests gold=sv_randomize_
 sv_randomize_global_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components.gold
 sv_randomize_global_dist_components normal,-g2017,-s,main ivltests gold=sv_randomize_global_dist_components.gold
 sv_randomize_global_dist_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_dist_components.gold
+sv_randomize_nested_dist_cross_object_2017 normal,-g2017,-s,main ivltests gold=sv_randomize_nested_dist_cross_object.gold
+sv_randomize_nested_dist_cross_object_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_nested_dist_cross_object.gold
 sv_randomize_global_components_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_components_fail.gold
 sv_randomize_global_components_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components_fail.gold
 
