@@ -1,0 +1,16 @@
+{
+  "type": "normal",
+  "source": "issue954_vpi_obj_type_val.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue954_vpi_obj_type_val"],
+  "vpi-sources": ["vpi/issue954_vpi_obj_type_val.c"],
+  "output-contains": [
+    "ISSUE954_INTEGER=vpiIntVal:-5",
+    "ISSUE954_TIME=vpiTimeVal:vpiSimTime:00000001:00000002",
+    "ISSUE954_VECTOR=vpiVectorVal:00000001:00000002",
+    "ISSUE954_REAL=vpiRealVal:1.25",
+    "ISSUE954_SCALAR=vpiScalarVal:1",
+    "ISSUE954_PASSED",
+    "PASSED"
+  ]
+}
