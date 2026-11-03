@@ -110,6 +110,56 @@ static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
       return ivl_lval_idx(lval);
 }
 
+/*
+ * Select the part of the array word on top of the vec4 stack that a
+ * compound-assignment l-value addresses with the run-time base part_off_ex
+ * (arr[i][b +: w] op= ...). A packed carrier, dynamic or constant, is
+ * selected first and the base is relative to it. The base index goes to
+ * part_off_reg and its validity to part_x_flag for the matching store.
+ */
+static void draw_word_dynamic_part_read_(struct vec_slice_info*slice,
+					 ivl_expr_t dynamic_carrier,
+					 ivl_expr_t part_off_ex, unsigned wid,
+					 int part_off_reg, unsigned part_x_flag)
+{
+      if (dynamic_carrier) {
+	    int carrier_flag = allocate_flag();
+	    slice->dynamic_carrier_reg = allocate_word();
+	    draw_eval_vec4(dynamic_carrier);
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; dynamic packed carrier\n",
+		    slice->dynamic_carrier_reg);
+	    fprintf(vvp_out, "    %%flag_mov %u, 4; carrier validity\n",
+		    carrier_flag);
+	    fprintf(vvp_out, "    %%part/s %u; selected packed carrier\n",
+		    slice->carrier_wid);
+	    draw_eval_vec4(part_off_ex);
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%ix/vec4%s %d; carrier-relative base\n",
+		    ivl_expr_signed(part_off_ex) ? "/s" : "", part_off_reg);
+	    fprintf(vvp_out, "    %%flag_or 4, %u; combine carrier validity\n",
+		    carrier_flag);
+	    clr_flag(carrier_flag);
+	    fprintf(vvp_out, "    %%flag_mov %u, 4;\n", part_x_flag);
+	    fprintf(vvp_out, "    %%part/s %u;\n", wid);
+	    return;
+      }
+
+      if (slice->carrier_wid)
+	    fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
+		    slice->carrier_wid, slice->carrier_off);
+      draw_eval_vec4(part_off_ex);
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
+	      ivl_expr_signed(part_off_ex) ? "/s" : "", part_off_reg);
+      fprintf(vvp_out, "    %%flag_mov %u, 4;\n", part_x_flag);
+      if (slice->carrier_wid)
+	    fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
+		    slice->carrier_off, ivl_expr_width(part_off_ex));
+      fprintf(vvp_out, "    %%part/%c %u;\n",
+	      ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
+}
+
 static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 				    unsigned wid)
 {
@@ -256,45 +306,10 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 			slice->u_.memory_word_static.part_off_reg = allocate_word();
 			slice->u_.memory_word_static.part_x_flag = allocate_flag();
 			slice->u_.memory_word_static.part_wid = wid;
-			if (dynamic_carrier) {
-			      int carrier_flag = allocate_flag();
-			      slice->dynamic_carrier_reg = allocate_word();
-			      draw_eval_vec4(dynamic_carrier);
-			      fprintf(vvp_out, "    %%dup/vec4;\n");
-			      fprintf(vvp_out, "    %%ix/vec4/s %d; dynamic packed carrier\n",
-				      slice->dynamic_carrier_reg);
-			      fprintf(vvp_out, "    %%flag_mov %u, 4; carrier validity\n",
-				      carrier_flag);
-			      fprintf(vvp_out, "    %%part/s %u; selected packed carrier\n",
-				      slice->carrier_wid);
-			      draw_eval_vec4(part_off_ex);
-			      fprintf(vvp_out, "    %%dup/vec4;\n");
-			      fprintf(vvp_out, "    %%ix/vec4%s %d; carrier-relative base\n",
-				      ivl_expr_signed(part_off_ex) ? "/s" : "",
-				      slice->u_.memory_word_static.part_off_reg);
-			      fprintf(vvp_out, "    %%flag_or 4, %u; combine carrier validity\n",
-				      carrier_flag);
-			      clr_flag(carrier_flag);
-			      fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
-				      slice->u_.memory_word_static.part_x_flag);
-			      fprintf(vvp_out, "    %%part/s %u;\n", wid);
-			} else {
-			if (slice->carrier_wid)
-			      fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
-				      slice->carrier_wid, slice->carrier_off);
-			draw_eval_vec4(part_off_ex);
-			fprintf(vvp_out, "    %%dup/vec4;\n");
-			fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
-				ivl_expr_signed(part_off_ex) ? "/s" : "",
-				slice->u_.memory_word_static.part_off_reg);
-			fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
-				slice->u_.memory_word_static.part_x_flag);
-			if (slice->carrier_wid)
-			      fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
-				      slice->carrier_off, ivl_expr_width(part_off_ex));
-			fprintf(vvp_out, "    %%part/%c %u;\n",
-				ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
-			}
+			draw_word_dynamic_part_read_(slice, dynamic_carrier,
+						     part_off_ex, wid,
+						     slice->u_.memory_word_static.part_off_reg,
+						     slice->u_.memory_word_static.part_x_flag);
 		  } else if (slice->u_.memory_word_static.part_wid) {
 			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
 				wid, part_off);
@@ -339,45 +354,10 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 			slice->u_.memory_word_dynamic.part_off_reg = allocate_word();
 			slice->u_.memory_word_dynamic.part_x_flag = allocate_flag();
 			slice->u_.memory_word_dynamic.part_wid = wid;
-			if (dynamic_carrier) {
-			      int carrier_flag = allocate_flag();
-			      slice->dynamic_carrier_reg = allocate_word();
-			      draw_eval_vec4(dynamic_carrier);
-			      fprintf(vvp_out, "    %%dup/vec4;\n");
-			      fprintf(vvp_out, "    %%ix/vec4/s %d; dynamic packed carrier\n",
-				      slice->dynamic_carrier_reg);
-			      fprintf(vvp_out, "    %%flag_mov %u, 4; carrier validity\n",
-				      carrier_flag);
-			      fprintf(vvp_out, "    %%part/s %u; selected packed carrier\n",
-				      slice->carrier_wid);
-			      draw_eval_vec4(part_off_ex);
-			      fprintf(vvp_out, "    %%dup/vec4;\n");
-			      fprintf(vvp_out, "    %%ix/vec4%s %d; carrier-relative base\n",
-				      ivl_expr_signed(part_off_ex) ? "/s" : "",
-				      slice->u_.memory_word_dynamic.part_off_reg);
-			      fprintf(vvp_out, "    %%flag_or 4, %u; combine carrier validity\n",
-				      carrier_flag);
-			      clr_flag(carrier_flag);
-			      fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
-				      slice->u_.memory_word_dynamic.part_x_flag);
-			      fprintf(vvp_out, "    %%part/s %u;\n", wid);
-			} else {
-			if (slice->carrier_wid)
-			      fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
-				      slice->carrier_wid, slice->carrier_off);
-			draw_eval_vec4(part_off_ex);
-			fprintf(vvp_out, "    %%dup/vec4;\n");
-			fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
-				ivl_expr_signed(part_off_ex) ? "/s" : "",
-				slice->u_.memory_word_dynamic.part_off_reg);
-			fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
-				slice->u_.memory_word_dynamic.part_x_flag);
-			if (slice->carrier_wid)
-			      fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
-				      slice->carrier_off, ivl_expr_width(part_off_ex));
-			fprintf(vvp_out, "    %%part/%c %u;\n",
-				ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
-			}
+			draw_word_dynamic_part_read_(slice, dynamic_carrier,
+						     part_off_ex, wid,
+						     slice->u_.memory_word_dynamic.part_off_reg,
+						     slice->u_.memory_word_dynamic.part_x_flag);
 		  } else if (slice->u_.memory_word_dynamic.part_wid) {
 			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
 				wid, part_off);
