@@ -7181,6 +7181,16 @@ static void pform_mark_generated_verification_process_(PProcess*process)
 	    return;
 
       process->generated_verification();
+
+	/* Concurrent assertion setup enables sampled-value history for the
+	   variables referenced by the checker. Run that setup in the pre-start
+	   initialization queue, after declaration initializers have established
+	   static variables' default sampled values but before user initial blocks
+	   can change them in the time-zero slot (IEEE 1800-2017/2023 16.5.1). */
+      if (process->type() == IVL_PR_INITIAL) {
+	    process->attributes[perm_string::literal("_ivl_schedule_init")]
+		  = new PENumber(new verinum((uint64_t)1, 1));
+      }
 }
 
 /* IEEE 1800-2017/2023 17.7.1 prohibits assigning checker variables from
