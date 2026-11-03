@@ -611,6 +611,7 @@ extern bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_ARR_DAR_SLICE(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_ARR_DAR_MD_BITSTREAM(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_STR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t code);

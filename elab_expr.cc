@@ -21939,25 +21939,144 @@ static bool bitstream_cast_source_is_this_(const PExpr*expr)
 	    && path.name.front().index.empty();
 }
 
-/* Return the fixed bit-stream width for an unpacked struct whose members
- * are packed. A zero result means that this helper does not apply. */
-static unsigned fixed_struct_stream_width_(ivl_type_t type)
+static bool fixed_bitstream_unpacked_(ivl_type_t type)
 {
+      if (dynamic_cast<const netuarray_t*>(type))
+	    return true;
       const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
-      if (!record || record->packed() || record->union_flag())
-	    return 0;
+      return record && !record->packed() && !record->union_flag();
+}
 
-      unsigned width = 0;
-      for (const netstruct_t::member_t&member : record->members()) {
-	    if (!member.net_type->packed())
-		  return 0;
-	    long member_width = member.net_type->packed_width();
-	    if (member_width <= 0 ||
-		  static_cast<unsigned long>(member_width) > UINT_MAX - width)
-		  return 0;
-	    width += static_cast<unsigned>(member_width);
+static bool fixed_bitstream_has_four_state_(ivl_type_t type)
+{
+      if (!type)
+	    return false;
+      if (type->packed())
+	    return type->base_type() == IVL_VT_LOGIC;
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
+	    return fixed_bitstream_has_four_state_(array->element_type());
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->union_flag()) return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (fixed_bitstream_has_four_state_(member.net_type))
+			return true;
+	    return false;
       }
-      return width;
+      return false;
+}
+
+/* Return the packed element type used by a fixed unpacked array, descending
+ * through any nested unpacked-array element types. The stream conversion
+ * stores multidimensional arrays as one flat sequence of these elements. */
+static ivl_type_t fixed_bitstream_array_leaf_type_(ivl_type_t type)
+{
+      const netuarray_t*array = dynamic_cast<const netuarray_t*>(type);
+      if (!array) return nullptr;
+      ivl_type_t element = array->element_type();
+      while (const netuarray_t*nested =
+	       dynamic_cast<const netuarray_t*>(element))
+	    element = nested->element_type();
+      return element;
+}
+
+static bool append_fixed_bitstream_source_(
+	  Design*des, NetScope*scope, const PEIdent*source, ivl_type_t type,
+	  const LineInfo&loc, unsigned flags, vector<NetExpr*>&pieces);
+
+static bool append_fixed_bitstream_array_source_(
+	  Design*des, NetScope*scope, const PEIdent*source,
+	  const netuarray_t*array, size_t dim_idx, const LineInfo&loc,
+	  unsigned flags, vector<NetExpr*>&pieces)
+{
+      const netranges_t&dims = array->static_dimensions();
+      if (dim_idx == dims.size())
+	    return append_fixed_bitstream_source_(des, scope, source,
+		  array->element_type(), loc, flags, pieces);
+
+      const netrange_t&dim = dims[dim_idx];
+      long index = dim.get_msb();
+      const long end = dim.get_lsb();
+      const long step = index <= end ? 1 : -1;
+      for (;;) {
+	    index_component_t select;
+	    select.sel = index_component_t::SEL_BIT;
+	    select.msb = new PENumber(new verinum((int64_t)index, 32U));
+	    select.msb->set_line(loc);
+	    PEIdent*element = aggregate_operand_with_(source, nullptr,
+		  &select, loc);
+	    bool ok = append_fixed_bitstream_array_source_(
+		  des, scope, element, array, dim_idx + 1, loc, flags, pieces);
+	    delete element;
+	    if (!ok) return false;
+	    if (index == end) break;
+	    index += step;
+      }
+      return true;
+}
+
+/* Flatten an identifier naming a fixed-size unpacked aggregate into its
+ * declaration-order leaves.  Unlike elaborating the whole identifier as a
+ * scalar, selecting each fixed element preserves its value type and lets the
+ * ordinary packed expression lowering retain all four-state bits. */
+static bool append_fixed_bitstream_source_(
+	  Design*des, NetScope*scope, const PEIdent*source, ivl_type_t type,
+	  const LineInfo&loc, unsigned flags, vector<NetExpr*>&pieces)
+{
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
+	    return append_fixed_bitstream_array_source_(des, scope, source,
+		  array, 0, loc, flags, pieces);
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->packed() || record->union_flag()) return false;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  name_component_t component(member.name);
+		  PEIdent*field = aggregate_operand_with_(source, &component,
+			nullptr, loc);
+		  bool ok = append_fixed_bitstream_source_(des, scope, field,
+			member.net_type, loc, flags, pieces);
+		  delete field;
+		  if (!ok) return false;
+	    }
+	    return true;
+      }
+
+      if (!type || !type->packed() || type->packed_width() <= 0)
+	    return false;
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      unsigned width = const_cast<PEIdent*>(source)->test_width(
+	    des, scope, mode);
+      if (width != static_cast<unsigned>(type->packed_width()))
+	    return false;
+      NetExpr*piece = source->elaborate_expr(des, scope, width, flags);
+      if (!piece) return false;
+      pieces.push_back(piece);
+      return true;
+}
+
+static NetExpr* flatten_fixed_bitstream_source_(
+	  Design*des, NetScope*scope, const PEIdent*source, ivl_type_t type,
+	  const LineInfo&loc, unsigned flags)
+{
+      vector<NetExpr*>pieces;
+      if (!append_fixed_bitstream_source_(des, scope, source, type,
+		loc, flags, pieces)) {
+	    for (NetExpr*piece : pieces) delete piece;
+	    return nullptr;
+      }
+      if (pieces.empty() || pieces.size() > UINT_MAX) {
+	    for (NetExpr*piece : pieces) delete piece;
+	    return nullptr;
+      }
+      if (pieces.size() == 1) return pieces.front();
+
+      NetEConcat*stream = new NetEConcat(
+	    pieces.size(), 1, fixed_bitstream_has_four_state_(type)
+		  ? IVL_VT_LOGIC : IVL_VT_BOOL);
+      stream->set_line(loc);
+      for (size_t idx = 0; idx < pieces.size(); idx += 1)
+	    stream->set(idx, pieces[idx]);
+      return stream;
 }
 
 static bool positional_container_integral_elements_(ivl_type_t type)
@@ -22242,6 +22361,22 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	   overload (which correctly rejects an untyped pattern). The cast itself
 	   retains T's width and type, including when it is an operand of a
 	   concatenation replication. */
+	  const PEIdent*source_ident = dynamic_cast<const PEIdent*>(base_);
+	  ivl_type_t source_type = source_ident
+		? source_ident->test_type_of_ident(des, scope) : nullptr;
+	  const netuarray_t*target_fixed =
+		dynamic_cast<const netuarray_t*>(target_type_);
+	  uint64_t source_width = 0;
+	  const bool source_fixed = source_type
+		&& fixed_bitstream_unpacked_(source_type)
+		&& fixed_bitstream_width_(source_type, source_width);
+	  const bool target_fixed_array = target_fixed != nullptr;
+	  const bool flatten_source = source_fixed && source_ident
+		&& bitstream_cast_type_(source_type, false)
+		&& target_type_
+		&& bitstream_cast_type_(target_type_, true)
+		&& (target_type_->packed() || target_fixed_array);
+
       NetExpr*sub = nullptr;
       if (const PEAssignPattern*pat =
 	      dynamic_cast<const PEAssignPattern*>(base_)) {
@@ -22255,6 +22390,9 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    target_type_ = use_type;
 	    if (use_type)
 		  sub = pat->elaborate_expr(des, scope, use_type, flags);
+	  } else if (flatten_source) {
+	    sub = flatten_fixed_bitstream_source_(des, scope, source_ident,
+		  source_type, *this, flags);
       } else {
 	    // A cast behaves exactly like an assignment to a temporary variable,
 	    // so the temporary result size may affect the sub-expression width.
@@ -22284,24 +22422,58 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
-	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
-	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
-	 * not have a packed_width(), so check their member widths before the
-	 * scalar conversion path can silently truncate or extend. */
-      unsigned source_struct_width = fixed_struct_stream_width_(sub->net_type());
-      unsigned target_struct_width = fixed_struct_stream_width_(target_type_);
-      if ((source_struct_width && target_type_ && target_type_->packed()
-	   && target_type_->packed_width() > 0
-	   && source_struct_width != static_cast<unsigned>(target_type_->packed_width()))
-	  || (target_struct_width && sub->net_type() && sub->net_type()->packed()
-	      && sub->net_type()->packed_width() > 0
-	      && target_struct_width != static_cast<unsigned>(sub->net_type()->packed_width()))) {
+	/* IEEE 1800-2017/2023 6.24.3 requires exact sizes when both types are
+	 * fixed and either side is unpacked. This includes unpacked arrays, whose
+	 * width is the product of their dimensions and element width. */
+	  ivl_type_t cast_source_type = source_type ? source_type : sub->net_type();
+	  uint64_t fixed_source_width = source_width;
+	  bool source_has_fixed_width = source_fixed;
+	  if (!source_has_fixed_width
+	      && fixed_bitstream_width_(cast_source_type, fixed_source_width))
+	    source_has_fixed_width = true;
+	  if (!source_has_fixed_width
+	      && (sub->expr_type() == IVL_VT_BOOL
+		  || sub->expr_type() == IVL_VT_LOGIC)
+	      && sub->expr_width() > 0) {
+	    fixed_source_width = sub->expr_width();
+	    source_has_fixed_width = true;
+	  }
+	  uint64_t fixed_target_width = 0;
+	  bool target_has_fixed_width =
+		fixed_bitstream_width_(target_type_, fixed_target_width);
+	  if (source_has_fixed_width && target_has_fixed_width
+	      && (fixed_bitstream_unpacked_(cast_source_type)
+		  || fixed_bitstream_unpacked_(target_type_))
+	      && fixed_source_width != fixed_target_width) {
 	    cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
 		 << endl;
 	    des->errors += 1;
 	    delete sub;
 	    return nullptr;
       }
+
+	/* Materialize a fixed array cast through the existing strict stream-to-
+	 * dynamic-array conversion. The fixed-array assignment path then stores
+	 * those elements in its declared order, evaluating the packed source once. */
+	  bool cast_source_is_bitstream = cast_source_type
+		? bitstream_cast_type_(cast_source_type, false)
+		: sub->expr_type() == IVL_VT_BOOL
+		  || sub->expr_type() == IVL_VT_LOGIC;
+	  ivl_type_t target_leaf_type = target_fixed_array
+		? fixed_bitstream_array_leaf_type_(target_fixed) : nullptr;
+	  if (target_fixed_array
+	      && !dynamic_cast<const PEAssignPattern*>(base_)
+	      && target_has_fixed_width
+	      && source_has_fixed_width && cast_source_is_bitstream
+	      && bitstream_cast_type_(target_type_, true)
+	      && target_leaf_type && target_leaf_type->packed()) {
+	    NetESFunc*cast = new NetESFunc(
+		  "$ivl_stream$cast$fixed$r$1",
+		  new netdarray_t(target_leaf_type), 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+	  }
 
 	/* IEEE 1800-2023 11.4.13 requires truncation when a real tolerance is
 	 * converted to an integral range type. The ordinary type-cast path rounds

@@ -6420,6 +6420,21 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
       fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
 }
 
+/* Store the flat packed-leaf sequence produced by a bit-stream cast into a
+ * multidimensional fixed array. The runtime maps it through the full declared
+ * shape while preserving the cast's left-to-right element order. */
+void emit_store_arr_dar_md_bitstream_(ivl_signal_t sig, unsigned kind)
+{
+      assert(ivl_signal_dimensions(sig) > 1);
+      unsigned dim;
+      for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
+	    fprintf(vvp_out, "    %%dim/push %u, %u;\n",
+		    (unsigned)ivl_signal_array_dim_msb(sig, dim),
+		    (unsigned)ivl_signal_array_dim_lsb(sig, dim));
+      fprintf(vvp_out, "    %%store/arr/dar/md/bitstream v%p, %u;\n",
+	      sig, kind);
+}
+
 void emit_store_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
 			       unsigned canonical_base, unsigned count,
 			       int left, int right)
@@ -6494,9 +6509,17 @@ static int show_stmt_assign_uarray_from_container(ivl_statement_t net,
 				  ivl_stmt_lineno(net)))
 	    return 1;
 
+	    bool flat_bitstream_cast = ivl_signal_dimensions(sig) > 1
+	      && ivl_expr_type(rval) == IVL_EX_SFUNC
+	      && strcmp(ivl_expr_name(rval),
+		 "$ivl_stream$cast$fixed$r$1") == 0;
+
       draw_eval_object(rval);
       note_array_signal_use(sig);
-      emit_store_arr_dar_(sig, kind);
+	    if (flat_bitstream_cast)
+		  emit_store_arr_dar_md_bitstream_(sig, kind);
+	    else
+		  emit_store_arr_dar_(sig, kind);
       return 0;
 }
 

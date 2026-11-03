@@ -25043,6 +25043,8 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 /* Real has a zero type payload; direction/container-kind bits may be set. */
 # define ARRDAR_REAL(k)   (((k) & ~((1u << 10) | (1u << 13))) == 0u)
 
+static bool container_opcode_runtime_fatal_();
+
 /* Build one LEAF container of `count' elements for a packed element
    descriptor. Shared by the flat and the multi-dimensional marshalers
    so the two cannot drift on element representation. */
@@ -25577,6 +25579,45 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
       }
 }
 
+/* Copy a fixed-array bit-stream cast's flat element sequence directly into
+ * canonical multidimensional signal storage. The source order is the SV
+ * left-to-right order, while the backing signal is numeric-low first, so
+ * reverse each descending declared dimension while computing the flat
+ * destination index. */
+static void md_copy_back_flat_cast_(vvp_array_t array, uint32_t kind,
+				    vvp_darray*source,
+				    const vector<pair<int,int> >&dims,
+				    size_t total)
+{
+      vector<size_t> counts(dims.size());
+      for (size_t dim = 0 ; dim < dims.size() ; dim += 1)
+	    counts[dim] = md_range_size_(dims[dim]);
+
+      for (size_t logical = 0 ; logical < total ; logical += 1) {
+	    size_t remaining = logical;
+	    size_t destination = 0;
+	    for (size_t dim = 0 ; dim < dims.size() ; dim += 1) {
+		  size_t stride = 1;
+		  for (size_t inner = dim + 1 ; inner < dims.size(); inner += 1)
+			stride *= counts[inner];
+		  size_t coordinate = remaining / stride;
+		  remaining %= stride;
+		  if (dims[dim].first > dims[dim].second)
+			destination = destination * counts[dim]
+			      + counts[dim] - 1 - coordinate;
+		  else
+			destination = destination * counts[dim] + coordinate;
+	    }
+
+	    vvp_vector4_t value;
+	    source->get_word((unsigned)logical, value);
+	    unsigned width = ARRDAR_WIDTH(kind);
+	    if (width && value.size() != width)
+		  value = coerce_to_width(value, width);
+	    array->set_word((unsigned)destination, 0, value);
+      }
+}
+
 /*
  * %load/arr/dar/md <array>, <kind>
  *
@@ -25640,6 +25681,64 @@ bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
 
       size_t flat = 0;
       md_copy_back_(array, cp->bit_idx[0], val, dims, 0, flat);
+      return true;
+}
+
+/* %store/arr/dar/md/bitstream <array>, <kind>
+ *
+ * The source is a flat packed-leaf sequence from an explicit cast to a
+ * multidimensional fixed unpacked array. Validate the dedicated opcode's
+ * descriptor and total size, then map the sequence into canonical fixed
+ * storage using the declared ranges. */
+bool of_STORE_ARR_DAR_MD_BITSTREAM(vthread_t thr, vvp_code_t cp)
+{
+      vector<pair<int,int> > dims;
+      dims.swap(thr->dim_stack);
+
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_array_t array = resolve_runtime_array_(
+	    cp, "%store/arr/dar/md/bitstream");
+      uint32_t kind = cp->bit_idx[0];
+      if (!array || dims.empty()) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: bit-stream array store is missing its fixed target or "
+		    "dimensions." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      if (dims.size() < 2 || ARRDAR_OBJ(kind) || ARRDAR_STRING(kind)
+	  || ARRDAR_QUEUE(kind) || ARRDAR_REAL(kind)
+	  || ARRDAR_WIDTH(kind) == 0) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: invalid descriptor for %store/arr/dar/md/bitstream."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      size_t total = 1;
+      for (size_t idx = 0 ; idx < dims.size() ; idx += 1) {
+	    size_t count = md_range_size_(dims[idx]);
+	    if (count == 0 || total > SIZE_MAX / count) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: invalid dimensions for bit-stream array store."
+		       << endl;
+		  return container_opcode_runtime_fatal_();
+	    }
+	    total *= count;
+      }
+
+      vvp_darray*source = val.peek<vvp_darray>();
+      if (total != array->get_size() || !source
+	  || source->get_size() != total) {
+	    cerr << "RUN-TIME ERROR: bit-stream cast container of size "
+		 << (source ? source->get_size() : 0)
+		 << " does not fit the fixed unpacked array of size "
+		 << array->get_size() << "; the array is unchanged." << endl;
+	    return true;
+      }
+
+      md_copy_back_flat_cast_(array, kind, source, dims, total);
       return true;
 }
 

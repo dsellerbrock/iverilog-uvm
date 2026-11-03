@@ -731,6 +731,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%std/randomize/with",of_STD_RANDOMIZE_WITH,3,{OA_STRING,OA_BIT1,OA_BIT2} },
       { "%store/arr/dar", of_STORE_ARR_DAR, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%store/arr/dar/md",of_STORE_ARR_DAR_MD,2,{OA_ARR_PTR,OA_BIT1,OA_NONE} },
+      { "%store/arr/dar/md/bitstream",of_STORE_ARR_DAR_MD_BITSTREAM,2,{OA_ARR_PTR,OA_BIT1,OA_NONE} },
       { "%store/arr/dar/slice",of_STORE_ARR_DAR_SLICE,2,{OA_ARR_PTR,OA_BIT1,OA_NONE} },
       { "%store/dar/obj", of_STORE_DAR_OBJ, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/r",   of_STORE_DAR_R,   1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },

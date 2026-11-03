@@ -2512,6 +2512,33 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		      && uarray_element_matches_container_(want_ua, have_da))
 			return tmp;
 
+		    /* A bit-stream cast to a multidimensional fixed array is carried
+		       as a flat dynamic array of packed leaf elements. Its exact total
+		       width and target shape were checked while elaborating the cast;
+		       verify the leaf representation here and let the existing
+		       multidimensional store restore that shape. Do not extend ordinary
+		       dynamic-array assignment compatibility, which preserves suffixes. */
+		  const NetESFunc*stream_cast = dynamic_cast<const NetESFunc*>(tmp);
+		  if (have_da && stream_cast
+		      && strcmp(stream_cast->name(),
+			 "$ivl_stream$cast$fixed$r$1") == 0) {
+			ivl_type_t dst_leaf = want_ua->element_type();
+			while (const netuarray_t*nested =
+			       dynamic_cast<const netuarray_t*>(dst_leaf))
+			      dst_leaf = nested->element_type();
+			ivl_type_t src_leaf = have_da->element_type();
+			if (dst_leaf && src_leaf && dst_leaf->packed()
+			    && src_leaf->packed()
+			    && dst_leaf->packed_width() == src_leaf->packed_width()) {
+			      auto is_vec = [](ivl_variable_type_t vt) {
+				    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
+			      };
+			      if (is_vec(dst_leaf->base_type())
+				  && is_vec(src_leaf->base_type()))
+				    return tmp;
+			}
+		  }
+
 		    // A WHOLE unpacked array assigned to an unpacked array
 		    // of equivalent type (IEEE 1800-2017 7.6). NetESignal
 		    // reports net_type() -- the ELEMENT type for an

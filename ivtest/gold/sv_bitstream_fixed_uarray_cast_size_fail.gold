@@ -1,0 +1,3 @@
+./ivltests/sv_bitstream_fixed_uarray_cast_size_fail.v:10: error: bit-stream cast between fixed-size types of different sizes.
+./ivltests/sv_bitstream_fixed_uarray_cast_size_fail.v:11: error: bit-stream cast between fixed-size types of different sizes.
+2 error(s) during elaboration.

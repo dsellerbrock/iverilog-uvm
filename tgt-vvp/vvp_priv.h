@@ -1325,6 +1325,7 @@ extern void emit_load_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
 /* Emit the container -> fixed-array store, flat or nesting according to
    the destination's declared dimensionality. */
 extern void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind);
+extern void emit_store_arr_dar_md_bitstream_(ivl_signal_t sig, unsigned kind);
 extern void emit_store_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
 				      unsigned canonical_base, unsigned count,
 				      int left, int right);
