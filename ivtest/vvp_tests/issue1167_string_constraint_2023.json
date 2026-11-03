@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1167_string_constraint_2023.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1167_string_constraint_2023"
+}

@@ -36909,7 +36909,8 @@ bool concurrent_assertion_function_pure(Design*des, const NetEUFunc*call,
 static string constraint_state_expression_slot_(
       const PExpr*site, PExpr*expression, ivl_type_t result_type,
       const netclass_t*cls, bool collect_dependencies,
-      NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr)
+      NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr,
+      bool take_expression_ownership = true)
 {
       if (!site || !expression || !result_type || !cls
 	  || (!constraint_ir_state_calls_ctx_ && !inline_capture)
@@ -36936,7 +36937,8 @@ static string constraint_state_expression_slot_(
       wrapper->set_func_def(def);
       NetExpr*value = elaborate_rval_expr(
 	    constraint_ir_design_ctx_, wrapper, result_type, expression, false);
-      delete expression;
+      if (take_expression_ownership)
+	    delete expression;
       if (!value) return "";
 	  /* A constant nonstatic method must still reject a null retained
 	   * randomized receiver. Preserve that X through the scalar capture. */
@@ -43695,6 +43697,51 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    /* IEEE 1800-2023 18.3 permits a random-variable-free subexpression
+	     * to use non-integral operands when its result is integral or real.
+	     * String equality is the common case. Evaluate that state expression
+	     * in a generated class method at randomize() time, after callbacks,
+	     * and pass only its one-bit result to the solver. IEEE 1800-2017 does
+	     * not have this allowance, so retain its integral-only lowering. */
+	    if (generation_flag >= GN_VER2023
+		&& (bin->get_op() == 'e' || bin->get_op() == 'n')) {
+		  function<bool(const PExpr*)> state_string =
+			[&](const PExpr*part) -> bool {
+			      if (dynamic_cast<const PEString*>(part)) return true;
+			      if (const PEBinary*concat =
+				  dynamic_cast<const PEBinary*>(part))
+				    return concat->get_op() == '+'
+					  && state_string(concat->get_left())
+					  && state_string(concat->get_right());
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(part);
+			      if (!id || id->path().package
+				  || id->has_scoped_type_prefix()
+				  || id->path().name.size() != 1
+				  || !id->path().name.front().index.empty()
+				  || id->path().name.front().local_scope)
+				    return false;
+			      constraint_source_type_t source =
+				    constraint_source_expr_type_(id, cls, value_slots, scope);
+			      if (source.unpacked_dimensions || !source.type
+				  || source.type->base_type() != IVL_VT_STRING)
+				    return false;
+			      int property = cls
+				    ? cls->property_idx_from_name(
+					  id->path().name.front().name) : -1;
+			      if (property >= 0) {
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)property);
+				    return !qual.test_rand() && !qual.test_randc();
+			      }
+			      return constraint_outside_variable_(id, cls, scope) != nullptr;
+			};
+		  if (state_string(bin->get_left())
+		      && state_string(bin->get_right()))
+			return constraint_state_expression_slot_(
+			      bin, const_cast<PEBinary*>(bin),
+			      &netvector_t::scalar_logic, cls, false,
+			      nullptr, nullptr, false);
+	    }
 	    string handle_ir;
 	    if (constraint_handle_comparison_ir_(bin, cls, value_slots, scope,
 	                                         loop_env, handle_ir))
