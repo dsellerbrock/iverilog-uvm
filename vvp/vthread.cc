@@ -20804,6 +20804,65 @@ bool of_INV(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/*
+ * %sxz <operand-count>, <signed-operand-mask>, <flag>
+ *
+ * Record whether any selected input operand contains X or Z. The matching
+ * %sxz/result applies IEEE 1800-2017/2023 11.8.4 after the operation has
+ * produced its ordinary value.
+ */
+bool of_SXZ(vthread_t thr, vvp_code_t cp)
+{
+      unsigned count = cp->number;
+      unsigned mask = cp->bit_idx[0];
+      unsigned flag = cp->bit_idx[1];
+      if (count == 0 || count > 2 || mask == 0 || mask >= (1U << count)
+          || flag >= vthread_s::FLAGS_COUNT
+          || thr->vec4_stack_size() < count) {
+	    cerr << "vvp internal error: malformed %sxz instruction" << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
+      bool has_signed_xz = false;
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    if (!(mask & (1U << idx))) continue;
+	    const vvp_vector4_t*operand = thr->safe_peek_vec4(count - idx - 1);
+	    if (!operand) {
+		  cerr << "vvp internal error: %sxz operand stack underflow" << endl;
+		  vpip_set_return_value(1);
+		  schedule_finish(1);
+		  return false;
+	    }
+	    if (operand->has_xz()) has_signed_xz = true;
+      }
+
+      thr->flags[flag] = has_signed_xz ? BIT4_1 : BIT4_0;
+      return true;
+}
+
+/*
+ * %sxz/result <flag>
+ */
+bool of_SXZ_RESULT(vthread_t thr, vvp_code_t cp)
+{
+      unsigned flag = cp->number;
+      if (flag >= vthread_s::FLAGS_COUNT || thr->vec4_stack_size() == 0) {
+	    cerr << "vvp internal error: malformed %sxz/result instruction" << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return false;
+      }
+
+      if (thr->flags[flag] == BIT4_1) {
+	    vvp_vector4_t&result = thr->peek_vec4();
+	    result = vvp_vector4_t(result.size(), BIT4_X);
+      }
+      thr->flags[flag] = BIT4_0;
+      return true;
+}
+
 
 /*
  * Index registers, arithmetic.

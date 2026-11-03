@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1790_signed_x_nonlogical.v",
+  "iverilog-args": [ "-g2023", "-s", "main" ],
+  "gold": "issue1790_signed_x_nonlogical"
+}

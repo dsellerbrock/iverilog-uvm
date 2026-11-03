@@ -594,6 +594,8 @@ extern bool of_RETLOAD_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_RETLOAD_STR(vthread_t thr, vvp_code_t code);
 extern bool of_RETLOAD_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_SCOPY(vthread_t thr, vvp_code_t code);
+extern bool of_SXZ(vthread_t thr, vvp_code_t code);
+extern bool of_SXZ_RESULT(vthread_t thr, vvp_code_t code);
 extern bool of_SET_DAR_OBJ_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_SET_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_SET_DAR_OBJ_STR(vthread_t thr, vvp_code_t code);

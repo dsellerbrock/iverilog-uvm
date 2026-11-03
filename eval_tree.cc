@@ -250,7 +250,9 @@ NetEConst* NetEBBits::eval_arguments_(const NetExpr*l, const NetExpr*r) const
 	/* IEEE 1800-2017 11.8.4: a bitwise operation involving a signed
 	 * X/Z value produces an all-X result, even when the other operand
 	 * would otherwise mask the unknown bits. */
-      if ((op() == '&')
+	bool bitwise = op() == '&' || op() == '|' || op() == '^'
+	    || op() == 'A' || op() == 'O' || op() == 'X';
+	if (bitwise
 	  && ((lc->value().has_sign() && !lc->value().is_defined())
 	      || (rc->value().has_sign() && !rc->value().is_defined()))) {
 	    verinum res (verinum::Vx, expr_width());
@@ -1143,7 +1145,9 @@ NetEConst* NetEBShift::eval_arguments_(const NetExpr*l, const NetExpr*r) const
       ivl_assert(*this, lv.len() == wid);
 
       verinum val;
-      if (rv.is_defined()) {
+	if (lv.has_sign() && !lv.is_defined()) {
+	    val = verinum(verinum::Vx, wid);
+	} else if (rv.is_defined()) {
 	    unsigned shift = rv.as_unsigned();
 
 	    switch (op_) {
@@ -1542,10 +1546,23 @@ NetExpr* NetEUnary::eval_arguments_(const NetExpr*ex) const
 
       verinum val = rval->value();
 
+	/* IEEE 1800-2017/2023 11.8.4: a signed operand containing X/Z
+	 * poisons the entire result of a nonlogical unary operation. */
+	if (val.has_sign() && !val.is_defined()
+	    && (op_ == '+' || op_ == '-' || op_ == '~')) {
+	      val = verinum(verinum::Vx, expr_width());
+	      val.has_sign(has_sign());
+	      NetEConst *res = new NetEConst(val);
+	      ivl_assert(*this, res);
+	      eval_debug(this, res, false);
+	      return res;
+	}
+
       switch (op_) {
 
 	  case '+':
 	      /* Unary + is a no-op. */
+	    val.has_sign(has_sign());
 	    break;
 
 	  case '-':
@@ -1616,6 +1633,15 @@ NetEConst* NetEUReduce::eval_arguments_(const NetExpr*ex) const
       if (rval == 0) return 0;
 
       verinum val = rval->value();
+
+	/* Reductions are nonlogical operations under IEEE 1800-2017/2023
+	 * 11.8.4; logical NOT remains governed by its four-state truth table. */
+	if (op_ != '!' && val.has_sign() && !val.is_defined()) {
+	      NetEConst*tmp = new NetEConst(verinum(verinum::Vx, 1));
+	      ivl_assert(*this, tmp);
+	      eval_debug(this, tmp, false);
+	      return tmp;
+	}
 
       verinum::V res;
       bool invert = false;

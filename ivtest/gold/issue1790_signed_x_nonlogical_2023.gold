@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue1790_signed_x_nonlogical_2023.v:41: $finish called at 0 (1s)
