@@ -2913,6 +2913,8 @@ sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests g
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
 sv_ansi_event_port_2017 normal,-g2017,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2017.gold
 sv_ansi_event_port_2023 normal,-g2023,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2023.gold
+sv_checker_event_formal_2017 normal,-g2017,-s,sv_checker_event_formal ivltests gold=sv_checker_event_formal_2017.gold
+sv_checker_event_formal_2023 normal,-g2023,-s,sv_checker_event_formal ivltests gold=sv_checker_event_formal_2023.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
 sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold

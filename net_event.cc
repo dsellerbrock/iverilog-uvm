@@ -40,6 +40,7 @@ NetEvent::NetEvent(perm_string n)
       lexical_pos_ = 0;
       local_flag_ = false;
       lifetime_override_ = IVL_VLT_INHERITED;
+      aliasref_ = 0;
       scope_ = 0;
       snext_ = 0;
       probes_ = 0;
@@ -53,6 +54,7 @@ NetEvent::NetEvent(perm_string n)
 NetEvent::~NetEvent()
 {
       ivl_assert(*this, waitref_ == 0);
+      release_alias_();
       if (scope_) scope_->rem_event(this);
       while (probes_) {
 	    NetEvProbe*tmp = probes_->enext_;
@@ -60,6 +62,30 @@ NetEvent::~NetEvent()
 	    probes_ = tmp;
       }
 	/* name_ is lex_strings. */
+}
+
+void NetEvent::set_alias(NetEvent*event)
+{
+      if (alias_ == event) return;
+      release_alias_();
+      alias_ = event;
+      if (alias_) alias_->aliasref_ += 1;
+}
+
+void NetEvent::release_alias_()
+{
+      if (!alias_) return;
+
+      NetEvent*target = alias_;
+      alias_ = nullptr;
+      ivl_assert(*this, target->aliasref_ > 0);
+      target->aliasref_ -= 1;
+
+      if (!target_release_mode && target->aliasref_ == 0
+	  && target->waitref_ == 0 && target->ntrig() == 0
+	  && target->nnb_trig() == 0 && target->nexpr() == 0
+	  && !target->is_event_array())
+	    delete target;
 }
 
 perm_string NetEvent::name() const
@@ -864,7 +890,8 @@ NetEvWait::~NetEvWait()
 		   * during progressive target conversion. */
 		  if (! target_release_mode && tgt->waitref_ == 0
 		      && tgt->ntrig() == 0 && tgt->nnb_trig() == 0
-		      && tgt->nexpr() == 0 && !tgt->is_event_array())
+		      && tgt->nexpr() == 0 && tgt->aliasref_ == 0
+		      && !tgt->is_event_array())
 			delete tgt;
 	    }
 	    events_.clear();

@@ -2792,6 +2792,11 @@ void pform_module_set_ports(vector<Module::port_t*>*ports)
 		  for (Module::port_t* port : *ports) {
 			if (!port || port->expr.size() != 1)
 			      continue;
+			// Event formals already have a PEvent declaration. They are
+			// not data signals and must not be given the implicit input
+			// wire used for untyped checker formals below.
+			if (port->event_port)
+			      continue;
 			const pform_name_t& path = port->expr.front()->path().name;
 			if (path.size() != 1)
 			      continue;
