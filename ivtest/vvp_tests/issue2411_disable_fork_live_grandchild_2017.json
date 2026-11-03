@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2411_disable_fork_live_grandchild.v",
+  "iverilog-args": ["-g2017", "-s", "issue2411_disable_fork_live_grandchild"],
+  "output-contains": [
+    "PASS disable fork terminates live grandchildren"
+  ]
+}
