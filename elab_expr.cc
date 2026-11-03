@@ -30413,7 +30413,9 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
  */
 static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 					const PEIdent*ident, NetESignal*net,
-					bool need_const, NetExpr*&carrier)
+					bool need_const, bool variable_base,
+					NetExpr*&carrier,
+					size_t&selected_depth)
 {
       const NetNet*sig = net->sig();
       const netranges_t&dims = sig->packed_dims();
@@ -30426,7 +30428,12 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
       for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
 	    indices.pop_front();
 
-      if (indices.size() != dims.size())
+	/* The final indexed part-select may address any packed dimension. The
+	 * preceding indices identify the carrier, while selected_depth records
+	 * the dimension whose elements the part-select spans. */
+      if (indices.size() > dims.size())
+	    return false;
+	  if (indices.size() < dims.size() && !variable_base)
 	    return false;
       list<index_component_t>::const_iterator last = indices.end();
       --last;
@@ -30473,6 +30480,8 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 	    slice->set_line(*ident);
 	    carrier = slice;
       }
+
+	  selected_depth = indices.size();
       return true;
 }
 
@@ -30503,15 +30512,22 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+	  size_t selected_depth = 0;
+	  bool variable_base = dynamic_cast<NetEConst*> (base) == 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     variable_base, carrier, selected_depth)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    const netranges_t&dims = net->sig()->packed_dims();
+	    const netrange_t&rng = dims[selected_depth-1];
+	    unsigned long stride = net->sig()->slice_width(selected_depth);
+	    unsigned long elem_wid = wid / stride;
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, true, 0);
+					   elem_wid, true, 0);
+	    if (stride > 1)
+		  base = scale_index_to_bits(base, stride, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_UP);
       }
@@ -30685,15 +30701,22 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+	  size_t selected_depth = 0;
+	  bool variable_base = dynamic_cast<NetEConst*> (base) == 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     variable_base, carrier, selected_depth)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    const netranges_t&dims = net->sig()->packed_dims();
+	    const netrange_t&rng = dims[selected_depth-1];
+	    unsigned long stride = net->sig()->slice_width(selected_depth);
+	    unsigned long elem_wid = wid / stride;
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, false, 0);
+					   elem_wid, false, 0);
+	    if (stride > 1)
+		  base = scale_index_to_bits(base, stride, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_DOWN);
       }
