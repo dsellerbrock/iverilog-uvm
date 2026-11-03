@@ -40,6 +40,7 @@
 # include  <cassert>
 # include  <cstdlib>
 # include  <unordered_map>
+# include  <vector>
 
 using namespace std;
 
@@ -1074,6 +1075,124 @@ static simulator_callback* make_prepost(p_cb_data data)
       return obj;
 }
 
+class statement_callback : public __vpiCallback {
+    public:
+      explicit statement_callback(p_cb_data data)
+      : registered_obj_(data->obj)
+      {
+	    cb_data = *data;
+	    cb_time = *data->time;
+	    cb_data.time = &cb_time;
+      }
+
+      bool matches(vpiHandle statement, __vpiScope*module) const
+      {
+	    return registered_obj_ == statement ||
+		  (registered_obj_ == module && module != 0);
+      }
+
+      void execute(vpiHandle statement)
+      {
+	    if (!cb_data.cb_rtn) return;
+	    struct t_cb_data call_data = cb_data;
+	    struct t_vpi_time call_time = {};
+	    call_data.reason = cbStmt;
+	    call_data.obj = statement;
+	    call_data.value = 0;
+	    call_data.index = 0;
+	    if (cb_time.type == vpiSuppressTime) {
+		  call_data.time = 0;
+	    } else {
+		  call_time.type = cb_time.type;
+		  call_data.time = &call_time;
+	    }
+
+	    const vpi_mode_t saved_mode = vpi_mode_flag;
+	    vpi_mode_flag = VPI_MODE_RWSYNC;
+	    if (call_data.time) set_callback_time(&call_data);
+	    call_data.cb_rtn(&call_data);
+	    vpi_mode_flag = saved_mode;
+      }
+
+    private:
+      vpiHandle registered_obj_;
+      struct t_vpi_time cb_time;
+};
+
+static std::vector<statement_callback*> statement_callbacks;
+
+static __vpiScope*enclosing_module_scope_(__vpiScope*scope)
+{
+      while (scope && scope->get_type_code() != vpiModule)
+	    scope = scope->scope;
+      return scope;
+}
+
+static bool statement_callback_capable_(vpiHandle statement)
+{
+      switch (statement->get_type_code()) {
+	  case vpiBegin:
+	  case vpiNamedBegin:
+	  case vpiFork:
+	  case vpiNamedFork:
+	  case vpiIf:
+	  case vpiIfElse:
+	  case vpiWhile:
+	  case vpiRepeat:
+	  case vpiFor:
+	  case vpiForever:
+	  case vpiWait:
+	  case vpiCase:
+	  case vpiAssignment:
+	  case vpiAssignStmt:
+	  case vpiDeassign:
+	  case vpiDisable:
+	  case vpiForce:
+	  case vpiRelease:
+	  case vpiEventStmt:
+	  case vpiDelayControl:
+	  case vpiEventControl:
+	  case vpiTaskCall:
+	  case vpiSysTaskCall:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static statement_callback*make_statement_callback(p_cb_data data)
+{
+      if (!data->cb_rtn || !data->obj || !data->time
+	  || !check_callback_time(data, true)) {
+	    fprintf(stderr, "VPI error: invalid cbStmt callback data\n");
+	    return 0;
+      }
+
+      __vpiScope*module = dynamic_cast<__vpiScope*>(data->obj);
+      if ((module && module->get_type_code() != vpiModule)
+	  || (!module && (!vpip_is_statement_handle(data->obj)
+			  || !statement_callback_capable_(data->obj)))) {
+	    fprintf(stderr, "VPI error: cbStmt requires a statement or module handle\n");
+	    return 0;
+      }
+
+      statement_callback*obj = new statement_callback(data);
+      statement_callbacks.push_back(obj);
+      return obj;
+}
+
+void vpip_run_statement_callbacks(vpiHandle statement)
+{
+      __vpiScope*module = enclosing_module_scope_(
+	    vpip_statement_scope(statement));
+      const std::vector<statement_callback*> callbacks(statement_callbacks);
+      for (std::vector<statement_callback*>::const_iterator cur =
+		    callbacks.begin(); cur != callbacks.end(); ++cur) {
+	    if ((*cur)->cb_data.cb_rtn && (*cur)->matches(statement, module))
+		  (*cur)->execute(statement);
+      }
+}
+
 vpiHandle vpi_register_cb(p_cb_data data)
 {
       struct __vpiCallback*obj = 0;
@@ -1083,6 +1202,10 @@ vpiHandle vpi_register_cb(p_cb_data data)
 
 	  case cbValueChange:
 	    obj = make_value_change(data);
+	    break;
+
+	  case cbStmt:
+	    obj = make_statement_callback(data);
 	    break;
 
 	  case cbForce:

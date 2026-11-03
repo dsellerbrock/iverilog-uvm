@@ -47,6 +47,7 @@
 using namespace std;
 
 static vector<vpiHandle> vpip_root_table;
+static map<uint64_t, vpiHandle> statement_handles_by_id;
 
 static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&table);
 
@@ -142,12 +143,14 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  array_delete(item);
 		  break;
 		case vpiBegin:
+	case vpiNamedBegin:
 		case vpiAssignment:
 		case vpiContAssign:
 		case vpiDeassign:
 		case vpiDoWhile:
 		case vpiEventStmt:
 		case vpiFork:
+	case vpiNamedFork:
 		case vpiForce:
 		case vpiIfElse:
 		case vpiForInitStmt:
@@ -208,6 +211,7 @@ void root_table_delete(void)
 	    delete scope;
       }
       vpip_root_table.clear();
+      statement_handles_by_id.clear();
 
 	/* Clean up all the class definitions. */
       for (unsigned idx = 0; idx < class_list_count; idx += 1) {
@@ -337,8 +341,9 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
 
 class __vpiStmtNode : public __vpiHandle {
     public:
-      __vpiStmtNode(int type, const char*name)
-      : type_(type), name_(vpip_name_string(name)), parent_(0) { }
+      __vpiStmtNode(int type, const char*name, __vpiScope*scope)
+      : type_(type), name_(vpip_name_string(name)), parent_(0),
+        scope_(scope) { }
       int get_type_code(void) const override { return type_; }
       char* vpi_get_str(int code) override
       {
@@ -349,6 +354,7 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_handle(int code) override
       {
 	    if (code == vpiParent) return parent_;
+	    if (code == vpiScope) return scope_;
 	    return __vpiHandle::vpi_handle(code);
       }
       vpiHandle vpi_iterate(int code) override
@@ -362,10 +368,12 @@ class __vpiStmtNode : public __vpiHandle {
       }
       void add_child(__vpiStmtNode*child)
       { children_.push_back(child); child->parent_ = this; }
+      __vpiScope* vpi_scope() const { return scope_; }
     private:
       int type_;
       const char*name_;
       __vpiStmtNode*parent_;
+      __vpiScope*scope_;
       std::vector<__vpiStmtNode*> children_;
 };
 
@@ -1706,15 +1714,18 @@ void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
 {
       __vpiScope*scope = vpip_peek_current_scope();
-      assert(scope && (scope->get_type_code() == vpiTask
-		       || scope->get_type_code() == vpiFunction));
+      assert(scope);
       assert(id != 0 && type <= INT_MAX);
-      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name);
+      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name,
+						     scope);
       assert(scope->statement_node_by_id.find(id)
 	     == scope->statement_node_by_id.end());
       if (parent == 0) {
-	    assert(scope->statement_root == 0);
-	    scope->statement_root = obj;
+	    if (scope->get_type_code() == vpiTask
+		|| scope->get_type_code() == vpiFunction) {
+		  assert(scope->statement_root == 0);
+		  scope->statement_root = obj;
+	    }
       } else {
 	    std::map<uint64_t, vpiHandle>::iterator par =
 		  scope->statement_node_by_id.find(parent);
@@ -1723,7 +1734,27 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       }
       scope->statement_node_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
+      assert(statement_handles_by_id.find(id) == statement_handles_by_id.end());
+      statement_handles_by_id[id] = obj;
       delete[] name;
+}
+
+vpiHandle vpip_statement_handle(uint64_t id)
+{
+      map<uint64_t, vpiHandle>::const_iterator found =
+	    statement_handles_by_id.find(id);
+      return found == statement_handles_by_id.end() ? 0 : found->second;
+}
+
+bool vpip_is_statement_handle(vpiHandle statement)
+{
+      return dynamic_cast<__vpiStmtNode*>(statement) != 0;
+}
+
+__vpiScope*vpip_statement_scope(vpiHandle statement)
+{
+      __vpiStmtNode*node = dynamic_cast<__vpiStmtNode*>(statement);
+      return node ? node->vpi_scope() : 0;
 }
 
 /*

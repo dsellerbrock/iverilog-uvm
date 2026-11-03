@@ -1398,6 +1398,8 @@ extern int draw_array_reduce_vec4(ivl_expr_t expr);
  * These are various statement code generators.
  */
 extern int show_statement(ivl_statement_t net, ivl_scope_t sscope);
+extern int show_for_control_statement(ivl_statement_t net,
+                                      ivl_scope_t sscope);
 
 typedef struct vvp_randsequence_flow_s {
       unsigned break_label;
@@ -1414,5 +1416,7 @@ extern int show_stmt_forloop(ivl_statement_t net, ivl_scope_t sscope);
 extern int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope);
 extern int show_stmt_while(ivl_statement_t net, ivl_scope_t sscope);
 extern int show_stmt_do_while(ivl_statement_t net, ivl_scope_t sscope);
+extern void show_vpi_statement_callback(ivl_statement_t net,
+                                        ivl_scope_t scope);
 
 #endif /* IVL_vvp_priv_H */

@@ -6324,6 +6324,12 @@ issue1322_vpi_loop_types_2023 vvp_tests/issue1322_vpi_loop_types_2023.json
 # IEEE 1800-2017 §37.82 / 2023 §37.84 VPI iterator type property constant
 issue1340_vpi_iterator_type_constant_2017 vvp_tests/issue1340_vpi_iterator_type_constant_2017.json
 issue1340_vpi_iterator_type_constant_2023 vvp_tests/issue1340_vpi_iterator_type_constant_2023.json
+issue1342_cb_stmt_2017 vvp_tests/issue1342_cb_stmt_2017.json
+issue1342_cb_stmt_2023 vvp_tests/issue1342_cb_stmt_2023.json
+issue1342_cb_stmt_loop_2017 vvp_tests/issue1342_cb_stmt_loop_2017.json
+issue1342_cb_stmt_loop_2023 vvp_tests/issue1342_cb_stmt_loop_2023.json
+issue1342_cb_stmt_deferred_2017 vvp_tests/issue1342_cb_stmt_deferred_2017.json
+issue1342_cb_stmt_deferred_2023 vvp_tests/issue1342_cb_stmt_deferred_2023.json
 # IEEE 1800-2017/2023 §35.5.6 forbids class types in DPI formals
 issue1252_dpi_class_arg_2017 vvp_tests/issue1252_dpi_class_arg_2017.json
 issue1252_dpi_class_arg_2023 vvp_tests/issue1252_dpi_class_arg_2023.json

@@ -438,6 +438,9 @@ class vpiScopeFunction  : public __vpiScope {
 };
 
 extern __vpiScope* vpip_peek_current_scope(void);
+extern vpiHandle vpip_statement_handle(uint64_t id);
+extern bool vpip_is_statement_handle(vpiHandle statement);
+extern __vpiScope*vpip_statement_scope(vpiHandle statement);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
 extern __vpiScope* vpip_peek_context_scope(void);

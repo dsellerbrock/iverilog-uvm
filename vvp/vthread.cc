@@ -49,6 +49,7 @@
 # include  "vvp_darray.h"
 # include  "vvp_mailbox.h"
 # include  "vvp_vinterface.h"
+# include  "vvp_vpi_callback.h"
 # include  "array.h"
 # include  "class_type.h"
 # include  "vvp_z3.h"
@@ -1553,7 +1554,12 @@ static bool capture_deferred_args_(vthread_t thr,
       if (action_pc->opcode == of_END)
             return true;
 
-      if (action_pc->opcode != of_VPI_CALL) {
+      /* Deferred system-task actions may begin with the source statement's
+       * cbStmt hook. The instruction runs when the deferred action executes. */
+      if (action_pc->opcode == of_STMT)
+            action_pc = deferred_action_next_code_(action_pc);
+
+      if (!action_pc || action_pc->opcode != of_VPI_CALL) {
             fprintf(stderr,
                     "vvp: unsupported %s-deferred action opcode while "
                     "capturing arguments; source stacks were not consumed.\n",
@@ -18567,6 +18573,12 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       if (!action)
             return false;
 
+      /* A source task-call statement may carry its cbStmt hook at the start
+       * of this out-of-line action. It executes with the deferred action,
+       * immediately before the task call, and is part of the validated thunk. */
+      if (action->opcode == of_STMT)
+            action = deferred_action_next_code_(action);
+
       __vpiScope*alloc_scope = 0;
       if (action->opcode == of_ALLOC) {
             alloc_scope = action->scope;
@@ -29761,6 +29773,20 @@ bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t cp)
 
 bool of_NOOP(vthread_t, vvp_code_t)
 {
+      return true;
+}
+
+/* Invoke callbacks attached to this source statement before it executes. */
+bool of_STMT(vthread_t, vvp_code_t code)
+{
+      vpiHandle statement = vpip_statement_handle(code->number);
+      if (!statement) {
+            fprintf(stderr,
+                    "runtime error: VPI statement callback refers to unknown statement id %llu\n",
+                    (unsigned long long)code->number);
+            return true;
+      }
+      vpip_run_statement_callbacks(statement);
       return true;
 }
 

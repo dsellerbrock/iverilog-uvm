@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue1342_cb_stmt.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1342_cb_stmt"],
+  "vpi-sources": ["vpi/issue1342_cb_stmt.c"],
+  "output-contains": [
+    "MODULE_STMT_REGISTRATION=PASS",
+    "PASSED"
+  ]
+}

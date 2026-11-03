@@ -1346,6 +1346,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    else
 		  fprintf(vvp_out, "    %%defer/enqueue/key %ld, %u;\n",
 			  deferred->source_id, deferred->result);
+            show_vpi_statement_callback(tnet, deferred->scope);
       }
 
       fprintf(vvp_out, "%s", call_string);

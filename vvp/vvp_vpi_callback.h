@@ -28,6 +28,7 @@ class vvp_vector2_t;
 extern vpiHandle vpip_set_force_statement(vpiHandle statement);
 extern void vpip_note_force_statement(struct vvp_code_s*code, vpiHandle statement);
 extern vpiHandle vpip_force_statement_for(struct vvp_code_s*code);
+extern void vpip_run_statement_callbacks(vpiHandle statement);
 
 class vvp_force_statement_context {
     public:
