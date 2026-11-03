@@ -6,6 +6,8 @@ module issue2168_bitstream_p2s;
 
   initial begin
     s = s_t'(16'h1234);
-    $display("p2s %h %h (expect 12 34)", s.a, s.b);
+    if (s.a !== 8'h12 || s.b !== 8'h34)
+      $fatal(1, "p2s produced %h %h", s.a, s.b);
+    $display("PASSED");
   end
 endmodule

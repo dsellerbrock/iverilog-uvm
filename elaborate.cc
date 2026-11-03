@@ -6667,6 +6667,73 @@ static NetEvent* resolve_event_port_actual_(Design*des, NetScope*scope,
       return result.eve->canonical_event();
 }
 
+/* IEEE 1800-2017/2023 17.3: checker event actuals are event expressions,
+ * such as `posedge clk`, rather than only named event variables. Lower a
+ * single event expression through the ordinary event-control elaborator so
+ * the checker formal aliases the same probe-backed event and retains its
+ * edge and sampling behavior. */
+static NetEvent* resolve_checker_event_port_actual_(Design*des,
+						    NetScope*scope,
+						    const PExpr*actual,
+						    NetEvWait**lifetime_wait)
+{
+	  *lifetime_wait = nullptr;
+      const PEEvent*event_expr = dynamic_cast<const PEEvent*>(actual);
+      unique_ptr<PEEvent> implicit_event_expr;
+      if (!event_expr) {
+	    implicit_event_expr.reset(new PEEvent(
+		  PEEvent::ANYEDGE, const_cast<PExpr*>(actual)));
+	    implicit_event_expr->set_line(*actual);
+	    event_expr = implicit_event_expr.get();
+      }
+
+	// Conditional event expressions require a persistent waiter that
+	// triggers one named event each time the guard admits an edge.
+      if (event_expr->condition()) {
+	    NetEvent*bridged_event = new NetEvent(scope->local_symbol());
+	    bridged_event->set_line(*event_expr);
+	    bridged_event->local_flag(true);
+
+	    NetEvTrig*trigger = new NetEvTrig(bridged_event);
+	    trigger->set_line(*event_expr);
+	    PEventStatement waiter(const_cast<PEEvent*>(event_expr));
+	    waiter.set_line(*event_expr);
+	    NetProc*body = waiter.elaborate_st(des, scope, trigger);
+	    if (!body) {
+		  delete trigger;
+		  delete bridged_event;
+		  cerr << actual->get_fileline() << ": error: Unable to elaborate "
+		          "checker event actual expression." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    scope->add_event(bridged_event);
+	    NetProcTop*watcher = new NetProcTop(scope, IVL_PR_ALWAYS, body);
+	    watcher->set_line(*event_expr);
+	    des->add_process(watcher);
+	    return bridged_event;
+      }
+
+      PEventStatement event_control(const_cast<PEEvent*>(event_expr));
+      event_control.set_line(*event_expr);
+      NetProc*proc = event_control.elaborate(des, scope);
+      NetEvWait*wait = dynamic_cast<NetEvWait*>(proc);
+      if (!wait || wait->nevents() != 1) {
+	    delete proc;
+	    cerr << actual->get_fileline() << ": error: A checker event actual "
+	            "must resolve to one event expression." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetEvent*actual_event = wait->event(0);
+	// Keep this reference until the formal event aliases are installed. Those
+	// aliases then retain the probe-backed event without a runtime observer.
+	*lifetime_wait = wait;
+      return actual_event;
+}
+
 static PortInfo::ModulePortVpiType module_port_vpi_type_(
       const Module*rmod, unsigned idx, NetScope*formal_scope)
 {
@@ -6889,10 +6956,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  des->errors += 1;
 		  continue;
 	    }
-	    NetEvent*actual_event = resolve_event_port_actual_(des, scope,
-							 pins[idx]);
-	    if (!actual_event)
+	    NetEvWait*checker_event_lifetime_wait = nullptr;
+	    NetEvent*actual_event = rmod->is_checker
+		  ? resolve_checker_event_port_actual_(des, scope, pins[idx],
+						       &checker_event_lifetime_wait)
+		  : resolve_event_port_actual_(des, scope, pins[idx]);
+	    if (!actual_event) {
+		  delete checker_event_lifetime_wait;
 		  continue;
+	    }
 	    for (NetScope*inst_scope : instance) {
 		  NetEvent*formal_event = inst_scope->find_event(
 				rmod->get_port_name(idx));
@@ -6905,6 +6977,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  }
 		  formal_event->set_alias(actual_event);
 	    }
+	    delete checker_event_lifetime_wait;
       }
 
 	// M5-5: An interface formal's member types come from the concrete

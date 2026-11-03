@@ -15247,6 +15247,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<vector<vector<uint64_t> > > tables(components.size());
             vector<bool> full_power_component(components.size(), false);
             vector<unsigned> full_power_bits(components.size(), 0);
+            vector<bool> projected_dist_component(components.size(), false);
             /* A component too large to enumerate that carries no dist, randc or
                solve-before promise needs only a valid joint assignment: sample it
                column by column against the hard solver. */
@@ -15278,6 +15279,43 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               && !component_has_dist_spec
                               && !component_has_randc
                               && !ordered_component;
+                        /* A single unconditional dist can be sampled on its
+                           own when the remaining projection is bounded. Each
+                           residual fiber is a subset of that projection. */
+                        if (enumerated == Z3_L_UNDEF && reason
+                            && strcmp(reason,
+                               "the complete joint solution set exceeds the enumeration limit") == 0
+                            && distributions[ci].size() == 1
+                            && !distributions[ci][0].conditional
+                            && all_of(distributions[ci][0].spec->branches.begin(),
+                                  distributions[ci][0].spec->branches.end(),
+                                  [](const Z3Builder::DistBranch&branch) {
+                                        return !branch.weight_expression;
+                                  })
+                            && !component_has_randc && !ordered_component
+                            && builder.order_pairs.empty()) {
+                              const JointDistBinding&binding =
+                                    distributions[ci][0];
+                              vector<Z3_ast> residual;
+                              for (Z3_ast var : components[ci])
+                                    if (var != binding.spec->subject)
+                                          residual.push_back(var);
+                              vector<vector<uint64_t> > residual_values;
+                              const char*residual_reason = nullptr;
+                              uint64_t ignored = 0;
+                              bool valid = z3_enumerate_joint_(ctx, base,
+                                    residual, ENUM_DOMAIN_CAP,
+                                    residual_values, residual_reason)
+                                    == Z3_L_TRUE
+                                    && z3_resolve_dist_exact(ctx, base, opt,
+                                          *binding.spec,
+                                          owner_rng(binding.spec->rng_owner),
+                                          ignored, false, true);
+                              if (valid) {
+                                    projected_dist_component[ci] = true;
+                                    continue;
+                              }
+                        }
                         if (enumerated == Z3_L_UNDEF && reason
                             && strcmp(reason,
                                "the complete joint solution set exceeds the enumeration limit") == 0
@@ -15777,6 +15815,39 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               if (!have)
                                     return fail_joint("a sampled joint component has no integral model");
                         }
+                        continue;
+                  }
+                  if (projected_dist_component[ci]) {
+                        if (bindings.size() != 1)
+                              return fail_joint("a projected distribution component changed after preflight");
+                        const JointDistBinding&binding = bindings[0];
+                        uint64_t subject = 0;
+                        if (!z3_resolve_dist_exact(ctx, base, opt,
+                                    *binding.spec,
+                                    owner_rng(binding.spec->rng_owner),
+                                    subject, false))
+                              return fail_joint("a projected distribution could not be sampled exactly");
+                        unsigned width = bv_width(ctx, binding.spec->subject);
+                        if (width < 64) subject &= (uint64_t(1) << width) - 1;
+                        pin_column(binding.subject_column, subject);
+                        vector<size_t> columns;
+                        vector<Z3_ast> projection;
+                        for (size_t column = 0; column < component.size(); ++column)
+                              if (column != binding.subject_column) {
+                                    columns.push_back(column);
+                                    projection.push_back(component[column]);
+                              }
+                        vector<vector<uint64_t> > values;
+                        const char*reason = nullptr;
+                        if (z3_enumerate_joint_(ctx, base, projection,
+                                    ENUM_DOMAIN_CAP, values, reason)
+                              != Z3_L_TRUE || values.empty())
+                              return fail_joint(reason ? reason
+                                    : "a projected distribution has no residual solution");
+                        const auto&chosen = values[values.size() == 1 ? 0
+                              : root_rng.uniform_index(values.size())];
+                        for (size_t i = 0; i < columns.size(); ++i)
+                              pin_column(columns[i], chosen[i]);
                         continue;
                   }
                   if (full_power_component[ci]) {

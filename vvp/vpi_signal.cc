@@ -1050,7 +1050,21 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
 	    break;
 
 	  case vpiObjTypeVal:
-	    if (wid == 1) {
+	    if (rfp->get_type_code() == vpiIntegerVar) {
+		  vp->format = vpiIntVal;
+		  format_vpiIntVal(vsig, base, wid, rfp->signed_flag, vp);
+	    } else if (rfp->get_type_code() == vpiTimeVar) {
+		  static struct t_vpi_time time_value;
+		  vvp_vector4_t vec4;
+		  vvp_time64_t time_bits = 0;
+		  vsig->vec4_value(vec4);
+		  vvp_vector4_t sub = vec4.subvalue(base, wid);
+		  vector4_to_value(sub, time_bits, false, false);
+		  vp->format = vpiTimeVal;
+		  vp->value.time = &time_value;
+		  vp->value.time->type = vpiSimTime;
+		  vpip_time_to_timestruct(vp->value.time, time_bits);
+	    } else if (wid == 1) {
 		  vp->format = vpiScalarVal;
 		  format_vpiScalarVal(vsig, base, vp);
 	    } else {

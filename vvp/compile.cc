@@ -102,6 +102,8 @@ enum operand_e {
 	/* Exact stream-to-container encodings, with an optional queue maximum. */
       OA_STREAM_DAR_STRING,
       OA_STREAM_QUEUE_STRING,
+	/* Recursive destination layout for bit-stream casts to structs. */
+      OA_STREAM_STRUCT_STRING,
 	/* Fields of the descriptor used only by object splice /proto opcodes. */
       OA_CONTAINER_DATA_STRING,
       OA_CONTAINER_DATA_MAX,
@@ -817,6 +819,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/flatten/assoc", of_STREAM_FLATTEN_ASSOC, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/flatten/obj", of_STREAM_FLATTEN_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
+	  { "%stream/flatten/obj/cast", of_STREAM_FLATTEN_CAST_OBJ, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/flatten/obj/with", of_STREAM_FLATTEN_OBJ_WITH, 3, {OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/flatten/str", of_STREAM_FLATTEN_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%stream/flatten/vec/with", of_STREAM_FLATTEN_VEC_WITH, 3, {OA_STRING, OA_BIT1, OA_BIT2} },
@@ -838,6 +841,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/to/dar/with",of_STREAM_TO_DAR_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STREAM_QUEUE_STRING, OA_NONE, OA_NONE} },
       { "%stream/to/queue/with",of_STREAM_TO_QUEUE_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
+      { "%stream/to/struct", of_STREAM_TO_STRUCT, 2, {OA_STREAM_STRUCT_STRING, OA_VPI_PTR2, OA_NONE} },
       { "%stream/unpack/l", of_STREAM_UNPACK_L, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/unpack/r", of_STREAM_UNPACK_R, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%sub",    of_SUB,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -3220,6 +3224,22 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  validate_stream_container_encoding_(
 			mnem, code->text, op->argt[idx] == OA_STREAM_QUEUE_STRING);
 		  break;
+
+	case OA_STREAM_STRUCT_STRING:
+	      if (opa->argv[idx].ltype != L_STRING) {
+		    yyerror("stream struct encoding must be a string");
+		    compile_errors += 1;
+		    break;
+	      }
+
+	      code->text = opa->argv[idx].text;
+	      if (!vvp_stream_struct_encoding_is_valid(code->text)) {
+		    fprintf(stderr,
+			    "%s:%u: invalid stream struct encoding for %s\n",
+			    yypath ? yypath : "<unknown>", yyline, mnem);
+		    compile_errors += 1;
+	      }
+	      break;
 
 		case OA_CONTAINER_DATA_STRING:
 		  code->container_data = new vvp_container_opcode_data_s;

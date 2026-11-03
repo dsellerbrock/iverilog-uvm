@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2385_string_to_byte_queue.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue2385_string_to_byte_queue",
+    "vlog95"        : { "type" : "NI" }
+}

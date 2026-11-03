@@ -813,7 +813,9 @@ issue1758_find_index_multidim_2023 normal,-g2023,-I./ivltests ivltests gold=issu
 sv_array_locator_aggregate normal,-g2012 ivltests gold=sv_array_locator_aggregate.gold
 sv_array_locator_wrapper_type_fail CE,-g2012 ivltests gold=sv_array_locator_wrapper_type_fail.gold
 sv_locator_fixed_nonintegral normal,-g2012	ivltests gold=sv_locator_fixed_nonintegral.gold
-sv_bitstream_cast_unpacked_struct_fail CE,-g2012	ivltests gold=sv_bitstream_cast_unpacked_struct_fail.gold
+sv_bitstream_cast_unpacked_struct_fail normal,-g2017,-s,test ivltests gold=sv_bitstream_cast_unpacked_struct_fail.gold
+sv_bitstream_cast_struct_destination normal,-g2017,-s,test ivltests gold=sv_bitstream_cast_struct_destination.gold
+sv_bitstream_cast_struct_runtime_size_fail RE,-g2017,-s,test ivltests gold=sv_bitstream_cast_struct_runtime_size_fail.gold
 sv_bitstream_cast_packed_struct normal,-g2012	ivltests gold=sv_bitstream_cast_packed_struct.gold
 sv_inside_queue_expr normal,-g2012	ivltests gold=sv_inside_queue_expr.gold
 sv_property_queue_string_charsel normal,-g2012	ivltests gold=sv_property_queue_string_charsel.gold
@@ -2911,6 +2913,8 @@ sv_array_port_string_event normal,-g2012,-ssv_array_port_string_event ivltests g
 sv_array_port_object_event normal,-g2012,-ssv_array_port_object_event ivltests gold=sv_array_port_object_event.gold
 sv_ansi_event_port_2017 normal,-g2017,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2017.gold
 sv_ansi_event_port_2023 normal,-g2023,-s,sv_ansi_event_port ivltests gold=sv_ansi_event_port_2023.gold
+sv_checker_event_formal_2017 normal,-g2017,-s,sv_checker_event_formal ivltests gold=sv_checker_event_formal_2017.gold
+sv_checker_event_formal_2023 normal,-g2023,-s,sv_checker_event_formal ivltests gold=sv_checker_event_formal_2023.gold
 
 # IEEE 1800-2023 7.6/23.3.3.5 interface-port array shape and order
 sv_instance_array_unpacked_port normal,-g2017 ivltests gold=sv_instance_array_unpacked_port.gold
@@ -3433,6 +3437,8 @@ sv_randomize_global_components normal,-g2017,-s,main ivltests gold=sv_randomize_
 sv_randomize_global_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components.gold
 sv_randomize_global_dist_components normal,-g2017,-s,main ivltests gold=sv_randomize_global_dist_components.gold
 sv_randomize_global_dist_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_dist_components.gold
+sv_randomize_nested_dist_cross_object_2017 normal,-g2017,-s,main ivltests gold=sv_randomize_nested_dist_cross_object.gold
+sv_randomize_nested_dist_cross_object_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_nested_dist_cross_object.gold
 sv_randomize_global_components_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_components_fail.gold
 sv_randomize_global_components_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components_fail.gold
 

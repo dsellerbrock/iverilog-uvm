@@ -12977,6 +12977,23 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
 	    return true;
       }
 
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
+	    if (class_type->is_interface()) return false;
+	    uint64_t total_width = 0;
+	    for (size_t idx = 0; idx < class_type->get_properties(); idx += 1) {
+		  if (class_type->get_prop_qual(idx).test_static()) continue;
+		  uint64_t property_width = 0;
+		  if (!fixed_bitstream_width_(class_type->get_prop_type(idx),
+					      property_width)
+		      || property_width > UINT64_MAX - total_width)
+			return false;
+		  total_width += property_width;
+	    }
+	    if (total_width == 0) return false;
+	    width = total_width;
+	    return true;
+      }
+
       return false;
 }
 
@@ -22201,6 +22218,18 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	if (!base)
 	      return nullptr;
 
+	/* A string source is a dynamically sized byte stream for this cast.
+	 * Lower it before the packed-vector fallback expands the nominal string
+	 * width into repeated byte stores (IEEE 1800-2017/2023 6.24.3). */
+	if (dynamic_cast<const netstring_t*>(base->net_type())
+	    && positional_container_integral_elements_(target_type_)) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					     target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
+	}
+
 	/* Do not let the enclosing assignment's legacy packed-vector-to-array
 	 * path bypass this explicit cast's own source/target validation. */
 	positional_container_cast_status_t container_cast_status;
@@ -22276,6 +22305,16 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 				    unsigned expr_wid, unsigned flags) const
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
+
+	/* A whole fixed unpacked array is a valid bit-stream cast source for
+	   unpacked structs. Preserve it as an aggregate expression while
+	   elaborating the operand; ordinary expression contexts still require an
+	   explicit element index. */
+      const netstruct_t*cast_struct_target =
+	    dynamic_cast<const netstruct_t*>(target_type_);
+      if (cast_struct_target && !cast_struct_target->packed()
+	  && !cast_struct_target->union_flag())
+	    flags |= BITSTREAM_CAST_ARG;
 
 	/* An assignment pattern has no self-determined width or type. A typed
 	   pattern such as T'{...} is represented by this cast, so elaborate its
@@ -22377,6 +22416,41 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (dynamic_cast<const PEAssignPattern*>(base_) && target_type_ &&
 	  !target_type_->packed())
 	    return sub;
+
+	/* IEEE 1800-2017/2023 6.24.3 permits unpacked structs as bit-stream
+	 * cast destinations. Preserve the object-valued result in a dedicated
+	 * marker so VVP can flatten the source once and materialize the declared
+	 * struct shape without changing the existing packed/container cast path. */
+      const netstruct_t*struct_target =
+	    dynamic_cast<const netstruct_t*>(target_type_);
+      bool source_is_bitstream = sub->net_type()
+	    ? bitstream_cast_type_(sub->net_type(), false)
+	    : type_is_vectorable(sub->expr_type());
+      if (struct_target && !struct_target->packed()
+	  && !struct_target->union_flag()
+	  && bitstream_cast_type_(target_type_, true)
+	  && source_is_bitstream) {
+	    uint64_t target_width = 0, source_width = 0;
+	    bool target_fixed = fixed_bitstream_width_(target_type_, target_width);
+	    bool source_fixed = fixed_bitstream_width_(sub->net_type(), source_width);
+	    if (!source_fixed && type_is_vectorable(sub->expr_type())
+		  && sub->expr_width() > 0) {
+		  source_width = sub->expr_width();
+		  source_fixed = true;
+	    }
+	    if (target_fixed && source_fixed && target_width != source_width) {
+		  cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
+	       << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    NetESFunc*cast = new NetESFunc(
+		  "$ivl_stream$cast$struct$1", target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
 
 	/* A cast must not reinterpret an associative map object as an ordinary
 	 * queue/dynamic/scalar value (or the reverse) merely because the backend
@@ -30050,7 +30124,8 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
 	// Special case: This is the entire array, and we are a direct
 	// argument of a system task.
-      if (name_tail.index.empty() && (SYS_TASK_ARG & flags)) {
+	  if (name_tail.index.empty()
+	      && ((SYS_TASK_ARG | BITSTREAM_CAST_ARG) & flags)) {
 	    NetESignal*res = new NetESignal(net, 0);
 	    res->set_line(*this);
 	    return res;
@@ -30454,7 +30529,9 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
  */
 static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 					const PEIdent*ident, NetESignal*net,
-					bool need_const, NetExpr*&carrier)
+					bool need_const, bool variable_base,
+					NetExpr*&carrier,
+					size_t&selected_depth)
 {
       const NetNet*sig = net->sig();
       const netranges_t&dims = sig->packed_dims();
@@ -30467,7 +30544,12 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
       for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
 	    indices.pop_front();
 
-      if (indices.size() != dims.size())
+	/* The final indexed part-select may address any packed dimension. The
+	 * preceding indices identify the carrier, while selected_depth records
+	 * the dimension whose elements the part-select spans. */
+      if (indices.size() > dims.size())
+	    return false;
+	  if (indices.size() < dims.size() && !variable_base)
 	    return false;
       list<index_component_t>::const_iterator last = indices.end();
       --last;
@@ -30514,6 +30596,8 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 	    slice->set_line(*ident);
 	    carrier = slice;
       }
+
+	  selected_depth = indices.size();
       return true;
 }
 
@@ -30544,15 +30628,22 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+	  size_t selected_depth = 0;
+	  bool variable_base = dynamic_cast<NetEConst*> (base) == 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     variable_base, carrier, selected_depth)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    const netranges_t&dims = net->sig()->packed_dims();
+	    const netrange_t&rng = dims[selected_depth-1];
+	    unsigned long stride = net->sig()->slice_width(selected_depth);
+	    unsigned long elem_wid = wid / stride;
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, true, 0);
+					   elem_wid, true, 0);
+	    if (stride > 1)
+		  base = scale_index_to_bits(base, stride, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_UP);
       }
@@ -30726,15 +30817,22 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
       }
 
       NetExpr*carrier = 0;
+	  size_t selected_depth = 0;
+	  bool variable_base = dynamic_cast<NetEConst*> (base) == 0;
       if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
-					     carrier)) {
+					     variable_base, carrier, selected_depth)) {
 	    if (!carrier) {
 		  delete base;
 		  return 0;
 	    }
-	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    const netranges_t&dims = net->sig()->packed_dims();
+	    const netrange_t&rng = dims[selected_depth-1];
+	    unsigned long stride = net->sig()->slice_width(selected_depth);
+	    unsigned long elem_wid = wid / stride;
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
-					   wid, false, 0);
+					   elem_wid, false, 0);
+	    if (stride > 1)
+		  base = scale_index_to_bits(base, stride, *this);
 	    return make_four_state_packed_select_(*this, carrier, base, wid,
 						  IVL_SEL_IDX_DOWN);
       }
