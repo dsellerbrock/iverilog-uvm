@@ -16906,7 +16906,8 @@ static bool interface_modport_prototype_matches_method_(
 		const LineInfo&loc, Design*des,
 		const PModport::tf_port_prototype_t*prototype,
 		const NetScope*method_scope, const NetBaseDef*def,
-		bool require_matching_names, bool diagnose)
+		bool require_matching_names, bool diagnose,
+		const NetScope*prototype_scope = nullptr)
 {
       if (!prototype)
 	    return true;
@@ -16916,6 +16917,8 @@ static bool interface_modport_prototype_matches_method_(
 
       NetScope*declaration_scope = method_scope
 	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
+      if (prototype_scope)
+	    declaration_scope = const_cast<NetScope*>(prototype_scope);
       const vector<pform_tf_port_t>*ports = prototype->ports;
       const unsigned prototype_count = ports
 	    ? static_cast<unsigned>(ports->size()) : 0;
@@ -22949,6 +22952,17 @@ static string format_elab_message(const string&fmt,
 	    }
       }
       return result.str();
+}
+
+/* Lower a task whose scope has already been resolved by a deferred pass.
+ * This keeps exported-provider calls on the ordinary task-call path, including
+ * automatic frames, ref binding, aggregate copying, and output copy-back. */
+NetProc* PCallTask::elaborate_bound_task_call_(Design*des, NetScope*scope,
+					      NetScope*task) const
+{
+      if (!task || task->type() != NetScope::TASK)
+	    return nullptr;
+      return elaborate_build_call_(des, scope, task, nullptr);
 }
 
 /* Elaborate an elaboration task. */
@@ -37501,7 +37515,8 @@ bool concurrent_assertion_function_pure(Design*des, const NetEUFunc*call,
 static string constraint_state_expression_slot_(
       const PExpr*site, PExpr*expression, ivl_type_t result_type,
       const netclass_t*cls, bool collect_dependencies,
-      NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr)
+      NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr,
+      bool take_expression_ownership = true)
 {
       if (!site || !expression || !result_type || !cls
 	  || (!constraint_ir_state_calls_ctx_ && !inline_capture)
@@ -37528,7 +37543,8 @@ static string constraint_state_expression_slot_(
       wrapper->set_func_def(def);
       NetExpr*value = elaborate_rval_expr(
 	    constraint_ir_design_ctx_, wrapper, result_type, expression, false);
-      delete expression;
+      if (take_expression_ownership)
+	    delete expression;
       if (!value) return "";
 	  /* A constant nonstatic method must still reject a null retained
 	   * randomized receiver. Preserve that X through the scalar capture. */
@@ -44348,6 +44364,51 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    /* IEEE 1800-2023 18.3 permits a random-variable-free subexpression
+	     * to use non-integral operands when its result is integral or real.
+	     * String equality is the common case. Evaluate that state expression
+	     * in a generated class method at randomize() time, after callbacks,
+	     * and pass only its one-bit result to the solver. IEEE 1800-2017 does
+	     * not have this allowance, so retain its integral-only lowering. */
+	    if (generation_flag >= GN_VER2023
+		&& (bin->get_op() == 'e' || bin->get_op() == 'n')) {
+		  function<bool(const PExpr*)> state_string =
+			[&](const PExpr*part) -> bool {
+			      if (dynamic_cast<const PEString*>(part)) return true;
+			      if (const PEBinary*concat =
+				  dynamic_cast<const PEBinary*>(part))
+				    return concat->get_op() == '+'
+					  && state_string(concat->get_left())
+					  && state_string(concat->get_right());
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(part);
+			      if (!id || id->path().package
+				  || id->has_scoped_type_prefix()
+				  || id->path().name.size() != 1
+				  || !id->path().name.front().index.empty()
+				  || id->path().name.front().local_scope)
+				    return false;
+			      constraint_source_type_t source =
+				    constraint_source_expr_type_(id, cls, value_slots, scope);
+			      if (source.unpacked_dimensions || !source.type
+				  || source.type->base_type() != IVL_VT_STRING)
+				    return false;
+			      int property = cls
+				    ? cls->property_idx_from_name(
+					  id->path().name.front().name) : -1;
+			      if (property >= 0) {
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)property);
+				    return !qual.test_rand() && !qual.test_randc();
+			      }
+			      return constraint_outside_variable_(id, cls, scope) != nullptr;
+			};
+		  if (state_string(bin->get_left())
+		      && state_string(bin->get_right()))
+			return constraint_state_expression_slot_(
+			      bin, const_cast<PEBinary*>(bin),
+			      &netvector_t::scalar_logic, cls, false,
+			      nullptr, nullptr, false);
+	    }
 	    string handle_ir;
 	    if (constraint_handle_comparison_ir_(bin, cls, value_slots, scope,
 	                                         loop_env, handle_ir))
@@ -52134,6 +52195,133 @@ static void elaborate_extern_forkjoin_tasks_(Design*des, NetScope*scope)
 	    elaborate_extern_forkjoin_tasks_(des, child.second);
 }
 
+static const PModport::tf_port_prototype_t*
+find_interface_import_task_prototype_(const Module*interface_module,
+				      perm_string method)
+{
+      if (!interface_module)
+	    return nullptr;
+      for (const auto&view_entry : interface_module->modports) {
+	    const PModport*view = view_entry.second;
+	    if (view && view->import_ports.count(method)) {
+		  const PModport::tf_port_prototype_t*prototype =
+			view->find_tf_port_prototype(true, method);
+		  if (prototype && !prototype->is_function)
+			return prototype;
+	    }
+      }
+      return nullptr;
+}
+
+static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE && scope->is_interface()) {
+	    auto module_entry = pform_modules.find(scope->module_name());
+	    const Module*interface_module = module_entry == pform_modules.end()
+		  ? nullptr : module_entry->second;
+	    for (const auto&child : scope->children()) {
+		  NetScope*stub_scope = child.second;
+		  if (!stub_scope || stub_scope->type() != NetScope::TASK)
+			continue;
+		  const PTask*stub = stub_scope->task_pform();
+		  if (!stub || !stub->is_modport_provider_stub())
+			continue;
+
+		  const PModport::tf_port_prototype_t*prototype =
+			find_interface_import_task_prototype_(
+			      interface_module, stub_scope->basename());
+		  NetTaskDef*stub_def = stub_scope->task_def();
+		  NetBlock*body = stub_def
+			? const_cast<NetBlock*>(dynamic_cast<const NetBlock*>(
+				  stub_def->proc())) : nullptr;
+		  if (!prototype || !stub_def || !body) {
+			cerr << stub->get_fileline()
+			     << ": internal error: exported modport task stub `"
+			     << stub_scope->basename()
+			     << "' has no prototype or task body." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  vector<NetScope*>providers;
+		  for (NetScope*root : des->find_root_scopes())
+			find_extern_forkjoin_providers_(
+			      root, scope, stub_scope->basename(), providers);
+		  if (providers.size() != 1) {
+			cerr << stub->get_fileline() << ": error: Exported modport task `"
+			     << stub_scope->basename() << "' requires exactly one connected "
+				"module provider for this interface instance; found "
+			     << providers.size() << " (IEEE 1800-2017/2023 25.7.3)."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  NetScope*provider = providers.front();
+		  NetTaskDef*provider_def = provider->task_def();
+		  if (!provider_def || !provider_def->proc()) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' has no elaborated task body (IEEE 1800-2017/2023 25.7.3)."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (!interface_modport_prototype_matches_method_(
+			*stub, des, prototype,
+			provider, provider_def, false, false, scope)) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' does not match the imported task prototype (IEEE "
+				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (provider_def->port_count() != stub_def->port_count()) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' has an incompatible number of arguments (IEEE "
+				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  std::list<named_pexpr_t>actuals;
+		  for (unsigned idx = 0; idx < stub_def->port_count(); idx += 1) {
+			NetNet*stub_port = stub_def->port(idx);
+			if (!stub_port) {
+			      des->errors += 1;
+			      break;
+			}
+			named_pexpr_t actual;
+			actual.name = perm_string();
+			actual.parm = new PEIdent(stub_port->name(), UINT_MAX, true);
+			actual.parm->set_line(*stub);
+			actual.set_line(*stub);
+			actuals.push_back(actual);
+		  }
+		  PCallTask provider_call(provider->basename(), actuals);
+		  provider_call.set_line(*stub);
+		  NetProc*call = provider_call.elaborate_bound_task_call_(
+			des, stub_scope, provider);
+		  if (!call)
+			continue;
+		  body->append(call);
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_modport_export_tasks_(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -52490,6 +52678,8 @@ Design* elaborate(list<perm_string>roots)
 	 * connection has been installed by recursive module elaboration. */
 	for (NetScope*root : des->find_root_scopes())
 	      elaborate_extern_forkjoin_tasks_(des, root);
+	for (NetScope*root : des->find_root_scopes())
+	      elaborate_modport_export_tasks_(des, root);
 
 	/* A typedef-only explicit class specialization is a concrete use. */
 	bool reached_typedef = false;

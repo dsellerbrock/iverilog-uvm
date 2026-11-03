@@ -19154,6 +19154,27 @@ bool of_JMP_FLOWCONT(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Disable detached descendants while their intermediate processes are still
+ * alive. do_disable() unwinds joined children, but it reparents detached
+ * children when their parent is reaped. Walking those children first keeps
+ * the disable-fork traversal inside the original descendant tree. */
+static void disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
+{
+      if (!thr) return;
+
+      for (set<vthread_t>::iterator cur = thr->children.begin()
+                 ; cur != thr->children.end() ; ++cur)
+            disable_fork_detached_descendants_(*cur, match);
+
+      while (!thr->detached_children.empty()) {
+            vthread_t child = *(thr->detached_children.begin());
+            assert(child);
+            disable_fork_detached_descendants_(child, match);
+            bool res = do_disable(child, match);
+            assert(! res);
+      }
+}
+
 /*
  * Implement the %disable/fork (SystemVerilog) instruction by disabling
  * all the detached children of the given thread.
@@ -19173,6 +19194,7 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	  while (! owner->wait_fork_children.empty()) {
 		vthread_t child = *(owner->wait_fork_children.begin());
 	    assert(child);
+	    disable_fork_detached_descendants_(child, thr);
 	      /* Disabling the children can never match the parent thread. */
 	    bool res = do_disable(child, thr);
 	    assert(! res);
@@ -19189,6 +19211,7 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	  while (! owner->detached_children.empty()) {
 		vthread_t child = *(owner->detached_children.begin());
 	    assert(child);
+	    disable_fork_detached_descendants_(child, thr);
 	      /* do_disable owns the detached-child reap and reparents descendants
 	       * back to owner, so this loop walks the whole subtree. */
 	    bool res = do_disable(child, thr);
@@ -27848,6 +27871,8 @@ struct stream_container_encoding_t {
       bool four_state;
       bool strict_cast;
       uint64_t queue_max;
+      uint64_t fixed_count;
+      vector<uint64_t> fixed_dimensions;
 };
 
 static bool decode_stream_container_encoding_(
@@ -27857,6 +27882,8 @@ static bool decode_stream_container_encoding_(
       enc.four_state = false;
       enc.strict_cast = false;
       enc.queue_max = 0;
+      enc.fixed_count = 0;
+      enc.fixed_dimensions.clear();
       if (!text)
 	    return false;
 
@@ -27881,6 +27908,48 @@ static bool decode_stream_container_encoding_(
       if (*cursor == '!') {
 	    enc.strict_cast = true;
 	    cursor += 1;
+      }
+
+      /* A fixed-array bit-stream cast carries its declared element count in
+	 * addition to the strict whole-element check used for queue/darray
+	 * destinations. */
+      if (*cursor == '#') {
+	    if (!enc.strict_cast || as_queue)
+		  return false;
+	    cursor += 1;
+	    if (!isdigit(static_cast<unsigned char>(*cursor)))
+		  return false;
+	    errno = 0;
+	    unsigned long long count = strtoull(cursor, &end, 10);
+	    if (errno == ERANGE || end == cursor || count == 0)
+		  return false;
+	    enc.fixed_count = static_cast<uint64_t>(count);
+	    cursor = end;
+	    if (*cursor == '@') {
+		  if (!enc.fixed_count)
+			return false;
+		  cursor += 1;
+		  uint64_t product = 1;
+		  do {
+			unsigned long long dimension = strtoull(cursor, &end, 10);
+			if (end == cursor || dimension == 0
+			    || dimension > UINT_MAX
+			    || product > enc.fixed_count / dimension)
+			      return false;
+			product *= static_cast<uint64_t>(dimension);
+			enc.fixed_dimensions.push_back(
+			      static_cast<uint64_t>(dimension));
+			cursor = end;
+			if (*cursor == ',')
+			      cursor += 1;
+			else
+			      break;
+		  } while (*cursor);
+		  if (enc.fixed_dimensions.size() < 2
+		      || product != enc.fixed_count
+		      || *(cursor - 1) == ',')
+			return false;
+	    }
       }
 
       if (*cursor == ':') {
@@ -28133,6 +28202,51 @@ bool vvp_stream_struct_encoding_is_valid(const char*text)
 
 static bool container_opcode_runtime_fatal_();
 
+/* Build the nested object tree required by a multi-dimensional fixed-array
+ * cast. Its final dimension stores the packed leaf elements, while each
+ * preceding dimension stores object references to the next level. */
+static vvp_object_t stream_fixed_array_value_(const vvp_vector4_t&value,
+					      unsigned element_width,
+					      bool four_state,
+					      const vector<uint64_t>&dimensions,
+					      size_t dimension,
+					      size_t&element_index)
+{
+      size_t count = static_cast<size_t>(dimensions[dimension]);
+      vvp_darray*array;
+      if (dimension + 1 < dimensions.size()) {
+	    array = new vvp_darray_object(count);
+	    for (size_t idx = 0; idx < count; idx += 1) {
+		  vvp_object_t child = stream_fixed_array_value_(
+			value, element_width, four_state, dimensions,
+			dimension + 1, element_index);
+		  array->set_word(static_cast<unsigned>(idx), child);
+	    }
+      } else {
+	    array = four_state
+		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(count,
+							 element_width))
+		  : static_cast<vvp_darray*>(new vvp_darray_vec2(count,
+							 element_width));
+	    for (size_t idx = 0; idx < count; idx += 1, element_index += 1) {
+		  uint64_t consumed = static_cast<uint64_t>(element_index)
+			* element_width;
+		  vvp_vector4_t element(element_width, BIT4_0);
+		  if (consumed < value.size()) {
+			unsigned top = value.size() - static_cast<unsigned>(consumed);
+			unsigned available = min(element_width, top);
+			element.set_vec(element_width - available,
+					value.subvalue(top - available, available));
+		  }
+		  array->set_word(static_cast<unsigned>(idx), element);
+	    }
+      }
+
+      array->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
+      return vvp_object_t(array);
+}
+
 /*
  * %stream/to/queue "<t>" and %stream/to/dar "<t>"
  *
@@ -28164,15 +28278,30 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
       uint64_t queue_max = enc.queue_max;
 
       unsigned w = val.size();
-      size_t count = w / ewid + ((w % ewid) != 0);
-      bool cast_size_error = strict_cast && (w % ewid) != 0;
+      uint64_t count = w / ewid + ((w % ewid) != 0);
+      bool fixed_size_error = enc.fixed_count
+	    && (enc.fixed_count > UINT64_MAX / ewid
+		|| static_cast<uint64_t>(w) != enc.fixed_count * ewid);
+      bool cast_size_error = strict_cast
+	    && (fixed_size_error
+		|| (!enc.fixed_count && (w % ewid) != 0));
+
+      if (enc.fixed_count) {
+	    if (!cast_size_error)
+		  count = enc.fixed_count;
+	    else
+		  count = 0;
+      }
       bool cast_bound_error = strict_cast && as_queue && queue_max
 	    && count > queue_max;
       if (cast_size_error || cast_bound_error) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: bit-stream cast source size " << w
 		 << " does not fit the destination";
-	    if (cast_bound_error)
+	    if (enc.fixed_count)
+		  cerr << " fixed-array element count " << enc.fixed_count
+		       << " of width " << ewid;
+	    else if (cast_bound_error)
 		  cerr << " bounded queue capacity " << queue_max;
 	    else
 		  cerr << " element width " << ewid;
@@ -28211,19 +28340,28 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  vvp_container_layout_t()));
 	    thr->push_object(obj);
       } else {
-	    vvp_darray*res = four_state
-		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(count, ewid))
-		  : static_cast<vvp_darray*>(new vvp_darray_vec2(count, ewid));
-	    for (size_t i = 0 ; i < count ; i += 1) {
-		  vvp_vector4_t elem(ewid, BIT4_0);
-		  unsigned top = w - (unsigned)i*ewid;
-		  unsigned avail = (top >= ewid) ? ewid : top;
-		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
-		  res->set_word((unsigned)i, elem);
+	    vvp_object_t obj;
+	    if (enc.fixed_dimensions.empty() || cast_size_error
+		|| runtime_limit_error) {
+		  vvp_darray*res = four_state
+			? static_cast<vvp_darray*>(new vvp_darray_vec4(count, ewid))
+			: static_cast<vvp_darray*>(new vvp_darray_vec2(count, ewid));
+		  for (size_t i = 0 ; i < count ; i += 1) {
+			vvp_vector4_t elem(ewid, BIT4_0);
+			unsigned top = w - (unsigned)i*ewid;
+			unsigned avail = (top >= ewid) ? ewid : top;
+			elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
+			res->set_word((unsigned)i, elem);
+		  }
+		  obj = vvp_object_t(res);
+		  res->set_declared_container_layout(vvp_make_container_layout(
+			VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
+	    } else {
+		  size_t element_index = 0;
+		  obj = stream_fixed_array_value_(val, ewid, four_state,
+						  enc.fixed_dimensions, 0,
+						  element_index);
 	    }
-	    vvp_object_t obj(res);
-	    res->set_declared_container_layout(vvp_make_container_layout(
-		  VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
 	    thr->push_object(obj);
       }
 

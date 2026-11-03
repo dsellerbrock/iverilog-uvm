@@ -891,8 +891,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    return;
       }
       if (ivl_signal_port(sig) == IVL_SIP_REF) {
-	    fprintf(vvp_out, "v%p_0 .ref %s\"%s\", %d %d;\n",
-		    sig, local_flag_str(sig),
+	    fprintf(vvp_out, "v%p_0 %s %s\"%s\", %d %d;\n",
+		    sig, ivl_signal_data_type(sig) == IVL_VT_BOOL ? ".ref/2s" : ".ref",
+		    local_flag_str(sig),
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
 	      /* A companion word in the same frame, for a call whose
 		 actual cannot be named -- an array element, a class

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue747_fixed_unpacked_bitstream_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue747_fixed_unpacked_bitstream"],
+  "gold": "issue747_fixed_unpacked_bitstream"
+}
