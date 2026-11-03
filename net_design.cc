@@ -1461,6 +1461,20 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       NetExpr *expr;
       const unsigned errors_before = des->errors;
 
+	// Preserve a value derived from the explicit source expression itself.
+	// This stays distinct from the parameter's final value, which may be
+	// changed by assignment-context conversion or a later defparam.
+      if (cur->second.parameter_assignment
+	  && cur->second.parameter_assignment_source_expr) {
+	    NetExpr*assignment_rhs = elab_and_eval(
+		  des, cur->second.parameter_assignment_source_scope,
+		  cur->second.parameter_assignment_source_expr, -1, true);
+	    if (assignment_rhs) {
+		  delete cur->second.parameter_assignment_rhs;
+		  cur->second.parameter_assignment_rhs = assignment_rhs;
+	    }
+      }
+
       // Handle assignment patterns as a special case as they need the type to
       // be evaluated correctly.
       if (param_type && (dynamic_cast<PEAssignPattern*>(val_expr)

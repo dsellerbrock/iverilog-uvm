@@ -1348,7 +1348,9 @@ class NetScope : public Definitions, public Attrib {
 	   range or signed_flag. Return false if the name does not
 	   exist. */
       void replace_parameter(Design *des, perm_string name, PExpr*val,
-			     NetScope*scope, bool defparam = false);
+                             NetScope*scope, bool defparam = false,
+                             bool by_name = false,
+                             bool parameter_assignment = false);
 
 	/* This is used to ensure the value of a parameter cannot be
 	   changed at run-time. This is required if a specparam is used
@@ -1724,6 +1726,14 @@ class NetScope : public Definitions, public Attrib {
 	    // Class-specialization identity may need to follow an evaluated
 	    // forwarding parameter back to the expression that supplied it.
 	    PExpr*source_expr;
+            // An explicit instance parameter override is a VPI param assign.
+            // Keep its association form and RHS separately from the final
+            // parameter value, which may have a different assignment type.
+            bool parameter_assignment = false;
+            bool parameter_assignment_by_name = false;
+            PExpr* parameter_assignment_source_expr = nullptr;
+            NetScope* parameter_assignment_source_scope = nullptr;
+            NetExpr*parameter_assignment_rhs = nullptr;
 	    data_type_t*val_type;
 	    // Scope information
             NetScope*val_scope;

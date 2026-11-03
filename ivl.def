@@ -216,8 +216,11 @@ ivl_nexus_ptr_switch
 
 ivl_parameter_basename
 ivl_parameter_expr
+ivl_parameter_assignment_expr
 ivl_parameter_file
+ivl_parameter_is_assigned
 ivl_parameter_is_type
+ivl_parameter_conn_by_name
 ivl_parameter_lineno
 ivl_parameter_local
 ivl_parameter_lsb

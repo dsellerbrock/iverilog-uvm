@@ -1922,6 +1922,10 @@ extern unsigned    ivl_parameter_width(ivl_parameter_t net);
 extern int         ivl_parameter_signed(ivl_parameter_t net);
 extern int         ivl_parameter_local(ivl_parameter_t net);
 extern int         ivl_parameter_is_type(ivl_parameter_t net);
+/* Explicit instance-parameter assignment metadata. */
+extern int         ivl_parameter_is_assigned(ivl_parameter_t net);
+extern int         ivl_parameter_conn_by_name(ivl_parameter_t net);
+extern ivl_expr_t  ivl_parameter_assignment_expr(ivl_parameter_t net);
 extern const char* ivl_parameter_file(ivl_parameter_t net);
 extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
 

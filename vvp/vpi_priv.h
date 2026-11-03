@@ -372,6 +372,23 @@ class __vpiScope : public __vpiHandle {
       bool shares_parent_frame_ = false;
 };
 
+/* A module parameter override and its elaborated RHS expression. */
+class __vpiParamAssign : public __vpiHandle {
+    public:
+	__vpiParamAssign(__vpiScope*scope, vpiHandle lhs, vpiHandle rhs,
+			 bool by_name)
+	: scope_(scope), lhs_(lhs), rhs_(rhs), by_name_(by_name) { }
+	int get_type_code(void) const override { return vpiParamAssign; }
+	int vpi_get(int code) override;
+	vpiHandle vpi_handle(int code) override;
+	vpiHandle rhs(void) const { return rhs_; }
+    private:
+	__vpiScope*scope_;
+	vpiHandle lhs_;
+	vpiHandle rhs_;
+	bool by_name_;
+};
+
 /* Deferred-report selectors use module/cell hierarchy depth, not the number
    of lexical scope components in a VPI full name. */
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
@@ -438,6 +455,8 @@ class vpiScopeFunction  : public __vpiScope {
 };
 
 extern __vpiScope* vpip_peek_current_scope(void);
+extern vpiHandle vpip_make_param_assign(vpiHandle lhs, vpiHandle rhs,
+					bool by_name);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
 extern __vpiScope* vpip_peek_context_scope(void);
@@ -1492,6 +1511,8 @@ struct __vpiBinaryConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_binary_const(unsigned wid, const char*bits);
+vpiHandle vpip_make_binary_const_assignment(const vvp_vector4_t&bits,
+					    bool signed_flag);
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
 				 long file_idx, long lineno);

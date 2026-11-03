@@ -251,6 +251,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".net/real"     { return K_NET_R; }
 ".net/s"        { return K_NET_S; }
 ".param/l"      { return K_PARAM_L; }
+".param/assign" { return K_PARAM_ASSIGN; }
 ".param/str"    { return K_PARAM_STR; }
 ".param/real"   { return K_PARAM_REAL; }
 ".part"         { return K_PART; }

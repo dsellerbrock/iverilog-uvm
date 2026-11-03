@@ -51033,7 +51033,8 @@ class elaborate_root_scope_t : public elaborator_work_item_t {
 		  if (tmp_name.size() != 1)
 			continue;
 
-		  root_repl[peek_head_name(tmp_name)] = cur->second;
+		  root_repl[peek_head_name(tmp_name)] =
+			Module::replace_entry_t{cur->second, true};
 	    }
 
 	    /* Module::elaborate_scope reports failure when any design error is

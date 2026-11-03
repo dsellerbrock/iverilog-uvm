@@ -2418,6 +2418,24 @@ extern "C" int ivl_parameter_is_type(ivl_parameter_t net)
       return net->is_type;
 }
 
+extern "C" int ivl_parameter_is_assigned(ivl_parameter_t net)
+{
+      assert(net);
+      return net->is_assigned;
+}
+
+extern "C" int ivl_parameter_conn_by_name(ivl_parameter_t net)
+{
+      assert(net);
+      return net->conn_by_name;
+}
+
+extern "C" ivl_expr_t ivl_parameter_assignment_expr(ivl_parameter_t net)
+{
+      assert(net);
+      return net->assignment_expr;
+}
+
 extern "C" int ivl_parameter_signed(ivl_parameter_t net)
 {
       assert(net);

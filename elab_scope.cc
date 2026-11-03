@@ -5198,7 +5198,7 @@ static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo
       for (Module::replace_t::const_iterator cur = replacements.begin()
 		 ; cur != replacements.end() ;  ++ cur ) {
 
-	    PExpr*val = (*cur).second;
+	    PExpr*val = (*cur).second.expr;
 	    if (val == 0) {
 		  cerr << loc.get_fileline() << ": internal error: "
 		       << "Missing expression in parameter replacement for "
@@ -5213,7 +5213,9 @@ static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo
 		  cerr << loc.get_fileline() << ":      : "
 		       << "Type=" << val->expr_type() << endl;
 	    }
-	    scope->replace_parameter(des, (*cur).first, val, scope->parent());
+	    scope->replace_parameter(des, (*cur).first, val, scope->parent(),
+			     false, (*cur).second.by_name,
+			     scope->parent() != 0);
       }
 }
 
@@ -6420,7 +6422,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 		          // No expression means that the parameter is not
 		          // replaced at all.
 			if (*jdx)
-			      replace[*cur] = *jdx;
+			      replace[*cur] = Module::replace_entry_t{*jdx, false};
 
 			++ jdx;
 			++ cur;
@@ -6443,7 +6445,8 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 				         << "' is assigned more than once in this instance."
 				         << endl;
 			      }
-			      replace[parms_[jdx].name] = parms_[jdx].parm;
+			      replace[parms_[jdx].name] =
+				    Module::replace_entry_t{parms_[jdx].parm, true};
 			}
 		  }
 

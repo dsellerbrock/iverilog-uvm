@@ -3726,6 +3726,52 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			  ivl_expr_type(pex));
 		  break;
 	    }
+
+	    if (ivl_parameter_is_assigned(par)) {
+		  ivl_expr_t rhs = ivl_parameter_assignment_expr(par);
+		  if (!rhs) {
+			fprintf(stderr,
+			  "vvp.tgt error: parameter assignment RHS for %s is unavailable.\n",
+			  ivl_parameter_basename(par));
+			vvp_errors += 1;
+			continue;
+		  }
+		  switch (ivl_expr_type(rhs)) {
+		      case IVL_EX_NUMBER: {
+			    const char*bits = ivl_expr_bits(rhs);
+			    unsigned nbits = ivl_expr_width(rhs);
+			    unsigned bb;
+			    fprintf(vvp_out,
+			      "PA_%p .param/assign P_%p %d 0 %u %d, C4<",
+			      par, par, ivl_parameter_conn_by_name(par), nbits,
+			      ivl_expr_signed(rhs));
+			    for (bb = 0 ; bb < nbits ; bb += 1)
+				  fprintf(vvp_out, "%c", bits[nbits-bb-1]);
+			    fprintf(vvp_out, ">;\n");
+			    break;
+		      }
+		      case IVL_EX_STRING:
+			    fprintf(vvp_out,
+			      "PA_%p .param/assign P_%p %d 1 0 0, \"%s\";\n",
+			      par, par, ivl_parameter_conn_by_name(par),
+			  ivl_expr_string(rhs));
+			    break;
+		      case IVL_EX_REALNUM: {
+			    char*res = draw_Cr_to_string(ivl_expr_dvalue(rhs));
+			    fprintf(vvp_out,
+			      "PA_%p .param/assign P_%p %d 2 0 0, %s;\n",
+			      par, par, ivl_parameter_conn_by_name(par), res);
+			    free(res);
+			    break;
+		      }
+		      default:
+			    fprintf(stderr,
+			      "vvp.tgt error: unsupported parameter assignment RHS type %d for %s.\n",
+			      ivl_expr_type(rhs), ivl_parameter_basename(par));
+			    vvp_errors += 1;
+			    break;
+		  }
+	    }
       }
 
       for (idx = 0 ; idx < ivl_scope_classes(net) ; idx += 1) {

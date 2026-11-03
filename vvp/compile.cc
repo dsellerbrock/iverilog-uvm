@@ -3510,6 +3510,58 @@ void compile_param_real(char*label, const char*name, char*value,
       free(value);
 }
 
+void compile_param_assign(char*label, const char*lhs_label,
+			  int by_name, int kind, unsigned width,
+			  int signed_flag, char*value)
+{
+      symbol_value_t lhs_value = sym_get_value(sym_vpi, lhs_label);
+      vpiHandle lhs = static_cast<vpiHandle>(lhs_value.ptr);
+      if (!lhs) {
+	    fprintf(stderr, "vvp error: parameter assignment LHS '%s' was not defined\n",
+		    lhs_label);
+	    compile_errors += 1;
+	    free(label);
+	    free(value);
+	    return;
+      }
+
+      vpiHandle rhs = 0;
+      switch (kind) {
+	  case 0: {
+		vvp_vector4_t bits = c4string_to_vector4(value);
+		if (bits.size() != width) {
+		      fprintf(stderr, "vvp error: parameter assignment RHS width %lu does not match encoded width %u\n",
+			      (unsigned long)bits.size(), width);
+		      compile_errors += 1;
+		      free(label);
+		      free(value);
+		      return;
+		}
+		rhs = vpip_make_binary_const_assignment(bits, signed_flag != 0);
+		free(value);
+		break;
+	  }
+	  case 1:
+		rhs = vpip_make_string_const(value);
+		break;
+	  case 2:
+		rhs = vpip_make_real_const(crstring_to_double(value));
+		free(value);
+		break;
+	  default:
+		fprintf(stderr, "vvp error: unknown parameter assignment RHS kind %d\n",
+			kind);
+		compile_errors += 1;
+		free(label);
+		free(value);
+		return;
+      }
+
+      vpiHandle obj = vpip_make_param_assign(lhs, rhs, by_name != 0);
+      compile_vpi_symbol(label, obj);
+      free(label);
+}
+
 void compile_island(char*label, char*type)
 {
       if (strcmp(type,"tran") == 0)

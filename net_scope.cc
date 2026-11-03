@@ -570,6 +570,7 @@ void NetScope::release_parameters()
 		 ; cur != parameters.end() ; ++cur) {
 	    param_expr_t&param = cur->second;
 	    delete param.val;
+	    delete param.parameter_assignment_rhs;
 
 	    range_t*range = param.range;
 	    while (range) {
@@ -663,7 +664,8 @@ static bool defparam_targets_other_genblock_instance(const NetScope*src,
 }
 
 void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
-			         NetScope*scope, bool defparam)
+			         NetScope*scope, bool defparam, bool by_name,
+			         bool parameter_assignment)
 {
       if (parameters.find(key) == parameters.end()) {
 	    cerr << val->get_fileline() << ": error: parameter `"
@@ -715,6 +717,12 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
       ref.val_scope = scope;
       ref.source_expr = val;
       ref.source_scope = scope;
+      if (!defparam && parameter_assignment && !ref.type_flag) {
+	    ref.parameter_assignment = true;
+	    ref.parameter_assignment_by_name = by_name;
+	    ref.parameter_assignment_source_expr = val;
+	    ref.parameter_assignment_source_scope = scope;
+      }
       if (defparam)
 	    ref.defparam_source_scopes.insert(scope);
 }

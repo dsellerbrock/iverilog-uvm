@@ -64,6 +64,7 @@ void vpip_make_root_iterator(__vpiHandle**&table, unsigned&ntable)
 #ifdef CHECK_WITH_VALGRIND
 void port_delete(__vpiHandle*handle);
 void port_bit_delete(__vpiHandle*handle);
+void param_assign_delete(vpiHandle item);
 
 /* Class definitions need to be cleaned up at the end. */
 static class_type **class_list = 0;
@@ -118,6 +119,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  break;
 		case vpiParameter:
 		  parameter_delete(item);
+		  break;
+		case vpiParamAssign:
+		  param_assign_delete(item);
 		  break;
 		case vpiRealVar:
 		  real_delete(item);
@@ -722,6 +726,36 @@ vpiHandle __vpiScope::vpi_handle(int code)
 
 vpiHandle __vpiScope::vpi_iterate(int code)
 { return module_iter(code, this); }
+
+int __vpiParamAssign::vpi_get(int code)
+{
+      if (code == vpiConnByName)
+	    return by_name_ ? 1 : 0;
+      return vpiUndefined;
+}
+
+vpiHandle __vpiParamAssign::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiLhs:
+	    return lhs_;
+	  case vpiRhs:
+	    return rhs_;
+	  case vpiParent:
+	  case vpiScope:
+	    return scope_;
+	  default:
+	    return 0;
+      }
+}
+
+vpiHandle vpip_make_param_assign(vpiHandle lhs, vpiHandle rhs, bool by_name)
+{
+      __vpiParamAssign*obj = new __vpiParamAssign(
+	    vpip_peek_current_scope(), lhs, rhs, by_name);
+      vpip_attach_to_current_scope(obj);
+      return obj;
+}
 
 __vpiFunctionReturn::__vpiFunctionReturn(__vpiScope*scope, int func_type,
                                          unsigned width, bool is_2state)

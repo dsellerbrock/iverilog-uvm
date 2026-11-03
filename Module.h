@@ -230,7 +230,11 @@ class Module : public PScopeExtra, public PNamedItem {
       void dump(std::ostream&out) const;
       bool elaborate(Design*, NetScope*scope) const;
 
-      typedef std::map<perm_string,PExpr*> replace_t;
+      struct replace_entry_t {
+            PExpr* expr;
+            bool by_name;
+      };
+      typedef std::map<perm_string,replace_entry_t> replace_t;
       bool elaborate_scope(Design*, NetScope*scope, const replace_t&rep);
 
       bool elaborate_sig(Design*, NetScope*scope) const;

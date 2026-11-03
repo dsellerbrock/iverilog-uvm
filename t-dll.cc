@@ -812,6 +812,10 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
+	    cur_par->is_assigned = cur_pit->second.parameter_assignment;
+	    cur_par->conn_by_name =
+		  cur_pit->second.parameter_assignment_by_name;
+	    cur_par->assignment_expr = 0;
 
 	    if (cur_pit->second.ivl_type == 0) {
 		  cerr << "?:?: internal error: "
@@ -850,6 +854,18 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 		  }
 		  assert(etmp);
 		  make_scope_param_expr(cur_par, etmp);
+		  if (cur_pit->second.parameter_assignment_rhs) {
+			cur_pit->second.parameter_assignment_rhs->expr_scan(this);
+			if (!expr_) {
+			      cerr << cur_pit->second.get_fileline()
+				   << ": internal error: Unable to preserve parameter "
+				      "assignment RHS for " << cur_pit->first
+				   << " in " << net->fullname() << "." << endl;
+			      assert(expr_);
+			}
+			cur_par->assignment_expr = expr_;
+			expr_ = 0;
+		  }
 	    }
 
 	    idx += 1;

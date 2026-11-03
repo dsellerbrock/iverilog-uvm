@@ -319,6 +319,7 @@ typedef struct t_vpi_delay  {
 #define vpiNullStmt    38 /* a semicolon */
 #define vpiNetBit      37
 #define vpiOperation   39 /* behavioral operation */
+#define vpiParamAssign 40 /* module parameter assignment */
 #define vpiNettypeDecl 523
 #define vpiParameter   41
 #define vpiPartSelect  42
@@ -349,7 +350,9 @@ typedef struct t_vpi_delay  {
 #define vpiRange      115
 #define vpiIndex       78
 #define vpiLeftRange   79
+#define vpiLhs         77 /* left-hand side of an assignment */
 #define vpiParent      81
+#define vpiRhs         82 /* right-hand side of an assignment */
 #define vpiRightRange  83
 #define vpiScope       84
 #define vpiSysTfCall   85
@@ -411,6 +414,7 @@ typedef struct t_vpi_delay  {
 #define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */
+#define vpiConnByName 21 /* connected by name (Boolean) */
 #   define vpiInput 1
 #   define vpiOutput 2
 #   define vpiInout 3

@@ -560,7 +560,7 @@ static bool apply_interface_parameter_actuals_(
 		   && formal != mod->param_names.end(); ++actual, ++formal) {
 		  if (*actual)
 			parameter_scope->replace_parameter(
-			      des, *formal, *actual, caller_scope, false);
+			      des, *formal, *actual, caller_scope, false, false, true);
 	    }
 	    if (actual != actuals->by_order->end()) {
 		  const PExpr*where = *actual;
@@ -599,7 +599,7 @@ static bool apply_interface_parameter_actuals_(
 		  if (actual->parm)
 			parameter_scope->replace_parameter(
 			      des, actual->name, actual->parm,
-			      caller_scope, false);
+			      caller_scope, false, true, true);
 	    }
 	}
 
@@ -632,7 +632,8 @@ static bool apply_interface_instance_parameters_(
 			? actual->second.source_scope : actual_interface_scope;
 		  parameter_scope->replace_parameter(
 			des, *formal, actual->second.source_expr,
-			source_scope, false);
+			source_scope, false,
+			actual->second.parameter_assignment_by_name, true);
 	    }
 	}
       return des->errors == errors_before;
