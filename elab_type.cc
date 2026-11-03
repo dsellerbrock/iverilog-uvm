@@ -2291,6 +2291,24 @@ static string nominal_type_owner_key_(const NetScope*scope)
       return out.str();
 }
 
+static string typename_qualified_type_name_(const NetScope*scope,
+						    const string&name)
+{
+      if (!scope)
+	    return name;
+
+      ostringstream scope_name;
+      scope_name << scope_path(scope);
+      string result = scope_name.str();
+      if (scope->type() == NetScope::PACKAGE
+	  || scope->type() == NetScope::CLASS)
+	    result += "::";
+      else
+	    result += ".";
+      result += name;
+      return result;
+}
+
 ivl_type_t enum_type_t::elaborate_type_raw(Design *des, NetScope *scope) const
 {
       ivl_type_t base = base_type->elaborate_type(des, scope);
@@ -2316,6 +2334,16 @@ ivl_type_t enum_type_t::elaborate_type_raw(Design *des, NetScope *scope) const
       netenum_t *type = new netenum_t(base, names->size(), integer_flag);
       type->set_nominal_identity(
 	    this, nominal_type_owner_key_(scope));
+
+	  // IEEE 1800-2017/2023 20.6.1(c): anonymous enumerations have
+	  // system-generated names. Keep the declaring scope in the spelling
+	  // so $typename can return the same qualified type name for any use.
+      if (scope) {
+	    string generated_name = "e$";
+	    generated_name += std::to_string(scope->enumeration_count() + 1);
+	    type->set_generated_type_name(
+		  typename_qualified_type_name_(scope, generated_name));
+      }
       type->set_line(*this);
 
       scope->add_enumeration_set(this, type);
@@ -3344,6 +3372,23 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 		 << endl;
 	    des->errors++;
       }
+
+	  // Preserve the defining name for user-defined aggregate types. Only
+	  // attach a name when this typedef owns the aggregate declaration;
+	  // typedefs that merely alias an existing type must leave its name intact.
+	  if (type_ok) {
+	    string type_name = typename_qualified_type_name_(scope, name.str());
+	    if (const netenum_t*enum_type =
+		  dynamic_cast<const netenum_t*>(elab_type)) {
+		  if (enum_type->nominal_definition() == data_type.get())
+			enum_type->set_typedef_type_name(type_name);
+	    }
+	    if (const netstruct_t*struct_type =
+		  dynamic_cast<const netstruct_t*>(elab_type)) {
+		  if (struct_type->nominal_definition() == data_type.get())
+			struct_type->set_typedef_type_name(type_name);
+	    }
+	  }
 	  if (basic_type != ANY)
 		mark_basic_type_checked();
 

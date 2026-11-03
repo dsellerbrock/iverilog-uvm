@@ -1251,6 +1251,7 @@ class Definitions {
 	// key. This is used by enum_type_t::elaborate_type to locate
 	// a previously elaborated enumeration.
       netenum_t* enumeration_for_key(const enum_type_t*key) const;
+      size_t enumeration_count() const { return enum_sets_.size(); }
 
 	// Look up an enumeration literal in this scope. If the
 	// literal is present, return the expression that defines its
