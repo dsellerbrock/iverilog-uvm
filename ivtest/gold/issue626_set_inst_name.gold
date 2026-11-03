@@ -1,0 +1,2 @@
+PASS 19.8.set_inst_name
+./ivltests/issue626_set_inst_name.v:31: $finish called at 0 (1s)
