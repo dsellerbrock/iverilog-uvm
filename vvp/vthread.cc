@@ -19154,6 +19154,27 @@ bool of_JMP_FLOWCONT(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Disable detached descendants while their intermediate processes are still
+ * alive. do_disable() unwinds joined children, but it reparents detached
+ * children when their parent is reaped. Walking those children first keeps
+ * the disable-fork traversal inside the original descendant tree. */
+static void disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
+{
+      if (!thr) return;
+
+      for (set<vthread_t>::iterator cur = thr->children.begin()
+                 ; cur != thr->children.end() ; ++cur)
+            disable_fork_detached_descendants_(*cur, match);
+
+      while (!thr->detached_children.empty()) {
+            vthread_t child = *(thr->detached_children.begin());
+            assert(child);
+            disable_fork_detached_descendants_(child, match);
+            bool res = do_disable(child, match);
+            assert(! res);
+      }
+}
+
 /*
  * Implement the %disable/fork (SystemVerilog) instruction by disabling
  * all the detached children of the given thread.
@@ -19173,6 +19194,7 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	  while (! owner->wait_fork_children.empty()) {
 		vthread_t child = *(owner->wait_fork_children.begin());
 	    assert(child);
+	    disable_fork_detached_descendants_(child, thr);
 	      /* Disabling the children can never match the parent thread. */
 	    bool res = do_disable(child, thr);
 	    assert(! res);
@@ -19189,6 +19211,7 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	  while (! owner->detached_children.empty()) {
 		vthread_t child = *(owner->detached_children.begin());
 	    assert(child);
+	    disable_fork_detached_descendants_(child, thr);
 	      /* do_disable owns the detached-child reap and reparents descendants
 	       * back to owner, so this loop walks the whole subtree. */
 	    bool res = do_disable(child, thr);
