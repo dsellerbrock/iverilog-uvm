@@ -1,0 +1,2 @@
+PASS
+./ivltests/sv_checker_event_formal_2017.v:46: $finish called at 36 (1s)

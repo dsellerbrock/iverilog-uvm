@@ -4325,11 +4325,11 @@ class NetEvent : public LineInfo {
       bool is_declared_event() const { return is_declared_event_; }
       void set_declared_event() { is_declared_event_ = true; }
 
-	// An ANSI event port is a handle to the connected named event. Keep
-	// the formal NetEvent for its scope and lexical declaration, while all
-	// HDL references resolve through this alias to the actual synchronization
-	// object.
-      void set_alias(NetEvent*event) { alias_ = event; }
+	// An ANSI event port is a handle to the connected event. Keep the formal
+	// NetEvent for its scope and lexical declaration, while all HDL references
+	// resolve through this alias to the actual synchronization object. The
+	// alias retains the actual until the formal is destroyed.
+	void set_alias(NetEvent*event);
       NetEvent* canonical_event();
       const NetEvent* canonical_event() const;
 
@@ -4397,6 +4397,7 @@ class NetEvent : public LineInfo {
 	// This returns a nexus set if it represents possibly
 	// asynchronous inputs, otherwise 0.
       NexusSet*nex_async_();
+      void release_alias_();
 
     private:
       perm_string name_;
@@ -4407,6 +4408,8 @@ class NetEvent : public LineInfo {
 	// Null for an ordinary event; otherwise points at the event handle
 	// passed through an ANSI event port.
       NetEvent* alias_ = nullptr;
+	// Number of formal event handles that retain this actual event.
+      unsigned aliasref_;
 
 	// Per-instance class event support (see is_class_event()).
       bool is_class_event_ = false;

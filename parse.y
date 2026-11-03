@@ -3076,6 +3076,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_exprs> event_expression_list wait_order_event_list
 %type <event_exprs> block_event_expression_list
 %type <event_expr> event_expression block_event_expression
+%type <event_expr> checker_event_expression
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
 %type <statement> compressed_statement
@@ -18409,6 +18410,15 @@ port_name
       { delete $1;
 	$$ = $2;
       }
+  | attribute_list_opt '.' IDENTIFIER '(' checker_event_expression ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($3);
+	tmp->parm = $5;
+	delete[]$3;
+	delete $1;
+	$$ = tmp;
+      }
   | attribute_list_opt '.' IDENTIFIER '(' error ')'
       { yyerror(@3, "error: Invalid port connection expression.");
 	named_pexpr_t*tmp = new named_pexpr_t;
@@ -18461,7 +18471,19 @@ port_conn_expression_list_with_nuls
 	delete $3;
 	$$ = tmp;
       }
+  | port_conn_expression_list_with_nuls ',' attribute_list_opt checker_event_expression
+      { std::list<PExpr*>*tmp = $1;
+	tmp->push_back($4);
+	delete $3;
+	$$ = tmp;
+      }
   | attribute_list_opt expression
+      { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+	tmp->push_back($2);
+	delete $1;
+	$$ = tmp;
+      }
+  | attribute_list_opt checker_event_expression
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($2);
 	delete $1;
@@ -18475,6 +18497,53 @@ port_conn_expression_list_with_nuls
   | port_conn_expression_list_with_nuls ','
       { std::list<PExpr*>*tmp = $1;
 	tmp->push_back(0);
+	$$ = tmp;
+      }
+  ;
+
+/* Checker event formals use property_actual_arg syntax, which admits an
+   event_expression. Keep the expression-only case on the existing value
+   path; these alternatives cover the event forms that have distinct syntax. */
+checker_event_expression
+  : K_posedge expression
+      { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_negedge expression
+      { PEEvent*tmp = new PEEvent(PEEvent::NEGEDGE, $2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_edge expression
+      { PEEvent*tmp = new PEEvent(PEEvent::EDGE, $2);
+	FILE_NAME(tmp, @1);
+	pform_requires_sv(@1, "Edge event");
+	$$ = tmp;
+      }
+  | K_posedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	pform_requires_sv(@3, "Conditional event expression");
+	$$ = tmp;
+      }
+  | K_negedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::NEGEDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	pform_requires_sv(@3, "Conditional event expression");
+	$$ = tmp;
+      }
+  | K_edge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::EDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	pform_requires_sv(@1, "Edge event");
+	pform_requires_sv(@3, "Conditional event expression");
+	$$ = tmp;
+      }
+  | expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1, $3);
+	FILE_NAME(tmp, @2);
+	pform_requires_sv(@2, "Conditional event expression");
 	$$ = tmp;
       }
   ;
