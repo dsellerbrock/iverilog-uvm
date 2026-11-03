@@ -416,6 +416,19 @@ extern NetESFunc* make_std_randomize_with_expr(
 
 using namespace std;
 
+static bool protected_method_accessible_(Design*des, const LineInfo&loc,
+					NetScope*scope, NetScope*method)
+{
+      if (netclass_t::test_scope_can_access_protected_method(scope, method))
+	    return true;
+
+      cerr << loc.get_fileline() << ": error: Protected method `"
+	   << method->basename() << "' is not accessible in this context."
+	   << endl;
+      des->errors += 1;
+      return false;
+}
+
 static NetNet* make_covergroup_formal_signal_(NetScope*scope, ivl_type_t type)
 {
       netranges_t unpacked;
@@ -2151,6 +2164,16 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       if (qual.test_local() && !property_owner->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return nullptr;
+      }
+      if (qual.test_protected()
+	  && !property_owner->test_scope_is_protected_access(scope)) {
+	    cerr << li->get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
@@ -12026,17 +12049,9 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
 	if (qual.test_local() || qual.test_protected()) {
 	    const netclass_t*owner =
 		class_type->get_prop_declaring_class(property_index);
-	    const NetScope*enclosing = scope->get_class_scope();
-	    const netclass_t*access = enclosing
-		? enclosing->class_def() : nullptr;
-	    bool visible = false;
-	    for (; owner && access;
-		 access = qual.test_protected() ? access->get_super() : nullptr) {
-		if (access == owner) {
-		    visible = true;
-		    break;
-		}
-	    }
+	    bool visible = qual.test_local()
+		  ? owner && owner->test_scope_is_method(scope)
+		  : owner && owner->test_scope_is_protected_access(scope);
 	    if (!visible) {
 		cerr << loc.get_fileline() << ": error: "
 		     << (qual.test_local() ? "Local" : "Protected")
@@ -21968,6 +21983,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
 {
+	      if (!protected_method_accessible_(des, *this, scope, task))
+	    return nullptr;
+
 	      if (!validate_program_subroutine_call(des, *this, scope, task))
 	    return nullptr;
 
@@ -36482,10 +36500,11 @@ static bool constraint_state_member_visible_(const netclass_t*type, unsigned mem
       property_qualifier_t qual = type->get_prop_qual(member);
       if (!qual.test_local() && !qual.test_protected()) return true;
       const netclass_t*owner = type->get_prop_declaring_class(member);
-      const NetScope*enclosing = scope ? scope->get_class_scope() : nullptr;
-      const netclass_t*access = enclosing ? enclosing->class_def() : nullptr;
-      for (; access; access = qual.test_protected() ? access->get_super() : nullptr)
-            if (access == owner) return true;
+      if (owner && qual.test_local() && owner->test_scope_is_method(scope))
+	    return true;
+      if (owner && qual.test_protected()
+	  && owner->test_scope_is_protected_access(scope))
+	    return true;
       cerr << site->get_fileline() << ": error: "
            << (qual.test_local() ? "Local" : "Protected") << " property "
            << type->get_prop_name(member)

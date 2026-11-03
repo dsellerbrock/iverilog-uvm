@@ -120,6 +120,19 @@ static bool report_chandle_arithmetic_error_(Design*des,
       return false;
 }
 
+static bool protected_method_accessible_(Design*des, const LineInfo&loc,
+					NetScope*scope, NetScope*method)
+{
+      if (netclass_t::test_scope_can_access_protected_method(scope, method))
+	    return true;
+
+      cerr << loc.get_fileline() << ": error: Protected method `"
+	   << method->basename() << "' is not accessible in this context."
+	   << endl;
+      des->errors += 1;
+      return false;
+}
+
 static bool cast_operands_nonsingular_(const NetExpr*dest,
 				       const NetExpr*source)
 {
@@ -8217,6 +8230,15 @@ static bool stream_property_readable_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return false;
       }
+      if (ct->get_prop_qual(pidx).test_protected()
+	  && !ct->get_prop_declaring_class(pidx)
+		  ->test_scope_is_protected_access(scope)) {
+	    cerr << inner->get_fileline() << ": error: Protected property "
+		 << ct->get_prop_name(pidx)
+		 << " is not accessible in this context." << endl;
+	    des->errors += 1;
+	    return false;
+      }
       if (ct->is_interface()) {
 	    verinum mp_attr = receiver->attribute(
 		  perm_string::literal("ivl_modport"));
@@ -15946,10 +15968,22 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
+      const netclass_t*property_owner =
+	    class_type->get_prop_declaring_class(pidx);
       if (qual.test_local()
-	  && !class_type->get_prop_declaring_class(pidx)->test_scope_is_method(scope)) {
+	  && !property_owner->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return 0;
+      }
+      if (qual.test_protected()
+	  && !property_owner->test_scope_is_protected_access(scope)) {
+	    cerr << li->get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
@@ -16988,6 +17022,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
 			if (NetScope*mscope =
 			      cur_class->method_from_name(tail_comp.name)) {
+			      if (!protected_method_accessible_(des, *this, scope,
+							      mscope)) {
+				delete base_expr;
+				return nullptr;
+			      }
 			      const NetFuncDef*mdef =
 				    mscope->type() == NetScope::FUNC
 					  ? mscope->func_def() : 0;
@@ -17536,6 +17575,16 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
+      }
+      if (qual.test_protected()
+	  && !class_type->get_prop_declaring_class(pidx)
+		  ->test_scope_is_protected_access(scope)) {
+	    cerr << get_fileline() << ": error: "
+		 << "Protected property " << class_type->get_prop_name(pidx)
+		 << " is not accessible in this context."
+		 << " (scope=" << scope_path(scope) << ")" << endl;
+	    des->errors += 1;
+	    return nullptr;
       }
 
       // Modport member visibility (IEEE 1800-2017 25.5).
@@ -18588,6 +18637,10 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  return 0;
 	    }
+	    if (scoped_static_func
+		&& !protected_method_accessible_(des, *this, scope,
+						 scoped_static_func))
+		  return nullptr;
 
 	    if (scoped_static_func
 		&& !skip_static_typecall_override_(scoped_static_func)
@@ -21215,6 +21268,10 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		       << "." << endl;
 		  des->errors += 1;
 		  return 0;
+	    }
+	    if (!protected_method_accessible_(des, *this, scope, method)) {
+		  delete sub_expr;
+		  return nullptr;
 	    }
 
 		    /* An interface-port array has one element netclass_t, whose

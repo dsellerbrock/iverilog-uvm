@@ -969,6 +969,65 @@ bool netclass_t::test_scope_is_method(const NetScope*scope) const
 	    return true;
 }
 
+bool netclass_t::test_scope_is_protected_access(const NetScope*scope) const
+{
+      const NetScope*access_scope = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*access_type = access_scope
+	    ? access_scope->class_def() : nullptr;
+      return access_type && access_type->is_same_or_derived_from(this);
+}
+
+bool netclass_t::is_same_or_derived_from(const netclass_t*base) const
+{
+      if (!base) return false;
+      const NetScope*base_scope = base->class_scope();
+      const PClass*base_pform = base_scope ? base_scope->class_pform() : nullptr;
+      for (const netclass_t*cur = this; cur; cur = cur->get_super()) {
+	    if (cur == base)
+		  return true;
+	    // Specializations of one parameterized class share member access.
+	    const NetScope*cur_scope = cur->class_scope();
+	    if (base_pform && cur_scope
+		&& cur_scope->class_pform() == base_pform)
+		  return true;
+      }
+
+      return false;
+}
+
+bool netclass_t::test_scope_can_access_protected_method(
+	    const NetScope*scope, const NetScope*method)
+{
+      const PTaskFunc*definition = method ? method->func_pform() : nullptr;
+      if (!definition && method)
+	    definition = method->task_pform();
+      if (!definition || !definition->method_qualifiers().test_protected())
+	    return true;
+
+      const NetScope*owner_scope = method->get_class_scope();
+      const netclass_t*owner = owner_scope ? owner_scope->class_def() : nullptr;
+      if (owner && owner->test_scope_is_protected_access(scope))
+	    return true;
+
+      // A virtual call in a base-class method can resolve to a protected
+      // override in a derived class. Check access against the declaration
+      // visible in the lexical class, not the dispatch target.
+      const NetScope*access_scope = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*access = access_scope ? access_scope->class_def() : nullptr;
+      if (owner && access && owner->is_same_or_derived_from(access)) {
+	    NetScope*visible_method = access->method_from_name(method->basename());
+	    const PTaskFunc*visible_definition = visible_method
+		  ? visible_method->func_pform() : nullptr;
+	    if (!visible_definition && visible_method)
+		  visible_definition = visible_method->task_pform();
+	    if (visible_definition && visible_definition->is_virtual_method()
+		&& !visible_definition->method_qualifiers().test_local())
+		  return true;
+      }
+
+      return false;
+}
+
 const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
 					 ivl_type_t &par_type) const
 {
