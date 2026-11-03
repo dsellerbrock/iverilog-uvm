@@ -43,6 +43,7 @@ issue1828_nested_packed_foreach_2017 normal,-g2017,-s,test ivltests gold=issue18
 issue1828_nested_packed_foreach_2023 normal,-g2023,-s,test ivltests gold=issue1828_nested_packed_foreach-vvp-stdout.gold
 issue1838_scope_randomize_array_2017 normal,-g2017,-s,test ivltests gold=issue1838_scope_randomize_array.gold
 issue1838_scope_randomize_array_2023 normal,-g2023,-s,test ivltests gold=issue1838_scope_randomize_array.gold
+issue2335_packed_nonleaf_part_oob normal,-g2017,-s,issue2335_packed_nonleaf_part_oob ivltests gold=issue2335_packed_nonleaf_part_oob.gold
 
 issue1537_clocking_concat_2017 normal,-g2017,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2017.gold
 issue1537_clocking_concat_2023 normal,-g2023,-s,issue1537_clocking_concat ivltests gold=issue1537_clocking_concat_2023.gold

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2335_packed_nonleaf_part_oob.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue2335_packed_nonleaf_part_oob" ],
+    "gold"          : "issue2335_packed_nonleaf_part_oob"
+}
