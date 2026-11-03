@@ -1919,7 +1919,7 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
-	    if (report.source_id && report.result)
+	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
@@ -2017,7 +2017,7 @@ void vvp_process::mature_final_deferred_asserts()
 		  continue;
 
 	    deferred_assert_report_s report = cur->second;
-	    if (report.source_id && report.result)
+	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
