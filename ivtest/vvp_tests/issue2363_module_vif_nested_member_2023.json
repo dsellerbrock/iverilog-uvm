@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2363_module_vif_nested_member.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2363_module_vif_nested_member"
+}

@@ -17462,6 +17462,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
                         return tmp;
                   }
             }
+            /* A nested interface instance is a scope selected through the
+               virtual-interface handle, not a property of its interface
+               type. Preserve the receiver so the nested-child dispatcher can
+               select the child for the current handle value. */
+            if (class_type->is_interface() && sr.net
+		&& comp.index.empty()) {
+		  NetESignal*base = new NetESignal(sr.net);
+		  base->set_line(*this);
+		  ivl_type_t child_type = nullptr;
+		  return elaborate_nested_vif_value_(this, des, base,
+			class_type, comp, child_type);
+            }
             cerr << get_fileline() << ": error: "
                  << "Class " << class_type->get_name()
                  << " has no property " << comp.name << "." << endl;

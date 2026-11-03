@@ -1,0 +1,2 @@
+woke t=12 d=1
+ivltests/issue2363_module_vif_nested_member.v:12: $finish called at 12 (1s)
