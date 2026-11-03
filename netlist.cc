@@ -707,6 +707,36 @@ void NetNet::bind_interface_signal(unsigned word, NetNet*signal,
       binding.signal_word = signal_word;
 }
 
+NetScope* NetNet::resolve_interface_scope(unsigned word) const
+{
+      const NetNet*signal = this;
+      unsigned signal_word = word;
+      set<pair<const NetNet*,unsigned> >seen;
+
+      while (signal) {
+	    if (signal_word >= signal->pin_count()
+		|| !seen.insert(make_pair(signal, signal_word)).second)
+		  return 0;
+	    const netclass_t*interface_type =
+		  dynamic_cast<const netclass_t*>(signal->net_type());
+	    if (!interface_type || !interface_type->is_interface())
+		  return 0;
+	    const target_emit_aux_t*aux = signal->target_emit_aux_;
+	    if (!aux || aux->interface_bindings.size() <= signal_word)
+		  return 0;
+	    const interface_binding_t&binding =
+		  aux->interface_bindings[signal_word];
+	    if (binding.scope)
+		  return binding.scope;
+	    if (!binding.signal)
+		  return 0;
+	    signal = binding.signal;
+	    signal_word = binding.signal_word;
+      }
+
+      return 0;
+}
+
 void NetNet::bind_interface_member(unsigned word, size_t property_idx,
                                    NetNet*member)
 {
