@@ -35657,22 +35657,44 @@ static string constraint_class_container_size_ir_(
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env)
 {
-      if (cpath.size() != 2
+      if (cpath.size() < 2
 	  || cpath.back().name != perm_string::literal("size")
 	  || !cpath.back().index.empty()
-	  || cpath.front().local_scope || cpath.back().local_scope
+	  || cpath.back().local_scope
 	  || !cls)
 	    return "";
 
-      perm_string aname = cpath.front().name;
+	// Follow rand object handles to the class that owns the container.
+	// The solver's object graph canonicalizes each property by its live owner,
+	// so encode the property path rather than pretending the leaf is on the
+	// containing object.
+	const netclass_t*owner = cls;
+	pform_name_t::const_iterator component = cpath.begin();
+	pform_name_t::const_iterator container = std::prev(std::prev(cpath.end()));
+	string path;
+	for (; component != container; ++component) {
+	      if (component->local_scope
+		  || (!component->index.empty() && cpath.size() != 2)) return "";
+	      int handle = owner->property_idx_from_name(component->name);
+	      if (handle < 0 || !owner->get_prop_qual((size_t)handle).test_rand())
+		    return "";
+	      if (path.empty()) path = to_string(handle);
+	      else path += "." + to_string(handle);
+	      owner = dynamic_cast<const netclass_t*>(
+		    owner->get_prop_type((size_t)handle));
+	      if (!owner) return "";
+	}
+	if (container->local_scope
+	    || (!container->index.empty() && cpath.size() != 2)) return "";
+	int leaf_property = owner->property_idx_from_name(container->name);
+	if (leaf_property < 0) return "";
+	if (path.empty()) path = to_string(leaf_property);
+	else path += "." + to_string(leaf_property);
+	const size_t idx = (size_t)leaf_property;
 	// A non-rand array's size is a state value (18.3): emit the same
 	// size variable and let the solve pin it. `x < buf.size()' is an
 	// ordinary constraint.
-      int idx = cls->property_idx_from_name(aname);
-      if (idx < 0)
-	    return "";
-
-      ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+	ivl_type_t ptype = owner->get_prop_type(idx);
       bool fixed_leaf = false;
       uint64_t word = 0;
       if (ivl_type_t row_leaf_type = cpath.front().index.empty()
@@ -35680,7 +35702,7 @@ static string constraint_class_container_size_ir_(
 	    // f[row].size: the size of one row of a dynamic array of dynamic
 	    // arrays; the row is a leaf of the property (see parse_size).
 	    if (cpath.front().index.size() != 1
-		|| !cls->get_prop_qual((size_t)idx).test_rand()) return "";
+		|| !owner->get_prop_qual(idx).test_rand()) return "";
 	    string leaf = constraint_dyn2_row_leaf_(cpath.front().index.front(),
 		  cls, value_slots, scope, loop_env);
 	    if (leaf.empty()) return "";
@@ -35703,7 +35725,7 @@ static string constraint_class_container_size_ir_(
       }
       const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
       const netqueue_t*queue = dynamic_cast<const netqueue_t*>(ptype);
-      property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+      property_qualifier_t qual = owner->get_prop_qual(idx);
       bool rand_container = qual.test_rand() || qual.test_randc();
 	// A fixed leaf and an element of its queue need two randc history
 	// coordinates; the current history store has only one.
@@ -35752,7 +35774,7 @@ static string constraint_class_container_size_ir_(
 		  : (uint64_t)queue->max_idx() + 1;
 	    ttext = "Q" + to_string(max_size) + ":" + ttext;
       }
-      return "s:" + to_string(idx) + ":"
+	return "s:" + path + ":"
 	    + (fixed_leaf ? "#" + to_string(word) + ":" : "") + ttext;
 }
 
@@ -41155,6 +41177,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (simple_size_call && call_local_qualified)
 		  return scope_randomize_value_slot_(
 			call, nullptr, value_slots, 32);
+	    pform_name_t container_size_path = cpath;
+	    if (!cpath.empty()
+		&& cpath.back().name == perm_string::literal("size")
+		&& call->receiver_expr()) {
+		  const PEIdent*receiver = dynamic_cast<const PEIdent*>(
+			call->receiver_expr());
+		  if (receiver && !receiver->path().package
+		      && !receiver->has_scoped_type_prefix()) {
+			bool receiver_is_prefix = receiver->path().size() <= cpath.size();
+			pform_name_t::const_iterator rpart = receiver->path().name.begin();
+			pform_name_t::const_iterator cpart = cpath.begin();
+			for (; receiver_is_prefix && rpart != receiver->path().name.end();
+			     ++rpart, ++cpart)
+			      receiver_is_prefix = rpart->name == cpart->name;
+			if (!receiver_is_prefix) {
+			      container_size_path = receiver->path().name;
+			      container_size_path.insert(container_size_path.end(),
+				    cpath.begin(), cpath.end());
+			}
+		  }
+	    }
 
 	    if (!call_iter_ctx && !call_foreach_shadow
 		&& !call_local_qualified && !call->path().package
@@ -41162,7 +41205,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  string size_ir = call->get_parms().empty()
 			&& call->with_constraints().empty()
 			? constraint_class_container_size_ir_(
-			    cpath, cls, value_slots, scope, loop_env) : "";
+			    container_size_path, cls, value_slots, scope, loop_env) : "";
 		  if (size_ir.empty() && !cls)
 		    size_ir = constraint_scope_queue_size_ir_(cpath);
 		  if (!size_ir.empty()) return size_ir;
