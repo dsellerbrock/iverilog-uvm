@@ -16785,8 +16785,64 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			receiver.push_back(*head);
 		  push_modport_expression_context(receiver);
 	  NetExpr*expression = port->second.second->elaborate_expr(
-			des, scope, expr_wid, flags);
+			des, scope, port->second.second->expr_width(), flags);
 		  pop_modport_expression_context();
+		  if (expression && !comp.index.empty()) {
+			const index_component_t&select = comp.index.back();
+			NetExpr*index_expr = nullptr;
+			unsigned select_width = 0;
+			ivl_select_type_t select_type = IVL_SEL_OTHER;
+			if (select.sel == index_component_t::SEL_BIT) {
+			      index_expr = elab_and_eval(des, scope, select.msb, -1,
+						 flags & NEED_CONST);
+			      select_width = 1;
+			} else if (select.sel == index_component_t::SEL_PART) {
+			      long offset = 0;
+			      unsigned long part_width = 0;
+			      if (calculate_part(this, des, scope, select, offset,
+					 part_width)) {
+				    index_expr = make_const_val(offset);
+				    select_width = part_width;
+			      }
+			} else if (select.sel == index_component_t::SEL_IDX_UP
+				   || select.sel == index_component_t::SEL_IDX_DO) {
+			      NetExpr*width_expr = elab_and_eval(des, scope, select.lsb,
+							 -1, true);
+			      long part_width = 0;
+			      if (width_expr && eval_as_long(part_width, width_expr)
+				  && part_width > 0) {
+				    delete width_expr;
+				    index_expr = elab_and_eval(des, scope, select.msb, -1,
+							      flags & NEED_CONST);
+				    select_width = (unsigned)part_width;
+				    select_type = select.sel == index_component_t::SEL_IDX_UP
+					  ? IVL_SEL_IDX_UP : IVL_SEL_IDX_DOWN;
+				    if (index_expr)
+					  index_expr = normalize_variable_base(
+						index_expr, expression->expr_width()-1, 0,
+						select_width,
+						select.sel == index_component_t::SEL_IDX_UP);
+			      } else {
+				    delete width_expr;
+			      }
+			}
+			if (!index_expr || !select_width) {
+			      delete expression;
+			      return nullptr;
+			}
+			if (index_expr->expr_type() == IVL_VT_REAL) {
+			      cerr << get_fileline() << ": error: Select index cannot be real."
+				   << endl;
+			      des->errors += 1;
+			      delete expression;
+			      delete index_expr;
+			      return nullptr;
+			}
+			NetESelect*selected = new NetESelect(expression, index_expr,
+						       select_width, select_type);
+			selected->set_line(*this);
+			expression = pad_to_width(selected, expr_wid, false, *this);
+		  }
 		  return expression;
 	    }
       }
@@ -24764,13 +24820,36 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 			     ++head)
 			  receiver.push_back(*head);
 			push_modport_expression_context(receiver);
-			unsigned width = port->second.second->test_width(des, scope, mode);
+			port->second.second->test_width(des, scope, mode);
 			pop_modport_expression_context();
 			expr_type_ = port->second.second->expr_type();
 			expr_width_ = port->second.second->expr_width();
 			min_width_ = port->second.second->min_width();
 			signed_flag_ = port->second.second->has_sign();
-			return width;
+			if (!port_name.index.empty()
+			    && type_is_vectorable(expr_type_)) {
+			      const index_component_t&select = port_name.index.back();
+			      if (select.sel == index_component_t::SEL_BIT) {
+				    expr_width_ = min_width_ = 1;
+			      } else if (select.sel == index_component_t::SEL_PART) {
+				    long offset = 0;
+				    unsigned long select_width = 0;
+				    if (calculate_part(this, des, scope, select, offset,
+					       select_width))
+					  expr_width_ = min_width_ = select_width;
+			      } else if (select.sel == index_component_t::SEL_IDX_UP
+					 || select.sel == index_component_t::SEL_IDX_DO) {
+				    NetExpr*width_expr = elab_and_eval(
+					  des, scope, select.lsb, -1, true);
+				    long select_width = 0;
+				    if (width_expr
+					&& eval_as_long(select_width, width_expr)
+					&& select_width > 0)
+					  expr_width_ = min_width_ = select_width;
+				    delete width_expr;
+			      }
+			}
+			return expr_width_;
 		  }
 	    }
 	  }
