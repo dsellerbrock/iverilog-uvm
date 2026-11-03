@@ -5,9 +5,12 @@ module sv_packed_indexed_subpart_read_bounds;
   logic [5:12] ascending_reference;
   logic [1:0][2:0][7:0] cube;
   logic [7:0] cube_reference;
+  logic [15:0] wide_value;
   logic [15:0] subarrays;
   logic [3:0] value;
   integer calls;
+  integer outer_index;
+  integer packed_index;
   integer continuous_index;
   logic [63:0] wide_index;
   logic signed [127:0] signed_wide_index;
@@ -60,6 +63,15 @@ module sv_packed_indexed_subpart_read_bounds;
            "multiple valid fixed prefixes");
     subarrays = cube[1][0 +: 2];
     check_value(subarrays === 16'h3456, "subarray select unchanged");
+
+    cube = 48'h0123456789ab;
+    outer_index = 0;
+    packed_index = 2;
+    wide_value = cube[outer_index][packed_index +: 2];
+    check_value(wide_value === 16'hxx67,
+           "partial out-of-range non-leaf indexed select");
+    check_value(cube[outer_index][3] === 8'hxx,
+           "out-of-range non-leaf element select");
 
     continuous_index = 6;
     #1;
