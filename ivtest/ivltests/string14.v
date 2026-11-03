@@ -25,10 +25,10 @@ module test;
 
     x = 8'h00;
     $sformat(s, ":%s:%0s:", x, x);
-    `check(s, ": ::");
+    `check(s, ":::");
 
     $sformat(s, ":%s:%0s:", y, y);
-    `check(s, ": ::");
+    `check(s, ":::");
 
     if (!failed) begin
       $display("PASSED");
