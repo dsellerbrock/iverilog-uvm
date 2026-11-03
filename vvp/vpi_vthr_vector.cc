@@ -614,82 +614,17 @@ void __vpiVThrVec4Stack::vpi_get_value_decstr_(p_vpi_value vp, const vvp_vector4
 
 void __vpiVThrVec4Stack::vpi_get_value_octstr_(p_vpi_value vp, const vvp_vector4_t&val)
 {
-      unsigned wid = val.size();
-      unsigned owid = (wid + 2) / 3;
+      unsigned owid = (val.size() + 2) / 3;
       char*rbuf = static_cast<char*>(need_result_buf(owid+1, RBUF_VAL));
-      rbuf[owid] = 0;
-
-      unsigned oval = 0;
-      for (unsigned idx = 0; idx < wid ; idx += 1) {
-	    unsigned tmp = 0;
-	    switch (val.value(idx)) {
-		case BIT4_0:
-		  tmp = 0;
-		  break;
-		case BIT4_1:
-		  tmp = 1;
-		  break;
-		case BIT4_X:
-		  tmp = 2;
-		  break;
-		case BIT4_Z:
-		  tmp = 3;
-		  break;
-	    }
-
-	    oval = oval | (tmp << 2*(idx%3));
-
-	    if (idx%3 == 2) {
-		  owid -= 1;
-		  rbuf[owid] = oct_digits[oval];
-		  oval = 0;
-	    }
-      }
-
-      if (owid > 0) {
-	    owid -= 1;
-	    rbuf[owid] = oct_digits[oval];
-      }
+      vpip_vec4_to_oct_str(val, rbuf, owid+1);
       vp->value.str = rbuf;
 }
 
 void __vpiVThrVec4Stack::vpi_get_value_hexstr_(p_vpi_value vp, const vvp_vector4_t&val)
 {
-      unsigned wid = val.size();
-      unsigned hwid = (wid + 3) /4;
+      unsigned hwid = (val.size() + 3) /4;
       char*rbuf = static_cast<char*>(need_result_buf(hwid+1, RBUF_VAL));
-      rbuf[hwid] = 0;
-
-      unsigned hval = 0;
-      for (unsigned idx = 0; idx < wid ; idx += 1) {
-	    unsigned tmp = 0;
-	    switch (val.value(idx)) {
-		case BIT4_0:
-		  tmp = 0;
-		  break;
-		case BIT4_1:
-		  tmp = 1;
-		  break;
-		case BIT4_X:
-		  tmp = 2;
-		  break;
-		case BIT4_Z:
-		  tmp = 3;
-		  break;
-	    }
-	    hval = hval | (tmp << 2*(idx%4));
-
-	    if (idx%4 == 3) {
-		  hwid -= 1;
-		  rbuf[hwid] = hex_digits[hval];
-		  hval = 0;
-	    }
-      }
-
-      if (hwid > 0) {
-	    hwid -= 1;
-	    rbuf[hwid] = hex_digits[hval];
-      }
+      vpip_vec4_to_hex_str(val, rbuf, hwid+1);
       vp->value.str = rbuf;
 }
 
