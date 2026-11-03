@@ -2310,7 +2310,9 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
       if ((parm_count != 5 && parm_count != 6 && !is_fixed)
 	  || !a_sig
-	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !iter_arg
+	  || (ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	      && ivl_expr_type(iter_arg) != IVL_EX_ARRAY)
 	  || !ivl_expr_signal(iter_arg)
 	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(idx_arg)
@@ -2352,6 +2354,7 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 
       unsigned lab_top = local_count++;
       unsigned lab_end = local_count++;
+      int errors = 0;
 
 	/* acc = identity element (0; 1 for product; ~0 for and) */
       fprintf(vvp_out, "    %%pushi/vec4 %d, 0, %u;\n",
@@ -2371,10 +2374,18 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       fprintf(vvp_out, "    %%cmp/s;\n");
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n", thread_count, lab_end);
 
-	/* iter = a[idx] */
+	/* iter = a[idx]. A multidimensional fixed-array element is itself an
+	 * unpacked array value, so transfer it through the object representation
+	 * into the fixed iterator signal. */
       fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-      draw_array_elem_load_vec4_(a_sig);
-      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
+      if (ivl_signal_dimensions(iter_sig) > 0) {
+	    errors += draw_array_map_load_iter_(a_sig, iter_sig,
+						 ivl_signal_net_type(iter_sig));
+      } else {
+	    draw_array_elem_load_vec4_(a_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    iter_sig, iter_wid);
+      }
 
 	/* The loop counter traverses the receiver's runtime storage order. The
 	 * frontend supplies a matching declared-index expression: numeric-low for
@@ -2403,7 +2414,7 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
       fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", acc_sig);
-      return 0;
+      return errors;
 }
 
 /* The frontend supplies exact (parent instance, named child instance)
