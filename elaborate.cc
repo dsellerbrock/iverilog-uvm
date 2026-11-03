@@ -10343,7 +10343,8 @@ static NetProc* make_uarray_prefix_copy_block_(const LineInfo&loc,
 					       NetNet*src_sig, long src_base,
 					       unsigned long count,
 					       bool reverse_src,
-					       bool nonblocking)
+					       bool nonblocking,
+					       unsigned long src_stride = 1)
 {
       NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
       block->set_line(loc);
@@ -10356,7 +10357,8 @@ static NetProc* make_uarray_prefix_copy_block_(const LineInfo&loc,
 	    NetAssign_*lv = new NetAssign_(dst_sig);
 	    lv->set_word(dst_word);
 
-	    NetEConst*src_word = make_const_val_s(src_base + src_off);
+	    NetEConst*src_word = make_const_val_s(
+		  src_base + src_off * static_cast<long>(src_stride));
 	    src_word->set_line(loc);
 	    NetESignal*rv = new NetESignal(src_sig, src_word);
 	    rv->set_line(loc);
@@ -10427,7 +10429,9 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 						  const NetNet*base,
 						  const NetNet*ordinal,
 						  unsigned long count,
-						  bool reverse)
+						  bool reverse,
+						  unsigned long stride,
+						  unsigned long slice_dimension_width)
 {
 	NetESignal*base_read = new NetESignal(const_cast<NetNet*>(base));
 	base_read->set_line(loc);
@@ -10441,6 +10445,61 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 	    reversed->set_line(loc);
 	    offset = reversed;
 	}
+	if (slice_dimension_width != 0) {
+	    NetEConst*stride_for_div = make_const_val_s(stride);
+	    stride_for_div->set_line(loc);
+	    NetEBDiv*quotient = new NetEBDiv('/', base_read->dup_expr(),
+					     stride_for_div, 64, false);
+	    quotient->set_line(loc);
+	    NetEConst*dimension_width = new NetEConst(verinum(
+		  static_cast<uint64_t>(slice_dimension_width), 64));
+	    dimension_width->set_line(loc);
+	    NetEBDiv*coordinate = new NetEBDiv('%', quotient, dimension_width,
+					       64, false);
+	    coordinate->set_line(loc);
+
+	    NetExpr*old_coordinate = coordinate->dup_expr();
+	    NetEBAdd*selected_coordinate = new NetEBAdd(
+		  '+', coordinate, pad_to_width(offset, 64, loc),
+		  64, false);
+	    selected_coordinate->set_line(loc);
+	    NetESFunc*checked_coordinate = new NetESFunc(
+		  "$ivl_checked_property_index", IVL_VT_LOGIC, 64, 4);
+	    checked_coordinate->set_line(loc);
+	    checked_coordinate->cast_signed(false);
+	    checked_coordinate->parm(0, selected_coordinate);
+	    checked_coordinate->parm(1, make_const_val_s(0));
+	    checked_coordinate->parm(2, new NetEConst(verinum(
+		  static_cast<uint64_t>(slice_dimension_width), 64)));
+	    checked_coordinate->parm(3, new NetEConst(verinum(uint64_t(1), 64)));
+
+	    NetEConst*stride_for_old = make_const_val_s(stride);
+	    stride_for_old->set_line(loc);
+	    NetEBMult*old_displacement = new NetEBMult(
+		  '*', old_coordinate, stride_for_old, 64, false);
+	    old_displacement->set_line(loc);
+	    NetEConst*stride_for_new = make_const_val_s(stride);
+	    stride_for_new->set_line(loc);
+	    NetEBMult*new_displacement = new NetEBMult(
+		  '*', checked_coordinate, stride_for_new, 64, false);
+	    new_displacement->set_line(loc);
+	    NetEBAdd*without_old_dimension = new NetEBAdd(
+		  '-', base_read, old_displacement, 64, true);
+	    without_old_dimension->set_line(loc);
+	    NetEBAdd*checked_word = new NetEBAdd(
+		  '+', without_old_dimension, new_displacement, 64, true);
+	    checked_word->set_line(loc);
+	    return checked_word;
+	}
+	if (stride != 1) {
+	    NetExpr*scaled_offset = pad_to_width(offset, 64, loc);
+	    NetEConst*stride_expr = make_const_val_s(stride);
+	    stride_expr->set_line(loc);
+	    NetEBMult*scaled = new NetEBMult('*', scaled_offset, stride_expr, 64,
+					       false);
+	    scaled->set_line(loc);
+	    offset = scaled;
+	}
 	NetEBAdd*word = new NetEBAdd('+', base_read,
               pad_to_width(offset, 64, loc), 64, true);
 	word->set_line(loc);
@@ -10450,7 +10509,8 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
 	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
-	      unsigned long count, bool reverse_src, bool nonblocking)
+	      unsigned long count, bool reverse_src, bool nonblocking,
+	      unsigned long src_stride, unsigned long src_dimension_width)
 {
 	NetNet*ordinal = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 				   &netvector_t::atom2s32);
@@ -10471,10 +10531,11 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 
 	NetAssign_*word_lval = new NetAssign_(dst_sig);
 	word_lval->set_word(make_uarray_dynamic_prefix_word_(
-	      loc, dst_base, ordinal, count, false));
+	      loc, dst_base, ordinal, count, false, 1, 0));
 	NetESignal*word_rval = new NetESignal(src_sig,
 	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
-						 reverse_src));
+						 reverse_src, src_stride,
+						 src_dimension_width));
 	word_rval->set_line(loc);
 	NetProc*body = nonblocking
 	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
@@ -10488,7 +10549,8 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 static NetProc* make_uarray_dynamic_prefix_copy_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
 	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
-	      bool reverse_src, bool nonblocking)
+	      bool reverse_src, bool nonblocking, unsigned long src_stride,
+	      unsigned long src_dimension_width)
 {
 	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
@@ -10512,7 +10574,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	if (nonblocking) {
 	    block->append(make_uarray_dynamic_prefix_copy_loop_(
 		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
-		  reverse_src, true));
+		  reverse_src, true, src_stride, src_dimension_width));
 	    return block;
 	}
 
@@ -10532,10 +10594,10 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	block->append(zero);
 	block->append(make_uarray_dynamic_prefix_copy_loop_(
 	      scope, loc, rhs_snapshot, zero_base, src_sig, src_snapshot, count,
-	      reverse_src, false));
+	      reverse_src, false, src_stride, src_dimension_width));
 	block->append(make_uarray_dynamic_prefix_copy_loop_(
 	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
-	      false, false));
+	      false, false, 1, 0));
 	return block;
 }
 
@@ -10910,11 +10972,209 @@ struct uarray_prefix_source_t {
 	// decode record until the copy lowering adopts it.
 	NetExpr*canonical_base_expr = nullptr;
       unsigned long count = 0;
+      unsigned long stride = 1;
+      unsigned long slice_dimension_width = 0;
       netranges_t remaining_dims;
       ivl_type_t element_type = nullptr; // Borrowed from sig.
       bool range_slice = false;
 	~uarray_prefix_source_t() { delete canonical_base_expr; }
 };
+
+/* Decode a one-dimensional result from a slice of any unpacked dimension.
+ * Every other dimension must have a single index. The selected dimension can
+ * be strided in the flattened signal when later dimensions are indexed. */
+static int decode_multidim_uarray_slice_source_(
+		Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pe,
+		uarray_prefix_source_t&out)
+{
+	const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+	if (!ident || ident->path().name.empty()) return 0;
+
+	symbol_search_results sr;
+	if (!symbol_search(&loc, des, scope, ident->path(),
+			   ident->lexical_pos(), &sr)
+	    || !sr.net || !sr.path_tail.empty())
+	      return 0;
+
+	const netsarray_t*array_type = dynamic_cast<const netsarray_t*>(
+	      sr.net->array_type());
+	if (!array_type) return 0;
+	const netranges_t&dims = array_type->static_dimensions();
+	const list<index_component_t>&indices = ident->path().name.back().index;
+	if (dims.size() < 2 || indices.size() != dims.size()) return 0;
+
+	size_t slice_dim = dims.size();
+	list<index_component_t>::const_iterator slice = indices.end();
+	size_t dim = 0;
+	for (auto idx = indices.begin(); idx != indices.end(); ++idx, ++dim) {
+	      if (idx->sel == index_component_t::SEL_PART
+		  || idx->sel == index_component_t::SEL_IDX_UP
+		  || idx->sel == index_component_t::SEL_IDX_DO) {
+		    if (slice_dim != dims.size()) {
+			  cerr << loc.get_fileline() << ": error: an unpacked-array"
+			       << " expression may slice only one dimension." << endl;
+			  des->errors += 1;
+			  return -1;
+		    }
+		    slice_dim = dim;
+		    slice = idx;
+	      } else if (idx->sel != index_component_t::SEL_BIT
+			 || !idx->msb || idx->lsb) {
+		    return 0;
+	      }
+}
+	if (slice_dim == dims.size()) return 0;
+
+	const netrange_t&declared = dims[slice_dim];
+	netrange_t selected_range;
+	long count = 0;
+	NetExpr*slice_low_expr = nullptr;
+	if (slice->sel == index_component_t::SEL_PART) {
+	      netranges_t one_dim(1, declared);
+	      netsarray_t one_dim_type(one_dim, sr.net->net_type());
+	      list<index_component_t> one_select(1, *slice);
+	      fixed_uarray_slice_t decoded;
+	      int rc = decode_fixed_uarray_slice_select(
+		    des, scope, loc, one_select, &one_dim_type, decoded);
+	      if (rc <= 0) return rc;
+	      selected_range = decoded.selected_range;
+	      count = static_cast<long>(decoded.count);
+	      slice_low_expr = make_const_val_s(min(selected_range.get_msb(),
+						 selected_range.get_lsb()));
+	} else {
+	      NetExpr*base = elab_and_eval(des, scope, slice->msb, -1, false);
+	      NetExpr*width_expr = elab_and_eval(des, scope, slice->lsb, -1, false);
+	      bool base_integral = base
+		    && (base->expr_type() == IVL_VT_BOOL
+			|| base->expr_type() == IVL_VT_LOGIC);
+	      bool width_integral = width_expr
+		    && (width_expr->expr_type() == IVL_VT_BOOL
+			|| width_expr->expr_type() == IVL_VT_LOGIC);
+	      bool width_ok = width_integral && eval_as_long(count, width_expr)
+		    && count > 0;
+	      if (!base_integral || !width_ok) {
+		    cerr << loc.get_fileline() << ": error: indexed unpacked-array"
+			 << " slice requires an integral base and positive constant"
+			 << " width." << endl;
+		    des->errors += 1;
+		    delete base;
+		    delete width_expr;
+		    return -1;
+	      }
+	      delete width_expr;
+
+	      long base_value = 0;
+	      bool constant_base = eval_as_long(base_value, base);
+	      NetExpr*low_expr = pad_to_width(base, 128, loc);
+	      if (slice->sel == index_component_t::SEL_IDX_DO && count > 1) {
+		    NetEConst*offset = new NetEConst(verinum(
+			  static_cast<uint64_t>(count - 1), 128));
+		    offset->set_line(loc);
+		    NetEBAdd*low = new NetEBAdd('-', low_expr, offset, 128, true);
+		    low->set_line(loc);
+		    low_expr = low;
+	      }
+	      eval_expr(low_expr);
+	      low_expr->set_line(loc);
+	      slice_low_expr = low_expr;
+
+	      bool ascending = declared.get_msb() < declared.get_lsb();
+	      if (constant_base) {
+		    long low = base_value;
+		    long high = base_value;
+		    if (slice->sel == index_component_t::SEL_IDX_UP) {
+			  if (base_value > LONG_MAX - (count - 1)) {
+				cerr << loc.get_fileline() << ": error: indexed"
+				     << " unpacked-array slice bounds overflow." << endl;
+				des->errors += 1;
+				return -1;
+			  }
+			  high = base_value + count - 1;
+		    } else {
+			  if (base_value < LONG_MIN + (count - 1)) {
+				cerr << loc.get_fileline() << ": error: indexed"
+				     << " unpacked-array slice bounds overflow." << endl;
+				des->errors += 1;
+				return -1;
+			  }
+			  low = base_value - count + 1;
+		    }
+		    long declared_low = min(declared.get_msb(), declared.get_lsb());
+		    long declared_high = max(declared.get_msb(), declared.get_lsb());
+		    if (low < declared_low || high > declared_high) {
+			  cerr << loc.get_fileline() << ": error: indexed unpacked-array"
+			       << " slice is outside its declared bounds." << endl;
+			  des->errors += 1;
+			  return -1;
+		    }
+		    selected_range = ascending ? netrange_t(low, high)
+					      : netrange_t(high, low);
+	      } else {
+		    selected_range = ascending ? netrange_t(0, count - 1)
+					      : netrange_t(count - 1, 0);
+	      }
+	}
+
+	list<NetExpr*>canonical_indices;
+	indices_flags flags;
+	flags.invalid = false;
+	flags.variable = false;
+	flags.undefined = false;
+	auto source_index = indices.begin();
+	for (size_t index_dim = 0 ; index_dim < dims.size();
+	     index_dim += 1, ++source_index) {
+	      NetExpr*value = index_dim == slice_dim ? slice_low_expr
+		    : elab_and_eval(des, scope, source_index->msb, -1, false);
+	      if (index_dim == slice_dim) slice_low_expr = nullptr;
+	      if (!value) {
+		    flags.invalid = true;
+	      } else if (const NetEConst*constant =
+			 dynamic_cast<const NetEConst*>(value)) {
+		    if (!constant->value().is_defined()) flags.undefined = true;
+	      } else {
+		    flags.variable = true;
+	      }
+	      canonical_indices.push_back(value);
+	}
+	if (flags.invalid) {
+	      for (NetExpr*value : canonical_indices) delete value;
+	      return -1;
+	}
+	NetExpr*canonical_base = make_checked_canonical_property_index(
+	      des, &loc, canonical_indices, flags, array_type);
+	if (!canonical_base) return -1;
+	eval_expr(canonical_base);
+	canonical_base->set_line(loc);
+	long base_value = 0;
+	const NetEConst*constant = dynamic_cast<const NetEConst*>(canonical_base);
+	if (constant && constant->value().is_defined()
+	    && eval_as_long(base_value, canonical_base)) {
+	      out.canonical_base = base_value;
+	      delete canonical_base;
+	} else {
+	      out.canonical_base_expr = canonical_base;
+	}
+
+	out.sig = sr.net;
+	out.count = static_cast<unsigned long>(count);
+	out.stride = 1;
+	out.slice_dimension_width = dims[slice_dim].width();
+	for (size_t stride_dim = slice_dim + 1 ; stride_dim < dims.size();
+	     stride_dim += 1) {
+	      unsigned long width = dims[stride_dim].width();
+	      if (width > ULONG_MAX / out.stride) {
+		    cerr << loc.get_fileline() << ": error: unpacked-array slice"
+			 << " stride is too large." << endl;
+		    des->errors += 1;
+		    return -1;
+	      }
+	      out.stride *= width;
+	}
+	out.remaining_dims.push_back(selected_range);
+	out.element_type = sr.net->net_type();
+	out.range_slice = true;
+	return 1;
+}
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
  * a recognized but invalid/unsupported partial-prefix source. */
@@ -10922,6 +11182,10 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out)
 {
+	int multidim_slice = decode_multidim_uarray_slice_source_(
+	      des, scope, loc, pe, out);
+	if (multidim_slice != 0) return multidim_slice;
+
 	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
 	  if (ident && !ident->path().name.empty()) {
 	      const list<index_component_t>&indices =
@@ -11128,11 +11392,12 @@ static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
               && dst_constant->value().is_defined() && src_constant->value().is_defined()
               && eval_as_long(dst_base, dst_base_expr)
               && eval_as_long(src_base, src_base_expr);
-	if (!constant_bases) {
+	if (!constant_bases || src.stride != 1) {
 	    delete lv;
 	    return make_uarray_dynamic_prefix_copy_(
 		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
-		  src.count, reverse_src, nonblocking);
+		  src.count, reverse_src, nonblocking, src.stride,
+		  src.slice_dimension_width);
 	}
 	delete dst_base_expr;
 	delete src_base_expr;
