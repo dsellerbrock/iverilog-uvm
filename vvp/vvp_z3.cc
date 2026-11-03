@@ -17595,8 +17595,16 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                         dependency.property).empty()
                                   && !base.empty() && base[0] == 'Q'
                                   && dependency.kind != Ref::SIZE) {
-                                    plan.error = "constraint function argument from a fixed queue is not supported";
-                                    goto fail;
+                                    /* A selected element of a fixed array's
+                                     * queue leaf belongs to the same solve
+                                     * partition as that queue's size/content.
+                                     * Use its leaf size as the partition key;
+                                     * the IR reference collector applies the
+                                     * same canonicalization to NESTED_ELEM. */
+                                    if (dependency.kind != Ref::ELEM) {
+                                          plan.error = "invalid fixed-queue function dependency";
+                                          goto fail;
+                                    }
                               }
                               if (dependency.kind > Ref::SIZE) {
                                     plan.error = "invalid typed constraint function dependency";
@@ -17606,6 +17614,11 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                                           dependency.property);
                               Ref ref = {static_cast<Ref::Kind>(dependency.kind),
                                          idx, dependency.leaf};
+                              if (!type->property_dimensions(
+                                        dependency.property).empty()
+                                  && !base.empty() && base[0] == 'Q'
+                                  && ref.kind == Ref::ELEM)
+                                    ref.kind = Ref::SIZE;
                               if (active_ref(ref)) {
                                     args.insert(ref);
                                     active_refs.insert(ref);
