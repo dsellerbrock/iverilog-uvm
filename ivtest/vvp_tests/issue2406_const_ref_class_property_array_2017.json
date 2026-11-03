@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2406_const_ref_class_property_array_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2406_const_ref_class_property_array"],
+  "gold": "issue2406_const_ref_class_property_array"
+}
