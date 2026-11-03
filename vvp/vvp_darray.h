@@ -57,6 +57,7 @@ class vvp_darray_element_ref : public vvp_object {
 
       void set_value(const vvp_vector4_t&value, bool notify = true);
       void get_value(vvp_vector4_t&value);
+      bool is_valid() const { return valid_; }
       void set_value(double value, bool notify = true);
       void get_value(double&value);
       void set_value(const std::string&value, bool notify = true);

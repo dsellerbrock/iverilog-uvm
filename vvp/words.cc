@@ -629,13 +629,13 @@ void compile_vpi_source_location(char*label, uint64_t file_idx,
 }
 
 
-void compile_ref_variable(char*label, char*name, int msb, int lsb,
-			  bool local_flag)
+static void compile_ref_variable_(char*label, char*name, int msb, int lsb,
+			  bool local_flag, bool two_state)
 {
       unsigned wid = ((msb > lsb)? msb-lsb : lsb-msb) + 1;
 
       vvp_net_t*net = new vvp_net_t;
-      vvp_ref_signal_aa*tmp = new vvp_ref_signal_aa(wid);
+      vvp_ref_signal_aa*tmp = new vvp_ref_signal_aa(wid, two_state);
       net->fil = tmp;
       net->fun = tmp;
 
@@ -658,6 +658,18 @@ void compile_ref_variable(char*label, char*name, int msb, int lsb,
 
       free(label);
       delete[] name;
+}
+
+void compile_ref_variable(char*label, char*name, int msb, int lsb,
+                          bool local_flag)
+{
+      compile_ref_variable_(label, name, msb, lsb, local_flag, false);
+}
+
+void compile_ref_variable_2state(char*label, char*name, int msb, int lsb,
+                                 bool local_flag)
+{
+      compile_ref_variable_(label, name, msb, lsb, local_flag, true);
 }
 
 /*

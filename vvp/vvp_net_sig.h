@@ -524,7 +524,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 
     public:
       vvp_net_fun_t*automatic_fun() override { return this; }
-      explicit vvp_ref_signal_aa(unsigned wid);
+      explicit vvp_ref_signal_aa(unsigned wid, bool two_state = false);
       ~vvp_ref_signal_aa() override;
 
       void alloc_instance(vvp_context_t context) override;
@@ -623,9 +623,10 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
             vvp_object_t obj;
             unsigned prop_id;
             int64_t index;
+            bool two_state;
             struct __vpiArray*arr;
             binding_t() : kind(0), target(0), caller_ctx(0), prop_id(0),
-                          index(0), arr(0) { }
+                          index(0), two_state(false), arr(0) { }
       };
       bool read_binding(binding_t&out) const;
       vvp_object_t capture_binding() const;
@@ -646,6 +647,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       unsigned context_idx_;
       void*static_slot_;
       unsigned size_;
+      bool two_state_;
       mutable std::string string_cache_;
 };
 

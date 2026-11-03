@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2414_ref_oob.v",
+  "iverilog-args": ["-g2017", "-s", "issue2414_ref_oob"],
+  "gold": "issue2414_ref_oob"
+}
