@@ -225,7 +225,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       };
 
     public:
-      vvp_fun_modpath(vvp_net_t*net, unsigned width);
+      vvp_fun_modpath(vvp_net_t*net, unsigned width, bool showcancelled);
       ~vvp_fun_modpath() override;
 
       void add_modpath_src(vvp_fun_modpath_src*that, bool ifnone);
@@ -240,6 +240,9 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 					 const vvp_vector4_t& from,
 					 const vvp_vector4_t& to);
       void cancel_pulse_event_(pulse_event_*event);
+      void reschedule_pulse_event_(pulse_event_*event, vvp_time64_t time,
+				   const vvp_vector4_t&from,
+				   const vvp_vector4_t&to);
       void schedule_pulse_transition_(vvp_time64_t delay,
 				      vvp_time64_t reject,
 				      vvp_time64_t error,
@@ -259,6 +262,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       pulse_event_*pending_pulse_;
       vvp_vector4_t pulse_vec4_;
       bool has_conditional_paths_;
+      bool showcancelled_;
       std::list<vvp_vector4_t> pending_bits_;
 
     private: // not implemented

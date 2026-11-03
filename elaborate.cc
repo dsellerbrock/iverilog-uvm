@@ -30185,6 +30185,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 
+	    const Module*module = scope->module_definition();
+	    if (module && module->specify_showcancelled(terminal)) {
+		  if (dst_sig->vector_width() == 1) {
+			dst_sig->attribute(perm_string::literal("_ivl_showcancelled"),
+					   verinum(1));
+		  } else {
+			cerr << get_fileline() << ": sorry: showcancelled on vector "
+			     << "module path outputs is not supported." << endl;
+		  }
+	    }
+
 	    ostringstream condition_text;
 	    if (condition)
 		  condition->dump(condition_text);

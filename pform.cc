@@ -6947,6 +6947,14 @@ extern bool pform_specify_path_output_previously_declared(
       return false;
 }
 
+extern void pform_specify_path_showcancelled(
+	const pform_specify_terminal_t&terminal, bool enabled)
+{
+      if (pform_cur_module.empty())
+	    return;
+      pform_cur_module.front()->set_specify_showcancelled(terminal, enabled);
+}
+
 /*
  * Timing checks.
  */
