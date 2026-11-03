@@ -257,6 +257,43 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
       clr_word(size_reg);
 }
 
+/* Validate the suffix carried by a fixed-array bit-stream cast marker:
+ * element-count[@dimension-count,...]. The VVP runtime repeats the bounds
+ * and product checks on the emitted container encoding. */
+static int parse_fixed_array_cast_suffix_(const char*text)
+{
+      char*end = 0;
+      if (!text || !*text)
+	    return 0;
+	  if (*text < '0' || *text > '9')
+	    return 0;
+
+      unsigned long long count = strtoull(text, &end, 10);
+      if (end == text || count == 0)
+	    return 0;
+      text = end;
+
+      if (*text == '@') {
+	    text += 1;
+	    do {
+		  if (*text < '0' || *text > '9')
+			return 0;
+		  unsigned long long dimension = strtoull(text, &end, 10);
+		  if (end == text || dimension == 0)
+			return 0;
+		  text = end;
+		  if (*text == ',')
+			text += 1;
+		  else
+			break;
+	    } while (*text);
+	    if (text[-1] == ',')
+		  return 0;
+      }
+
+      return *text == 0;
+}
+
 /*
  * Emit the runtime evaluation of a "$ivl_stream$pack$<l|r>$<slice>"
  * internal function (streaming concatenation with dynamically sized
@@ -275,6 +312,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 
       const char*tail = name + 12;
       int unpack = 0;
+      int fixed_array_cast = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
 	    tail += 5;
       } else if (strncmp(tail, "cast$", 5) == 0) {
@@ -354,6 +392,15 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		  fprintf(vvp_out, "    %%stream/flatten/assoc %u;\n", key_kind);
 		  return 0;
 	    }
+	    if (strncmp(tail, "fixed$", 6) == 0) {
+		  if (!parse_fixed_array_cast_suffix_(tail + 6)) {
+			fprintf(stderr, "%s:%u: internal error: malformed fixed-array bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			return 1;
+		  }
+		  fixed_array_cast = 1;
+		  tail += strlen(tail);
+	    }
       } else if (strncmp(tail, "unpack$", 7) == 0) {
 	    unpack = 1;
 	    tail += 7;
@@ -361,9 +408,9 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    return -1;
       }
 
-      char dir = tail[0];
+	  char dir = fixed_array_cast ? 0 : tail[0];
       unsigned long slice = 1;
-      if (tail[1] == '$')
+	  if (!fixed_array_cast && tail[1] == '$')
 	    slice = strtoul(tail + 2, 0, 10);
       if (slice == 0)
 	    slice = 1;
@@ -451,7 +498,10 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		  clr_word(second_reg);
 		  clr_word(first_reg);
 	    } else {
-	    switch (ivl_expr_value(parm)) {
+	    if (fixed_array_cast && vvp_expr_is_fixed_uarray_value(parm)) {
+		  draw_eval_object(parm);
+		  fprintf(vvp_out, "    %%stream/flatten/obj; fixed-array cast source\n");
+	    } else switch (ivl_expr_value(parm)) {
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
 		  draw_eval_object(parm);
@@ -469,6 +519,9 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    if (idx > 0)
 		  fprintf(vvp_out, "    %%concat/vec4;\n");
       }
+
+      if (fixed_array_cast)
+	    return 0;
 
       if (unpack) {
 	    /* Unpack (11.4.14.3): consume tw bits from the left (error
@@ -854,6 +907,15 @@ int vvp_expr_is_fixed_uarray_value(ivl_expr_t expr)
 	    return 1;
 
       if (vvp_expr_is_whole_fixed_array_property(expr))
+	    return 1;
+
+      /* The 6.24.3 fixed-array cast marker retains the destination type but
+       * uses passive dynamic-array storage while its value is on the VVP
+       * object stack. */
+      if (ivl_expr_type(expr) == IVL_EX_SFUNC
+	  && ivl_expr_name(expr)
+	  && strncmp(ivl_expr_name(expr),
+		      "$ivl_stream$cast$fixed$", 23) == 0)
 	    return 1;
 
       if (ivl_expr_type(expr) != IVL_EX_UFUNC)
@@ -2931,20 +2993,49 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  return 0;
 	    }
 	    char elem_text[32];
+	    char cast_elem_text[64];
+	    char*dynamic_cast_elem_text = 0;
+	    const char*target_elem_text = cast_elem_text;
 	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
+	    int fixed_array_cast =
+		  strncmp(name, "$ivl_stream$cast$fixed$", 23) == 0;
 	    assert(net_type);
+	    if (fixed_array_cast) {
+		  if (!parse_fixed_array_cast_suffix_(name + 23)) {
+			fprintf(stderr, "%s:%u: internal error: malformed fixed-array bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			fprintf(vvp_out, "    %%null; ; malformed fixed-array cast\n");
+			return 1;
+		  }
+	    }
 	    stream_elem_type_text(ivl_type_element(net_type),
 				  elem_text, sizeof elem_text);
 	    draw_stream_pack_pieces(expr, 0);
+	    if (fixed_array_cast) {
+		  size_t size = strlen(elem_text) + strlen(name + 23) + 4;
+		  dynamic_cast_elem_text = (char*)malloc(size);
+		  if (!dynamic_cast_elem_text) {
+			fprintf(stderr, "%s:%u: error: out of memory generating fixed-array bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			fprintf(vvp_out, "    %%null; ; failed fixed-array cast\n");
+			return 1;
+		  }
+		  snprintf(dynamic_cast_elem_text, size, "%s!#%s",
+			   elem_text, name + 23);
+		  target_elem_text = dynamic_cast_elem_text;
+	    } else
+		  snprintf(cast_elem_text, sizeof cast_elem_text, "%s%s",
+			   elem_text, strict_cast ? "!" : "");
 	    if (ivl_type_base(net_type) == IVL_VT_QUEUE) {
 		  uint64_t max_size = ivl_type_queue_max_size(net_type);
 		  fprintf(vvp_out, "    %%stream/to/queue \"%s%s:%" PRIu64
 			  "\";\n", elem_text, strict_cast ? "!" : "",
 			  max_size);
 	    } else {
-		  fprintf(vvp_out, "    %%stream/to/dar \"%s%s\";\n",
-			  elem_text, strict_cast ? "!" : "");
+		  fprintf(vvp_out, "    %%stream/to/dar \"%s\";\n",
+			  target_elem_text);
 	    }
+	    free(dynamic_cast_elem_text);
 	    return 0;
       }
       static int warned_non_queue = 0;

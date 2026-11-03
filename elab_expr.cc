@@ -8427,6 +8427,194 @@ static NetExpr* stream_uarray_concat_(const LineInfo*li,
       return cat;
 }
 
+/* A fixed unpacked array is itself a bit stream (IEEE 1800-2017/2023
+ * 6.24.3).  Keep cast lowering separate from streaming-concatenation
+ * lowering: casts need every declared dimension, while the existing
+ * streaming operand helper intentionally handles only one-dimensional
+ * slices. */
+struct bitstream_fixed_uarray_source_t {
+      NetNet*net = nullptr;
+      std::vector<netrange_t> dimensions;
+      ivl_type_t element_type = nullptr;
+      unsigned element_count = 0;
+      unsigned element_width = 0;
+      unsigned stream_width = 0;
+};
+
+static bool bitstream_fixed_uarray_source_(Design*des, NetScope*scope,
+					    PExpr*inner,
+					    bitstream_fixed_uarray_source_t&info)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(inner);
+      if (!id || id->path().name.empty()
+	  || !id->path().back().index.empty())
+	    return false;
+
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), UINT_MAX, &sr)
+	  || !sr.net || !sr.path_tail.empty())
+	    return false;
+
+      const netuarray_t*array =
+	    dynamic_cast<const netuarray_t*>(sr.net->array_type());
+      if (!array)
+	    return false;
+
+      uint64_t count = 1;
+      ivl_type_t element_type = array;
+      while (const netuarray_t*current =
+	     dynamic_cast<const netuarray_t*>(element_type)) {
+	    if (current->static_dimensions().empty())
+		  return false;
+	    for (const netrange_t&dimension : current->static_dimensions()) {
+		  unsigned long dimension_count = dimension.width();
+		  if (dimension_count == 0 || count > UINT_MAX / dimension_count)
+			return false;
+		  count *= dimension_count;
+	    }
+	    element_type = current->element_type();
+      }
+
+      if (!element_type || !element_type->packed()
+	  || !type_is_vectorable(element_type->base_type())
+	  || element_type->packed_width() <= 0
+	  || static_cast<uint64_t>(element_type->packed_width())
+	       > UINT_MAX / count)
+	    return false;
+
+      info.net = sr.net;
+      info.element_type = element_type;
+      info.element_count = static_cast<unsigned>(count);
+      info.element_width = static_cast<unsigned>(element_type->packed_width());
+      info.stream_width = info.element_count * info.element_width;
+
+      element_type = array;
+      while (const netuarray_t*current =
+	     dynamic_cast<const netuarray_t*>(element_type)) {
+	    info.dimensions.insert(info.dimensions.end(),
+			   current->static_dimensions().begin(),
+			   current->static_dimensions().end());
+	    element_type = current->element_type();
+      }
+      return !info.dimensions.empty();
+}
+
+/* Form an array's generic packed representation in declared, left-to-right
+ * order. normalize_variable_unpacked maps each declared index tuple to the
+ * VVP storage word, so ascending and descending ranges share this path. */
+static NetExpr* bitstream_fixed_uarray_concat_(const LineInfo*li,
+				       const bitstream_fixed_uarray_source_t&info)
+{
+      const ivl_variable_type_t stream_type =
+	    info.element_type->base_type() == IVL_VT_LOGIC
+		  ? IVL_VT_LOGIC : IVL_VT_BOOL;
+      NetEConcat*cat = new NetEConcat(info.element_count, 1, stream_type);
+
+      for (unsigned pos = 0; pos < info.element_count; pos += 1) {
+	    uint64_t remainder = pos;
+	    std::list<long>indices;
+	    for (size_t dim = 0; dim < info.dimensions.size(); dim += 1) {
+		  uint64_t stride = 1;
+		  for (size_t tail = dim + 1;
+		       tail < info.dimensions.size(); tail += 1)
+			stride *= info.dimensions[tail].width();
+		  uint64_t ordinal = remainder / stride;
+		  remainder %= stride;
+		  const netrange_t&range = info.dimensions[dim];
+		  long step = range.get_msb() <= range.get_lsb() ? 1 : -1;
+		  long declared = range.get_msb() + step * static_cast<long>(ordinal);
+		  indices.push_back(declared);
+	    }
+
+	    NetExpr*canonical = normalize_variable_unpacked(info.net, indices);
+	    if (!canonical) {
+		  delete cat;
+		  return nullptr;
+	    }
+	    canonical->set_line(*li);
+	    NetESignal*word = new NetESignal(info.net, canonical);
+	    word->set_line(*li);
+	    cat->set(pos, word);
+      }
+
+      cat->set_line(*li);
+      return cat;
+}
+
+/* Return the number and packed width of the leaf elements in a fixed
+ * unpacked array whose leaves can be stored in the VVP dynamic-array cast
+ * carrier. */
+static bool fixed_uarray_bitstream_shape_(ivl_type_t type,
+					   uint64_t&element_count,
+					   uint64_t&element_width,
+						   ivl_type_t&element_type,
+						   std::vector<unsigned>&dimensions)
+{
+      const netuarray_t*array = dynamic_cast<const netuarray_t*>(type);
+      if (!array)
+	    return false;
+
+      uint64_t count = 1;
+      element_type = array;
+      while (const netuarray_t*current =
+	     dynamic_cast<const netuarray_t*>(element_type)) {
+	    if (current->static_dimensions().empty())
+		  return false;
+	    for (const netrange_t&dimension : current->static_dimensions()) {
+		  unsigned long dimension_count = dimension.width();
+		  if (dimension_count == 0
+		      || dimension_count > UINT_MAX
+		      || count > UINT64_MAX / dimension_count)
+			return false;
+		  count *= dimension_count;
+		  dimensions.push_back(static_cast<unsigned>(dimension_count));
+	    }
+	    element_type = current->element_type();
+      }
+
+      if (!element_type || !element_type->packed()
+	  || !type_is_vectorable(element_type->base_type())
+	  || element_type->packed_width() <= 0)
+	    return false;
+      element_width = static_cast<uint64_t>(element_type->packed_width());
+      if (count > UINT64_MAX / element_width)
+	    return false;
+
+      element_count = count;
+      return true;
+}
+
+static bool fixed_array_cast_source_supported_(NetExpr*source)
+{
+      if (!source)
+	    return false;
+
+      ivl_type_t type = source->net_type();
+      if (!type)
+	    return source->expr_type() == IVL_VT_BOOL
+		  || source->expr_type() == IVL_VT_LOGIC;
+      if (type->packed() || dynamic_cast<const netstring_t*>(type))
+	    return true;
+
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type);
+      if (queue && queue->assoc_compat())
+	    return false;
+      const netdarray_t*container =
+	    dynamic_cast<const netdarray_t*>(type);
+      if (container) {
+	    ivl_type_t element = container->element_type();
+	    return element && element->packed()
+		  && type_is_vectorable(element->base_type())
+		  && element->packed_width() > 0;
+      }
+
+      uint64_t count = 0, width = 0;
+      ivl_type_t element = nullptr;
+	  std::vector<unsigned> dimensions;
+	  return fixed_uarray_bitstream_shape_(type, count, width, element,
+					       dimensions);
+}
+
 /* A whole unpacked struct is an object in the VVP representation, but its
  * stream is the concatenation of its members in declaration order
  * (IEEE 1800-2017/2023 11.4.14.1).  Lower a struct with packed members to
@@ -22321,6 +22509,29 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    if (use_type)
 		  sub = pat->elaborate_expr(des, scope, use_type, flags);
       } else {
+	    bool lowered_fixed_source = false;
+	    if (bitstream_cast_type_(target_type_, true)) {
+		  bitstream_fixed_uarray_source_t array_source;
+		  if (bitstream_fixed_uarray_source_(des, scope, base_,
+						    array_source)) {
+			uint64_t target_width = 0;
+			if (fixed_bitstream_width_(target_type_, target_width)
+			    && target_width != array_source.stream_width) {
+			      cerr << get_fileline() << ": error: bit-stream cast between "
+				   << "fixed-size types of different sizes." << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+			sub = bitstream_fixed_uarray_concat_(this, array_source);
+			lowered_fixed_source = true;
+		  }
+
+	    }
+
+	    if (lowered_fixed_source) {
+		  if (!sub)
+			return nullptr;
+	    } else {
 	    // A cast behaves exactly like an assignment to a temporary variable,
 	    // so the temporary result size may affect the sub-expression width.
 	    unsigned cast_width = base_->expr_width();
@@ -22329,6 +22540,7 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		  cast_width = expr_width_;
 
 	    sub = base_->elaborate_expr(des, scope, cast_width, flags);
+	    }
       }
       if (sub == 0)
 	    return 0;
@@ -22522,6 +22734,57 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	  && bitstream_cast_type_(sub->net_type(), false)) {
 	    NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
 					   target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
+
+	/* Materialize a fixed unpacked-array cast as a strict dynamic-array
+	 * carrier. The existing whole-array assignment path copies that value
+	 * into fixed storage, while the carrier preserves one-time source
+	 * evaluation and the target element's 2-state/4-state conversion. */
+      uint64_t fixed_element_count = 0;
+      uint64_t fixed_element_width = 0;
+      ivl_type_t fixed_element_type = nullptr;
+	std::vector<unsigned> fixed_dimensions;
+      if (fixed_uarray_bitstream_shape_(target_type_,
+						fixed_element_count,
+						fixed_element_width,
+						fixed_element_type,
+						fixed_dimensions)
+	  && fixed_array_cast_source_supported_(sub)) {
+	    bool runtime_sized_source = false;
+	    ivl_type_t source_type = sub->net_type();
+	    if (dynamic_cast<const netstring_t*>(source_type)
+		|| dynamic_cast<const netdarray_t*>(source_type))
+		  runtime_sized_source = true;
+
+	    if (!runtime_sized_source) {
+		  uint64_t source_width = 0;
+		  if (!fixed_bitstream_width_(source_type, source_width))
+			source_width = sub->expr_width();
+		  if (source_width != fixed_element_count * fixed_element_width) {
+			cerr << get_fileline()
+			     << ": error: bit-stream cast between fixed-size types of different sizes."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+	    }
+
+	    std::ostringstream marker_name;
+	    marker_name << "$ivl_stream$cast$fixed$" << fixed_element_count;
+	    if (fixed_dimensions.size() > 1) {
+		  marker_name << '@';
+		  for (size_t idx = 0; idx < fixed_dimensions.size(); idx += 1) {
+			if (idx) marker_name << ',';
+			marker_name << fixed_dimensions[idx];
+		  }
+	    }
+	    std::string marker = marker_name.str();
+	    NetESFunc*cast = new NetESFunc(marker.c_str(), target_type_, 1,
+					   IVL_VT_DARRAY);
 	    cast->parm(0, sub);
 	    cast->set_line(*this);
 	    return cast;
