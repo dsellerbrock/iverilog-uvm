@@ -1,0 +1,2 @@
+issue912 time-zero default sampling PASS
+./ivltests/issue912_timezero_default_sample.v:37: $finish called at 2 (1s)

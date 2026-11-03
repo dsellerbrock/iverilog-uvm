@@ -28,6 +28,7 @@
 
 unsigned local_count = 0;
 unsigned thread_count = 0;
+static int process_enables_preponed_history = 0;
 
 unsigned transient_id = 0;
 
@@ -6506,6 +6507,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	 * driven-value history on the raw signal so %load/preponed
 	 * (from $ivl_clocking_sample) returns the Preponed value. */
       if (strcmp(stmt_name,"$ivl_clocking_hist_on") == 0) {
+	    process_enables_preponed_history = 1;
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
 	    ivl_expr_t hist_expr = parm0;
@@ -8447,6 +8449,7 @@ int draw_process(ivl_process_t net, void*x)
       int function_background_ok = 0;
 
       (void)x; /* Parameter is not used. */
+      process_enables_preponed_history = 0;
 
       for (idx = 0 ;  idx < ivl_process_attr_cnt(net) ;  idx += 1) {
 
@@ -8516,6 +8519,12 @@ int draw_process(ivl_process_t net, void*x)
 
 	/* Draw the contents of the thread. */
       rc += show_statement(stmt, scope);
+      /* Run signal-history setup before ordinary initial blocks can change
+       * a value that concurrent assertions sample at time zero (16.5.1).
+       * Clocking-input history uses the same prologue. */
+      if (ivl_process_type(net) == IVL_PR_INITIAL
+	  && process_enables_preponed_history)
+	    init_flag = 1;
       if (pure_comb_flag)
 	    pure_comb_top_wait_ = 0;
 

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue912_timezero_default_sample.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue912_timezero_default_sample"],
+  "gold": "issue912_timezero_default_sample"
+}
