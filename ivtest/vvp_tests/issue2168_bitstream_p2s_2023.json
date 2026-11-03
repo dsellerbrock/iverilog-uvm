@@ -1,5 +1,5 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "issue2168_bitstream_p2s.v",
   "iverilog-args": ["-g2023", "-s", "issue2168_bitstream_p2s"],
   "iverilog-address-space-limit": 4294967296,
