@@ -547,6 +547,7 @@ extern bool of_REF_BIND_AA_V(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_PR(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND_PR_W(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_W(vthread_t thr, vvp_code_t code);
 extern bool of_REF_CAPTURE(vthread_t thr, vvp_code_t code);
 extern bool of_REF_CAPTURE_AA_OBJ(vthread_t thr, vvp_code_t code);

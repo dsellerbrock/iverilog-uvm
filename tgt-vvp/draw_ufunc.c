@@ -112,6 +112,31 @@ static int ref_actual_is_bound_property_(ivl_signal_t port, ivl_expr_t expr)
       }
 }
 
+/* A fixed unpacked-array element of a class property is the same property
+   storage with a selected word. Keep the receiver and canonical word index
+   so the formal aliases that word directly. */
+static int ref_actual_is_bound_property_word_(ivl_signal_t port,
+                                              ivl_expr_t expr)
+{
+      ivl_type_t property_type;
+      if (!port || !expr || ivl_expr_type(expr) != IVL_EX_PROPERTY
+          || !ivl_expr_oper1(expr))
+            return 0;
+      property_type = property_expr_type_(expr);
+      if (!type_is_fixed_uarray_property_(property_type))
+	    return 0;
+      switch (ivl_signal_data_type(port)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	  case IVL_VT_CLASS:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
 static int function_port_is_native_output_(ivl_signal_t port)
 {
       ivl_type_t type;
@@ -168,6 +193,17 @@ static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
 	    else
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", ivl_expr_signal(expr));
 	    fprintf(vvp_out, "    %%ref/bind/pr v%p_0, %d;\n",
+		    port, ivl_expr_property_idx(expr));
+	    return;
+      }
+      if (ref_actual_is_bound_property_word_(port, expr)) {
+	    ivl_expr_t base_expr = ivl_expr_oper2(expr);
+	    draw_eval_vec4(ivl_expr_oper1(expr));
+	    if (base_expr)
+		  draw_eval_object(base_expr);
+	    else
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", ivl_expr_signal(expr));
+	    fprintf(vvp_out, "    %%ref/bind/pr/w v%p_0, %d;\n",
 		    port, ivl_expr_property_idx(expr));
 	    return;
       }
@@ -1741,6 +1777,7 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 		continue;
 	  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
 	      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx))
+	      || ref_actual_is_bound_property_word_(port, ivl_expr_parm(expr, idx))
 	      || ref_actual_is_fixed_array_word_(port,
 						  ivl_expr_parm(expr, idx)))
 		continue;

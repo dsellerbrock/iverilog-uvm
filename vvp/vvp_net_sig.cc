@@ -1120,7 +1120,8 @@ void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
 }
 
 void vvp_ref_signal_aa::bind_prop(vvp_net_t*formal,
-                                  const vvp_object_t&obj, unsigned pid)
+                                  const vvp_object_t&obj, unsigned pid,
+                                  int64_t index)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -1135,6 +1136,7 @@ void vvp_ref_signal_aa::bind_prop(vvp_net_t*formal,
       slot->kind = ref_aa_slot::REF_PROP;
       slot->obj = obj;
       slot->prop_id = pid;
+      slot->index = index;
       unsupported_ref_event_binding_(formal, "a class property");
 }
 
