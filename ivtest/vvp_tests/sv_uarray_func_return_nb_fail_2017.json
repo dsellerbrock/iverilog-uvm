@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_uarray_func_return_nb_fail.v",
+  "iverilog-args": ["-g2017", "-s", "sv_uarray_func_return_nb_fail"],
+  "gold": "sv_uarray_func_return_nb_fail"
+}

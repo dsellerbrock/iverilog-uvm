@@ -1,3 +1,2 @@
-./ivltests/sv_uarray_func_return_nb_fail.v:17: sorry: non-blocking assignment of an unpacked-array function return is not yet supported.
-./ivltests/sv_uarray_func_return_nb_fail.v:18: sorry: non-blocking assignment of an unpacked-array function return is not yet supported.
-2 error(s) during elaboration.
+./ivltests/sv_uarray_func_return_nb_fail.v:15: error: The expression 'make_three()' cannot be implicitly cast to the target type.
+Elaboration failed
