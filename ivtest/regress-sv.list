@@ -3386,6 +3386,8 @@ sv_scope_randomize_local_queue_exact normal,-g2017,-s,test ivltests gold=sv_scop
 sv_scope_randomize_local_queue_exact_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
 sv_scope_randomize_local_queue_unsupported normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
 sv_scope_randomize_local_queue_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
+sv_scope_randomize_local_queue_open_ended_size normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_open_ended_size.gold
+sv_scope_randomize_local_queue_open_ended_size_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_open_ended_size.gold
 
 # Typed handle identity and IEEE constraint guards.
 sv_constraint_handle_identity normal,-g2017,-s,main ivltests gold=sv_constraint_handle_identity.gold
