@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1203_coverage_weight_invalid_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1203_coverage_weight_invalid"],
+  "gold": "issue1203_coverage_weight_invalid"
+}

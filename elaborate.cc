@@ -45265,6 +45265,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (formal == name) return true;
 			  return false;
 		    };
+		    auto is_weight_constant = [](const NetExpr*expr) -> bool {
+			  return dynamic_cast<const NetEConst*>(expr)
+				|| dynamic_cast<const NetECReal*>(expr);
+		    };
+		    auto valid_weight_constant = [](const NetExpr*expr) -> bool {
+			  if (const NetEConst*constant =
+				    dynamic_cast<const NetEConst*>(expr)) {
+				if (constant->expr_type() == IVL_VT_STRING) return false;
+				const verinum&value = constant->value();
+				return value.is_defined() && !value.is_negative();
+			  }
+			  if (const NetECReal*constant =
+				    dynamic_cast<const NetECReal*>(expr)) {
+				double value = constant->value().as_double();
+				return std::isfinite(value) && value >= 0.0
+				      && value <= INT32_MAX && std::floor(value) == value;
+			  }
+			  return false;
+		    };
 		    auto is_direct_embedded_member = [&](const PExpr*expr) -> bool {
 			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
 			  if (cg_standalone || !id || id->path().size() != 1
@@ -45272,6 +45291,20 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      || !id->path().name.front().index.empty()) return false;
 			  return property_idx_from_name(id->path().name.front().name) >= 0;
 		    };
+	    auto references_ctor_formal = [&](const PExpr*expr) -> bool {
+		  if (!expr) return false;
+		  for (perm_string formal : cgdef->ctor_formals)
+			if (expr->refs_name(formal)) return true;
+		  return false;
+	    };
+	    auto references_embedded_member = [&](const PExpr*expr) -> bool {
+		  if (cg_standalone || !expr) return false;
+		  for (size_t idx = 0; idx < get_properties(); ++idx) {
+			perm_string name = lex_strings.make(get_prop_name(idx));
+			if (expr->refs_name(name)) return true;
+		  }
+		  return false;
+	    };
 
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
@@ -45300,7 +45333,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // property IR and evaluate it against the particular object;
 		      // it is not a declaration-time constant shared by the type.
 		    auto opt_weight = [&](const std::map<perm_string,PExpr*>&opts,
-					 unsigned dflt)
+					 unsigned dflt, const char*where)
 			  -> std::pair<unsigned,std::string> {
 			  auto it = opts.find(perm_string::literal("weight"));
 			  if (it == opts.end() || !it->second)
@@ -45308,8 +45341,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (!is_direct_ctor_formal(it->second)) {
 				NetExpr*e = elab_and_eval(des, class_scope_, it->second,
 						      -1, false, false);
-				if (NetEConst*c = dynamic_cast<NetEConst*>(e)) {
-				      unsigned val = (unsigned)c->value().as_ulong64();
+				if (is_weight_constant(e)) {
+				      if (!valid_weight_constant(e)) {
+					    cerr << it->second->get_fileline()
+						 << ": error: " << where
+						 << " option.weight requires a non-negative integral value."
+						 << endl;
+					    des->errors += 1;
+					    delete e;
+					    return std::make_pair(dflt, std::string());
+				      }
+				      unsigned val;
+				      if (NetEConst*c = dynamic_cast<NetEConst*>(e))
+					    val = (unsigned)c->value().as_ulong64();
+				      else {
+					    const NetECReal*real = dynamic_cast<const NetECReal*>(e);
+					    val = (unsigned)real->value().as_double();
+				      }
 				      delete e;
 				      return std::make_pair(val, std::string());
 				}
@@ -46471,8 +46519,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				    ? cgdef->options.at(perm_string::literal("at_least")) : nullptr)
 			      ? cgdef->options.at(perm_string::literal("at_least")) : nullptr;
             auto weight_it = cgdef->options.find(perm_string::literal("weight"));
-            if (weight_it != cgdef->options.end())
+            if (weight_it != cgdef->options.end()) {
+                  if (!is_direct_ctor_formal(weight_it->second)
+			&& !references_ctor_formal(weight_it->second)
+			&& !references_embedded_member(weight_it->second)) {
+                        NetExpr*value = elab_and_eval(des, class_scope_,
+                              weight_it->second, -1, false, false);
+                        if (is_weight_constant(value)
+                              && !valid_weight_constant(value)) {
+                              cerr << weight_it->second->get_fileline()
+                                   << ": error: covergroup option.weight requires a non-negative integral value."
+                                   << endl;
+                              des->errors += 1;
+                        }
+                        delete value;
+                  }
                   group_options.weight_expr = weight_it->second;
+            }
             auto inst_it = cgdef->options.find(perm_string::literal("get_inst_coverage"));
             if (inst_it != cgdef->options.end())
                   group_options.get_inst_coverage_expr = inst_it->second;
@@ -46583,17 +46646,32 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                         bind_formal(cgdef->sample_formals[fi],
                                     cg_class->covgrp_sample_formal_type(fi),
                                     false);
+                  // Check the source value before assignment conversion to
+                  // int; conversion alone would turn a real such as 0.5 into 0.
+                  NetExpr*raw_value = is_direct_ctor_formal(it->second) ? nullptr
+                        : elab_and_eval(des, class_scope_, it->second,
+                                        -1, false, false);
+                  bool invalid_constant = is_weight_constant(raw_value)
+                        && !valid_weight_constant(raw_value);
+                  if (invalid_constant) {
+                        cerr << it->second->get_fileline()
+                             << ": error: " << where
+                             << " type_option.weight requires a non-negative integral constant."
+                             << endl;
+                        des->errors += 1;
+                  }
+                  delete raw_value;
                   // 19.10 declares an int member; use ordinary assignment
-                  // conversion before enforcing table 19-3's domain.
+                  // conversion after validating the source constant.
                   NetExpr*value = is_direct_ctor_formal(it->second) ? nullptr
                         : elaborate_rval_expr(des, class_scope_, &netvector_t::atom2s32,
                                               it->second, true);
                   NetEConst*constant = dynamic_cast<NetEConst*>(value);
                   unsigned result = 1;
-                  if (constant && constant->value().is_defined()
+                  if (!invalid_constant && constant && constant->value().is_defined()
                         && constant->value().as_ulong64() <= INT32_MAX)
                         result = constant->value().as_ulong64();
-                  else {
+                  else if (!invalid_constant) {
                         cerr << it->second->get_fileline()
                              << ": error: " << where
                              << " type_option.weight requires a non-negative integral constant." << endl;
@@ -47125,7 +47203,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned cp_at_least = opt_uint(cp.options, "at_least",
 						  cg_at_least);
 			  std::pair<unsigned,std::string> cp_weight =
-				opt_weight(cp.options, 1);
+				opt_weight(cp.options, 1, "coverpoint");
 			  unsigned cp_type_weight = type_weight(cp.options, "coverpoint");
 			  if (cp.inherited_cross_only) {
 				cp_weight.first = 0;
@@ -49485,7 +49563,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
 			  std::pair<unsigned,std::string> x_weight =
-				opt_weight(cross.options, 1);
+				opt_weight(cross.options, 1, "cross");
 				  unsigned retain_auto = cg_retain_auto;
 			  auto retain_it = cross.options.find(
 				perm_string::literal("cross_retain_auto_bins"));
