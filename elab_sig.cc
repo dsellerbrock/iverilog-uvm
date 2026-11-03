@@ -692,6 +692,46 @@ static bool valid_builtin_net_data_type_(ivl_type_t type)
 	    && type->base_type() == IVL_VT_LOGIC;
 }
 
+/* An unpacked-struct built-in net needs ordinary net storage for each
+ * member.  Keep the source aggregate as the declaration/type anchor, and
+ * bind hidden member nets so member expressions use net resolution rather
+ * than the object-backed storage used for unpacked-struct variables. */
+static void elaborate_builtin_net_struct_members_(NetNet*parent,
+						 const netstruct_t*record,
+						 const LineInfo&line)
+{
+      for (size_t idx = 0; idx < record->members().size(); idx += 1) {
+	    const netstruct_t::member_t&member = record->members()[idx];
+	    ivl_type_t member_type = member.net_type;
+	    netranges_t dimensions;
+	    while (const netuarray_t*array =
+			  dynamic_cast<const netuarray_t*>(member_type)) {
+		  dimensions.insert(dimensions.end(),
+				     array->static_dimensions().begin(),
+				     array->static_dimensions().end());
+		  member_type = array->element_type();
+	    }
+
+	    NetNet*member_net = new NetNet(parent->scope(),
+		  parent->scope()->local_symbol(), parent->type(),
+		  dimensions, member_type);
+	    member_net->set_line(line);
+	    member_net->set_const(parent->get_const());
+	    member_net->set_ref_static(parent->get_ref_static());
+	    if (member_net->type() == NetNet::WIRE)
+		  member_net->devirtualize_pins();
+	    parent->bind_builtin_net_struct_member(idx, member_net);
+
+	    if (dimensions.empty()) {
+		  const netstruct_t*nested =
+			  dynamic_cast<const netstruct_t*>(member_type);
+		  if (nested && !nested->packed() && !nested->union_flag())
+			elaborate_builtin_net_struct_members_(member_net,
+							      nested, line);
+	    }
+      }
+}
+
 void Statement::elaborate_sig(Design*, NetScope*) const
 {
 }
@@ -4649,6 +4689,20 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
                            branch handles the unset case. */
                   }
             }
+      }
+
+	// A built-in unpacked-struct net is a collection of independently
+	// resolved member nets (IEEE 1800-2017/2023 6.7.1).  Create those
+	// member signals only for standalone, non-port wire declarations;
+	// variable and port structs keep their existing object representation.
+      const netstruct_t*net_record = dynamic_cast<const netstruct_t*>(type);
+      if (sig->type() == NetNet::WIRE
+	  && !sig->user_nettype()
+	  && sig->port_type() == NetNet::NOT_A_PORT
+	  && sig->unpacked_dimensions() == 0
+	  && net_record && !net_record->packed() && !net_record->union_flag()
+	  && valid_builtin_net_data_type_(type)) {
+	    elaborate_builtin_net_struct_members_(sig, net_record, *this);
       }
 
       // Keep the source placeholder available after elaboration so later

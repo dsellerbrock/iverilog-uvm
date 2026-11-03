@@ -884,6 +884,8 @@ class NetNet  : public NetObj, public PortType {
                                        size_t property_idx,
                                        const NetNet**unbound_root = 0,
                                        unsigned*unbound_word = 0) const;
+      void bind_builtin_net_struct_member(size_t member_idx, NetNet*member);
+      NetNet* resolve_builtin_net_struct_member(size_t member_idx) const;
 
       /* User-defined nettype identity is distinct from the lowered data type.
        * Keep both the spelling selected at the declaration and its canonical
@@ -1170,6 +1172,7 @@ class NetNet  : public NetObj, public PortType {
             std::vector<interface_binding_t> interface_bindings;
             std::map<std::pair<unsigned,size_t>,NetNet*>
                   interface_synthesis_members;
+            std::map<size_t,NetNet*> builtin_net_struct_members;
       };
       target_emit_aux_t*target_emit_aux_ = 0;
       target_emit_aux_t*ensure_target_emit_aux_();
