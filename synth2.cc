@@ -1480,51 +1480,25 @@ static NetExpr*synthesis_lval_prior_read_(const LineInfo&loc,
       return value;
 }
 
-/* Build one operand of the prior-value concatenation for a compound
- * assignment such as {high, low} += value. The l-value chain is stored
- * rightmost-first, so the caller reverses these leaves when it constructs the
- * NetEConcat. Every leaf reads the SSA value accumulated by preceding
- * statements, not the original procedural signal. */
-static NetExpr*synthesis_concat_compound_leaf_(
-		Design*des, NetScope*scope, const LineInfo&loc,
-		NetAssign_*lval, NexusSet&nex_map, NetBus&nex_out)
+/* A compound assignment reads the value accumulated on its carrier by the
+ * preceding statements. That read is only defined when every bit selected by
+ * the l-value has a value on every path reaching the statement. Do not
+ * require unrelated bits of an enclosing packed struct: generated register
+ * logic commonly initializes sibling members separately before reducing one
+ * member with a compound assignment. A run-time packed select can read any
+ * bit, so it conservatively requires the complete carrier.
+ *
+ * Without this proof, a compound assignment needs the procedural signal's
+ * incoming value (for example q += 1 in a clocked process), which this
+ * combinational SSA lowering does not yet model. Reject it instead of
+ * allowing the top-level floating-input tie-off to silently substitute
+ * zero. */
+static bool synthesis_compound_prior_available_(Design*des, NetScope*scope,
+		const LineInfo&loc, const NetAssign_*lval,
+		const Link&carrier, unsigned full_width)
 {
-      if (reject_synthesis_object_backed_lval_(des, loc, lval))
-	    return 0;
-
-      bool interface_member = lval->is_interface_member();
-      NetNet*lsig = interface_member
-	    ? lval->resolve_interface_member_signal() : lval->sig();
-
-	/* Keep the aggregate implementation to packed leaves. A word select can
-	 * require a different prior carrier for every possible word, and an
-	 * unpacked slice has multiple structural outputs. */
-      if (!lsig || lval->word() || lval->is_array_slice()
-	  || lsig->unpacked_dimensions()
-	  || !type_is_vectorable(lval->expr_type())) {
-	    cerr << loc.get_fileline() << ": sorry: A compound assignment to a "
-		 << "concatenated l-value containing an unpacked, word-selected, "
-		 << "or non-vector leaf is not currently supported in synthesis."
-		 << endl;
-	    des->errors += 1;
-	    return 0;
-      }
-
-      NexusSet assignment_outputs;
-      lval->nex_output(assignment_outputs);
-      if (assignment_outputs.size() != 1) {
-	    cerr << loc.get_fileline() << ": sorry: A compound assignment to a "
-		 << "concatenated l-value has an unsupported output shape in "
-		 << "synthesis." << endl;
-	    des->errors += 1;
-	    return 0;
-      }
-
-      unsigned ptr = nex_map.find_nexus(assignment_outputs[0]);
-      ivl_assert(loc, ptr < nex_out.pin_count());
-      unsigned full_width = nex_map[ptr].wid;
       NetProc::mask_t prior_valid =
-	    synth_carrier_valid_mask_(nex_out.pin(ptr), full_width);
+	    synth_carrier_valid_mask_(carrier, full_width);
       NetProc::mask_t required_prior(full_width, false);
       const NetExpr*base_expr = lval->get_base();
       if (!base_expr) {
@@ -1578,10 +1552,17 @@ static NetExpr*synthesis_concat_compound_leaf_(
 		       << "without an unconditionally available prior value is "
 		       << "not currently supported in synthesis." << endl;
 		  des->errors += 1;
-		  return 0;
+		  return false;
 	    }
       }
+      return true;
+}
 
+/* Make the local net that carries the accumulated carrier value into a
+ * compound assignment. */
+static NetNet*synthesis_compound_prior_net_(NetScope*scope, const LineInfo&loc,
+		const NetNet*lsig, Link&carrier, unsigned full_width)
+{
       ivl_variable_type_t prior_data_type = lsig->data_type() == IVL_VT_BOOL
 	    ? IVL_VT_LOGIC : lsig->data_type();
       netvector_t*prior_type =
@@ -1591,8 +1572,59 @@ static NetExpr*synthesis_concat_compound_leaf_(
 				 NetNet::WIRE, prior_type);
       prior->local_flag(true);
       prior->set_line(loc);
-      connect(prior->pin(0), nex_out.pin(ptr));
+      connect(prior->pin(0), carrier);
+      return prior;
+}
 
+/* Build one operand of the prior-value concatenation for a compound
+ * assignment such as {high, low} += value. The l-value chain is stored
+ * rightmost-first, so the caller reverses these leaves when it constructs the
+ * NetEConcat. Every leaf reads the SSA value accumulated by preceding
+ * statements, not the original procedural signal. */
+static NetExpr*synthesis_concat_compound_leaf_(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetAssign_*lval, NexusSet&nex_map, NetBus&nex_out)
+{
+      if (reject_synthesis_object_backed_lval_(des, loc, lval))
+	    return 0;
+
+      bool interface_member = lval->is_interface_member();
+      NetNet*lsig = interface_member
+	    ? lval->resolve_interface_member_signal() : lval->sig();
+
+	/* Keep the aggregate implementation to packed leaves. A word select can
+	 * require a different prior carrier for every possible word, and an
+	 * unpacked slice has multiple structural outputs. */
+      if (!lsig || lval->word() || lval->is_array_slice()
+	  || lsig->unpacked_dimensions()
+	  || !type_is_vectorable(lval->expr_type())) {
+	    cerr << loc.get_fileline() << ": sorry: A compound assignment to a "
+		 << "concatenated l-value containing an unpacked, word-selected, "
+		 << "or non-vector leaf is not currently supported in synthesis."
+		 << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      NexusSet assignment_outputs;
+      lval->nex_output(assignment_outputs);
+      if (assignment_outputs.size() != 1) {
+	    cerr << loc.get_fileline() << ": sorry: A compound assignment to a "
+		 << "concatenated l-value has an unsupported output shape in "
+		 << "synthesis." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      unsigned ptr = nex_map.find_nexus(assignment_outputs[0]);
+      ivl_assert(loc, ptr < nex_out.pin_count());
+      unsigned full_width = nex_map[ptr].wid;
+      if (!synthesis_compound_prior_available_(des, scope, loc, lval,
+					       nex_out.pin(ptr), full_width))
+	    return 0;
+
+      NetNet*prior = synthesis_compound_prior_net_(scope, loc, lsig,
+						   nex_out.pin(ptr), full_width);
       return synthesis_lval_prior_read_(loc, lval, prior);
 }
 
@@ -1768,95 +1800,13 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
       ivl_assert(*this, ptr < enables.pin_count());
       ivl_assert(*this, ptr < bitmasks.size());
 
-	// Reading the accumulated carrier is only defined when every bit selected
-	// by this l-value has a value on every path reaching the statement. Do not
-	// require unrelated bits of an enclosing packed struct: generated register
-	// logic commonly initializes sibling members separately before reducing
-	// one member with a compound assignment. A run-time packed select can read
-	// any bit, so it conservatively requires the complete carrier.
-	//
-	// Without this proof, a compound assignment needs the procedural signal's
-	// incoming value (for example q += 1 in a clocked process), which this
-	// combinational SSA lowering does not yet model. Reject it instead of
-	// allowing the top-level floating-input tie-off to silently substitute
-	// zero.
       unsigned full_width = nex_map[ptr].wid;
-      mask_t prior_valid =
-	    synth_carrier_valid_mask_(nex_out.pin(ptr), full_width);
-      mask_t required_prior(full_width, false);
-      const NetExpr*base_expr = lval->get_base();
-      if (!base_expr) {
-	    required_prior.assign(full_width, true);
-      } else {
-	    unique_ptr<NetExpr>folded_base;
-	    const NetExpr*base_value = base_expr;
-	    if (!dynamic_cast<const NetEConst*>(base_expr)
-		&& synth_context_constant(base_expr,
-					  scope->loop_index_values_tmp)) {
-		  folded_base.reset(base_expr->evaluate_function(
-			*this, scope->loop_index_tmp));
-		  base_value = folded_base.get();
-	    }
-
-	    const NetEConst*base_constant =
-		  dynamic_cast<const NetEConst*>(base_value);
-	    if (lval->has_dynamic_part_carrier())
-		  base_constant = 0;
-	    if (base_constant && !base_constant->value().is_defined()) {
-		    // A statically X/Z select writes no bits.
-	    } else if (base_constant) {
-		  verinum_part_select_t overlap = lval->has_part_carrier()
-			? carrier_part_overlap_(base_constant->value(),
-				lval->part_carrier_off(),
-				lval->part_carrier_width(), lval->lwidth())
-			: verinum_part_select_overlap(base_constant->value(),
-						   lval->lwidth(), full_width);
-		  uint64_t destination_bias = lval->has_part_carrier()
-			? lval->part_carrier_off() : 0;
-		  for (uint64_t offset = 0; offset < overlap.width; offset += 1)
-			required_prior[static_cast<unsigned>(
-			      destination_bias+overlap.destination_base+offset)] = true;
-	    } else {
-		  if (lval->has_part_carrier()) {
-			uint64_t first = lval->part_carrier_off();
-			uint64_t count = lval->part_carrier_width();
-			ivl_assert(*this, first <= full_width);
-			ivl_assert(*this, count <= full_width-first);
-			for (uint64_t bit = 0; bit < count; bit += 1)
-			      required_prior[static_cast<unsigned>(first+bit)] = true;
-		  } else {
-			required_prior.assign(full_width, true);
-		  }
-	    }
-      }
-
-      bool prior_available = true;
-      for (unsigned bit = 0; bit < full_width; bit += 1) {
-	    if (required_prior[bit] && !prior_valid[bit]) {
-		  prior_available = false;
-		  break;
-	    }
-      }
-      if (!prior_available) {
-	    cerr << get_fileline() << ": sorry: A compound assignment without an "
-		 << "unconditionally available prior value is not currently "
-		 << "supported in "
-		 << "synthesis." << endl;
-	    des->errors += 1;
+      if (!synthesis_compound_prior_available_(des, scope, *this, lval,
+					       nex_out.pin(ptr), full_width))
 	    return false;
-      }
 
-      ivl_variable_type_t prior_data_type = lsig->data_type() == IVL_VT_BOOL
-	    ? IVL_VT_LOGIC : lsig->data_type();
-      netvector_t*prior_type =
-	    new netvector_t(prior_data_type, full_width-1, 0);
-      prior_type->set_signed(lsig->get_signed());
-      NetNet*prior = new NetNet(scope, scope->local_symbol(),
-				 NetNet::WIRE, prior_type);
-      prior->local_flag(true);
-      prior->set_line(*this);
-      connect(prior->pin(0), nex_out.pin(ptr));
-
+      NetNet*prior = synthesis_compound_prior_net_(scope, *this, lsig,
+						   nex_out.pin(ptr), full_width);
       NetExpr*left = synthesis_lval_prior_read_(*this, lval, prior);
 
       NetExpr*combined = make_synthesis_compound_expr_(

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue626_set_inst_name.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue626_set_inst_name"
+}

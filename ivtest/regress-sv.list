@@ -52,6 +52,8 @@ issue1613_cross_function_and_binsof_2017 normal,-g2017,-s,test ivltests gold=iss
 issue1613_cross_function_and_binsof_2023 normal,-g2023,-DISSUE1613_2023,-s,test ivltests gold=issue1613_cross_function_and_binsof.gold
 issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
+issue2343_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue2343_array_pattern.gold
+issue2343_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue2343_array_pattern.gold
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests
@@ -6490,6 +6492,9 @@ issue767_generate_implicit_scope CE,-g2017,-s,issue767_generate_implicit_scope i
 issue1829_linear_equality_chain_2017 normal,-g2017,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
 issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829_linear_equality_chain.gold
 
+issue736_string_property_index_2017 normal,-g2017,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+issue736_string_property_index_2023 normal,-g2023,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
 issue2029_randc_fixed_array_wide_2023 normal,-g2023 ivltests gold=issue2029_randc_fixed_array_wide_2023.gold
@@ -6508,3 +6513,6 @@ issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplica
 issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_scope.gold
 issue1562_conditional_iopath_2017 normal,-g2017,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
 issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
+issue626_set_inst_name normal,-g2017,-s,top ivltests gold=issue626_set_inst_name.gold
+issue2339_numeric_input_skew_initializer_2017 normal,-g2017,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
+issue2339_numeric_input_skew_initializer_2023 normal,-g2023,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold

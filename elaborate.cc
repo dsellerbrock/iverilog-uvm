@@ -20328,6 +20328,71 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			}
 		  }
 
+		  // IEEE 1800-2017/2023 19.8: set_inst_name() updates the
+		  // covergroup instance's option.name. That value already lives in
+		  // the synthesized per-instance string property; store the supplied
+		  // argument there so the ordinary option.name read path observes it.
+		  if (method_name == perm_string::literal("set_inst_name")) {
+			const netclass_t*cgtype =
+			      dynamic_cast<const netclass_t*>(obj_type);
+			if (cgtype && cgtype->is_covergroup()) {
+			      int name_prop = cgtype->covgrp_option_prop(
+				    perm_string::literal("name"));
+			      if (parms_.size() != 1 || !parms_[0].parm
+				  || !parms_[0].name.nil()) {
+				    cerr << get_fileline()
+					 << ": error: Covergroup method set_inst_name "
+					    "expects one positional string argument "
+					    "(IEEE 1800-2017/2023 19.8)." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			      if (name_prop < 0 || !cgtype->get_prop_type(name_prop)) {
+				    cerr << get_fileline()
+					 << ": internal error: covergroup option.name "
+					    "property is missing." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			      NetExpr*name = elaborate_rval_expr(
+				    des, scope, cgtype->get_prop_type(name_prop),
+				    parms_[0].parm, false, false);
+			      if (!name) {
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			      // Snapshot the receiver before evaluating the argument, both
+			      // to preserve call evaluation order and to support any class
+			      // handle expression accepted as the method receiver.
+			      NetNet*receiver = new NetNet(scope, scope->local_symbol(),
+							   NetNet::REG, obj_type);
+			      receiver->set_line(*this);
+			      receiver->local_flag(true);
+			      NetBlock*assignments = new NetBlock(NetBlock::SEQU, 0);
+			      assignments->set_line(*this);
+			      NetAssign*save_receiver = new NetAssign(
+				    new NetAssign_(receiver), obj_expr);
+			      save_receiver->set_line(*this);
+			      assignments->append(save_receiver);
+			      NetAssign_*target = new NetAssign_(receiver);
+			      target->set_property(
+				    lex_strings.make(cgtype->get_prop_name(name_prop)),
+				    name_prop);
+			      NetAssign*set_name = new NetAssign(target, name);
+			      set_name->set_line(*this);
+			      assignments->append(set_name);
+			      return assignments;
+			}
+		  }
+
 		  // M11: covergroup start()/stop() — per-instance sampling
 		  // enable (19.8.1).
 		  if (method_name == perm_string::literal("start")
@@ -30289,6 +30354,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			      NetExpr*rv = select_clocking_input_(des, scope, cb,
 							*sig_it, raw, raw_value);
 			      if (!rv) continue;
+			      /* The event-driven delayed assignment below does not see
+				 a declaration initializer that was applied before its
+				 @raw process started. Seed the delay line from the selected
+				 raw value so numeric input skew has its initial value
+				 available until the first delayed transition. */
+			      NetAssign*seed = new NetAssign(new NetAssign_(shadow),
+							     rv->dup_expr());
+			      seed->set_line(*cb);
+			      prologue->append(seed);
 			      NetAssignNB*sasn = new NetAssignNB(new NetAssign_(shadow),
 								 rv, 0, 0);
 			      sasn->set_line(*cb);
