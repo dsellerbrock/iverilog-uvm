@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1471_multidim_unpacked_slice.v",
+  "iverilog-args": ["-g2023", "-s", "issue1471_multidim_unpacked_slice"],
+  "output-contains": ["ISSUE1471 multidimensional slice pass"]
+}
