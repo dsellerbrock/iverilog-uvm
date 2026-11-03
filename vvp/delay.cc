@@ -775,9 +775,10 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
       net_->send_real(cur_real_, 0);
 }
 
-vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width)
+vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
+				 bool showcancelled)
 : net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
-  has_conditional_paths_(false)
+  has_conditional_paths_(false), showcancelled_(showcancelled)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
       pulse_vec4_ = cur_vec4_;
@@ -841,6 +842,26 @@ void vvp_fun_modpath::cancel_pulse_event_(pulse_event_*event)
 	    pulse_events_.erase(bucket);
 }
 
+void vvp_fun_modpath::reschedule_pulse_event_(pulse_event_*event,
+					       vvp_time64_t time,
+					       const vvp_vector4_t&from,
+					       const vvp_vector4_t&to)
+{
+      pulse_event_map_t::iterator old_bucket = event->bucket;
+      old_bucket->second.erase(event->position);
+      if (old_bucket->second.empty())
+	    pulse_events_.erase(old_bucket);
+
+      std::pair<pulse_event_map_t::iterator, bool> ins =
+	    pulse_events_.insert(std::make_pair(time, pulse_event_list_t()));
+      event->sim_time = time;
+      event->from = from;
+      event->to = to;
+      ins.first->second.push_back(event);
+      event->bucket = ins.first;
+      event->position = --ins.first->second.end();
+}
+
 void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
 						 vvp_time64_t reject,
 						 vvp_time64_t error,
@@ -851,6 +872,15 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
       vvp_time64_t due = schedule_simtime() + delay;
 
       if (pending_pulse_ && bit.eeq(pending_pulse_->from)) {
+	    if (showcancelled_ && due < pending_pulse_->sim_time) {
+		  vvp_time64_t leading_time = pending_pulse_->sim_time;
+		  vvp_vector4_t pulse_from = pending_pulse_->from;
+		  vvp_vector4_t unknown(bit.size(), BIT4_X);
+		  reschedule_pulse_event_(pending_pulse_, due, pulse_from, unknown);
+		  pending_pulse_ = enqueue_pulse_event_(leading_time, unknown, bit);
+		  schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
+		  return;
+	    }
 	    vvp_time64_t width = due > pending_pulse_->sim_time ?
 		  due - pending_pulse_->sim_time : 0;
 	    reject = std::min(reject, delay);

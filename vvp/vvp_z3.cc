@@ -9552,6 +9552,53 @@ static bool z3_collect_constants_(Z3_context ctx, Z3_ast value,
       return true;
 }
 
+static uint64_t z3_randc_wide_permute_(uint64_t index, unsigned width,
+				       const uint64_t*keys)
+{
+      unsigned left_width = (width + 1) / 2;
+      unsigned right_width = width - left_width;
+      const unsigned output_right_width = right_width;
+      const uint64_t right_mask = (UINT64_C(1) << right_width) - 1;
+      uint64_t left = index >> right_width;
+      uint64_t right = index & right_mask;
+
+      for (unsigned round = 0; round < VVP_RANDC_PERMUTATION_ROUNDS; ++round) {
+	    const uint64_t left_mask = (UINT64_C(1) << left_width) - 1;
+	    uint64_t mix = right + keys[round];
+	    mix = (mix ^ (mix >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+	    mix = (mix ^ (mix >> 27)) * UINT64_C(0x94d049bb133111eb);
+	    mix ^= mix >> 31;
+	    const uint64_t next_left = right;
+	    const uint64_t next_right = (left ^ (mix & left_mask)) & left_mask;
+	    left = next_left;
+	    right = next_right;
+	    const unsigned old_left_width = left_width;
+	    left_width = right_width;
+	    right_width = old_left_width;
+      }
+
+      return (left << output_right_width) | right;
+}
+
+static bool z3_solver_var_unconstrained_(Z3_context ctx, Z3_solver solver,
+					 Z3_ast var)
+{
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, solver);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      bool independent = true;
+      for (unsigned idx = 0; idx < Z3_ast_vector_size(ctx, assertions); ++idx) {
+	    set<Z3_ast> constants;
+	    if (!z3_collect_constants_(ctx,
+			  Z3_ast_vector_get(ctx, assertions, idx), constants)
+			  || constants.count(var)) {
+		  independent = false;
+		  break;
+	    }
+      }
+      Z3_ast_vector_dec_ref(ctx, assertions);
+      return independent;
+}
+
 static void z3_flatten_conjunction_(Z3_context ctx, Z3_ast value,
                                     vector<Z3_ast>&clauses)
 {
@@ -12479,6 +12526,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       builder.prop_active = prop_active;
       builder.dyn_sizes = dyn_sizes;
       builder.row_pass = row_pass;
+	  auto add_compact_wide_randc = [&](const class_type*type, unsigned pid,
+					 unsigned idx) {
+		unsigned width = type->property_vec4_width(pid);
+		if (type->property_is_randc(pid)
+		    && !type->property_is_static(pid)
+		    && type->property_dimensions(pid).empty()
+		    && width > 20 && width <= 32)
+		      builder.get_prop_var(idx, width);
+	  };
+	  if (graph) {
+		for (unsigned idx = 0; idx < graph->properties.size(); ++idx) {
+		      const auto&property = graph->properties[idx];
+		      add_compact_wide_randc(property.object->get_defn(),
+			    property.pid, idx);
+		}
+	  } else if (defn && cobj) {
+		for (unsigned pid = 0; pid < defn->property_count(); ++pid)
+		      add_compact_wide_randc(defn, pid, pid);
+	  }
       map<pair<unsigned,unsigned>, uint64_t> uniform_fixed_array_sizes;
       bool uniform_fixed_array_elements_ready = false;
       if (graph) {
@@ -14427,6 +14493,45 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0);
 	    bool property_randc = builder.type(pv.idx)->property_is_randc(
 		  builder.local_index(pv.idx));
+	    const class_type*property_type = builder.type(pv.idx);
+	    size_t property_id = builder.local_index(pv.idx);
+	    if (property_randc && !fallback_managed && pv.width > 20
+		  && pv.width <= 32
+		  && !property_type->property_is_static(property_id)
+		  && property_type->property_dimensions(property_id).empty()
+		  && builder.pending_soft.empty() && builder.dist_specs.empty()
+		  && builder.order_pairs.empty() && builder.state_checks.empty()
+		  && builder.side_constraints.empty() && builder.size_vars.empty()
+		  && builder.elem_vars.empty() && builder.member_vars.empty()
+		  && builder.member_elem_vars.empty() && builder.qelem_vars.empty()
+		  && z3_solver_var_unconstrained_(ctx, base, pv.var)) {
+		  // A keyed Feistel network is bijective on the full power-of-two
+		  // domain. Keep its round keys and cursor, rather than allocating one
+		  // history bit for each of up to 2^32 values.
+		  vvp_cobject*owner = builder.object(pv.idx);
+		  uint64_t keys[VVP_RANDC_PERMUTATION_ROUNDS];
+		  uint64_t next_index = 0;
+		  const uint64_t period = UINT64_C(1) << pv.width;
+		  if (!owner->randc_permutation_get(property_id, pv.width,
+			keys, next_index) || next_index >= period) {
+			auto&rng = property_rng(pv.idx);
+			for (unsigned round = 0;
+			     round < VVP_RANDC_PERMUTATION_ROUNDS; ++round)
+			      keys[round] = ((uint64_t)rng.next() << 32) | rng.next();
+			next_index = 0;
+		  }
+		  const uint64_t chosen = z3_randc_wide_permute_(next_index,
+			pv.width, keys);
+		  owner->randc_mark_permutation(property_id, chosen, pv.width,
+			keys, next_index + 1);
+		  sampled_randc_values[pv.var] = chosen;
+		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen,
+			Z3_mk_bv_sort(ctx, pv.width));
+		  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+		  Z3_optimize_assert(ctx, opt, eq);
+		  Z3_solver_assert(ctx, base, eq);
+		  continue;
+	    }
 
 	    vector<uint64_t> feasible;
 	    bool enumerated = false;
@@ -17159,6 +17264,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       return Z3PASS_SAT_APPLIED;
 }
 
+static bool z3_has_compact_wide_randc_(const class_type*defn)
+{
+      if (!defn) return false;
+      for (size_t pid = 0; pid < defn->property_count(); ++pid)
+	    if (defn->property_is_randc(pid)
+		  && !defn->property_is_static(pid)
+		  && defn->property_dimensions(pid).empty()
+		  && defn->property_vec4_width(pid) > 20
+		  && defn->property_vec4_width(pid) <= 32)
+		  return true;
+      return false;
+}
+
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
@@ -17167,8 +17285,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<vvp_object_t>*object_vals,
                       const vector<vvp_vector4_t>*class_slot_vals)
 {
-      if ((!include_class_constraints || defn->constraint_count() == 0)
-          && extra_ir.empty()) {
+      const bool compact_wide_randc = z3_has_compact_wide_randc_(defn);
+      if (!compact_wide_randc
+          && ((!include_class_constraints || defn->constraint_count() == 0)
+          && extra_ir.empty())) {
 #ifdef VVP_PERF_STATS
             vvp_perf_stats_randomize_tier(0);
 #endif
@@ -17177,14 +17297,15 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       // randomize_cobject_ has already prefilled every active rand property.
       // An all-disabled class constraint set is therefore the same fast path
       // as a class with no constraints, provided there is no extra IR.
-      if (include_class_constraints && cobj
+      if (!compact_wide_randc && include_class_constraints && cobj
           && !cobj->has_active_constraints() && extra_ir.empty()) {
 #ifdef VVP_PERF_STATS
             vvp_perf_stats_randomize_tier(0);
 #endif
             return true;
       }
-      if (z3_t1_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
+      if (!compact_wide_randc
+          && z3_t1_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
                               include_class_constraints, object_vals,
                               class_slot_vals)) {
 #ifdef VVP_PERF_STATS
@@ -17193,7 +17314,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
             return true;
       }
       z3_rng_stream_t rng(cobj);
-      if (z3_t2_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
+      if (!compact_wide_randc
+          && z3_t2_apply_cached_(defn, cobj, extra_ir, slot_vals, prop_active,
             include_class_constraints, object_vals, class_slot_vals, nullptr,
             rng)) {
 #ifdef VVP_PERF_STATS
@@ -17772,8 +17894,16 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                         dependency.property).empty()
                                   && !base.empty() && base[0] == 'Q'
                                   && dependency.kind != Ref::SIZE) {
-                                    plan.error = "constraint function argument from a fixed queue is not supported";
-                                    goto fail;
+                                    /* A selected element of a fixed array's
+                                     * queue leaf belongs to the same solve
+                                     * partition as that queue's size/content.
+                                     * Use its leaf size as the partition key;
+                                     * the IR reference collector applies the
+                                     * same canonicalization to NESTED_ELEM. */
+                                    if (dependency.kind != Ref::ELEM) {
+                                          plan.error = "invalid fixed-queue function dependency";
+                                          goto fail;
+                                    }
                               }
                               if (dependency.kind > Ref::SIZE) {
                                     plan.error = "invalid typed constraint function dependency";
@@ -17783,6 +17913,11 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                                                           dependency.property);
                               Ref ref = {static_cast<Ref::Kind>(dependency.kind),
                                          idx, dependency.leaf};
+                              if (!type->property_dimensions(
+                                        dependency.property).empty()
+                                  && !base.empty() && base[0] == 'Q'
+                                  && ref.kind == Ref::ELEM)
+                                    ref.kind = Ref::SIZE;
                               if (active_ref(ref)) {
                                     args.insert(ref);
                                     active_refs.insert(ref);
@@ -18195,18 +18330,22 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
 {
       if (objects.empty()) return true;
       bool constrained = false;
+      bool compact_wide_randc = false;
+      for (const auto&owner : objects)
+	    compact_wide_randc |= z3_has_compact_wide_randc_(
+		  owner.object->get_defn());
       for (const auto&owner : objects)
             constrained |= !owner.inherited_ir.empty() || !owner.extra_ir.empty()
                   || !owner.planned_class_ir.empty()
                   || (owner.include_class_constraints
                       && owner.object->has_active_constraints());
-      if (!constrained) {
+      if (!constrained && !compact_wide_randc) {
 #ifdef VVP_PERF_STATS
             vvp_perf_stats_randomize_tier(0);
 #endif
             return true;
       }
-      if (objects.size() == 1
+      if (!compact_wide_randc && objects.size() == 1
           && z3_t1_single_object_scope_(objects.front())) {
             const auto&owner = objects.front();
             if (z3_t1_apply_cached_(owner.object->get_defn(), owner.object,
@@ -18223,7 +18362,7 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       graph.select_storage_owners();
       const auto&root = objects.front();
       z3_rng_stream_t root_rng(root.object);
-      if (objects.size() == 1
+      if (!compact_wide_randc && objects.size() == 1
           && z3_t2_apply_cached_(root.object->get_defn(), root.object,
                 root.extra_ir, root.slot_vals, root.selection(),
                 root.include_class_constraints, &root.object_vals,

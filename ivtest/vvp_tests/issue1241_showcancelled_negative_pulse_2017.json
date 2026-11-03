@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1241_showcancelled_negative_pulse_2017.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue1241_showcancelled_negative_pulse_2017"],
+  "gold": "issue1241_showcancelled_negative_pulse_2017"
+}

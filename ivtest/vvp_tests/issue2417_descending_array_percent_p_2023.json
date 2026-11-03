@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2417_descending_array_percent_p.sv",
+  "iverilog-args": ["-g2023", "-sissue2417_descending_array_percent_p"],
+  "gold": "issue2417_descending_array_percent_p"
+}

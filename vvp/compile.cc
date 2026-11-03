@@ -2750,10 +2750,11 @@ void compile_reactive(char*label, struct symb_s arg)
 }
 
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
+				     bool showcancelled,
                                      struct symb_s drv, struct symb_s dest)
 {
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_modpath*obj = new vvp_fun_modpath(net, width);
+      vvp_fun_modpath*obj = new vvp_fun_modpath(net, width, showcancelled);
       net->fun = obj;
 
       input_connect(net, 0, drv.text);

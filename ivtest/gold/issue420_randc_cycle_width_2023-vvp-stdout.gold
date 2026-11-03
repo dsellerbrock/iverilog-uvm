@@ -1,0 +1,2 @@
+PASS issue420 randc exact wide cycle
+ivltests/issue420_randc_cycle_width.v:68: $finish called at 0 (1s)

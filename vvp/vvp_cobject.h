@@ -31,6 +31,7 @@ class vvp_vector4_t;
 
 /* shortcut: 2,048 feasible scalar randc values, raise with bounded resource evidence. */
 static const uint64_t VVP_RANDC_FEASIBLE_DOMAIN_CAP = 2048;
+static const unsigned VVP_RANDC_PERMUTATION_ROUNDS = 8;
 
 // A constructor-resolved dynamic coverage-bin family. Plain range and set
 // covergroup expressions are immutable after the covergroup object is built,
@@ -101,8 +102,14 @@ class vvp_cobject : public vvp_object {
 	    }
       };
       struct randc_history_state_t {
+	    struct permutation_t {
+		  unsigned width = 0;
+		  uint64_t keys[VVP_RANDC_PERMUTATION_ROUNDS] = {};
+		  uint64_t next_index = 0;
+	    };
 	    std::map<randc_key_t, std::vector<bool> > dense;
 	    std::map<randc_key_t, std::vector<uint64_t> > sparse;
+	    std::map<randc_key_t, permutation_t> permutations;
       };
 
       explicit vvp_cobject(const class_type*defn);
@@ -202,6 +209,12 @@ class vvp_cobject : public vvp_object {
       void randc_mark_feasible(size_t pid, uint64_t val,
                                 const std::vector<uint64_t>&feasible,
                                 size_t leaf = 0, bool reset_cycle = false);
+	  bool randc_permutation_get(size_t pid, unsigned width,
+				     uint64_t*keys,
+			     uint64_t&next_index) const;
+	  void randc_mark_permutation(size_t pid, uint64_t val,
+			       unsigned width, const uint64_t*keys,
+			       uint64_t next_index);
       void randc_unmark(size_t pid, uint64_t val, size_t leaf = 0);
 
 	// Dynamic-array, queue, and associative-array elements keep their
@@ -343,6 +356,8 @@ class vvp_cobject : public vvp_object {
 	    uint64_t staged_value = 0;
 	    bool feasible_domain = false;
 	    bool reset_cycle = false;
+	    bool permutation = false;
+	    randc_history_state_t::permutation_t permutation_state;
 	    std::vector<uint64_t> feasible;
       };
       struct randc_transaction_t {

@@ -120,6 +120,8 @@ issue1555_checker_initial_delay_fail_2023 CE,-g2023 ivltests gold=issue1555_chec
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1241_showcancelled_negative_pulse_2017 normal,-g2017,-gspecify,-s,issue1241_showcancelled_negative_pulse_2017 ivltests gold=issue1241_showcancelled_negative_pulse_2017.gold
+issue1241_showcancelled_negative_pulse_2023 normal,-g2023,-gspecify,-s,issue1241_showcancelled_negative_pulse_2023 ivltests gold=issue1241_showcancelled_negative_pulse_2023.gold
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
@@ -2659,6 +2661,7 @@ sv_randomization_builtin_method_override_adversarial_fail CE,-g2012 ivltests gol
 sv_randomization_builtin_method_override_multiroot_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_multiroot_fail.gold
 
 # IEEE declaration grammar and unpacked-struct member qualifiers
+issue1468_unpacked_struct_net normal,-g2017,-sissue1468_unpacked_struct_net ivltests gold=issue1468_unpacked_struct_net.gold
 sv_unpacked_struct_ports normal,-g2017,-ssv_unpacked_struct_ports ivltests gold=sv_unpacked_struct_ports.gold
 sv_declaration_class_frontier normal,-g2012 ivltests gold=sv_declaration_class_frontier.gold
 sv_static_const_qualifier_fail CE,-g2012 ivltests gold=sv_static_const_qualifier_fail.gold
@@ -5824,8 +5827,8 @@ sv_constraint_fixed_queue_function_stage_direct normal,-g2017,-gno-icarus-misc,-
 sv_constraint_fixed_queue_function_stage_direct_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage.gold
 sv_constraint_parameter_array_psel normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_parameter_array_psel.gold
 sv_constraint_parameter_array_psel_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_parameter_array_psel.gold
-sv_constraint_fixed_queue_function_stage_argument_fail normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
-sv_constraint_fixed_queue_function_stage_argument_fail_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
+sv_constraint_fixed_queue_function_stage_argument_2017 normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
+sv_constraint_fixed_queue_function_stage_argument_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_fixed_queue_function_stage_argument_fail.gold
 sv_constraint_state_fixed_queue_size_foreach normal,-g2017,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
 sv_constraint_state_fixed_queue_size_foreach_2023 normal,-g2023,-gno-icarus-misc,-gno-xtypes,-stest ivltests gold=sv_constraint_state_fixed_queue_size_foreach.gold
 sv_contassign_reduction_strength normal,-g2017,-ssv_contassign_reduction_strength ivltests gold=sv_contassign_reduction_strength.gold
@@ -6527,6 +6530,8 @@ issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829
 
 issue736_string_property_index_2017 normal,-g2017,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
 issue736_string_property_index_2023 normal,-g2023,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+issue2417_descending_array_percent_p_2017 normal,-g2017,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
+issue2417_descending_array_percent_p_2023 normal,-g2023,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
 
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
@@ -6553,3 +6558,5 @@ issue443_deferred_cover_count_2017 normal,-g2017,-s,top ivltests gold=issue443_d
 issue443_deferred_cover_count_2023 normal,-g2023,-s,top ivltests gold=issue443_deferred_cover_count.gold
 issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
+issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
+issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold

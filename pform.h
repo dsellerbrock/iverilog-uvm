@@ -1012,6 +1012,8 @@ extern PSpecPath*pform_assign_path_delay(PSpecPath*obj, std::list<PExpr*>*delays
 extern void pform_module_specify_path(PSpecPath*obj);
 extern bool pform_specify_path_output_previously_declared(
 	const pform_specify_terminal_t&terminal);
+extern void pform_specify_path_showcancelled(
+	const pform_specify_terminal_t&terminal, bool enabled);
 
 /*
  * Functions related to timing checks.

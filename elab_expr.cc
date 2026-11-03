@@ -14840,6 +14840,18 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
       ivl_assert(*li, struct_type);
       const netstruct_t*root_struct_type = struct_type;
 
+	// Built-in unpacked-struct nets are backed by per-member NetNets,
+	// created when the declaration is elaborated.  Do not use this path for
+	// variables, ports, user-defined nettypes, or indexed aggregate roots:
+	// those retain their existing object/property representation.
+      NetNet*net_struct_parent = nullptr;
+      if (base_index.empty() && net->type() == NetNet::WIRE
+	  && net->port_type() == NetNet::NOT_A_PORT
+	  && !net->user_nettype()
+	  && net->unpacked_dimensions() == 0
+	  && !struct_type->packed() && !struct_type->union_flag())
+	    net_struct_parent = net;
+
 	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m`)
 	// reaches the packed member handling below with a struct that
 	// reports packed()==true, but base_index here indexes the UNPACKED
@@ -15002,6 +15014,17 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		  size_t member_idx = member - &members.front();
 		  ivl_type_t member_type = member->net_type;
 		  active_modport = member->interface_modport;
+	  NetNet*member_net = net_struct_parent
+		? net_struct_parent->resolve_builtin_net_struct_member(member_idx)
+		: nullptr;
+	  if (net_struct_parent && !member_net) {
+		cerr << li->get_fileline() << ": error: No net storage was created for "
+		     << "unpacked-struct net member `" << member_comp.name << "'."
+		     << endl;
+		des->errors += 1;
+		delete base_expr;
+		return nullptr;
+	  }
 
 		    // An UNPACKED ARRAY member indexed by an element select
 		    // (`s.arr[2]`). The member is one property holding the
@@ -15052,11 +15075,16 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 				    delete base_expr;
 				    return 0;
 			      }
-			      NetEProperty*iprop =
-				    new NetEProperty(base_expr, member_idx, widx);
-			      iprop->set_line(*li);
-			      base_expr = iprop;
+				  NetExpr*array_member = member_net
+					? static_cast<NetExpr*>(new NetESignal(member_net, widx))
+					: static_cast<NetExpr*>(new NetEProperty(
+					      base_expr, member_idx, widx));
+				  array_member->set_line(*li);
+				  if (member_net)
+					delete base_expr;
+				  base_expr = array_member;
 			      cur_type = member_ua->element_type();
+				  net_struct_parent = nullptr;
 			      // Leading indices select the unpacked element; any remainder
 			      // selects bits from that element's packed value.
 			      if (!packed_indices.empty()) {
@@ -15131,9 +15159,23 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			}
 		  }
 
-		  NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
-		  prop->set_line(*li);
-		  base_expr = prop;
+		  if (member_net) {
+			NetExpr*member_expr = member_net->unpacked_dimensions()
+			      ? static_cast<NetExpr*>(new NetESignal(
+					member_net, static_cast<NetExpr*>(nullptr)))
+			      : static_cast<NetExpr*>(new NetESignal(member_net));
+			member_expr->set_line(*li);
+			delete base_expr;
+			base_expr = member_expr;
+		  } else {
+			NetEProperty*prop =
+			      new NetEProperty(base_expr, member_idx, nullptr);
+			prop->set_line(*li);
+			base_expr = prop;
+		  }
+		  if (member_net)
+			net_struct_parent = member_net->unpacked_dimensions()
+			      ? nullptr : member_net;
 		  cur_type = member_type;
 
 		    // A select ON the member (`s.d[15:8]`, `s.d[i +: 8]`) is a
@@ -16958,8 +17000,64 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			receiver.push_back(*head);
 		  push_modport_expression_context(receiver);
 	  NetExpr*expression = port->second.second->elaborate_expr(
-			des, scope, expr_wid, flags);
+			des, scope, port->second.second->expr_width(), flags);
 		  pop_modport_expression_context();
+		  if (expression && !comp.index.empty()) {
+			const index_component_t&select = comp.index.back();
+			NetExpr*index_expr = nullptr;
+			unsigned select_width = 0;
+			ivl_select_type_t select_type = IVL_SEL_OTHER;
+			if (select.sel == index_component_t::SEL_BIT) {
+			      index_expr = elab_and_eval(des, scope, select.msb, -1,
+						 flags & NEED_CONST);
+			      select_width = 1;
+			} else if (select.sel == index_component_t::SEL_PART) {
+			      long offset = 0;
+			      unsigned long part_width = 0;
+			      if (calculate_part(this, des, scope, select, offset,
+					 part_width)) {
+				    index_expr = make_const_val(offset);
+				    select_width = part_width;
+			      }
+			} else if (select.sel == index_component_t::SEL_IDX_UP
+				   || select.sel == index_component_t::SEL_IDX_DO) {
+			      NetExpr*width_expr = elab_and_eval(des, scope, select.lsb,
+							 -1, true);
+			      long part_width = 0;
+			      if (width_expr && eval_as_long(part_width, width_expr)
+				  && part_width > 0) {
+				    delete width_expr;
+				    index_expr = elab_and_eval(des, scope, select.msb, -1,
+							      flags & NEED_CONST);
+				    select_width = (unsigned)part_width;
+				    select_type = select.sel == index_component_t::SEL_IDX_UP
+					  ? IVL_SEL_IDX_UP : IVL_SEL_IDX_DOWN;
+				    if (index_expr)
+					  index_expr = normalize_variable_base(
+						index_expr, expression->expr_width()-1, 0,
+						select_width,
+						select.sel == index_component_t::SEL_IDX_UP);
+			      } else {
+				    delete width_expr;
+			      }
+			}
+			if (!index_expr || !select_width) {
+			      delete expression;
+			      return nullptr;
+			}
+			if (index_expr->expr_type() == IVL_VT_REAL) {
+			      cerr << get_fileline() << ": error: Select index cannot be real."
+				   << endl;
+			      des->errors += 1;
+			      delete expression;
+			      delete index_expr;
+			      return nullptr;
+			}
+			NetESelect*selected = new NetESelect(expression, index_expr,
+						       select_width, select_type);
+			selected->set_line(*this);
+			expression = pad_to_width(selected, expr_wid, false, *this);
+		  }
 		  return expression;
 	    }
       }
@@ -25120,13 +25218,36 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 			     ++head)
 			  receiver.push_back(*head);
 			push_modport_expression_context(receiver);
-			unsigned width = port->second.second->test_width(des, scope, mode);
+			port->second.second->test_width(des, scope, mode);
 			pop_modport_expression_context();
 			expr_type_ = port->second.second->expr_type();
 			expr_width_ = port->second.second->expr_width();
 			min_width_ = port->second.second->min_width();
 			signed_flag_ = port->second.second->has_sign();
-			return width;
+			if (!port_name.index.empty()
+			    && type_is_vectorable(expr_type_)) {
+			      const index_component_t&select = port_name.index.back();
+			      if (select.sel == index_component_t::SEL_BIT) {
+				    expr_width_ = min_width_ = 1;
+			      } else if (select.sel == index_component_t::SEL_PART) {
+				    long offset = 0;
+				    unsigned long select_width = 0;
+				    if (calculate_part(this, des, scope, select, offset,
+					       select_width))
+					  expr_width_ = min_width_ = select_width;
+			      } else if (select.sel == index_component_t::SEL_IDX_UP
+					 || select.sel == index_component_t::SEL_IDX_DO) {
+				    NetExpr*width_expr = elab_and_eval(
+					  des, scope, select.lsb, -1, true);
+				    long select_width = 0;
+				    if (width_expr
+					&& eval_as_long(select_width, width_expr)
+					&& select_width > 0)
+					  expr_width_ = min_width_ = select_width;
+				    delete width_expr;
+			      }
+			}
+			return expr_width_;
 		  }
 	    }
 	  }

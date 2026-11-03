@@ -1,0 +1,7 @@
+t=0 a=0 show=x default=x
+t=4000 a=0 show=0 default=0
+t=10000 a=1 show=0 default=0
+t=11000 a=0 show=0 default=0
+t=15000 a=0 show=x default=0
+t=16000 a=0 show=0 default=0
+./ivltests/issue1241_showcancelled_negative_pulse_2023.v:24: $finish called at 21000 (1ps)

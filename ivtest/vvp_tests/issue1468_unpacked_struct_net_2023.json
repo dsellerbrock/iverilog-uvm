@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1468_unpacked_struct_net.v",
+  "iverilog-args": ["-g2023", "-s", "issue1468_unpacked_struct_net"],
+  "gold": "issue1468_unpacked_struct_net"
+}

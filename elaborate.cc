@@ -2818,6 +2818,8 @@ struct pending_interface_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
       size_t property_idx;
+      unsigned msb;
+      unsigned lsb;
       NetNet*carrier;
       const LineInfo*location;
 };
@@ -3427,7 +3429,10 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	    if (!member || member->unpacked_dimensions() > 0
 		|| member->pin_count() != 1
 		|| !type_is_vectorable(member->data_type())
-		|| member->vector_width() != pending.carrier->vector_width()) {
+		|| pending.msb >= member->vector_width()
+		|| pending.lsb > pending.msb
+		|| pending.msb - pending.lsb + 1
+		     != pending.carrier->vector_width()) {
 		  cerr << pending.location->get_fileline() << ": error: Unable to "
 		       << "resolve the static net member driven by this interface "
 			  "continuous assignment." << endl;
@@ -3437,10 +3442,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 
 	      // Preserve the ordinary continuous-lvalue single-driver rule for
 	      // uwire and user-defined nettypes without a resolution function.
-	      // This path admits only one complete packed word.
 	    if (member->type() == NetNet::UNRESOLVED_WIRE) {
-		  unsigned msb = member->vector_width() - 1;
-		  if (member->test_part_driven(msb, 0, 0)) {
+		  if (member->test_part_driven(pending.msb, pending.lsb, 0)) {
 			cerr << pending.location->get_fileline() << ": error: ";
 			if (member->user_nettype()) {
 			      cerr << "Interface net member `" << member->name()
@@ -3457,7 +3460,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
 			des->errors += 1;
 			continue;
 		  }
-		  bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+		  bool overlap = member->test_and_set_part_driver(
+			pending.msb, pending.lsb, 0);
 		  ivl_assert(*pending.location, !overlap);
 	    }
 
@@ -3470,7 +3474,17 @@ static void finalize_interface_continuous_drivers_(Design*des)
 		  ivl_assert(*pending.location, raw != driver_target);
 		  driver_target = raw;
 	    }
-	    connect(pending.carrier->pin(0), driver_target->pin(0));
+	    if (pending.lsb == 0
+		&& pending.carrier->vector_width() == driver_target->vector_width()) {
+		  connect(pending.carrier->pin(0), driver_target->pin(0));
+	    } else {
+		  NetPartSelect*part = new NetPartSelect(driver_target,
+			pending.lsb, pending.carrier->vector_width(),
+			NetPartSelect::PV);
+		  part->set_line(*pending.location);
+		  des->add_node(part);
+		  connect(pending.carrier->pin(0), part->pin(0));
+	    }
       }
       pending_interface_continuous_drivers_.clear();
 
@@ -4253,18 +4267,21 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      NetNet*port = 0;
 			      unsigned port_word = 0;
 			      size_t property_idx = 0;
-			      bool complete_packed_member =
+			      unsigned driven_msb = 0;
+			      unsigned driven_lsb = 0;
+			      bool packed_member =
 				    !property_lval->word()
-				    && !property_lval->get_base()
 				    && declaration.type
 				    && !dynamic_cast<const netuarray_t*>(declaration.type)
 				    && !dynamic_cast<const netdarray_t*>(declaration.type)
 				    && !dynamic_cast<const netqueue_t*>(declaration.type)
 				    && type_is_vectorable(
-					  declaration.type->base_type())
-				    && property_lval->lwidth()
-				       == declaration.type->packed_width();
-			      bool static_binding = complete_packed_member
+					  declaration.type->base_type());
+			      bool static_range = packed_member
+				    && interface_member_static_range_(property_lval.get(),
+					  declaration.type->packed_width(),
+					  driven_msb, driven_lsb);
+			      bool static_binding = static_range
 				    && interface_member_static_binding_(
 					  property_lval.get(), port, port_word,
 					  property_idx);
@@ -4279,9 +4296,15 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 				    return;
 			      }
 
+			      ivl_type_t proxy_type = declaration.type;
+			      if (driven_lsb != 0
+				  || driven_msb + 1 != declaration.type->packed_width()) {
+				    proxy_type = new netvector_t(
+					  declaration.type->base_type(),
+					  driven_msb - driven_lsb, 0);
+			      }
 			      NetNet*placeholder = new NetNet(
-				    scope, scope->local_symbol(), NetNet::WIRE,
-				    declaration.type);
+				    scope, scope->local_symbol(), NetNet::WIRE, proxy_type);
 			      placeholder->set_line(*this);
 			      placeholder->local_flag(true);
 			      NetNet*driver_carrier = 0;
@@ -4295,6 +4318,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      if (ok) {
 				    pending_interface_continuous_driver_t pending = {
 					  port, port_word, property_idx,
+					  driven_msb, driven_lsb,
 					  driver_carrier, this
 				    };
 				    pending_interface_continuous_drivers_.push_back(
@@ -30183,6 +30207,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  cerr << get_fileline() << ": error: Path destination "
 		       << terminal << " must be an output or inout port." << endl;
 		  des->errors += 1;
+	    }
+
+	    const Module*module = scope->module_definition();
+	    if (module && module->specify_showcancelled(terminal)) {
+		  if (dst_sig->vector_width() == 1) {
+			dst_sig->attribute(perm_string::literal("_ivl_showcancelled"),
+					   verinum(1));
+		  } else {
+			cerr << get_fileline() << ": sorry: showcancelled on vector "
+			     << "module path outputs is not supported." << endl;
+		  }
 	    }
 
 	    ostringstream condition_text;
