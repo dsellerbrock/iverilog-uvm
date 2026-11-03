@@ -806,6 +806,7 @@ struct __vpiInterModPath : public __vpiHandle {
 extern struct __vpiInterModPath* vpip_make_intermodpath(vvp_net_t *net, vpiPortInfo* port1, vpiPortInfo* port2);
 extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
                                                         vpiHandle load);
+extern "C" bool vpip_interconnect_port_uses_part_select(vpiHandle port);
 extern "C" bool vpip_interconnect_through_net(vpiHandle net,
                                                vpiHandle load);
 extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,

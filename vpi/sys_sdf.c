@@ -26,6 +26,7 @@
 
 extern vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
                                                   vpiHandle load);
+extern bool vpip_interconnect_port_uses_part_select(vpiHandle port);
 extern bool vpip_interconnect_through_net(vpiHandle net, vpiHandle load);
 extern vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
                                                vpiHandle load);
@@ -355,7 +356,28 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
 
       if (port2_handle) {
 	      // Get interModPath for the two ports
-	    vpiHandle intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
+	    bool part_select_endpoint =
+	          (port1_handle && !port1.has_index &&
+	           vpip_interconnect_port_uses_part_select(port1_handle)) ||
+	          (port2_handle && !port2.has_index &&
+	           vpip_interconnect_port_uses_part_select(port2_handle));
+	    vpiHandle intermodpath;
+	    if (port1.has_index || port2.has_index || part_select_endpoint)
+		  intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
+	    else
+		  intermodpath = vpip_interconnect_ports_connected(port1_handle, port2_handle);
+	    int source_direction = port1_handle ? vpi_get(vpiDirection, port1_handle) : vpiOutput;
+	    int load_direction = vpi_get(vpiDirection, port2_handle);
+	    bool valid_endpoint_directions =
+	          (source_direction == vpiOutput || source_direction == vpiInout) &&
+	          (load_direction == vpiInput || load_direction == vpiInout);
+	    if (!intermodpath && port1_handle && !port1.has_index &&
+	        !port2.has_index && !part_select_endpoint && valid_endpoint_directions) {
+		  if (sdf_flag_warning)
+			vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s and load port %s are not on the same net; annotating load port anyway.\n",
+			           sdf_fname, sdf_lineno, port1.name, port2.name);
+		  intermodpath = vpip_interconnect_ports_connected(NULL, port2_handle);
+	    }
 
 	    if (intermodpath) {
 		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Created a vpiInterModPath\n", sdf_fname, sdf_lineno);
