@@ -837,6 +837,24 @@ NetNet* NetNet::resolve_interface_member(unsigned word,
       return 0;
 }
 
+void NetNet::bind_builtin_net_struct_member(size_t member_idx, NetNet*member)
+{
+      ivl_assert(*this, member);
+      ensure_target_emit_aux_()->builtin_net_struct_members[member_idx] = member;
+}
+
+NetNet* NetNet::resolve_builtin_net_struct_member(size_t member_idx) const
+{
+      const target_emit_aux_t*aux = target_emit_aux_;
+      if (!aux)
+            return 0;
+
+      std::map<size_t,NetNet*>::const_iterator member =
+            aux->builtin_net_struct_members.find(member_idx);
+      return member == aux->builtin_net_struct_members.end()
+            ? 0 : member->second;
+}
+
 void NetNet::set_user_nettype(const NetNetType*declared)
 {
       declared_user_nettype_ = declared;
@@ -1566,11 +1584,13 @@ void NetNet::release_emitted_signal_aux()
       vector<NetDelaySrc*>().swap(target_emit_aux_->delay_paths);
       vector<NetBUFZ*>().swap(target_emit_aux_->net_delay_boundaries);
 
-	/* Interface properties can still be resolved while later task/function
-	 * definitions and processes are converted. Retain those two containers,
-	 * but avoid keeping an otherwise empty auxiliary record. */
+	/* Interface properties and built-in unpacked-struct members can still be
+	 * resolved while later task/function definitions and processes are
+	 * converted. Retain those bindings, but avoid keeping an otherwise empty
+	 * auxiliary record. */
       if (target_emit_aux_->interface_bindings.empty()
-	  && target_emit_aux_->interface_synthesis_members.empty()) {
+	  && target_emit_aux_->interface_synthesis_members.empty()
+	  && target_emit_aux_->builtin_net_struct_members.empty()) {
 	    delete target_emit_aux_;
 	    target_emit_aux_ = 0;
       }

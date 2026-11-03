@@ -555,6 +555,68 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       pform_name_t base_path = sr.path_head;
       pform_name_t member_path = sr.path_tail;
 
+	// Built-in unpacked-struct wires use ordinary member NetNets for net
+	// resolution.  Retarget a continuous-assignment member l-value before
+	// the generic packed-structure offset path processes it.
+      const netstruct_t*net_record = sig ? sig->struct_type() : nullptr;
+      const bool builtin_unpacked_struct_net = sig
+	    && sig->type() == NetNet::WIRE
+	    && sig->port_type() == NetNet::NOT_A_PORT
+	    && !sig->user_nettype()
+	    && sig->unpacked_dimensions() == 0
+	    && net_record && !net_record->packed() && !net_record->union_flag();
+      if (builtin_unpacked_struct_net && !member_path.empty()) {
+	    NetNet*member_parent = sig;
+	    NetNet*selected_member = nullptr;
+	    bool supported_path = true;
+	    size_t idx = 0;
+	    for (pform_name_t::iterator cur = member_path.begin();
+		 cur != member_path.end(); ++cur, ++idx) {
+		  name_component_t&component = *cur;
+		  const netstruct_t*parent_type = member_parent->struct_type();
+		  if (!parent_type || parent_type->packed() || parent_type->union_flag()) {
+			supported_path = false;
+			break;
+		  }
+		  unsigned member_idx = parent_type->member_index(component.name);
+		  if (member_idx == (unsigned)-1) {
+			supported_path = false;
+			break;
+		  }
+		  NetNet*member_net =
+			member_parent->resolve_builtin_net_struct_member(member_idx);
+		  if (!member_net) {
+			supported_path = false;
+			break;
+		  }
+		  bool last = idx + 1 == member_path.size();
+		  if (!last) {
+			if (!component.index.empty()
+			    || member_net->unpacked_dimensions() != 0) {
+			      supported_path = false;
+			      break;
+			}
+			member_parent = member_net;
+		  } else if (const netstruct_t*leaf = member_net->struct_type()) {
+			if (!leaf->packed()) {
+			      supported_path = false;
+			      break;
+			}
+		  }
+		  if (last) {
+			selected_member = member_net;
+		  }
+	    }
+	    if (!supported_path) {
+		  cerr << get_fileline() << ": error: This member path through a "
+		       << "built-in unpacked-struct net is not yet supported." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    sig = selected_member;
+	    member_path.clear();
+      }
+
       if (pass_switch_flag && sig
 	  && sig->type() == NetNet::UNRESOLVED_WIRE) {
 	    cerr << get_fileline() << ": error: Unresolved wire `"
