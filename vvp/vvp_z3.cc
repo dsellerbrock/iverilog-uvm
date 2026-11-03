@@ -2011,10 +2011,19 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
       char*end = nullptr;
       errno = 0;
       unsigned long property = strtoul(s, &end, 10);
-      if (end == s || errno == ERANGE || *end != ':'
+      if (end == s || errno == ERANGE || (*end != ':' && *end != '.')
 	  || property > UINT_MAX) return invalid();
-      unsigned idx = (unsigned)property;
-      s = end + 1;
+      vector<unsigned> property_path(1, (unsigned)property);
+      while (*end == '.') {
+	    s = end + 1;
+	    errno = 0;
+	    unsigned long next = strtoul(s, &end, 10);
+	    if (end == s || errno == ERANGE || *end != ':' || next > UINT_MAX)
+		  return invalid();
+	    property_path.push_back((unsigned)next);
+      }
+	unsigned idx = property_path.back();
+	s = end + 1;
       unsigned leaf = 0;
       bool selected = false;
       if (*s == '#') {
@@ -2087,7 +2096,29 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
 	  || b.cobj->get_defn()->property_base_type(idx).empty()
 	  || b.cobj->get_defn()->property_base_type(idx)[0] != 'Q'
 	  || dtype.empty() || dtype[0] != 'Q')) return invalid();
-      idx = b.property_index(idx);
+	if (property_path.size() == 1) {
+	      idx = b.property_index(idx);
+	} else {
+	      vvp_cobject*owner = b.cobj;
+	      string path_error;
+	      for (size_t pos = 0; owner && pos + 1 < property_path.size(); ++pos) {
+		    vvp_object_t handle;
+		    if (!constraint_object_property_(owner, property_path[pos],
+			  handle, path_error, 0, true)) {
+			  owner = nullptr;
+			  break;
+		    }
+		    owner = handle.peek<vvp_cobject>();
+	      }
+	      if (!owner || !owner->get_defn()
+		  || idx >= owner->get_defn()->property_count()) {
+		    b.state_errors.push_back(path_error.empty()
+			  ? "null/invalid nested constraint array owner" : path_error);
+		    return Z3_mk_unsigned_int64(b.ctx, 0,
+			  Z3_mk_bv_sort(b.ctx, 32));
+	      }
+	      idx = b.graph ? b.graph->intern(owner, idx) : idx;
+	}
       if (idx_out) *idx_out = idx;
       if (b.collect_refs) {
 	    Z3Builder::VarRef ref = {Z3Builder::VarRef::SIZE, idx, leaf};
