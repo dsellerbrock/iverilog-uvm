@@ -390,6 +390,8 @@ class PCallTask  : public Statement {
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
       bool elaborate_elab(Design*des, NetScope*scope) const;
+      NetProc* elaborate_bound_task_call_(Design*des, NetScope*scope,
+					  NetScope*task) const;
 
       void void_cast() { void_cast_ = true; }
       bool is_void_cast() const { return void_cast_; }

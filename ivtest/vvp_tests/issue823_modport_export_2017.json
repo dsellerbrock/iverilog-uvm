@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue823_modport_export.v",
+  "iverilog-args": ["-g2017", "-s", "issue823_modport_export"],
+  "output-contains": [
+    "EREAD 4",
+    "EDATA 5",
+    "TREAD 4",
+    "TDATA 5"
+  ]
+}
