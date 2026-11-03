@@ -29,6 +29,8 @@ issue1583_vpi_get_data_2017 normal,-g2017 issue1583_vpi_get_data.c issue1583_vpi
 issue1583_vpi_get_data_2023 normal,-g2023 issue1583_vpi_get_data.c issue1583_vpi_get_data_2023.gold
 issue1846_dpi_user_data_2017 normal,-g2017 issue1846_dpi_user_data.c issue1846_dpi_user_data_2017.gold
 issue1846_dpi_user_data_2023 normal,-g2023 issue1846_dpi_user_data.c issue1846_dpi_user_data_2023.gold
+issue1271_vpi_task_iodecl_2017 normal,-g2017 issue1271_vpi_task_iodecl.c issue1271_vpi_task_iodecl_2017.gold
+issue1271_vpi_task_iodecl_2023 normal,-g2023 issue1271_vpi_task_iodecl.c issue1271_vpi_task_iodecl_2023.gold
 
 issue1276_vpi_range_2017 normal,-g2017 issue1276_vpi_range.c issue1276_vpi_range_2017.gold
 issue1276_vpi_range_2023 normal,-g2023 issue1276_vpi_range.c issue1276_vpi_range_2023.gold

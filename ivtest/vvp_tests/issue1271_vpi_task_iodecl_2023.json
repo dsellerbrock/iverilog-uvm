@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1271_vpi_task_iodecl.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue1271_vpi_task_iodecl_2023"],
+  "vpi-sources": ["vpi/issue1271_vpi_task_iodecl.c"],
+  "output-contains": ["ISSUE1271_PASSED", "PASSED"]
+}

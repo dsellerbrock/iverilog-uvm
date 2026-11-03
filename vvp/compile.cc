@@ -1088,6 +1088,9 @@ vvp_net_t* vvp_net_lookup(const char*label)
 		      return sig->node;
 		}
 
+		case vpiRefObj:
+		      return vpi->backing_net();
+
 		case vpiRealVar: {
 		      const __vpiRealVar*sig = dynamic_cast<__vpiRealVar*>(vpi);
 		      return sig->net;

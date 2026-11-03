@@ -629,6 +629,20 @@ void compile_vpi_source_location(char*label, uint64_t file_idx,
 }
 
 
+static void attach_ref_formal_vpi_handle_(const char*label, vpiHandle formal)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      if (scope->get_type_code() == vpiTask
+          || scope->get_type_code() == vpiFunction) {
+            vpiHandle ref_obj = vpip_make_ref_obj(formal);
+            compile_vpi_symbol(label, ref_obj);
+            vpip_attach_to_current_scope(ref_obj);
+      } else {
+            compile_vpi_symbol(label, formal);
+      }
+      vpip_attach_to_current_scope(formal);
+}
+
 void compile_ref_variable(char*label, char*name, int msb, int lsb,
 			  bool local_flag)
 {
@@ -650,10 +664,7 @@ void compile_ref_variable(char*label, char*name, int msb, int lsb,
 	    vpiHandle obj = vpip_make_int2(
 	          name, msb, lsb, true, net,
 	          vpip_peek_current_scope()->is_automatic());
-	    if (obj) {
-		  compile_vpi_symbol(label, obj);
-		  vpip_attach_to_current_scope(obj);
-	    }
+	    if (obj) attach_ref_formal_vpi_handle_(label, obj);
       }
 
       free(label);
@@ -689,10 +700,7 @@ void compile_ref_variable_real(char*label, char*name, bool local_flag)
       if (! local_flag && name) {
 	    vpiHandle obj = vpip_make_real_var(
 	          name, net, vpip_peek_current_scope()->is_automatic());
-	    if (obj) {
-		  compile_vpi_symbol(label, obj);
-		  vpip_attach_to_current_scope(obj);
-	    }
+	    if (obj) attach_ref_formal_vpi_handle_(label, obj);
       }
 
       free(label);
@@ -711,10 +719,7 @@ void compile_ref_variable_string(char*label, char*name, bool local_flag)
       if (name) {
             vpiHandle obj = vpip_make_string_var(
                   name, net, vpip_peek_current_scope()->is_automatic());
-            if (obj) {
-                  compile_vpi_symbol(label, obj);
-                  vpip_attach_to_current_scope(obj);
-            }
+            if (obj) attach_ref_formal_vpi_handle_(label, obj);
       }
 
       (void)local_flag;

@@ -355,6 +355,7 @@ extern void compile_timescale(long units, long precision);
    just declared. */
 extern void compile_modport_decl(char*name);
 extern void compile_modport_port(char*name, uint64_t dir);
+extern void compile_task_io_decl(char*label, uint64_t direction);
 extern void compile_nettype_decl(char*name, char*alias, char*with);
 extern void compile_typedef(char*name, long type, char*defname, char*modport);
 

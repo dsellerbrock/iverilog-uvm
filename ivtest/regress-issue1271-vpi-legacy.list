@@ -1,0 +1,2 @@
+issue1271_vpi_task_iodecl_2017 normal,-g2017 issue1271_vpi_task_iodecl.c issue1271_vpi_task_iodecl_2017.gold
+issue1271_vpi_task_iodecl_2023 normal,-g2023 issue1271_vpi_task_iodecl.c issue1271_vpi_task_iodecl_2023.gold

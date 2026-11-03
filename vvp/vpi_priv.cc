@@ -452,6 +452,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 {
       static char buf[32];
       switch (code) {
+	  case vpiIODeclIEEE: return "vpiIODecl";
+	  case vpiRefObj: return "vpiRefObj";
 	  case vpiBegin: return "vpiBegin";
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";

@@ -138,6 +138,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_vpi_source_location
 %token K_export_dpi
 %token K_PORT_INPUT K_PORT_OUTPUT K_PORT_INOUT K_PORT_MIXED K_PORT_NODIR
+%token K_IO_DECL
 
 %token <text> T_INSTR
 %token <text> T_LABEL
@@ -958,6 +959,9 @@ statement
 	  T_NUMBER T_NUMBER T_NUMBER T_SYMBOL T_NUMBER T_NUMBER T_SYMBOL ';'
 		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
 		                         $8, $9, $10, $11, $12, $13, $14); }
+
+	| K_IO_DECL T_SYMBOL ',' T_NUMBER ';'
+		{ compile_task_io_decl($2, $4); }
 
   /* M12-6: the .modport directive carries optional "port" direction
      pairs after the modport name. */

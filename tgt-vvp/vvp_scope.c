@@ -3310,6 +3310,45 @@ int scope_needs_call_frame(ivl_scope_t net)
       return 0;
 }
 
+/* Preserve the ordered task/function formal list for the VPI object model.
+   The VVP variable declaration creates the expression handle; this metadata
+   links it to the scope as a vpiIODecl and records the declared direction. */
+static void draw_subroutine_io_decls_(ivl_scope_t scope)
+{
+      unsigned first_port;
+      unsigned idx;
+
+      if (ivl_scope_type(scope) == IVL_SCT_TASK)
+            first_port = 0;
+      else if (ivl_scope_type(scope) == IVL_SCT_FUNCTION)
+            first_port = 1; /* Function port zero is its return value. */
+      else
+            return;
+
+      for (idx = first_port; idx < ivl_scope_ports(scope); idx += 1) {
+            ivl_signal_t sig = ivl_scope_port(scope, idx);
+            int direction;
+            const char*suffix;
+
+            if (!sig) continue;
+            switch (ivl_signal_port(sig)) {
+                case IVL_SIP_INPUT: direction = 1; break;
+                case IVL_SIP_OUTPUT: direction = 2; break;
+                case IVL_SIP_INOUT: direction = 3; break;
+                case IVL_SIP_REF: direction = 6; break;
+                default: continue;
+            }
+
+            /* Scalar signal declarations use the _0 symbol. Unpacked
+               arrays use their base symbol, except ref formals whose
+               existing .ref declaration has the scalar _0 spelling. */
+            suffix = (ivl_signal_dimensions(sig) == 0
+                      || ivl_signal_port(sig) == IVL_SIP_REF) ? "_0" : "";
+            fprintf(vvp_out, "    .io_decl v%p%s, %d;\n", sig, suffix,
+                    direction);
+      }
+}
+
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 {
       unsigned idx;
@@ -3766,6 +3805,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		  break;
 	    }
       }
+
+      draw_subroutine_io_decls_(net);
 
       for (idx = 0 ;  idx < ivl_scope_events(net) ;  idx += 1) {
 	    ivl_event_t event = ivl_scope_event(net, idx);

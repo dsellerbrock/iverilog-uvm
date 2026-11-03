@@ -47,6 +47,13 @@
 using namespace std;
 
 static vector<vpiHandle> vpip_root_table;
+static map<vvp_net_t*, vpiHandle> handles_by_net;
+
+vpiHandle vpip_handle_by_net(vvp_net_t*net)
+{
+      map<vvp_net_t*, vpiHandle>::const_iterator cur = handles_by_net.find(net);
+      return cur == handles_by_net.end() ? 0 : cur->second;
+}
 
 static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&table);
 
@@ -208,6 +215,7 @@ void root_table_delete(void)
 	    delete scope;
       }
       vpip_root_table.clear();
+      handles_by_net.clear();
 
 	/* Clean up all the class definitions. */
       for (unsigned idx = 0; idx < class_list_count; idx += 1) {
@@ -497,6 +505,19 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
+
+      if (code == vpiIODecl || code == vpiIODeclIEEE) {
+            vector<vpiHandle> items;
+            for (unsigned idx = 0; idx < ref->intern.size(); idx += 1)
+                  if (ref->intern[idx]->get_type_code() == vpiIODeclIEEE)
+                        items.push_back(ref->intern[idx]);
+            if (items.empty()) return 0;
+            vpiHandle*args = static_cast<vpiHandle*>(
+                  calloc(items.size(), sizeof(vpiHandle)));
+            for (unsigned idx = 0; idx < items.size(); idx += 1)
+                  args[idx] = items[idx];
+            return vpip_make_iterator(items.size(), args, true);
+      }
 
       if (code == vpiVirtualInterfaceVar) {
 	    vector<vpiHandle> items;
@@ -946,6 +967,99 @@ struct vpiScopeInterface  : public __vpiScope {
       bool has_index_;
 };
 
+/* IEEE 1800-2017/2023 37.15: a task/function ref formal is represented
+   by a reference object. Its active binding is stored in the formal's
+   vvp_ref_signal_aa and can change on each automatic activation. */
+class __vpiRefObj : public __vpiHandle {
+    public:
+      explicit __vpiRefObj(vpiHandle formal) : formal_(formal) { }
+
+      int get_type_code(void) const override { return vpiRefObj; }
+      vvp_net_t*backing_net(void) override
+      { return formal_ ? formal_->backing_net() : 0; }
+
+      int vpi_get(int code) override
+      { return formal_ ? formal_->vpi_get(code) : vpiUndefined; }
+
+      char*vpi_get_str(int code) override
+      { return formal_ ? formal_->vpi_get_str(code) : 0; }
+
+      void vpi_get_value(p_vpi_value value) override
+      { if (formal_) formal_->vpi_get_value(value); }
+
+      vpiHandle vpi_put_value(p_vpi_value value, int flags) override
+      { return formal_ ? formal_->vpi_put_value(value, flags) : 0; }
+
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiActual) {
+                  vvp_net_t*net = backing_net();
+                  vvp_ref_signal_aa*ref = net
+                        ? dynamic_cast<vvp_ref_signal_aa*>(net->fil) : 0;
+                  if (!ref) return 0;
+                  vvp_ref_signal_aa::binding_t binding;
+                  if (!ref->read_binding(binding)) return 0;
+                  /* A whole-variable binding has a direct VVP net. The
+                     indirect storage forms are handled by their own VPI
+                     object once that object is available to the binding. */
+                  if (binding.kind != 0) return 0;
+                  return vpip_handle_by_net(binding.target);
+            }
+            return formal_ ? formal_->vpi_handle(code) : 0;
+      }
+
+    private:
+      vpiHandle formal_;
+};
+
+vpiHandle vpip_make_ref_obj(vpiHandle formal)
+{ return new __vpiRefObj(formal); }
+
+/* IEEE 1800-2017/2023 37.13: an I/O declaration preserves its declared
+   direction while exposing the corresponding expression handle. */
+class __vpiTaskIO : public __vpiHandle {
+    public:
+      __vpiTaskIO(__vpiScope*scope, uint64_t direction)
+      : scope_(scope), direction_(static_cast<int>(direction)), expr_(0) { }
+
+      int get_type_code(void) const override { return vpiIODeclIEEE; }
+
+      int vpi_get(int code) override
+      {
+            if (code == vpiDirection) {
+                  if (!expr_) return vpiUndefined;
+                  if (expr_->get_type_code() == vpiVirtualInterfaceVar)
+                        return vpiUndefined;
+                  if (expr_->get_type_code() == vpiRefObj) {
+                        vpiHandle actual = expr_->vpi_handle(vpiActual);
+                        if (actual &&
+                            (actual->get_type_code() == vpiInterface ||
+                             actual->get_type_code() == vpiModport))
+                              return vpiUndefined;
+                  }
+                  return direction_;
+            }
+            return expr_ ? expr_->vpi_get(code) : vpiUndefined;
+      }
+
+      char*vpi_get_str(int code) override
+      { return expr_ ? expr_->vpi_get_str(code) : 0; }
+
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiExpr) return expr_;
+            if (code == vpiParent || code == vpiScope) return scope_;
+            return expr_ ? expr_->vpi_handle(code) : 0;
+      }
+
+      vpiHandle*expr_ref(void) { return &expr_; }
+
+    private:
+      __vpiScope*scope_;
+      int direction_;
+      vpiHandle expr_;
+};
+
 /* M12: a modport declaration of an interface. M12-6 adds the port
    list: vpi_iterate(vpiIODecl) yields one handle per modport port
    with its declared direction (vpi_get(vpiDirection)). */
@@ -956,7 +1070,7 @@ class __vpiModportIO : public __vpiHandle {
       __vpiModportIO(__vpiModport*parent, const std::string&name, int dir)
       : parent_(parent), name_(name), dir_(dir) { }
 
-      int get_type_code(void) const override { return vpiIODecl; }
+      int get_type_code(void) const override { return vpiIODeclIEEE; }
 
       int vpi_get(int code) override
       {
@@ -1005,7 +1119,8 @@ class __vpiModport : public __vpiHandle {
 
       vpiHandle vpi_iterate(int code) override
       {
-	    if (code != vpiIODecl || ports_.empty())
+	    if ((code != vpiIODecl && code != vpiIODeclIEEE)
+	        || ports_.empty())
 		  return 0;
 	    vpiHandle*args = (vpiHandle*)malloc(ports_.size() * sizeof(vpiHandle));
 	    for (size_t idx = 0 ; idx < ports_.size() ; idx += 1)
@@ -1680,10 +1795,27 @@ void compile_modport_port(char*name, uint64_t dir)
       delete[] name;
 }
 
+void compile_task_io_decl(char*label, uint64_t direction)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope && (scope->get_type_code() == vpiTask
+                       || scope->get_type_code() == vpiFunction));
+      __vpiTaskIO*obj = new __vpiTaskIO(scope, direction);
+      compile_vpi_lookup(obj->expr_ref(), label);
+      vpip_attach_to_current_scope(obj);
+}
+
 void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 {
       assert(scope);
       scope->intern.push_back(obj);
+      vvp_net_t*net = obj->backing_net();
+      if (net) {
+            map<vvp_net_t*, vpiHandle>::iterator cur = handles_by_net.find(net);
+            if (obj->get_type_code() == vpiRefObj ||
+                cur == handles_by_net.end())
+                  handles_by_net[net] = obj;
+      }
 }
 
 void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)

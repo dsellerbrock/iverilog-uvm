@@ -23,6 +23,18 @@
 # include  "sv_vpi_user.h"
 # include  "vvp_net.h"
 # include  "config.h"
+#ifndef vpiRefObj
+# define vpiRefObj 608
+#endif
+#ifndef vpiActual
+# define vpiActual 700
+#endif
+#ifndef vpiRef
+# define vpiRef 6
+#endif
+/* IEEE 1800-2017/2023 Annex K assigns vpiIODecl code 28. The public
+ * Icarus extension header uses 604 for compatibility with older clients. */
+#define vpiIODeclIEEE 28
 #ifndef vpiJoinType
 # define vpiJoinType 603
 #endif
@@ -440,6 +452,8 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+extern vpiHandle vpip_make_ref_obj(vpiHandle formal);
+extern vpiHandle vpip_handle_by_net(vvp_net_t*net);
 extern __vpiScope* vpip_peek_context_scope(void);
 extern unsigned vpip_add_item_to_context(automatic_hooks_s*item,
                                          __vpiScope*scope);
