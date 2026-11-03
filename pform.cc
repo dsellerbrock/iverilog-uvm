@@ -15648,7 +15648,8 @@ static void pform_capture_procedural_sampled_(
 	    std::vector<Statement*>&pre, std::vector<Statement*>&post,
 	    std::vector<Statement*>&init,
 	    std::map<std::string, pform_name_t>&sampled,
-	    unsigned&live_operands, PEventStatement*sampling_event)
+	    unsigned&live_operands, PEventStatement*sampling_event,
+	    long reactive_past_offset = 0)
 {
       PECallFunction*cf = pending.call;
       if (cf->sampled_subst()) return;
@@ -15671,7 +15672,7 @@ static void pform_capture_procedural_sampled_(
 		  lex_strings.make("$past"), past_args);
 	    FILE_NAME(past, pending.loc);
 	    PExpr*history = sva_rewrite_sampled_(pending.loc, past, inst,
-		  hist_idx, pre, post, init, true);
+		  hist_idx, pre, post, init, true, reactive_past_offset);
 	    if (!history || !select.msb) {
 		  delete history;
 		  live_operands += 1;
@@ -15725,7 +15726,8 @@ static void pform_capture_procedural_sampled_(
 	    source = cf;
       }
       PExpr*sub = sva_rewrite_sampled_(pending.loc, source, inst, hist_idx,
-					       pre, post, init, true);
+					       pre, post, init, true,
+					       reactive_past_offset);
       if (source != cf && sub != source)
 	    delete source;
       if (sub && sub != cf)
@@ -16158,11 +16160,17 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
       std::vector<Statement*> pre, post, init;
       std::map<std::string, pform_name_t> sampled;
       unsigned live_operands = 0;
+	/* Concurrent assertion actions execute in Reactive, after this
+	   leading-clock sampler has shifted the current sample. Keep one extra
+	   history entry so sampled-value calls still address the previous
+	   assertion tick (IEEE 1800-2017/2023 16.9.3, 4.4.2.5). */
+      long reactive_past_offset = pform_generated_verification_depth_ ? 1 : 0;
 
       for (size_t i = 0 ; i < mine.size() ; i += 1) {
 	    pform_capture_procedural_sampled_(mine[i], inst, hist_idx,
 					      pre, post, init, sampled,
-					      live_operands, ev);
+					      live_operands, ev,
+					      reactive_past_offset);
       }
 
       if (live_operands != 0) {

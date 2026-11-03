@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue1366_action_past.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue1366_action_past"],
+  "output-contains": [
+    "action t=25 current=0 past=1",
+    "PASS sampled value function inherits action-block leading clock",
+    "PASSED"
+  ]
+}

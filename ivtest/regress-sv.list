@@ -6545,3 +6545,4 @@ issue443_deferred_cover_count_2017 normal,-g2017,-s,top ivltests gold=issue443_d
 issue443_deferred_cover_count_2023 normal,-g2023,-s,top ivltests gold=issue443_deferred_cover_count.gold
 issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
+issue1366_action_past normal,-g2017,-gassertions,-s,issue1366_action_past ivltests gold=issue1366_action_past.gold
