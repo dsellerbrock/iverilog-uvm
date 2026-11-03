@@ -25271,6 +25271,42 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		&& (expr_[idx]->type() == PEEvent::ANYEDGE
 		    || expr_[idx]->type() == PEEvent::POSEDGE
 		    || expr_[idx]->type() == PEEvent::NEGEDGE)) {
+	      /* A cycle-delayed drive through a class-held virtual interface is
+	       * rewritten to wait on the interface's synthesized clocking tick.
+	       * When the interface handle is selected through a class array, keep
+	       * that selected handle as the VIF wait object instead of treating
+	       * its class-array receiver as an unrelated event dependency. */
+	      const NetEProperty*tick = dynamic_cast<const NetEProperty*>(tmp);
+	      const char*tick_name = nullptr;
+	      if (tick) {
+		const netclass_t*tick_class =
+		      dynamic_cast<const netclass_t*>(tick->get_base()
+							       ? tick->get_base()->net_type()
+								       : nullptr);
+		if (tick_class && tick_class->is_interface())
+		      tick_name = tick_class->get_prop_name(tick->property_idx());
+	      }
+	      if (tick_name && strncmp(tick_name, "_ivl_cbtick$", 12) == 0
+		  && expr_[idx]->type() == PEEvent::ANYEDGE) {
+		NexusSet*roots = tmp->nex_input();
+		if (roots && roots->size() > 0) {
+		      NetEvProbe*probe = new NetEvProbe(
+			    scope, scope->local_symbol(), ev,
+			    NetEvProbe::ANYEDGE, roots->size());
+		      for (unsigned pin = 0; pin < roots->size(); pin += 1)
+			    connect(roots->at(pin).lnk, probe->pin(pin));
+		      probe->set_vif_anyedge_path(std::vector<unsigned>(),
+						  tick->property_idx());
+		      probe->set_vif_root_pin(0);
+		      probe->set_vif_object_expr(tick->get_base());
+		      des->add_node(probe);
+		      expr_count += 1;
+		      delete roots;
+		      delete tmp;
+		      continue;
+		}
+		delete roots;
+	      }
 	      const NetEProperty*prop = dynamic_cast<const NetEProperty*>(tmp);
 	      const NetESFunc*child = prop
 		? dynamic_cast<const NetESFunc*>(prop->get_base()) : nullptr;
