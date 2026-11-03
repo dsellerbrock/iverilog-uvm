@@ -1,0 +1,6 @@
+./ivltests/issue420_randc_cycle_width.v:13: warning: randc property 'value' of class boundary_cycle_item has a 32-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 2048 values, and other wide forms cannot guarantee a full cycle.
+./ivltests/issue420_randc_cycle_width.v:2: warning: randc property 'value' of class extended_cycle_item has a 21-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 2048 values, and other wide forms cannot guarantee a full cycle.
+./ivltests/issue420_randc_cycle_width.v:17: warning: randc property 'value' of class over_cap_cycle_item has a 21-bit cyclic leaf, beyond the 20-bit dense history limit; non-static constrained scalar leaves up to 64 bits cycle only when their complete feasible set has at most 2048 values, and other wide forms cannot guarantee a full cycle.
+ERROR: global constraint sampling failed: wide randc feasible domain is not exactly enumerable.
+PASS issue420 randc exact wide cycle
+./ivltests/issue420_randc_cycle_width.v:68: $finish called at 0 (1s)

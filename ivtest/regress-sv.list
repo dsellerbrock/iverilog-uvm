@@ -6529,3 +6529,5 @@ issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_condition
 issue626_set_inst_name normal,-g2017,-s,top ivltests gold=issue626_set_inst_name.gold
 issue2339_numeric_input_skew_initializer_2017 normal,-g2017,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
 issue2339_numeric_input_skew_initializer_2023 normal,-g2023,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
+issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
+issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold
