@@ -128,7 +128,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_UDP K_UDP_C K_UDP_S
 %token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_VIF_MODPORT K_VAR_DARRAY
 %token K_VAR_QUEUE
-%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_VAR_TIME K_REF K_REF_R K_REF_STR
+%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_VAR_TIME K_REF K_REF_R K_REF_STR K_REF_2S
 %token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
@@ -1020,6 +1020,9 @@ statement
      and every access is forwarded there. */
   | T_LABEL K_REF local_flag T_STRING ',' signed_t_number signed_t_number ';'
       { compile_ref_variable($1, $4, $6, $7, $3); }
+
+  | T_LABEL K_REF_2S local_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_ref_variable_2state($1, $4, $6, $7, $3); }
 
   /* The same, for a `ref' formal whose underlying type is real (R25
      stretch) -- msb/lsb are dummy fields here, unused by a real formal,

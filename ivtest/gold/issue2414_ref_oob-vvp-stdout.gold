@@ -1,0 +1,6 @@
+rd 0
+rd 0
+direct 0 0
+rd4 x
+rd4 x
+direct4 x x

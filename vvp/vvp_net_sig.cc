@@ -911,12 +911,13 @@ struct ref_aa_slot {
       vvp_object_t obj;        // REF_PROP receiver / REF_ELEM stable cell
       unsigned prop_id;        // REF_PROP
       int64_t index;           // REF_ELEM / REF_WORD
+      bool two_state;
       struct __vpiArray*arr;   // REF_WORD
       vvp_net_t*relay_source;
       vvp_net_t*relay;
 
       ref_aa_slot() : magic(MAGIC), kind(REF_NET), target(0), caller_ctx(0),
-                      prop_id(0), index(0), arr(0), relay_source(0),
+                      prop_id(0), index(0), two_state(false), arr(0), relay_source(0),
                       relay(0) { }
       ~ref_aa_slot() { clear(); }
       void clear()
@@ -928,6 +929,7 @@ struct ref_aa_slot {
             obj = vvp_object_t();
             prop_id = 0;
             index = 0;
+            two_state = false;
             arr = 0;
       }
 };
@@ -1025,8 +1027,8 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
             formal->send_vec4(initial, frame);
 }
 
-vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid)
-: vvp_fun_signal_object(wid), static_slot_(0)
+vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid, bool two_state)
+: vvp_fun_signal_object(wid), static_slot_(0), two_state_(two_state)
 {
       context_scope_ = vpip_peek_context_scope();
       if (context_scope_ && context_scope_->get_type_code() == vpiModule) {
@@ -1107,6 +1109,7 @@ void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
                   source.obj = outer->obj;
                   source.prop_id = outer->prop_id;
                   source.index = outer->index;
+                  source.two_state = outer->two_state;
                   source.arr = outer->arr;
                   write_binding(formal, frame, source);
                   return;
@@ -1155,6 +1158,7 @@ void vvp_ref_signal_aa::bind_elem(vvp_net_t*formal,
       slot->clear();
       slot->kind = ref_aa_slot::REF_ELEM;
       slot->index = index;
+      slot->two_state = two_state_;
       if (index >= 0) {
             if (vvp_darray*darray = container.peek<vvp_darray>())
                   slot->obj = darray->capture_element_ref((size_t)index, size_);
@@ -1321,8 +1325,13 @@ static void ref_elem_write_(const ref_aa_slot*slot,
 static void ref_elem_read_(const ref_aa_slot*slot, vvp_vector4_t&value)
 {
       if (vvp_darray_element_ref*darray_cell =
-                slot->obj.peek<vvp_darray_element_ref>())
-            darray_cell->get_value(value);
+                slot->obj.peek<vvp_darray_element_ref>()) {
+            if (darray_cell->is_valid())
+                  darray_cell->get_value(value);
+            else
+                  value = vvp_vector4_t(value.size(),
+                        slot->two_state ? BIT4_0 : BIT4_X);
+      }
       else if (vvp_assoc_element_ref*assoc_cell =
                      slot->obj.peek<vvp_assoc_element_ref>())
             assoc_cell->get_value(value);
@@ -1456,7 +1465,7 @@ static bool ref_inside_read_vec4_(const ref_aa_slot*slot, unsigned wid,
                   val = vvp_vector4_t(wid, BIT4_X);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            val = vvp_vector4_t(wid, BIT4_X);
+            val = vvp_vector4_t(wid, slot->two_state ? BIT4_0 : BIT4_X);
             ref_elem_read_(slot, val);
             return true;
           }
@@ -1581,6 +1590,7 @@ bool vvp_ref_signal_aa::read_binding(binding_t&out) const
       out.obj = slot->obj;
       out.prop_id = slot->prop_id;
       out.index = slot->index;
+      out.two_state = slot->two_state;
       out.arr = slot->arr;
       return true;
 }
@@ -1616,6 +1626,7 @@ void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
       slot->obj = in.obj;
       slot->prop_id = in.prop_id;
       slot->index = in.index;
+      slot->two_state = in.two_state;
       slot->arr = in.arr;
       if (slot->kind == ref_aa_slot::REF_NET)
             attach_ref_event_relay_(slot, formal, frame);

@@ -311,6 +311,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".ref"          { return K_REF; /* subroutine `ref' formal (13.5.2) */ }
 ".ref/real"     { return K_REF_R; /* ... whose underlying type is real */ }
 ".ref/str"      { return K_REF_STR; /* ... whose underlying type is string */ }
+".ref/2s"       { return K_REF_2S; /* ... whose underlying type is 2-state */ }
 ".udp"          { return K_UDP; }
 ".udp/c"(omb)?  { return K_UDP_C; }
 ".udp/s"(equ)?  { return K_UDP_S; }

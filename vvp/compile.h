@@ -621,6 +621,8 @@ extern void compile_variable(char*label, char*name,
  */
 extern void compile_ref_variable(char*label, char*name,
 				 int msb, int lsb, bool local_flag);
+extern void compile_ref_variable_2state(char*label, char*name,
+                                        int msb, int lsb, bool local_flag);
 
 /*
  * The same, for a `ref' formal whose underlying type is real -- needs a
