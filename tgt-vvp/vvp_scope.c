@@ -1219,7 +1219,15 @@ static void draw_net_in_scope(ivl_signal_t sig)
       int lsb;
       switch (ivl_signal_packed_dimensions(sig)) {
 	  case 0:
-	    msb = 0;
+	    /* Fixed-size unpacked-struct nets use a flat Nexus for their
+	     * recursively sized 4-state members, even though their source type
+	     * has no packed dimensions. */
+	    if (ivl_signal_dimensions(sig) == 0
+		&& ivl_signal_data_type(sig) == IVL_VT_LOGIC
+		&& ivl_type_packed_width(ivl_signal_net_type(sig)) == (unsigned)-1)
+		  msb = ivl_signal_width(sig) - 1;
+	    else
+		  msb = 0;
 	    lsb = 0;
 	    break;
 	  case 1:

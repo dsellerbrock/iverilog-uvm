@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1468_unpacked_struct_net.v",
+  "iverilog-args": ["-g2017", "-s", "issue1468_unpacked_struct_net"]
+}

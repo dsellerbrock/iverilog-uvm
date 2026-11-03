@@ -22,10 +22,55 @@
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  <iostream>
+# include  <limits>
 
 # include  "ivl_assert.h"
 
 using namespace std;
+
+unsigned long net_type_bit_width(ivl_type_t type)
+{
+      if (!type)
+	    return 0;
+
+      if (type->packed()) {
+	    long width = type->packed_width();
+	    return width > 0 ? static_cast<unsigned long>(width) : 0;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    unsigned long count = 1;
+	    for (const netrange_t&dim : array->static_dimensions()) {
+		  if (count > numeric_limits<unsigned long>::max() / dim.width())
+			return numeric_limits<unsigned long>::max();
+		  count *= dim.width();
+	    }
+	    unsigned long element_width = net_type_bit_width(array->element_type());
+	    if (element_width == 0)
+		  return 0;
+	    if (count > numeric_limits<unsigned long>::max() / element_width)
+		  return numeric_limits<unsigned long>::max();
+	    return count * element_width;
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    unsigned long width = 0;
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  unsigned long member_width = net_type_bit_width(member.net_type);
+		  if (record->union_flag()) {
+			if (member_width > width)
+			      width = member_width;
+		  } else {
+			if (width > numeric_limits<unsigned long>::max() - member_width)
+			      return numeric_limits<unsigned long>::max();
+			width += member_width;
+		  }
+	    }
+	    return width;
+      }
+
+      return 0;
+}
 
 static bool net_type_contains_chandle_(ivl_type_t type)
 {
@@ -147,10 +192,15 @@ const netstruct_t::member_t* netstruct_t::packed_member(perm_string name, unsign
 		  return &members_[idx-1];
 	    }
 	      // If this is not a union, then the members are lined up
-	      // from LSB to MSB.  If this is a union, then all
-	      // members are at offset 0.
-	    if (!union_)
-		  count_off += members_[idx-1].net_type->packed_width();
+	      // from LSB to MSB.  For an unpacked struct, use the
+	      // recursive storage width so nested structs and fixed arrays
+	      // contribute their complete size. Union members overlap.
+	    if (!union_) {
+		  unsigned long member_width = packed_
+			? static_cast<unsigned long>(members_[idx-1].net_type->packed_width())
+			: net_type_bit_width(members_[idx-1].net_type);
+		  count_off += member_width;
+	    }
       }
 
       return 0;

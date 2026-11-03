@@ -14663,7 +14663,11 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	    }
       }
 
-      if (! struct_type->packed()) {
+      const bool unpacked_net = !struct_type->packed()
+	    && !struct_type->union_flag()
+	    && net->type() != NetNet::REG
+	    && net->unpacked_dimensions() == 0;
+      if (!struct_type->packed() && !unpacked_net) {
 	    NetExpr*base_expr = nullptr;
 
 	    if (base_index.empty()) {
@@ -15004,7 +15008,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	// width. As we step through the member_path the off
 	// increases, and use_width shrinks.
       unsigned long off = 0;
-      unsigned long use_width = struct_type->packed_width();
+	unsigned long use_width = net_type_bit_width(struct_type);
 	// Run-time member-offset contributions (variable indices into
 	// member vectors/arrays, recovery C4). Added to the constant
 	// base at the final select.
@@ -15048,8 +15052,9 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	    }
 
 	    off += tmp_off;
-	    ivl_assert(*li, use_width >= (unsigned long)member_type->packed_width());
-	    use_width = member_type->packed_width();
+	    unsigned long member_width = net_type_bit_width(member_type);
+	    ivl_assert(*li, use_width >= member_width);
+	    use_width = member_width;
 
 	      // At this point, off and use_width are the part select
 	      // expressed by the member_comp, which is a member of the
@@ -15236,7 +15241,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      if (!ua_of_packed
+      if (!unpacked_net && !ua_of_packed
 	  && base_index.size()+1 != net->packed_dimensions()) {
 	    cerr << li->get_fileline() << ": internal error: packed struct "
 		 << "member select on '" << net->name() << "' has "
@@ -15248,7 +15253,7 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
       }
 
       NetExpr*packed_base = 0;
-      if (!ua_of_packed && net->packed_dimensions() > 1) {
+      if (!unpacked_net && !ua_of_packed && net->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = base_index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;

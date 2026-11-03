@@ -1093,6 +1093,11 @@ void NetNet::set_module_port_index(unsigned idx)
 ivl_variable_type_t NetNet::data_type() const
 {
       ivl_assert(*this, net_type_);
+      if (type_ != REG && unpacked_dimensions() == 0) {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(net_type_);
+	    if (record && !record->packed() && !record->union_flag())
+		  return IVL_VT_LOGIC;
+      }
       return net_type_->base_type();
 }
 
@@ -1185,6 +1190,19 @@ unsigned NetNet::unpacked_dimensions() const
 unsigned long NetNet::slice_width(size_t depth) const
 {
       ivl_assert(*this, net_type_);
+
+	/* IEEE 1800 6.7.1 permits a built-in net to have a fixed-size
+	 * unpacked struct type. Its Nexus is the recursively laid-out 4-state
+	 * bit storage for the members, while unpacked-struct variables remain
+	 * object-backed and keep the ordinary one-word width. */
+      if (depth == 0 && type_ != REG && unpacked_dimensions() == 0) {
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(net_type_);
+	    if (record && !record->packed() && !record->union_flag()) {
+		  unsigned long width = net_type_bit_width(net_type_);
+		  if (width > 0)
+			return width;
+	    }
+      }
 
       if (!net_type_->packed())
 	    return depth == 0 ? 1 : 0;
@@ -3261,6 +3279,11 @@ const NetScope* NetEScope::scope() const
 NetESignal::NetESignal(NetNet*n)
 : NetExpr(n->net_type()), net_(n), word_(0)
 {
+      if (n->type() != NetNet::REG && n->unpacked_dimensions() == 0) {
+		const netstruct_t*record = dynamic_cast<const netstruct_t*>(n->net_type());
+		if (record && !record->packed() && !record->union_flag())
+		      expr_width(n->vector_width());
+	  }
       net_->incr_eref();
       set_line(*n);
 }

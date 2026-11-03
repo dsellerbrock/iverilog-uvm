@@ -5102,13 +5102,17 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 
       const netstruct_t*struct_type = reg->struct_type();
       ivl_assert(*this, struct_type);
+      const bool unpacked_net = !struct_type->packed()
+	    && !struct_type->union_flag()
+	    && reg->type() != NetNet::REG
+	    && reg->unpacked_dimensions() == 0;
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
 		 << "Type=" << *struct_type
 		 << endl;
       }
 
-      if (! struct_type->packed()) {
+      if (!struct_type->packed() && !unpacked_net) {
 	      // SV compile-progress fallback: unpacked struct l-value
 	      // member access is not fully implemented yet.  Instead of
 	      // rejecting the entire statement, walk the member path to
@@ -5194,7 +5198,7 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// width. As we step through the member_path the off
 	// increases, and use_width shrinks.
       unsigned long off = 0;
-      unsigned long use_width = struct_type->packed_width();
+      unsigned long use_width = net_type_bit_width(struct_type);
 	// Run-time member-offset contributions (variable indices into
 	// member vectors/arrays, recovery C4).
       NetExpr*var_off = 0;
@@ -5247,8 +5251,9 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    }
 
 	    off += tmp_off;
-	    ivl_assert(*this, use_width >= (unsigned long)member->net_type->packed_width());
-	    use_width = member->net_type->packed_width();
+	    unsigned long member_width = net_type_bit_width(member->net_type);
+	    ivl_assert(*this, use_width >= member_width);
+	    use_width = member_width;
 
 	      // At this point, off and use_width are the part select
 	      // expressed by the member_comp, which is a member of the
@@ -5418,14 +5423,14 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      if (!ua_of_packed)
+	if (!unpacked_net && !ua_of_packed)
 	    ivl_assert(*this, name_base.index.size()+1 == reg->packed_dimensions());
 
 	// Generate an expression that takes the input array of
 	// expressions and generates a canonical offset into the
 	// packed array.
       NetExpr*packed_base = 0;
-      if (!ua_of_packed && reg->packed_dimensions() > 1) {
+	if (!unpacked_net && !ua_of_packed && reg->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = name_base.index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;

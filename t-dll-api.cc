@@ -3388,6 +3388,16 @@ extern "C" unsigned ivl_signal_width(ivl_signal_t net)
       assert(net);
       assert(net->net_);
       assert(net->net_->net_type());
+	/* A built-in net may be backed by the recursively flattened 4-state
+	 * members of an unpacked struct. Its declared type has no packed_width,
+	 * but the Nexus and target signal carry the aggregate's full bit width. */
+	if (net->net_->type() != NetNet::REG
+	    && net->net_->unpacked_dimensions() == 0) {
+	      const netstruct_t*record = dynamic_cast<const netstruct_t*>(
+		    net->net_->net_type());
+	      if (record && !record->packed() && !record->union_flag())
+		    return static_cast<unsigned>(net->net_->vector_width());
+	}
       return net->net_->net_type()->packed_width();
 }
 
@@ -3504,7 +3514,7 @@ extern "C" ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net)
 	if (!vtbl || vtbl < 0x10000UL || (vtbl & (sizeof(void*)-1)) != 0)
 	      return IVL_VT_NO_TYPE;
       }
-      return net_type->base_type();
+      return net->net_->data_type();
 }
 
 extern "C" ivl_type_t ivl_signal_net_type(ivl_signal_t net)

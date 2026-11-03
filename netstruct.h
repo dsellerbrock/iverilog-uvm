@@ -123,4 +123,8 @@ inline bool netstruct_t::soft_union_flag(void) const { return soft_union_; }
 inline bool netstruct_t::packed(void) const { return packed_; }
 inline bool netstruct_t::tagged_flag(void) const { return tagged_; }
 
+// Return the number of bit positions in a packed type or fixed-size unpacked
+// aggregate. A zero result means TYPE has no bit storage representation.
+unsigned long net_type_bit_width(ivl_type_t type);
+
 #endif /* IVL_netstruct_H */
