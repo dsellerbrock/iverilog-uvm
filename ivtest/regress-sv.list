@@ -131,6 +131,8 @@ issue1231_stream_array_then_item_2023 normal,-g2023,-s,top ivltests gold=issue12
 issue1318_vpi_blocking_legacy normal,-g2017 ivltests
 issue1363_sequence_triggered_args_2017 normal,-g2017,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
 issue1363_sequence_triggered_args_2023 normal,-g2023,-s,issue1363_sequence_triggered_args ivltests gold=issue1363_sequence_triggered_args.gold
+issue1853_uninstantiated_interface_port_2017 normal,-g2017 ivltests gold=issue1853_uninstantiated_interface_port.gold
+issue1853_uninstantiated_interface_port_2023 normal,-g2023 ivltests gold=issue1853_uninstantiated_interface_port.gold
 issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold

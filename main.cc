@@ -44,6 +44,7 @@ const char NOTICE[] =
 # include  <cstring>
 # include  <list>
 # include  <map>
+# include  <set>
 # include  <unistd.h>
 # include  <cstdlib>
 #if defined(__APPLE__)
@@ -434,6 +435,59 @@ static void parm_to_flagmap(const string&flag)
 
 static void find_module_mention(map<perm_string,bool>&check_map, Module*m);
 static void find_module_mention(map<perm_string,bool>&check_map, PGenerate*s);
+
+static bool is_interface_port_type_(const data_type_t*type,
+				    set<const data_type_t*>&seen_types,
+				    set<const typedef_t*>&seen_typedefs)
+{
+      if (!type)
+	    return false;
+
+      if (const interface_type_t*interface_type =
+		dynamic_cast<const interface_type_t*>(type))
+	    return !interface_type->virtual_type;
+
+      if (!seen_types.insert(type).second)
+	    return false;
+
+      bool result = false;
+      if (const array_base_t*array_type =
+		dynamic_cast<const array_base_t*>(type)) {
+	    result = is_interface_port_type_(array_type->base_type.get(),
+					     seen_types, seen_typedefs);
+      } else if (const typeref_t*type_ref =
+		 dynamic_cast<const typeref_t*>(type)) {
+	    const typedef_t*typedef_decl = type_ref->typedef_ref();
+	    if (typedef_decl && seen_typedefs.insert(typedef_decl).second) {
+		  result = is_interface_port_type_(
+			  typedef_decl->get_data_type(), seen_types, seen_typedefs);
+		  seen_typedefs.erase(typedef_decl);
+	    }
+      }
+
+      seen_types.erase(type);
+      return result;
+}
+
+static bool module_has_required_interface_port_(Module*module)
+{
+      for (const Module::port_t*port : module->ports) {
+	    if (!port || port->default_value)
+		  continue;
+
+	    PWire*wire = module->wires_find(port->name);
+	    if (!wire)
+		  continue;
+
+	    set<const data_type_t*>seen_types;
+	    set<const typedef_t*>seen_typedefs;
+	    if (is_interface_port_type_(wire->data_type(), seen_types,
+					seen_typedefs))
+		  return true;
+      }
+
+      return false;
+}
 
 /*
  * Convert a string to a time unit or precision.
@@ -1255,6 +1309,14 @@ int main(int argc, char*argv[])
 		    /* Don't choose modules instantiated in other
 		       modules. */
 		  if (mentioned_p[(*mod).second->mod_name()])
+			continue;
+
+		    /* IEEE 1800-2017/2023 23.3.3.4 requires every interface
+		       port to connect to an interface instance or higher-level
+		       interface port. An implicit root has no parent instance
+		       to supply that connection. Keep this filter in automatic
+		       root discovery so an explicit -s selection is unchanged. */
+		  if (module_has_required_interface_port_((*mod).second))
 			continue;
 
 		    /* What's left might as well be chosen as a root. */
