@@ -941,9 +941,9 @@ static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
       return res;
 }
 
-/* A locator on a multidimensional fixed array visits the outer dimension;
- * each iterator/result value is therefore one fixed subarray. */
-static ivl_type_t fixed_array_locator_element_type_(
+/* An array method on a multidimensional fixed array visits the outer
+ * dimension; each iterator value is therefore one fixed subarray. */
+static ivl_type_t fixed_array_method_element_type_(
       const netuarray_t*array)
 {
       const netranges_t&dimensions = array->static_dimensions();
@@ -1934,8 +1934,15 @@ static NetNet* make_array_method_iter_net_(
 		  iter_name = ip->path().back().name;
       }
 
-      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
-				   NetNet::REG, element_type);
+      NetNet*iter_net;
+      if (const netuarray_t*iter_array_type =
+                dynamic_cast<const netuarray_t*>(element_type))
+            iter_net = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+                                  iter_array_type->static_dimensions(),
+                                  iter_array_type->element_type());
+      else
+            iter_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, element_type);
       iter_net->set_line(*li);
       iter_net->local_flag(true);
       return iter_net;
@@ -1985,8 +1992,15 @@ static unsigned test_array_reduction_result_width_(
                 iter_name, index_name))
             return 0;
 
-      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
-                                   NetNet::REG, element_type);
+      NetNet*iter_net;
+      if (const netuarray_t*iter_array_type =
+                dynamic_cast<const netuarray_t*>(element_type))
+            iter_net = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+                                  iter_array_type->static_dimensions(),
+                                  iter_array_type->element_type());
+      else
+            iter_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, element_type);
       iter_net->set_line(*li);
       iter_net->local_flag(true);
       NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
@@ -2422,19 +2436,15 @@ static NetExpr* make_array_reduction_expr_(
 
       const netuarray_t*fixed_type =
 	    dynamic_cast<const netuarray_t*>(container_type);
-      if (fixed_type && fixed_type->static_dimensions().size() != 1) {
-	    cerr << li->get_fileline() << ": error: Array reduction method "
-		 << kind << "() requires a one-dimensional unpacked array; got "
-		 << fixed_type->static_dimensions().size()
-		 << " unpacked dimensions." << endl;
-	    des->errors += 1;
-	    delete array_expr;
-	    return 0;
-      }
-
       ivl_variable_type_t ebase = element_type
 	    ? element_type->base_type() : IVL_VT_NO_TYPE;
-      if (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC) {
+      const bool multidim_with = fixed_type
+            && fixed_type->static_dimensions().size() > 1
+            && !with_exprs.empty() && with_exprs.front();
+      const bool integral_element =
+            !dynamic_cast<const netuarray_t*>(element_type)
+            && (ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC);
+      if (!multidim_with && !integral_element) {
 	    cerr << li->get_fileline() << ": error: Array reduction "
 		    "method " << kind << "() requires an array of "
 		    "integral elements (IEEE 1800-2017 7.12.3)." << endl;
@@ -2444,7 +2454,8 @@ static NetExpr* make_array_reduction_expr_(
       }
 
       const bool fixed_materialized = fixed_type
-	    && !dynamic_cast<NetESignal*>(array_expr);
+            && (!dynamic_cast<NetESignal*>(array_expr)
+                || fixed_type->static_dimensions().size() > 1);
       NetNet*recv_net = 0;
       if (fixed_materialized) {
 	      /* A fixed unpacked array has no object handle that the common
@@ -11090,11 +11101,9 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    if (const netdarray_t*da =
 		      dynamic_cast<const netdarray_t*>(target_type))
 		  elem = da->element_type();
-	    else if (search_results.net
-		     && search_results.net->unpacked_dimensions() == 1
-		     && dynamic_cast<const netuarray_t*>(
-			     search_results.net->array_type()))
-		  elem = search_results.net->array_type()->element_type();
+	    else if (const netuarray_t*fixed =
+		     dynamic_cast<const netuarray_t*>(target_type))
+		  elem = fixed_array_method_element_type_(fixed);
 	    if (elem && (elem->base_type() == IVL_VT_BOOL
 			 || elem->base_type() == IVL_VT_LOGIC)) {
 		  expr_width_ = test_array_reduction_result_width_(
@@ -11330,7 +11339,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    const netuarray_t*uarray =
 		  dynamic_cast<const netuarray_t*>(target_type);
 	    if (is_array_reduction_name_(method_name)) {
-		  ivl_type_t elem = uarray->element_type();
+		  ivl_type_t elem = fixed_array_method_element_type_(uarray);
 		  if (elem && (elem->base_type() == IVL_VT_BOOL
 			       || elem->base_type() == IVL_VT_LOGIC)) {
 			expr_width_ = test_array_reduction_result_width_(
@@ -17220,7 +17229,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      if (is_array_reduction_name_(tail_comp.name))
 			    return make_array_reduction_expr_(
 				  this, des, scope, base_expr, cur_type,
-				  fixed->element_type(), tail_comp.name.str(),
+				  fixed_array_method_element_type_(fixed),
+				  tail_comp.name.str(),
 				  no_parms, no_with);
 		      return make_array_unique_expr_(
 			    this, des, scope, base_expr, cur_type,
@@ -20658,7 +20668,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	    const netuarray_t*uarray =
 		  dynamic_cast<const netuarray_t*>(target_type);
 	    ivl_type_t element_type = is_array_locator_name_(method_name)
-		  ? fixed_array_locator_element_type_(uarray)
+		  || is_array_reduction_name_(method_name)
+		  ? fixed_array_method_element_type_(uarray)
 		  : uarray->element_type();
 	    if (method_name == "map")
 		  return make_array_map_expr_(this, des, scope, sub_expr,

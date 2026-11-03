@@ -65,6 +65,7 @@ vpip_systf_call_returns_string
 vpip_is_system_verilog_mode
 vpip_interconnect_net_to_load
 vpip_interconnect_ports_connected
+vpip_interconnect_port_uses_part_select
 vpip_interconnect_through_net
 svDimensions
 svSize

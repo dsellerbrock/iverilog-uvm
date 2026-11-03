@@ -518,6 +518,20 @@ static bool validate_interface_port_modport_exports_(
 	    const char*kind = prototype
 		  ? (prototype->is_function ? "function" : "task")
 		  : "task/function";
+	    bool interface_port_task = false;
+	    if (!prototype || !prototype->is_function) {
+		  for (const auto&task : provider->tasks) {
+			if (task.second
+			    && task.second->interface_port_name() == port_name
+			    && task.second->interface_port_method() == method) {
+			      interface_port_task = true;
+			      break;
+			}
+		  }
+	    }
+	    if (interface_port_task)
+		  continue;
+
 	    const bool unqualified_declaration = provider->tasks.count(method)
 		  || provider->funcs.count(method);
 	    if (unqualified_declaration) {
@@ -18022,37 +18036,19 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			 || mname == perm_string::literal("next")
 			 || mname == perm_string::literal("prev"));
 		  if (is_aa_traversal) {
-			// Build the receiver via PEIdent so class-property
-			// chains (this.m_maps) resolve through NetEProperty,
-			// not just bare signals.
-			pform_name_t obj_path = path_;
-			obj_path.pop_back();
-			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
-			obj_id->set_file(get_file());
-			obj_id->set_lineno(get_lineno());
-			NetExpr*obj_expr = obj_id->elaborate_expr(des, scope, /*expr_wid*/0u, /*flags*/0u);
-			if (obj_expr) {
-			      NetExpr*key_expr = elab_and_eval(des, scope, parms_[0].parm, -1, false);
-			      if (key_expr) {
-				    string sys_name = "$ivl_assoc_method$";
-				    sys_name += mname.str();
-				    NetESFunc*sys_expr = new NetESFunc(
-					    sys_name.c_str(), &netvector_t::atom2u32, 2);
-				    sys_expr->set_line(*this);
-				    sys_expr->parm(0, obj_expr);
-				    sys_expr->parm(1, key_expr);
-				    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-					    NetNet::REG, &netvector_t::atom2u32);
-				    tmp->set_line(*this);
-				    NetAssign_*lv = new NetAssign_(tmp);
-				    NetAssign*na = new NetAssign(lv, sys_expr);
-				    na->set_line(*this);
-				    delete obj_id;
-				    return na;
-			      }
-			      delete obj_expr;
-			}
-			delete obj_id;
+			/* The expression-call path handles ref key arguments, scope
+			 * binding, and associative-array type checks. Statement position
+			 * only needs to discard its int return value. */
+			PECallFunction*call = package_
+			      ? new PECallFunction(package_, path_, parms_)
+			      : new PECallFunction(path_, parms_);
+			call->set_scoped_type_prefix(has_scoped_type_prefix());
+			call->set_file(get_file());
+			call->set_lineno(get_lineno());
+			PAssign*discard = new PAssign(nullptr, call);
+			discard->set_file(get_file());
+			discard->set_lineno(get_lineno());
+			return discard->elaborate(des, scope);
 		  }
 	    }
 
@@ -51382,6 +51378,126 @@ static void elaborate_forward_typedef_kinds(Design*des, NetScope*scope)
 	    elaborate_forward_typedef_kinds(des, child.second);
 }
 
+/* Find task definitions attached to a physical interface port that resolves
+ * to IFACE. These definitions are collected after the whole hierarchy has
+ * elaborated because interface port bindings are installed after the child
+ * module body is elaborated. */
+static void find_extern_forkjoin_providers_(
+	    NetScope*scope, NetScope*iface, perm_string method,
+	    vector<NetScope*>&providers)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE && !scope->is_interface()) {
+	    for (const auto&child : scope->children()) {
+		  NetScope*task_scope = child.second;
+		  if (!task_scope || task_scope->type() != NetScope::TASK)
+			continue;
+		  const PTask*task = task_scope->task_pform();
+		  if (!task || task->interface_port_method() != method)
+			continue;
+		  NetNet*port = scope->find_signal(task->interface_port_name());
+		  if (port && port->resolve_interface_scope(0) == iface)
+			providers.push_back(task_scope);
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    find_extern_forkjoin_providers_(child.second, iface, method, providers);
+}
+
+static void elaborate_extern_forkjoin_tasks_(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE && scope->is_interface()) {
+	    for (const auto&child : scope->children()) {
+		  NetScope*task_scope = child.second;
+		  if (!task_scope || task_scope->type() != NetScope::TASK)
+			continue;
+		  const PTask*prototype = task_scope->task_pform();
+		  if (!prototype || !prototype->is_extern_forkjoin_task())
+			continue;
+
+		  NetTaskDef*definition = task_scope->task_def();
+		  if (!definition || !definition->proc()) {
+			cerr << prototype->get_fileline()
+			     << ": internal error: extern forkjoin task `"
+			     << task_scope->basename()
+			     << "' has no elaborated task body." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (definition->port_count() != 0) {
+			cerr << prototype->get_fileline()
+			     << ": sorry: extern forkjoin task argument dispatch is not yet supported; `"
+			     << task_scope->basename()
+			     << "' has " << definition->port_count()
+			     << " argument(s) (IEEE 1800-2017/2023 25.7.4)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  vector<NetScope*>providers;
+		  for (NetScope*root : des->find_root_scopes())
+			find_extern_forkjoin_providers_(
+			      root, scope, task_scope->basename(), providers);
+
+		  NetBlock*body = const_cast<NetBlock*>(
+			dynamic_cast<const NetBlock*>(definition->proc()));
+		  if (!body) {
+			cerr << prototype->get_fileline()
+			     << ": internal error: extern forkjoin task `"
+			     << task_scope->basename()
+			     << "' has an unexpected task body representation." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (providers.empty()) {
+			vector<NetExpr*>args;
+			NetECString*message = new NetECString(
+			      "extern forkjoin task has no connected provider");
+			message->set_line(*prototype);
+			args.push_back(message);
+			NetSTask*error = new NetSTask(
+			      "$error", IVL_SFUNC_AS_TASK_IGNORE, args);
+			error->set_line(*prototype);
+			body->append(error);
+			continue;
+		  }
+
+		  NetBlock*fork = new NetBlock(NetBlock::PARA, nullptr);
+		  fork->set_line(*prototype);
+		  for (NetScope*provider : providers) {
+			const NetTaskDef*provider_def = provider->task_def();
+			if (!provider_def || provider_def->port_count() != 0) {
+			      cerr << provider->get_fileline()
+				   << ": sorry: extern forkjoin provider task `"
+				   << task_scope->basename()
+				   << "' must have no arguments in the currently supported form."
+				   << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			NetUTask*call = new NetUTask(provider);
+			call->set_line(*prototype);
+			fork->append(call);
+		  }
+		  if (fork->proc_first())
+			body->append(fork);
+		  else
+			delete fork;
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_extern_forkjoin_tasks_(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -51733,6 +51849,11 @@ Design* elaborate(list<perm_string>roots)
 	    rc &= rmod->elaborate(des, scope);
       }
       report_elaboration_perf_phase_("roots-end", root_elems.size(), root_elems.size());
+
+	/* 25.7.4 providers are known only after every physical interface-port
+	 * connection has been installed by recursive module elaboration. */
+	for (NetScope*root : des->find_root_scopes())
+	      elaborate_extern_forkjoin_tasks_(des, root);
 
 	/* A typedef-only explicit class specialization is a concrete use. */
 	bool reached_typedef = false;

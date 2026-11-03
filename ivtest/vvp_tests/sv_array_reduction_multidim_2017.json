@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_array_reduction_multidim.v",
+    "iverilog-args": ["-g2017", "-s", "sv_array_reduction_multidim"],
+    "gold": "sv_array_reduction_multidim"
+}

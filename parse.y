@@ -10849,6 +10849,21 @@ task_declaration_header
 	$$ = $3;
 	@$ = @3;
       }
+  | K_task lifetime_opt IDENTIFIER '.' IDENTIFIER
+      { assert(current_task == 0);
+	std::string internal_name = "__ivl_ifport_";
+	internal_name += $3;
+	internal_name += '_';
+	internal_name += $5;
+	current_task = pform_push_task_scope(@1, internal_name.c_str(), $2);
+	current_task->set_interface_port_task(lex_strings.make($3),
+	                                     lex_strings.make($5));
+	$$ = new char[strlen($5) + 1];
+	strcpy($$, $5);
+	@$ = @5;
+	delete[] $3;
+	delete[] $5;
+      }
   | method_task_keyword lifetime_opt IDENTIFIER
       { assert(current_task == 0);
 	current_task = pform_push_task_scope(@1, $3, $2);
@@ -17625,6 +17640,24 @@ module_item
   | function_declaration
 
   | scoped_function_declaration
+
+  /* IEEE 1800-2017/2023 25.7.4: the interface declaration is a prototype;
+     exported module tasks supply the definitions through connected
+     interface ports. */
+  | K_extern K_forkjoin K_task IDENTIFIER
+      { assert(current_task == 0);
+	pform_requires_sv(@1, "extern forkjoin task declaration");
+	if (!pform_in_interface())
+	      yyerror(@1, "error: An extern forkjoin task shall be declared in an interface (IEEE 1800-2017/2023 25.7.4).");
+	current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED);
+	current_task->set_extern_forkjoin_task(true);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($6);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $4;
+      }
 
     /* `static'/`automatic' as a prefix qualifier (rather than
        `lifetime_opt' following `task'/`function', IEEE 1800-2017/2023

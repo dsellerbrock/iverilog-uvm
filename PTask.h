@@ -97,6 +97,16 @@ class PTaskFunc : public PScope, public PNamedItem {
 	    is_pure_ = v;
 	    if (v) is_virtual_ = true;
       }
+      bool is_extern_forkjoin_task() const { return extern_forkjoin_task_; }
+      void set_extern_forkjoin_task(bool value) {
+	    extern_forkjoin_task_ = value;
+      }
+      void set_interface_port_task(perm_string port, perm_string method) {
+	    interface_port_name_ = port;
+	    interface_port_method_ = method;
+      }
+      perm_string interface_port_name() const { return interface_port_name_; }
+      perm_string interface_port_method() const { return interface_port_method_; }
       inline bool interface_qualifier_valid() const {
 	    return interface_qualifier_valid_;
       }
@@ -162,6 +172,9 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool has_extern_method_definition_ = false;
       bool is_virtual_ = false;
       bool is_pure_ = false;
+      bool extern_forkjoin_task_ = false;
+      perm_string interface_port_name_;
+      perm_string interface_port_method_;
       unsigned method_override_specifiers_ = 0;
       bool interface_qualifier_valid_ = true;
       bool procedural_body_scope_ = true;

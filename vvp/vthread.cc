@@ -28717,6 +28717,257 @@ bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+static bool qcond_array_matches_encoding_(const vvp_darray*array,
+					  const container_element_encoding_t&enc)
+{
+      if (!array) return true;
+      switch (enc.kind) {
+	  case CONTAINER_ELEMENT_REAL:
+	    return dynamic_cast<const vvp_darray_real*>(array)
+		  || dynamic_cast<const vvp_queue_real*>(array);
+	  case CONTAINER_ELEMENT_STRING:
+	    return dynamic_cast<const vvp_darray_string*>(array)
+		  || dynamic_cast<const vvp_queue_string*>(array);
+	  case CONTAINER_ELEMENT_OBJECT:
+	    return dynamic_cast<const vvp_darray_object*>(array)
+		  || dynamic_cast<const vvp_queue_object*>(array);
+	  case CONTAINER_ELEMENT_VECTOR:
+	    return array->vec4_word_width() != 0
+		  || dynamic_cast<const vvp_queue_vec4*>(array);
+	  default:
+	    return false;
+      }
+}
+
+static vvp_object_t qcond_default_object_(
+	  const vvp_object_t&left, const vvp_object_t&right,
+	  const class_type*element_class, uint32_t nested_spec,
+	  const vvp_container_layout_t&element_layout);
+
+static vvp_object_t qcond_default_fixed_array_(
+	  const vvp_object_t&source, const vvp_container_layout_t&layout,
+	  const class_type*element_class)
+{
+      if (!layout || layout->kind != VVP_CONTAINER_FIXED)
+	    return vvp_object_t();
+
+      vvp_object_t result = vvp_make_fixed_array_value(layout);
+      vvp_darray*dst = result.peek<vvp_darray>();
+      vvp_darray*src = source.peek<vvp_darray>();
+      if (!dst) return vvp_object_t();
+      if (element_class)
+	    dst->set_elem_class(element_class);
+
+      for (size_t idx = 0; idx < dst->get_size(); idx += 1) {
+	    if (layout->fixed_leaf == VVP_FIXED_BOOL
+		|| layout->fixed_leaf == VVP_FIXED_LOGIC) {
+		  vvp_bit4_t bit = layout->fixed_leaf == VVP_FIXED_BOOL
+			? BIT4_0 : BIT4_X;
+		  dst->set_word((unsigned)idx,
+				vvp_vector4_t(layout->fixed_width, bit));
+	    } else {
+		  vvp_object_t old_value;
+		  if (src && idx < src->get_size())
+			src->get_word((unsigned)idx, old_value);
+		  vvp_object_t default_value = qcond_default_object_(
+			old_value, vvp_object_t(), element_class, UINT32_MAX,
+			dst->declared_element_container_layout());
+		  dst->set_word((unsigned)idx, default_value);
+	    }
+      }
+
+      return result;
+}
+
+static vvp_object_t qcond_default_object_(
+	  const vvp_object_t&left, const vvp_object_t&right,
+	  const class_type*element_class, uint32_t nested_spec,
+	  const vvp_container_layout_t&element_layout)
+{
+      const vvp_object_t*source = !left.test_nil() ? &left
+	    : (!right.test_nil() ? &right : 0);
+
+      if (source) {
+	    if (vvp_cobject*cobj = source->peek<vvp_cobject>()) {
+		  const class_type*defn = cobj->get_defn();
+		  if (defn && defn->is_struct_type())
+			return vvp_object_t(new vvp_cobject(defn));
+	    }
+	    if (vvp_darray*array = source->peek<vvp_darray>()) {
+		  const vvp_container_layout_t&layout =
+			array->declared_container_layout();
+		  if (layout && layout->kind == VVP_CONTAINER_FIXED)
+			return qcond_default_fixed_array_(
+			      *source, layout, array->elem_class());
+		  vvp_object_t result = source->duplicate();
+		  result.peek<vvp_darray>()->clear();
+		  return result;
+	    }
+	    if (source->peek<vvp_assoc_base>()) {
+		  vvp_object_t result = source->duplicate();
+		  result.peek<vvp_assoc_base>()->clear();
+		  return result;
+	    }
+      }
+
+      if (element_class && element_class->is_struct_type())
+	    return vvp_object_t(new vvp_cobject(element_class));
+
+      if (nested_spec == 17)
+	    return qcond_default_fixed_array_(vvp_object_t(), element_layout,
+					      element_class);
+      if (nested_spec == 16)
+	    return vvp_object_t();
+      if (nested_spec < 8) {
+	    vvp_object_t result = make_dynamic_container_from_code_(nested_spec);
+	    if (vvp_object*value = result.peek<vvp_object>())
+		  value->set_declared_container_layout(element_layout);
+	    return result;
+      }
+      return vvp_object_t();
+}
+
+static bool qcond_object_elements_match_(
+	  const vvp_object_t&left, const vvp_object_t&right,
+	  vvp_bit4_t&logical, vvp_bit4_t&exact)
+{
+      vvp_cobject*left_struct = left.peek<vvp_cobject>();
+      vvp_cobject*right_struct = right.peek<vvp_cobject>();
+      if (left_struct && right_struct
+	  && left_struct->get_defn() == right_struct->get_defn()
+	  && left_struct->get_defn()->is_struct_type()
+	  && !left_struct->get_defn()->is_union_type()) {
+	    struct_equality_(left_struct, right_struct, logical, exact);
+	    return logical == BIT4_1;
+      }
+
+      if (left.peek<vvp_darray>() || right.peek<vvp_darray>()
+	  || left.peek<vvp_assoc_base>() || right.peek<vvp_assoc_base>()) {
+	    container_equality_(left, right, logical, exact);
+	    return logical == BIT4_1;
+      }
+
+      vvp_vinterface*left_vif = left.peek<vvp_vinterface>();
+      vvp_vinterface*right_vif = right.peek<vvp_vinterface>();
+      bool equal = left == right;
+      if (left_vif && right_vif)
+	    equal = left_vif->vif_scope() == right_vif->vif_scope()
+		  && left_vif->get_defn() == right_vif->get_defn();
+      logical = exact = equal ? BIT4_1 : BIT4_0;
+      return equal;
+}
+
+/* %qcond/ambig[ /proto ] "element-encoding", <nested-spec>
+ *
+ * Build the queue result for an ambiguous conditional. Matching elements
+ * are copied by value; differing elements receive their Table 7-1 default.
+ * An operand-size mismatch produces an empty queue. */
+bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 2) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %qcond/ambig requires two queue operands."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      vvp_object_t right_obj, left_obj;
+      thr->pop_object(right_obj);
+      thr->pop_object(left_obj);
+      const vvp_container_opcode_data_s*data = cp->container_data;
+      container_element_encoding_t enc;
+      bool valid = data
+	    && decode_container_element_encoding_(
+		  data ? data->element_encoding : 0, enc)
+	    && (data->nested_spec == UINT32_MAX || data->nested_spec < 8
+		|| data->nested_spec == 16 || data->nested_spec == 17);
+
+      vvp_darray*left = left_obj.peek<vvp_darray>();
+      vvp_darray*right = right_obj.peek<vvp_darray>();
+      size_t left_size = left ? left->get_size() : 0;
+      size_t right_size = right ? right->get_size() : 0;
+      if (valid)
+	    valid = qcond_array_matches_encoding_(left, enc)
+		  && qcond_array_matches_encoding_(right, enc);
+
+      vvp_object_t result_obj = valid
+	    ? make_queue_for_enc_(data->element_encoding) : vvp_object_t();
+      vvp_queue*result = result_obj.peek<vvp_queue>();
+      valid = valid && result;
+      if (!valid) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed %qcond/ambig operands or element encoding."
+		 << endl;
+	    thr->push_object(result_obj);
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const uint64_t max_size = 0;
+      const uint32_t nested_spec = data->nested_spec;
+      const class_type*element_class =
+	    dynamic_cast<const class_type*>(data->prototype);
+      if (!element_class && left) element_class = left->elem_class();
+      if (!element_class && right) element_class = right->elem_class();
+      if (element_class) result->set_elem_class(element_class);
+
+      vvp_container_layout_t element_layout = left
+	    ? left->declared_element_container_layout()
+	    : (right ? right->declared_element_container_layout()
+		     : vvp_container_layout_t());
+      result->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_QUEUE, true, max_size, element_layout));
+
+      if (left_size == right_size) {
+	    for (size_t idx = 0; idx < left_size; idx += 1) {
+		  const unsigned adr = static_cast<unsigned>(idx);
+		  if (enc.kind == CONTAINER_ELEMENT_REAL) {
+			double left_value, right_value;
+			left->get_word(adr, left_value);
+			right->get_word(adr, right_value);
+			result->set_word_max(adr,
+			      left_value == right_value ? left_value : 0.0,
+			      max_size);
+		  } else if (enc.kind == CONTAINER_ELEMENT_STRING) {
+			string left_value, right_value;
+			left->get_word(adr, left_value);
+			right->get_word(adr, right_value);
+			result->set_word_max(adr,
+			      left_value == right_value ? left_value : string(),
+			      max_size);
+		  } else if (enc.kind == CONTAINER_ELEMENT_VECTOR) {
+			vvp_vector4_t left_value, right_value;
+			left->get_word(adr, left_value);
+			right->get_word(adr, right_value);
+			left_value = coerce_container_vector_(left_value, enc);
+			right_value = coerce_container_vector_(right_value, enc);
+			vvp_bit4_t logical = BIT4_1, exact = BIT4_1;
+			bool match = vector_equality_step_(left_value, right_value,
+							 logical, exact)
+			      && logical == BIT4_1;
+			vvp_vector4_t value = match ? left_value
+			      : vvp_vector4_t(enc.word_wid,
+				    enc.four_state ? BIT4_X : BIT4_0);
+			result->set_word_max(adr, value, max_size);
+		  } else {
+			vvp_object_t left_value, right_value;
+			left->get_word(adr, left_value);
+			right->get_word(adr, right_value);
+			vvp_bit4_t logical = BIT4_1, exact = BIT4_1;
+			bool match = qcond_object_elements_match_(
+			      left_value, right_value, logical, exact);
+			vvp_object_t value = match ? left_value
+			      : qcond_default_object_(left_value, right_value,
+				    element_class, nested_spec, element_layout);
+			result->set_word_max(adr, value.value_copy_element(),
+				      max_size);
+		  }
+	    }
+      }
+
+      thr->push_object(result_obj);
+      return true;
+}
+
 bool of_NOOP(vthread_t, vvp_code_t)
 {
       return true;

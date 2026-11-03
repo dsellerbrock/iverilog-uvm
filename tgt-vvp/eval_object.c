@@ -1334,11 +1334,127 @@ static int eval_object_number(ivl_expr_t expr)
 }
 
 /* Handle IVL_EX_TERNARY in object context. */
+static unsigned queue_ternary_nested_spec_(ivl_type_t element_type)
+{
+      if (!element_type)
+	    return UINT32_MAX;
+      if (type_is_fixed_uarray_property_(element_type))
+	    return 17; /* AA_VIV_FIXED */
+
+      ivl_variable_type_t base = ivl_type_base(element_type);
+      if (base == IVL_VT_DARRAY)
+	    return 16; /* AA_VIV_DARRAY_NIL */
+      if (base != IVL_VT_QUEUE)
+	    return UINT32_MAX;
+
+      ivl_type_t nested_element = ivl_type_element(element_type);
+      unsigned kind = 3; /* object elements */
+      if (nested_element) {
+	    switch (ivl_type_base(nested_element)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		      kind = 0;
+		      break;
+		case IVL_VT_REAL:
+		      kind = 1;
+		      break;
+		case IVL_VT_STRING:
+		      kind = 2;
+		      break;
+		default:
+		      break;
+	    }
+      }
+      if (ivl_type_queue_assoc_compat(element_type))
+	    kind += 4;
+      return kind;
+}
+
 static int eval_object_ternary(ivl_expr_t expr)
 {
       ivl_expr_t cond     = ivl_expr_oper1(expr);
       ivl_expr_t true_ex  = ivl_expr_oper2(expr);
       ivl_expr_t false_ex = ivl_expr_oper3(expr);
+
+      ivl_type_t result_type = ivl_expr_net_type(expr);
+      if (!result_type || ivl_type_base(result_type) != IVL_VT_QUEUE)
+	    result_type = ivl_expr_net_type(true_ex);
+      if (!result_type || ivl_type_base(result_type) != IVL_VT_QUEUE) {
+	    ivl_signal_t sig = ivl_expr_type(true_ex) == IVL_EX_SIGNAL
+		  ? ivl_expr_signal(true_ex) : 0;
+	    if (sig && ivl_signal_data_type(sig) == IVL_VT_QUEUE)
+		  result_type = ivl_signal_net_type(sig);
+      }
+      if (!result_type || ivl_type_base(result_type) != IVL_VT_QUEUE) {
+	    result_type = ivl_expr_net_type(false_ex);
+	    if (!result_type || ivl_type_base(result_type) != IVL_VT_QUEUE) {
+		  ivl_signal_t sig = ivl_expr_type(false_ex) == IVL_EX_SIGNAL
+				? ivl_expr_signal(false_ex) : 0;
+		  if (sig && ivl_signal_data_type(sig) == IVL_VT_QUEUE)
+			result_type = ivl_signal_net_type(sig);
+	    }
+      }
+
+      if (result_type && ivl_type_base(result_type) == IVL_VT_QUEUE
+	  && !ivl_type_queue_assoc_compat(result_type)) {
+	    ivl_type_t element_type = ivl_type_element(result_type);
+	    char element_text[32];
+	    const uint64_t max_size = ivl_type_queue_max_size(result_type);
+	    const unsigned nested_spec = queue_ternary_nested_spec_(element_type);
+	    unsigned lab_false = local_count++;
+	    unsigned lab_true = local_count++;
+	    unsigned lab_out = local_count++;
+
+	    stream_elem_type_text(element_type, element_text,
+				  sizeof element_text);
+
+	    int use_flag = draw_eval_condition(cond);
+	    if (use_flag < 8) {
+		  int tmp_flag = allocate_flag();
+		  assert(tmp_flag >= 8);
+		  fprintf(vvp_out, "    %%flag_mov %d, %d; preserve queue ternary condition\n",
+			  tmp_flag, use_flag);
+		  use_flag = tmp_flag;
+	    }
+
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d; false queue ternary arm\n",
+		    thread_count, lab_false, use_flag);
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d; true queue ternary arm\n",
+		    thread_count, lab_true, use_flag);
+
+	    /* An ambiguous condition evaluates both queue operands. The runtime
+	     * operation applies the 11.4.11 element-wise merge and Table 7-1
+	     * defaults; known conditions retain the ordinary selected-arm path. */
+	    draw_eval_object(true_ex);
+	    draw_eval_object(false_ex);
+	    int struct_element = element_type
+		  && ivl_type_base(element_type) == IVL_VT_NO_TYPE
+		  && ivl_type_properties(element_type) > 0;
+	    if (struct_element) {
+		  ensure_class_type_emitted(element_type);
+		  fprintf(vvp_out,
+		  "    %%qcond/ambig/proto \"%s\", %u, C%p;\n",
+		  element_text, nested_spec, element_type);
+	    } else {
+		  fprintf(vvp_out,
+			  "    %%qcond/ambig \"%s\", %u;\n",
+			  element_text, nested_spec);
+	    }
+	    fprintf(vvp_out, "    %%queue/trim/o %" PRIu64 "; queue conditional result type\n",
+		    max_size);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_false);
+	    draw_eval_object(false_ex);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_true);
+	    draw_eval_object(true_ex);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+
+	    clr_flag(use_flag);
+	    return 0;
+      }
 
       unsigned lab_false = local_count++;
       unsigned lab_out   = local_count++;
@@ -2310,7 +2426,9 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
       if ((parm_count != 5 && parm_count != 6 && !is_fixed)
 	  || !a_sig
-	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !iter_arg
+	  || (ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	      && ivl_expr_type(iter_arg) != IVL_EX_ARRAY)
 	  || !ivl_expr_signal(iter_arg)
 	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(idx_arg)
@@ -2352,6 +2470,7 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 
       unsigned lab_top = local_count++;
       unsigned lab_end = local_count++;
+      int errors = 0;
 
 	/* acc = identity element (0; 1 for product; ~0 for and) */
       fprintf(vvp_out, "    %%pushi/vec4 %d, 0, %u;\n",
@@ -2371,10 +2490,18 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       fprintf(vvp_out, "    %%cmp/s;\n");
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n", thread_count, lab_end);
 
-	/* iter = a[idx] */
+	/* iter = a[idx]. A multidimensional fixed-array element is itself an
+	 * unpacked array value, so transfer it through the object representation
+	 * into the fixed iterator signal. */
       fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-      draw_array_elem_load_vec4_(a_sig);
-      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
+      if (ivl_signal_dimensions(iter_sig) > 0) {
+	    errors += draw_array_map_load_iter_(a_sig, iter_sig,
+						 ivl_signal_net_type(iter_sig));
+      } else {
+	    draw_array_elem_load_vec4_(a_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    iter_sig, iter_wid);
+      }
 
 	/* The loop counter traverses the receiver's runtime storage order. The
 	 * frontend supplies a matching declared-index expression: numeric-low for
@@ -2403,7 +2530,7 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
       fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", acc_sig);
-      return 0;
+      return errors;
 }
 
 /* The frontend supplies exact (parent instance, named child instance)

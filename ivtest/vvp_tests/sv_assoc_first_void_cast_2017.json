@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assoc_first_void_cast.v",
+  "iverilog-args": ["-g2017", "-s", "sv_assoc_first_void_cast"],
+  "gold": "sv_assoc_first_void_cast"
+}

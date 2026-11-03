@@ -207,6 +207,7 @@ extern bool of_CMPS(vthread_t thr, vvp_code_t code);
 extern bool of_CMPIS(vthread_t thr, vvp_code_t code);
 extern bool of_CMPCONT(vthread_t thr, vvp_code_t code);
 extern bool of_CMPOBJ(vthread_t thr, vvp_code_t code);
+extern bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t code);
 extern bool of_CMPSTR(vthread_t thr, vvp_code_t code);
 extern bool of_CMPU(vthread_t thr, vvp_code_t code);
 extern bool of_CMPIU(vthread_t thr, vvp_code_t code);
@@ -769,13 +770,15 @@ extern bool of_REAP_UFUNC(vthread_t thr, vvp_code_t code);
 
 extern bool of_CHUNK_LINK(vthread_t thr, vvp_code_t code);
 
-/* Only the destination-typed object splice opcodes need all three of these
- * operands at once. Keep them out of vvp_code_s so the common instruction
- * remains three machine words; the descriptor is owned by code space. */
+/* Container opcodes with typed fallback/default behavior keep their element
+ * encoding, bound, prototype, and nested-container metadata here. Keep them
+ * out of vvp_code_s so the common instruction remains three machine words;
+ * the descriptor is owned by code space. */
 struct vvp_container_opcode_data_s {
       const char*element_encoding;
       uint64_t max_size;
       class __vpiHandle*prototype;
+      uint32_t nested_spec;
 };
 
 struct vvp_wait_order_opcode_data_s;
