@@ -136,6 +136,11 @@ class PExpr : public LineInfo {
       PExpr();
       virtual ~PExpr() override;
 
+      // Named-sequence actuals retain the lexical scope of the call site
+      // while their expression tree is cloned into a declaration scope.
+      bool sva_actual_scope() const { return sva_actual_scope_; }
+      void sva_actual_scope(bool value) { sva_actual_scope_ = value; }
+
       virtual void dump(std::ostream&) const;
 
         // This method tests whether the expression contains any identifiers
@@ -278,6 +283,7 @@ class PExpr : public LineInfo {
       unsigned expr_width_;
       unsigned min_width_;
       bool signed_flag_;
+      bool sva_actual_scope_ = false;
 
     private: // not implemented
       PExpr(const PExpr&);

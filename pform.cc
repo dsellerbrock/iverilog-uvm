@@ -8929,12 +8929,14 @@ struct sva_scoped_name_t {
       const PGenerate*gen;   // nullptr == module scope
       const PPackage*package; // nullptr unless declared in a package
       const PPackage*unit; // compilation-unit declarations outlive modules
+      const Module*module = nullptr; // nullptr for package/unit declarations
 
       bool operator< (const sva_scoped_name_t&that) const
       {
 	    if (name != that.name) return name < that.name;
 	    if (package != that.package) return package < that.package;
 	    if (unit != that.unit) return unit < that.unit;
+	    if (module != that.module) return module < that.module;
 	    return gen < that.gen;
       }
 };
@@ -9054,6 +9056,8 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
 		? dynamic_cast<const PPackage*>(pform_peek_scope()) : nullptr;
 	  k.package = k.unit ? nullptr
 		: dynamic_cast<const PPackage*>(pform_peek_scope());
+	  k.module = (k.unit || k.package || pform_cur_module.empty())
+		? nullptr : pform_cur_module.front();
       return k;
 }
 
@@ -9070,14 +9074,18 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
    loud duplicate error into a silent wrong result. */
 template <class MAP>
 static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
-                                          const PGenerate*scope = pform_cur_generate)
+                                          const PGenerate*scope = pform_cur_generate,
+                                          const Module*module = nullptr)
 {
+      if (!module && !pform_cur_module.empty())
+	    module = pform_cur_module.front();
       for (const PGenerate*g = scope ; ; ) {
 	    sva_scoped_name_t k;
 	    k.name = nm;
 	    k.gen  = g;
 	    k.package = nullptr;
 	    k.unit = nullptr;
+	    k.module = module;
 	    typename MAP::iterator it = m.find(k);
 	    if (it != m.end()) return it;
 	    if (!g) break;
@@ -9088,9 +9096,13 @@ static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
       unit_key.name = nm;
       unit_key.gen = nullptr;
       unit_key.package = nullptr;
-      unit_key.unit = !pform_cur_module.empty()
-		? dynamic_cast<const PPackage*>(pform_cur_module.front()->parent_scope())
+	  const Module*lookup_module = module;
+	  if (!lookup_module && !pform_cur_module.empty())
+		lookup_module = pform_cur_module.front();
+	  unit_key.unit = lookup_module
+		? dynamic_cast<const PPackage*>(lookup_module->parent_scope())
 		: nullptr;
+	  unit_key.module = nullptr;
       if (!unit_key.unit) return m.end();
       typename MAP::iterator unit_it = m.find(unit_key);
       if (unit_it != m.end()) return unit_it;
@@ -9101,6 +9113,212 @@ template <class MAP>
 static bool sva_in_scope_(MAP&m, perm_string nm)
 {
       return sva_resolve_(m, nm) != m.end();
+}
+
+struct sva_hier_seq_scope_t {
+      const Module*module = nullptr;
+      const PGenerate*generate = nullptr;
+      pform_name_t module_path;
+};
+
+static void sva_generate_path_(const Module*module, const PGenerate*generate,
+			       pform_name_t&path)
+{
+      std::vector<const PGenerate*>scopes;
+      const LexicalScope*scope = generate;
+      while (scope && scope != module) {
+	    const PGenerate*gen = dynamic_cast<const PGenerate*>(scope);
+	    if (!gen) return;
+	    scopes.push_back(gen);
+	    scope = scope->parent_scope();
+      }
+      if (scope != module) return;
+      for (std::vector<const PGenerate*>::reverse_iterator it = scopes.rbegin()
+	   ; it != scopes.rend() ; ++it)
+	    if (!(*it)->scope_name.nil())
+		  path.push_back(name_component_t((*it)->scope_name));
+}
+
+static PNamedItem* sva_local_symbol_(const LexicalScope*scope,
+				     perm_string name)
+{
+      if (!scope) return nullptr;
+      std::map<perm_string,PNamedItem*>::const_iterator it =
+	    scope->local_symbols.find(name);
+      return it == scope->local_symbols.end() ? nullptr : it->second;
+}
+
+/* Resolve all hierarchy components before a sequence name through parsed
+   module/generate declarations. The resulting module path is kept on cloned
+   expressions so normal elaboration still validates that the selected
+   instance actually exists in each elaborated hierarchy. */
+static bool sva_hier_sequence_scope_(
+		const pform_name_t&path, const Module*start_module,
+		const PGenerate*start_generate, const pform_name_t*start_prefix,
+		sva_hier_seq_scope_t&result,
+		bool*unresolved_module = nullptr)
+{
+      if (unresolved_module) *unresolved_module = false;
+      if (!start_module || path.size() < 2) return false;
+      const Module*module = start_module;
+      const PGenerate*generate = start_generate;
+      pform_name_t module_path;
+      if (start_prefix) module_path = *start_prefix;
+      bool first = true;
+      pform_name_t::const_iterator comp = path.begin();
+      pform_name_t::const_iterator end = path.end();
+      --end;
+      for ( ; comp != end ; ++comp) {
+	    const LexicalScope*decl_scope = nullptr;
+	    PNamedItem*symbol = nullptr;
+	    if (first) {
+		  for (const LexicalScope*search = generate ?
+		       static_cast<const LexicalScope*>(generate) :
+		       static_cast<const LexicalScope*>(module) ;
+		       search ; search = search->parent_scope()) {
+			if (const Module*parent_module =
+			      dynamic_cast<const Module*>(search)) {
+			      if (parent_module != module) break;
+			}
+			symbol = sva_local_symbol_(search, comp->name);
+			if (symbol) { decl_scope = search; break; }
+		  }
+		  first = false;
+	    } else {
+		  const LexicalScope*search = generate ?
+		       static_cast<const LexicalScope*>(generate) :
+		       static_cast<const LexicalScope*>(module);
+		  symbol = sva_local_symbol_(search, comp->name);
+		  if (symbol) decl_scope = search;
+	    }
+	    if (!symbol || !decl_scope) return false;
+
+	    if (PGenerate*gen = dynamic_cast<PGenerate*>(symbol)) {
+		  if (gen->parent_scope() != decl_scope) return false;
+		  generate = gen;
+		  continue;
+	    }
+
+	    PGModule*instance = dynamic_cast<PGModule*>(symbol);
+	    if (!instance) return false;
+	    pform_name_t gen_path;
+	    if (decl_scope != module)
+		  sva_generate_path_(module,
+			      dynamic_cast<const PGenerate*>(decl_scope), gen_path);
+	    pform_name_t child_path = module_path;
+	    child_path.insert(child_path.end(), gen_path.begin(), gen_path.end());
+	    child_path.push_back(*comp);
+	    std::map<perm_string,Module*>::const_iterator target =
+		  pform_modules.find(instance->get_type());
+	    if (target == pform_modules.end()) {
+		  if (unresolved_module) *unresolved_module = true;
+		  return false;
+	    }
+	    module_path.swap(child_path);
+	    module = target->second;
+	    generate = nullptr;
+      }
+      result.module = module;
+      result.generate = generate;
+      result.module_path.swap(module_path);
+      return true;
+}
+
+struct sva_clone_scope_t {
+      const Module*module = nullptr;
+      const PGenerate*generate = nullptr;
+      const pform_name_t*prefix = nullptr;
+      const std::set<perm_string>*local_names = nullptr;
+};
+
+static sva_clone_scope_t sva_clone_scope_;
+static sva_clone_scope_t sva_clone_actual_scope_;
+
+class sva_clone_scope_guard_t {
+    public:
+      explicit sva_clone_scope_guard_t(const sva_clone_scope_t&use,
+				       const sva_clone_scope_t&actual =
+				       sva_clone_scope_t())
+      : saved_(sva_clone_scope_), saved_actual_(sva_clone_actual_scope_)
+      { sva_clone_scope_ = use; sva_clone_actual_scope_ = actual; }
+      ~sva_clone_scope_guard_t()
+      { sva_clone_scope_ = saved_; sva_clone_actual_scope_ = saved_actual_; }
+    private:
+      sva_clone_scope_t saved_;
+      sva_clone_scope_t saved_actual_;
+};
+
+static bool sva_scope_declares_value_(const Module*module,
+				      const PGenerate*generate,
+				      perm_string name)
+{
+      const LexicalScope*scope = generate ?
+	    static_cast<const LexicalScope*>(generate) :
+	    static_cast<const LexicalScope*>(module);
+      for ( ; scope ; scope = scope->parent_scope()) {
+	    if (sva_local_symbol_(scope, name)
+		|| scope->wires.count(name) || scope->parameters.count(name)
+		|| scope->genvars.count(name)) return true;
+	    if (const PScopeExtra*extra = dynamic_cast<const PScopeExtra*>(scope))
+		  if (extra->funcs.count(name) || extra->tasks.count(name)
+		      || extra->classes.count(name)) return true;
+	    if (scope == module) break;
+      }
+      return false;
+}
+
+static bool sva_scope_declares_function_(const Module*module,
+					const PGenerate*generate,
+					perm_string name)
+{
+      const LexicalScope*scope = generate ?
+	    static_cast<const LexicalScope*>(generate) :
+	    static_cast<const LexicalScope*>(module);
+      for ( ; scope ; scope = scope->parent_scope()) {
+	    if (const PScopeExtra*extra = dynamic_cast<const PScopeExtra*>(scope))
+		  if (extra->funcs.count(name)) return true;
+	    if (scope == module) break;
+      }
+      return false;
+}
+
+static bool sva_clone_should_qualify_(const pform_name_t&path)
+{
+      if (!sva_clone_scope_.prefix || sva_clone_scope_.prefix->empty()
+	  || path.empty()) return false;
+      perm_string base = path.front().name;
+      if (sva_clone_scope_.local_names
+	  && sva_clone_scope_.local_names->count(base)) return false;
+      if (path.size() == 1) {
+	    if (sva_resolve_(sva_module_sequences, base,
+			     sva_clone_scope_.generate,
+			     sva_clone_scope_.module)
+		!= sva_module_sequences.end()) return false;
+	    if (sva_resolve_(sva_param_sequences, base,
+			     sva_clone_scope_.generate,
+			     sva_clone_scope_.module)
+		!= sva_param_sequences.end()) return false;
+	    sva_scoped_name_t key;
+	    key.name = base;
+	    key.gen = sva_clone_scope_.generate;
+	    key.package = nullptr;
+	    key.unit = nullptr;
+	    key.module = sva_clone_scope_.module;
+	    if (sva_property_shaped_sequences.count(key)) return false;
+      }
+      return sva_scope_declares_value_(sva_clone_scope_.module,
+				       sva_clone_scope_.generate, base);
+}
+
+static pform_name_t sva_qualifier_for_scope_(
+		const pform_name_t*module_prefix, const Module*module,
+		const PGenerate*generate)
+{
+      pform_name_t result;
+      if (module_prefix) result = *module_prefix;
+      if (module_prefix && !module_prefix->empty())
+	    sva_generate_path_(module, generate, result);
+      return result;
 }
 
 /* A sequence event is a procedural one-shot wait for a sequence match
@@ -10019,38 +10237,12 @@ void pform_sva_module_done(void)
          ordinary declaration action runs. Do not leak its temporary type
          expressions or let them affect a later module. */
       pform_sva_end_local_declarations();
-      for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
-		sva_module_properties.begin() ; it != sva_module_properties.end() ; ) {
-	    if (it->first.package || it->first.unit) { ++it; continue; }
-	    pform_sva_destroy_property(it->second);
-	    sva_module_properties.erase(it++);
-	  }
-      for (std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-		sva_module_sequences.begin() ; it != sva_module_sequences.end() ; ) {
-	    if (it->first.package || it->first.unit) { ++it; continue; }
-	    pform_sva_destroy_sequence(it->second);
-	    sva_module_sequences.erase(it++);
-	  }
-      for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
-		sva_param_sequences.begin() ; it != sva_param_sequences.end() ; ) {
-	    if (it->first.package || it->first.unit) { ++it; continue; }
-	    pform_sva_destroy_sequence(it->second.body);
-	    sva_param_sequences.erase(it++);
-	  }
-      for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
-		sva_param_properties.begin() ; it != sva_param_properties.end() ; ) {
-	    if (it->first.package || it->first.unit) { ++it; continue; }
-	    for (sva_property_formal_t&formal : it->second.formals)
-		  delete formal.default_expr;
-	    pform_sva_destroy_property(it->second.body);
-	    sva_param_properties.erase(it++);
-	  }
-	  for (std::set<sva_scoped_name_t>::iterator it =
-		sva_property_shaped_sequences.begin();
-	       it != sva_property_shaped_sequences.end(); ) {
-	    if (it->package || it->unit) { ++it; continue; }
-	    sva_property_shaped_sequences.erase(it++);
-	  }
+      /* Keep module declarations through pform_finish(). A hierarchical
+	 sequence reference can name a declaration in a different module, and
+	 the target module may appear later in the compilation unit. The module
+	 pointer in sva_scoped_name_t keeps these retained declarations isolated
+	 from the next module's lexical lookup. pform_finish() releases them after
+	 all pending cross-module sequence references have been expanded. */
       sva_sequence_trigger_events.clear();
       sva_sequence_trigger_sources.clear();
       sva_default_disable_scopes.clear();
@@ -10058,8 +10250,80 @@ void pform_sva_module_done(void)
       sva_default_disable = nullptr;
 }
 
+static void sva_release_retained_module_declarations_()
+{
+      for (auto it = sva_module_properties.begin();
+	   it != sva_module_properties.end(); ) {
+	    if (!it->first.module) { ++it; continue; }
+	    pform_sva_destroy_property(it->second);
+	    it = sva_module_properties.erase(it);
+      }
+      for (auto it = sva_module_sequences.begin();
+	   it != sva_module_sequences.end(); ) {
+	    if (!it->first.module) { ++it; continue; }
+	    pform_sva_destroy_sequence(it->second);
+	    it = sva_module_sequences.erase(it);
+      }
+      for (auto it = sva_param_sequences.begin();
+	   it != sva_param_sequences.end(); ) {
+	    if (!it->first.module) { ++it; continue; }
+	    pform_sva_destroy_sequence(it->second.body);
+	    it = sva_param_sequences.erase(it);
+      }
+      for (auto it = sva_param_properties.begin();
+	   it != sva_param_properties.end(); ) {
+	    if (!it->first.module) { ++it; continue; }
+	    for (sva_property_formal_t&formal : it->second.formals)
+		  delete formal.default_expr;
+	    pform_sva_destroy_property(it->second.body);
+	    it = sva_param_properties.erase(it);
+      }
+      for (auto it = sva_property_shaped_sequences.begin();
+	   it != sva_property_shaped_sequences.end(); ) {
+	    if (!it->module) { ++it; continue; }
+	    it = sva_property_shaped_sequences.erase(it);
+      }
+}
+
 static PExpr* sva_clone_subst_(
       PExpr*e, const std::map<perm_string,PExpr*>*subst);
+
+static void sva_destroy_name_path_(pform_name_t&path)
+{
+      for (name_component_t&component : path)
+	    for (index_component_t&index : component.index) {
+		  delete index.msb;
+		  if (index.lsb != index.msb) delete index.lsb;
+		  index.msb = index.lsb = nullptr;
+	    }
+      path.clear();
+}
+
+static bool sva_clone_name_component_(
+		const name_component_t&source,
+		const std::map<perm_string,PExpr*>*subst,
+		bool caller_context, name_component_t&copy)
+{
+      copy.name = source.name;
+      copy.local_scope = source.local_scope;
+      sva_clone_scope_t no_context;
+      std::unique_ptr<sva_clone_scope_guard_t>guard;
+      if (caller_context) guard.reset(new sva_clone_scope_guard_t(no_context));
+      for (const index_component_t&src : source.index) {
+	    index_component_t dst;
+	    dst.sel = src.sel;
+	    dst.msb = src.msb ? sva_clone_subst_(src.msb, subst) : nullptr;
+	    dst.lsb = src.lsb == src.msb ? dst.msb
+		  : (src.lsb ? sva_clone_subst_(src.lsb, subst) : nullptr);
+	    if ((src.msb && !dst.msb) || (src.lsb && !dst.lsb)) {
+		  delete dst.msb;
+		  if (dst.lsb != dst.msb) delete dst.lsb;
+		  return false;
+	    }
+	    copy.index.push_back(dst);
+      }
+      return true;
+}
 
 /* Class-specialization actuals are owned by their PEIdent/PECallFunction.
  * Assertion rewriting often destroys the source expression before the clone
@@ -10128,8 +10392,8 @@ static PExpr* sva_clone_postselect_(
 
    When `subst` is non-null, a matching single-name reference is replaced
    with a fresh clone of the actual argument, preserving part-selects. */
-static PExpr* sva_clone_subst_(PExpr*e,
-			       const std::map<perm_string,PExpr*>*subst)
+static PExpr* sva_clone_subst_impl_(PExpr*e,
+				    const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
@@ -10141,6 +10405,8 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			 subst->find(base.name);
 		  if (it != subst->end() && base.index.empty()) {
+			sva_clone_scope_guard_t actual_scope(
+			      sva_clone_actual_scope_);
 			PExpr*value = sva_clone_subst_(it->second, nullptr);
 			if (!value) return nullptr;
 			for (pform_name_t::const_iterator comp =
@@ -10151,6 +10417,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 			      member->set_line(*e);
 			      value = member;
 			}
+			value->sva_actual_scope(true);
 			return value;
 		  }
 	    }
@@ -10168,6 +10435,8 @@ static PExpr* sva_clone_subst_(PExpr*e,
 			      break;
 			}
 		  if (it != subst->end() && can_postselect) {
+			sva_clone_scope_guard_t actual_scope(
+			      sva_clone_actual_scope_);
 			PExpr*value = sva_clone_subst_(it->second, nullptr);
 			if (!value) return nullptr;
 			for (std::list<index_component_t>::const_iterator idx =
@@ -10176,6 +10445,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 			      value = sva_clone_postselect_(value, *idx, e, subst);
 			      if (!value) return nullptr;
 			}
+			value->sva_actual_scope(true);
 			return value;
 		  }
 	    }
@@ -10185,31 +10455,28 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	       so rebuild every index expression recursively before constructing
 	       the new PEIdent.  Otherwise the per-attempt substitution stopped at
 	       the vector name and left `idx' as an unresolved/shared live name. */
-	    pform_name_t path = id->path().name;
-	    pform_name_t::const_iterator src_comp = id->path().name.begin();
-	    pform_name_t::iterator dst_comp = path.begin();
-	    for ( ; src_comp != id->path().name.end();
-		  ++src_comp, ++dst_comp) {
-		  std::list<index_component_t>::const_iterator src_idx =
-			src_comp->index.begin();
-		  std::list<index_component_t>::iterator dst_idx =
-			dst_comp->index.begin();
-		  for ( ; src_idx != src_comp->index.end();
-			++src_idx, ++dst_idx) {
-			PExpr*new_msb = src_idx->msb
-			      ? sva_clone_subst_(src_idx->msb, subst) : nullptr;
-			if (src_idx->msb && !new_msb) return nullptr;
-			PExpr*new_lsb = src_idx->lsb == src_idx->msb
-			      ? new_msb
-			      : (src_idx->lsb
-				 ? sva_clone_subst_(src_idx->lsb, subst) : nullptr);
-			if (src_idx->lsb && !new_lsb) {
-			      delete new_msb;
+	    pform_name_t path;
+	    bool qualify = !id->path().package
+		  && sva_clone_should_qualify_(id->path().name);
+	    if (qualify) {
+		  for (const name_component_t&component :
+		       *sva_clone_scope_.prefix) {
+			name_component_t copy;
+			if (!sva_clone_name_component_(component, nullptr, true,
+					       copy)) {
+			      sva_destroy_name_path_(path);
 			      return nullptr;
 			}
-			dst_idx->msb = new_msb;
-			dst_idx->lsb = new_lsb;
+			path.push_back(copy);
 		  }
+	    }
+	    for (const name_component_t&component : id->path().name) {
+		  name_component_t copy;
+		  if (!sva_clone_name_component_(component, subst, false, copy)) {
+			  sva_destroy_name_path_(path);
+			  return nullptr;
+		  }
+		  path.push_back(copy);
 	    }
 	    PEIdent*cp = id->path().package
 		  ? new PEIdent(id->path().package, path, id->lexical_pos())
@@ -10405,6 +10672,34 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	   sampled-value function of a parameterized body. */
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    if (cf->receiver_expr()) return nullptr;
+	    pform_name_t call_path;
+	    bool qualify_call = !cf->path().package
+		  && cf->path().name.size() == 1
+		  && sva_clone_scope_.prefix
+		  && !sva_clone_scope_.prefix->empty()
+		  && sva_scope_declares_function_(sva_clone_scope_.module,
+					  sva_clone_scope_.generate,
+					  cf->path().name.front().name);
+	    if (qualify_call) {
+		  for (const name_component_t&component :
+		       *sva_clone_scope_.prefix) {
+			name_component_t copy;
+			if (!sva_clone_name_component_(component, nullptr, true,
+					       copy)) {
+			      sva_destroy_name_path_(call_path);
+			      return nullptr;
+			}
+			call_path.push_back(copy);
+		  }
+	    }
+	    for (const name_component_t&component : cf->path().name) {
+		  name_component_t copy;
+		  if (!sva_clone_name_component_(component, subst, false, copy)) {
+			  sva_destroy_name_path_(call_path);
+			  return nullptr;
+		  }
+		  call_path.push_back(copy);
+	    }
 	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
 	    std::list<named_pexpr_t> np;
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
@@ -10418,8 +10713,8 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  np.push_back(a);
 	    }
 	    PECallFunction*cp = cf->path().package
-		  ? new PECallFunction(cf->path().package, cf->path().name, np)
-		  : new PECallFunction(cf->path().name, np);
+		  ? new PECallFunction(cf->path().package, call_path, np)
+		  : new PECallFunction(call_path, np);
 	    if (cf->leading_type_args()) {
 		  parmvalue_t*type_args = sva_clone_parmvalue_(
 			cf->leading_type_args(), subst);
@@ -10445,6 +10740,24 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    return cp;
       }
       return nullptr;
+}
+
+/* A substituted formal can be forwarded to another named sequence. Keep a
+   marker on the actual's expression root so that later clones do not rebind
+   its identifiers in the declaration scope of the intermediate sequence. */
+static PExpr* sva_clone_subst_(PExpr*e,
+			       const std::map<perm_string,PExpr*>*subst)
+{
+      if (!e) return nullptr;
+      bool actual_scope = e->sva_actual_scope();
+      std::unique_ptr<sva_clone_scope_guard_t>scope_guard;
+      if (actual_scope) {
+	    sva_clone_scope_t no_context;
+	    scope_guard.reset(new sva_clone_scope_guard_t(no_context));
+      }
+      PExpr*copy = sva_clone_subst_impl_(e, subst);
+      if (copy && actual_scope) copy->sva_actual_scope(true);
+      return copy;
 }
 
 static PExpr* sva_clone_expr_(PExpr*e)
@@ -12228,8 +12541,14 @@ static bool sva_prepend_property_formal_inits_(
 static std::vector<sva_seq_step_t>*
 sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     const sva_param_seq_t&decl,
-		     const std::vector<named_pexpr_t>&parms)
+		     const std::vector<named_pexpr_t>&parms,
+		     const sva_clone_scope_t*decl_context = nullptr,
+		     const sva_clone_scope_t*call_context = nullptr)
 {
+	  sva_clone_scope_t empty_context;
+	  const sva_clone_scope_t&caller = call_context
+		? *call_context : empty_context;
+	  sva_clone_scope_guard_t call_scope(caller);
       std::map<perm_string,PExpr*> subst;
       std::vector<PExpr*> owned_subst;
       std::vector<const named_pexpr_t*> actuals(decl.formals.size(), nullptr);
@@ -12300,6 +12619,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     sva_gensym_counter++);
 	    perm_string local_name = lex_strings.make(name_buf);
 	    subst[formal.name] = sva_id_(loc, local_name);
+	    subst[formal.name]->sva_actual_scope(true);
 	    owned_subst.push_back(subst[formal.name]);
 
 	    PExpr*actual = sva_clone_subst_(actuals[k]->parm, nullptr);
@@ -12323,6 +12643,9 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    initializers.push_back(init);
       }
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
+	  const sva_clone_scope_t&declaration = decl_context
+		? *decl_context : empty_context;
+	  sva_clone_scope_guard_t body_scope(declaration, caller);
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
 	    st.items.clear();
@@ -16393,8 +16716,12 @@ static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
    steps (first spliced delay adds the step's own delay). */
 static void sva_splice_sequences_(const struct vlltype&loc,
 				  std::vector<sva_seq_step_t>&steps,
-                                  const PGenerate*scope = pform_cur_generate)
+                                  const PGenerate*scope = pform_cur_generate,
+				  const Module*module = nullptr,
+				  const pform_name_t*hier_prefix = nullptr)
 {
+      if (!module && !pform_cur_module.empty())
+	    module = pform_cur_module.front();
       static std::set<sva_scoped_name_t> active;
       auto enter = [&](const sva_scoped_name_t&key) {
             if (active.insert(key).second) return true;
@@ -16415,15 +16742,58 @@ static void sva_splice_sequences_(const struct vlltype&loc,
       for (size_t i = 0 ; i < steps.size() && error_count == entry_errors ; ) {
 	      /* M9D: parameterized sequence instantiation `name(args)`. */
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
-		  if (!cf->path().package && cf->path().name.size() == 1) {
-			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit =
-			      sva_resolve_(sva_param_sequences, nm, scope);
+		  if (!cf->path().package && !cf->path().name.empty()) {
+			const pform_name_t&call_path = cf->path().name;
+			perm_string nm = call_path.back().name;
+			const Module*decl_module = module;
+			const PGenerate*decl_generate = scope;
+			const pform_name_t*decl_prefix = hier_prefix;
+			sva_hier_seq_scope_t target_scope;
+			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit;
+			if (call_path.size() == 1) {
+			      pit = sva_resolve_(sva_param_sequences, nm, scope,
+						decl_module);
+			} else if (sva_hier_sequence_scope_(
+				 call_path, module, scope, hier_prefix, target_scope)) {
+			      decl_module = target_scope.module;
+			      decl_generate = target_scope.generate;
+			      decl_prefix = &target_scope.module_path;
+			      pit = sva_resolve_(sva_param_sequences, nm,
+						decl_generate, decl_module);
+			} else {
+			      pit = sva_param_sequences.end();
+			}
 			if (pit != sva_param_sequences.end() && pit->second.body) {
-                              if (!enter(pit->first)) { --splice_depth; return; }
+			      if (!enter(pit->first)) { --splice_depth; return; }
+			      std::set<perm_string>local_names;
+			      for (const sva_seq_step_t&step : *pit->second.body)
+				    for (const sva_match_item_t&item : step.items)
+					  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+					      && !item.lv_name.nil())
+						local_names.insert(item.lv_name);
+			      pform_name_t declaration_qualifier =
+				    sva_qualifier_for_scope_(decl_prefix, decl_module,
+							     pit->first.gen);
+			      pform_name_t caller_qualifier;
+			      if (hier_prefix && !hier_prefix->empty())
+				    caller_qualifier = sva_qualifier_for_scope_(
+					  hier_prefix, module, scope);
+			      sva_clone_scope_t declaration_context;
+			      declaration_context.module = decl_module;
+			      declaration_context.generate = pit->first.gen;
+			      declaration_context.prefix = declaration_qualifier.empty()
+				    ? nullptr : &declaration_qualifier;
+			      declaration_context.local_names = &local_names;
+			      sva_clone_scope_t call_context;
+			      call_context.module = module;
+			      call_context.generate = scope;
+			      call_context.prefix = caller_qualifier.empty()
+				    ? nullptr : &caller_qualifier;
 			      std::vector<sva_seq_step_t>*inst =
 				    sva_instantiate_seq_(loc, nm, pit->second,
-							 cf->get_parms());
+							 cf->get_parms(),
+							 &declaration_context,
+							 &call_context);
 			      if (inst) {
 				sva_retag_first_match_groups_(*inst);
 				    if (!inst->empty()) {
@@ -16434,8 +16804,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 						steps[i].items.begin(), steps[i].items.end());
 					  steps[i].items.clear();
 				    }
-				    sva_splice_sequences_(loc, *inst, scope);
-                                    active.erase(pit->first);
+				    sva_splice_sequences_(loc, *inst, pit->first.gen,
+							decl_module, decl_prefix);
+				    active.erase(pit->first);
 				    delete steps[i].expr;
 				    steps.erase(steps.begin() + i);
 				    steps.insert(steps.begin() + i,
@@ -16445,7 +16816,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    i += n;
 				    continue;
 			      }
-                              active.erase(pit->first);
+			      active.erase(pit->first);
 			      delete steps[i].expr;
 			      steps[i].expr = sva_bit_(loc, 1);
 			      i += 1;
@@ -16454,28 +16825,67 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 	    }
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!id || id->path().name.size() != 1
-		|| !id->path().name.front().index.empty()) {
+	    if (!id || id->path().name.empty()) {
 		  i += 1;
 		  continue;
 	    }
 	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it;
+	    const Module*decl_module = module;
+	    const PGenerate*decl_generate = scope;
+	    const pform_name_t*decl_prefix = hier_prefix;
+	    sva_hier_seq_scope_t target_scope;
 	    if (id->path().package) {
+		  if (id->path().name.size() != 1
+		      || !id->path().name.front().index.empty()) {
+			i += 1;
+			continue;
+		  }
 		  sva_scoped_name_t key;
 		  key.name = id->path().name.front().name;
 		  key.gen = nullptr;
 		  key.package = id->path().package;
-	  key.unit = nullptr;
+		  key.unit = nullptr;
+		  key.module = nullptr;
 		  seq_it = sva_module_sequences.find(key);
-	    } else {
+	    } else if (id->path().name.size() == 1
+		       && id->path().name.front().index.empty()) {
 		  seq_it = sva_resolve_(sva_module_sequences,
-				id->path().name.front().name, scope);
+				id->path().name.front().name, scope, module);
+	    } else {
+		  if (id->path().name.back().index.empty()
+		      && sva_hier_sequence_scope_(id->path().name, module, scope,
+					  hier_prefix, target_scope)) {
+			decl_module = target_scope.module;
+			decl_generate = target_scope.generate;
+			decl_prefix = &target_scope.module_path;
+			seq_it = sva_resolve_(sva_module_sequences,
+				id->path().name.back().name, decl_generate,
+				decl_module);
+		  } else {
+			i += 1;
+			continue;
+		  }
 	    }
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
 	    }
             if (!enter(seq_it->first)) { --splice_depth; return; }
+	    std::set<perm_string>local_names;
+	    for (const sva_seq_step_t&step : *seq_it->second)
+		  for (const sva_match_item_t&item : step.items)
+			if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+			    && !item.lv_name.nil())
+			      local_names.insert(item.lv_name);
+	    pform_name_t declaration_qualifier = sva_qualifier_for_scope_(
+		  decl_prefix, decl_module, seq_it->first.gen);
+	    sva_clone_scope_t declaration_context;
+	    declaration_context.module = decl_module;
+	    declaration_context.generate = seq_it->first.gen;
+	    declaration_context.prefix = declaration_qualifier.empty()
+		  ? nullptr : &declaration_qualifier;
+	    declaration_context.local_names = &local_names;
+	    sva_clone_scope_guard_t body_clone_scope(declaration_context);
 	    std::vector<sva_seq_step_t> body;
 	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
 		  sva_seq_step_t st = (*seq_it->second)[k];
@@ -16492,11 +16902,27 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  bool items_ok = sva_clone_match_items_(
 			(*seq_it->second)[k].items, st.items);
 		  bool had_items = !(*seq_it->second)[k].items.empty();
-		  if (!cp || (had_items && !items_ok)
-		      || (st.delay_lo_expr && !dlo_cp)
-		      || (st.delay_hi_expr && !dhi_cp)
-		      || (st.rep_lo_expr && !rlo_cp)
-			  || (st.rep_hi_expr && !rhi_cp) || !items_ok) {
+		  bool clone_failed = !cp || (had_items && !items_ok)
+			      || (st.delay_lo_expr && !dlo_cp)
+			      || (st.delay_hi_expr && !dhi_cp)
+			      || (st.rep_lo_expr && !rlo_cp)
+			      || (st.rep_hi_expr && !rhi_cp) || !items_ok;
+		  if (clone_failed && declaration_context.prefix) {
+			cerr << loc << ": error: hierarchical sequence `"
+			     << seq_it->first.name
+			     << "' has a body expression that cannot be copied into "
+			     << "the referencing scope." << endl;
+			error_count += 1;
+			delete cp;
+			delete dlo_cp;
+			delete dhi_cp;
+			delete rlo_cp;
+			delete rhi_cp;
+			sva_destroy_match_items_(st.items);
+			pform_sva_destroy_sequence(&body);
+			break;
+		  }
+		  if (clone_failed) {
 			  /* consume-once: move the tree and drop the
 			     declaration so a second use is diagnosed */
 			delete cp;
@@ -16558,9 +16984,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			steps[i].items.begin(), steps[i].items.end());
 		  steps[i].items.clear();
 	    }
-	    // This body has no substituted actuals: its nested sequence names
-            // belong to the alias declaration, not the caller's generate.
-            sva_splice_sequences_(loc, body, seq_it->first.gen);
+	    // This body has no substituted actuals: nested sequence names belong
+	    // to the declaration's module and generate scope.
+	    sva_splice_sequences_(loc, body, seq_it->first.gen,
+			  decl_module, decl_prefix);
             active.erase(seq_it->first);
 	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
@@ -27276,6 +27703,27 @@ struct sva_pending_proc_t {
       perm_string label;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
+
+/* Hierarchical sequence references can precede the target module definition.
+ * Keep a marker in the assertion's process list so end-of-compilation
+ * expansion preserves its source ordering after every module is known. */
+struct sva_pending_hier_assertion_t {
+      struct vlltype loc;
+      Module*owner = nullptr;
+      LexicalScope*scope = nullptr;
+      PGenerate*generate = nullptr;
+      PProcess*marker = nullptr;
+      sva_property_t*prop = nullptr;
+      Statement*fail_stmt = nullptr;
+      Statement*pass_stmt = nullptr;
+      PExpr*default_disable = nullptr;
+      int kind = 0;
+      perm_string label;
+};
+static std::vector<sva_pending_hier_assertion_t>
+	  sva_pending_hier_assertions_;
+static bool sva_hier_assertion_retry_active_ = false;
+
 /* Assertions without an explicit clock are held until their enclosing
    procedural event control can supply rule (c), or module end can apply the
    default clock. Suppress re-parking during that final default-clock bind. */
@@ -29588,6 +30036,117 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
+static bool sva_step_has_unparsed_hier_target_(
+		const sva_seq_step_t&step, const Module*module,
+		const PGenerate*generate)
+{
+      const pform_name_t*path = nullptr;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(step.expr)) {
+	    if (id->path().package) return false;
+	    path = &id->path().name;
+      } else if (const PECallFunction*call =
+		 dynamic_cast<const PECallFunction*>(step.expr)) {
+	    if (call->path().package) return false;
+	    path = &call->path().name;
+      }
+      if (!path || path->size() < 2) return false;
+      sva_hier_seq_scope_t target;
+      bool unresolved = false;
+      sva_hier_sequence_scope_(*path, module, generate, nullptr, target,
+			       &unresolved);
+      return unresolved;
+}
+
+static bool sva_chain_has_unparsed_hier_target_(
+		const std::vector<sva_seq_step_t>*chain,
+		const Module*module, const PGenerate*generate)
+{
+      if (!chain) return false;
+      for (const sva_seq_step_t&step : *chain)
+	    if (sva_step_has_unparsed_hier_target_(step, module, generate))
+		  return true;
+      return false;
+}
+
+static bool sva_tree_has_unparsed_hier_target_(
+		const sva_stree_t*tree, const Module*module,
+		const PGenerate*generate)
+{
+      if (!tree) return false;
+      if (sva_chain_has_unparsed_hier_target_(tree->chain, module, generate)
+	  || sva_tree_has_unparsed_hier_target_(tree->a, module, generate)
+	  || sva_tree_has_unparsed_hier_target_(tree->b, module, generate))
+	    return true;
+      if (tree->gexpr) {
+	    sva_seq_step_t step;
+	    step.expr = tree->gexpr;
+	    return sva_step_has_unparsed_hier_target_(step, module, generate);
+      }
+      return false;
+}
+
+static bool sva_property_has_unparsed_hier_target_(
+		const sva_property_t*prop, const Module*module,
+		const PGenerate*generate)
+{
+      if (!prop) return false;
+      if (sva_chain_has_unparsed_hier_target_(prop->seq, module, generate)
+	  || sva_chain_has_unparsed_hier_target_(prop->antecedent,
+						 module, generate)
+	  || sva_chain_has_unparsed_hier_target_(prop->mc_prefix,
+						 module, generate)
+	  || sva_tree_has_unparsed_hier_target_(prop->tree, module, generate)
+	  || sva_tree_has_unparsed_hier_target_(prop->ante_tree, module, generate))
+	    return true;
+      if (prop->mc_more)
+	    for (const sva_mc_seg_t&segment : *prop->mc_more)
+		  if (sva_chain_has_unparsed_hier_target_(segment.chain,
+						      module, generate))
+			return true;
+      return false;
+}
+
+static bool sva_defer_hierarchical_assertion_(
+		const struct vlltype&loc, sva_property_t*prop,
+		Statement*fail_stmt, Statement*pass_stmt, int kind,
+		perm_string label)
+{
+      if (sva_hier_assertion_retry_active_ || !prop
+	  || pform_cur_module.empty()) return false;
+      Module*owner = pform_cur_module.front();
+      if (!sva_property_has_unparsed_hier_target_(prop, owner,
+						 pform_cur_generate))
+	    return false;
+
+      LexicalScope*scope = lexical_scope;
+      while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
+	    scope = scope->parent_scope();
+      PExpr*default_disable = sva_default_disable
+	    ? sva_clone_expr_(sva_default_disable) : nullptr;
+      if (sva_default_disable && !default_disable) return false;
+
+      PNoop*marker_stmt = new PNoop;
+      FILE_NAME(marker_stmt, loc);
+      PProcess*marker = new PProcess(IVL_PR_INITIAL, marker_stmt);
+      FILE_NAME(marker, loc);
+      scope->behaviors.push_back(marker);
+
+      sva_pending_hier_assertion_t pending;
+      pending.loc = loc;
+      pending.owner = owner;
+      pending.scope = scope;
+      pending.generate = pform_cur_generate;
+      pending.marker = marker;
+      pending.prop = prop;
+      pending.fail_stmt = fail_stmt;
+      pending.pass_stmt = pass_stmt;
+      pending.default_disable = default_disable;
+      pending.kind = kind;
+      pending.label = label;
+      sva_pending_hier_assertions_.push_back(pending);
+      return true;
+}
+
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
 			  perm_string label)
@@ -29667,6 +30226,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    sva_pending_proc_.push_back(pend);
 	    return;
       }
+
+	/* The target module for a hierarchical sequence may be declared later
+	   in the compilation unit. Hold this assertion until pform_finish(),
+	   where its module-owned sequence table is available. */
+      if (sva_defer_hierarchical_assertion_(loc, prop, fail_stmt,
+						    pass_stmt, kind, label))
+	    return;
 
       /* Synthesize into the nearest non-block scope; see
 	   sva_hoist_out_of_block_t. */
@@ -31976,6 +32542,64 @@ static void pform_check_checker_module_instantiations_(Module*module)
 	    pform_check_checker_module_instantiations_(nested.second);
 }
 
+static void sva_flush_pending_hier_assertions_()
+{
+      if (sva_pending_hier_assertions_.empty()) return;
+      std::vector<sva_pending_hier_assertion_t>pending;
+      pending.swap(sva_pending_hier_assertions_);
+      for (sva_pending_hier_assertion_t&item : pending) {
+	    LexicalScope*scope = item.scope;
+	    std::list<PProcess*>::iterator marker = std::find(
+		  scope->behaviors.begin(), scope->behaviors.end(), item.marker);
+	    if (marker == scope->behaviors.end()) {
+		  cerr << item.loc << ": internal error: deferred hierarchical "
+		       << "sequence assertion lost its ordering marker." << endl;
+		  error_count += 1;
+		  delete item.marker;
+		  delete item.default_disable;
+		  delete item.fail_stmt;
+		  delete item.pass_stmt;
+		  pform_sva_destroy_property(item.prop);
+		  continue;
+	    }
+	    std::list<PProcess*>::iterator insertion = marker;
+	    ++insertion;
+	    scope->behaviors.erase(marker);
+	    std::set<PProcess*>existing(scope->behaviors.begin(),
+				 scope->behaviors.end());
+
+	    LexicalScope*saved_scope = lexical_scope;
+	    PGenerate*saved_generate = pform_cur_generate;
+	    PExpr*saved_disable = sva_default_disable;
+	    bool saved_retry = sva_hier_assertion_retry_active_;
+	    std::list<Module*>saved_modules = pform_cur_module;
+	    lexical_scope = scope;
+	    pform_cur_generate = item.generate;
+	    pform_cur_module.clear();
+	    pform_cur_module.push_front(item.owner);
+	    sva_default_disable = item.default_disable;
+	    sva_hier_assertion_retry_active_ = true;
+	    pform_make_assertion(item.loc, item.prop, item.fail_stmt,
+			 item.pass_stmt, item.kind, item.label);
+        item.prop = nullptr;
+        item.fail_stmt = item.pass_stmt = nullptr;
+	    sva_hier_assertion_retry_active_ = saved_retry;
+	    sva_default_disable = saved_disable;
+	    pform_cur_module.swap(saved_modules);
+	    pform_cur_generate = saved_generate;
+	    lexical_scope = saved_scope;
+
+	    std::vector<PProcess*>created;
+	    for (PProcess*process : scope->behaviors)
+		  if (!existing.count(process)) created.push_back(process);
+	    for (PProcess*process : created)
+		  scope->behaviors.remove(process);
+	    scope->behaviors.insert(insertion, created.begin(), created.end());
+	    delete item.marker;
+	    delete item.default_disable;
+      }
+}
+
 int pform_finish()
 {
 	// Any errors counted here were already reported by pform_parse
@@ -32014,6 +32638,12 @@ int pform_finish()
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.
       pform_apply_binds();
+
+      // Hierarchical sequence references can target module declarations
+      // parsed after their assertion site. Expand them after the full module
+      // set and bind-generated instances are available.
+      sva_flush_pending_hier_assertions_();
+      sva_release_retained_module_declarations_();
 
       return error_count;
 }
