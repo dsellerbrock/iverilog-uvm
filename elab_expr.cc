@@ -22174,6 +22174,12 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	  }
     }
 
+    /* Queue targets use the general cast path, which retains the source
+       type needed to flatten unpacked structs with dynamic members. */
+    if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type))
+	  if (!queue->assoc_compat())
+		return elaborate_expr(des, scope, (unsigned) 0, flags);
+
     // Casting array of vectors to dynamic array type
     if((darray = dynamic_cast<const netdarray_t*>(type)) &&
             (vector = dynamic_cast<const netvector_t*>(darray->element_type()))) {
@@ -22372,6 +22378,56 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       bool positional_pair = false;
       positional_container_expr_type_match(
 	    target_type_, sub, positional_pair);
+
+	/* An unpacked struct is represented by an object in VVP, so passing it
+	 * to the generic stream flattener would not produce its member stream.
+	 * Expand supported members in declaration order and let the existing
+	 * dynamic stream cast flatten each queue/dynamic-array member at runtime.
+	 * This is the source-to-container case of IEEE 1800-2017/2023 6.24.3. */
+      const netstruct_t*stream_record = sub
+	    ? dynamic_cast<const netstruct_t*>(sub->net_type()) : nullptr;
+      const netdarray_t*stream_darray =
+	    dynamic_cast<const netdarray_t*>(target_type_);
+      const netqueue_t*stream_queue =
+	    dynamic_cast<const netqueue_t*>(target_type_);
+      bool stream_container = stream_darray
+	    || (stream_queue && !stream_queue->assoc_compat());
+      bool stable_struct_source = dynamic_cast<NetESignal*>(sub)
+	    || dynamic_cast<NetEProperty*>(sub);
+      bool struct_members_streamable = stream_record
+	    && !stream_record->packed() && !stream_record->union_flag()
+	    && stable_struct_source && !stream_record->members().empty();
+      if (struct_members_streamable && stream_container
+	  && bitstream_cast_type_(target_type_, true)) {
+	    for (const netstruct_t::member_t&member : stream_record->members()) {
+	      ivl_type_t member_type = member.net_type;
+	      bool integral = member_type && member_type->packed()
+		&& member_type->packed_width() > 0
+		&& type_is_vectorable(member_type->base_type());
+	      bool dynamic_integral = member_type
+		&& (dynamic_cast<const netdarray_t*>(member_type)
+		    || dynamic_cast<const netqueue_t*>(member_type))
+		&& positional_container_integral_elements_(member_type);
+	      if (!integral && !dynamic_integral) {
+		struct_members_streamable = false;
+		break;
+	      }
+	    }
+      }
+      if (struct_members_streamable && stream_container) {
+	    NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					   target_type_,
+					   stream_record->members().size());
+	    for (size_t member_idx = 0;
+		 member_idx < stream_record->members().size(); member_idx += 1) {
+		  NetEProperty*field = new NetEProperty(sub->dup_expr(), member_idx);
+		  field->set_line(*this);
+		  cast->parm(member_idx, field);
+	    }
+	    cast->set_line(*this);
+	    delete sub;
+	    return cast;
+      }
 
 	/* Associative arrays are bit-stream sources (IEEE 1800-2017/2023
 	 * 6.24.3). Flatten integral elements in declared index order, then use

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2384_struct_dynamic_array_to_byte_queue_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2384_struct_dynamic_array_to_byte_queue"
+}
