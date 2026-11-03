@@ -17617,6 +17617,19 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 	    des, class_type, pidx, get_fileline()))
 	    return nullptr;
       if (pidx < 0) {
+            /* A module-level virtual-interface handle reaches this
+               single-component path for a nested interface instance
+               (vif.sub). Resolve that instance through the same runtime
+               parent/child dispatch used by longer member paths. */
+            if (class_type->is_interface() && sr.net) {
+                  NetESignal*base_expr = new NetESignal(sr.net);
+                  base_expr->set_line(*this);
+                  ivl_type_t nested_type = nullptr;
+                  NetExpr*nested = elaborate_nested_vif_value_(
+                        this, des, base_expr, class_type, comp, nested_type);
+                  if (nested)
+                        return nested;
+            }
             if (gn_system_verilog() && comp.index.empty()) {
                   if (array_method_iter_index_forbidden_(sr.net, comp.name)) {
                         cerr << get_fileline() << ": error: iterator index "

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2363_vif_nested_interface_member_2023.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "output-contains": ["woke t=12 d=1", "PASSED"]
+}

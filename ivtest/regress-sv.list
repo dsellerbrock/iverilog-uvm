@@ -8,6 +8,8 @@ issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_
 
 issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
+issue2363_vif_nested_interface_member_2017 normal,-g2017,-s,tb ivltests gold=issue2363_vif_nested_interface_member.gold
+issue2363_vif_nested_interface_member_2023 normal,-g2023,-s,tb ivltests gold=issue2363_vif_nested_interface_member.gold
 issue2364_dynamic_array_bits_2017 normal,-g2017,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 issue2364_dynamic_array_bits_2023 normal,-g2023,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 
