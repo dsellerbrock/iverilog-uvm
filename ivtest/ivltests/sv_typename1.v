@@ -16,12 +16,9 @@
 //
 // Implementation-specific format choices, documented here because the
 // LRM does not fully specify them:
-//  - Icarus does not track whether an enum or struct type came from a
-//    typedef (netenum_t/netstruct_t carry no name of their own), so
-//    both typedef'd and anonymous enums/structs always print the LRM's
-//    anonymous-enum-style structural expansion; for enums, the
-//    argument's own declared name is appended afterward, matching the
-//    LRM 20.6.1 example's trailing "...}e1".
+//  - Aggregate typedef names are retained after their structural
+//    expansion, and anonymous enum declarations use their generated,
+//    scope-qualified name as required by IEEE 1800-2017 20.6.1.
 //  - A parameterized class specialization prints only the base class
 //    name (elaboration does not thread actual parameter values into a
 //    specialization's name), so `Container#(byte)` and
@@ -130,11 +127,11 @@ module main;
 
     // ---- 3. Enums ----
     chk("typedef enum",       $typename(en_typedef),
-	"enum{ENUM_A=32'sd0,ENUM_B=32'sd1}en_typedef");
+	"enum{ENUM_A=32'sd0,ENUM_B=32'sd1}main.e_t");
     chk("anonymous enum",     $typename(en_anon),
-	"enum{ENUM_X=32'sd0,ENUM_Y=32'sd1,ENUM_Z=32'sd2}en_anon");
+	"enum{ENUM_X=32'sd0,ENUM_Y=32'sd1,ENUM_Z=32'sd2}main.e$2");
     chk("enum bit [1:0]",     $typename(en_narrow),
-	"enum{RED=2'd0,GREEN=2'd1,BLUE=2'd2}en_narrow");
+	"enum{RED=2'd0,GREEN=2'd1,BLUE=2'd2}main.color_t");
 
     // ---- 4. Arrays ----
     chk("fixed unpacked array",  $typename(arr_fixed), "int$[0:3]");
@@ -144,9 +141,9 @@ module main;
 
     // ---- 5. Structs ----
     chk("packed struct",   $typename(st_packed),
-	"struct packed {bit [7:0] hi;bit [7:0] lo;}");
+	"struct packed{bit [7:0] hi;bit [7:0] lo;}main.packed_t");
     chk("unpacked struct", $typename(st_unpacked),
-	"struct {int a;real b;}");
+	"struct{int a;real b;}main.unpacked_t");
 
     // ---- 6. Classes ----
     chk("plain class",         $typename(cls_plain),    "Plain");

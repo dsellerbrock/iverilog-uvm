@@ -1204,6 +1204,31 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  snprintf(buffer, sizeof buffer, "null");
 		  args[idx].text = strdup(buffer);
 		  continue;
+		case IVL_EX_ARRAY_PATTERN:
+		    /* Unpacked aggregate constants such as array parameters are
+		       represented as array-pattern expressions. They are VPI object
+		       values for display formatting, not vector expressions. Keep
+		       packed assignment patterns on the ordinary vector path. */
+		  {
+			ivl_type_t type = ivl_expr_net_type(expr);
+			if (type && !ivl_type_is_packed_vector(type)
+			    && (ivl_type_base(type) == IVL_VT_DARRAY
+				|| ivl_type_base(type) == IVL_VT_QUEUE
+				|| ivl_type_element(type)
+				|| ivl_type_properties(type) > 0)) {
+			      draw_eval_object(expr);
+			      args[idx].vec_flag = 0;
+			      args[idx].str_flag = 0;
+			      args[idx].real_flag = 0;
+			      args[idx].obj_flag = 1;
+			      args[idx].obj_type = 0;
+			      args[idx].stack = obj_stack_need;
+			      obj_stack_need += 1;
+			      args[idx].text = strdup("");
+			      continue;
+			}
+		  }
+		  break;
 		    /* Everything else will need to be evaluated and
 		       passed as a constant to the vpi task. */
 		default:

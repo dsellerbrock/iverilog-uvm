@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2383_dynamic_array_parameter_p.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue2383_dynamic_array_parameter_p" ],
+    "gold"          : "issue2383_dynamic_array_parameter_p"
+}
