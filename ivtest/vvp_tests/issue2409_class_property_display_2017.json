@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2409_class_property_display_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2409_class_property_display"],
+  "gold": "issue2409_class_property_display"
+}
