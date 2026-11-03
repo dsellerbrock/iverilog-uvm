@@ -291,6 +291,7 @@ typedef struct t_vpi_delay  {
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
 #define vpiFunction    20
+#define vpiGate        21 /* primitive gate */
 #define vpiFork        18 /* fork-join block */
 #define vpiIf          22 /* if statement */
 #define vpiIfElse      23 /* if-else statement */
@@ -328,6 +329,7 @@ typedef struct t_vpi_delay  {
 #define vpiPathTerm    43
 #define vpiPort        44
 #define vpiPortBit     45
+#define vpiPrimTerm    46 /* primitive terminal */
 #define vpiRealVar     47
 #define vpiReg         48
 #define vpiRegBit      49
@@ -339,6 +341,8 @@ typedef struct t_vpi_delay  {
 #define vpiTaskCall    60
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
+#define vpiSwitch      55 /* transistor switch */
+#define vpiUdp         65 /* user-defined primitive */
 #define vpiRepeat      51 /* repeat statement */
 #define vpiUdpDefn     66
 #define vpiUserSystf   67
@@ -361,6 +365,7 @@ typedef struct t_vpi_delay  {
 #define vpiVariables   100
 #define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
+#define vpiPrimitive   103 /* primitive (gate, switch, UDP) */
 #define vpiStmt        104 /* statement in process or task */
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
@@ -419,6 +424,35 @@ typedef struct t_vpi_delay  {
 
 /* Primitive subtype properties. */
 #define vpiPrimType 33
+#define vpiTermIndex 30 /* index of a primitive terminal */
+#define vpiStrength0 31 /* 0-strength of net or gate */
+#define vpiStrength1 32 /* 1-strength of net or gate */
+#   define vpiAndPrim       1
+#   define vpiNandPrim      2
+#   define vpiNorPrim       3
+#   define vpiOrPrim        4
+#   define vpiXorPrim       5
+#   define vpiXnorPrim      6
+#   define vpiBufPrim       7
+#   define vpiNotPrim       8
+#   define vpiBufif0Prim    9
+#   define vpiBufif1Prim   10
+#   define vpiNotif0Prim   11
+#   define vpiNotif1Prim   12
+#   define vpiNmosPrim     13
+#   define vpiPmosPrim     14
+#   define vpiCmosPrim     15
+#   define vpiRnmosPrim    16
+#   define vpiRpmosPrim    17
+#   define vpiRcmosPrim    18
+#   define vpiRtranPrim    19
+#   define vpiRtranif0Prim 20
+#   define vpiRtranif1Prim 21
+#   define vpiTranPrim     22
+#   define vpiTranif0Prim  23
+#   define vpiTranif1Prim  24
+#   define vpiPullupPrim   25
+#   define vpiPulldownPrim 26
 #   define vpiSeqPrim 27
 #   define vpiCombPrim 28
 

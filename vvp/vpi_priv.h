@@ -181,6 +181,13 @@ struct __vpiIterator : public __vpiHandle {
 
 extern vpiHandle vpip_make_iterator(unsigned nargs, vpiHandle*args,
 				    bool free_args_flag);
+extern vpiHandle vpip_make_primitive(__vpiScope*scope, const char*name,
+				     int type, int prim_type,
+				     const char*def_name, int strength0,
+				     int strength1, unsigned terminal_count,
+				     const long*directions, const long*widths);
+extern vvp_net_t* vpip_primitive_terminal_net(vpiHandle primitive,
+					      unsigned index);
 
 class __vpiDecConst : public __vpiHandle {
     public:

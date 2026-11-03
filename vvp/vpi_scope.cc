@@ -141,6 +141,11 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiArrayVar:
 		  array_delete(item);
 		  break;
+		case vpiGate:
+		case vpiSwitch:
+		case vpiUdp:
+		  delete item;
+		  break;
 		case vpiBegin:
 		case vpiAssignment:
 		case vpiContAssign:
@@ -380,6 +385,9 @@ static int compare_types(int code, int type, bool is_typedef = false)
 
       if (code == vpiTypedef)
 	    return is_typedef;
+
+      if (code == vpiPrimitive)
+	    return type == vpiGate || type == vpiSwitch || type == vpiUdp;
 
       if (code == type)
 	    return 1;

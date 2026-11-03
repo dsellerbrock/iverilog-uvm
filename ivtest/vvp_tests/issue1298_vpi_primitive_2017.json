@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1298_vpi_primitive.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1298_vpi_primitive_2017"],
+  "vpi-sources": ["vpi/issue1298_vpi_primitive.c"],
+  "output-contains": ["PRIMITIVE_COUNT=3", "PASSED"]
+}

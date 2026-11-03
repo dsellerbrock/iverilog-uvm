@@ -133,6 +133,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
+%token K_VPI_PRIMITIVE
 %token K_NETTYPE_DECL
 %token K_TYPEDEF
 %token K_vpi_source_location
@@ -953,6 +954,17 @@ statement
 	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING ';'
 		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
 		                         0, 0, 0, nullptr, 0, 0, nullptr); }
+
+	| K_VPI_PRIMITIVE T_STRING ',' T_NUMBER ',' T_NUMBER ',' T_STRING ','
+	  T_NUMBER ',' T_NUMBER ',' '(' numbers ')' ','
+	  '(' numbers ')' ',' '(' symbols ')' ';'
+		{ struct numbv_s directions = $15;
+		  struct numbv_s widths = $19;
+		  struct symbv_s terminals = $23;
+		  compile_vpi_primitive($2, $4, $6, $8, $10, $12,
+		                        directions, widths, terminals.cnt,
+		                        terminals.vect);
+		}
 
 	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING
 	  T_NUMBER T_NUMBER T_NUMBER T_SYMBOL T_NUMBER T_NUMBER T_SYMBOL ';'

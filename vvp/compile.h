@@ -132,6 +132,13 @@ extern const char* module_path;
 extern void compile_load_vpi_module(char*name);
 
 extern void compile_vpi_time_precision(long pre);
+extern void compile_vpi_primitive(char*name, long type, long prim_type,
+				  char*def_name,
+				  long strength0, long strength1,
+				  struct numbv_s directions,
+				  struct numbv_s terminal_widths,
+				  unsigned terminals,
+				  struct symb_s*connections);
 
 /*
  * This function is called by the parser to compile a functor

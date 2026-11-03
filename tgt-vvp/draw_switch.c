@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
 # include  <assert.h>
 # include  <stdlib.h>
 # include  <string.h>
@@ -70,6 +71,33 @@ void draw_switch_in_scope(ivl_switch_t sw)
 
       } else if (enable) {
 	    str_e = draw_island_net_input(island, enable);
+      }
+
+	/* Preserve the source primitive and ordered terminal connections for
+	   VPI; the simulation switch label below is an implementation detail. */
+      int prim_type = vpiUndefined;
+      switch (ivl_switch_type(sw)) {
+	  case IVL_SW_TRAN: prim_type = vpiTranPrim; break;
+	  case IVL_SW_TRANIF0: prim_type = vpiTranif0Prim; break;
+	  case IVL_SW_TRANIF1: prim_type = vpiTranif1Prim; break;
+	  case IVL_SW_RTRAN: prim_type = vpiRtranPrim; break;
+	  case IVL_SW_RTRANIF0: prim_type = vpiRtranif0Prim; break;
+	  case IVL_SW_RTRANIF1: prim_type = vpiRtranif1Prim; break;
+	  case IVL_SW_TRAN_VP: break;
+      }
+      if (prim_type != vpiUndefined) {
+	    int directions[3] = {vpiInout, vpiInout, vpiInput};
+	    unsigned widths[3] = {width_of_nexus(nex_a),
+			  width_of_nexus(nex_b), 1};
+	    const char*connections[3] = {str_a, str_b, 0};
+	    unsigned terminals = 2;
+	    if (enable) {
+		  connections[2] = rise_exp ? draw_net_input(enable) : str_e;
+		  terminals = 3;
+	    }
+	    draw_vpi_primitive(ivl_switch_basename(sw), vpiSwitch, prim_type,
+			       "", vpiUndefined, vpiUndefined,
+			       terminals, directions, widths, connections);
       }
 
       switch (ivl_switch_type(sw)) {

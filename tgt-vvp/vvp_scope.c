@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
 # include  <stdlib.h>
 # include  <math.h>
 # include  <string.h>
@@ -1515,6 +1516,132 @@ static void draw_udp_def(ivl_udp_t udp)
   fprintf(vvp_out, ";\n");
 }
 
+void draw_vpi_primitive(const char*name, int type, int prim_type,
+			const char*def_name,
+			int strength0, int strength1,
+			unsigned terminals, const int*directions,
+			       const unsigned*terminal_widths,
+			const char*const*connections)
+{
+      unsigned idx;
+      const char*source_name = name ? name : "";
+      char*normalized_name = 0;
+	const char*generated_suffix = strrchr(source_name, '<');
+	/* Logic and switch nodes synthesized by elaboration use bare _ivl_
+	   names. Source primitive instances have a <array.gate> suffix, even
+	   when their instance name was generated for an unnamed instance. Do
+	   not expose implementation nodes as source primitives. */
+	if (strncmp(source_name, "_ivl_", 5) == 0 && !generated_suffix)
+	    return;
+	if (generated_suffix) {
+	    const char*ptr = generated_suffix + 1;
+	    if (*ptr >= '0' && *ptr <= '9') {
+		  while (*ptr >= '0' && *ptr <= '9') ptr += 1;
+		  if (*ptr++ == '.') {
+			while (*ptr >= '0' && *ptr <= '9') ptr += 1;
+			if (*ptr == '>' && ptr[1] == 0) {
+			      normalized_name = strndup(source_name,
+						 generated_suffix - source_name);
+			      assert(normalized_name);
+			      source_name = normalized_name;
+			}
+		  }
+	    }
+	}
+	      fprintf(vvp_out, " .vpi_primitive \"%s\", %d, %d, \"%s\", %d, %d, (",
+	              vvp_mangle_name(source_name), type, prim_type,
+	              vvp_mangle_name(def_name ? def_name : ""), strength0,
+	              strength1);
+      for (idx = 0; idx < terminals; idx += 1)
+	    fprintf(vvp_out, "%s%d", idx ? ", " : "", directions[idx]);
+      fprintf(vvp_out, "), (");
+      for (idx = 0; idx < terminals; idx += 1)
+	    fprintf(vvp_out, "%s%u", idx ? ", " : "", terminal_widths[idx]);
+      fprintf(vvp_out, "), (");
+      for (idx = 0; idx < terminals; idx += 1)
+	    fprintf(vvp_out, "%s%s", idx ? ", " : "", connections[idx]);
+      fprintf(vvp_out, ");\n");
+      free(normalized_name);
+}
+
+static int vpi_drive_strength(ivl_drive_t drive)
+{
+      switch (drive) {
+	  case IVL_DR_HiZ: return vpiHiZ;
+	  case IVL_DR_SMALL: return vpiSmallCharge;
+	  case IVL_DR_MEDIUM: return vpiMediumCharge;
+	  case IVL_DR_WEAK: return vpiWeakDrive;
+	  case IVL_DR_LARGE: return vpiLargeCharge;
+	  case IVL_DR_PULL: return vpiPullDrive;
+	  case IVL_DR_STRONG: return vpiStrongDrive;
+	  case IVL_DR_SUPPLY: return vpiSupplyDrive;
+      }
+      return vpiUndefined;
+}
+
+static int draw_vpi_logic_primitive(ivl_net_logic_t logic)
+{
+      int type = vpiGate;
+      int prim_type;
+      switch (ivl_logic_type(logic)) {
+	  case IVL_LO_AND: prim_type = vpiAndPrim; break;
+	  case IVL_LO_BUF:
+	  case IVL_LO_BUFT:
+	  case IVL_LO_BUFZ: prim_type = vpiBufPrim; break;
+	  case IVL_LO_BUFIF0: prim_type = vpiBufif0Prim; break;
+	  case IVL_LO_BUFIF1: prim_type = vpiBufif1Prim; break;
+	  case IVL_LO_CMOS: type = vpiSwitch; prim_type = vpiCmosPrim; break;
+	  case IVL_LO_NAND: prim_type = vpiNandPrim; break;
+	  case IVL_LO_NMOS: type = vpiSwitch; prim_type = vpiNmosPrim; break;
+	  case IVL_LO_NOR: prim_type = vpiNorPrim; break;
+	  case IVL_LO_NOT: prim_type = vpiNotPrim; break;
+	  case IVL_LO_NOTIF0: prim_type = vpiNotif0Prim; break;
+	  case IVL_LO_NOTIF1: prim_type = vpiNotif1Prim; break;
+	  case IVL_LO_OR: prim_type = vpiOrPrim; break;
+	  case IVL_LO_PMOS: type = vpiSwitch; prim_type = vpiPmosPrim; break;
+	  case IVL_LO_PULLDOWN: prim_type = vpiPulldownPrim; break;
+	  case IVL_LO_PULLUP: prim_type = vpiPullupPrim; break;
+	  case IVL_LO_RCMOS: type = vpiSwitch; prim_type = vpiRcmosPrim; break;
+	  case IVL_LO_RNMOS: type = vpiSwitch; prim_type = vpiRnmosPrim; break;
+	  case IVL_LO_RPMOS: type = vpiSwitch; prim_type = vpiRpmosPrim; break;
+	  case IVL_LO_XNOR: prim_type = vpiXnorPrim; break;
+	  case IVL_LO_XOR: prim_type = vpiXorPrim; break;
+	  case IVL_LO_UDP: {
+		  ivl_udp_t udp = ivl_logic_udp(logic);
+		  type = vpiUdp;
+		  prim_type = ivl_udp_sequ(udp) ? vpiSeqPrim : vpiCombPrim;
+		  break;
+	  }
+	  default:
+		  return 0;
+      }
+
+      unsigned count = ivl_logic_pins(logic);
+      int*directions = calloc(count, sizeof(int));
+      unsigned*terminal_widths = calloc(count, sizeof(unsigned));
+      const char**connections = calloc(count, sizeof(char*));
+      assert(directions && terminal_widths && connections);
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    directions[idx] = idx == 0 ? vpiOutput : vpiInput;
+
+	    ivl_nexus_t pin = ivl_logic_pin(logic, idx);
+	    terminal_widths[idx] = pin ? width_of_nexus(pin) : 1;
+	    connections[idx] = pin ? draw_net_input(pin) : "C4<x>";
+      }
+
+      ivl_udp_t udp = ivl_logic_type(logic) == IVL_LO_UDP
+	    ? ivl_logic_udp(logic) : 0;
+      draw_vpi_primitive(ivl_logic_basename(logic), type, prim_type,
+			 udp ? ivl_udp_name(udp) : "",
+			 vpi_drive_strength(ivl_logic_drive0(logic)),
+			 vpi_drive_strength(ivl_logic_drive1(logic)),
+			 count, directions, terminal_widths, connections);
+      free(directions);
+      free(terminal_widths);
+      free(connections);
+      return 1;
+}
+
 /* Check to see if the output of the UDP is connected with a modpath. */
 static int udp_has_modpath_output(ivl_net_logic_t lptr)
 {
@@ -1651,6 +1778,13 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
       unsigned need_delay_flag = need_delay(lptr);
 
       unsigned vector_width = width_of_nexus(ivl_logic_pin(lptr, 0));
+
+	/* Source primitive identity and ordered terminal connections are not
+	   represented by the simulation functor labels. Preserve them for VPI. */
+      if (!ivl_logic_is_cassign(lptr) && !ivl_logic_port_buffer(lptr) &&
+	  ivl_logic_type(lptr) != IVL_LO_EQUIV &&
+	  ivl_logic_type(lptr) != IVL_LO_IMPL)
+	    draw_vpi_logic_primitive(lptr);
 
       ivl_drive_t str0 = ivl_logic_drive0(lptr);
       ivl_drive_t str1 = ivl_logic_drive1(lptr);

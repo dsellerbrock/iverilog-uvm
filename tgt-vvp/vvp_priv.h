@@ -195,6 +195,12 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype);
  * Switches (tran)
  */
 extern void draw_switch_in_scope(ivl_switch_t sw);
+extern void draw_vpi_primitive(const char*name, int type, int prim_type,
+			       const char*def_name,
+			       int strength0, int strength1,
+			       unsigned terminals, const int*directions,
+			       const unsigned*terminal_widths,
+			       const char*const*connections);
 
 /* Draw_net_input and friends uses this. */
 struct vvp_nexus_data {

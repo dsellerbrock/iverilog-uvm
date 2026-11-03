@@ -452,6 +452,11 @@ const char* vpi_type_as_string(PLI_INT32 code)
 {
       static char buf[32];
       switch (code) {
+	  case vpiGate: return "vpiGate";
+	  case vpiSwitch: return "vpiSwitch";
+	  case vpiUdp: return "vpiUdp";
+	  case vpiPrimTerm: return "vpiPrimTerm";
+	  case vpiTableEntry: return "vpiTableEntry";
 	  case vpiBegin: return "vpiBegin";
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";
@@ -1652,6 +1657,169 @@ class __vpiUdpDefn : public __vpiHandle {
       std::vector<vpiHandle> entries_;
 };
 
+class __vpiPrimitive;
+static vpiHandle vpip_get_udp_handle(vvp_udp_s *defn);
+
+class __vpiPrimitiveTerminal : public __vpiHandle {
+    public:
+      class observer_fun : public vvp_net_fun_t {
+        public:
+	  explicit observer_fun(__vpiPrimitiveTerminal*term) : term_(term) { }
+	  void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&value,
+			 vvp_context_t) override
+	  { term_->set_value(value); }
+	  void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&value,
+			    unsigned base, unsigned width,
+			    vvp_context_t context) override
+	  { recv_vec4_pv_(port, value, base, width, context); }
+        private:
+	  __vpiPrimitiveTerminal*term_;
+      };
+
+      __vpiPrimitiveTerminal(__vpiPrimitive*primitive, unsigned index,
+			     int direction, unsigned width);
+      int get_type_code(void) const override { return vpiPrimTerm; }
+      int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value value) override;
+      vvp_net_t* observer_net() { return &observer_net_; }
+      void set_value(const vvp_vector4_t&value);
+
+    private:
+      __vpiPrimitive*primitive_;
+      unsigned index_;
+      int direction_;
+      unsigned width_;
+      vvp_vector4_t value_;
+      observer_fun observer_;
+      vvp_net_t observer_net_;
+};
+
+class __vpiPrimitive : public __vpiHandle {
+    public:
+      __vpiPrimitive(__vpiScope*scope, const char*name, int type,
+		     int prim_type, const char*def_name,
+		     int strength0, int strength1, unsigned terminal_count,
+		     const long*directions, const long*widths)
+	      : scope_(scope), name_(vpip_name_string(name)), type_(type),
+		prim_type_(prim_type),
+		def_name_(vpip_name_string(def_name)), strength0_(strength0),
+		strength1_(strength1)
+      {
+	    for (unsigned idx = 0; idx < terminal_count; idx += 1)
+		  terminals_.push_back(new __vpiPrimitiveTerminal(
+			this, idx, directions[idx], static_cast<unsigned>(widths[idx])));
+      }
+      ~__vpiPrimitive() override
+      {
+	    for (unsigned idx = 0; idx < terminals_.size(); idx += 1)
+		  delete terminals_[idx];
+      }
+      int get_type_code(void) const override { return type_; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize: {
+		      unsigned count = 0;
+		      for (unsigned idx = 0; idx < terminals_.size(); idx += 1)
+			    if (terminals_[idx]->vpi_get(vpiDirection) != vpiOutput)
+				  count += 1;
+		      return count;
+		}
+		case vpiPrimType: return prim_type_;
+		case vpiStrength0: return strength0_;
+		case vpiStrength1: return strength1_;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName) return const_cast<char*>(name_);
+	    if (code == vpiDefName && type_ == vpiUdp)
+		  return const_cast<char*>(def_name_);
+	    if (code == vpiFullName) {
+		  const char*scope_name = scope_->vpi_get_str(vpiFullName);
+		  full_name_ = scope_name ? scope_name : "";
+		  if (!full_name_.empty()) full_name_ += ".";
+		  full_name_ += name_;
+		  return const_cast<char*>(full_name_.c_str());
+	    }
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiScope || code == vpiParent) return scope_;
+	    if (code == vpiUdpDefn && type_ == vpiUdp) {
+		  vvp_udp_s*defn = udp_find_name(def_name_);
+		  return defn ? vpip_get_udp_handle(defn) : 0;
+	    }
+	    return __vpiHandle::vpi_handle(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiPrimTerm || terminals_.empty()) return 0;
+	    vpiHandle*args = static_cast<vpiHandle*>(
+		  calloc(terminals_.size(), sizeof(vpiHandle)));
+	    for (unsigned idx = 0; idx < terminals_.size(); idx += 1)
+		  args[idx] = terminals_[idx];
+	    return vpip_make_iterator(terminals_.size(), args, true);
+      }
+      vvp_net_t* terminal_net(unsigned index)
+      { return index < terminals_.size() ? terminals_[index]->observer_net() : 0; }
+
+    private:
+      __vpiScope*scope_;
+      const char*name_;
+      int type_;
+      int prim_type_;
+      const char*def_name_;
+      int strength0_;
+      int strength1_;
+      std::string full_name_;
+      std::vector<__vpiPrimitiveTerminal*> terminals_;
+};
+
+__vpiPrimitiveTerminal::__vpiPrimitiveTerminal(__vpiPrimitive*primitive,
+					       unsigned index,
+					       int direction,
+					       unsigned width)
+: primitive_(primitive), index_(index), direction_(direction), width_(width),
+  value_(width, BIT4_X), observer_(this), observer_net_()
+{
+      observer_net_.fun = &observer_;
+}
+
+int __vpiPrimitiveTerminal::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiDirection: return direction_;
+	  case vpiTermIndex: return index_;
+	  case vpiSize: return width_;
+	  default: return __vpiHandle::vpi_get(code);
+      }
+}
+
+vpiHandle __vpiPrimitiveTerminal::vpi_handle(int code)
+{
+      if (code == vpiPrimitive || code == vpiParent) return primitive_;
+      if (code == vpiScope) return primitive_->vpi_handle(vpiScope);
+      return __vpiHandle::vpi_handle(code);
+}
+
+void __vpiPrimitiveTerminal::vpi_get_value(p_vpi_value value)
+{
+      vpip_vec4_get_value(value_, width_, false, value);
+}
+
+void __vpiPrimitiveTerminal::set_value(const vvp_vector4_t&value)
+{
+      vvp_vector4_t resized(width_, BIT4_X);
+      unsigned count = value.size() < width_ ? value.size() : width_;
+      for (unsigned idx = 0; idx < count; idx += 1)
+	    resized.set_bit(idx, value.value(idx));
+      value_ = resized;
+}
+
 static std::map<vvp_udp_s*, vpiHandle> vpip_udp_definitions;
 
 static vpiHandle vpip_get_udp_handle(vvp_udp_s *defn)
@@ -1661,6 +1829,27 @@ static vpiHandle vpip_get_udp_handle(vvp_udp_s *defn)
       vpiHandle handle = new __vpiUdpDefn(defn);
       vpip_udp_definitions[defn] = handle;
       return handle;
+}
+
+vpiHandle vpip_make_primitive(__vpiScope*scope, const char*name,
+			      int type, int prim_type,
+			      const char*def_name, int strength0, int strength1,
+			      unsigned terminal_count, const long*directions,
+			      const long*widths)
+{
+      assert(scope);
+      __vpiPrimitive*primitive = new __vpiPrimitive(
+	    scope, name, type, prim_type, def_name, strength0, strength1,
+	    terminal_count, directions, widths);
+      vpip_attach_to_scope(scope, primitive);
+      return primitive;
+}
+
+vvp_net_t* vpip_primitive_terminal_net(vpiHandle primitive, unsigned index)
+{
+      __vpiPrimitive*obj = dynamic_cast<__vpiPrimitive*>(primitive);
+      assert(obj);
+      return obj->terminal_net(index);
 }
 
 static vpiHandle vpip_make_udp_iterator()

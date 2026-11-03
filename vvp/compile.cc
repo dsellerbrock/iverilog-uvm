@@ -2048,6 +2048,60 @@ void compile_vpi_time_precision(long pre)
       vpip_set_time_precision(pre);
 }
 
+void compile_vpi_primitive(char*name, long type, long prim_type,
+			   char*def_name,
+			   long strength0, long strength1,
+			   struct numbv_s directions,
+			   struct numbv_s terminal_widths,
+			   unsigned terminals, struct symb_s*connections)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      bool valid = scope && directions.cnt == terminals &&
+	   terminal_widths.cnt == terminals;
+      for (unsigned idx = 0; idx < terminals; idx += 1) {
+	    if (idx >= directions.cnt || idx >= terminal_widths.cnt) {
+		  valid = false;
+		  continue;
+	    }
+	    if (directions.nvec[idx] != vpiInput &&
+		directions.nvec[idx] != vpiOutput &&
+		directions.nvec[idx] != vpiInout)
+		  valid = false;
+	    if (terminal_widths.nvec[idx] <= 0)
+		  valid = false;
+      }
+
+      if (!valid) {
+	    fprintf(stderr, "%s:%u: invalid VPI primitive metadata\n",
+		    yypath ? yypath : "<unknown>", yyline);
+	    compile_errors += 1;
+	    for (unsigned idx = 0; idx < terminals; idx += 1)
+		  free(connections[idx].text);
+	    free(connections);
+	    free(name);
+	    free(def_name);
+	    numbv_clear(&directions);
+	    numbv_clear(&terminal_widths);
+	    return;
+      }
+
+      vpiHandle primitive = vpip_make_primitive(
+	    scope, name, static_cast<int>(type), static_cast<int>(prim_type),
+	    def_name,
+	    static_cast<int>(strength0), static_cast<int>(strength1), terminals,
+	    directions.nvec, terminal_widths.nvec);
+
+      for (unsigned idx = 0; idx < terminals; idx += 1)
+	    input_connect(vpip_primitive_terminal_net(primitive, idx), 0,
+			  connections[idx].text);
+
+      free(connections);
+      free(name);
+      free(def_name);
+      numbv_clear(&directions);
+      numbv_clear(&terminal_widths);
+}
+
 /*
  * Convert a Cr string value to double.
  *
