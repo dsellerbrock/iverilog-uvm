@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2384_struct_to_byte_queue_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2384_struct_to_byte_queue"],
+  "gold": "issue2384_struct_to_byte_queue"
+}

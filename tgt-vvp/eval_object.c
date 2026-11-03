@@ -354,6 +354,23 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		  fprintf(vvp_out, "    %%stream/flatten/assoc %u;\n", key_kind);
 		  return 0;
 	    }
+	    /* An unpacked structure is object-valued in VVP, but unlike a queue
+	       or dynamic array it has no IVL_VT_DARRAY/QUEUE expression value.
+	       Bit-stream casts must recursively flatten its declared members,
+	       including any dynamically sized members (IEEE 1800-2017/2023 6.24.3). */
+	    if (strcmp(tail, "r$1") == 0 && ivl_expr_parms(expr) == 1) {
+		  ivl_expr_t source = ivl_expr_parm(expr, 0);
+		  ivl_type_t source_type = ivl_expr_net_type(source);
+		  bool struct_source = source_type
+			? ivl_type_base(source_type) == IVL_VT_NO_TYPE
+			      && !ivl_type_is_union(source_type)
+			: ivl_expr_value(source) == IVL_VT_NO_TYPE;
+		  if (struct_source) {
+		draw_eval_object(source);
+		fprintf(vvp_out, "    %%stream/flatten/obj/cast 0;\n");
+		return 0;
+		  }
+	    }
       } else if (strncmp(tail, "unpack$", 7) == 0) {
 	    unpack = 1;
 	    tail += 7;

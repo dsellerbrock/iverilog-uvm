@@ -22218,6 +22218,24 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	if (!base)
 	      return nullptr;
 
+	/* An unpacked structure may contain dynamically sized members and is
+	 * therefore a source bit stream even though it is not itself a
+	 * positional container. Flatten it before materializing an integral
+	 * queue/dynamic-array destination (IEEE 1800-2017/2023 6.24.3). */
+	const netstruct_t*struct_source =
+	      dynamic_cast<const netstruct_t*>(base->net_type());
+	if (struct_source && !struct_source->packed()
+	    && !struct_source->union_flag()
+	    && positional_container_integral_elements_(target_type_)
+	    && bitstream_cast_type_(struct_source, false)
+	    && bitstream_cast_type_(target_type_, true)) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					     target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
+	}
+
 	/* A string source is a dynamically sized byte stream for this cast.
 	 * Lower it before the packed-vector fallback expands the nominal string
 	 * width into repeated byte stores (IEEE 1800-2017/2023 6.24.3). */
