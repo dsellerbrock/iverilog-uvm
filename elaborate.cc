@@ -44062,23 +44062,6 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 	    }
       }
 
-      /* Synthesize an inside constraint for each random enum property. */
-      for (size_t pid = 0; pid < get_properties(); ++pid) {
-	    property_qualifier_t qual = get_prop_qual(pid);
-	    if (!qual.test_rand() && !qual.test_randc())
-		  continue;
-	    ivl_type_t ptype = get_prop_type(pid);
-	    const netenum_t*etype = dynamic_cast<const netenum_t*>(ptype);
-	    if (!etype || etype->size() == 0)
-		  continue;
-	    unsigned wid = (unsigned)etype->packed_width();
-	    if (wid == 0) wid = 32;
-	    std::ostringstream name;
-	    name << "_enum_" << get_prop_name(pid);
-	    add_constraint_ir(name.str(), constraint_enum_domain_ir(
-		  etype, "p:" + to_string(pid) + ":" + to_string(wid)));
-      }
-
       constraints_elaborating_ = false;
       constraints_elaborated_ = true;
 }
