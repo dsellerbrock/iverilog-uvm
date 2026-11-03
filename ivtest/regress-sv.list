@@ -54,6 +54,8 @@ issue1529_type_key_recursive_2017 normal,-g2017,-s,top ivltests gold=issue1529_t
 issue1529_type_key_recursive_2023 normal,-g2023,-s,top ivltests gold=issue1529_type_key_recursive.gold
 issue2343_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue2343_array_pattern.gold
 issue2343_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue2343_array_pattern.gold
+issue2389_fixed_array_concat_slice_2017 normal,-g2017,-s,top ivltests gold=issue2389_fixed_array_concat_slice.gold
+issue2389_fixed_array_concat_slice_2023 normal,-g2023,-s,top ivltests gold=issue2389_fixed_array_concat_slice.gold
 
 issue1493_stream_unpack_2state_2017 normal,-g2017,-s,issue1493_stream_unpack_2state ivltests
 issue1493_stream_unpack_2state_2023 normal,-g2023,-s,issue1493_stream_unpack_2state ivltests

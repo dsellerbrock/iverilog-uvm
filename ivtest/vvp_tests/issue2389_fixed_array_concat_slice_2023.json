@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2389_fixed_array_concat_slice_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2389_fixed_array_concat_slice"
+}

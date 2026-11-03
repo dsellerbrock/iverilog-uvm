@@ -23199,10 +23199,72 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  ivl_type_t target_element = uarray->element_type();
 		  vector<const PEIdent*> splice_items(parms_.size(), nullptr);
 		  vector<const netuarray_t*> splice_types(parms_.size(), nullptr);
+		  struct fixed_array_slice_t {
+			const PEIdent* base;
+			long first;
+			long last;
+		  };
+		  vector<fixed_array_slice_t> slice_items(parms_.size(),
+							  {nullptr, 0, 0});
 		  size_t result_count = 0;
 		  for (size_t idx = 0; idx < parms_.size(); idx += 1) {
 			const PEIdent*ident =
 			      dynamic_cast<const PEIdent*>(parms_[idx]);
+			if (ident && ident->path().name.back().index.size() == 1
+			    && ident->path().name.back().index.back().sel
+				 == index_component_t::SEL_PART) {
+			      pform_name_t base_path = ident->path().name;
+			      index_component_t select =
+				    base_path.back().index.back();
+			      base_path.back().index.clear();
+			      PEIdent*base = ident->path().package
+				    ? new PEIdent(ident->path().package, base_path,
+						  ident->lexical_pos())
+				    : new PEIdent(base_path, ident->lexical_pos());
+			      base->set_line(*ident);
+			      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(
+				    base->test_type_of_ident(des, scope));
+			      delete base;
+		      if (fixed && !fixed->static_dimensions().empty()) {
+			    ivl_type_t slice_element = fixed->element_type();
+			    netuarray_t source_suffix(
+				  netranges_t(fixed->static_dimensions().begin() + 1,
+					      fixed->static_dimensions().end()),
+				  fixed->element_type());
+			    if (fixed->static_dimensions().size() > 1)
+				  slice_element = &source_suffix;
+			    if (unpacked_concat_value_type_matches_(
+				  target_element, slice_element)) {
+				    NetExpr*first_expr = elab_and_eval(
+					  des, scope, select.msb, -1, true);
+				    NetExpr*last_expr = elab_and_eval(
+					  des, scope, select.lsb, -1, true);
+				    const NetEConst*first_const =
+					  dynamic_cast<const NetEConst*>(first_expr);
+				    const NetEConst*last_const =
+					  dynamic_cast<const NetEConst*>(last_expr);
+				    bool defined = first_const && last_const
+					  && first_const->value().is_defined()
+					  && last_const->value().is_defined();
+				    if (!defined) {
+					  cerr << ident->get_fileline()
+					       << ": error: fixed unpacked array slice bounds "
+					          "must be constant integral values." << endl;
+					  des->errors += 1;
+					  delete first_expr;
+					  delete last_expr;
+					  return nullptr;
+				    }
+				    long first = first_const->value().as_long();
+				    long last = last_const->value().as_long();
+				    delete first_expr;
+				    delete last_expr;
+				    slice_items[idx] = {ident, first, last};
+				    result_count += (size_t)labs(first - last) + 1;
+				    continue;
+			    }
+			      }
+			}
 			ivl_type_t item_type = ident
 			      ? ident->test_type_of_ident(des, scope) : nullptr;
 			const netuarray_t*fixed =
@@ -23258,6 +23320,39 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 				if (previous)
 				      delete previous;
 			  return nullptr;
+			}
+			if (slice_items[idx].base) {
+			      const PEIdent*ident = slice_items[idx].base;
+			      pform_name_t base_path = ident->path().name;
+			      base_path.back().index.clear();
+			      PEIdent*base = ident->path().package
+				    ? new PEIdent(ident->path().package, base_path,
+						  ident->lexical_pos())
+				    : new PEIdent(base_path, ident->lexical_pos());
+			      base->set_line(*ident);
+			      long source_index = slice_items[idx].first;
+			      long source_end = slice_items[idx].last;
+			      long source_step = source_index <= source_end ? 1 : -1;
+			      for (;;) {
+				    index_component_t select;
+				    select.sel = index_component_t::SEL_BIT;
+				    select.msb = new PENumber(
+					  new verinum((int64_t)source_index, 32U));
+				    select.msb->set_line(*ident);
+				    PEIdent*element = aggregate_operand_with_(
+					  base, nullptr, &select, *ident);
+				    NetExpr*item = elaborate_rval_expr(
+					  des, scope, target_element, element, false);
+				    delete element;
+				    elems[ascending ? result_idx
+					    : (result_count - 1 - result_idx)] = item;
+				    result_idx += 1;
+				    if (source_index == source_end)
+					  break;
+				    source_index += source_step;
+			      }
+			      delete base;
+			      continue;
 			}
 			if (splice_items[idx]) {
 			      const netranges_t&source_dims =
