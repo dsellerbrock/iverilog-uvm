@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue747_fixed_unpacked_bitstream_runtime_size_fail_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue747_fixed_unpacked_bitstream_runtime_size_fail"],
+  "gold": "issue747_fixed_unpacked_bitstream_runtime_size_fail"
+}

@@ -1,0 +1,1 @@
+VVP error: bit-stream cast source size 24 does not fit the destination fixed-array element count 4 of width 8.
