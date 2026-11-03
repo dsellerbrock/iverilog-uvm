@@ -105,6 +105,7 @@ enum operand_e {
 	/* Fields of the descriptor used only by object splice /proto opcodes. */
       OA_CONTAINER_DATA_STRING,
       OA_CONTAINER_DATA_MAX,
+      OA_CONTAINER_DATA_NESTED,
       OA_CONTAINER_DATA_PROTO,
 	/* The wait_order opcode needs a functor and two code pointers. */
 	  OA_WAIT_ORDER_NET,
@@ -570,6 +571,11 @@ static const struct opcode_table_s opcode_table[] = {
       { "%putc/ret/vec4",of_PUTC_RET_VEC4,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%putc/str/vec4",of_PUTC_STR_VEC4,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%putc/stra/vec4",of_PUTC_STRA_VEC4,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%qcond/ambig", of_QCOND_AMBIG, 2,
+	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_NESTED, OA_NONE} },
+      { "%qcond/ambig/proto", of_QCOND_AMBIG, 3,
+	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_NESTED,
+	 OA_CONTAINER_DATA_PROTO} },
       { "%qdar/loadlv/o", of_QDAR_LOADLV_O, 1,{OA_STRING, OA_NONE, OA_NONE} },
       { "%qinsert/o/obj", of_QINSERT_O_OBJ, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qinsert/o/obj/max",of_QINSERT_O_OBJ,1,{OA_NUMBER,OA_NONE,OA_NONE} },
@@ -3220,6 +3226,7 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  code->container_data->element_encoding = 0;
 		  code->container_data->max_size = 0;
 		  code->container_data->prototype = 0;
+		  code->container_data->nested_spec = UINT32_MAX;
 		  if (opa->argv[idx].ltype != L_STRING) {
 			yyerror("container element encoding must be a string");
 			compile_errors += 1;
@@ -3248,6 +3255,19 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  }
 		  assert(code->container_data);
 		  code->container_data->max_size = opa->argv[idx].numb;
+		  break;
+
+		case OA_CONTAINER_DATA_NESTED:
+		  if (opa->argv[idx].ltype != L_NUMB
+		      || (opa->argv[idx].numb > 17
+			  && opa->argv[idx].numb != UINT32_MAX)) {
+			yyerror("nested container spec must be in the supported range");
+			compile_errors += 1;
+			break;
+		  }
+		  assert(code->container_data);
+		  code->container_data->nested_spec =
+			(uint32_t)opa->argv[idx].numb;
 		  break;
 
 		case OA_CONTAINER_DATA_PROTO:
