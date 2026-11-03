@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue443_deferred_cover_count_2017.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue443_deferred_cover_count"],
+  "vpi-sources": ["vpi/issue443_deferred_cover_count.c"],
+  "output-contains": [
+    "PASS: issue443 deferred cover scenarios completed",
+    "PASS: issue443 deferred cover VPI counts"
+  ]
+}

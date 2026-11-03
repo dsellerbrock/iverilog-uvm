@@ -7323,11 +7323,11 @@ static unsigned deferred_assertion_source_id_ = 0;
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
  * selected call and result. The first arguments are mode (0 = #0, 1 = final),
- * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = no
- * result, 1 = pass, 2 = fail), and action kind (0 = null, 1 = `$error',
- * 2 = `$display'). Action markers then carry any original positional action
- * arguments; the VVP target evaluates those expressions before queueing the
- * report and snapshots their typed stack values. */
+ * source id, assertion kind (assert=1, cover=2, assume=4), result (0 = cover
+ * miss, 1 = pass, 2 = assert/assume failure), and action kind (0 = null,
+ * 1 = `$error', 2 = `$display'). Action markers then carry any original
+ * positional action arguments; the VVP target evaluates those expressions
+ * before queueing the report and snapshots their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
@@ -7598,11 +7598,12 @@ Statement* pform_make_deferred_cover(const struct vlltype&loc,
       if (!pass_marker && !is_final)
 	    pass_marker = deferred_enqueue_marker_(loc, false, source_id, 2, 1, 0);
 
-      /* A false final cover selection replaces an earlier true pin from the
-	 same source assertion and logical process. For #0, a false evaluation
-	 simply adds no report; normal process flush points handle reactivation. */
-      Statement*false_marker = is_final
-	    ? deferred_enqueue_marker_(loc, true, source_id, 2, 0, 0) : 0;
+      /* Keep failed evaluations in the deferred report queue too: when they
+	 mature they contribute an evaluated-but-unsucceeded count, while a
+	 flush discards them with passing reports. A false final cover replaces
+	 an earlier true pin from the same source assertion and process. */
+	Statement*false_marker = deferred_enqueue_marker_(
+	      loc, is_final, source_id, 2, 0, 0);
 
       PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();

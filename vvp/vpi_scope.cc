@@ -1287,6 +1287,14 @@ class __vpiAssertion : public __vpiHandle {
 	    if (success) successes_ += 1;
       }
 
+      bool report_deferred_cover_failure(void)
+      {
+	    if (!deferred_source_id_ || deferred_type_ != vpiImmediateCover)
+		  return false;
+	    attempts_ += 1;
+	    return true;
+      }
+
 	/* Record every sampled checker clock, even when assertion control
 	   suppresses a new start. Ages then index real raw simulation times
 	   instead of assuming a fixed clock period or a gapless START ring. */
@@ -1302,6 +1310,12 @@ class __vpiAssertion : public __vpiHandle {
 	   the established two-argument report behavior for other checkers. */
       void fire(int reason, int age = -1)
       {
+	      /* A passing deferred immediate cover is reported only after its
+	         result survives the assertion report queue. A failing cover's
+	         matured evaluation is counted separately without a failure event. */
+	      if (deferred_source_id_ && deferred_type_ == vpiImmediateCover
+	          && reason == cbAssertionSuccess)
+		    attempts_ += 1;
 	    if (reason == cbAssertionStart) attempts_ += 1;
 	    else if (reason == cbAssertionSuccess) successes_ += 1;
 	    if (cbs_.empty()) return;
@@ -1585,8 +1599,11 @@ void vpip_deferred_assertion_report(unsigned long source_id,
       if (!sc) return;
       std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>::iterator it =
 	    deferred_assertion_by_key.find(std::make_pair(sc, source_id));
-      if (it != deferred_assertion_by_key.end())
-	    it->second->fire((int)reason);
+      if (it == deferred_assertion_by_key.end()) return;
+      if (reason == cbAssertionFailure
+	  && it->second->report_deferred_cover_failure())
+	    return;
+      it->second->fire((int)reason);
 }
 
 /* M12B-cb: fire success/failure callbacks for the (scope, idx) assertion. */
