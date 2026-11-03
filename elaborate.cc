@@ -30354,6 +30354,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			      NetExpr*rv = select_clocking_input_(des, scope, cb,
 							*sig_it, raw, raw_value);
 			      if (!rv) continue;
+			      /* The event-driven delayed assignment below does not see
+				 a declaration initializer that was applied before its
+				 @raw process started. Seed the delay line from the selected
+				 raw value so numeric input skew has its initial value
+				 available until the first delayed transition. */
+			      NetAssign*seed = new NetAssign(new NetAssign_(shadow),
+							     rv->dup_expr());
+			      seed->set_line(*cb);
+			      prologue->append(seed);
 			      NetAssignNB*sasn = new NetAssignNB(new NetAssign_(shadow),
 								 rv, 0, 0);
 			      sasn->set_line(*cb);
