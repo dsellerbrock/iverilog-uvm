@@ -22,6 +22,7 @@
 # include  <stdlib.h>
 # include  <assert.h>
 # include  <inttypes.h>
+# include  <limits.h>
 
 /*
  * Map a container element type to the vvp type string used by
@@ -57,6 +58,130 @@ void stream_elem_type_text(ivl_type_t element_type, char*buf, size_t bufsz)
 	    snprintf(buf, bufsz, "o");
 	    break;
       }
+}
+
+struct stream_struct_encoding_buf_s {
+      char*text;
+      size_t size;
+      size_t used;
+};
+
+static int stream_struct_encoding_append_(
+	struct stream_struct_encoding_buf_s*buf, const char*text)
+{
+      size_t len = strlen(text);
+      if (len > (size_t)-1 - buf->used - 1)
+	    return 0;
+      size_t needed = buf->used + len + 1;
+      if (needed > buf->size) {
+	    size_t size = buf->size ? buf->size : 64;
+	    while (size < needed) {
+	  if (size > (size_t)-1 / 2) {
+		size = needed;
+		break;
+	  }
+	  size *= 2;
+	    }
+	    char*resized = realloc(buf->text, size);
+	    if (!resized)
+		  return 0;
+	    buf->text = resized;
+	    buf->size = size;
+      }
+      memcpy(buf->text + buf->used, text, len);
+      buf->used += len;
+      buf->text[buf->used] = 0;
+      return 1;
+}
+
+static int stream_struct_encoding_number_(
+	struct stream_struct_encoding_buf_s*buf, uint64_t value)
+{
+      char text[32];
+      snprintf(text, sizeof text, "%" PRIu64, value);
+      return stream_struct_encoding_append_(buf, text);
+}
+
+static int stream_struct_type_encoding_(ivl_type_t type,
+					struct stream_struct_encoding_buf_s*buf,
+					unsigned depth)
+{
+      if (!type || depth > 128)
+	    return 0;
+
+      ivl_variable_type_t base = ivl_type_base(type);
+      ivl_type_t element = ivl_type_element(type);
+
+      if (base == IVL_VT_STRING)
+	    return stream_struct_encoding_append_(buf, "T;");
+
+      if (base == IVL_VT_DARRAY) {
+	    return element && stream_struct_encoding_append_(buf, "D(")
+		  && stream_struct_type_encoding_(element, buf, depth+1)
+		  && stream_struct_encoding_append_(buf, ")");
+      }
+
+      if (base == IVL_VT_QUEUE) {
+	    if (!element || ivl_type_queue_assoc_compat(type)
+		  || !stream_struct_encoding_append_(buf, "Q")
+		  || !stream_struct_encoding_number_(buf,
+						     ivl_type_queue_max_size(type))
+		  || !stream_struct_encoding_append_(buf, "(")
+		  || !stream_struct_type_encoding_(element, buf, depth+1))
+		  return 0;
+	    return stream_struct_encoding_append_(buf, ")");
+      }
+
+      if (base == IVL_VT_NO_TYPE && ivl_type_properties(type) > 0) {
+	    int idx;
+	    if (ivl_type_is_union(type)
+		  || !stream_struct_encoding_append_(buf, "S{"))
+		  return 0;
+	    for (idx = 0; idx < ivl_type_properties(type); idx += 1) {
+		  if (idx && !stream_struct_encoding_append_(buf, ","))
+			return 0;
+		  if (!stream_struct_type_encoding_(ivl_type_prop_type(type, idx),
+							   buf, depth+1))
+			return 0;
+	    }
+	    return stream_struct_encoding_append_(buf, "}");
+      }
+
+      unsigned width = ivl_type_packed_width(type);
+      if ((base == IVL_VT_BOOL || base == IVL_VT_LOGIC)
+	  && width > 0 && width < UINT_MAX
+	  && (!element || ivl_type_is_packed_vector(type))) {
+	    return stream_struct_encoding_append_(buf,
+		  base == IVL_VT_BOOL ? "B" : "V")
+		  && stream_struct_encoding_number_(buf, width)
+		  && stream_struct_encoding_append_(buf, ";");
+      }
+
+      /* Fixed unpacked arrays expose their dimensions through the target
+	 * type API, while packed arrays are handled as one integral leaf above. */
+      if (element && !ivl_type_is_packed_vector(type)) {
+	    unsigned dims = ivl_type_packed_dimensions(type);
+	    uint64_t count = 1;
+	    unsigned dim;
+	    for (dim = 0; dim < dims; dim += 1) {
+		  int msb = ivl_type_packed_msb(type, dim);
+		  int lsb = ivl_type_packed_lsb(type, dim);
+		  int64_t delta = (int64_t)msb - (int64_t)lsb;
+		  uint64_t span = delta >= 0 ? (uint64_t)delta + 1
+					       : (uint64_t)(-delta) + 1;
+		  if (span == 0 || count > UINT_MAX / span)
+			return 0;
+		  count *= span;
+	    }
+	    if (dims == 0 || !stream_struct_encoding_append_(buf, "A")
+		  || !stream_struct_encoding_number_(buf, count)
+		  || !stream_struct_encoding_append_(buf, "(")
+		  || !stream_struct_type_encoding_(element, buf, depth+1))
+		  return 0;
+	    return stream_struct_encoding_append_(buf, ")");
+      }
+
+      return 0;
 }
 
 void darray_new(ivl_type_t element_type, unsigned size_reg)
@@ -157,6 +282,62 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	       left-to-right order as a right-stream with slice size 1. The
 	       caller emits a strict target conversion after this pack. */
 	    tail += 5;
+	    if (strcmp(tail, "struct$1") == 0) {
+		  if (ivl_expr_parms(expr) != 1) {
+			fprintf(stderr, "%s:%u: internal error: malformed struct bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			return 1;
+		  }
+		  ivl_expr_t source = ivl_expr_parm(expr, 0);
+		  ivl_type_t source_type = ivl_expr_net_type(source);
+		  ivl_variable_type_t source_base = source_type
+			? ivl_type_base(source_type) : ivl_expr_value(source);
+		  bool source_is_fixed_array =
+			ivl_expr_type(source) == IVL_EX_ARRAY
+			|| ivl_expr_type(source) == IVL_EX_ARRAY_SLICE;
+		  if (source_type && source_base == IVL_VT_QUEUE
+			&& ivl_type_queue_assoc_compat(source_type)) {
+			ivl_type_t key_type = ivl_type_assoc_index(source_type);
+			unsigned key_kind;
+			if (!key_type) {
+			      fprintf(stderr, "%s:%u: internal error: missing associative bit-stream key type.\n",
+				      ivl_expr_file(source), ivl_expr_lineno(source));
+			      return 1;
+			}
+			if (ivl_type_packed_width(key_type) > 0
+			    && ivl_type_packed_width(key_type) < UINT_MAX)
+			      key_kind = ivl_type_signed(key_type) ? 3U : 2U;
+			else if (ivl_type_base(key_type) == IVL_VT_STRING)
+			      key_kind = 0U;
+			else if (ivl_type_base(key_type) == IVL_VT_CLASS)
+			      key_kind = 1U;
+			else {
+			      fprintf(stderr, "%s:%u: internal error: unsupported associative bit-stream key type.\n",
+				      ivl_expr_file(source), ivl_expr_lineno(source));
+			      return 1;
+			}
+			draw_eval_object(source);
+			fprintf(vvp_out, "    %%stream/flatten/assoc %u;\n", key_kind);
+		  } else if (source_base == IVL_VT_CLASS
+			     || source_base == IVL_VT_NO_TYPE
+			     || source_base == IVL_VT_DARRAY
+			     || source_base == IVL_VT_QUEUE
+			     || source_is_fixed_array
+			     || (source_type && ivl_type_element(source_type)
+				 && !ivl_type_is_packed_vector(source_type))) {
+			unsigned allow_empty = source_base == IVL_VT_DARRAY
+			      || source_base == IVL_VT_QUEUE;
+			draw_eval_object(source);
+			fprintf(vvp_out, "    %%stream/flatten/obj/cast %u;\n",
+				allow_empty);
+		  } else if (source_base == IVL_VT_STRING) {
+			draw_eval_string(source);
+			fprintf(vvp_out, "    %%stream/flatten/str;\n");
+		  } else {
+			draw_eval_vec4(source);
+		  }
+		  return 0;
+	    }
 	    if (strncmp(tail, "assoc$s$1", 9) == 0
 		|| strncmp(tail, "assoc$u$1", 9) == 0
 		|| strncmp(tail, "assoc$t$1", 9) == 0
@@ -2600,6 +2781,28 @@ static int eval_object_sfunc(ivl_expr_t expr)
          a queue or dynamic array of the result's element type. */
       if (strncmp(name, "$ivl_stream$", 12) == 0) {
 	    ivl_type_t net_type = ivl_expr_net_type(expr);
+	    if (strcmp(name, "$ivl_stream$cast$struct$1") == 0) {
+		  struct stream_struct_encoding_buf_s buf = { NULL, 0, 0 };
+		  if (!net_type || ivl_type_base(net_type) != IVL_VT_NO_TYPE
+			  || ivl_type_is_union(net_type)
+			  || ivl_type_properties(net_type) <= 0
+			  || !stream_struct_type_encoding_(net_type, &buf, 0)) {
+			fprintf(stderr, "%s:%u: error: unsupported bit-stream cast struct layout.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			free(buf.text);
+			return 1;
+		  }
+		  ensure_class_type_emitted(net_type);
+		  int errors = draw_stream_pack_pieces(expr, 0);
+		  if (errors) {
+			free(buf.text);
+			return errors;
+		  }
+		  fprintf(vvp_out, "    %%stream/to/struct \"%s\", C%p;\n",
+			  buf.text, net_type);
+		  free(buf.text);
+		  return 0;
+	    }
 	    char elem_text[32];
 	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
 	    assert(net_type);

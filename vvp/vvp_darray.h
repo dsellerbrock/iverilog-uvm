@@ -38,6 +38,9 @@ extern bool vvp_container_element_encoding_is_valid(const char*text);
 extern bool vvp_stream_container_encoding_is_valid(const char*text,
 						    bool as_queue);
 
+/* Validate the recursive destination shape used by %stream/to/struct. */
+extern bool vvp_stream_struct_encoding_is_valid(const char*text);
+
 /*
  * A stable reference to one element of a variable-size array.
  *
