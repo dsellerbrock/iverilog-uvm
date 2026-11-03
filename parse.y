@@ -18965,25 +18965,19 @@ specify_item
       }
   | K_showcancelled specify_path_identifiers ';'
       {
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `showcancelled' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	for (const pform_specify_terminal_t&terminal : *$2) {
+	      if (pform_specify_path_output_previously_declared(terminal))
+		    yyerror(@3, "error: A module path output cannot appear in a showcancelled declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.2).");
+	      pform_specify_path_showcancelled(terminal, true);
 	}
 	delete $2; // specify_path_identifiers
       }
   | K_noshowcancelled specify_path_identifiers ';'
       {
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `noshowcancelled' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	for (const pform_specify_terminal_t&terminal : *$2) {
+	      if (pform_specify_path_output_previously_declared(terminal))
+		    yyerror(@3, "error: A module path output cannot appear in a noshowcancelled declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.2).");
+	      pform_specify_path_showcancelled(terminal, false);
 	}
 	delete $2; // specify_path_identifiers
       }

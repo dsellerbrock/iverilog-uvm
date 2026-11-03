@@ -57,6 +57,17 @@ static void draw_quoted_condition(const char*text)
       fputc('"', vvp_out);
 }
 
+static int signal_has_showcancelled(ivl_signal_t sig)
+{
+      unsigned idx;
+      for (idx = 0; idx < ivl_signal_attr_cnt(sig); idx += 1) {
+	    ivl_attribute_t attr = ivl_signal_attr_val(sig, idx);
+	    if (strcmp(attr->key, "_ivl_showcancelled") == 0)
+		  return attr->type == IVL_ATT_NUM && attr->val.num != 0;
+      }
+      return 0;
+}
+
 /*
 * Draw a .modpath record. The label is the label to use for this
 * record. The driver is the label of the net that feeds into the
@@ -93,7 +104,8 @@ static void draw_modpath_record(const char*label, const char*driver,
       }
 
       fprintf(vvp_out, "  .scope S_%p;\n", ivl_path_scope(ivl_signal_path(path_sig,0)));
-      fprintf(vvp_out, "%s .modpath %u %s v%p_0", label, width, driver, path_sig);
+      fprintf(vvp_out, "%s .modpath %u %u %s v%p_0", label, width,
+	      signal_has_showcancelled(path_sig), driver, path_sig);
 
       for (idx = 0 ;  idx < ivl_signal_npath(path_sig); idx += 1) {
 	    ivl_delaypath_t path = ivl_signal_path(path_sig, idx);

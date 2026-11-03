@@ -29,6 +29,7 @@
 # include  "named.h"
 # include  "PScope.h"
 # include  "PNamedItem.h"
+# include  "PSpec.h"
 # include  "netlist.h"
 # include  "pform_types.h"
 class PExpr;
@@ -201,6 +202,28 @@ class Module : public PScopeExtra, public PNamedItem {
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;
+
+      void set_specify_showcancelled(const pform_specify_terminal_t&terminal,
+				     bool enabled)
+      {
+	    for (auto&style : specify_pulse_styles) {
+		  if (style.first == terminal) {
+			style.second = enabled;
+			return;
+		  }
+	    }
+	    specify_pulse_styles.push_back(std::make_pair(terminal, enabled));
+      }
+      bool specify_showcancelled(
+	    const pform_specify_terminal_t&terminal) const
+      {
+	    for (const auto&style : specify_pulse_styles)
+		  if (style.first == terminal)
+			return style.second;
+	    return false;
+      }
+      std::vector<std::pair<pform_specify_terminal_t, bool>>
+	    specify_pulse_styles;
 
       std::map<perm_string,PLet*> unit_lets;
 

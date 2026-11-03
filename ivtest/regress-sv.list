@@ -103,6 +103,8 @@ issue1555_checker_initial_delay_fail_2023 CE,-g2023 ivltests gold=issue1555_chec
 #    Foundation; either version 2 of the License, or (at your option)
 #    any later version.
 #
+issue1241_showcancelled_negative_pulse_2017 normal,-g2017,-gspecify,-s,issue1241_showcancelled_negative_pulse_2017 ivltests gold=issue1241_showcancelled_negative_pulse_2017.gold
+issue1241_showcancelled_negative_pulse_2023 normal,-g2023,-gspecify,-s,issue1241_showcancelled_negative_pulse_2023 ivltests gold=issue1241_showcancelled_negative_pulse_2023.gold
 issue1390_abort_cover_properties normal,-g2017,-gassertions,-s,issue1390_abort_cover_properties ivltests gold=issue1390_abort_cover_properties.gold
 issue1482_string_index_bad_2017 CE,-g2017,-s,top ivltests
 issue1482_string_index_bad_2023 CE,-g2023,-s,top ivltests
