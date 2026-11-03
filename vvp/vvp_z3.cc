@@ -11476,10 +11476,6 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
                   return Z3_L_UNDEF;
             }
             unsigned width = Z3_get_bv_sort_size(ctx, sort);
-            if (!bounded && width > 64) {
-                  reason = "an unbounded joint projection exceeds the supported 64-bit width";
-                  return Z3_L_UNDEF;
-            }
             if (!bounded && total_width > UINT_MAX - width) {
                   reason = "the joint projection is too wide to bound exactly";
                   return Z3_L_UNDEF;
@@ -11551,6 +11547,69 @@ static Z3_lbool z3_sample_joint_(Z3_context ctx, Z3_solver base,
       if (result == Z3_L_FALSE && !selected.empty()) return Z3_L_TRUE;
       if (result == Z3_L_TRUE && !selected.empty()) return Z3_L_TRUE;
       return result;
+}
+
+/* Draw complete tuples uniformly from the bit-vector product and reject
+ * tuples that do not satisfy the component. This is exact uniform sampling
+ * conditioned on satisfiability. A bounded proposal phase keeps dense large
+ * components fast; callers use exact tuple enumeration if it finds no tuple. */
+static bool z3_reject_sample_joint_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&variables, z3_rng_stream_t&rng,
+      vector<Z3_ast>&selected, const char*&reason)
+{
+      static const unsigned rejection_attempt_cap = 256;
+      selected.clear();
+      reason = nullptr;
+      if (variables.empty()) {
+            reason = "joint rejection sampling requires a projection variable";
+            return false;
+      }
+      for (Z3_ast var : variables) {
+            Z3_sort sort = Z3_get_sort(ctx, var);
+            if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
+                || Z3_get_bv_sort_size(ctx, sort) == 0) {
+                  reason = "a joint rejection variable is not a non-empty bit-vector";
+                  return false;
+            }
+      }
+
+      for (unsigned attempt = 0; attempt < rejection_attempt_cap; ++attempt) {
+            vector<Z3_ast> tuple;
+            vector<Z3_ast> pins;
+            tuple.reserve(variables.size());
+            pins.reserve(variables.size());
+            for (Z3_ast var : variables) {
+                  Z3_sort sort = Z3_get_sort(ctx, var);
+                  unsigned width = Z3_get_bv_sort_size(ctx, sort);
+                  vvp_vector4_t draw(width, BIT4_0);
+                  for (unsigned low = 0; low < width;) {
+                        uint32_t word = rng.next();
+                        unsigned count = min(32U, width - low);
+                        for (unsigned bit = low; bit < low + count; ++bit)
+                              draw.set_bit(bit, (word & (UINT32_C(1)
+                                    << (bit - low))) ? BIT4_1 : BIT4_0);
+                        low += count;
+                  }
+                  Z3_ast value = z3_vec4_constant_(ctx, draw, width);
+                  if (!value) {
+                        reason = "could not form a joint rejection candidate";
+                        return false;
+                  }
+                  tuple.push_back(value);
+                  pins.push_back(Z3_mk_eq(ctx, var, value));
+            }
+            Z3_lbool feasible = Z3_solver_check_assumptions(ctx, base,
+                  (unsigned)pins.size(), pins.data());
+            if (feasible == Z3_L_UNDEF) {
+                  reason = "the solver returned UNKNOWN during joint rejection sampling";
+                  return false;
+            }
+            if (feasible == Z3_L_TRUE) {
+                  selected.swap(tuple);
+                  return true;
+            }
+      }
+      return true;
 }
 
 /* Find a wide projected block that can flip while every other bit stays fixed. */
@@ -15216,12 +15275,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<vector<vector<uint64_t> > > tables(components.size());
             vector<bool> full_power_component(components.size(), false);
             vector<unsigned> full_power_bits(components.size(), 0);
-            /* A component too large to enumerate that carries no dist, randc or
-               solve-before promise needs only a valid joint assignment: sample it
-               column by column against the hard solver. */
-            /* ponytail: until a symbolic uniform sampler replaces it, ordinary
-               over-cap components use checked candidates and warn; uniformity is
-               not guaranteed for their constrained solution sets. */
+            /* Ordinary wide components use exact full-tuple rejection first.
+               Avoid walking the first 1,024 legal tuples just to discover that
+               a dense component exceeds the enumeration cap. */
             vector<bool> sampled_component(components.size(), false);
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
@@ -15229,24 +15285,44 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (distributions[ci].size() > 1
                       && !(defer_ordered_joint_randc
                            && component_has_randc)) continue;
+                  bool ordered_component = false;
+                  bool component_has_dist_spec = false;
+                  for (Z3_ast var : components[ci])
+                        ordered_component |= stages.count(var) != 0;
+                  for (const auto&spec : builder.dist_specs)
+                        component_has_dist_spec |= find(
+                              components[ci].begin(),
+                              components[ci].end(), spec.subject)
+                              != components[ci].end();
+                  bool ordinary_component = distributions[ci].empty()
+                        && !component_has_dist_spec && !component_has_randc
+                        && !ordered_component;
+                  uint64_t total_width = 0;
+                  bool bit_vector_component = true;
+                  for (Z3_ast var : components[ci]) {
+                        Z3_sort sort = Z3_get_sort(ctx, var);
+                        if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT) {
+                              bit_vector_component = false;
+                              break;
+                        }
+                        unsigned width = Z3_get_bv_sort_size(ctx, sort);
+                        if (width == 0 || total_width > UINT_MAX - width) {
+                              bit_vector_component = false;
+                              break;
+                        }
+                        total_width += width;
+                  }
+                  if (ordinary_component && bit_vector_component
+                      && total_width > 20) {
+                        sampled_component[ci] = true;
+                        continue;
+                  }
                   const char*reason = nullptr;
                   Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
                         components[ci], ENUM_DOMAIN_CAP, tables[ci], reason);
                   if (enumerated != Z3_L_TRUE) {
-                        bool ordered_component = false;
-                        bool component_has_dist_spec = false;
-                        for (Z3_ast var : components[ci])
-                              ordered_component |= stages.count(var) != 0;
-                        for (const auto&spec : builder.dist_specs)
-                              component_has_dist_spec |= find(
-                                    components[ci].begin(),
-                                    components[ci].end(), spec.subject)
-                                    != components[ci].end();
                         bool simple_component = components[ci].size() == 1
-                              && distributions[ci].empty()
-                              && !component_has_dist_spec
-                              && !component_has_randc
-                              && !ordered_component;
+                              && ordinary_component;
                         if (enumerated == Z3_L_UNDEF && reason
                             && strcmp(reason,
                                "the complete joint solution set exceeds the enumeration limit") == 0
@@ -15265,18 +15341,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                "the complete joint solution set exceeds the enumeration limit") == 0
                                 || strcmp(reason,
                                "a joint variable exceeds the supported 64-bit width") == 0)
-                            && distributions[ci].empty() && !component_has_dist_spec
-                            && !component_has_randc && !ordered_component) {
-                              static bool warned_sampled_component = false;
-                              if (!warned_sampled_component) {
-                                    fprintf(stderr, "Warning: a joint randomization "
-                                            "component is too large to enumerate "
-                                            "exactly; it is sampled against the hard "
-                                            "constraints, not uniformly over its "
-                                            "solutions (further similar warnings "
-                                            "suppressed).\n");
-                                    warned_sampled_component = true;
-                              }
+                            && ordinary_component) {
                               sampled_component[ci] = true;
                               continue;
                         }
@@ -15710,41 +15775,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_optimize_assert(ctx, opt, pin);
                   };
                   if (sampled_component[ci]) {
+                        vector<Z3_ast> tuple;
+                        const char*reason = nullptr;
+                        if (!z3_reject_sample_joint_(ctx, base, component,
+                              root_rng, tuple, reason))
+                              return fail_joint(reason ? reason
+                                    : "joint rejection sampling failed");
+                        if (tuple.empty()) {
+                              Z3_lbool sampled = z3_sample_joint_(ctx, base,
+                                    component, root_rng, tuple, reason);
+                              if (sampled != Z3_L_TRUE)
+                                    return fail_joint(reason ? reason
+                                          : "exact joint fallback sampling failed");
+                        }
                         for (size_t column = 0; column < component.size(); ++column) {
-                              Z3_sort sort = Z3_get_sort(ctx, component[column]);
-                              unsigned width = Z3_get_bv_sort_size(ctx, sort);
-                              bool pinned = false;
-                              for (unsigned attempt = 0; attempt < 8 && !pinned; ++attempt) {
-                                    vvp_vector4_t draw(width, BIT4_0);
-                                    for (unsigned bit = 0; bit < width; ++bit)
-                                          draw.set_bit(bit, (root_rng.next() & 1)
-                                                ? BIT4_1 : BIT4_0);
-                                    Z3_ast pin = Z3_mk_eq(ctx, component[column],
-                                          z3_vec4_constant_(ctx, draw, width));
-                                    if (Z3_solver_check_assumptions(ctx, base, 1, &pin)
-                                        == Z3_L_TRUE) {
-                                          Z3_solver_assert(ctx, base, pin);
-                                          Z3_optimize_assert(ctx, opt, pin);
-                                          pinned = true;
-                                    }
-                              }
-                              if (pinned) continue;
-                              if (Z3_solver_check(ctx, base) != Z3_L_TRUE)
-                                    return fail_joint("a sampled joint component became infeasible");
-                              Z3_model model = Z3_solver_get_model(ctx, base);
-                              Z3_model_inc_ref(ctx, model);
-                              Z3_ast value = nullptr;
-                              bool have = Z3_model_eval(ctx, model,
-                                    component[column], true, &value);
-                              if (have) {
-                                    Z3_ast pin = Z3_mk_eq(ctx,
-                                          component[column], value);
-                                    Z3_solver_assert(ctx, base, pin);
-                                    Z3_optimize_assert(ctx, opt, pin);
-                              }
-                              Z3_model_dec_ref(ctx, model);
-                              if (!have)
-                                    return fail_joint("a sampled joint component has no integral model");
+                              Z3_ast pin = Z3_mk_eq(ctx, component[column],
+                                    tuple[column]);
+                              Z3_solver_assert(ctx, base, pin);
+                              Z3_optimize_assert(ctx, opt, pin);
                         }
                         continue;
                   }
