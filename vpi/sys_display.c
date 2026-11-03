@@ -318,10 +318,31 @@ static char* format_p_value(vpiHandle item)
     char *acc = strdup("'{");
     size_t used = strlen(acc);
     int first = 1;
-    vpiHandle iter = vpi_iterate(vpiMemoryWord, item);
+    vpiHandle iter = 0;
+    vpiHandle left = 0, right = 0;
+    PLI_INT32 index = 0, right_index = 0, step = 0;
+    /* VPI memory iteration is in numeric index order. A fixed array's
+       assignment-pattern order is instead its declared left-to-right
+       order, which is descending for a range such as [2:0]. */
+    if (itype == vpiMemory && !is_assoc) {
+      left = vpi_handle(vpiLeftRange, item);
+      right = vpi_handle(vpiRightRange, item);
+      if (left && right) {
+        s_vpi_value bound;
+        bound.format = vpiIntVal;
+        vpi_get_value(left, &bound);
+        index = bound.value.integer;
+        bound.format = vpiIntVal;
+        vpi_get_value(right, &bound);
+        right_index = bound.value.integer;
+        step = index <= right_index ? 1 : -1;
+      }
+    }
+    if (!step) iter = vpi_iterate(vpiMemoryWord, item);
     if (iter) {
       vpiHandle word;
-      while ((word = vpi_scan(iter)) != 0) {
+      word = vpi_scan(iter);
+      while (word) {
         char *key = 0;
         if (is_assoc) {
           /* The element's vpiName is its associative key text. */
@@ -338,6 +359,21 @@ static char* format_p_value(vpiHandle item)
         free(ev);
         free(key);
         first = 0;
+        word = vpi_scan(iter);
+      }
+    } else if (step) {
+      for (;;) {
+        vpiHandle word = vpi_handle_by_index(item, index);
+        if (!word) break;
+        char *ev = format_p_value(word);
+        size_t elen = strlen(ev);
+        acc = realloc(acc, used + (first ? 0 : 2) + elen + 2);
+        if (!first) { strcpy(acc + used, ", "); used += 2; }
+        strcpy(acc + used, ev); used += elen;
+        free(ev);
+        first = 0;
+        if (index == right_index) break;
+        index += step;
       }
     }
     /* Ensure room for the closing brace and NUL — for an empty container no
