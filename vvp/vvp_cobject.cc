@@ -1103,6 +1103,15 @@ void vvp_cobject::set_ref_binding(size_t pid, const vvp_object_t&binding)
       ref_props_[pid] = binding;
 }
 
+bool vvp_cobject::get_ref_binding(size_t pid, vvp_object_t&binding) const
+{
+      std::map<size_t, vvp_object_t>::const_iterator found =
+	    ref_props_.find(pid);
+      if (found == ref_props_.end()) return false;
+      binding = found->second;
+      return true;
+}
+
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
       if (!union_member_access_ok_(pid))
