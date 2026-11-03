@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_vif_array_clocking_cycle_drive.v:43: $finish called at 26 (1ns)
