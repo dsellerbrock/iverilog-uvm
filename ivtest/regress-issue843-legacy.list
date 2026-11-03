@@ -1,0 +1,2 @@
+issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
+issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold

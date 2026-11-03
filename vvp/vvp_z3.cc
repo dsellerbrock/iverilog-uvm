@@ -9147,6 +9147,7 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
  * documented as such at the point of use below.
  */
 static const uint64_t ENUM_DOMAIN_CAP = 1024;
+static const unsigned LARGE_JOINT_REJECTION_ATTEMPTS = 4096;
 
 /* Collect every value of VAR in [0, HI] that keeps BASE satisfiable, in
  * ascending order. A satisfiable range query yields one feasible value from
@@ -11475,6 +11476,70 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
             return Z3_L_TRUE;
       }
       return result;
+}
+
+/* A product-domain bound avoids enumerating thousands of complete tuples
+ * before selecting the exact rejection sampler for a large ordinary
+ * component. Small products retain the established exact-table path. */
+static bool z3_joint_domain_exceeds_cap_(Z3_context ctx,
+      const vector<Z3_ast>&variables, uint64_t cap)
+{
+      uint64_t product = 1;
+      for (Z3_ast var : variables) {
+            Z3_sort sort = Z3_get_sort(ctx, var);
+            if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT) return false;
+            unsigned width = Z3_get_bv_sort_size(ctx, sort);
+            if (width >= 64 || product > (cap >> width)) return true;
+            product <<= width;
+      }
+      return product > cap;
+}
+
+/* Find exact unsigned bounds for a bit-vector's values in BASE. Bounds
+ * shrink the rejection proposal box when the declared width is much wider
+ * than the constrained values. Wider-than-64-bit variables retain their
+ * full bit-vector proposal. */
+static Z3_lbool z3_joint_value_bounds_(Z3_context ctx, Z3_solver base,
+      Z3_ast var, bool&bounded, uint64_t&minimum, uint64_t&maximum)
+{
+      bounded = false;
+      Z3_sort sort = Z3_get_sort(ctx, var);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT) return Z3_L_UNDEF;
+      unsigned width = Z3_get_bv_sort_size(ctx, sort);
+      if (width == 0) return Z3_L_UNDEF;
+      if (width > 64) return Z3_L_TRUE;
+
+      uint64_t domain_max = width == 64 ? UINT64_MAX
+            : ((UINT64_C(1) << width) - 1);
+      uint64_t low = 0, high = domain_max;
+      while (low < high) {
+            uint64_t mid = low + (high - low) / 2;
+            Z3_ast limit = Z3_mk_unsigned_int64(ctx, mid, sort);
+            Z3_ast assumption = Z3_mk_bvule(ctx, var, limit);
+            Z3_lbool feasible = Z3_solver_check_assumptions(ctx, base, 1,
+                  &assumption);
+            if (feasible == Z3_L_UNDEF) return feasible;
+            if (feasible == Z3_L_TRUE) high = mid;
+            else low = mid + 1;
+      }
+      minimum = low;
+
+      low = 0;
+      high = domain_max;
+      while (low < high) {
+            uint64_t diff = high - low;
+            uint64_t mid = low + diff / 2 + diff % 2;
+            Z3_ast limit = Z3_mk_unsigned_int64(ctx, mid, sort);
+            Z3_ast assumption = Z3_mk_bvuge(ctx, var, limit);
+            Z3_lbool feasible = Z3_solver_check_assumptions(ctx, base, 1,
+                  &assumption);
+            if (feasible == Z3_L_UNDEF) return feasible;
+            if (feasible == Z3_L_TRUE) low = mid;
+            else high = mid - 1;
+      }
+      maximum = low;
+      bounded = true;
+      return Z3_L_TRUE;
 }
 
 /* Exact uniform sampling over a finite projected component. Blocking each
@@ -15261,19 +15326,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (distributions[ci].size() > 1
                       && !(defer_ordered_joint_randc
                            && component_has_randc)) continue;
+                  bool ordered_component = false;
+                  bool component_has_dist_spec = false;
+                  for (Z3_ast var : components[ci])
+                        ordered_component |= stages.count(var) != 0;
+                  for (const auto&spec : builder.dist_specs)
+                        component_has_dist_spec |= find(
+                              components[ci].begin(), components[ci].end(),
+                              spec.subject) != components[ci].end();
+                  bool ordinary_component = distributions[ci].empty()
+                        && !component_has_dist_spec && !component_has_randc
+                        && !ordered_component;
+                  if (ordinary_component && components[ci].size() > 1
+                      && z3_joint_domain_exceeds_cap_(ctx, components[ci],
+                            ENUM_DOMAIN_CAP)) {
+                        sampled_component[ci] = true;
+                        continue;
+                  }
                   const char*reason = nullptr;
                   Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
                         components[ci], ENUM_DOMAIN_CAP, tables[ci], reason);
                   if (enumerated != Z3_L_TRUE) {
-                        bool ordered_component = false;
-                        bool component_has_dist_spec = false;
-                        for (Z3_ast var : components[ci])
-                              ordered_component |= stages.count(var) != 0;
-                        for (const auto&spec : builder.dist_specs)
-                              component_has_dist_spec |= find(
-                                    components[ci].begin(),
-                                    components[ci].end(), spec.subject)
-                                    != components[ci].end();
                         bool simple_component = components[ci].size() == 1
                               && distributions[ci].empty()
                               && !component_has_dist_spec
@@ -15336,16 +15409,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                "a joint variable exceeds the supported 64-bit width") == 0)
                             && distributions[ci].empty() && !component_has_dist_spec
                             && !component_has_randc && !ordered_component) {
-                              static bool warned_sampled_component = false;
-                              if (!warned_sampled_component) {
-                                    fprintf(stderr, "Warning: a joint randomization "
-                                            "component is too large to enumerate "
-                                            "exactly; it is sampled against the hard "
-                                            "constraints, not uniformly over its "
-                                            "solutions (further similar warnings "
-                                            "suppressed).\n");
-                                    warned_sampled_component = true;
-                              }
                               sampled_component[ci] = true;
                               continue;
                         }
@@ -15779,41 +15842,155 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_optimize_assert(ctx, opt, pin);
                   };
                   if (sampled_component[ci]) {
-                        for (size_t column = 0; column < component.size(); ++column) {
-                              Z3_sort sort = Z3_get_sort(ctx, component[column]);
-                              unsigned width = Z3_get_bv_sort_size(ctx, sort);
-                              bool pinned = false;
-                              for (unsigned attempt = 0; attempt < 8 && !pinned; ++attempt) {
-                                    vvp_vector4_t draw(width, BIT4_0);
-                                    for (unsigned bit = 0; bit < width; ++bit)
-                                          draw.set_bit(bit, (root_rng.next() & 1)
-                                                ? BIT4_1 : BIT4_0);
-                                    Z3_ast pin = Z3_mk_eq(ctx, component[column],
-                                          z3_vec4_constant_(ctx, draw, width));
-                                    if (Z3_solver_check_assumptions(ctx, base, 1, &pin)
-                                        == Z3_L_TRUE) {
-                                          Z3_solver_assert(ctx, base, pin);
-                                          Z3_optimize_assert(ctx, opt, pin);
-                                          pinned = true;
+                        Z3_lbool feasible = Z3_solver_check(ctx, base);
+                        if (feasible == Z3_L_FALSE) return fail_joint(nullptr);
+                        if (feasible != Z3_L_TRUE)
+                              return fail_joint("the solver returned UNKNOWN before uniform joint rejection sampling");
+
+                        vector<Z3_ast> projection = component.size() == 1
+                              ? component
+                              : z3_joint_free_projection_(ctx, base,
+                                    component);
+                        set<Z3_ast> projected(projection.begin(),
+                              projection.end());
+                        vector<char> bounded(projection.size(), false);
+                        vector<uint64_t> minimum(projection.size(), 0);
+                        vector<uint64_t> maximum(projection.size(), 0);
+                        for (size_t i = 0; i < projection.size(); ++i) {
+                              bool has_bounds = false;
+                              Z3_lbool bounds = z3_joint_value_bounds_(ctx,
+                                    base, projection[i], has_bounds,
+                                    minimum[i], maximum[i]);
+                              if (bounds == Z3_L_UNDEF)
+                                    return fail_joint("could not prove a finite joint sampling bound");
+                              if (bounds == Z3_L_FALSE)
+                                    return fail_joint(nullptr);
+                              bounded[i] = has_bounds;
+                        }
+
+                        auto draw_uniform_below = [&](uint64_t bound,
+                              uint64_t&value) {
+                              if (bound == 0) return false;
+                              uint64_t threshold = (uint64_t)(0 - bound)
+                                    % bound;
+                              for (unsigned draw = 0; draw < 128; ++draw) {
+                                    uint64_t bits = ((uint64_t)root_rng.next()
+                                          << 32) | root_rng.next();
+                                    if (bits >= threshold) {
+                                          value = bits % bound;
+                                          return true;
                                     }
                               }
-                              if (pinned) continue;
-                              if (Z3_solver_check(ctx, base) != Z3_L_TRUE)
-                                    return fail_joint("a sampled joint component became infeasible");
+                              return false;
+                        };
+                        bool pinned = false;
+                        vector<Z3_ast> candidate;
+                        candidate.reserve(component.size());
+                        for (unsigned attempt = 0;
+                             attempt < LARGE_JOINT_REJECTION_ATTEMPTS;
+                             ++attempt) {
+                              candidate.clear();
+                              for (size_t i = 0; i < projection.size(); ++i) {
+                                    Z3_ast var = projection[i];
+                                    Z3_sort sort = Z3_get_sort(ctx, var);
+                                    if (Z3_get_sort_kind(ctx, sort)
+                                        != Z3_BV_SORT)
+                                          return fail_joint("a large joint component contains a non-integral variable");
+                                    unsigned width = Z3_get_bv_sort_size(ctx,
+                                          sort);
+                                    Z3_ast value = nullptr;
+                                    bool candidate_ok = true;
+                                    if (bounded[i]) {
+                                          uint64_t span = maximum[i]
+                                                - minimum[i] + 1;
+                                          uint64_t offset = 0;
+                                          if (span == 0)
+                                                offset = ((uint64_t)root_rng.next()
+                                                      << 32) | root_rng.next();
+                                          else if (span > 1
+                                                && !draw_uniform_below(span,
+                                                      offset))
+                                                candidate_ok = false;
+                                          uint64_t bits = minimum[i] + offset;
+                                          value = Z3_mk_unsigned_int64(ctx,
+                                                bits, sort);
+                                    } else if (width <= 64) {
+                                          uint64_t random =
+                                                ((uint64_t)root_rng.next() << 32)
+                                                | root_rng.next();
+                                          uint64_t bits = width == 64 ? random
+                                                : random & ((UINT64_C(1) << width)
+                                                      - 1);
+                                          value = Z3_mk_unsigned_int64(ctx,
+                                                bits, sort);
+                                    } else {
+                                          vvp_vector4_t draw(width, BIT4_0);
+                                          for (unsigned bit = 0; bit < width;
+                                               ++bit)
+                                                draw.set_bit(bit,
+                                                      (root_rng.next() & 1)
+                                                      ? BIT4_1 : BIT4_0);
+                                          value = z3_vec4_constant_(ctx,
+                                                draw, width);
+                                    }
+                                    if (!candidate_ok) break;
+                                    if (!value)
+                                          return fail_joint("could not form a full-width uniform joint candidate");
+                                    candidate.push_back(Z3_mk_eq(ctx, var,
+                                          value));
+                              }
+                              if (candidate.size() != projection.size())
+                                    continue;
+                              feasible = projection.empty()
+                                    ? Z3_solver_check(ctx, base)
+                                    : Z3_solver_check_assumptions(ctx, base,
+                                          (unsigned)candidate.size(),
+                                          candidate.data());
+                              if (feasible == Z3_L_UNDEF)
+                                    return fail_joint("the solver returned UNKNOWN during uniform joint rejection sampling");
+                              if (feasible == Z3_L_FALSE) continue;
+
                               Z3_model model = Z3_solver_get_model(ctx, base);
                               Z3_model_inc_ref(ctx, model);
-                              Z3_ast value = nullptr;
-                              bool have = Z3_model_eval(ctx, model,
-                                    component[column], true, &value);
-                              if (have) {
-                                    Z3_ast pin = Z3_mk_eq(ctx,
-                                          component[column], value);
+                              vector<Z3_ast> complete(candidate);
+                              for (Z3_ast var : component) {
+                                    if (projected.count(var)) continue;
+                                    Z3_ast value = nullptr;
+                                    if (!Z3_model_eval(ctx, model, var, true,
+                                          &value) || !value) {
+                                          Z3_model_dec_ref(ctx, model);
+                                          return fail_joint("a unique joint completion could not be extracted");
+                                    }
+                                    complete.push_back(Z3_mk_eq(ctx, var,
+                                          value));
+                              }
+                              Z3_model_dec_ref(ctx, model);
+                              for (Z3_ast pin : complete) {
                                     Z3_solver_assert(ctx, base, pin);
                                     Z3_optimize_assert(ctx, opt, pin);
                               }
-                              Z3_model_dec_ref(ctx, model);
-                              if (!have)
-                                    return fail_joint("a sampled joint component has no integral model");
+                              pinned = true;
+                              break;
+                        }
+                        if (!pinned) {
+                              vector<vector<uint64_t> > exact;
+                              const char*reason = nullptr;
+                              Z3_lbool enumerated = z3_enumerate_joint_(ctx,
+                                    base, component, ENUM_DOMAIN_CAP, exact,
+                                    reason);
+                              if (enumerated == Z3_L_FALSE)
+                                    return fail_joint(nullptr);
+                              if (enumerated != Z3_L_TRUE || exact.empty())
+                                    return fail_joint(reason ? reason
+                                          : "the bounded uniform joint sample and exact fallback both failed");
+                              uint64_t index = 0;
+                              if (exact.size() > 1
+                                    && !draw_uniform_below(exact.size(),
+                                          index))
+                                    return fail_joint("the RNG could not draw an unbiased exact-fallback tuple index");
+                              const auto&chosen = exact[index];
+                              for (size_t i = 0; i < component.size(); ++i)
+                                    pin_column(i, chosen[i]);
                         }
                         continue;
                   }
