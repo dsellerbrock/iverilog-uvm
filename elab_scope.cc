@@ -5350,6 +5350,60 @@ static void elaborate_scope_tasks(Design*des, NetScope*scope,
 
 }
 
+/* An imported modport task may be implemented by a module connected through
+ * another modport (IEEE 1800-2017/2023 25.7.3). Give that exported task an
+ * interface-owned dispatch scope using the import prototype. The provider
+ * body is attached after physical interface-port bindings are known. */
+static void add_modport_provider_task_stubs_(Module*module)
+{
+      if (!module || !module->is_interface)
+	    return;
+
+      set<perm_string>exports;
+      for (const auto&view_entry : module->modports) {
+	    const PModport*view = view_entry.second;
+	    if (view)
+		  exports.insert(view->export_ports.begin(),
+				  view->export_ports.end());
+      }
+
+      for (const auto&view_entry : module->modports) {
+	    const PModport*view = view_entry.second;
+	    if (!view)
+		  continue;
+	    for (perm_string method : view->import_ports) {
+		  if (!exports.count(method) || module->tasks.count(method)
+		      || module->funcs.count(method)
+		      || module->local_symbols.count(method))
+			continue;
+
+		  const PModport::tf_port_prototype_t*prototype =
+			view->find_tf_port_prototype(true, method);
+		  if (!prototype || prototype->is_function)
+			continue;
+
+		  PTask*stub = new PTask(method, module, true);
+		  stub->set_line(*view);
+		  std::vector<pform_tf_port_t>*ports =
+			new std::vector<pform_tf_port_t>;
+		  if (prototype->ports) {
+			*ports = *prototype->ports;
+			for (const pform_tf_port_t&port : *ports) {
+			      if (!port.port)
+				    continue;
+			      perm_string name = port.port->basename();
+			      stub->wires[name] = port.port;
+			      stub->local_symbols[name] = port.port;
+			}
+		  }
+		  stub->set_ports(ports);
+		  stub->set_modport_provider_stub(true);
+		  module->tasks[method] = stub;
+		  module->local_symbols[method] = stub;
+	    }
+      }
+}
+
 static void elaborate_scope_func(Design*des, NetScope*scope, PFunction*task)
 {
       hname_t use_name( task->pscope_name() );
@@ -5460,6 +5514,9 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
+	/* Create the interface-owned call scopes before elaborating task scopes. */
+	add_modport_provider_task_stubs_(this);
+
 	// IEEE 1800-2017/2023 25.5 requires simple modport ports to name
 	// signals declared by this interface, not names found in an enclosing
 	// lexical scope or implicit nets.

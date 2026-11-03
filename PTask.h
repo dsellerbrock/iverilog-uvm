@@ -101,6 +101,12 @@ class PTaskFunc : public PScope, public PNamedItem {
       void set_extern_forkjoin_task(bool value) {
 	    extern_forkjoin_task_ = value;
       }
+      bool is_modport_provider_stub() const {
+	    return modport_provider_stub_;
+      }
+      void set_modport_provider_stub(bool value) {
+	    modport_provider_stub_ = value;
+      }
       void set_interface_port_task(perm_string port, perm_string method) {
 	    interface_port_name_ = port;
 	    interface_port_method_ = method;
@@ -173,6 +179,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool is_virtual_ = false;
       bool is_pure_ = false;
       bool extern_forkjoin_task_ = false;
+      bool modport_provider_stub_ = false;
       perm_string interface_port_name_;
       perm_string interface_port_method_;
       unsigned method_override_specifiers_ = 0;

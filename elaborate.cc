@@ -16375,7 +16375,8 @@ static bool interface_modport_prototype_matches_method_(
 		const LineInfo&loc, Design*des,
 		const PModport::tf_port_prototype_t*prototype,
 		const NetScope*method_scope, const NetBaseDef*def,
-		bool require_matching_names, bool diagnose)
+		bool require_matching_names, bool diagnose,
+		const NetScope*prototype_scope = nullptr)
 {
       if (!prototype)
 	    return true;
@@ -16385,6 +16386,8 @@ static bool interface_modport_prototype_matches_method_(
 
       NetScope*declaration_scope = method_scope
 	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
+      if (prototype_scope)
+	    declaration_scope = const_cast<NetScope*>(prototype_scope);
       const vector<pform_tf_port_t>*ports = prototype->ports;
       const unsigned prototype_count = ports
 	    ? static_cast<unsigned>(ports->size()) : 0;
@@ -22418,6 +22421,17 @@ static string format_elab_message(const string&fmt,
 	    }
       }
       return result.str();
+}
+
+/* Lower a task whose scope has already been resolved by a deferred pass.
+ * This keeps exported-provider calls on the ordinary task-call path, including
+ * automatic frames, ref binding, aggregate copying, and output copy-back. */
+NetProc* PCallTask::elaborate_bound_task_call_(Design*des, NetScope*scope,
+					      NetScope*task) const
+{
+      if (!task || task->type() != NetScope::TASK)
+	    return nullptr;
+      return elaborate_build_call_(des, scope, task, nullptr);
 }
 
 /* Elaborate an elaboration task. */
@@ -51498,6 +51512,133 @@ static void elaborate_extern_forkjoin_tasks_(Design*des, NetScope*scope)
 	    elaborate_extern_forkjoin_tasks_(des, child.second);
 }
 
+static const PModport::tf_port_prototype_t*
+find_interface_import_task_prototype_(const Module*interface_module,
+				      perm_string method)
+{
+      if (!interface_module)
+	    return nullptr;
+      for (const auto&view_entry : interface_module->modports) {
+	    const PModport*view = view_entry.second;
+	    if (view && view->import_ports.count(method)) {
+		  const PModport::tf_port_prototype_t*prototype =
+			view->find_tf_port_prototype(true, method);
+		  if (prototype && !prototype->is_function)
+			return prototype;
+	    }
+      }
+      return nullptr;
+}
+
+static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE && scope->is_interface()) {
+	    auto module_entry = pform_modules.find(scope->module_name());
+	    const Module*interface_module = module_entry == pform_modules.end()
+		  ? nullptr : module_entry->second;
+	    for (const auto&child : scope->children()) {
+		  NetScope*stub_scope = child.second;
+		  if (!stub_scope || stub_scope->type() != NetScope::TASK)
+			continue;
+		  const PTask*stub = stub_scope->task_pform();
+		  if (!stub || !stub->is_modport_provider_stub())
+			continue;
+
+		  const PModport::tf_port_prototype_t*prototype =
+			find_interface_import_task_prototype_(
+			      interface_module, stub_scope->basename());
+		  NetTaskDef*stub_def = stub_scope->task_def();
+		  NetBlock*body = stub_def
+			? const_cast<NetBlock*>(dynamic_cast<const NetBlock*>(
+				  stub_def->proc())) : nullptr;
+		  if (!prototype || !stub_def || !body) {
+			cerr << stub->get_fileline()
+			     << ": internal error: exported modport task stub `"
+			     << stub_scope->basename()
+			     << "' has no prototype or task body." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  vector<NetScope*>providers;
+		  for (NetScope*root : des->find_root_scopes())
+			find_extern_forkjoin_providers_(
+			      root, scope, stub_scope->basename(), providers);
+		  if (providers.size() != 1) {
+			cerr << stub->get_fileline() << ": error: Exported modport task `"
+			     << stub_scope->basename() << "' requires exactly one connected "
+				"module provider for this interface instance; found "
+			     << providers.size() << " (IEEE 1800-2017/2023 25.7.3)."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  NetScope*provider = providers.front();
+		  NetTaskDef*provider_def = provider->task_def();
+		  if (!provider_def || !provider_def->proc()) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' has no elaborated task body (IEEE 1800-2017/2023 25.7.3)."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (!interface_modport_prototype_matches_method_(
+			*stub, des, prototype,
+			provider, provider_def, false, false, scope)) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' does not match the imported task prototype (IEEE "
+				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (provider_def->port_count() != stub_def->port_count()) {
+			cerr << provider->get_fileline()
+			     << ": error: Exported modport task provider `"
+			     << provider->basename()
+			     << "' has an incompatible number of arguments (IEEE "
+				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  std::list<named_pexpr_t>actuals;
+		  for (unsigned idx = 0; idx < stub_def->port_count(); idx += 1) {
+			NetNet*stub_port = stub_def->port(idx);
+			if (!stub_port) {
+			      des->errors += 1;
+			      break;
+			}
+			named_pexpr_t actual;
+			actual.name = perm_string();
+			actual.parm = new PEIdent(stub_port->name(), UINT_MAX, true);
+			actual.parm->set_line(*stub);
+			actual.set_line(*stub);
+			actuals.push_back(actual);
+		  }
+		  PCallTask provider_call(provider->basename(), actuals);
+		  provider_call.set_line(*stub);
+		  NetProc*call = provider_call.elaborate_bound_task_call_(
+			des, stub_scope, provider);
+		  if (!call)
+			continue;
+		  body->append(call);
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    elaborate_modport_export_tasks_(des, child.second);
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -51854,6 +51995,8 @@ Design* elaborate(list<perm_string>roots)
 	 * connection has been installed by recursive module elaboration. */
 	for (NetScope*root : des->find_root_scopes())
 	      elaborate_extern_forkjoin_tasks_(des, root);
+	for (NetScope*root : des->find_root_scopes())
+	      elaborate_modport_export_tasks_(des, root);
 
 	/* A typedef-only explicit class specialization is a concrete use. */
 	bool reached_typedef = false;
