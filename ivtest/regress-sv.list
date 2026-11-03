@@ -6527,6 +6527,8 @@ issue1829_linear_equality_chain_2023 normal,-g2023,-s,tb ivltests gold=issue1829
 
 issue736_string_property_index_2017 normal,-g2017,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
 issue736_string_property_index_2023 normal,-g2023,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
+issue2417_descending_array_percent_p_2017 normal,-g2017,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
+issue2417_descending_array_percent_p_2023 normal,-g2023,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
 
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold
