@@ -1,0 +1,6 @@
+{
+    "type"   : "normal",
+    "source" : "issue420_randc_cycle_width.v",
+    "iverilog-args" : [ "-g2017", "-s", "test" ],
+    "gold" : "issue420_randc_cycle_width"
+}

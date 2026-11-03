@@ -580,7 +580,9 @@ bool vvp_cobject::randc_transaction_commit()
 	    uint64_t period;
 	    uint64_t actual;
 	    bool sparse = false;
+	    bool permutation = false;
 	    randc_pending_t pending;
+	    randc_history_state_t::permutation_t permutation_state;
 	    std::vector<uint64_t> sparse_history;
 	    std::vector<bool>*container_history = 0;
 	    std::vector<uint64_t>*container_sparse_history = 0;
@@ -603,7 +605,19 @@ bool vvp_cobject::randc_transaction_commit()
 			     << "; history transaction rolled back" << endl;
 			 return false;
 	    }
-	    bool sparse = period == 0;
+	    bool permutation = it->second.permutation;
+	    if (permutation
+		  && (period != 0 || it->first.pid >= defn_->property_count()
+		      || defn_->property_is_static(it->first.pid)
+		      || val.size() != it->second.permutation_state.width
+		      || val.size() <= 20 || val.size() > 32
+		      || actual != it->second.staged_value)) {
+		  cerr << "warning: successful randomize has an invalid exact wide "
+		       << "randc permutation transaction for property '"
+		       << defn_->property_name(it->first.pid) << "'" << endl;
+		  return false;
+	    }
+	    bool sparse = period == 0 && !permutation;
 	    if (sparse && (it->first.pid >= defn_->property_count()
 		  || defn_->property_is_static(it->first.pid)
 		  || val.size() <= 20 || val.size() > 64
@@ -628,7 +642,9 @@ bool vvp_cobject::randc_transaction_commit()
 	    item.period = period;
 	    item.actual = actual;
 	    item.sparse = sparse;
+	    item.permutation = permutation;
 	    item.pending = it->second;
+	    item.permutation_state = it->second.permutation_state;
 	    resolved.push_back(item);
       }
 
@@ -723,6 +739,12 @@ bool vvp_cobject::randc_transaction_commit()
       }
 
       for (resolved_randc_t&item : resolved) {
+	    if (item.permutation) {
+		  randc_history_.permutations[item.key] = item.permutation_state;
+		  randc_history_.sparse.erase(item.key);
+		  continue;
+	    }
+	    randc_history_.permutations.erase(item.key);
 	    if (item.sparse) {
 		  std::vector<uint64_t>*destination = item.container_sparse_history
 			? item.container_sparse_history
@@ -843,6 +865,43 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       staged.reset_cycle = reset_cycle;
       staged.feasible = feasible;
       randc_transactions_.back().properties[randc_key_t(pid, leaf)] = staged;
+}
+
+bool vvp_cobject::randc_permutation_get(size_t pid, unsigned width,
+					uint64_t*keys,
+					uint64_t&next_index) const
+{
+      if (pid >= defn_->property_count() || defn_->property_is_static(pid)
+		  || width <= 20 || width > 32) return false;
+      std::map<randc_key_t, randc_history_state_t::permutation_t>::const_iterator
+		it = randc_history_.permutations.find(randc_key_t(pid, 0));
+      if (it == randc_history_.permutations.end()
+		  || it->second.width != width) return false;
+	  for (unsigned idx = 0; idx < VVP_RANDC_PERMUTATION_ROUNDS; ++idx)
+		keys[idx] = it->second.keys[idx];
+      next_index = it->second.next_index;
+      return true;
+}
+
+void vvp_cobject::randc_mark_permutation(size_t pid, uint64_t val,
+					 unsigned width,
+					 const uint64_t*keys,
+					 uint64_t next_index)
+{
+      if (pid >= defn_->property_count() || defn_->property_is_static(pid)
+		  || width <= 20 || width > 32
+		  || randc_transactions_.empty()) {
+		cerr << "internal error: invalid wide randc permutation mark" << endl;
+		abort();
+      }
+      randc_pending_t staged;
+      staged.staged_value = val;
+      staged.permutation = true;
+      staged.permutation_state.width = width;
+	  for (unsigned idx = 0; idx < VVP_RANDC_PERMUTATION_ROUNDS; ++idx)
+		staged.permutation_state.keys[idx] = keys[idx];
+      staged.permutation_state.next_index = next_index;
+      randc_transactions_.back().properties[randc_key_t(pid, 0)] = staged;
 }
 
 void vvp_cobject::randc_unmark(size_t pid, uint64_t val, size_t leaf)
