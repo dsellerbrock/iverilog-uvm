@@ -10668,6 +10668,192 @@ static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
       return blk;
 }
 
+/* Convert one left-to-right ordinal into its declared index tuple. The
+ * resulting indices can then be normalized independently for arrays whose
+ * outer bounds or directions differ. */
+static bool uarray_declared_indices_(const netuarray_t*type,
+				     unsigned long ordinal,
+				     std::list<long>&indices)
+{
+      if (!type) return false;
+      const netranges_t&dims = type->static_dimensions();
+      std::vector<long>declared(dims.size());
+      unsigned long remaining = ordinal;
+      for (size_t dim = dims.size(); dim > 0; dim -= 1) {
+	    const netrange_t&range = dims[dim-1];
+	    unsigned long width = range.width();
+	    if (width == 0) return false;
+	    unsigned long digit = remaining % width;
+	    remaining /= width;
+	    long left = range.get_msb();
+	    declared[dim-1] = range.get_msb() <= range.get_lsb()
+		  ? left + (long)digit : left - (long)digit;
+      }
+      if (remaining != 0) return false;
+      indices.assign(declared.begin(), declared.end());
+      return true;
+}
+
+/* A fixed unpacked-array function result is held in the function's return
+ * signal, which is reused by later calls. A nonblocking assignment must
+ * capture the complete result before scheduling any destination update.
+ * Copy the result once into private array storage, then schedule one word
+ * update per element. For slices, capture the canonical destination base
+ * before the call and use the same base for every word. The word walk is the
+ * left-to-right order required by IEEE 1800-2017/2023 7.6; each source and
+ * destination ordinal is normalized against its own declared dimensions.
+ * Clause 10.4.2 supplies the NBA scheduling semantics, and 2023 7.6
+ * explicitly treats a slice l-value as one assignment.
+ *
+ * Timing controls are deliberately left to the caller: a single event or
+ * delay must not be duplicated across the generated word assignments. */
+static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
+					 NetAssign_*lv, const NetEUFunc*ufn)
+{
+      if (!scope || !lv || lv->more || lv->nest()
+	  || lv->get_property_idx() >= 0 || lv->has_array_word_prefix())
+	    return 0;
+
+      NetNet*sig = lv->sig();
+      const netuarray_t*dst_type =
+	    dynamic_cast<const netuarray_t*>(lv->net_type());
+      const NetESignal*result = ufn ? ufn->result_sig() : 0;
+      const NetNet*result_net = result ? result->sig() : 0;
+      const netuarray_t*result_type = result_net
+	    ? dynamic_cast<const netuarray_t*>(result_net->array_type()) : 0;
+      if (!sig || !dst_type || !result_net || !result_type
+	  || result_net->unpacked_dimensions() == 0)
+	    return 0;
+
+      const netranges_t&dst_dims = dst_type->static_dimensions();
+      const netranges_t&result_dims = result_type->static_dimensions();
+      if (dst_dims.size() != result_dims.size()) return 0;
+      for (size_t dim = 0; dim < dst_dims.size(); dim += 1)
+	    if (dst_dims[dim].width() != result_dims[dim].width()) return 0;
+
+      ivl_type_t dst_element = dst_type->element_type();
+      ivl_type_t result_element = result_type->element_type();
+      if (!dst_element || !result_element
+	  || (dst_element != result_element
+	      && (!dst_element->type_equivalent(result_element)
+		  || !result_element->type_equivalent(dst_element))))
+	    return 0;
+
+      unsigned long dst_count = 1;
+	/* Fixed array NetNets expose their element count as an unsigned
+	 * value. Refuse an overflowing product before constructing the word
+	 * list; a valid NetNet shape is bounded by this same count. */
+      for (const netrange_t&dim : dst_dims) {
+	    if (dim.width() == 0 || dst_count > ULONG_MAX / dim.width())
+		  return 0;
+	    dst_count *= dim.width();
+      }
+      unsigned long result_count = result_net->unpacked_count();
+      if (dst_count == 0 || dst_count != result_count)
+	    return 0;
+
+	/* NetNet words use canonical numeric-low-first indexes. The NBA walk
+	 * must instead pair declared left-to-right elements, so compute the
+	 * canonical source and destination offset for each shared ordinal. */
+      std::vector<long>dst_offsets;
+      std::vector<long>result_offsets;
+      dst_offsets.reserve(dst_count);
+      result_offsets.reserve(dst_count);
+      for (unsigned long ordinal = 0; ordinal < dst_count; ordinal += 1) {
+	    std::list<long>dst_indices;
+	    std::list<long>result_indices;
+	    if (!uarray_declared_indices_(dst_type, ordinal, dst_indices)
+		|| !uarray_declared_indices_(result_type, ordinal, result_indices))
+		  return 0;
+	    NetExpr*dst_word = normalize_variable_unpacked(dst_type, dst_indices);
+	    NetExpr*result_word = normalize_variable_unpacked(result_type,
+							      result_indices);
+	    const NetEConst*dst_const = dynamic_cast<const NetEConst*>(dst_word);
+	    const NetEConst*result_const =
+		  dynamic_cast<const NetEConst*>(result_word);
+	    if (!dst_const || !result_const
+		|| !dst_const->value().is_defined()
+		|| !result_const->value().is_defined()) {
+		  delete dst_word;
+		  delete result_word;
+		  return 0;
+	    }
+	    dst_offsets.push_back(dst_const->value().as_long());
+	    result_offsets.push_back(result_const->value().as_long());
+	    delete dst_word;
+	    delete result_word;
+      }
+
+	/* Whole-array assignment starts at canonical word zero. A selected
+	 * array slice carries its flat base in word(); evaluate a dynamic base
+	 * exactly once so side effects or later selector changes cannot split
+	 * the scheduled update across different rows. */
+      long base = 0;
+      const NetExpr*wrd = lv->word();
+      const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
+      bool dynamic_base = wrd && (!wcon || !wcon->value().is_defined());
+      if (wcon && !dynamic_base) base = wcon->value().as_long();
+      if (!dynamic_base
+	  && (base < 0 || (unsigned long)base + dst_count > sig->unpacked_count()))
+	    return 0;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(loc);
+      NetNet*base_snapshot = 0;
+      if (dynamic_base) {
+	    base_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	    base_snapshot->local_flag(true);
+	    base_snapshot->set_line(loc);
+	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
+						wrd->dup_expr());
+	    save_base->set_line(loc);
+	    blk->append(save_base);
+      }
+
+	/* Keep the same declared bounds as the function result. The existing
+	 * blocking function-result emitter copies the function's return signal
+	 * into this temporary exactly once; subsequent NBs read only the saved
+	 * words, never the reusable function return signal. */
+      NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   result_net->unpacked_dims(), result_net->net_type());
+      snapshot->local_flag(true);
+      snapshot->set_line(loc);
+      if (scope->is_auto()) snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save_result = new NetAssign(new NetAssign_(snapshot),
+						ufn->dup_expr());
+      save_result->set_line(loc);
+      blk->append(save_result);
+
+      for (unsigned long idx = 0; idx < dst_count; idx += 1) {
+	    NetAssign_*dst = new NetAssign_(sig);
+	    if (dynamic_base) {
+		  NetESignal*base_read = new NetESignal(base_snapshot);
+		  base_read->set_line(loc);
+		  NetEConst*offset = make_const_val_s(dst_offsets[idx]);
+		  offset->set_line(loc);
+		  NetEBAdd*word = new NetEBAdd('+', base_read,
+				pad_to_width(offset, 64, loc), 64, true);
+		  word->set_line(loc);
+		  dst->set_word(word);
+	    } else {
+		  NetEConst*word = make_const_val_s(base + dst_offsets[idx]);
+		  word->set_line(loc);
+		  dst->set_word(word);
+	    }
+
+	    NetEConst*source_word = make_const_val_s(result_offsets[idx]);
+	    source_word->set_line(loc);
+	    NetESignal*source = new NetESignal(snapshot, source_word);
+	    source->set_line(loc);
+	    NetAssignNB*nb = new NetAssignNB(dst, source, 0, 0);
+	    nb->set_line(loc);
+	    blk->append(nb);
+      }
+
+      return blk;
+}
+
 /* The vvp array-pattern emitter requires a constant slice base. Lower the
  * dynamic blocking row form before it reaches that backend path. Evaluate the
  * selector once, materialize every pattern word, then write the destination
@@ -13515,19 +13701,26 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (rv == 0) return 0;
 
 	/* A blocking unpacked-array function call is copied directly from the
-	   callee's return-array storage by the vvp target. A non-blocking
-	   assignment additionally needs an independent per-word snapshot before
-	   the NBA update; the generic vector NBA representation cannot carry it.
-	   Refuse this legal residual loudly until that aggregate snapshot exists,
-	   rather than silently spreading a scalar/vector fallback over the array. */
+	   callee's return-array storage by the vvp target. For an NBA, first copy
+	   the complete result to private storage and only then schedule its words;
+	   the generic vector NBA representation cannot carry the aggregate itself. */
       if (lv->more == 0
 	  && dynamic_cast<const netuarray_t*>(lv->net_type())) {
 	    if (const NetEUFunc*ufn = dynamic_cast<const NetEUFunc*>(rv)) {
 		  const NetESignal*result = ufn->result_sig();
 		  const NetNet*result_net = result ? result->sig() : 0;
 		  if (result_net && result_net->unpacked_dimensions() > 0) {
+			NetProc*blk = 0;
+			if (event_ == 0 && count_ == 0 && delay_ == 0)
+			      blk = make_uarray_function_nb_(scope, *this, lv, ufn);
+			if (blk) {
+			      delete lv;
+			      delete rv;
+			      return guard_function_background_event_(scope, *this, blk);
+			}
 			cerr << get_fileline() << ": sorry: non-blocking assignment"
-			     << " of an unpacked-array function return is not yet"
+			     << " of an unpacked-array function return with this"
+			     << " l-value or intra-assignment timing control is not yet"
 			     << " supported." << endl;
 			des->errors += 1;
 			delete lv;
