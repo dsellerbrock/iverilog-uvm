@@ -3768,6 +3768,29 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+	/* Task/function formal declarations are VPI objects in their own
+	   right (IEEE 1800-2017/2023 37.13). Emit them after their same-named
+	   signal handles so hierarchical name lookup continues to find the
+	   formal expression rather than the declaration object. */
+      if (ivl_scope_type(net) == IVL_SCT_TASK
+	  || ivl_scope_type(net) == IVL_SCT_FUNCTION) {
+	    unsigned first = ivl_scope_type(net) == IVL_SCT_FUNCTION ? 1 : 0;
+	    for (idx = first; idx < ivl_scope_ports(net); idx += 1) {
+		  ivl_signal_t port = ivl_scope_port(net, idx);
+		  int direction;
+		  switch (ivl_signal_port(port)) {
+		      case IVL_SIP_INPUT: direction = 1; break;
+		      case IVL_SIP_OUTPUT: direction = 2; break;
+		      case IVL_SIP_INOUT: direction = 3; break;
+		      case IVL_SIP_REF: direction = 6; break;
+		      default: continue;
+		  }
+		  fprintf(vvp_out, " .iodecl %d \"%s\" v%p_0;\n",
+			  direction,
+			  vvp_mangle_name(ivl_signal_basename(port)), port);
+	    }
+      }
+
       for (idx = 0 ;  idx < ivl_scope_events(net) ;  idx += 1) {
 	    ivl_event_t event = ivl_scope_event(net, idx);
 	    draw_event_in_scope(event);

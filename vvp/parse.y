@@ -121,6 +121,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
 %token K_SCOPE K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
@@ -931,6 +932,9 @@ statement
 
 	|         K_SCOPE T_SYMBOL ';'
 		{ compile_scope_recall($2); }
+
+	|         K_IODECL T_NUMBER T_STRING T_SYMBOL ';'
+		{ compile_io_decl($2, $3, $4); }
 
 	| K_STMT_NODE T_NUMBER T_NUMBER T_NUMBER T_STRING ';'
 		{ compile_stmt_node($2, $3, $4, $5); }
