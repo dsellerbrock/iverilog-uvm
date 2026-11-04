@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2476_value_plusargs_2state.v",
+  "iverilog-args": ["-g2023", "-s", "issue2476_value_plusargs_2state"],
+  "vvp-args": ["+TWO=1z", "+FOUR=1z"]
+}
