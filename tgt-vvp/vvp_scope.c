@@ -3492,6 +3492,17 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		    with ? vvp_mangle_name(with) : "");
       }
 
+	/* Preserve imports referenced from this lexical scope for VPI iteration. */
+      for (idx = 0; idx < ivl_scope_imports(net); idx += 1) {
+	    char*import_name = strdup(
+		  vvp_mangle_name(ivl_scope_import_name(net, idx)));
+	    const char*package_name = vvp_mangle_name(
+		  ivl_scope_import_package(net, idx));
+	    fprintf(vvp_out, " .import \"%s\" \"%s\";\n",
+		    import_name, package_name);
+	    free(import_name);
+      }
+
 	/* Emit lexical typedef names and the type descriptor that VPI returns
 	   from vpiTypedef iteration. */
       for (idx = 0; idx < ivl_scope_typedefs(net); idx += 1) {

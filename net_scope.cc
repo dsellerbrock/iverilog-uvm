@@ -273,9 +273,33 @@ NetScope*NetScope::find_import(const Design*des, perm_string name)
 
       map<perm_string,PPackage*>::const_iterator cur = imports_->find(name);
       if (cur != imports_->end()) {
-            return des->find_package(cur->second->pscope_name());
+            NetScope*scope = des->find_package(cur->second->pscope_name());
+            if (scope)
+                  used_imports_[name] = cur->second->pscope_name();
+            return scope;
       } else
             return 0;
+}
+
+unsigned NetScope::import_count() const
+{
+      return used_imports_.size();
+}
+
+perm_string NetScope::import_name(unsigned idx) const
+{
+      ivl_assert(*this, idx < used_imports_.size());
+      map<perm_string,perm_string>::const_iterator cur = used_imports_.begin();
+      advance(cur, idx);
+      return cur->first;
+}
+
+perm_string NetScope::import_package(unsigned idx) const
+{
+      ivl_assert(*this, idx < used_imports_.size());
+      map<perm_string,perm_string>::const_iterator cur = used_imports_.begin();
+      advance(cur, idx);
+      return cur->second;
 }
 
 void NetScope::add_typedefs(const map<perm_string,typedef_t*>*typedefs)

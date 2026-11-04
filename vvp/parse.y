@@ -135,6 +135,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
 %token K_NETTYPE_DECL
+%token K_IMPORT_DECL
 %token K_TYPEDEF
 %token K_vpi_source_location
 %token K_export_dpi
@@ -975,6 +976,9 @@ statement
 
 	|         K_NETTYPE_DECL T_STRING T_STRING T_STRING ';'
 		{ compile_nettype_decl($2, $3, $4); }
+
+	|         K_IMPORT_DECL T_STRING T_STRING ';'
+		{ compile_import_decl($2, $3); }
 
 	|         K_TYPEDEF T_STRING T_NUMBER T_STRING T_STRING ';'
 		{ compile_typedef($2, $3, $4, $5); }

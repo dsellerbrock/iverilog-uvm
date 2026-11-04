@@ -261,6 +261,9 @@ ivl_scope_enumerates
 ivl_scope_typedefs
 ivl_scope_typedef_name
 ivl_scope_typedef_type
+ivl_scope_imports
+ivl_scope_import_name
+ivl_scope_import_package
 ivl_scope_nettype
 ivl_scope_nettypes
 ivl_nettype_name

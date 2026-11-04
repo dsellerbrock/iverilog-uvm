@@ -356,6 +356,7 @@ typedef struct t_vpi_delay  {
 #define vpiArgument    89
 #define vpiBit         90
 #define vpiInternalScope 92
+#define vpiImport      726 /* imported object in a scope */
 #define vpiModPathIn     95
 #define vpiModPathOut    96
 #define vpiVariables   100
