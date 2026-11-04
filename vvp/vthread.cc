@@ -31154,9 +31154,6 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t val = thr->pop_vec4();
       assert(val.size() == 8);
 
-      if (muxr && thr->flags[4] != BIT4_0)
-	    return true;
-
       if (mux < 0)
 	    return true;
 
