@@ -32439,7 +32439,7 @@ static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
       if (options.goal_expr || options.comment_expr || options.at_least_expr) return true;
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
-            if (item.goal_expr || item.comment_expr) return true;
+            if (item.at_least_expr || item.goal_expr || item.comment_expr) return true;
       }
       return false;
 }
@@ -32457,7 +32457,8 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       for (size_t idx = 0; !has_dynamic_options
             && idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
-            has_dynamic_options = item.goal_expr || item.comment_expr;
+            has_dynamic_options = item.at_least_expr
+                  || item.goal_expr || item.comment_expr;
       }
       if (!has_dynamic_options
             && !(inherited && covgrp_has_dynamic_goal_comment(inherited)))
@@ -32520,31 +32521,43 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       assign_option(options.weight_prop, options.weight_expr, nullptr);
       assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr, nullptr);
       assign_option(options.per_instance_prop, options.per_instance_expr, nullptr);
-      if (options.at_least_expr && ports.size() > 1) {
-            const PEIdent*id = dynamic_cast<const PEIdent*>(options.at_least_expr);
-            const netclass_t*owner = declaration->class_def();
-            int source_prop = -1;
-            if (id && owner && id->path().size() == 1
-                  && !id->path().name.front().local_scope
-                  && id->path().name.front().index.empty())
-                  source_prop = owner->property_idx_from_name(
-                        id->path().name.front().name);
-            if (source_prop >= 0) {
-                  for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
-                        const auto&item = type->covgrp_item(idx);
-                        if (!item.at_least_inherited || item.at_least_prop < 0) continue;
-                        NetAssign_*lval = new NetAssign_(receiver);
-                        lval->set_property(lex_strings.make(
-                              type->get_prop_name(item.at_least_prop)),
-                              item.at_least_prop);
-                        NetExpr*value = new NetEProperty(
-                              new NetESignal(ports[1]),
+      auto assign_at_least = [&](size_t idx, PExpr*expr) {
+            if (!expr || idx >= type->covgrp_item_count()) return;
+            const auto&item = type->covgrp_item(idx);
+            if (item.at_least_prop < 0) return;
+            NetExpr*value = nullptr;
+            if (ports.size() > 1) {
+                  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+                  const netclass_t*owner = declaration->class_def();
+                  int source_prop = -1;
+                  if (id && owner && id->path().size() == 1
+                        && !id->path().name.front().local_scope
+                        && id->path().name.front().index.empty())
+                        source_prop = owner->property_idx_from_name(
+                              id->path().name.front().name);
+                  if (source_prop >= 0)
+                        value = new NetEProperty(new NetESignal(ports[1]),
                               static_cast<unsigned>(source_prop), nullptr);
-                        NetAssign*assignment = new NetAssign(lval, value);
-                        assignment->set_line(*options.at_least_expr);
-                        body->append(assignment);
-                  }
             }
+            if (!value)
+                  value = elaborate_rval_expr(des, wrapper,
+                        type->get_prop_type((size_t)item.at_least_prop),
+                        expr, false);
+            if (!value) return;
+            NetAssign_*lval = new NetAssign_(receiver);
+            lval->set_property(lex_strings.make(
+                  type->get_prop_name(item.at_least_prop)),
+                  item.at_least_prop);
+            NetAssign*assignment = new NetAssign(lval, value);
+            assignment->set_line(*expr);
+            body->append(assignment);
+      };
+      for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
+            const auto&item = type->covgrp_item(idx);
+            if (item.at_least_inherited)
+                  assign_at_least(idx, options.at_least_expr);
+            if (item.at_least_expr)
+                  assign_at_least(idx, item.at_least_expr);
       }
       auto signed_goal_value = [](unsigned goal) -> NetExpr* {
             verinum value((uint64_t)goal, 32);

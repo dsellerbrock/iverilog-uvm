@@ -3106,9 +3106,13 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	 if (parent_ir) {
 	       bool lo_uses_parent = false;
 	       bool hi_uses_parent = false;
-	       valid_parent_ir = value_type && lo_ir && hi_ir
-		     && covgrp_ir_syntax_t(lo_ir).validate(lo_uses_parent)
-		     && covgrp_ir_syntax_t(hi_ir).validate(hi_uses_parent)
+	       bool auto_array = array_size == class_type::COV_AUTO_BIN_ARRAY;
+	       valid_parent_ir = value_type && lo_ir
+		     && covgrp_ir_syntax_t(lo_ir).validate(lo_uses_parent);
+	       if (!auto_array)
+		     valid_parent_ir = valid_parent_ir && hi_ir
+			   && covgrp_ir_syntax_t(hi_ir).validate(hi_uses_parent);
+	       valid_parent_ir = valid_parent_ir
 		     && (lo_uses_parent || hi_uses_parent);
 	       bad_type = bad_type || !valid_parent_ir;
 	 }
@@ -4202,6 +4206,15 @@ uint64_t class_type::cross_type_register_bin(unsigned family,
 {
       auto&bins = covgrp_cross_type_[family].bins;
       return bins.emplace(name, bins.size()).first->second;
+}
+
+uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
+      const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const
+{
+      auto&bins = covgrp_dyn_auto_type_bins_[family];
+      uint64_t id = bins.emplace(ranges, bins.size()).first->second;
+      dyn_type_register_total(family, bins.size());
+      return id;
 }
 
 uint64_t class_type::trans_type_register_bin(unsigned family,

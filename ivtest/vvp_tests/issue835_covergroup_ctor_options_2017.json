@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue835_covergroup_ctor_options_2017.v",
+    "iverilog-args": [ "-g2017" ],
+    "gold": "issue835_covergroup_ctor_options"
+}

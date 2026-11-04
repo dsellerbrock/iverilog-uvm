@@ -377,6 +377,7 @@ class class_type : public __vpiHandle {
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
 	static const unsigned COV_NO_FAMILY = 0xFFFFFFFFu;
 	static const unsigned COV_NO_GUARD = 0xFFFFFFFFu;
+	static const uint64_t COV_AUTO_BIN_ARRAY = UINT64_MAX - 1;
       void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
 			  unsigned item_idx = 0, unsigned trans_repeat = 0,
@@ -542,6 +543,8 @@ class class_type : public __vpiHandle {
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
       uint64_t cross_type_register_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      uint64_t dyn_type_register_auto_bin(unsigned family,
+            const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
       uint64_t trans_type_register_bin(unsigned family,
             const std::vector<uint64_t>&name) const;
       void cross_type_register_named(unsigned family,
@@ -659,6 +662,9 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      mutable std::map<unsigned,
+            std::map<std::vector<std::pair<uint64_t,uint64_t>>,uint64_t>>
+            covgrp_dyn_auto_type_bins_;
       mutable std::map<unsigned,std::map<std::vector<uint64_t>,uint64_t>>
             covgrp_trans_type_bins_;
       struct cov_cross_type_t {

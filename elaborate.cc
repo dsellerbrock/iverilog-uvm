@@ -45474,6 +45474,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      || !id->path().name.front().index.empty()) return false;
 			  return property_idx_from_name(id->path().name.front().name) >= 0;
 		    };
+		    auto uses_ctor_formal = [&](const PExpr*expr) -> bool {
+			  for (perm_string formal : cgdef->ctor_formals)
+				if (covergroup_option_uses_sample_formal_(expr, formal))
+				      return true;
+			  return false;
+		    };
 
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
@@ -45496,6 +45502,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				     << dflt << "." << endl;
 			  delete e;
 			  return r;
+		    };
+		    auto opt_instance_uint = [&](const std::map<perm_string,PExpr*>&opts,
+					 const char*optname, unsigned dflt)
+			  -> std::pair<unsigned,PExpr*> {
+			  auto it = opts.find(lex_strings.make(optname));
+			  if (it == opts.end() || !it->second)
+				return std::make_pair(dflt, static_cast<PExpr*>(nullptr));
+			  if (uses_ctor_formal(it->second) || is_direct_embedded_member(it->second))
+				return std::make_pair(dflt, it->second);
+			  NetExpr*e = elab_and_eval(des, class_scope_, it->second,
+						-1, false, false);
+			  if (NetEConst*c = dynamic_cast<NetEConst*>(e)) {
+				unsigned value = (unsigned)c->value().as_ulong64();
+				delete e;
+				return std::make_pair(value, static_cast<PExpr*>(nullptr));
+			  }
+			  delete e;
+			  return std::make_pair(opt_uint(opts, optname, dflt),
+					 static_cast<PExpr*>(nullptr));
 		    };
 		      // option.weight may depend on a covergroup constructor
 		      // formal (19.7).  Preserve such an expression as compact
@@ -45668,8 +45693,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    };
 		    opt_check(cgdef->options, "covergroup");
-			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
-			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
+		    std::pair<unsigned,PExpr*>cg_at_least_option = opt_instance_uint(
+			  cgdef->options, "at_least", 1);
+		    unsigned cg_at_least = cg_at_least_option.first;
+		    std::pair<unsigned,PExpr*>cg_auto_bin_max_option = opt_instance_uint(
+			  cgdef->options, "auto_bin_max", 64);
+		    unsigned cg_auto_bin_max = cg_auto_bin_max_option.first;
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
 			unsigned cg_distribute_first = opt_uint(cgdef->options,
 			      "type_option.distribute_first", 0);
@@ -46668,10 +46697,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
             auto&group_options = cg_class->covgrp_options();
             group_options.declaration_scope = class_scope_;
-			group_options.at_least_expr = is_direct_embedded_member(
-			      cgdef->options.count(perm_string::literal("at_least"))
-				    ? cgdef->options.at(perm_string::literal("at_least")) : nullptr)
-			      ? cgdef->options.at(perm_string::literal("at_least")) : nullptr;
+			group_options.at_least_expr = cg_at_least_option.second;
             auto weight_it = cgdef->options.find(perm_string::literal("weight"));
             if (weight_it != cgdef->options.end())
                   group_options.weight_expr = weight_it->second;
@@ -46944,6 +46970,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      type = nullptr;
 				}
 			  }
+		  if (!type && id->path().name.size() == 1
+		      && !id->path().package
+		      && !id->path().name.front().local_scope
+		      && id->path().name.front().index.empty()) {
+			NetNet*signal = des->find_signal(class_scope_, id->path().name);
+			if (signal) type = signal->net_type();
+		  }
 			  return type;
 		    };
 		    std::function<ivl_type_t(const PExpr*)> coverpoint_expr_type;
@@ -47324,8 +47357,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->add_covgrp_cp_expr(cp_sample_expr);
 
 			  opt_check(cp.options, "coverpoint");
-			  unsigned cp_at_least = opt_uint(cp.options, "at_least",
-						  cg_at_least);
+			  std::pair<unsigned,PExpr*>cp_at_least_option =
+				cp.options.count(perm_string::literal("at_least"))
+				      ? opt_instance_uint(cp.options, "at_least", cg_at_least)
+				      : cg_at_least_option;
+			  unsigned cp_at_least = cp_at_least_option.first;
 			  std::pair<unsigned,std::string> cp_weight =
 				opt_weight(cp.options, 1);
 			  unsigned cp_type_weight = type_weight(cp.options, "coverpoint");
@@ -47333,8 +47369,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				cp_weight.first = 0;
 				cp_type_weight = 0;
 			  }
-			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
-						cg_auto_bin_max);
+			  std::pair<unsigned,PExpr*>cp_auto_bin_max_option =
+				cp.options.count(perm_string::literal("auto_bin_max"))
+				      ? opt_instance_uint(cp.options, "auto_bin_max",
+						cg_auto_bin_max)
+				      : cg_auto_bin_max_option;
+			  unsigned cp_abm = cp_auto_bin_max_option.first;
+			  std::string cp_auto_bin_max_ir;
+			  if (cp_auto_bin_max_option.second) {
+				cp_auto_bin_max_ir = pexpr_to_covergroup_constraint_ir(
+				      cp_auto_bin_max_option.second, cg_class,
+				      cg_standalone ? nullptr : this, des, class_scope_);
+				if (cp_auto_bin_max_ir.empty()) {
+				      cerr << cp_auto_bin_max_option.second->get_fileline()
+					   << ": error: constructor-dependent covergroup option "
+					      "'auto_bin_max' cannot be represented at runtime."
+					   << endl;
+				      des->errors += 1;
+				}
+			  }
 			  std::string cp_option_stem = "__covgrp_item_" + std::to_string(cp_idx);
 			  std::pair<int,int> cp_option_props = add_option_props(cp_option_stem);
 			  auto cp_goal_it = cp.options.find(perm_string::literal("goal"));
@@ -47363,6 +47416,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
 				group_options.at_least_expr && cp.options.count(
 				      perm_string::literal("at_least")) == 0);
+			  cg_class->set_covgrp_item_at_least_expr(
+				cp_idx, cp.options.count(perm_string::literal("at_least"))
+				      ? cp_at_least_option.second : nullptr);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -49444,6 +49500,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    vbins.push_back(d);
 				      }
 				} else if (cp_value_width > 64 || w > 64) {
+				      if (!cp_auto_bin_max_ir.empty()) {
+					cerr << pclass->get_fileline()
+					     << ": error: constructor-dependent auto_bin_max for a "
+						"coverpoint wider than 64 bits is not represented."
+					     << endl;
+					des->errors += 1;
+				      } else {
 				      uint64_t nb = cp_abm ? cp_abm : 1;
 				      static const uint64_t wide_auto_bin_limit = 65536;
 				      if (!cp_wide_auto_supported) {
@@ -49479,6 +49542,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 						  has_value_bins = true;
 				      }
+				      }
+				} else {
+				if (!cp_auto_bin_max_ir.empty()) {
+				      const unsigned auto_width = w;
+				      unsigned family = dyn_family++;
+			      bool auto_signed = cp_value_signed;
+				      // The automatic-bin sentinel gives lo_ir its constructor-time
+				      // meaning; runtime derives the complete value domain from the
+				      // coverpoint's type metadata.
+				      cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 0, family,
+					    netclass_t::COVGRP_AUTO_BIN_ARRAY,
+					    std::string(cp.label.str()) + " auto",
+				    cp_auto_bin_max_ir, "", auto_width, auto_signed,
+					    netclass_t::COVGRP_NO_GUARD, 0, 0, 0, 1, 1
+				    );
+				      xbin_desc_t d;
+				      d.name = lex_strings.make("auto");
+				      d.wildcard = false;
+				      d.dyn_family = (int)family;
+				      d.source_prop = -1;
+				      vbins.push_back(d);
+				      has_value_bins = true;
 				} else {
 				uint64_t nb = cp_abm;
 				if (w < 32 && ((uint64_t)1 << w) < nb)
@@ -49506,6 +49591,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      d.wildcard = false;
 				      d.source_prop = (int)source_prop;
 				      vbins.push_back(d);
+				}
 				}
 				}
 			  }
@@ -49685,7 +49771,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 
 			  opt_check(cross.options, "cross");
-			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
+			  std::pair<unsigned,PExpr*>x_at_least_option =
+				cross.options.count(perm_string::literal("at_least"))
+				      ? opt_instance_uint(cross.options, "at_least", cg_at_least)
+				      : cg_at_least_option;
+			  unsigned x_at_least = x_at_least_option.first;
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1);
 				  unsigned retain_auto = cg_retain_auto;
@@ -49764,6 +49854,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
 				group_options.at_least_expr && cross.options.count(
 				      perm_string::literal("at_least")) == 0);
+			  cg_class->set_covgrp_item_at_least_expr(
+				item_idx, cross.options.count(perm_string::literal("at_least"))
+				      ? x_at_least_option.second : nullptr);
 
 			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
 			  typedef class_type_t::pform_cross_t::select_t sel_t;
