@@ -33,6 +33,14 @@
 # include  <string>
 # include  <vector>
 
+/* Annex K/M object and relation values not yet exported by the public
+   Icarus VPI headers. Keep the task-I/O implementation standards-valued;
+   sv_vpi_user.h's older vpiIODecl extension value remains accepted below. */
+#define VPI_IODECL_TYPE 28
+#define VPI_REF_OBJ_TYPE 608
+#define VPI_ACTUAL_RELATION 700
+#define VPI_REF_DIRECTION 6
+
 /*
  * Added to use some "vvp_fun_modpath_src"
  * and "vvp_fun_modpath" classes definitions
@@ -548,6 +556,8 @@ struct __vpiSignal : public __vpiHandle {
 };
 extern unsigned vpip_size(__vpiSignal *sig);
 extern __vpiScope* vpip_scope(__vpiSignal*sig);
+extern vpiHandle vpip_wrap_refobj(vpiHandle formal);
+extern vpiHandle vpip_find_signal_by_net(vvp_net_t*net);
 
 extern vpiHandle vpip_make_int2(const char*name, int msb, int lsb,
                                bool signed_flag, vvp_net_t*vec,

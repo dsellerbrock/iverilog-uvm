@@ -593,6 +593,7 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                char*par, long file_idx, long lineno,
                                long def_file_idx, long def_lineno,
                                long is_cell);
+extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);

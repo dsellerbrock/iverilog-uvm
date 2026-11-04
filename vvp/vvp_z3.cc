@@ -18867,11 +18867,12 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    Z3_del_context(ctx);
 	    return false;
       }
-      /* A ranged size (`tx_data.size() <= N') is a random choice among the
-	 feasible sizes (IEEE 1800-2017 18.12), not an error. Probe each
-	 candidate with an equality assumption -- no full models -- and pick
-	 one uniformly. A feasible size beyond the enumeration window fails
-	 loudly instead of biasing the choice toward small sizes. */
+      /* Probe enumerable sizes with equality assumptions and choose
+	 uniformly among the feasible candidates. If a size-only queue
+	 constraint also admits values beyond the enumeration window, the
+	 solver chooses a seeded supported size directly below. Constraints
+	 involving elements retain the exact candidate checks because their
+	 feasible sizes depend on the expanded element variables. */
       {
 	    Z3_solver probe = Z3_mk_simple_solver(ctx);
 	    Z3_solver_inc_ref(ctx, probe);
@@ -18889,6 +18890,13 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    vector<uint64_t> feasible;
 	    bool unknown = false;
 	    bool unsupported = false;
+	    bool sampled_size = false;
+	    uint64_t sampled_value = 0;
+	    const bool queue_size_only =
+		  !first.size_vars[0].container_type.empty()
+		  && first.size_vars[0].container_type[0] == 'Q'
+		  && first.dyn_foreach.empty() && first.elem_vars.empty()
+		  && first.absent_elems.empty();
 	    auto check_candidate = [&](uint64_t v) -> Z3_lbool {
 		  Z3_ast eq = Z3_mk_eq(ctx, first.size_vars[0].var,
 				       Z3_mk_unsigned_int64(ctx, v, s32));
@@ -18979,11 +18987,44 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 			}
 		  }
 		}
+	    /* A size-only queue constraint can have a feasible size domain much
+	       larger than the enumeration window. In that case, ask the solver
+	       directly for a seeded size model within the existing allocation
+	       limit. This preserves the constraints and avoids treating an
+	       enumerable domain as a language requirement. */
+	    if (beyond && queue_size_only && !unknown && !unsupported) {
+		  uint64_t limit = declared_max && declared_max < 65536
+			? declared_max : 65536;
+		  Z3_solver sample = Z3_mk_simple_solver(ctx);
+		  Z3_solver_inc_ref(ctx, sample);
+		  Z3_solver_assert(ctx, sample, hard);
+		  Z3_ast max_size = Z3_mk_unsigned_int64(ctx, limit, s32);
+		  Z3_solver_assert(ctx, sample,
+			  Z3_mk_bvule(ctx, first.size_vars[0].var, max_size));
+		  Z3_params params = Z3_mk_params(ctx);
+		  Z3_params_inc_ref(ctx, params);
+		  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "random_seed"),
+				     (unsigned)diversity_seed);
+		  Z3_solver_set_params(ctx, sample, params);
+		  Z3_params_dec_ref(ctx, params);
+		  Z3_lbool sample_status = Z3_solver_check(ctx, sample);
+		  if (sample_status == Z3_L_TRUE) {
+			Z3_model sample_model = Z3_solver_get_model(ctx, sample);
+			Z3_model_inc_ref(ctx, sample_model);
+			sampled_size = z3_eval_uint64(ctx, sample_model,
+				  first.size_vars[0].var, sampled_value);
+			Z3_model_dec_ref(ctx, sample_model);
+			if (sampled_size) beyond = false;
+		  } else if (sample_status == Z3_L_UNDEF) {
+			unknown = true;
+		  }
+		  Z3_solver_dec_ref(ctx, sample);
+	    }
 	    /* A size fixed beyond the window (`size() == 65537', or above a
 	       declared maximum) is unique: keep it so the limit check below
 	       reports it exactly. */
 	    bool unique_beyond = false;
-	    if (!unknown && !unsupported && feasible.empty()
+	    if (!unknown && !unsupported && !sampled_size && feasible.empty()
 		&& size > window) {
 		  Z3_ast other = Z3_mk_not(ctx, Z3_mk_eq(ctx,
 			first.size_vars[0].var,
@@ -19011,7 +19052,7 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 		  Z3_del_context(ctx);
 		  return false;
 	    }
-	    if (unknown || beyond || feasible.empty()) {
+	    if (unknown || beyond || (feasible.empty() && !sampled_size)) {
 		  if (beyond && full_candidates && !unknown)
 			fprintf(stderr, "ERROR: scope queue cannot prove whether "
 				"sizes beyond the enumerable range (1024) "
@@ -19029,7 +19070,8 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    mix = (mix ^ (mix >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
 	    mix = (mix ^ (mix >> 27)) * UINT64_C(0x94d049bb133111eb);
 	    mix ^= mix >> 31;
-	    size = feasible[mix % feasible.size()];
+	    size = sampled_size ? sampled_value
+		  : feasible[mix % feasible.size()];
 	    diversity_seed = mix ? mix : UINT64_C(0x9e3779b97f4a7c15);
       }
       /* An allocation ceiling is an explicit unsupported result, never a

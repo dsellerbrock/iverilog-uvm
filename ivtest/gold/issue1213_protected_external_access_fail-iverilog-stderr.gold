@@ -1,0 +1,4 @@
+ivltests/issue1213_protected_external_access_fail.v:12: error: Protected property value is not accessible (l-value) in this context. (scope=top)
+ivltests/issue1213_protected_external_access_fail.v:13: error: Protected property value is not accessible in this context. (scope=top)
+ivltests/issue1213_protected_external_access_fail.v:14: error: Protected method `read_value' is not accessible in this context.
+3 error(s) during elaboration.

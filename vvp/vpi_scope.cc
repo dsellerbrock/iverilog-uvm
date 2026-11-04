@@ -134,6 +134,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiStringVar:
 		  string_delete(item);
 		  break;
+		case VPI_IODECL_TYPE:
+		  delete item;
+		  break;
 		case vpiClassVar:
 		case vpiVirtualInterfaceVar:
 		  class_delete(item);
@@ -381,6 +384,10 @@ static int compare_types(int code, int type, bool is_typedef = false)
       if (code == vpiTypedef)
 	    return is_typedef;
 
+      if ((code == VPI_IODECL_TYPE || code == vpiIODecl)
+	  && (type == VPI_IODECL_TYPE || type == vpiIODecl))
+	    return 1;
+
       if (code == type)
 	    return 1;
 
@@ -538,6 +545,34 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       return make_subset_iterator_(code, ref->intern);
 }
 
+static vpiHandle find_signal_by_net_(__vpiScope*scope, vvp_net_t*net)
+{
+      for (size_t idx = 0; idx < scope->intern.size(); idx += 1) {
+	    vpiHandle item = scope->intern[idx];
+	    __vpiSignal*signal = dynamic_cast<__vpiSignal*>(item);
+	    if (signal && signal->node == net) return signal;
+	    __vpiScope*child = dynamic_cast<__vpiScope*>(item);
+	    if (child) {
+		  vpiHandle found = find_signal_by_net_(child, net);
+		  if (found) return found;
+	    }
+      }
+      return 0;
+}
+
+vpiHandle vpip_find_signal_by_net(vvp_net_t*net)
+{
+      if (!net) return 0;
+      for (size_t idx = 0; idx < vpip_root_table.size(); idx += 1) {
+	    __vpiScope*root = dynamic_cast<__vpiScope*>(vpip_root_table[idx]);
+	    if (root) {
+		  vpiHandle found = find_signal_by_net_(root, net);
+		  if (found) return found;
+	    }
+      }
+      return 0;
+}
+
 class __vpiTypedefTypespec : public __vpiHandle {
     public:
       __vpiTypedefTypespec(int type, const char*name, const char*defname,
@@ -637,6 +672,84 @@ void compile_nettype_decl(char*name, char*alias, char*with)
       delete[] name;
       delete[] alias;
       delete[] with;
+}
+
+/* Task/function formal declarations are distinct VPI objects from their
+   storage signals. Their expression is resolved from the signal label after
+   VVP linking, which also lets a ref formal expose its activation's binding. */
+class __vpiIODecl : public __vpiHandle {
+    public:
+      __vpiIODecl(__vpiScope*parent, int direction, const char*name)
+      : parent_(parent), direction_(direction), name_(vpip_name_string(name)),
+        expr_(0) { }
+
+      int get_type_code(void) const override { return VPI_IODECL_TYPE; }
+      int vpi_get(int code) override
+      {
+            if (code == vpiDirection) {
+                  if (direction_ == VPI_REF_DIRECTION) return direction_;
+                  if (expr_ && expr_->get_type_code() == vpiVirtualInterfaceVar)
+                        return vpiUndefined;
+                  return direction_;
+            }
+            if (expr_ && (code == vpiSize || code == vpiSigned
+                          || code == vpiScalar || code == vpiVector))
+                  return expr_->vpi_get(code);
+            return vpiUndefined;
+      }
+
+      char* vpi_get_str(int code) override
+      {
+            if (code == vpiName || code == vpiFullName)
+                  return generic_get_str(code, parent_, name_, 0);
+            if (expr_ && code == vpiFile)
+                  return expr_->vpi_get_str(code);
+            return 0;
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiParent || code == vpiScope) return parent_;
+            if (code == vpiExpr && expr_)
+                  return direction_ == VPI_REF_DIRECTION
+                        ? vpip_wrap_refobj(expr_) : expr_;
+            if (expr_ && (code == vpiTypespec || code == vpiLeftRange
+                          || code == vpiRightRange))
+                  return expr_->vpi_handle(code);
+            return 0;
+      }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+            return expr_ && code == vpiRange ? expr_->vpi_iterate(code) : 0;
+      }
+
+      vpiHandle& expression_slot() { return expr_; }
+
+    private:
+      __vpiScope*parent_;
+      int direction_;
+      const char*name_;
+      vpiHandle expr_;
+};
+
+void compile_io_decl(long direction, char*name, char*formal)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      if (!scope || (direction != vpiInput && direction != vpiOutput
+                     && direction != vpiInout
+                     && direction != VPI_REF_DIRECTION)) {
+            yyerror("invalid .iodecl direction");
+            compile_errors += 1;
+            delete[] name;
+            free(formal);
+            return;
+      }
+
+      __vpiIODecl*decl = new __vpiIODecl(scope, (int)direction, name);
+      compile_vpi_lookup(&decl->expression_slot(), formal);
+      vpip_attach_to_current_scope(decl);
+      delete[] name;
 }
 
 

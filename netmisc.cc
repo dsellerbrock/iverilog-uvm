@@ -27,6 +27,7 @@
 # include  <sstream>
 # include  <algorithm>
 # include  <limits>
+# include  <cmath>
 # include  "netlist.h"
 # include  "PClass.h"
 # include  "netparray.h"
@@ -3527,12 +3528,17 @@ uint64_t get_scaled_time_from_real(const Design*des, NetScope*scope, const NetEC
 
       int shift = scope->time_unit() - scope->time_precision();
       ivl_assert(*scope, shift >= 0);
-      int64_t delay = fn.as_long64(shift);
+	double scaled = fn.as_double() * pow(10.0, shift);
+	double rounded = round(scaled);
+	const double modulus = ldexp(1.0, 64);
+	double wrapped = fmod(rounded, modulus);
+	if (wrapped < 0.0) wrapped += modulus;
+	uint64_t delay = static_cast<uint64_t>(wrapped);
 
 
       shift = scope->time_precision() - des->get_precision();
       ivl_assert(*scope, shift >= 0);
-      for (int lp = 0; lp < shift; lp += 1) delay *= 10;
+	for (int lp = 0; lp < shift; lp += 1) delay *= uint64_t(10);
 
       return delay;
 }
