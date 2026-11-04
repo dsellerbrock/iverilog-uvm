@@ -160,6 +160,15 @@ class netclass_t : public ivl_type_s {
       bool test_scope_is_method(const NetScope*scope) const;
       bool test_scope_is_protected_access(const NetScope*scope) const;
       bool is_same_or_derived_from(const netclass_t*base) const;
+      // Semaphore and mailbox methods use dedicated runtime objects rather
+      // than ordinary class method scopes. A user class derived from one of
+      // these built-ins keeps that state in a synthesized delegate property.
+      bool is_builtin_resource_type() const;
+      const netclass_t* builtin_resource_type() const;
+      const netclass_t* builtin_resource_method_type(perm_string method) const;
+      int builtin_resource_delegate_index() const;
+      void add_builtin_resource_delegate_property();
+      static perm_string builtin_resource_delegate_property_name();
       static bool test_scope_can_access_protected_method(
 	    const NetScope*scope, const NetScope*method);
 

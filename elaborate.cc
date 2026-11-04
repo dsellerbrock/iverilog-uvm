@@ -15448,6 +15448,71 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 	    return appended;
       };
 
+	// The built-in semaphore/mailbox constructor is not represented by a
+	// NetScope method. Construct its native runtime object explicitly and keep
+	// it in the hidden property added to the first user-defined subclass.
+	// Later subclasses call this class's ordinary constructor and inherit the
+	// same per-instance delegate slot.
+      if (class_super->is_builtin_resource_type()) {
+	    int delegate_idx = class_this->builtin_resource_delegate_index();
+	    if (delegate_idx < 0) {
+		  cerr << get_fileline() << ": internal error: class "
+		       << class_this->get_name()
+		       << " has no semaphore/mailbox delegate property."
+		       << endl;
+		  des->errors += 1;
+		  NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	    const bool is_semaphore = class_super
+		  == builtin_class_type(perm_string::literal("semaphore"));
+	    const char*system_new = is_semaphore
+		  ? "$ivl_semaphore$new" : "$ivl_mailbox$new";
+	    const perm_string parm_name = perm_string::literal(
+		  is_semaphore ? "keyCount" : "bound");
+	    if (parms_.size() > 1) {
+		  cerr << get_fileline() << ": error: Built-in "
+		       << (is_semaphore ? "semaphore" : "mailbox")
+		       << " constructor expects at most one argument."
+		       << endl;
+		  des->errors += 1;
+		  NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	    vector<perm_string> parm_names(1, parm_name);
+	    vector<PExpr*> args = map_named_args(des, parm_names, parms_);
+	    NetESFunc*resource = new NetESFunc(system_new, class_super,
+					       args[0] ? 1 : 0);
+	    resource->set_line(*this);
+	    if (args[0]) {
+		  NetExpr*value = elab_and_eval(des, scope, args[0], 32,
+					       false, false, IVL_VT_LOGIC);
+		  if (!value) {
+			delete resource;
+			NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+		  resource->parm(0, value);
+	    }
+
+	    NetAssign_*lvalue = new NetAssign_(var_this);
+	    lvalue->set_property(
+		  netclass_t::builtin_resource_delegate_property_name(),
+		  static_cast<unsigned>(delegate_idx));
+	    NetAssign*assignment = new NetAssign(lvalue, resource);
+	    assignment->set_line(*this);
+	    NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	    block->set_line(*this);
+	    block->append(assignment);
+	    append_extension_options(block);
+	    return block;
+      }
+
 	// If super.new(...) is a user defined constructor, then call
 	// it. This is a bit more complicated because there may be arguments.
 	      if (NetScope*new_scope = class_super->get_constructor()) {
@@ -20107,6 +20172,26 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  delete obj_expr;
 		  return 0;
+	    }
+	    const netclass_t*resource_method_type =
+		  class_type->builtin_resource_method_type(method_name);
+	    if (resource_method_type && resource_method_type != class_type
+		&& !class_type->resolve_method_call_scope(des, method_name)) {
+		  int delegate_idx = class_type->builtin_resource_delegate_index();
+		  if (delegate_idx < 0) {
+			cerr << get_fileline() << ": internal error: class "
+			     << class_type->get_name()
+			     << " has no semaphore/mailbox delegate property."
+			     << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
+		  }
+		  obj_expr = new NetEProperty(obj_expr,
+					      static_cast<size_t>(delegate_idx));
+		  obj_expr->set_line(*this);
+		  obj_type = const_cast<netclass_t*>(resource_method_type);
+		  class_type = resource_method_type;
 	    }
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")

@@ -508,6 +508,7 @@ static const struct opcode_table_s opcode_table[] = {
       /* Mailbox opcodes (alphabetical within %mbx/) */
       { "%mbx/get",      of_MBX_GET,      0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%mbx/new",      of_MBX_NEW,      1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%mbx/new/vec4", of_MBX_NEW_VEC4, 0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%mbx/num",      of_MBX_NUM,      0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%mbx/peek",     of_MBX_PEEK,     0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%mbx/put",      of_MBX_PUT,      0, {OA_NONE,   OA_NONE, OA_NONE} },
@@ -711,6 +712,7 @@ static const struct opcode_table_s opcode_table[] = {
       /* Semaphore opcodes (alphabetical within %sem/) */
       { "%sem/get",      of_SEM_GET,      0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%sem/new",      of_SEM_NEW,      1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%sem/new/vec4", of_SEM_NEW_VEC4, 0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%sem/put",      of_SEM_PUT,      0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%sem/try_get",  of_SEM_TRY_GET,  0, {OA_NONE,   OA_NONE, OA_NONE} },
       { "%set/dar/obj/obj", of_SET_DAR_OBJ_OBJ, 1,{OA_NUMBER,OA_NONE,OA_NONE} },

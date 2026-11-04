@@ -21260,6 +21260,26 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 									       class_type->get_name()))
 				class_type = visible_class;
 		    }
+		    const netclass_t*resource_method_type =
+			  class_type->builtin_resource_method_type(method_name);
+		    if (resource_method_type && resource_method_type != class_type
+			&& !class_type->resolve_method_call_scope(des, method_name)) {
+			  int delegate_idx =
+				class_type->builtin_resource_delegate_index();
+			  if (delegate_idx < 0) {
+				cerr << get_fileline() << ": internal error: class `"
+				     << class_type->get_name()
+				     << "' has no semaphore/mailbox delegate property."
+				     << endl;
+				des->errors += 1;
+				delete sub_expr;
+				return 0;
+			  }
+			  sub_expr = new NetEProperty(
+				 sub_expr, static_cast<size_t>(delegate_idx));
+			  sub_expr->set_line(*this);
+			  class_type = resource_method_type;
+		    }
 
 		    // Handle mailbox/semaphore built-in function-returning methods
 		    // before attempting to resolve them as class methods (they won't

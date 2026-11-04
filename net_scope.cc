@@ -1236,10 +1236,11 @@ typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 
       if (type_ == CLASS && class_def_ && class_def_->get_super()) {
 	    const NetScope*sup_scope = class_def_->get_super()->class_scope();
-	    ivl_assert(*this, sup_scope);
-	    typedef_t*sup_td = const_cast<NetScope*>(sup_scope)->find_typedef(des, name);
-	    if (sup_td)
-		  res = sup_td;
+	    if (sup_scope) {
+		  typedef_t*sup_td = const_cast<NetScope*>(sup_scope)->find_typedef(des, name);
+		  if (sup_td)
+			res = sup_td;
+	    }
       }
 
       if (!res && type_ == CLASS && class_def_

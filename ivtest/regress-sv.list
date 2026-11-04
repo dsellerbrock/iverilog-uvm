@@ -32,6 +32,10 @@ issue2177_negative_constant_delay_2023 normal,-g2023,-s,issue2177_negative_const
 issue2450_real_delay_2017 normal,-g2017,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
 issue2450_real_delay_2023 normal,-g2023,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
 
+# IEEE 1800-2017/2023 15.2: built-in semaphore/mailbox inheritance.
+issue1511_builtin_resource_inheritance_2017 normal,-g2017,-s,issue1511_builtin_resource_inheritance ivltests gold=issue1511_builtin_resource_inheritance-vvp-stdout.gold
+issue1511_builtin_resource_inheritance_2023 normal,-g2023,-s,issue1511_builtin_resource_inheritance ivltests gold=issue1511_builtin_resource_inheritance-vvp-stdout.gold
+
 issue765_vector_range_unknown_2017 CE,-g2017 ivltests gold=issue765_vector_range_unknown_2017.gold
 issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range_unknown_2023.gold
 

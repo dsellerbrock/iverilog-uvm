@@ -2702,6 +2702,13 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 					    const_cast<PClass*>(super_pclass));
       }
 
+	// Semaphore and mailbox built-ins have dedicated runtime representations,
+	// not ordinary class properties. Give their first user-defined subclass a
+	// per-instance delegate handle so constructor chaining and inherited
+	// built-in methods can reach that state without changing normal class
+	// property lookup or layout for unrelated classes.
+      add_builtin_resource_delegate_property();
+
       for (const netclass_t*interface_type : interface_types_) {
 	    if (!interface_type || interface_type->sig_elaborated()
 		|| interface_type->sig_elaborating())
