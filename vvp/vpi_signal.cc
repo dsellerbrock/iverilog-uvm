@@ -542,6 +542,46 @@ static void format_vpiVectorVal(const vvp_signal_value*sig, int base, unsigned w
       }
 }
 
+/* A packed struct's flattened storage range is included in packed_dims,
+   after any packed array dimensions declared around the struct type. */
+static unsigned packed_struct_array_dimensions_(const __vpiSignal*sig)
+{
+      if (!sig->typespec ||
+          sig->typespec->get_type_code() != vpiStructTypespec)
+            return 0;
+
+      const std::vector<__vpiSignal::packed_range_t>&ranges =
+            sig->declared_packed_ranges.empty()
+            ? sig->packed_ranges : sig->declared_packed_ranges;
+      unsigned type_width = sig->typespec->vpi_get(vpiSize);
+      if (ranges.empty() || type_width == 0) return 0;
+
+      uint64_t suffix_width = 1;
+      size_t depth = ranges.size();
+      while (depth > 0) {
+            const __vpiSignal::packed_range_t&range = ranges[--depth];
+            uint64_t count = static_cast<uint64_t>(
+                  range.left >= range.right ? range.left - range.right
+                                             : range.right - range.left) + 1;
+            if (suffix_width > UINT_MAX / count) return 0;
+            suffix_width *= count;
+            if (suffix_width == type_width)
+                  return static_cast<unsigned>(depth);
+            if (suffix_width > type_width) return 0;
+      }
+      return 0;
+}
+
+static int signal_type_code_(__vpiSignal*sig, int fallback)
+{
+      unsigned dimensions = packed_struct_array_dimensions_(sig);
+      if (dimensions == 0) return fallback;
+      if (sig->packed_depth < dimensions) return vpiPackedArrayVar;
+      if (sig->packed_depth == dimensions && sig->packed_parent)
+            return vpiStructVar;
+      return fallback;
+}
+
 /*
  * implement vpi_get for vpiReg objects.
  */
@@ -564,6 +604,9 @@ static int signal_get(int code, vpiHandle ref)
 	    return rfp->is_netarray != 0;
 
 	  case vpiPackedArrayMember:
+            if (rfp->packed_parent &&
+                vpi_get(vpiType, rfp->packed_parent) == vpiPackedArrayVar)
+                  return 1;
 	    if (rfp->get_type_code() != vpiNet &&
 		rfp->get_type_code() != vpiNetBit)
 		  return 0;
@@ -590,6 +633,10 @@ static int signal_get(int code, vpiHandle ref)
 	  case vpiSize:
 	    return rfp->width();
 
+          case vpiPacked:
+            return rfp->get_type_code() == vpiPackedArrayVar ||
+                   rfp->get_type_code() == vpiStructVar;
+
 	  case vpiNetType:
 	    if (ref->get_type_code()==vpiNet)
 		  return vpiWire;
@@ -605,6 +652,9 @@ static int signal_get(int code, vpiHandle ref)
 	  case vpiScalar:
 	    return (rfp->msb.get_value() == 0 && rfp->lsb.get_value() == 0);
 	  case vpiVector:
+            if (rfp->get_type_code() == vpiPackedArrayVar ||
+                rfp->get_type_code() == vpiStructVar)
+                  return 1;
 	    return (rfp->msb.get_value() != rfp->lsb.get_value());
 
           case vpiAutomatic:
@@ -740,6 +790,21 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
 		  args[idx] = vpip_make_range(range.left, range.right);
 	    }
 	    return vpip_make_iterator(count, args, true);
+      }
+
+      if (code == vpiElement && rfp->get_type_code() == vpiPackedArrayVar) {
+            int left = rfp->msb.get_value();
+            int right = rfp->lsb.get_value();
+            unsigned count = static_cast<unsigned>(
+                  left >= right ? left - right : right - left) + 1;
+            vpiHandle*args = new vpiHandle[count];
+            for (unsigned idx = 0; idx < count; idx += 1) {
+                  int index = left >= right
+                        ? left - static_cast<int>(idx)
+                        : left + static_cast<int>(idx);
+                  args[idx] = rfp->get_index(index);
+            }
+            return vpip_make_iterator(count, args, true);
       }
 
       if (code == vpiIndex) {
@@ -1264,7 +1329,8 @@ vpiHandle __vpiSignal::vpi_index(int idx)
 
 struct signal_reg : public __vpiSignal {
       inline signal_reg() { }
-      int get_type_code(void) const override { return vpiReg; }
+      int get_type_code(void) const override
+      { return signal_type_code_(const_cast<signal_reg*>(this), vpiReg); }
 };
 
 struct signal_time : public __vpiSignal {
@@ -1289,7 +1355,8 @@ struct signal_byte : public __vpiSignal {
 
 struct signal_bitvar : public __vpiSignal {
       inline signal_bitvar() { }
-      int get_type_code(void) const override { return vpiBitVar; }
+      int get_type_code(void) const override
+      { return signal_type_code_(const_cast<signal_bitvar*>(this), vpiBitVar); }
 };
 
 
@@ -1313,7 +1380,9 @@ struct signal_packed_net_bit : public __vpiSignal {
 };
 
 struct signal_packed_reg_bit : public __vpiSignal {
-      int get_type_code(void) const override { return vpiRegBit; }
+      int get_type_code(void) const override
+      { return signal_type_code_(const_cast<signal_packed_reg_bit*>(this),
+                                 vpiRegBit); }
 };
 
 
@@ -1349,6 +1418,7 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       obj->automatic_storage = parent->automatic_storage;
       obj->packed_ranges = parent->packed_ranges;
       obj->packed_depth = next_depth;
+      obj->typespec = parent->typespec;
       obj->value_base = base;
       obj->value_width = width;
       obj->packed_view_parent = parent;

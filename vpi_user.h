@@ -331,6 +331,13 @@ typedef struct t_vpi_delay  {
 #define vpiRealVar     47
 #define vpiReg         48
 #define vpiRegBit      49
+/* IEEE 1800-2017/2023 Annex M packed aggregate variable objects. */
+#ifndef vpiStructVar
+#define vpiStructVar   618
+#endif
+#ifndef vpiPackedArrayVar
+#define vpiPackedArrayVar 623
+#endif
 #define vpiRepeatControl 52
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
@@ -347,6 +354,9 @@ typedef struct t_vpi_delay  {
 #define vpiContinue    685
 #define vpiNetArray   114
 #define vpiRange      115
+#ifndef vpiElement
+#define vpiElement     743
+#endif
 #define vpiIndex       78
 #define vpiLeftRange   79
 #define vpiParent      81
@@ -408,6 +418,12 @@ typedef struct t_vpi_delay  {
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+#ifndef vpiPacked
+#define vpiPacked       630
+#endif
+#ifndef vpiPackedArrayMember
+#define vpiPackedArrayMember 655
+#endif
 #define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */

@@ -1,0 +1,2 @@
+issue1279_packed_struct_array_2017 normal,-g2017,-I. issue1279_packed_struct_array.c issue1279_packed_struct_array_2017.gold
+issue1279_packed_struct_array_2023 normal,-g2023,-I. issue1279_packed_struct_array.c issue1279_packed_struct_array_2023.gold

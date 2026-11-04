@@ -27,6 +27,7 @@
 # include  <cassert>
 # include  <cstdlib>
 # include  <cstring>
+# include  <climits>
 
 using namespace std;
 
@@ -347,14 +348,43 @@ class vartype_resolv_t : public resolv_list_s {
       {
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
 	    __vpiArray*array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
+            if (sig && !message_flag &&
+                sig->declared_packed_ranges.empty())
+                  return false;
 	    const char*cp = text_;
 	    unsigned width = 0;
 	    bool missing = false;
 	    vpiHandle spec = (sig || array)
 		  ? parse_vartype(cp, width, missing) : 0;
 	    if (((!sig && !array) || missing) && !message_flag) return false;
-	    if ((!sig && !array) || !spec || *cp ||
-	        width != (sig ? sig->width() : array->get_word_size())) {
+            bool width_matches = false;
+            if (sig) {
+                  width_matches = width == sig->width();
+                  if (!width_matches && width &&
+                      !sig->declared_packed_ranges.empty()) {
+                        uint64_t suffix_width = 1;
+                        const auto&ranges = sig->declared_packed_ranges;
+                        for (size_t idx = ranges.size(); idx > 0; idx -= 1) {
+                              const __vpiSignal::packed_range_t&range =
+                                    ranges[idx - 1];
+                              uint64_t count = static_cast<uint64_t>(
+                                    range.left >= range.right
+                                    ? range.left - range.right
+                                    : range.right - range.left) + 1;
+                              if (suffix_width > UINT_MAX / count) break;
+                              suffix_width *= count;
+                              if (suffix_width == width) {
+                                    width_matches = true;
+                                    break;
+                              }
+                              if (suffix_width > width) break;
+                        }
+                  }
+            } else if (array) {
+                  width_matches = width ==
+                        static_cast<unsigned>(array->get_word_size());
+            }
+            if ((!sig && !array) || !spec || *cp || !width_matches) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;

@@ -669,8 +669,11 @@ struct vartype_note_s {
 static struct vartype_note_s*vartype_notes = 0;
 static unsigned nvartype_notes = 0;
 
+static ivl_type_t vartype_element_type_(ivl_type_t type);
+
 static int type_has_vartype_(ivl_type_t type)
 {
+	  type = vartype_element_type_(type);
       return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
 }
 
@@ -761,6 +764,18 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       return ivl_type_packed_width(type);
 }
 
+/* A packed array type wraps its element type. VPI vpiTypespec describes the
+   element, while packed dimensions describe the array around that element. */
+static ivl_type_t vartype_element_type_(ivl_type_t type)
+{
+      while (type && ivl_type_packed_dimensions(type) > 0) {
+            ivl_type_t element = ivl_type_element(type);
+            if (!element) break;
+            type = element;
+      }
+      return type;
+}
+
 void emit_signal_vartypes(void)
 {
       unsigned idx;
@@ -768,9 +783,15 @@ void emit_signal_vartypes(void)
 
       for (idx = 0 ; idx < nvartype_notes ; idx += 1) {
 	    ivl_signal_t sig = vartype_notes[idx].sig;
+	    ivl_type_t signal_type = ivl_signal_net_type(sig);
+	    ivl_type_t type = vartype_element_type_(signal_type);
+	    unsigned signal_width = ivl_signal_width(sig);
 	    buf.len = 0;
 	    vartype_put_(&buf, "");
-	    if (vartype_spec_(&buf, ivl_signal_net_type(sig)) == ivl_signal_width(sig))
+	    unsigned type_width = vartype_spec_(&buf, type);
+	    if (type_width == signal_width ||
+	        (type_width && ivl_type_packed_dimensions(signal_type) > 0 &&
+	         signal_width % type_width == 0))
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }
