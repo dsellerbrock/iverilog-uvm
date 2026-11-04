@@ -965,6 +965,11 @@ static int begin_design_output(ivl_design_t des)
 	/* Finish up any modpaths that are not yet emitted. */
       cleanup_modpath();
 
+	/* Emit VPI primitive metadata only after all deferred net and modpath
+	 * records have been written, so every terminal expression can resolve. */
+      for (i = 0; i < nroots; i++)
+	    emit_vpi_primitive_metadata_scope(roots[i], 0);
+
       return 0;
 }
 

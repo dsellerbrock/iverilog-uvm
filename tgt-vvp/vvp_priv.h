@@ -101,6 +101,7 @@ extern void emit_dpi_export_directives(void);
 extern void emit_dpi_export_stub_file(const char*vvp_path);
 
 extern int draw_scope(ivl_scope_t scope, ivl_scope_t parent);
+extern int emit_vpi_primitive_metadata_scope(ivl_scope_t scope, void *unused);
 /* True when a subroutine needs a per-call context, either because the
    subroutine is automatic or because a static subroutine contains explicit
    automatic declarations. */
