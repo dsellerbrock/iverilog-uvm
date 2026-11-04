@@ -36826,6 +36826,31 @@ static void register_event_expr_sources_(event_expr_observer_s*observer,
 
       for (std::vector<event_expr_path_s>::const_iterator path = paths.begin();
            path != paths.end(); ++path) {
+            // A covergroup ref formal is stored as an lvalue binding rather
+            // than as mutable state on the covergroup object. Subscribe to
+            // the bound signal so the existing event-expression observer
+            // can reevaluate the expression and apply its edge table.
+            vvp_cobject*cobj = path->object.peek<vvp_cobject>();
+            vvp_object_t binding;
+            if (cobj && cobj->get_ref_binding(path->property, binding)) {
+                  vvp_lvalue_ref*ref = binding.peek<vvp_lvalue_ref>();
+                  vvp_net_t*source = ref ? ref->event_source_net() : 0;
+                  if (source) {
+                        bool duplicate = false;
+                        for (std::vector<event_expr_vif_source_s>::const_iterator
+                                   cur = observer->vif_sources.begin();
+                             cur != observer->vif_sources.end(); ++cur)
+                              if (cur->source == source) {
+                                    duplicate = true;
+                                    break;
+                              }
+                        if (!duplicate) {
+                              event_expr_vif_source_s source_record = {source};
+                              observer->vif_sources.push_back(source_record);
+                        }
+                        continue;
+                  }
+            }
             vvp_object*object = path->object.peek<vvp_object>();
             if (object)
                   object->add_mutation_waiter(waiter, path->property,

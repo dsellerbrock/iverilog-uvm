@@ -123,6 +123,7 @@ class vvp_cobject : public vvp_object {
 	// A covergroup ref constructor formal keeps the binding captured by
 	// its generated constructor wrapper instead of a construction-time value.
       void set_ref_binding(size_t pid, const vvp_object_t&binding);
+      bool get_ref_binding(size_t pid, vvp_object_t&binding) const;
 
       void set_real(size_t pid, double val, size_t idx = 0);
       double get_real(size_t pid, size_t idx = 0);

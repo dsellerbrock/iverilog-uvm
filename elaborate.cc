@@ -30586,6 +30586,34 @@ static void report_unsupported_covergroup_block_event_(NetScope*scope,
 		  << std::endl;
 }
 
+/* Return the synthesized property for a direct ref constructor formal used
+   as a standalone covergroup's sole clocking-event expression. The sampler
+   itself lives in the enclosing scope, so the source identifier cannot be
+   resolved there. Keeping the property access on the covergroup object lets
+   the event-expression observer follow the per-instance ref binding. */
+static int standalone_cg_ref_event_property_(
+	const netclass_t*cgct,
+	const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!cgct || !cgdef || cgdef->sample_events.size() != 1)
+	      return -1;
+	const PEEvent*event = cgdef->sample_events.front();
+	const PEIdent*id = event
+	      ? dynamic_cast<const PEIdent*>(event->expr()) : nullptr;
+	if (!id || id->path().package || id->path().size() != 1
+	    || id->path().name.front().local_scope
+	    || !id->path().name.front().index.empty())
+	      return -1;
+	perm_string formal = id->path().name.front().name;
+	for (size_t idx = 0; idx < cgct->covgrp_ctor_formal_count(); ++idx) {
+	      if (cgct->covgrp_ctor_formal_name(idx) != formal
+		  || !cgct->covgrp_ctor_formal_is_ref(idx))
+		    continue;
+	      return (int)cgct->covgrp_ctor_formal_prop(idx);
+	}
+	return -1;
+}
+
 // M11-2: synthesize the auto-sampling processes for standalone
 // covergroup instances declared with a sampling event
 // (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
@@ -30695,6 +30723,7 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    }
 	    perm_string observed_trigger =
 		  covergroup_observed_clocking_event_(des, scope, cgdef);
+	    int ref_event_prop = standalone_cg_ref_event_property_(ct, cgdef);
 
 	    pform_name_t mpath;
 	    mpath.push_back(name_component_t(sig->name()));
@@ -30703,7 +30732,22 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 	    std::list<named_pexpr_t> no_parms;
 	    PCallTask*call = new PCallTask(mpath, no_parms);
 	    call->set_line(*sig);
-	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
+	    std::vector<PEEvent*>sample_events = cgdef->sample_events;
+	    std::unique_ptr<PECachedEventExpr>ref_event_expr;
+	    std::unique_ptr<PEEvent>ref_event;
+	    if (ref_event_prop >= 0) {
+		  const PEEvent*source = cgdef->sample_events.front();
+		  NetEProperty*property = new NetEProperty(sig,
+						   (size_t)ref_event_prop, nullptr);
+		  property->set_line(*source);
+		  ref_event_expr.reset(new PECachedEventExpr(
+			  source->expr(), unique_ptr<NetExpr>(property)));
+		  ref_event.reset(new PEEvent(source->type(), ref_event_expr.get(),
+					       source->condition()));
+		  ref_event->set_line(*source);
+		  sample_events.assign(1, ref_event.get());
+	    }
+	    PEventStatement*ev = new PEventStatement(sample_events);
 	    ev->set_line(*sig);
 	    Statement*event_body = call;
 	    if (!observed_trigger.nil() || covergroup_strobe_enabled_(des, scope, cgdef)) {
