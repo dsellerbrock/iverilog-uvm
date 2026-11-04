@@ -435,6 +435,10 @@ static void real_ex_pop(ivl_expr_t expr)
             fb = "f";
 
       arg = ivl_expr_parm(expr, 0);
+	    if (draw_eval_assoc_queue_lvalue(arg)) {
+		  fprintf(vvp_out, "    %%qpop/o/%s/real;\n", fb);
+		  return;
+	    }
 	    if (ivl_expr_type(arg) != IVL_EX_SIGNAL
 		|| expr_selects_fixed_container_slot_(arg)) {
 	    if (expr_is_queue_container_(arg)) {

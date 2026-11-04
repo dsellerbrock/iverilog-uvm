@@ -24920,6 +24920,45 @@ bool of_AA_LOADLV_SIG_OBJ_V(vthread_t thr, vvp_code_t cp)
       return aa_load_signal_obj_lval<vvp_vector4_t, vvp_assoc_object>(thr, cp->net);
 }
 
+/* A queue pop is a write to the selected associative-array element. If the
+ * key is absent but the array has a default queue, copy that value into a
+ * real entry before returning the queue to the pop opcode. */
+template <typename KEY>
+static bool aa_loadlv_signal_queue(vthread_t thr, vvp_net_t*net)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+      vvp_assoc_object*assoc = peek_signal_assoc_<vvp_assoc_object>(net);
+      vvp_object_t value;
+      bool invalid_index = aa_invalid_write_(thr, assoc, key);
+      bool found = !invalid_index && assoc && assoc->get(key, value);
+      bool changed = false;
+
+      vvp_queue*queue = value.peek<vvp_queue>();
+      if (found && queue && queue->get_size() && !assoc->exists_key(key)) {
+            value = assoc_value_copy_element_(value);
+            assoc->set(key, value);
+            assoc->get(key, value);
+            changed = true;
+      }
+
+      if (changed)
+            notify_mutated_object_signal_(thr, net, "aa-loadlv-queue");
+      assoc_trace_signal_load_(thr, net, assoc, key, value);
+      vvp_fun_signal_object*fun = signal_object_fun_(net);
+      vvp_object_t root = fun ? fun->peek_object() : vvp_object_t();
+      thr->push_object(value, net, root);
+      return true;
+}
+
+bool of_AA_LOADLV_SIG_Q_OBJ(vthread_t thr, vvp_code_t cp)
+{ return aa_loadlv_signal_queue<vvp_object_t>(thr, cp->net); }
+
+bool of_AA_LOADLV_SIG_Q_STR(vthread_t thr, vvp_code_t cp)
+{ return aa_loadlv_signal_queue<string>(thr, cp->net); }
+
+bool of_AA_LOADLV_SIG_Q_V(vthread_t thr, vvp_code_t cp)
+{ return aa_loadlv_signal_queue<vvp_vector4_t>(thr, cp->net); }
+
 bool of_AA_LOAD_SIG_R_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_signal<vvp_object_t, double, vvp_assoc_real>(thr, cp->net);
