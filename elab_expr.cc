@@ -32658,7 +32658,8 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  for (size_t k = 0; k < nformals; ++k)
 			if (ctype->covgrp_ctor_formal_is_ref(k))
 			      has_ref_ctor_formal = true;
-		  if (!ctype->covgrp_ctor_method_endpoints().empty()
+	  if (!ctype->covgrp_ctor_method_endpoints().empty()
+	      || !ctype->covgrp_ctor_cross_sets().empty()
 		      || has_ref_ctor_formal) {
 			// %new/cobj resolves its dynamic bins before returning. Capture
 			// each endpoint in the initializer itself, after the constructor
@@ -32774,6 +32775,33 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      body->append(known);
 			      values.push_back(new NetESignal(slot));
 			}
+		    for (const auto&set : ctype->covgrp_ctor_cross_sets()) {
+			  ivl_type_t slot_type = ctype->get_prop_type(set.prop);
+			  perm_string slot_name;
+			  do { slot_name = wrapper->local_symbol(); }
+			  while (slot_name == wrapper->basename());
+			  NetNet*slot = new NetNet(wrapper, slot_name, NetNet::REG,
+					   slot_type);
+			  NetExpr*value = elab_and_eval(des, wrapper,
+				const_cast<PExpr*>(set.expr), -1, false, false);
+			  const NetEUFunc*function = dynamic_cast<const NetEUFunc*>(value);
+			  const netqueue_t*queue = value
+				? dynamic_cast<const netqueue_t*>(value->net_type()) : nullptr;
+			  if (!function || !queue
+			      || value->net_type() != slot_type) {
+				cerr << set.expr->get_fileline()
+				     << ": error: covergroup cross set function changed "
+					"CrossQueueType during construction." << endl;
+				des->errors += 1;
+				delete value;
+				values.push_back(new NetESignal(slot));
+				continue;
+			  }
+			  NetAssign*assign = new NetAssign(new NetAssign_(slot), value);
+			  assign->set_line(*set.expr);
+			  body->append(assign);
+			  values.push_back(new NetESignal(slot));
+		    }
 			NetEArrayPattern*inits = new NetEArrayPattern(ctype, values);
 			NetENew*cg_new = new NetENew(ctype, nullptr, inits);
 			cg_new->set_line(*this);

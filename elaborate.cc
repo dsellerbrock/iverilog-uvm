@@ -37083,6 +37083,18 @@ class constraint_function_purity_t : public target_t {
       void proc_stask(const NetSTask*node) override
       {
 	    string name = node->name();
+	    if (name == "$ivl_queue_method$push_back"
+		&& node->nparms() == 2 && automatic_ && function_) {
+		  const NetESignal*receiver =
+			dynamic_cast<const NetESignal*>(node->parm(0));
+		  const NetNet*sig = receiver ? receiver->sig() : nullptr;
+		  const netqueue_t*queue = sig
+			? dynamic_cast<const netqueue_t*>(sig->net_type()) : nullptr;
+		  if (sig == return_
+		      && sig->lifetime_override() != IVL_VLT_STATIC
+		      && queue && expression(node->parm(1)))
+			return;
+	    }
 	    if (name.find("rand_mode") != string::npos
 		|| name.find("constraint_mode") != string::npos)
 		  fail_("modifies rand_mode or constraint_mode");
@@ -37201,6 +37213,11 @@ static bool constraint_pure_expr_(const NetExpr*expr,
 	    return constraint_pure_expr_(e->cond_expr(), check)
 		&& constraint_pure_expr_(e->true_expr(), check)
 		&& constraint_pure_expr_(e->false_expr(), check);
+      if (const NetEArrayPattern*e = dynamic_cast<const NetEArrayPattern*>(expr)) {
+	    for (size_t idx = 0; idx < e->item_size(); ++idx)
+		  if (!constraint_pure_expr_(e->item(idx), check)) return false;
+	    return true;
+      }
       if (const NetEUFunc*e = dynamic_cast<const NetEUFunc*>(expr)) {
 	    for (unsigned idx = 0; idx < e->parm_count(); ++idx)
 		  if (!constraint_pure_expr_(e->parm(idx), check)) return false;
@@ -45390,6 +45407,145 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  reserve_function_endpoint(range.first);
 			  reserve_function_endpoint(range.second);
 			}
+		    auto reserve_cross_set_function = [&](const PExpr*expr,
+						   const class_type_t::pform_cross_t&cross) {
+			  const PECallFunction*call =
+				 dynamic_cast<const PECallFunction*>(expr);
+			  if (!call || call->receiver_expr() || call->path().package
+			      || call->has_scoped_type_prefix()
+			      || call->path().name.size() != 1
+			      || call->get_parms().empty()
+			      || !cross.value_type
+			      || cg_class->covgrp_ctor_cross_set_prop(expr) >= 0)
+				return;
+		  bool has_ctor_formal = false;
+		  for (const named_pexpr_t&arg : call->get_parms()) {
+			const PEIdent*id = dynamic_cast<const PEIdent*>(arg.parm);
+			bool matched = false;
+			if (id && !id->path().package
+			    && !id->has_scoped_type_prefix()
+			    && id->path().size() == 1
+			    && !id->path().name.front().local_scope
+			    && id->path().name.front().index.empty()) {
+			      perm_string name = peek_head_name(id->path());
+			      for (size_t fi = 0; fi < cgdef->ctor_formals.size(); fi++)
+				if (cgdef->ctor_formals[fi] == name
+				    && (fi >= cgdef->ctor_formal_is_ref.size()
+					|| !cgdef->ctor_formal_is_ref[fi])) {
+				      matched = true;
+				      has_ctor_formal = true;
+				      break;
+				}
+			}
+			if (!matched && !dynamic_cast<const PENumber*>(arg.parm))
+			      return;
+		  }
+		  if (!has_ctor_formal) return;
+		  symbol_search_results resolved;
+		  if (!symbol_search(call, des, class_scope_, call->path(), UINT_MAX,
+			      &resolved)
+		      || !resolved.scope || resolved.scope->type() != NetScope::FUNC)
+			return;
+		  const PFunction*pfunc = resolved.scope->func_pform();
+		  if (pfunc && (!resolved.scope->func_def()
+			|| !resolved.scope->func_def()->proc()))
+			elaborate_function_outside_caller_fork_(des, pfunc,
+			      resolved.scope);
+		  const NetFuncDef*signature = resolved.scope->func_def();
+		  if (!signature || signature->port_count() != call->get_parms().size())
+			return;
+		  for (unsigned ai = 0; ai < signature->port_count(); ai++) {
+			const NetNet*port = signature->port(ai);
+			if (!port || (port->port_type() != NetNet::PINPUT
+			      && !(port->port_type() == NetNet::PREF
+				  && port->get_const()))) {
+			      cerr << expr->get_fileline()
+				   << ": error: covergroup cross set function call '"
+				   << call->path()
+				   << "' has an output, inout, or non-const ref argument "
+				      "(IEEE 1800 19.5)." << endl;
+			      des->errors += 1;
+			      return;
+			}
+		  }
+		  if (!endpoint_scope) {
+			endpoint_scope = new NetScope(class_scope_,
+			      hname_t(class_scope_->local_symbol()), NetScope::BEGIN_END);
+			endpoint_scope->set_line(expr);
+			endpoint_scope->set_elab_stage(3);
+			for (size_t fi = 0; fi < cg_class->covgrp_ctor_formal_count(); ++fi)
+			      new NetNet(endpoint_scope,
+				cg_class->covgrp_ctor_formal_name(fi), NetNet::REG,
+				cg_class->covgrp_ctor_formal_type(fi));
+		  }
+		  NetExpr*lowered = elab_and_eval(des, endpoint_scope,
+			const_cast<PExpr*>(expr), -1, false, false);
+		  const NetEUFunc*function = dynamic_cast<const NetEUFunc*>(lowered);
+		  const netqueue_t*queue = lowered
+			? dynamic_cast<const netqueue_t*>(lowered->net_type()) : nullptr;
+		  const netstruct_t*tuple = queue
+			? dynamic_cast<const netstruct_t*>(queue->element_type()) : nullptr;
+	  bool tuple_ok = tuple
+		    && tuple->members().size() == cross.cp_labels.size();
+	  for (size_t fi = 0; tuple_ok && fi < tuple->members().size(); ++fi) {
+		ivl_type_t field = tuple->members()[fi].net_type;
+			ivl_variable_type_t base = field ? field->base_type() : IVL_VT_NO_TYPE;
+			tuple_ok = field && field->packed()
+			      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC)
+			      && field->packed_width() > 0 && field->packed_width() <= 64;
+		  }
+		  if (!function || !tuple_ok) {
+			cerr << expr->get_fileline()
+			     << ": error: covergroup cross set function requires a "
+				"resolved CrossQueueType return with one integral field per "
+				"cross item." << endl;
+			des->errors += 1;
+			delete lowered;
+			return;
+		  }
+		  std::string reason;
+		  if (!covergroup_constructor_method_pure(
+			des, function, reason, function->parm_count())) {
+			cerr << expr->get_fileline()
+			     << ": error: covergroup cross set function is not permitted "
+				"by IEEE 1800 19.5: " << reason << "." << endl;
+			des->errors += 1;
+			delete lowered;
+			return;
+		  }
+		  ivl_type_t queue_type = const_cast<netqueue_t*>(queue);
+		  delete lowered;
+		  std::string stem = "__covgrp_ctor_cross_set_"
+			+ std::to_string(cg_class->covgrp_ctor_cross_sets().size());
+		  std::string name = stem;
+		  unsigned suffix = 0;
+		  while (cg_class->property_idx_from_name(
+			lex_strings.make(name.c_str())) >= 0)
+			name = stem + "_" + std::to_string(++suffix);
+		  cg_class->set_property(lex_strings.make(name.c_str()),
+			property_qualifier_t::make_none(), queue_type);
+		  int prop = cg_class->property_idx_from_name(lex_strings.make(name.c_str()));
+		  if (prop >= 0)
+			cg_class->add_covgrp_ctor_cross_set(expr, (unsigned)prop);
+		    };
+	    std::function<void(
+		  const class_type_t::pform_cross_t::select_t*,
+		  const class_type_t::pform_cross_t&)> reserve_cross_select_sets;
+	    reserve_cross_select_sets = [&](
+		  const class_type_t::pform_cross_t::select_t*select,
+		  const class_type_t::pform_cross_t&cross) {
+		  if (!select) return;
+		  if (select->op == class_type_t::pform_cross_t::select_t::SEL_SET)
+			reserve_cross_set_function(select->set_expr, cross);
+		  reserve_cross_select_sets(select->a, cross);
+		  reserve_cross_select_sets(select->b, cross);
+	    };
+	    for (const auto&cross : cgdef->crosses) {
+		  for (const auto&bin : cross.bins) {
+			reserve_cross_set_function(bin.set_expr, cross);
+			reserve_cross_select_sets(bin.select, cross);
+		  }
+	    }
 
 		      // M11-4: `with function sample(<formals>)` names.
 		      // sample() call sites bind these positionally to
@@ -49737,9 +49893,37 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					cg_class->add_covgrp_bin_guard(cb.iff_expr));
 			    }
 		      }
-	      if (has_dynamic_family || has_bin_iff) {
+	      auto cross_set_prop = [&](const PExpr*expr) -> int {
+		    return cg_class->covgrp_ctor_cross_set_prop(expr);
+	      };
+	      std::function<bool(sel_t*)> select_has_ctor_set =
+		    [&](sel_t*s) -> bool {
+		  if (!s) return false;
+		  if (s->op == sel_t::SEL_SET && cross_set_prop(s->set_expr) >= 0)
+			return true;
+		  return select_has_ctor_set(s->a) || select_has_ctor_set(s->b);
+	      };
+	      bool has_ctor_cross_set = false;
+	      for (xbin_t&cb : cross.bins)
+		    has_ctor_cross_set = has_ctor_cross_set
+			  || cross_set_prop(cb.set_expr) >= 0
+			  || select_has_ctor_set(cb.select);
+	      if (has_dynamic_family || has_bin_iff || has_ctor_cross_set) {
 				std::vector<std::string> select_irs(cross.bins.size());
 				bool plan_ok = true;
+				auto cross_set_select_ir = [&](unsigned prop,
+							uint64_t required, bool all) {
+				      std::string out = "Q," + std::to_string(prop)
+					    + "," + std::to_string(required)
+					    + "," + (all ? "1" : "0");
+				      for (unsigned dim = 0; dim < cp_indexes.size(); dim++) {
+					    unsigned cp = cp_indexes[dim];
+					    unsigned width = cp_value_widths[cp];
+					    if (width == 0 || width > 64) return std::string();
+					    out += "," + std::to_string(width);
+				      }
+				      return out;
+				};
 				auto append_select_token = [](std::string&out,
 							     const std::string&token) {
 				      if (!out.empty()) out += ";";
@@ -49841,8 +50025,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						}
 						return true;
 					  }
+					  case sel_t::SEL_SET: {
+						int prop = cross_set_prop(s->set_expr);
+						if (prop < 0) return false;
+						out = cross_set_select_ir((unsigned)prop, 1, false);
+						if (out.empty()) return false;
+						return true;
+					  }
 					  case sel_t::SEL_WITH:
-					  case sel_t::SEL_SET:
 						return false;
 				      }
 				      return false;
@@ -49850,8 +50040,46 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
-				      if (cb.with_expr || cb.set_expr
-					  || !compile_select(cb.select, select_irs[ub])) {
+				      bool select_ok = false;
+				      if (cb.set_expr) {
+					int prop = cross_set_prop(cb.set_expr);
+					if (prop >= 0 && !cb.matches_expr && !cb.matches_all) {
+					      select_irs[ub] = cross_set_select_ir(
+						    (unsigned)prop, 1, false);
+					      select_ok = !select_irs[ub].empty();
+					} else if (prop >= 0 && cb.matches_all) {
+					      select_irs[ub] = cross_set_select_ir(
+						    (unsigned)prop, 0, true);
+					      select_ok = !select_irs[ub].empty();
+					} else if (prop >= 0 && cb.matches_expr) {
+					      unsigned errors_before = des->errors;
+					      unique_ptr<NetExpr>value(elab_and_eval(
+						    des, class_scope_, cb.matches_expr, -1,
+						    false, false));
+					      const NetEConst*constant =
+						    dynamic_cast<const NetEConst*>(value.get());
+					      bool negative = false;
+					      uint64_t required = constant
+						    && constant->value().is_defined()
+						    ? verinum_signed_magnitude(
+							  constant->value(), negative) : 0;
+					      if (constant && constant->value().is_defined()
+						  && !negative && required > 0) {
+						    select_irs[ub] = cross_set_select_ir(
+							  (unsigned)prop, required, false);
+						    select_ok = !select_irs[ub].empty();
+					      } else if (des->errors == errors_before) {
+						    cerr << cb.matches_expr->get_fileline()
+							 << ": error: cross bin '" << cb.name
+							 << "' matches count must be a positive constant "
+							    "integer or '$'." << endl;
+						    des->errors += 1;
+					      }
+				}
+			      } else if (!cb.with_expr) {
+					select_ok = compile_select(cb.select, select_irs[ub]);
+			      }
+			      if (!select_ok) {
 					    cerr << "sorry: dynamic cross bin '" << cb.name
 						 << "' uses a selection form that cannot be "
 						    "represented per instance; cross '"

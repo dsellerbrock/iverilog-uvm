@@ -6859,7 +6859,11 @@ function_declaration /* IEEE1800-2005: A.2.6 */
 function_declaration_header
   : K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2,
+	LexicalScope::lifetime_t lifetime = $2;
+	if (pending_cross_scope_active_
+	    && lifetime == LexicalScope::INHERITED)
+	      lifetime = LexicalScope::AUTOMATIC;
+	current_function = pform_push_function_scope(@1, $4, lifetime,
 					      pending_cross_scope_active_);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);
@@ -6868,7 +6872,11 @@ function_declaration_header
       }
   | method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2,
+	LexicalScope::lifetime_t lifetime = $2;
+	if (pending_cross_scope_active_
+	    && lifetime == LexicalScope::INHERITED)
+	      lifetime = LexicalScope::AUTOMATIC;
+	current_function = pform_push_function_scope(@1, $4, lifetime,
 					      pending_cross_scope_active_);
 	current_function->set_method_override_specifiers($1);
 	pform_cross_bind_function_types_(current_function);

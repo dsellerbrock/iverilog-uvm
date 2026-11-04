@@ -13,6 +13,9 @@ issue2363_vif_nested_interface_member_2023 normal,-g2023,-s,tb ivltests gold=iss
 issue2364_dynamic_array_bits_2017 normal,-g2017,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 issue2364_dynamic_array_bits_2023 normal,-g2023,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 
+issue1616_cross_constructor_arg_2017 normal,-g2017,-s,tb ivltests gold=issue1616_cross_constructor_arg-vvp-stdout.gold
+issue1616_cross_constructor_arg_2023 normal,-g2023,-s,tb ivltests gold=issue1616_cross_constructor_arg-vvp-stdout.gold
+
 issue1569_down_hierarchy_interconnect_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
 issue1569_down_hierarchy_interconnect_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
 issue625_covergroup_block_event_2017 normal,-g2017,-s,issue625_covergroup_block_event ivltests

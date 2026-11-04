@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue1616_cross_constructor_arg.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-DISSUE1616_NO_AUTO_BINS"
+  ],
+  "gold": "issue1616_cross_constructor_arg"
+}

@@ -794,6 +794,17 @@ static int eval_class_new(ivl_expr_t ex)
 			fprintf(vvp_out, "    %%store/prop/obj %u, 0; covergroup ctor\n",
 				idx);
 			break;
+	      case IVL_VT_DARRAY:
+	      case IVL_VT_QUEUE: {
+		int converted = draw_eval_container_value_for_target(value, ptype);
+		if (converted >= 0)
+		      vvp_errors += converted;
+		else
+		      vvp_errors += draw_eval_object_value_copy(value, ptype);
+		fprintf(vvp_out, "    %%store/prop/obj %u, 0; covergroup ctor\n",
+			idx);
+		break;
+	      }
 	      default:
 			fprintf(stderr, "Warning: unsupported covergroup constructor "
 				"property type %d at index %u; leaving default value\n",
