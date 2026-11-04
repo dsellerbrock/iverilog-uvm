@@ -1378,13 +1378,23 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	/* Now that the driven bits and words are known and a behavioural
 	   overlap has been rejected, decide whether this variable can become
 	   an unresolved wire (see the note where this test used to live). */
-      if (gn_var_can_be_uwire() && var_allowed_in_sv
-	  && (sig->type() == NetNet::REG)) {
+	  bool partial_variable = gn_var_can_be_uwire() && var_allowed_in_sv
+		  && sig->type() == NetNet::REG
+		  && sig->unpacked_dimensions() == 0 && sig->pin_count() == 1
+		  && (midx != sig->vector_width()-1 || lidx != 0);
+
+	/* A partially continuously assigned variable still stores its value.
+	   Keep the declared REG so bits outside this assignment retain their
+	   default or previous procedural value, and track the per-element
+	   continuous drivers below. A complete assignment can use the existing
+	   unresolved-wire representation because it drives every bit. */
+	  if (gn_var_can_be_uwire() && var_allowed_in_sv
+	      && sig->type() == NetNet::REG && !partial_variable) {
 	    sig->type(NetNet::UNRESOLVED_WIRE);
       }
 
 	/* Don't allow registers as assign l-values. */
-      if (sig->type() == NetNet::REG) {
+	  if (sig->type() == NetNet::REG && !partial_variable) {
 	    cerr << get_fileline() << ": error: Variable '" << sig->name()
 	         << "' cannot be driven by a ";
 	    if (var_allowed_in_sv) cerr << "continuous assignment/module";
@@ -1405,7 +1415,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 	/* Check if the l-value bits are double-driven. */
 
-      if (sig->type() == NetNet::UNRESOLVED_WIRE) {
+	  if (sig->type() == NetNet::UNRESOLVED_WIRE || partial_variable) {
 	    ivl_assert(*this, widx_flag || (widx == 0));
 	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
 		  if (sig->test_part_driven(
@@ -1417,7 +1427,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			           << sig->declared_user_nettype()->pform_type()->name()
 			           << "' cannot have multiple drivers because it has "
 			           << "no resolution function." << endl;
-			} else if (sig->coerced_to_uwire())
+			} else if (sig->coerced_to_uwire() || partial_variable)
 			      cerr << "Variable '";
 			else
 			      cerr << "Unresolved wire '";
@@ -1446,6 +1456,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		      && sig->scope()->parent())
 			ivl_note_interface_continuous_member(sig, this);
 	    }
+	    if (partial_variable)
+	      sig->attribute(perm_string::literal("_ivl_partial_cassign"),
+			     verinum("1"));
       }
 
       /* A net declaration delay is a boundary after the declared net's

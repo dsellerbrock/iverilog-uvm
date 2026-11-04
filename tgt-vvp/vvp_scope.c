@@ -1208,6 +1208,34 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
 	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC))
 	    note_signal_vartype(sig, "_0");
+
+	/* A partial continuous assignment to a variable is represented by a
+	   PART_PV l-value mapper on the variable's nexus. Link that mapper to
+	   the variable's continuous-assignment input so its selected bits update
+	   the stored value while the other bits retain their variable defaults. */
+      if (ivl_signal_attr(sig, "_ivl_partial_cassign")
+	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+	   || ivl_signal_data_type(sig) == IVL_VT_LOGIC)
+	  && !signal_is_return_value(sig)) {
+	    unsigned word_count = ivl_signal_array_count(sig);
+	    for (unsigned word = 0; word < word_count; word += 1) {
+		  ivl_nexus_t nex = ivl_signal_nex(sig, word);
+		  for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+			ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+			ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+			if (!lpm || ivl_lpm_type(lpm) != IVL_LPM_PART_PV
+			    || ivl_lpm_q(lpm) != nex)
+			      continue;
+
+			fprintf(vvp_out, "T_CA_%p_%u_%u ;\n", sig, word, idx);
+			fprintf(vvp_out, "    %%cassign/link/static v%p_%u, L_%p;\n",
+				sig, word, lpm);
+			fputs("    %end;\n", vvp_out);
+			fprintf(vvp_out, "    .thread T_CA_%p_%u_%u, $init;\n",
+				sig, word, idx);
+		  }
+	    }
+      }
 }
 
 

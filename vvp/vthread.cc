@@ -16172,6 +16172,26 @@ bool of_CASSIGN_LINK(vthread_t, vvp_code_t cp)
       return true;
 }
 
+/* A module-level continuous assignment to one part of a variable has static
+ * lifetime and can coexist with disjoint assignments to other parts. Link
+ * each source directly to the signal's partial continuous-assignment input;
+ * unlike %cassign/link, these links are permanent and are not replaced by a
+ * later procedural continuous assignment. */
+bool of_CASSIGN_LINK_STATIC(vthread_t, vvp_code_t cp)
+{
+      vvp_net_t*dst = cp->net;
+      vvp_net_t*src = cp->net2;
+
+      vvp_fun_signal_base*sig
+	    = dynamic_cast<vvp_fun_signal_base*>(dst->fun);
+      assert(sig);
+
+      vvp_net_ptr_t dst_ptr(dst, 1);
+      src->link(dst_ptr);
+
+      return true;
+}
+
 /*
  * If there is an existing continuous assign linked to the destination
  * node, unlink it. This must be done before applying a new continuous

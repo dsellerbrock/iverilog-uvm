@@ -189,6 +189,7 @@ extern bool of_CALLF_VEC4_V(vthread_t thr, vvp_code_t code);
 extern bool of_CALLF_VOID(vthread_t thr, vvp_code_t code);
 extern bool of_CALLF_VOID_V(vthread_t thr, vvp_code_t code);
 extern bool of_CASSIGN_LINK(vthread_t thr, vvp_code_t code);
+extern bool of_CASSIGN_LINK_STATIC(vthread_t thr, vvp_code_t code);
 extern bool of_CASSIGN_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_CASSIGN_VEC4_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_CASSIGN_WR(vthread_t thr, vvp_code_t code);

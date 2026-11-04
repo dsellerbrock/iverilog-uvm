@@ -315,6 +315,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%callf/void",      of_CALLF_VOID,      2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%callf/void/v",    of_CALLF_VOID_V,    2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%cassign/link",    of_CASSIGN_LINK,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%cassign/link/static",of_CASSIGN_LINK_STATIC,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%cassign/vec4",    of_CASSIGN_VEC4,    1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
       { "%cassign/vec4/off",of_CASSIGN_VEC4_OFF,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
       { "%cassign/wr",  of_CASSIGN_WR,  1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
