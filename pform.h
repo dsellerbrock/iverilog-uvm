@@ -436,9 +436,11 @@ extern void pform_sva_add_local_formal(const char*name);
 extern bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
 					    perm_string name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
-					const char*name);
+					const char*name,
+					PExpr*initializer = nullptr);
 extern void pform_sva_declare_bit_local(const struct vlltype&loc,
-					const char*name);
+					const char*name,
+					PExpr*initializer = nullptr);
 /* owns_dimensions=false borrows *dimensions to compute a width for one
    name among several sharing a single comma-separated declaration,
    without freeing the shared list; exactly one call among the group
@@ -447,7 +449,8 @@ extern void pform_sva_declare_logic_local(
 					const struct vlltype&loc,
 					const char*name,
 					std::list<pform_range_t>*dimensions,
-					bool owns_dimensions = true);
+					bool owns_dimensions = true,
+					PExpr*initializer = nullptr);
 extern PExpr* pform_sva_coerce_local_assignment(
 					const struct vlltype&loc,
 					const char*name, PExpr*rhs,

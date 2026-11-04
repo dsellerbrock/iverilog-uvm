@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue715_sva_local_decl_init.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue715_sva_local_decl_init" ],
+    "gold"          : "issue715_sva_local_decl_init"
+}

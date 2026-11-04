@@ -9770,7 +9770,16 @@ bool pform_sva_deferred_genvar(PExpr*expr, perm_string&name)
       return false;
 }
 
-static void sva_attach_local_declarations_(sva_property_t*prop);
+static void sva_attach_local_declarations_(const struct vlltype&loc,
+					   sva_property_t*prop);
+static std::vector<sva_seq_step_t> sva_local_decl_init_steps_(
+					   const struct vlltype&loc);
+static void sva_destroy_local_init_steps_(
+					   std::vector<sva_seq_step_t>&steps);
+static bool sva_prepend_property_formal_inits_(
+					   const struct vlltype&loc,
+					   sva_property_t*prop,
+					   const std::vector<sva_seq_step_t>&initializers);
 static bool sva_disable_reads_local_(PExpr*e,
 				     const std::map<perm_string,unsigned>&locals);
 static std::vector<perm_string> sva_current_local_decl_names_();
@@ -9831,7 +9840,7 @@ static bool sva_validate_sequence_local_visibility_(
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
-      sva_attach_local_declarations_(prop);
+      sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       sva_scoped_name_t key = sva_decl_key_(use_name);
@@ -9850,6 +9859,14 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 				std::vector<sva_seq_step_t>*steps)
 {
+	  std::vector<sva_seq_step_t> local_initializers =
+		sva_local_decl_init_steps_(loc);
+	  if (steps && !local_initializers.empty()) {
+		steps->insert(steps->begin(), local_initializers.begin(),
+			      local_initializers.end());
+		local_initializers.clear();
+	  }
+	  sva_destroy_local_init_steps_(local_initializers);
 	  std::map<perm_string,unsigned> caller_locals;
 	  for (perm_string local : sva_current_local_decl_names_())
 		caller_locals[local] = 0;
@@ -9884,7 +9901,7 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 void pform_sva_declare_sequence_spec(const struct vlltype&loc,
 				     const char*name, sva_property_t*body)
 {
-      sva_attach_local_declarations_(body);
+      sva_attach_local_declarations_(loc, body);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       sva_scoped_name_t key = sva_decl_key_(use_name);
@@ -9947,7 +9964,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 				  std::list<sva_property_formal_t>*formals,
 				  sva_property_t*prop)
 {
-      sva_attach_local_declarations_(prop);
+      sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
 
@@ -10009,6 +10026,14 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 				  std::list<sva_sequence_formal_t>*formals,
 				  std::vector<sva_seq_step_t>*steps)
 {
+	  std::vector<sva_seq_step_t> local_initializers =
+		sva_local_decl_init_steps_(loc);
+	  if (steps && !local_initializers.empty()) {
+		steps->insert(steps->begin(), local_initializers.begin(),
+			      local_initializers.end());
+		local_initializers.clear();
+	  }
+	  sva_destroy_local_init_steps_(local_initializers);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       if (sva_param_sequences.count(sva_decl_key_(use_name))
@@ -10537,6 +10562,7 @@ void pform_sva_single_delay(const struct vlltype&loc,
 
 struct sva_local_decl_type_t {
       PExpr*width = nullptr;
+      PExpr*initializer = nullptr;
       bool signed_flag = false;
       long packed_left = 0;
       long packed_right = 0;
@@ -10551,33 +10577,82 @@ struct sva_local_decl_type_t {
    match-item RHS. The resulting expression then survives every existing
    property/sequence clone without adding parallel type ownership to the IR. */
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
+static std::vector<perm_string> sva_local_decl_order_;
 static std::set<perm_string> sva_local_formal_names_;
 
 static std::vector<perm_string> sva_current_local_decl_names_()
 {
-      std::vector<perm_string> names;
-      for (const auto&decl : sva_local_decl_types_) names.push_back(decl.first);
-      return names;
+      return sva_local_decl_order_;
 }
 
 /* Transfer declaration identity into the property IR before the temporary
    type/coercion table is cleared. Assignment destinations alone are
    insufficient: a declared-but-unassigned local still shadows a module
    object of the same name. */
-static void sva_attach_local_declarations_(sva_property_t*prop)
+static std::vector<sva_seq_step_t> sva_local_decl_init_steps_(
+					   const struct vlltype&loc)
 {
-      if (!prop) return;
-      for (std::map<perm_string,sva_local_decl_type_t>::const_iterator it =
-	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
-	    prop->local_names.push_back(it->first);
+	  std::vector<sva_seq_step_t> out;
+	  sva_seq_step_t step;
+	  step.expr = sva_bit_(loc, 1);
+	  for (perm_string name : sva_local_decl_order_) {
+		std::map<perm_string,sva_local_decl_type_t>::iterator it =
+		      sva_local_decl_types_.find(name);
+		if (it == sva_local_decl_types_.end() || !it->second.initializer)
+		      continue;
+		sva_match_item_t item;
+		item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+		item.lv_name = name;
+		item.lv_rhs = it->second.initializer;
+		item.lv_initialization = true;
+		it->second.initializer = nullptr;
+		step.items.push_back(item);
+	  }
+	  if (step.items.empty()) {
+		delete step.expr;
+		return out;
+	  }
+	  out.push_back(step);
+	  return out;
+}
+
+static void sva_destroy_local_init_steps_(
+					   std::vector<sva_seq_step_t>&steps)
+{
+	  if (steps.empty()) return;
+	  std::vector<sva_seq_step_t>*owned = new std::vector<sva_seq_step_t>;
+	  owned->swap(steps);
+	  pform_sva_destroy_sequence(owned);
+}
+
+static void sva_attach_local_declarations_(const struct vlltype&loc,
+					   sva_property_t*prop)
+{
+	  std::vector<sva_seq_step_t> initializers =
+		sva_local_decl_init_steps_(loc);
+	  if (prop) {
+		for (perm_string name : sva_local_decl_order_)
+		      prop->local_names.push_back(name);
+		if (!initializers.empty()
+		    && !sva_prepend_property_formal_inits_(loc, prop, initializers)) {
+		      cerr << loc << ": sorry: assertion variable declaration "
+			   << "initializers cannot be preserved in this property shape."
+			   << endl;
+		      error_count += 1;
+		}
+	  }
+	  sva_destroy_local_init_steps_(initializers);
 }
 
 void pform_sva_end_local_declarations(void)
 {
       for (std::map<perm_string,sva_local_decl_type_t>::iterator it =
-	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
+	       sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it) {
 	    delete it->second.width;
+	       delete it->second.initializer;
+	  }
       sva_local_decl_types_.clear();
+      sva_local_decl_order_.clear();
       sva_local_formal_names_.clear();
 }
 
@@ -10585,9 +10660,12 @@ void pform_sva_begin_local_declarations(void)
 {
       /* This also recovers safely after a malformed prior declaration. */
       for (std::map<perm_string,sva_local_decl_type_t>::iterator it =
-	   sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it)
+	       sva_local_decl_types_.begin(); it != sva_local_decl_types_.end(); ++it) {
 	    delete it->second.width;
+	       delete it->second.initializer;
+	  }
       sva_local_decl_types_.clear();
+      sva_local_decl_order_.clear();
 }
 
 void pform_sva_add_local_formal(const char*name)
@@ -10646,7 +10724,8 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
 				    long packed_left = 0,
 				    long packed_right = 0,
 				    bool packed_range_known = true,
-				    bool two_state = false)
+				    bool two_state = false,
+				    PExpr*initializer = nullptr)
 {
       perm_string key = lex_strings.make(name);
       if (sva_local_decl_types_.count(key) || sva_local_formal_names_.count(key)) {
@@ -10654,6 +10733,7 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
 		 << key << "'." << endl;
 	    error_count += 1;
 	    delete width;
+		delete initializer;
 	    return;
       }
       sva_local_decl_type_t rec;
@@ -10664,26 +10744,35 @@ static void sva_local_decl_insert_(const struct vlltype&loc,
       rec.packed_range_known = packed_range_known;
 	      rec.two_state = two_state;
       sva_local_decl_types_[key] = rec;
+	  sva_local_decl_order_.push_back(key);
+	  if (initializer)
+		sva_local_decl_types_[key].initializer =
+		      pform_sva_coerce_local_assignment(loc, name, initializer, true);
 }
 
-void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
+void pform_sva_declare_int_local(const struct vlltype&loc, const char*name,
+				 PExpr*initializer)
 {
       PENumber*width = new PENumber(new verinum((uint64_t)32, 32));
       FILE_NAME(width, loc);
-      sva_local_decl_insert_(loc, name, width, true, 31, 0);
+      sva_local_decl_insert_(loc, name, width, true, 31, 0,
+			     true, false, initializer);
 }
 
-void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name)
+void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name,
+				 PExpr*initializer)
 {
 	  PENumber*width = new PENumber(new verinum((uint64_t)1, 32));
 	  FILE_NAME(width, loc);
-	  sva_local_decl_insert_(loc, name, width, false, 0, 0, true, true);
+	  sva_local_decl_insert_(loc, name, width, false, 0, 0, true, true,
+			 initializer);
 }
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
 				    const char*name,
 				    std::list<pform_range_t>*dimensions,
-				    bool owns_dimensions)
+				    bool owns_dimensions,
+				    PExpr*initializer)
 {
       PExpr*width = nullptr;
       bool failed = false;
@@ -10725,6 +10814,7 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 
       if (failed) {
 	    delete width;
+	    delete initializer;
 	    cerr << loc << ": sorry: assertion local variable `" << name
 		 << "' has a packed dimension that cannot be preserved; its "
 		    "declaration is rejected." << endl;
@@ -10732,7 +10822,7 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 	    return;
       }
       sva_local_decl_insert_(loc, name, width, false, packed_left,
-			     packed_right, packed_range_known);
+			     packed_right, packed_range_known, false, initializer);
 }
 
 PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
@@ -12167,6 +12257,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 		  item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
 		  item.lv_name = carrier;
 		  item.lv_rhs = value;
+		  item.lv_initialization = true;
 		  init.items.push_back(item);
 		  initializers.push_back(init);
 		  continue;
@@ -12337,6 +12428,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
 	    item.lv_name = local_name;
 	    item.lv_rhs = typed;
+	    item.lv_initialization = true;
 	    init.items.push_back(item);
 	    initializers.push_back(init);
       }
@@ -20949,6 +21041,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<perm_string> lv_list;
       std::vector<PExpr*> lv_rhs_expr;     // per lv: rhs (borrowed)
       std::vector<PExpr*> lv_gate_expr;    // per lv: assigning-step gate (borrowed)
+      std::vector<bool> lv_initialization; // declaration/formal attempt inits
       bool lv_dup_in_chain = false;
       bool fm_ambiguous_assignment = false;
       {
@@ -20982,6 +21075,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				    lv_list.push_back(nm);
 				    lv_rhs_expr.push_back(item.lv_rhs);
 				    lv_gate_expr.push_back(st.expr);
+			    lv_initialization.push_back(item.lv_initialization);
 			      }
 			}
 	      }
@@ -21071,6 +21165,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    : pform_sva_nfa_build_from_chain(nfa, chain);
       if (!built)
 	    return false;
+	  /* Initialization assignments happen before the first sampled guard of
+	     the corresponding attempt. The current per-slot path can do that at
+	     injection only when the initialization prefix is the automaton start;
+	     nested sequence activations retain the legacy lowering path. */
+	  for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+	    if (!lv_initialization[li]) continue;
+	    bool at_start = false;
+	    for (size_t ei = 0 ; ei < nfa.edges.size(); ++ei) {
+		  const sva_nfa_edge_t&edge = nfa.edges[ei];
+		  if (edge.from != nfa.start) continue;
+		  if (std::find(edge.guards.begin(), edge.guards.end(),
+				lv_gate_expr[li]) != edge.guards.end())
+			at_start = true;
+	    }
+	    if (!at_start) return false;
+	  }
       if (pform_sva_nfa_dump_enabled())
 	    pform_sva_nfa_dump(loc, endpoint_fanout ? "antecedent-fanout"
 			   : (have_tree || linear_wait_implication) ? "tree"
@@ -21811,6 +21921,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = K-1 ; k >= 0 ; k -= 1) {
 		  std::vector<Statement*> take;
 		  take.push_back(sva_assign_(loc, s[k][nfa.start], sva_bit_(loc, 1)));
+		  std::map<perm_string,PExpr*> init_lvmap;
+		  for (unsigned li = 0 ; li < lv_list.size(); li += 1)
+			init_lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
+		  for (unsigned li = 0 ; li < lv_list.size(); li += 1) {
+			if (!lv_initialization[li]) continue;
+			PExpr*rhs = lv_rhs_reads_local[li]
+			      ? sva_clone_subst_(local_rhs_expr[li], &init_lvmap)
+			      : sva_id_(loc, lv_rhs_reg[li]);
+			assert(rhs);
+			take.push_back(sva_assign_(loc, vk[k][li], rhs));
+		  }
+		  for (std::map<perm_string,PExpr*>::iterator it = init_lvmap.begin();
+		       it != init_lvmap.end(); ++it)
+			delete it->second;
 		  if (endpoint_fanout) {
 			 take.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 1)));
 			 take.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 0)));
