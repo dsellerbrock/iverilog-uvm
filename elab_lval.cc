@@ -2846,6 +2846,49 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 
       lv->set_word(mux);
 
+	/* A dynamic-array element may itself be a multidimensional fixed array.
+	 * Its fixed dimensions share one flat runtime value, so collapse every
+	 * fixed index to a checked canonical element address and retain the outer
+	 * dynamic-array word separately for the target's object-stack store. */
+      const netdarray_t*fixed_array_darray = lv->sig()->darray_type();
+      const netuarray_t*fixed = fixed_array_darray
+	    ? dynamic_cast<const netuarray_t*>(fixed_array_darray->element_type()) : nullptr;
+      if (fixed) {
+	    netranges_t fixed_dims;
+	    ivl_type_t fixed_leaf = fixed;
+	    while (const netuarray_t*dimension =
+		   dynamic_cast<const netuarray_t*>(fixed_leaf)) {
+		  fixed_dims.insert(fixed_dims.end(),
+			dimension->static_dimensions().begin(),
+			dimension->static_dimensions().end());
+		  fixed_leaf = dimension->element_type();
+	    }
+	    if (!fixed_dims.empty()
+		&& name_tail.index.size() == fixed_dims.size() + 1) {
+		  list<index_component_t>fixed_indices;
+		  list<index_component_t>::const_iterator idx_it =
+			std::next(name_tail.index.begin());
+		  for ( ; idx_it != name_tail.index.end(); ++idx_it) {
+			if (idx_it->sel != index_component_t::SEL_BIT
+			    || !idx_it->msb || idx_it->lsb) {
+			      cerr << get_fileline() << ": sorry: each fixed-array index"
+				   << " after a dynamic-array element must be a simple"
+				   << " index in this l-value form." << endl;
+			      des->errors += 1;
+			      return false;
+			}
+			fixed_indices.push_back(*idx_it);
+		  }
+		  netuarray_t flattened_fixed(fixed_dims, fixed_leaf);
+		  NetExpr*fixed_word = make_checked_canonical_property_index(
+			des, scope, this, fixed_indices, &flattened_fixed, false);
+		  if (!fixed_word)
+			return false;
+		  lv->set_part(fixed_word, fixed_leaf);
+		  return true;
+	    }
+      }
+
 	// A trailing bit-select on the darray element, `d[i][bit] = v`.
 	// Lower it as an element part-select: keep the word select and add a
 	// constant part offset of width 1, which the vvp backend turns into a

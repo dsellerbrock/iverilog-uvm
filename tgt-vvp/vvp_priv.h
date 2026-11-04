@@ -989,24 +989,31 @@ static inline void emit_assoc_index_type_(ivl_type_t type)
 }
 
 /* Emit the strict recursive container-layout suffix understood by new VVP.
- * Q0 means a known-unbounded queue; D and A carry no bound. An associative
- * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
- * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
- * elements. */
+ * Q0 means a known-unbounded queue; D and A carry no bound. Fixed-array
+ * dimensions are emitted as consecutive F<left>:<right> fields, followed by
+ * b<width>, v<width>, or o for two-state, four-state, or object elements. */
 static inline void emit_container_layout_suffix_(ivl_type_t type)
 {
       ivl_type_t cur = type;
       int emitted = 0;
       while (cur) {
             if (type_is_fixed_uarray_property_(cur)) {
-                  ivl_type_t leaf = ivl_type_element(cur);
+                  ivl_type_t leaf = cur;
+                  while (type_is_fixed_uarray_property_(leaf)) {
+                        unsigned dims = ivl_type_packed_dimensions(leaf);
+                        for (unsigned dim = 0; dim < dims; ++dim) {
+                              fprintf(vvp_out, "%cF%d:%d",
+                                      emitted ? ',' : '!',
+                                      ivl_type_packed_msb(leaf, dim),
+                                      ivl_type_packed_lsb(leaf, dim));
+                              emitted = 1;
+                        }
+                        leaf = ivl_type_element(leaf);
+                  }
                   const ivl_variable_type_t leaf_base = ivl_type_base(leaf);
-                  const int left = ivl_type_packed_msb(cur, 0);
-                  const int right = ivl_type_packed_lsb(cur, 0);
                   const char kind = leaf_base == IVL_VT_BOOL ? 'b'
                         : leaf_base == IVL_VT_LOGIC ? 'v' : 'o';
-                  fprintf(vvp_out, "%cF%d:%d:%c", emitted ? ',' : '!',
-                          left, right, kind);
+                  fprintf(vvp_out, ":%c", kind);
                   if (kind != 'o')
                         fprintf(vvp_out, "%u", ivl_type_packed_width(leaf));
                   break;

@@ -1,0 +1,2 @@
+issue1476_dynamic_array_fixed_inner_2017 normal,-g2017,-s,top ivltests gold=issue1476_dynamic_array_fixed_inner-vvp-stdout.gold
+issue1476_dynamic_array_fixed_inner_2023 normal,-g2023,-s,top ivltests gold=issue1476_dynamic_array_fixed_inner-vvp-stdout.gold

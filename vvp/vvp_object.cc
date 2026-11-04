@@ -47,8 +47,35 @@ vvp_container_layout_t vvp_make_container_layout(
 vvp_container_layout_t vvp_make_fixed_container_layout(
       int left, int right, vvp_fixed_leaf_kind_t leaf, unsigned width)
 {
+      vector<pair<int,int> > dimensions(1, make_pair(left, right));
+      return vvp_make_fixed_container_layout(dimensions, leaf, width);
+}
+
+vvp_container_layout_t vvp_make_fixed_container_layout(
+      const vector<pair<int,int> >&dimensions,
+      vvp_fixed_leaf_kind_t leaf, unsigned width)
+{
       return vvp_container_layout_t(new vvp_container_layout_s(
-            left, right, leaf, width));
+            dimensions, leaf, width));
+}
+
+uint64_t vvp_fixed_array_element_count(
+      const vvp_container_layout_t&layout)
+{
+      if (!layout || layout->kind != VVP_CONTAINER_FIXED
+          || layout->fixed_dimensions.empty())
+            return 0;
+
+      uint64_t count = 1;
+      for (const pair<int,int>&dim : layout->fixed_dimensions) {
+            const int64_t left = dim.first, right = dim.second;
+            const uint64_t width = static_cast<uint64_t>(
+                  left >= right ? left - right : right - left) + 1;
+            if (width == 0 || count > UINT_MAX / width)
+                  return 0;
+            count *= width;
+      }
+      return count;
 }
 
 vvp_object_t vvp_make_fixed_array_value(
@@ -56,10 +83,9 @@ vvp_object_t vvp_make_fixed_array_value(
 {
       if (!layout || layout->kind != VVP_CONTAINER_FIXED)
             return vvp_object_t();
-      const int64_t left = layout->fixed_left;
-      const int64_t right = layout->fixed_right;
-      const uint64_t count = static_cast<uint64_t>(
-            left >= right ? left - right : right - left) + 1;
+      const uint64_t count = vvp_fixed_array_element_count(layout);
+      if (count == 0)
+            return vvp_object_t();
       vvp_darray*array = 0;
       switch (layout->fixed_leaf) {
           case VVP_FIXED_BOOL:
@@ -92,40 +118,96 @@ void vvp_rebind_fixed_array_value(
       if (array) {
             const vvp_container_layout_t source =
                   value->declared_container_layout();
-            const bool dst_desc = layout->fixed_left > layout->fixed_right;
-            bool reverse = false;
-            if (source && source->kind == VVP_CONTAINER_FIXED)
-                  reverse = (source->fixed_left > source->fixed_right)
-                        != dst_desc;
-            else
-                  reverse = dst_desc;
+            const uint64_t count = vvp_fixed_array_element_count(layout);
+            vector<size_t>widths(layout->fixed_dimensions.size(), 0);
+            vector<size_t>strides(layout->fixed_dimensions.size(), 1);
+            uint64_t total = 1;
+            bool compatible = count != 0;
+            for (size_t idx = 0; idx < layout->fixed_dimensions.size(); ++idx) {
+                  const pair<int,int>&dim = layout->fixed_dimensions[idx];
+                  const uint64_t width = static_cast<uint64_t>(
+                        dim.first >= dim.second
+                        ? int64_t(dim.first) - int64_t(dim.second)
+                        : int64_t(dim.second) - int64_t(dim.first)) + 1;
+                  if (width == 0 || total > UINT_MAX / width) {
+                        compatible = false;
+                        break;
+                  }
+                  widths[idx] = static_cast<size_t>(width);
+                  total *= width;
+            }
+            for (size_t idx = strides.size(); idx > 1; --idx)
+                  strides[idx-2] = strides[idx-1] * widths[idx-1];
 
-            const int64_t left = layout->fixed_left;
-            const int64_t right = layout->fixed_right;
-            const uint64_t count = static_cast<uint64_t>(
-                  left >= right ? left - right : right - left) + 1;
-            if (reverse && array->get_size() == count) {
+            bool reverse = false;
+            vector<bool>reverse_dim(layout->fixed_dimensions.size(), false);
+            if (compatible && source
+                && source->kind == VVP_CONTAINER_FIXED
+                && source->fixed_dimensions.size()
+                     == layout->fixed_dimensions.size()) {
+                  for (size_t idx = 0; idx < reverse_dim.size(); ++idx) {
+                        const pair<int,int>&src = source->fixed_dimensions[idx];
+                        const pair<int,int>&dst = layout->fixed_dimensions[idx];
+                        const uint64_t src_width = static_cast<uint64_t>(
+                              src.first >= src.second
+                              ? int64_t(src.first) - int64_t(src.second)
+                              : int64_t(src.second) - int64_t(src.first)) + 1;
+                        const uint64_t dst_width = static_cast<uint64_t>(
+                              dst.first >= dst.second
+                              ? int64_t(dst.first) - int64_t(dst.second)
+                              : int64_t(dst.second) - int64_t(dst.first)) + 1;
+                        if (src_width != dst_width) {
+                              compatible = false;
+                              break;
+                        }
+                        reverse_dim[idx] =
+                              (src.first > src.second) != (dst.first > dst.second);
+                        reverse = reverse || reverse_dim[idx];
+                  }
+            } else if (compatible) {
+                  for (size_t idx = 0; idx < reverse_dim.size(); ++idx) {
+                        const pair<int,int>&dst = layout->fixed_dimensions[idx];
+                        reverse_dim[idx] = dst.first > dst.second;
+                        reverse = reverse || reverse_dim[idx];
+                  }
+            }
+
+            if (compatible && reverse && array->get_size() == count) {
                   const size_t size = array->get_size();
-                  for (size_t idx = 0; idx < size / 2; ++idx) {
-                        const unsigned lo = static_cast<unsigned>(idx);
-                        const unsigned hi = static_cast<unsigned>(size-1-idx);
+                  vector<size_t>order(size);
+                  for (size_t idx = 0; idx < size; ++idx) {
+                        size_t rest = idx;
+                        size_t mapped = 0;
+                        for (size_t dim = 0; dim < reverse_dim.size(); ++dim) {
+                              const size_t width = widths[dim];
+                              const size_t coord = width
+                                    ? rest / strides[dim] : 0;
+                              if (width)
+                                    rest %= strides[dim];
+                              const size_t new_coord = reverse_dim[dim]
+                                    ? static_cast<size_t>(width - 1 - coord)
+                                    : coord;
+                              mapped += new_coord * strides[dim];
+                        }
+                        order[idx] = mapped;
+                  }
+                  for (size_t idx = 0; idx < size; ++idx) {
+                        const size_t other = order[idx];
+                        if (other <= idx) continue;
                         if (layout->fixed_leaf == VVP_FIXED_OBJECT) {
                               vvp_object_t a, b;
-                              array->get_word(lo, a);
-                              array->get_word(hi, b);
-                              array->set_word(lo, b);
-                              array->set_word(hi, a);
+                              array->get_word(static_cast<unsigned>(idx), a);
+                              array->get_word(static_cast<unsigned>(other), b);
+                              array->set_word(static_cast<unsigned>(idx), b);
+                              array->set_word(static_cast<unsigned>(other), a);
                         } else {
                               vvp_vector4_t a, b;
-                              array->get_word(lo, a);
-                              array->get_word(hi, b);
-                              array->set_word(lo, b);
-                              array->set_word(hi, a);
+                              array->get_word(static_cast<unsigned>(idx), a);
+                              array->get_word(static_cast<unsigned>(other), b);
+                              array->set_word(static_cast<unsigned>(idx), b);
+                              array->set_word(static_cast<unsigned>(other), a);
                         }
                   }
-                  std::vector<size_t> order(size);
-                  for (size_t idx = 0; idx < size; ++idx)
-                        order[idx] = size - 1 - idx;
                   array->reorder_element_refs(order);
                   array->reorder_rand_modes(order);
             }
@@ -167,7 +249,7 @@ static bool parse_strict_container_layout_(
 {
       vector<vvp_container_layout_kind_t> kinds;
       vector<uint64_t> queue_bounds;
-      int fixed_left = 0, fixed_right = 0;
+      vector<pair<int,int> > fixed_dimensions;
       vvp_fixed_leaf_kind_t fixed_leaf = VVP_FIXED_OBJECT;
       unsigned fixed_width = 0;
       if (!cur || *cur != '!')
@@ -191,36 +273,55 @@ static bool parse_strict_container_layout_(
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
             } else if (*cur == 'F') {
-                  if (kinds.empty()
-                      || kinds.back() == VVP_CONTAINER_FIXED)
+                  if (kinds.empty())
                         return false;
-                  ++cur;
-                  if (!parse_layout_int_(cur, fixed_left) || *cur != ':')
-                        return false;
-                  ++cur;
-                  if (!parse_layout_int_(cur, fixed_right) || *cur != ':')
-                        return false;
-                  ++cur;
-                  const int64_t left = fixed_left, right = fixed_right;
-                  const uint64_t count = static_cast<uint64_t>(
-                        left >= right ? left - right : right - left) + 1;
-                  if (count > UINT_MAX)
-                        return false;
-                  if (*cur == 'b') fixed_leaf = VVP_FIXED_BOOL;
-                  else if (*cur == 'v') fixed_leaf = VVP_FIXED_LOGIC;
-                  else if (*cur == 'o') fixed_leaf = VVP_FIXED_OBJECT;
-                  else return false;
-                  ++cur;
-                  uint64_t width = 0;
-                  if (fixed_leaf == VVP_FIXED_OBJECT) {
-                        if (*cur) return false;
-                  } else if (!parse_layout_uint64_(cur, width)
-                             || width == 0 || width > UINT_MAX || *cur) {
-                        return false;
+                  fixed_dimensions.clear();
+                  while (true) {
+                        if (*cur != 'F')
+                              return false;
+                        ++cur;
+                        int left = 0, right = 0;
+                        if (!parse_layout_int_(cur, left) || *cur != ':')
+                              return false;
+                        ++cur;
+                        if (!parse_layout_int_(cur, right))
+                              return false;
+                        fixed_dimensions.push_back(make_pair(left, right));
+                        if (vvp_fixed_array_element_count(
+                                  vvp_make_fixed_container_layout(
+                                        fixed_dimensions,
+                                        VVP_FIXED_OBJECT, 0)) == 0)
+                              return false;
+
+                        if (*cur == ',') {
+                              ++cur;
+                              if (*cur != 'F')
+                                    return false;
+                              continue;
+                        }
+                        if (*cur != ':')
+                              return false;
+                        ++cur;
+                        if (*cur == 'b') fixed_leaf = VVP_FIXED_BOOL;
+                        else if (*cur == 'v') fixed_leaf = VVP_FIXED_LOGIC;
+                        else if (*cur == 'o') fixed_leaf = VVP_FIXED_OBJECT;
+                        else return false;
+                        ++cur;
+                        uint64_t width = 0;
+                        if (fixed_leaf == VVP_FIXED_OBJECT) {
+                              if (*cur) return false;
+                        } else if (!parse_layout_uint64_(cur, width)
+                                   || width == 0 || width > UINT_MAX || *cur) {
+                              return false;
+                        }
+                        fixed_width = static_cast<unsigned>(width);
+                        kinds.push_back(VVP_CONTAINER_FIXED);
+                        queue_bounds.push_back(0);
+                        break;
                   }
-                  fixed_width = static_cast<unsigned>(width);
-                  kinds.push_back(VVP_CONTAINER_FIXED);
-                  queue_bounds.push_back(0);
+                  if (*cur)
+                        return false;
+                  break;
             } else {
                   return false;
             }
@@ -240,7 +341,7 @@ static bool parse_strict_container_layout_(
             const vvp_container_layout_kind_t kind = kinds[idx-1];
             if (kind == VVP_CONTAINER_FIXED) {
                   result = vvp_make_fixed_container_layout(
-                        fixed_left, fixed_right, fixed_leaf, fixed_width);
+                        fixed_dimensions, fixed_leaf, fixed_width);
             } else {
                   result = vvp_make_container_layout(
                         kind, kind == VVP_CONTAINER_QUEUE,

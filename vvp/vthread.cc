@@ -22480,6 +22480,14 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	    if (word.test_nil() && obj->declared_type()) {
 		  word = vvp_object_t(new vvp_cobject(obj->declared_type()));
 		  darray->set_word(static_cast<unsigned>(adr), word);
+	    } else if (word.test_nil()
+		       && darray->declared_element_container_layout()
+		       && darray->declared_element_container_layout()->kind
+				  == VVP_CONTAINER_FIXED) {
+		  word = vvp_make_fixed_array_value(
+			darray->declared_element_container_layout());
+		  if (!word.test_nil())
+			darray->set_word(static_cast<unsigned>(adr), word);
 	    }
       }
       // else word remains nil (default-constructed vvp_object_t)
@@ -23435,10 +23443,8 @@ static inline bool apply_declared_child_container_layout_(
 	    parent->declared_element_container_layout();
       if (child_layout && child_layout->kind == VVP_CONTAINER_FIXED) {
 	    vvp_darray*array = child.peek<vvp_darray>();
-	    const int64_t left = child_layout->fixed_left;
-	    const int64_t right = child_layout->fixed_right;
-	    const uint64_t count = static_cast<uint64_t>(
-		  left >= right ? left - right : right - left) + 1;
+	    const uint64_t count =
+		  vvp_fixed_array_element_count(child_layout);
 	    if (!array || array->get_size() != count) {
 		  cerr << "RUN-TIME ERROR: cannot copy a container of size "
 		       << (array ? array->get_size() : 0)
@@ -24230,6 +24236,14 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
 	    if (word.test_nil() && arr->elem_class()) {
 		  word = vvp_object_t(new vvp_cobject(arr->elem_class()));
 		  arr->set_word(adr, word);
+	    } else if (word.test_nil()
+		       && arr->declared_element_container_layout()
+		       && arr->declared_element_container_layout()->kind
+				  == VVP_CONTAINER_FIXED) {
+		  word = vvp_make_fixed_array_value(
+			arr->declared_element_container_layout());
+		  if (!word.test_nil())
+			arr->set_word(adr, word);
 	    }
       }
 

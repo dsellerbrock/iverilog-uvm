@@ -3395,6 +3395,43 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    return errors;
       }
 
+	/* A dynamically selected element of an unpacked array value is object
+	 * backed. Keep the outer darray index as the receiver load, then use the
+	 * canonical fixed-array word carried in PART to store the scalar leaf. */
+      if (part && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+	  && type_is_fixed_uarray_property_(element_type)) {
+	    ivl_type_t leaf_type = element_type;
+	    while (type_is_fixed_uarray_property_(leaf_type))
+		  leaf_type = ivl_type_element(leaf_type);
+	    ivl_variable_type_t leaf_kind = ivl_type_base(leaf_type);
+	    if (leaf_kind != IVL_VT_BOOL && leaf_kind != IVL_VT_LOGIC) {
+		  fprintf(stderr, "%s:%u: sorry: assignment to this dynamic-array "
+			  "fixed-array leaf type is not yet supported.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return errors + 1;
+	    }
+	    unsigned leaf_width = ivl_type_packed_width(leaf_type);
+	    if (leaf_width == 0)
+		  leaf_width = 1;
+	    int mux_word = allocate_word();
+	    int flag = allocate_flag();
+	    draw_eval_expr_into_integer(ivl_lval_idx(lval), 3);
+	    fprintf(vvp_out, "    %%ix/mov %d, 3; dynamic-array receiver index\n",
+		    mux_word);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; dynamic-array index validity\n",
+		    flag);
+	    fprintf(vvp_out, "    %%load/dar/obj v%p_0; fixed-array l-value element\n",
+		    var);
+	    draw_eval_expr_into_integer(part, 3);
+	    draw_eval_vec4(rval);
+	    resize_vec4_wid(rval, leaf_width);
+	    fprintf(vvp_out, "    %%store/qo/i/v %u; fixed-array leaf store\n",
+		    leaf_width);
+	    clr_flag(flag);
+	    clr_word(mux_word);
+	    return errors;
+      }
+
 	/* Part/bit-select store into a dynamic-array (or queue) element
 	   whose base type is a packed vector: d[i][off +: wid] = rhs. Lower
 	   as a read-modify-write with %store/dar/vec4/off. The element-

@@ -23,6 +23,8 @@
 # include  <stdint.h>
 # include  <limits.h>
 # include  <memory>
+# include  <utility>
+# include  <vector>
 class vvp_net_t;
 class vvp_object;
 class vvp_object_t;
@@ -68,11 +70,14 @@ struct vvp_container_layout_s {
         queue_max_size(max_size), element(child), fixed_left(0),
         fixed_right(0), fixed_leaf(VVP_FIXED_OBJECT), fixed_width(0) { }
 
-      vvp_container_layout_s(int left, int right,
-                             vvp_fixed_leaf_kind_t leaf, unsigned width)
+      vvp_container_layout_s(
+            const std::vector<std::pair<int,int> >&dimensions,
+            vvp_fixed_leaf_kind_t leaf, unsigned width)
       : kind(VVP_CONTAINER_FIXED), queue_bound_known(false),
-        queue_max_size(0), element(), fixed_left(left),
-        fixed_right(right), fixed_leaf(leaf), fixed_width(width) { }
+        queue_max_size(0), element(),
+        fixed_left(dimensions.empty() ? 0 : dimensions[0].first),
+        fixed_right(dimensions.empty() ? 0 : dimensions[0].second),
+        fixed_leaf(leaf), fixed_width(width), fixed_dimensions(dimensions) { }
 
       vvp_container_layout_kind_t kind;
       bool queue_bound_known;
@@ -82,6 +87,7 @@ struct vvp_container_layout_s {
       int fixed_right;
       vvp_fixed_leaf_kind_t fixed_leaf;
       unsigned fixed_width;
+      std::vector<std::pair<int,int> > fixed_dimensions;
 };
 
 extern vvp_container_layout_t vvp_make_container_layout(
@@ -89,6 +95,11 @@ extern vvp_container_layout_t vvp_make_container_layout(
       uint64_t queue_max_size, const vvp_container_layout_t&element);
 extern vvp_container_layout_t vvp_make_fixed_container_layout(
       int left, int right, vvp_fixed_leaf_kind_t leaf, unsigned width);
+extern vvp_container_layout_t vvp_make_fixed_container_layout(
+      const std::vector<std::pair<int,int> >&dimensions,
+      vvp_fixed_leaf_kind_t leaf, unsigned width);
+extern uint64_t vvp_fixed_array_element_count(
+      const vvp_container_layout_t&layout);
 extern vvp_object_t vvp_make_fixed_array_value(
       const vvp_container_layout_t&layout);
 extern void vvp_rebind_fixed_array_value(

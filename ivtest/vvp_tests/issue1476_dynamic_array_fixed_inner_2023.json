@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1476_dynamic_array_fixed_inner.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue1476_dynamic_array_fixed_inner"
+}

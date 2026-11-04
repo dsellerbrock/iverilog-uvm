@@ -3645,21 +3645,52 @@ static NetExpr* apply_trailing_container_indices_(
 	    }
 
 	    NetExpr*index_expr = nullptr;
+	    ivl_type_t selected_elem_type = nullptr;
+	    unsigned selected_elem_width = 0;
 	    if (idx_comp.sel == index_component_t::SEL_BIT
 		       && idx_comp.msb && !idx_comp.lsb) {
 		  if (const netuarray_t*fixed =
 			dynamic_cast<const netuarray_t*>(cur_type)) {
-			if (fixed->static_dimensions().size() != 1) {
-			      cerr << loc.get_fileline() << ": sorry: an associative-array"
-				   << " value with more than one fixed dimension is not"
+			netranges_t fixed_dims;
+			ivl_type_t fixed_leaf = fixed;
+			while (const netuarray_t*dimension =
+			       dynamic_cast<const netuarray_t*>(fixed_leaf)) {
+			      fixed_dims.insert(fixed_dims.end(),
+				    dimension->static_dimensions().begin(),
+				    dimension->static_dimensions().end());
+			      fixed_leaf = dimension->element_type();
+			}
+			if (fixed_dims.empty()
+			    || static_cast<size_t>(distance(idx_it, indices.end()))
+			       < fixed_dims.size()) {
+			      cerr << loc.get_fileline() << ": sorry: partial indexing of a"
+				   << " multidimensional fixed-array container element is not"
 				   << " yet supported." << endl;
 			      des->errors += 1;
 			      delete cur_expr;
 			      return nullptr;
 			}
-			list<index_component_t>fixed_index(1, idx_comp);
+			list<index_component_t>fixed_index(idx_it, indices.end());
+			list<index_component_t>::iterator fixed_end = fixed_index.begin();
+			advance(fixed_end, fixed_dims.size());
+			fixed_index.erase(fixed_end, fixed_index.end());
+			for (const index_component_t&fixed_idx : fixed_index)
+			      if (fixed_idx.sel != index_component_t::SEL_BIT
+				  || !fixed_idx.msb || fixed_idx.lsb) {
+				    cerr << loc.get_fileline() << ": sorry: this fixed-array"
+					 << " container index form is not yet supported." << endl;
+				    des->errors += 1;
+				    delete cur_expr;
+				    return nullptr;
+			      }
+			netuarray_t flattened_fixed(fixed_dims, fixed_leaf);
 			index_expr = make_checked_canonical_property_index(
-			      des, scope, &loc, fixed_index, fixed, false);
+			      des, scope, &loc, fixed_index, &flattened_fixed, false);
+			selected_elem_type = fixed_leaf;
+			selected_elem_width = fixed_leaf ? fixed_leaf->packed_width() : 1;
+			list<index_component_t>::const_iterator consumed = idx_it;
+			advance(consumed, fixed_dims.size() - 1);
+			idx_it = consumed;
 		  } else {
 			index_expr = elab_assoc_index(des, scope, idx_comp.msb,
 					      cur_type, false);
@@ -3678,8 +3709,11 @@ static NetExpr* apply_trailing_container_indices_(
 		  return nullptr;
 	    }
 
-	    ivl_type_t elem_type = array_type->element_type();
-	    unsigned elem_width = elem_type ? elem_type->packed_width() : 1;
+	    ivl_type_t elem_type = selected_elem_type
+		  ? selected_elem_type : array_type->element_type();
+	    unsigned elem_width = selected_elem_type
+		  ? selected_elem_width
+		  : elem_type ? elem_type->packed_width() : 1;
 	    if (const netdarray_t*darray_type =
 		  dynamic_cast<const netdarray_t*>(cur_type))
 		  elem_width = darray_type->element_width();
@@ -31913,28 +31947,71 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			unsigned ew = 1;
 			if (level_darray)
 			      ew = level_darray->element_width();
-			if (level_fixed && et)
-			      ew = et->packed_width();
-			if (ew == 0)
-			      ew = 1;
-
-			NetExpr*mux = nullptr;
 			if (level_fixed) {
-			      if (level_fixed->static_dimensions().size() != 1) {
-				    cerr << get_fileline() << ": sorry: an associative-array"
-					 << " value with more than one fixed dimension is not"
-					 << " yet supported." << endl;
+			      netranges_t fixed_dims;
+			      ivl_type_t fixed_leaf = level_fixed;
+			      while (const netuarray_t*dimension =
+				     dynamic_cast<const netuarray_t*>(fixed_leaf)) {
+				    fixed_dims.insert(fixed_dims.end(),
+					  dimension->static_dimensions().begin(),
+					  dimension->static_dimensions().end());
+				    fixed_leaf = dimension->element_type();
+			      }
+			      if (fixed_dims.empty()
+				  || static_cast<size_t>(distance(
+				       idx_it, path_.back().index.end()))
+				       < fixed_dims.size()) {
+				    cerr << get_fileline() << ": sorry: partial indexing of a"
+					 << " multidimensional fixed-array dynamic-container"
+					 << " element is not yet supported." << endl;
 				    des->errors += 1;
 				    delete cur_sel;
 				    return 0;
 			      }
-			      list<index_component_t>fixed_index(1, level_index);
-			      mux = make_checked_canonical_property_index(
-				    des, scope, this, fixed_index, level_fixed, need_const);
-			} else {
-			      mux = elab_assoc_index(des, scope, level_index.msb,
-						     level, need_const);
+			      list<index_component_t>fixed_index(
+				    idx_it, path_.back().index.end());
+			      list<index_component_t>::iterator fixed_end =
+				    fixed_index.begin();
+			      advance(fixed_end, fixed_dims.size());
+			      fixed_index.erase(fixed_end, fixed_index.end());
+			      for (const index_component_t&fixed_idx : fixed_index)
+				    if (fixed_idx.sel != index_component_t::SEL_BIT
+					|| !fixed_idx.msb || fixed_idx.lsb) {
+					  cerr << get_fileline() << ": sorry: this fixed-array"
+					       << " dynamic-container index form is not yet"
+					       << " supported." << endl;
+					  des->errors += 1;
+					  delete cur_sel;
+					  return 0;
+				    }
+			      netuarray_t flattened_fixed(fixed_dims, fixed_leaf);
+			      NetExpr*mux = make_checked_canonical_property_index(
+				    des, scope, this, fixed_index, &flattened_fixed,
+				    need_const);
+			      if (!mux) {
+				    delete cur_sel;
+				    return 0;
+			      }
+			      ew = fixed_leaf ? fixed_leaf->packed_width() : 1;
+			      if (ew == 0) ew = 1;
+			      NetESelect*sel = fixed_leaf
+				    ? new NetESelect(cur_sel, mux, ew, fixed_leaf)
+				    : new NetESelect(cur_sel, mux, ew);
+			      sel->set_line(*this);
+			      cur_sel = sel;
+			      cur_type = fixed_leaf;
+			      advance(idx_it, fixed_dims.size());
+			      level = dynamic_cast<const netdarray_t*>(fixed_leaf);
+			      if (!level)
+				    level = dynamic_cast<const netuarray_t*>(fixed_leaf);
+			      continue;
 			}
+			if (ew == 0)
+			      ew = 1;
+
+			NetExpr*mux = nullptr;
+			mux = elab_assoc_index(des, scope, level_index.msb,
+					     level, need_const);
 			if (!mux) {
 			      delete cur_sel;
 			      return 0;
