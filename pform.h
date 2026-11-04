@@ -571,6 +571,12 @@ pform_sva_tree_intersect(const struct vlltype&loc,
 extern sva_property_t*
 pform_sva_tree_concat(const struct vlltype&loc, sva_property_t*prefix,
 		      PExpr*delay, std::vector<sva_seq_step_t>*suffix);
+/* IEEE 1800-2017/2023 16.12.9: followed-by is an existential sequence
+   concatenation for sequence consequents, not an implication (a missing
+   antecedent match is false, not vacuously true). Consumes both operands. */
+extern sva_property_t*
+pform_sva_followed_by(const struct vlltype&loc, int op_type,
+		      sva_property_t*ante, sva_property_t*conseq);
 
 /* M9-NFA stage B.4: `within`. Both-fixed operands keep the legacy op-8
    lowering; a non-fixed operand builds a SEQ_WITHIN tree for the

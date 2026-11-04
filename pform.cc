@@ -20097,6 +20097,71 @@ sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
       return out;
 }
 
+/* IEEE 1800-2017/2023 16.12.9: for sequence consequents, followed-by is
+   the sequence composition that requires an antecedent match and then a
+   consequent match at that endpoint (or the following tick). This keeps
+   the required existential, non-vacuous semantics in the sequence NFA.
+   The property IR has no recursive evaluator for arbitrary temporal
+   consequents, so retain a focused diagnostic for those legal forms. */
+sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
+				      sva_property_t*ante,
+				      sva_property_t*conseq)
+{
+      auto is_sequence = [](const sva_property_t*p) -> bool {
+	    return p && p->op_type == 0 && (p->seq || p->tree)
+		  && !(p->seq && p->tree) && !p->sequence_cover
+		  && !p->antecedent && !p->ante_tree && !p->clk_evt
+		  && !p->seq_clk_evt && !p->mc_prefix && p->mc_boundary == -1
+		  && !p->mc_more && p->mc_antecedent_domains == 0
+		  && !p->disable_iff_expr && p->strength == 0
+		  && !p->forbidden_consequent && p->win_lo == -1
+		  && p->win_hi == -1 && !p->abort_cond
+		  && p->local_names.empty() && p->local_input_actual_names.empty();
+      };
+
+      if (!is_sequence(ante) || !is_sequence(conseq)
+	  || (op_type != 1 && op_type != 2)) {
+	    const char*edition = generation_flag >= GN_VER2023
+		  ? "IEEE 1800-2023" : "IEEE 1800-2017";
+	    if (!is_sequence(conseq))
+		  cerr << loc << ": sorry: followed-by with a temporal-property "
+		       << "consequent is not supported yet (" << edition
+		       << " 16.12.9 makes it legal); the assertion is dropped."
+		       << endl;
+	    else
+		  cerr << loc << ": sorry: followed-by currently supports only "
+		       << "unclocked sequence-expression operands (" << edition
+		       << " 16.12.9); the assertion is dropped." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(ante);
+	    pform_sva_destroy_property(conseq);
+	    return nullptr;
+      }
+
+      int tree_sorry = ante->tree_sorry ? ante->tree_sorry : conseq->tree_sorry;
+	/* The tree_sorry value is a deferred diagnostic attached to the complete
+	   sequence tree. Preserve either operand's reason through composition. */
+      sva_stree_t*left = sva_prop_take_tree_(ante);
+      sva_stree_t*right = sva_prop_take_tree_(conseq);
+      if (!left || !right) {
+	    sva_tree_delete_(left, true);
+	    sva_tree_delete_(right, true);
+	    return nullptr;
+      }
+      sva_stree_t*tree = new sva_stree_t;
+      tree->kind = sva_stree_t::SEQ_CONCAT;
+      tree->a = left;
+      tree->b = right;
+      tree->concat_overlap = (op_type == 1);
+
+      sva_property_t*p = new sva_property_t;
+      p->tree = tree;
+      p->tree_sorry = tree_sorry;
+      p->op_type = 0;
+      (void)loc;
+      return p;
+}
+
 /* M9-NFA stage B.4: `within` (16.9.6). Both-fixed operands keep the
    legacy $past-sampled combinational lowering (op 8), identical under
    both engines. Any non-fixed operand builds a SEQ_WITHIN tree for the

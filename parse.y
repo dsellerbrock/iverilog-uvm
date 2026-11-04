@@ -2680,7 +2680,8 @@ static Module::port_t *module_declare_explicit_port(
 %token K_PO_POS K_PO_NEG K_POW
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
-%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR K_LBGOTO K_LBEQ
+%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_FOLLOWED_BY_OV K_FOLLOWED_BY_NOV
+%token K_LBSTAR K_LBGOTO K_LBEQ
 %token K_SCOPE_RES
 %token <text> K_edge_descriptor
 
@@ -9601,6 +9602,27 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 		@2, 1, $1, $3, $4, $5); }
   | sva_seq_expr K_PIPE_IMPL_NOV property_expr
       { $$ = pform_sva_paren_conseq(@2, 2, $1, $3); }
+  /* IEEE 1800-2017/2023 16.12.9: followed-by requires both a sequence
+     match and a consequent match, so preserve its non-vacuous sequence
+     composition directly. The helper accepts sequence properties and
+     retains a targeted diagnostic for other property operators that this
+     lowering cannot evaluate recursively yet. */
+  | sva_seq_expr K_FOLLOWED_BY_OV property_expr
+      { $$ = pform_sva_followed_by(@2, 1, pform_sva_leaf_prop($1), $3); }
+  | sva_seq_comb K_FOLLOWED_BY_OV property_expr
+      { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
+  | sva_grouped_seq_comb K_FOLLOWED_BY_OV property_expr
+      { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
+  | sva_seq_comb_concat K_FOLLOWED_BY_OV property_expr
+      { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
+  | sva_seq_expr K_FOLLOWED_BY_NOV property_expr
+      { $$ = pform_sva_followed_by(@2, 2, pform_sva_leaf_prop($1), $3); }
+  | sva_seq_comb K_FOLLOWED_BY_NOV property_expr
+      { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
+  | sva_grouped_seq_comb K_FOLLOWED_BY_NOV property_expr
+      { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
+  | sva_seq_comb_concat K_FOLLOWED_BY_NOV property_expr
+      { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
   /* IEEE 1800-2017 16.13.3: multiclocked implication `@(c1) a |=> @(c2) b'
      — the consequent carries its own clocking event. The leading `@(c1)'
      is the property's clocking_event_opt; this event_control clocks the
