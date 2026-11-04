@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1515_vector_strength.v",
+  "iverilog-args": ["-g2023", "-s", "tb"],
+  "gold": "issue1515_vector_strength"
+}

@@ -105,7 +105,7 @@ struct parmvalue_t {
 
 extern void delete_parmvalue(struct parmvalue_t*parms);
 
-struct str_pair_t { ivl_drive_t str0, str1; };
+struct str_pair_t { ivl_drive_t str0, str1; bool specified; };
 
   /* Use this function to transform the parted form of the attribute
      list to the attribute map that is used later. */

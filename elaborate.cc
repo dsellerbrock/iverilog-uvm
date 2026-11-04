@@ -4491,6 +4491,24 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	/* Supply nets are lowered to wires with an attached supply-strength pull;
+	 * retain their declared type for the exception in IEEE 1800-2017/2023
+	 * 10.3.4. */
+      if (generation_flag >= GN_VER2017 && strength_specified()
+	  && lval->vector_width() > 1
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY0
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY1) {
+	    cerr << get_fileline() << ": error: Drive strength may only be "
+		 << "specified for assignments to scalar nets, except for "
+		    "supply0 and supply1 nets (IEEE 1800-2017/2023 10.3.4)."
+		 << endl;
+	    des->errors += 1;
+	    if (lval->local_flag())
+		  delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
       if (ivl_type_contains_chandle_(lval->net_type())) {
 	    cerr << get_fileline() << ": error: chandle is not permitted in a "
 		 << "continuous assignment (IEEE 1800-2017/2023 6.14)." << endl;

@@ -47,6 +47,7 @@ PGate::PGate(perm_string name, list<PExpr*>*pins, const list<PExpr*>*del)
       if (del) delay_.set_delays(del);
       str0_ = IVL_DR_STRONG;
       str1_ = IVL_DR_STRONG;
+      strength_specified_ = false;
 }
 
 PGate::PGate(perm_string name, list<PExpr*>*pins, PExpr*del)
@@ -56,6 +57,7 @@ PGate::PGate(perm_string name, list<PExpr*>*pins, PExpr*del)
       if (del) delay_.set_delay(del);
       str0_ = IVL_DR_STRONG;
       str1_ = IVL_DR_STRONG;
+      strength_specified_ = false;
 }
 
 PGate::PGate(perm_string name, list<PExpr*>*pins)
@@ -64,6 +66,7 @@ PGate::PGate(perm_string name, list<PExpr*>*pins)
       if (pins) set_pins_(pins);
       str0_ = IVL_DR_STRONG;
       str1_ = IVL_DR_STRONG;
+      strength_specified_ = false;
 }
 
 PGate::~PGate()
@@ -94,6 +97,16 @@ ivl_drive_t PGate::strength1() const
 void PGate::strength1(ivl_drive_t s)
 {
       str1_ = s;
+}
+
+bool PGate::strength_specified() const
+{
+      return strength_specified_;
+}
+
+void PGate::strength_specified(bool specified)
+{
+      strength_specified_ = specified;
 }
 
 void PGate::elaborate_scope(Design*, NetScope*) const
