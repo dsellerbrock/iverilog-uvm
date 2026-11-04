@@ -56,7 +56,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
       struct { char* src; char* dst; } pathpulse;
 };
 
-%token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE
+%token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE K_DEVICE
 %token K_DELAY K_DESIGN K_DIVIDER K_HOLD K_INCREMENT K_INSTANCE
 %token K_INTERCONNECT K_IOPATH K_NEGEDGE K_NETDELAY K_PATHPULSE K_PATHPULSEPERCENT
 %token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM
@@ -394,6 +394,16 @@ del_def
       }
   | '(' K_INTERCONNECT error ')'
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed INTERCONNECT\n",
+	           sdf_parse_path, @2.first_line);
+      }
+  | '(' K_DEVICE delval_list ')'
+      { sdf_device_delays(0, &$3, @2.first_line); }
+  | '(' K_DEVICE port_instance delval_list ')'
+      { sdf_device_delays($3, &$4, @2.first_line);
+	free($3);
+      }
+  | '(' K_DEVICE error ')'
+      { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed DEVICE\n",
 	           sdf_parse_path, @2.first_line);
       }
   | '(' K_PORT port_interconnect delval_list ')'

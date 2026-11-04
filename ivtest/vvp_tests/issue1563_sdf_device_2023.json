@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1563_sdf_device.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "gold": "issue1563_sdf_device",
+  "output-contains": ["PASSED"]
+}

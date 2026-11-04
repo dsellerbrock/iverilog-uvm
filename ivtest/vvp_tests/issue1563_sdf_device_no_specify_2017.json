@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1563_sdf_device_no_specify.v",
+  "iverilog-args": ["-g2017", "-gspecify"],
+  "gold": "issue1563_sdf_device_no_specify",
+  "output-contains": ["DEVICE output Y has no specify paths: primitive annotation unsupported", "PASSED"]
+}

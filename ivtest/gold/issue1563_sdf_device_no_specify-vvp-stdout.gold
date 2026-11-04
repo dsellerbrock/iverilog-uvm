@@ -1,0 +1,3 @@
+SDF ERROR: ivltests/issue1563_sdf_device_no_specify.sdf:7: DEVICE output Y has no specify paths: primitive annotation unsupported in issue1563_sdf_device_no_specify.u.
+PASSED
+ivltests/issue1563_sdf_device_no_specify.v:26: $finish called at 11000 (1ps)
