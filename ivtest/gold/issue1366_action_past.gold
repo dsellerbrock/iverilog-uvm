@@ -1,0 +1,3 @@
+action t=25 current=0 past=1
+PASS sampled value function inherits action-block leading clock
+PASSED
