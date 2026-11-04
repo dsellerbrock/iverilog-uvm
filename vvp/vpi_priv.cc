@@ -2110,6 +2110,29 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	if (out == 0 && !escaped_indexed)
 	    out = find_name(nm_base, hand);
 
+	/* A label on an assertion has both its procedural named-block scope
+	   and its VPI assertion identity. For a leaf lookup, expose the
+	   assertion object so vpi_register_assertion_cb receives the required
+	   vpiAssertion handle. Keep the named scope available for paths that
+	   descend into its local objects. */
+	if (out && (out->get_type_code() == vpiNamedBegin
+		    || out->get_type_code() == vpiNamedFork)) {
+	      __vpiScope*parent = dynamic_cast<__vpiScope*>(hand);
+	      const char*leaf_name_buf = out->vpi_get_str(vpiName);
+	      std::string leaf_name = leaf_name_buf ? leaf_name_buf : "";
+	      if (parent && !leaf_name.empty()) {
+		    for (size_t idx = 0; idx < parent->intern.size(); idx += 1) {
+			  vpiHandle item = parent->intern[idx];
+			  const char*item_name = item->vpi_get_str(vpiName);
+			  if (item->get_type_code() == vpiAssertion && item_name
+			      && leaf_name == item_name) {
+				out = item;
+				break;
+			  }
+		    }
+	      }
+	}
+
 	// M12: fall back to class-member descent for dotted paths
 	// whose prefix is a class variable in this scope.
       if (out == 0)
@@ -2960,6 +2983,7 @@ vpip_routines_s vpi_routines = {
     .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
+    .report_immediate_assertion = vpip_report_immediate_assertion,
     .print_finish_stats         = vpip_print_finish_stats,
     .covgrp_db                  = vpip_covgrp_db,
 };

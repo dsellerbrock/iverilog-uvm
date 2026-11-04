@@ -10546,7 +10546,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      std::list<named_pexpr_t> arg_list;
 	      PCallTask*tmp1 = new PCallTask(lex_strings.make("$error"), arg_list);
 	      FILE_NAME(tmp1, @1);
-	      $$ = pform_make_immediate_assertion(@1, $3, $5, tmp1);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, $5, tmp1);
 	} else {
 	      delete $3;
 	      delete $5;
@@ -10556,7 +10556,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_immediate_assertion(@1, $3, 0, $6);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, 0, $6);
 	} else {
 	      delete $3;
 	      delete $6;
@@ -10566,7 +10566,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' statement_or_null K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_immediate_assertion(@1, $3, $5, $7);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, $5, $7);
 	} else {
 	      delete $3;
 	      delete $5;

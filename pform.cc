@@ -13330,6 +13330,9 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
    parser-stage and recursion-depth state live with the procedural-clock
    parking code below; this declaration must precede registration helpers. */
 static perm_string sva_active_assertion_label_;
+/* Parser label for the assertion statement currently being reduced. */
+static perm_string sva_parser_assertion_label_;
+static unsigned sva_assertion_label_depth_ = 0;
 /* IEEE assertion-control selector: assert=1, cover=2, assume=4. */
 static unsigned sva_active_assertion_kind_ = 1;
 
@@ -13463,13 +13466,127 @@ Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
    expression. This also lets a preceding $assertoff rule apply when a named
    assertion's first execution occurs later. */
 static unsigned immediate_assertion_id_ = 0;
+
+/* The VVP target lowers this registration marker to load-time metadata so
+   VPI start-of-simulation callbacks can find the assertion. Keep the marker
+   outside a task/function body, while retaining the lexical path to the scope
+   containing the statement. */
+static LexicalScope* immediate_assertion_registration_scope_(
+	LexicalScope*scope)
+{
+      while (dynamic_cast<PBlock*>(scope)
+	     || dynamic_cast<PTaskFunc*>(scope)) {
+	    if (!scope->parent_scope()) break;
+	    scope = scope->parent_scope();
+      }
+      return scope;
+}
+
+static std::string immediate_assertion_scope_path_(LexicalScope*scope,
+						   LexicalScope*anchor)
+{
+      std::vector<std::string> components;
+      for (LexicalScope*cur = scope; cur && cur != anchor;
+	   cur = cur->parent_scope()) {
+	    perm_string name;
+	    if (PBlock*block = dynamic_cast<PBlock*>(cur))
+		  name = block->pscope_name();
+	    else if (PTaskFunc*subroutine = dynamic_cast<PTaskFunc*>(cur))
+		  name = subroutine->pscope_name();
+	    else if (PGenerate*generate = dynamic_cast<PGenerate*>(cur))
+		  name = generate->scope_name;
+	    if (!name.nil()) {
+		  std::string scope_name = name.str();
+		  /* These names are parser-generated for anonymous procedural
+		     blocks and do not denote VPI scopes. */
+		  if (scope_name.compare(0, 9, "$unm_blk_") != 0)
+			components.push_back(scope_name);
+	    }
+      }
+
+      std::string path;
+      for (std::vector<std::string>::reverse_iterator cur =
+	     components.rbegin(); cur != components.rend(); ++cur) {
+	    char length[32];
+	    snprintf(length, sizeof length, "%lu:",
+		     (unsigned long)cur->size());
+	    path += length;
+	    path += *cur;
+      }
+      return path;
+}
+
 Statement* pform_make_immediate_assertion(const struct vlltype&loc,
+						 unsigned assertion_kind,
 					 PExpr*expr,
 					 Statement*pass_stmt,
 					 Statement*fail_stmt)
 {
       unsigned id = ++immediate_assertion_id_;
       if (id == 0) id = ++immediate_assertion_id_;
+
+      std::string assertion_name;
+      if (sva_parser_assertion_label_.nil())
+	    {
+	      char nbuf[64];
+	      snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, id);
+	      assertion_name = nbuf;
+	    }
+      else
+	    assertion_name = sva_parser_assertion_label_.str();
+
+	/* Register the assertion before procedural execution so VPI clients can
+	   place callbacks on a labeled immediate assertion before its first
+	   evaluation. As for immediate cover registration, keep this initializer
+	   in the containing module scope rather than a procedural block scope. */
+      std::list<named_pexpr_t> reg_args;
+      named_pexpr_t reg_id;
+      reg_id.parm = new PENumber(new verinum((uint64_t)id, 32));
+      reg_args.push_back(reg_id);
+      named_pexpr_t reg_name;
+      reg_name.parm = new PEString(strdup(assertion_name.c_str()));
+      reg_args.push_back(reg_name);
+      named_pexpr_t reg_kind;
+      reg_kind.parm = new PENumber(new verinum((uint64_t)assertion_kind, 32));
+      reg_args.push_back(reg_kind);
+      LexicalScope*registration_scope =
+	    immediate_assertion_registration_scope_(lexical_scope);
+      std::string target_scope_path = immediate_assertion_scope_path_(
+	    lexical_scope, registration_scope);
+      named_pexpr_t reg_scope;
+      reg_scope.parm = new PEString(strdup(target_scope_path.c_str()));
+      reg_args.push_back(reg_scope);
+      PCallTask*reg = new PCallTask(
+	    lex_strings.make("$ivl_register_immediate_assertion"), reg_args);
+      FILE_NAME(reg, loc);
+      LexicalScope*saved_scope = lexical_scope;
+	lexical_scope = registration_scope;
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, reg, nullptr);
+      lexical_scope = saved_scope;
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(ip, initloc);
+
+      auto report = [loc,id](bool success) -> Statement* {
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t x;
+	    x.parm = new PENumber(new verinum((uint64_t)id, 32));
+	    args.push_back(x);
+	    named_pexpr_t y;
+	    y.parm = new PENumber(new verinum((uint64_t)success, 32));
+	    args.push_back(y);
+	    PCallTask*t = new PCallTask(
+		  lex_strings.make("$ivl_report_immediate_assertion"), args);
+	    FILE_NAME(t, loc);
+	    return t;
+      };
+
+      std::vector<Statement*> pass;
+      pass.push_back(report(true));
+      if (pass_stmt) pass.push_back(pass_stmt);
+      std::vector<Statement*> fail;
+      fail.push_back(report(false));
+      if (fail_stmt) fail.push_back(fail_stmt);
 
       std::list<named_pexpr_t> enabled_args;
       named_pexpr_t enabled_id;
@@ -13479,7 +13596,8 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
 	    perm_string::literal("$ivl_immediate_assert_enabled"), enabled_args);
       FILE_NAME(enabled, loc);
 
-      PCondit*assertion = new PCondit(expr, pass_stmt, fail_stmt);
+	PCondit*assertion = new PCondit(expr, sva_block_(loc, pass),
+				       sva_block_(loc, fail));
       assertion->immediate_assertion();
       FILE_NAME(assertion, loc);
       PCondit*guarded = new PCondit(enabled, assertion, nullptr);
@@ -27317,9 +27435,6 @@ static bool sva_named_prop_retry_active_ = false;
    attach block_identifier_opt. The grammar stages that label before parsing
    the statement; this active scope keeps it across recursive named-property
    lowering and lets procedural clock inference retain it. */
-static perm_string sva_parser_assertion_label_;
-static unsigned sva_assertion_label_depth_ = 0;
-
 void pform_sva_set_assertion_label(const char*label)
 {
       sva_parser_assertion_label_ = label ? lex_strings.make(label)

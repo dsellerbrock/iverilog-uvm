@@ -457,6 +457,14 @@ extern vpiHandle vpip_make_root_iterator(int type_code);
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
 extern vpiHandle vpip_make_assertion_iterator(void);
+/* Simple immediate-assertion identities registered while the VVP image is
+   linked, before VPI start-of-simulation callbacks run. */
+extern void vpip_register_immediate_assertion(PLI_INT32 source_id,
+					      const char*name,
+					      const char*file,
+					      PLI_INT32 line,
+					      PLI_INT32 assertion_kind,
+					      vpiHandle scope);
 /* Deferred-immediate assertions register while the VVP image is linked. */
 extern void vpip_register_deferred_assertion(unsigned long source_id,
 					     unsigned assertion_kind,

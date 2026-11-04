@@ -18506,6 +18506,11 @@ bool of_DEFER_REGISTER(vthread_t, vvp_code_t)
       return true;
 }
 
+bool of_ASSERT_REGISTER(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
 static void cancel_deferred_asserts_for_scope_(__vpiScope*scope)
 {
       for (std::set<vvp_process*>::iterator cur =

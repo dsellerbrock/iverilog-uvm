@@ -237,6 +237,7 @@ extern bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_ENQUEUE_KEY(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_ENQUEUE_TASK_KEY(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_REGISTER(vthread_t thr, vvp_code_t code);
+extern bool of_ASSERT_REGISTER(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_CANCEL_LABEL(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_CANCEL_PROCESS(vthread_t thr, vvp_code_t code);
 extern bool of_DEFER_FINAL(vthread_t thr, vvp_code_t code);

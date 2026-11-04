@@ -54,8 +54,30 @@
 
 unsigned compile_errors = 0;
 static std::vector<vvp_code_t> deferred_assertion_registrations;
+static std::vector<vvp_code_t> immediate_assertion_registrations;
 
 static void unresolved_warn_once(const char*kind, const char*label, const char*detail);
+
+static std::string decode_vvp_string_(const char*text)
+{
+      std::string result;
+      const char*end = text ? text + strlen(text) : 0;
+      if (!text) return result;
+      while (*text) {
+	    if (static_cast<size_t>(end - text) >= 4 && text[0] == '\\'
+		&& text[1] >= '0' && text[1] <= '7'
+		&& text[2] >= '0' && text[2] <= '7'
+		&& text[3] >= '0' && text[3] <= '7') {
+		  unsigned value = (text[1] - '0') * 64
+			+ (text[2] - '0') * 8 + (text[3] - '0');
+		  result.push_back(static_cast<char>(value));
+		  text += 4;
+	    } else {
+		  result.push_back(*text++);
+	    }
+      }
+      return result;
+}
 
 /* Flag-bearing queue-slice opcodes. The original zero-operand spellings are
  * retained below so VVP files produced by earlier 13.x compilers remain
@@ -255,6 +277,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%append/qobj/r",   of_APPEND_QOBJ_R,   2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%append/qobj/str", of_APPEND_QOBJ_STR, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%append/qobj/v",   of_APPEND_QOBJ_V,   3, {OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
+      { "%assert/register", of_ASSERT_REGISTER, 2, {OA_STRING, OA_VPI_PTR2, OA_NONE} },
       { "%assign/ar",of_ASSIGN_AR,2,{OA_ARR_PTR,OA_BIT1,     OA_NONE} },
       { "%assign/ar/d",of_ASSIGN_ARD,2,{OA_ARR_PTR,OA_BIT1,  OA_NONE} },
       { "%assign/ar/e",of_ASSIGN_ARE,1,{OA_ARR_PTR,OA_NONE,  OA_NONE} },
@@ -1940,6 +1963,45 @@ void compile_cleanup(void)
       }
       deferred_assertion_registrations.clear();
 
+      if (!nerrs) {
+	    for (size_t idx = 0; idx < immediate_assertion_registrations.size();
+		 idx += 1) {
+		  vvp_code_t code = immediate_assertion_registrations[idx];
+		  __vpiScope*scope = dynamic_cast<__vpiScope*>(
+			reinterpret_cast<vpiHandle>(code->cptr2));
+		  unsigned source_id = 0;
+		  unsigned assertion_kind = 0;
+		  unsigned file_idx = 0;
+		  unsigned line = 0;
+		  int consumed = 0;
+		  if (!code->text
+		      || sscanf(code->text, "%u,%u,%u,%u,%n", &source_id,
+				&assertion_kind, &file_idx, &line,
+				&consumed) != 4
+		      || !source_id || !line || file_idx >= file_names.size()
+		      || (assertion_kind != 1 && assertion_kind != 4)
+		      || !code->text[consumed] || !scope) {
+			fprintf(stderr,
+				"vvp: invalid immediate assertion registration.\n");
+			compile_errors += 1;
+			continue;
+		  }
+		  std::string assertion_name =
+			decode_vvp_string_(code->text + consumed);
+		  if (assertion_name.empty()) {
+			fprintf(stderr,
+				"vvp: immediate assertion registration has an empty name.\n");
+			compile_errors += 1;
+			continue;
+		  }
+		  vpip_register_immediate_assertion(
+			static_cast<PLI_INT32>(source_id), assertion_name.c_str(),
+			file_names[file_idx], static_cast<PLI_INT32>(line),
+			static_cast<PLI_INT32>(assertion_kind), scope);
+	    }
+      }
+      immediate_assertion_registrations.clear();
+
       if (verbose_flag) {
 	    fprintf(stderr, " ... Removing symbol tables\n");
 	    fflush(stderr);
@@ -3308,6 +3370,8 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 
       if (op->opcode == of_DEFER_REGISTER)
             deferred_assertion_registrations.push_back(code);
+      if (op->opcode == of_ASSERT_REGISTER)
+	    immediate_assertion_registrations.push_back(code);
 
       if (op->opcode == of_EVENT_EXPR_LOAD_VEC4 && code->bit_idx[0] == 0) {
             yyerror("%event/expr/load/v width must be nonzero");
