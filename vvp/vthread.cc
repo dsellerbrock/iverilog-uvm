@@ -8665,6 +8665,10 @@ struct covgrp_cross_select_op_t {
       char op = 0;
       unsigned dim = 0;
       unsigned term = 0;
+      unsigned prop = 0;
+      uint64_t required = 1;
+      bool matches_all = false;
+      std::vector<unsigned> value_widths;
       std::vector<std::pair<uint64_t,uint64_t>> ranges;
 };
 
@@ -8705,27 +8709,50 @@ static bool covgrp_cross_parse_select_(const std::string&ir,
 		  std::stringstream leaf(token);
 		  std::string field;
 		  while (std::getline(leaf, field, ',')) fields.push_back(field);
-		  if (fields.size() < 4 || fields[0] != "L") return false;
-		  uint64_t dim = 0, term = 0, nranges = 0;
-		  if (!covgrp_cross_parse_u64_(fields[1], dim)
-		      || !covgrp_cross_parse_u64_(fields[2], term)
-		      || !covgrp_cross_parse_u64_(fields[3], nranges)
-		      || dim >= n_dims || term > UINT_MAX
-		      || nranges > (select_op_limit - 4) / 2
-		      || fields.size() != 4 + 2 * (size_t)nranges)
-			return false;
-		  op.op = 'L';
-		  op.dim = (unsigned)dim;
-		  op.term = (unsigned)term;
-		  for (uint64_t idx = 0; idx < nranges; idx += 1) {
-			uint64_t lo = 0, hi = 0;
-			if (!covgrp_cross_parse_u64_(fields[4 + 2*idx], lo)
-			    || !covgrp_cross_parse_u64_(fields[5 + 2*idx], hi))
-			      return false;
-			if (hi < lo) std::swap(lo, hi);
-			op.ranges.push_back(std::make_pair(lo, hi));
-		  }
-		  depth += 1;
+	  if (fields[0] == "Q") {
+		uint64_t prop = 0, required = 0, all = 0;
+		if (fields.size() != 4 + (size_t)n_dims
+		    || !covgrp_cross_parse_u64_(fields[1], prop)
+		    || !covgrp_cross_parse_u64_(fields[2], required)
+		    || !covgrp_cross_parse_u64_(fields[3], all)
+		    || prop > UINT_MAX || all > 1
+		    || (!all && required == 0) || (all && required != 0))
+		      return false;
+		op.op = 'Q';
+		op.prop = (unsigned)prop;
+		op.required = required;
+		op.matches_all = all != 0;
+		for (unsigned dim = 0; dim < n_dims; dim += 1) {
+		      uint64_t width = 0;
+		      if (!covgrp_cross_parse_u64_(fields[4 + dim], width)
+			  || width == 0 || width > 64)
+			    return false;
+		      op.value_widths.push_back((unsigned)width);
+		}
+		depth += 1;
+	  } else {
+		if (fields.size() < 4 || fields[0] != "L") return false;
+		uint64_t dim = 0, term = 0, nranges = 0;
+		if (!covgrp_cross_parse_u64_(fields[1], dim)
+		    || !covgrp_cross_parse_u64_(fields[2], term)
+		    || !covgrp_cross_parse_u64_(fields[3], nranges)
+		    || dim >= n_dims || term > UINT_MAX
+		    || nranges > (select_op_limit - 4) / 2
+		    || fields.size() != 4 + 2 * (size_t)nranges)
+		      return false;
+		op.op = 'L';
+		op.dim = (unsigned)dim;
+		op.term = (unsigned)term;
+		for (uint64_t idx = 0; idx < nranges; idx += 1) {
+		      uint64_t lo = 0, hi = 0;
+		      if (!covgrp_cross_parse_u64_(fields[4 + 2*idx], lo)
+			  || !covgrp_cross_parse_u64_(fields[5 + 2*idx], hi))
+			    return false;
+		      if (hi < lo) std::swap(lo, hi);
+		      op.ranges.push_back(std::make_pair(lo, hi));
+		}
+		depth += 1;
+	  }
 	    }
 	    ops.push_back(op);
       }
@@ -8854,10 +8881,90 @@ static bool covgrp_cross_choice_overlap_(const covgrp_cross_choice_t&choice,
       return false;
 }
 
+typedef std::map<std::vector<unsigned>,uint64_t> covgrp_cross_set_counts_t;
+typedef std::map<unsigned,covgrp_cross_set_counts_t> covgrp_cross_set_values_t;
+
+static uint64_t covgrp_cross_choice_value_count_(
+	 const covgrp_cross_choice_t&choice,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 unsigned value_width, uint64_t limit)
+{
+      if (choice.kind == 1) {
+	    auto found = dyn_states.find(choice.source_id);
+	    if (found == dyn_states.end() || !found->second.valid
+		|| !found->second.meta || found->second.total == 0)
+		  return 0;
+	    const covgrp_dyn_state_t&state = found->second;
+	    uint64_t requested = state.meta->array_size;
+	    unsigned __int128 count = 0;
+	    if (requested == 0) {
+		  count = 1;
+	    } else if (requested == ~(uint64_t)0) {
+		  count = state.total;
+	    } else {
+		  if (choice.logical_idx >= requested) return 0;
+		  unsigned __int128 per_bin = state.total / requested;
+		  if (per_bin == 0) per_bin = 1;
+		  unsigned __int128 before_last = per_bin * (requested - 1);
+		  unsigned __int128 begin = choice.logical_idx < requested - 1
+			? (unsigned __int128)choice.logical_idx * per_bin
+			: before_last;
+		  unsigned __int128 end = choice.logical_idx < requested - 1
+			? std::min(state.total, begin + per_bin) : state.total;
+		  count = end > begin ? end - begin : 0;
+	    }
+	    return count > limit ? limit + 1 : (uint64_t)count;
+      }
+      if (choice.kind != 0 || choice.records.empty()
+	  || value_width == 0 || value_width > 64) return limit + 1;
+
+      std::set<uint64_t> values;
+      uint64_t domain_mask = value_width == 64 ? UINT64_MAX
+	    : (UINT64_C(1) << value_width) - 1;
+      for (const class_type::cov_bin_t*rec : choice.records) {
+	    if (!rec || (rec->kind & 7) != 0
+		|| (rec->kind & (16u | 32u | 128u | 512u
+				| class_type::COV_WIDE_RANGE_BIN)))
+		  return limit + 1;
+	    if (rec->kind & 8) {
+		  uint64_t fixed_mask = rec->hi & domain_mask;
+		  uint64_t fixed_value = rec->lo & fixed_mask;
+		  std::vector<unsigned> free_bits;
+		  for (unsigned bit = 0; bit < value_width; bit += 1)
+			if (!(fixed_mask & (UINT64_C(1) << bit)))
+			      free_bits.push_back(bit);
+		  if (free_bits.size() >= 64
+		      || (UINT64_C(1) << free_bits.size()) > limit + 1)
+			return limit + 1;
+	  uint64_t combinations = UINT64_C(1) << free_bits.size();
+	  for (uint64_t combo = 0; combo < combinations; combo += 1) {
+		uint64_t value = fixed_value;
+		for (size_t bit = 0; bit < free_bits.size(); bit += 1)
+		      if ((combo >> bit) & 1)
+			    value |= UINT64_C(1) << free_bits[bit];
+		values.insert(value);
+		if (values.size() > limit) return limit + 1;
+	  }
+	    } else {
+	  uint64_t lo = rec->lo & domain_mask;
+	  uint64_t hi = rec->hi & domain_mask;
+	  if (hi < lo || (unsigned __int128)hi - lo + 1 > limit + 1)
+		return limit + 1;
+	  for (uint64_t value = lo; ; value += 1) {
+		values.insert(value);
+		if (values.size() > limit) return limit + 1;
+		if (value == hi) break;
+	  }
+	    }
+      }
+      return (uint64_t)values.size();
+}
+
 static bool covgrp_cross_eval_select_(
 	 const std::vector<covgrp_cross_select_op_t>&ops,
 	 const covgrp_cross_state_t&state, const std::vector<unsigned>&tuple,
-	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 const covgrp_cross_set_values_t&set_values)
 {
       std::vector<bool> stack;
       for (const covgrp_cross_select_op_t&op : ops) {
@@ -8873,6 +8980,36 @@ static bool covgrp_cross_eval_select_(
 		  stack.push_back(choice.term_idx == op.term
 			&& covgrp_cross_choice_overlap_(choice, dyn_states,
 							 op.ranges));
+	    } else if (op.op == 'Q') {
+		  auto prop = set_values.find(op.prop);
+		  auto count = prop == set_values.end()
+			? covgrp_cross_set_counts_t::const_iterator()
+			: prop->second.find(tuple);
+		  uint64_t found = prop == set_values.end()
+			|| count == prop->second.end() ? 0 : count->second;
+		  bool selected = false;
+		  if (!op.matches_all) {
+			selected = found >= op.required;
+		  } else if (found != 0 && op.value_widths.size() == tuple.size()) {
+			uint64_t expected = 1;
+			for (unsigned dim = 0; dim < tuple.size(); dim += 1) {
+			      if (tuple[dim] >= state.dimensions[dim].size()) {
+				    expected = 0;
+				    break;
+			      }
+			      uint64_t values = covgrp_cross_choice_value_count_(
+				    state.dimensions[dim][tuple[dim]], dyn_states,
+				    op.value_widths[dim], 65536);
+			      if (values == 0 || values > 65536
+				  || expected > 65536 / values) {
+				    expected = 65537;
+				    break;
+			      }
+			      expected *= values;
+			}
+			selected = expected <= 65536 && found == expected;
+		  }
+		  stack.push_back(selected);
 	    } else if (op.op == 'N') {
 		  if (stack.empty()) return false;
 		  stack.back() = !stack.back();
@@ -9197,8 +9334,10 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 	    struct named_bin_t {
 		  const class_type::cov_cross_bin_t*meta = 0;
 		  std::vector<covgrp_cross_select_op_t> select;
+		  covgrp_cross_set_values_t set_values;
 		    };
 		    std::vector<named_bin_t> named_bins;
+	    bool cross_set_runtime_error = false;
 		    uint64_t selector_units = 0;
 		    auto selector_capped_mul = [&](uint64_t left,
 			uint64_t right) -> uint64_t {
@@ -9207,6 +9346,119 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 				return cross_selector_work_limit + 1;
 			  return left * right;
 		    };
+	    auto prepare_cross_set = [&](const covgrp_cross_select_op_t&op,
+				  named_bin_t&bin) -> bool {
+	  if (bin.set_values.count(op.prop)) return true;
+	  if (op.prop >= defn->property_count()
+	      || op.value_widths.size() != meta.n_dims) {
+		failure = "cross set queue property metadata is invalid";
+		return false;
+	  }
+	  vvp_object_t queue_obj;
+	  cobj->get_object(op.prop, queue_obj, 0);
+	  vvp_queue*queue = queue_obj.peek<vvp_queue>();
+	  auto runtime_error = [&](const std::string&reason) {
+		failure = reason;
+		cross_set_runtime_error = true;
+		cerr << "ERROR: constructor-dependent cross set bin '"
+		     << bin.meta->name << "' " << reason << "." << endl;
+		vpip_set_return_value(1);
+		if (!schedule_finished()) schedule_finish(0);
+		return false;
+	  };
+	  if (!queue)
+		return runtime_error("does not contain a CrossQueueType value");
+	  if (queue->get_size() > cross_bin_limit)
+		return runtime_error("exceeds the 65536 tuple limit");
+	  covgrp_cross_set_counts_t&counts = bin.set_values[op.prop];
+	  uint64_t expanded_refs = 0;
+	  for (size_t qi = 0; qi < queue->get_size(); qi += 1) {
+		vvp_object_t tuple_obj;
+		queue->get_word((unsigned)qi, tuple_obj);
+		vvp_cobject*tuple = tuple_obj.peek<vvp_cobject>();
+		if (!tuple || tuple->get_defn()->property_count() != meta.n_dims)
+		      return runtime_error("contains a tuple with the wrong number of fields");
+		std::vector<std::vector<unsigned>> choices(meta.n_dims);
+		bool tuple_matches = true;
+		for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+		      unsigned field_width =
+			    tuple->get_defn()->property_vec4_width(dim);
+		      if (field_width == 0 || field_width > 64
+			  || op.value_widths[dim] == 0
+			  || op.value_widths[dim] > 64)
+			    return runtime_error("contains a non-integral or unsupported-width field");
+		      vvp_vector4_t field;
+		      tuple->get_vec4(dim, field);
+		      if (field.size() != field_width)
+			    return runtime_error("contains a field with inconsistent width");
+		      uint64_t value = 0;
+		      for (unsigned bit = 0; bit < field_width; bit += 1) {
+			    vvp_bit4_t digit = field.value(bit);
+			    if (digit == BIT4_X || digit == BIT4_Z)
+				  return runtime_error("contains an X/Z CrossValType field");
+			    if (digit == BIT4_1) value |= UINT64_C(1) << bit;
+		      }
+		      const std::string&field_type =
+			    tuple->get_defn()->property_base_type(dim);
+		      bool field_signed = !field_type.empty() && field_type[0] == 's';
+		      unsigned value_width = op.value_widths[dim];
+		      if (field_signed && field_width < value_width
+			  && (value & (UINT64_C(1) << (field_width - 1)))) {
+			    uint64_t high = value_width == 64 ? UINT64_MAX
+				  : (UINT64_C(1) << value_width) - 1;
+			    uint64_t low = (UINT64_C(1) << field_width) - 1;
+			    value |= high & ~low;
+		      }
+	      if (value_width < 64)
+			    value &= (UINT64_C(1) << value_width) - 1;
+		      if (state.dimensions[dim].empty()) {
+			    tuple_matches = false;
+			    break;
+		      }
+		      unsigned cp_idx = state.dimensions[dim].front().cp_idx;
+		      std::vector<std::pair<uint64_t,uint64_t>> singleton(1,
+			    std::make_pair(value, value));
+		      for (unsigned ci = 0;
+			   ci < state.dimensions[dim].size(); ci += 1) {
+			    const covgrp_cross_choice_t&choice =
+				  state.dimensions[dim][ci];
+			    if (choice.cp_idx == cp_idx
+				&& covgrp_cross_choice_overlap_(choice, dyn_states,
+							      singleton))
+				  choices[dim].push_back(ci);
+		      }
+		      if (choices[dim].empty()) {
+			    tuple_matches = false;
+			    break;
+		      }
+		}
+		if (!tuple_matches) continue;
+		uint64_t combinations = 1;
+		for (const std::vector<unsigned>&dim : choices) {
+		      if (dim.empty() || combinations > cross_bin_limit / dim.size())
+			    return runtime_error("selects too many logical cross tuples");
+		      combinations *= dim.size();
+		}
+		if (expanded_refs > cross_route_index_limit - combinations)
+		      return runtime_error("exceeds the cross selector reference limit");
+		expanded_refs += combinations;
+		std::vector<unsigned> selected(meta.n_dims, 0);
+		for (uint64_t ci = 0; ci < combinations; ci += 1) {
+		      std::vector<unsigned>key(meta.n_dims, 0);
+		      for (unsigned dim = 0; dim < meta.n_dims; dim += 1)
+			    key[dim] = choices[dim][selected[dim]];
+		      counts[key] += 1;
+		      if (counts.size() > cross_bin_limit)
+			    return runtime_error("selects more than 65536 logical cross tuples");
+		      for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+			    selected[dim] += 1;
+			    if (selected[dim] < choices[dim].size()) break;
+			    selected[dim] = 0;
+		      }
+		}
+	  }
+	  return true;
+	    };
 		    const std::vector<const class_type::cov_cross_bin_t*>&family_bins =
 			  bins_by_family[meta.family];
 		    for (const class_type::cov_cross_bin_t*bin_ptr : family_bins) {
@@ -9239,10 +9491,13 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 				break;
 			  }
 			  for (const covgrp_cross_select_op_t&op : parsed.select) {
-				if (op.op != 'L') continue;
-				if (!term_ids[op.dim].count(op.term)) {
-				      failure = "named cross-bin selector references an unknown term";
-				      break;
+				if (op.op == 'L') {
+				      if (!term_ids[op.dim].count(op.term)) {
+					    failure = "named cross-bin selector references an unknown term";
+					    break;
+				      }
+				} else if (op.op == 'Q') {
+				      if (!prepare_cross_set(op, parsed)) break;
 				}
 			  }
 			  if (!failure.empty()) break;
@@ -9280,6 +9535,10 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 					    break;
 				      }
 				      units += worst_scan;
+				} else if (op.op == 'Q') {
+				      auto found = parsed.set_values.find(op.prop);
+				      units += found == parsed.set_values.end()
+					    ? 1 : found->second.size();
 				}
 				if (selector_units > cross_selector_work_limit - units) {
 				      failure = "cross selector metadata exceeds its work bound";
@@ -9304,7 +9563,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		  bool ignored = false;
 		  for (const named_bin_t&named : named_bins) {
 			if (!covgrp_cross_eval_select_(named.select, state, tuple,
-						      dyn_states)) continue;
+						      dyn_states, named.set_values)) continue;
 			if (named.meta->kind == 2)
 			      illegal_targets.insert(named.meta->target);
 			else if (named.meta->kind == 1)
@@ -9354,7 +9613,8 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		  state.routes.clear();
 		  state.named_props.clear();
 		  state.auto_total = 0;
-		  if (cobj->cov_cross_warn_once(meta.family))
+		  if (cobj->cov_cross_warn_once(meta.family)
+		      && !cross_set_runtime_error)
 			cerr << "WARNING: dynamic cross family " << meta.family
 			     << " is disabled: " << failure << "." << endl;
 		  continue;
