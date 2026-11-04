@@ -325,6 +325,7 @@ class class_type : public __vpiHandle {
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
 	    unsigned goal = 100;
+	    unsigned cross_num_print_missing = 0;
 	    std::string comment;
 	    std::string type_comment;
 	    int goal_prop = -1;
@@ -421,6 +422,11 @@ class class_type : public __vpiHandle {
       bool set_covgrp_item_type_comment(size_t idx, const std::string&comment)
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].type_comment = comment;
+	return true; }
+      bool set_covgrp_item_cross_num_print_missing(size_t idx,
+						   unsigned value)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].cross_num_print_missing = value;
 	return true; }
       bool set_covgrp_item_guard(size_t idx, bool has_guard)
       { if (idx >= covgrp_items_.size()) return false;

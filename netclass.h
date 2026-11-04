@@ -528,6 +528,7 @@ class netclass_t : public ivl_type_s {
 	    std::string type_comment;
 	    PExpr* goal_expr = nullptr;
 	    PExpr* comment_expr = nullptr;
+	    unsigned cross_num_print_missing = 0;
 	    bool is_cross = false;
 	    perm_string name;   // M12-7: coverpoint/cross label
 	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
@@ -698,6 +699,9 @@ class netclass_t : public ivl_type_s {
         covgrp_items_[idx].comment_prop = comment_prop; }
       void set_covgrp_item_type_comment(size_t idx, const std::string&comment)
       { if (idx < covgrp_items_.size()) covgrp_items_[idx].type_comment = comment; }
+      void set_covgrp_item_cross_num_print_missing(size_t idx, unsigned value)
+      { if (idx < covgrp_items_.size())
+	      covgrp_items_[idx].cross_num_print_missing = value; }
 	// Resolve the IEEE hierarchical pseudo-members
 	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on

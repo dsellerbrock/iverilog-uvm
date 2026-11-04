@@ -3235,6 +3235,17 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
       free(weight_ir);
 }
 
+void compile_class_covgrp_item_cross_num_print_missing(uint64_t item_idx,
+						       uint64_t value)
+{
+      assert(compile_class);
+      if (item_idx > std::numeric_limits<size_t>::max()
+	  || value > std::numeric_limits<unsigned>::max()
+	  || !compile_class->set_covgrp_item_cross_num_print_missing(
+		static_cast<size_t>(item_idx), static_cast<unsigned>(value)))
+	    yyerror("invalid .covgrp_item_cross_num_print_missing metadata value");
+}
+
 static bool compile_class_covgrp_property_valid_(uint64_t encoded,
       unsigned width)
 {
@@ -4461,12 +4472,20 @@ void class_type::covgrp_report(FILE*fd)
 		covgrp_report_string_(fd, ct->covgrp_items_[ip.first].type_comment);
 	  }
 	  fputc('\n', fd);
+		  unsigned missing_printed = 0;
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
 			const char*tag = (k == 2 || k == 5) ? "illegal"
 			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
+			if (is_cross && (k == 0 || k == 4)
+			    && cnt < at_least) {
+			      unsigned missing_limit = ip.first < ct->covgrp_items_.size()
+				    ? ct->covgrp_items_[ip.first].cross_num_print_missing : 0;
+			      if (missing_printed >= missing_limit) continue;
+			      missing_printed += 1;
+			}
 			fprintf(fd, "    %s %s count %u %s\n", tag,
 				ct->property_name(prop).c_str(), cnt,
 				(k == 0 || k == 4)
@@ -4500,6 +4519,7 @@ void class_type::covgrp_report(FILE*fd)
 			      covgrp_report_string_(fd, instance.item_comments[idx]);
 			}
 			fputc('\n', fd);
+			unsigned missing_printed = 0;
 			for (unsigned prop : ip.second) {
 			      unsigned kind = prop_kind[prop];
 			      const char*tag = (kind == 2 || kind == 5) ? "illegal"
@@ -4507,6 +4527,13 @@ void class_type::covgrp_report(FILE*fd)
 			      auto count_it = instance.bin_counts.find(prop);
 			      uint32_t count = count_it == instance.bin_counts.end()
 				    ? 0 : count_it->second;
+			      if (is_cross && (kind == 0 || kind == 4)
+				  && count < at_least) {
+				    unsigned missing_limit = idx < ct->covgrp_items_.size()
+					  ? ct->covgrp_items_[idx].cross_num_print_missing : 0;
+				    if (missing_printed >= missing_limit) continue;
+				    missing_printed += 1;
+			      }
 			      fprintf(fd, "      %s %s count %u %s\n", tag,
 				      ct->property_name(prop).c_str(), count,
 				      (kind == 0 || kind == 4)

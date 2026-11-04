@@ -708,6 +708,12 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_item_guardsrc(classtype, idx) + 1);
                   fprintf(vvp_out, " .covgrp_item_type_weight %u %u\n", idx,
                           ivl_type_covgrp_item_type_weight(classtype, idx));
+		  unsigned cross_num_print_missing =
+			ivl_type_covgrp_item_cross_num_print_missing(classtype, idx);
+		  if (cross_num_print_missing != 0)
+			fprintf(vvp_out,
+				" .covgrp_item_cross_num_print_missing %u %u\n",
+				idx, cross_num_print_missing);
 		    /* Keep mutable option-property metadata in a separate tagged
 		       record. Appending bare numbers to .covgrp_item is ambiguous
 		       with the numeric line that begins the next class property. */
