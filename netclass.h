@@ -517,6 +517,7 @@ class netclass_t : public ivl_type_s {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
             unsigned type_weight = 1;
+	    int type_weight_prop = -1; // mutable type-wide option slot
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
@@ -698,6 +699,7 @@ class netclass_t : public ivl_type_s {
         covgrp_items_[idx].comment_prop = comment_prop; }
       void set_covgrp_item_type_comment(size_t idx, const std::string&comment)
       { if (idx < covgrp_items_.size()) covgrp_items_[idx].type_comment = comment; }
+      int ensure_covgrp_item_type_weight_prop(size_t idx);
 	// Resolve the IEEE hierarchical pseudo-members
 	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on
@@ -720,6 +722,9 @@ class netclass_t : public ivl_type_s {
 	    }
 	    return -1;
       }
+      int covgrp_item_type_weight_prop(size_t idx) const
+      { return idx < covgrp_items_.size()
+	      ? covgrp_items_[idx].type_weight_prop : -1; }
       bool has_covgrp_item(perm_string item_name) const {
 	    for (const covgrp_item_t&item : covgrp_items_)
 		  if (item.name == item_name)

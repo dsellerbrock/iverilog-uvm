@@ -770,6 +770,48 @@ static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
 	  }
 	  result.class_type = class_type;
 
+	  // IEEE 1800-2017/2023 19.6 and 19.7.1: a cross (or coverpoint)
+	  // selected after a covergroup type scope has its own mutable static
+	  // type_option.weight. Retarget that pseudo-hierarchy to the hidden
+	  // static property used by coverage aggregation.
+	  if (class_type->is_covergroup() && path.name.size() == 4) {
+	    auto item_name = std::next(path.name.begin());
+	    auto option_name = std::next(item_name);
+	    auto member_name = std::next(option_name);
+	    if (item_name->index.empty() && option_name->index.empty()
+		&& member_name->index.empty()
+		&& option_name->name == perm_string::literal("type_option")
+		&& member_name->name == perm_string::literal("weight")) {
+	      for (size_t idx = 0; idx < class_type->covgrp_item_count(); ++idx) {
+		if (class_type->covgrp_item(idx).name != item_name->name)
+		      continue;
+		int pidx = const_cast<netclass_t*>(class_type)
+			->ensure_covgrp_item_type_weight_prop(idx);
+		if (pidx < 0) return result;
+		NetNet*target = class_type->get_prop_static_signal(
+		      static_cast<size_t>(pidx));
+		if (!target) {
+		      result.property = item_name->name;
+		      result.status = SCOPED_LVALUE_RETARGET_ERROR_STATIC_STORAGE;
+		      return result;
+		}
+		sr.net = target;
+		sr.scope = target->scope();
+		sr.type = target->net_type();
+		sr.par_val = nullptr;
+		sr.eve = nullptr;
+		sr.decl_after_use = nullptr;
+		sr.path_head.clear();
+		sr.path_head.push_back(prefix);
+		sr.path_head.push_back(name_component_t(target->name()));
+		sr.path_tail.clear();
+		result.property = target->name();
+		result.status = SCOPED_LVALUE_RETARGETED;
+		return result;
+	      }
+	    }
+	  }
+
       /* This grammar shape has one class-scope prefix; the next component is
 	 the static property and any later components are instance members of
 	 that property. */

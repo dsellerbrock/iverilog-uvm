@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_scoped_cross_type_option.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_covergroup_scoped_cross_type_option"
+}

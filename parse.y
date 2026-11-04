@@ -20775,6 +20775,25 @@ statement_item /* This is roughly statement_item in the LRM */
 
   /* Various assignment statements */
 
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+    '.' IDENTIFIER '=' expression ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	hident.push_back(name_component_t(lex_strings.make($7)));
+	PEIdent*lhs = pform_new_ident(@1, hident);
+	FILE_NAME(lhs, @1);
+	lhs->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete[]$7;
+	PAssign*tmp = new PAssign(lhs, $9);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   /* `Class#(...)::property' is already a complete expression primary, so
      routing it through lpvalue introduces an expression/lvalue ambiguity on
      <=.  Consume the shared identifier directly in assignment statement
