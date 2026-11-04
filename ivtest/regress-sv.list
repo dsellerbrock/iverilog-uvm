@@ -4260,6 +4260,8 @@ sv_class_packed_select_incdec_fail CE,-g2017,-s,sv_class_packed_select_incdec_fa
 sv_class_packed_select_incdec_fail_2023 CE,-g2023,-s,sv_class_packed_select_incdec_fail ivltests gold=sv_class_packed_select_incdec_fail.gold
 
 # Packed selects within fixed-array class-property words.
+issue2486_class_property_packed_incdec_2017 normal,-g2017,-s,issue2486_class_property_packed_incdec ivltests gold=issue2486_class_property_packed_incdec.gold
+issue2486_class_property_packed_incdec_2023 normal,-g2023,-s,issue2486_class_property_packed_incdec ivltests gold=issue2486_class_property_packed_incdec.gold
 sv_class_array_packed_incdec normal,-g2017,-s,sv_class_array_packed_incdec ivltests gold=sv_class_array_packed_incdec.gold
 sv_class_array_packed_incdec_2023 normal,-g2023,-s,sv_class_array_packed_incdec ivltests gold=sv_class_array_packed_incdec.gold
 sv_class_array_packed_incdec_bounds normal,-g2017,-s,sv_class_array_packed_incdec_bounds ivltests gold=sv_class_array_packed_incdec_bounds.gold
