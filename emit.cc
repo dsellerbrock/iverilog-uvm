@@ -903,6 +903,11 @@ void NetEProperty::expr_scan(struct expr_scan_t*tgt) const
       tgt->expr_property(this);
 }
 
+void NetEUnionTag::expr_scan(struct expr_scan_t*tgt) const
+{
+      tgt->expr_union_tag(this);
+}
+
 void NetEScope::expr_scan(struct expr_scan_t*tgt) const
 {
       tgt->expr_scope(this);

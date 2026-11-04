@@ -228,6 +228,12 @@ NexusSet* NetEProperty::nex_input(bool, bool, bool) const
       return result;
 }
 
+NexusSet* NetEUnionTag::nex_input(bool rem_out, bool always_sens,
+                                 bool nested_func) const
+{
+      return value_->nex_input(rem_out, always_sens, nested_func);
+}
+
 NexusSet* NetEScope::nex_input(bool, bool, bool) const
 {
       return new NexusSet;
