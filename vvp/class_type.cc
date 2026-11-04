@@ -1998,6 +1998,20 @@ const class_type* class_type::runtime_super(void) const
       return cur->second;
 }
 
+class_type::builtin_resource_kind_t class_type::builtin_resource_kind(void) const
+{
+      set<const class_type*>seen;
+      for (const class_type*cur = this;
+	   cur && seen.insert(cur).second; cur = cur->runtime_super()) {
+	    if (cur->super_dispatch_prefix_ == "$ivl_builtin_semaphore")
+		  return BUILTIN_RESOURCE_SEMAPHORE;
+	    if (cur->super_dispatch_prefix_ == "$ivl_builtin_mailbox")
+		  return BUILTIN_RESOURCE_MAILBOX;
+      }
+
+      return BUILTIN_RESOURCE_NONE;
+}
+
 const class_type* class_type_from_dispatch_prefix(const string&prefix)
 {
       map<string, const class_type*>::const_iterator cur =

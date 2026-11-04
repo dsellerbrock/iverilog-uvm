@@ -24,6 +24,7 @@
 # include  "event.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
+# include  "vvp_mailbox.h"
 # include  <algorithm>
 # include  <atomic>
 # include  <iostream>
@@ -51,6 +52,13 @@ vvp_cobject::vvp_cobject(const class_type*defn)
   constraint_mode_(defn->constraint_count(), true),
   active_constraints_(defn->constraint_count())
 {
+      if (defn_->builtin_resource_kind()
+	  == class_type::BUILTIN_RESOURCE_SEMAPHORE)
+	    builtin_resource_ = new vvp_semaphore();
+      else if (defn_->builtin_resource_kind()
+	       == class_type::BUILTIN_RESOURCE_MAILBOX)
+	    builtin_resource_ = new vvp_mailbox();
+
       unsigned union_width = defn_->union_vec4_width();
       if (union_width)
 	    union_vec4_ = new vvp_vector4_t(

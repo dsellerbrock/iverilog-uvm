@@ -7162,6 +7162,21 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 
       /* ---- Mailbox task methods ---- */
 
+      /* Built-in base constructors initialize the resource portion of a
+       * derived class object after ordinary %new/cobj allocation. */
+      if (strcmp(stmt_name, "$ivl_mailbox$init") == 0
+	  || strcmp(stmt_name, "$ivl_semaphore$init") == 0) {
+	    ivl_expr_t object = ivl_stmt_parm(net, 0);
+	    ivl_expr_t count = ivl_stmt_parm_count(net) >= 2
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    unsigned kind = strcmp(stmt_name, "$ivl_semaphore$init") == 0 ? 1 : 2;
+	    if (object) draw_eval_object(object);
+	    if (count) draw_eval_vec4(count);
+	    else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%class/resource_init %u;\n", kind);
+	    return 0;
+      }
+
       /* Helper: push a mailbox item onto the obj stack.
        * Class types are pushed directly; strings/reals/vec4 primitives
        * are boxed as vvp_boxed_{string,real,vec4}. A string message

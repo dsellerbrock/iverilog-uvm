@@ -945,6 +945,23 @@ NetScope* netclass_t::get_constructor() const
       return nullptr;
 }
 
+const netclass_t* builtin_class_resource_base(const netclass_t*type)
+{
+      const netclass_t*semaphore =
+	    builtin_class_type(perm_string::literal("semaphore"));
+      const netclass_t*mailbox =
+	    builtin_class_type(perm_string::literal("mailbox"));
+
+      set<const netclass_t*>seen;
+      for (const netclass_t*cur = type;
+	   cur && seen.insert(cur).second; cur = cur->get_super()) {
+	    if (cur == semaphore || cur == mailbox || cur->is_typed_mailbox())
+		  return cur;
+      }
+
+      return nullptr;
+}
+
 NetNet* netclass_t::find_static_property(perm_string name) const
 {
       NetNet *net = class_scope_->find_signal(name);

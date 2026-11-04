@@ -154,6 +154,13 @@ class vvp_cobject : public vvp_object {
 
       const class_type* get_defn() const { return defn_; }
 
+	// A user class derived from semaphore or mailbox keeps its ordinary
+	// class properties and a separate built-in resource object.
+      const vvp_object_t& builtin_resource(void) const
+	    { return builtin_resource_; }
+      void set_builtin_resource(vvp_object*resource)
+	    { builtin_resource_ = resource; }
+
       bool rand_mode(size_t pid) const;
       bool rand_mode(size_t pid, size_t leaf) const;
       bool rand_mode_for_randomization(size_t pid, size_t leaf) const;
@@ -337,6 +344,8 @@ class vvp_cobject : public vvp_object {
 
     private:
       const class_type* defn_;
+	// Additional state supplied by a built-in semaphore/mailbox base class.
+      vvp_object_t builtin_resource_;
 	// Stable for the lifetime of this dynamic class object; exposed through
 	// the IEEE vpiObjId property.
       uint64_t object_id_;

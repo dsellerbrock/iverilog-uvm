@@ -48,6 +48,12 @@ bool class_static_randomize_overlay_object(vvp_net_t*, vvp_object_t&);
 class class_type : public __vpiHandle {
 
     public:
+      enum builtin_resource_kind_t {
+	    BUILTIN_RESOURCE_NONE,
+	    BUILTIN_RESOURCE_SEMAPHORE,
+	    BUILTIN_RESOURCE_MAILBOX
+      };
+
       struct inst_x;
       typedef inst_x*inst_t;
 
@@ -80,6 +86,7 @@ class class_type : public __vpiHandle {
       void add_interface_dispatch_prefix(const std::string&path);
       bool assignment_compatible_with(const class_type*want) const;
       const class_type* runtime_super(void) const;
+      builtin_resource_kind_t builtin_resource_kind(void) const;
 	// Number of properties in the class definition.
       inline size_t property_count(void) const { return properties_.size(); }
       const std::string& property_name(size_t idx) const;

@@ -436,6 +436,16 @@ void draw_class_in_scope(ivl_type_t classtype)
       const char*dispatch_prefix = ivl_type_method_prefix(classtype);
       ivl_type_t super_type = ivl_type_super(classtype);
       const char*super_dispatch_prefix = ivl_type_method_prefix(super_type);
+	/* Built-in resource classes have no emitted class scope of their own.
+	 * Preserve their identity as the concrete superclass so runtime class
+	 * objects derived from them can carry the corresponding resource state. */
+      if (super_type && !super_dispatch_prefix
+	  && ivl_type_name(super_type)) {
+	    if (strcmp(ivl_type_name(super_type), "semaphore") == 0)
+		  super_dispatch_prefix = "$ivl_builtin_semaphore";
+	    else if (strcmp(ivl_type_name(super_type), "mailbox") == 0)
+		  super_dispatch_prefix = "$ivl_builtin_mailbox";
+      }
 
       if (classtype && ivl_type_base(classtype) == IVL_VT_NO_TYPE) {
 	    if (emitted_struct_cobject_(classtype))

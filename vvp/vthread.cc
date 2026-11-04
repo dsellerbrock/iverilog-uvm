@@ -37423,6 +37423,36 @@ void vthread_pop_obj_item(struct vthread_s*thr, vvp_object_t&obj)
  * Mailbox opcodes
  * ================================================================ */
 
+static vvp_mailbox* mailbox_resource_(const vvp_object_t&object,
+					      vvp_object_t&resource)
+{
+      if (vvp_mailbox*mailbox = object.peek<vvp_mailbox>()) {
+	    resource = object;
+	    return mailbox;
+      }
+      vvp_cobject*cobject = object.peek<vvp_cobject>();
+      if (!cobject || cobject->get_defn()->builtin_resource_kind()
+	  != class_type::BUILTIN_RESOURCE_MAILBOX)
+	    return nullptr;
+      resource = cobject->builtin_resource();
+      return resource.peek<vvp_mailbox>();
+}
+
+static vvp_semaphore* semaphore_resource_(const vvp_object_t&object,
+						  vvp_object_t&resource)
+{
+      if (vvp_semaphore*semaphore = object.peek<vvp_semaphore>()) {
+	    resource = object;
+	    return semaphore;
+      }
+      vvp_cobject*cobject = object.peek<vvp_cobject>();
+      if (!cobject || cobject->get_defn()->builtin_resource_kind()
+	  != class_type::BUILTIN_RESOURCE_SEMAPHORE)
+	    return nullptr;
+      resource = cobject->builtin_resource();
+      return resource.peek<vvp_semaphore>();
+}
+
 /*
  * %mbx/new <bound>
  * Create a new vvp_mailbox with the given bound (0 = unbounded) and
@@ -37433,6 +37463,50 @@ bool of_MBX_NEW(vthread_t thr, vvp_code_t cp)
       size_t bound = cp->number;
       vvp_object_t mbx(new vvp_mailbox(bound));
       thr->push_object(mbx);
+      return true;
+}
+
+/*
+ * %class/resource_init <kind>
+ * Stack: derived class object and its built-in constructor argument.
+ * Replace that object's default mailbox/semaphore state with the state
+ * initialized by super.new(...).
+ */
+bool of_CLASS_RESOURCE_INIT(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t initial = thr->pop_vec4();
+      vvp_object_t object;
+      thr->pop_object(object);
+
+      if (cp->number != class_type::BUILTIN_RESOURCE_SEMAPHORE
+	  && cp->number != class_type::BUILTIN_RESOURCE_MAILBOX) {
+	    cerr << "runtime error: invalid class resource kind "
+		 << cp->number << endl;
+	    return true;
+      }
+
+      vvp_cobject*cobject = object.peek<vvp_cobject>();
+      if (!cobject) return true;
+      if (cobject->get_defn()->builtin_resource_kind() != cp->number) {
+	    cerr << "runtime error: class resource initializer does not match "
+		 << "the derived class base type" << endl;
+	    return true;
+      }
+
+      uint32_t raw = 0;
+      const unsigned bits = initial.size() < 32 ? initial.size() : 32;
+      for (unsigned idx = 0; idx < bits; idx += 1)
+	    if (initial.value(idx) == BIT4_1)
+		  raw |= uint32_t(1) << idx;
+      const int64_t signed_value = (raw & 0x80000000)
+	    ? static_cast<int64_t>(raw) - 0x100000000LL
+	    : static_cast<int64_t>(raw);
+
+      if (cp->number == class_type::BUILTIN_RESOURCE_SEMAPHORE)
+	    cobject->set_builtin_resource(new vvp_semaphore(signed_value));
+      else
+	    cobject->set_builtin_resource(
+		  new vvp_mailbox(static_cast<size_t>(signed_value)));
       return true;
 }
 
@@ -37453,7 +37527,8 @@ bool of_MBX_PUT(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       if (!mbx) return true; /* null mailbox: silently ignore */
 
       const char*mbx_trace = getenv("IVL_MBX_TRACE");
@@ -37469,7 +37544,7 @@ bool of_MBX_PUT(vthread_t thr, vvp_code_t)
                        << " mbx=" << mbx << " value=" << box->get_value() << endl;
       }
 
-      bool done = mbx->put(thr, mbx_obj, item_obj);
+      bool done = mbx->put(thr, mbx_state, item_obj);
       if (!done) return false; /* thread suspended */
       return true;
 }
@@ -37486,14 +37561,15 @@ bool of_MBX_GET(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       if (!mbx) {
 	    thr->push_object(vvp_object_t()); /* null item */
 	    return true;
       }
 
       vvp_object_t item;
-      bool done = mbx->get(thr, mbx_obj, item);
+      bool done = mbx->get(thr, mbx_state, item);
       if (!done) return false; /* thread suspended */
       const char*mbx_trace = getenv("IVL_MBX_TRACE");
       const char*scope_name = (thr && thr->parent_scope)
@@ -37523,14 +37599,15 @@ bool of_MBX_PEEK(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       if (!mbx) {
 	    thr->push_object(vvp_object_t()); /* null item */
 	    return true;
       }
 
       vvp_object_t item;
-      bool done = mbx->peek(thr, mbx_obj, item);
+      bool done = mbx->peek(thr, mbx_state, item);
       if (!done) return false; /* thread suspended */
       thr->push_object(item);
       return true;
@@ -37549,7 +37626,8 @@ bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       bool ok = mbx ? mbx->try_put(item_obj) : false;
       vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
@@ -37579,7 +37657,8 @@ bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       vvp_object_t item;
       vvp_lvalue_ref*output = thr->object_stack_size()
 	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
@@ -37605,7 +37684,8 @@ bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       vvp_object_t item;
       vvp_lvalue_ref*output = thr->object_stack_size()
 	    ? thr->peek_object().peek<vvp_lvalue_ref>() : 0;
@@ -37629,7 +37709,8 @@ bool of_MBX_NUM(vthread_t thr, vvp_code_t)
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
-      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t mbx_state;
+      vvp_mailbox*mbx = mailbox_resource_(mbx_obj, mbx_state);
       unsigned long cnt = mbx ? (unsigned long)mbx->num() : 0UL;
       vvp_vector4_t res(32);
       for (unsigned idx = 0; idx < 32; ++idx)
@@ -37688,10 +37769,11 @@ bool of_SEM_GET(vthread_t thr, vvp_code_t)
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
-      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      vvp_object_t sem_state;
+      vvp_semaphore*sem = semaphore_resource_(sem_obj, sem_state);
       if (!sem) return true; /* null semaphore: ignore */
 
-      bool done = sem->get(thr, sem_obj, nval ? nval : 1);
+      bool done = sem->get(thr, sem_state, nval ? nval : 1);
       if (!done) return false; /* thread suspended */
       return true;
 }
@@ -37723,7 +37805,8 @@ bool of_SEM_PUT(vthread_t thr, vvp_code_t)
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
-      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      vvp_object_t sem_state;
+      vvp_semaphore*sem = semaphore_resource_(sem_obj, sem_state);
       if (sem) sem->put(nval ? nval : 1);
       return true;
 }
@@ -37751,7 +37834,8 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
       vvp_object_t sem_obj;
       thr->pop_object(sem_obj);
 
-      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      vvp_object_t sem_state;
+      vvp_semaphore*sem = semaphore_resource_(sem_obj, sem_state);
       bool ok = !negative && sem ? sem->try_get(nval ? nval : 1) : false;
       vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);

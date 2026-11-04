@@ -15570,6 +15570,52 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 	    return blk;
       }
 
+	// The built-in semaphore/mailbox classes have no NetFuncDef constructor
+	// scope. Initialize their resource portion directly on the already
+	// allocated derived class object when constructor chaining reaches that
+	// built-in base. Their constructor parameter has the standard default 0.
+      if (const netclass_t*resource_type =
+	    builtin_class_resource_base(class_super)) {
+	    const bool is_mailbox =
+		  resource_type->get_name() == perm_string::literal("mailbox");
+	    const std::vector<perm_string>parm_names = {
+		  perm_string::literal(is_mailbox ? "bound" : "keyCount")
+	    };
+	    std::vector<PExpr*>args = map_named_args(des, parm_names, parms_);
+	    if (parms_.size() > 1) {
+		  cerr << get_fileline() << ": error: Built-in "
+		       << (is_mailbox ? "mailbox" : "semaphore")
+		       << " constructor expects at most one argument." << endl;
+		  des->errors += 1;
+		  NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	    NetExpr*initial = args[0]
+		  ? elab_and_eval(des, scope, args[0], 32, false, false,
+				  IVL_VT_LOGIC)
+		  : new NetEConst(verinum((uint64_t)0, 32));
+	    if (!initial) {
+		  NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	    vector<NetExpr*>init_args(2);
+	    init_args[0] = new NetESignal(var_this);
+	    init_args[1] = initial;
+	    NetSTask*init = new NetSTask(
+		  is_mailbox ? "$ivl_mailbox$init" : "$ivl_semaphore$init",
+		  IVL_SFUNC_AS_TASK_IGNORE, init_args);
+	    init->set_line(*this);
+	    NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	    block->set_line(*this);
+	    block->append(init);
+	    append_extension_options(block);
+	    return block;
+      }
+
 	// There is no constructor at all in the parent, so skip it.
       NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
       tmp->set_line(*this);
@@ -18834,9 +18880,11 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
       NetAssign_*mailbox_ref_output = 0;
       const netclass_t*class_type =
 	    dynamic_cast<const netclass_t*>(obj_type);
+	const netclass_t*mailbox_type =
+	    builtin_class_resource_base(class_type);
       const bool mailbox_output_method =
-	    class_type
-	    && class_type->get_name() == perm_string::literal("mailbox")
+	    mailbox_type
+	    && mailbox_type->get_name() == perm_string::literal("mailbox")
 	    && (method_name == perm_string::literal("get")
 		|| method_name == perm_string::literal("peek")
 		|| method_name == perm_string::literal("try_get")
@@ -18886,11 +18934,11 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 		&& queue->assoc_compat())
 		  argv[idx + 1] = elab_assoc_index(des, scope, args[idx],
 						obj_type, false);
-	    else if (class_type && class_type->is_typed_mailbox()
+	    else if (mailbox_type && mailbox_type->is_typed_mailbox()
 		     && (method_name == perm_string::literal("put")
 			 || method_name == perm_string::literal("try_put")))
 		  argv[idx + 1] = elab_typed_mailbox_input(
-			des, scope, method_name, args[idx], class_type);
+			des, scope, method_name, args[idx], mailbox_type);
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
@@ -18920,13 +18968,13 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 	    || method_name == perm_string::literal("try_put")
 	    || method_name == perm_string::literal("try_get")
 	    || method_name == perm_string::literal("try_peek");
-      if (class_type && class_type->is_typed_mailbox()
+	  if (mailbox_type && mailbox_type->is_typed_mailbox()
 	  && mailbox_message_method && nparms == 1
 	  && (mailbox_ref_output || argv[1])
 	  && !(mailbox_ref_output
-	       ? class_type->mailbox_message_type_equivalent(
+	       ? mailbox_type->mailbox_message_type_equivalent(
 		       netassign_type_for_equivalence(mailbox_ref_output))
-	       : typed_mailbox_put_compatible(class_type, argv[1]))) {
+	       : typed_mailbox_put_compatible(mailbox_type, argv[1]))) {
 	    cerr << get_fileline() << ": error: Typed mailbox method `"
 		 << method_name << "' argument must have a type equivalent to the "
 		    "mailbox message type (IEEE 1800-2017/2023 15.4.9)."
@@ -20093,7 +20141,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  delete obj_expr;
 		  return 0;
 	    }
-	    perm_string cname = class_type->get_name();
+	    const netclass_t*resource_type =
+		  builtin_class_resource_base(class_type);
+	    perm_string cname = resource_type
+		  ? resource_type->get_name() : class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
 		    || method_name == perm_string::literal("await")
@@ -20139,7 +20190,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						    parm_state);
 	    }
 	      // Built-in mailbox task methods: generate real opcodes.
-	    if (cname == perm_string::literal("mailbox")) {
+	    if (resource_type
+		&& !class_type->method_from_name(method_name)
+		&& cname == perm_string::literal("mailbox")) {
 		  if (method_name == perm_string::literal("put")) {
 			static const std::vector<perm_string> parm_names = {
 			      perm_string::literal("message")
@@ -20197,7 +20250,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    }
 	      // Built-in semaphore task methods: generate real opcodes.
 	      // get/put/try_get accept an optional keycount argument (default 1).
-	    if (cname == perm_string::literal("semaphore")) {
+	    if (resource_type
+		&& !class_type->method_from_name(method_name)
+		&& cname == perm_string::literal("semaphore")) {
 		  static const std::vector<perm_string> sem_no_parms;
 		  static const std::vector<perm_string> sem_one_parm = {
 			perm_string::literal("keycount")

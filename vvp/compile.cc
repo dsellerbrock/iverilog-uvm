@@ -299,6 +299,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%cast/vec4/dar", of_CAST_VEC4_DAR, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%cast/vec4/str", of_CAST_VEC4_STR, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%cast2",   of_CAST2,  0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+      { "%class/resource_init", of_CLASS_RESOURCE_INIT, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%clip/vec4/b",of_CLIP_VEC4_BOUND,1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%clip/vec4/d",of_CLIP_VEC4_DYNAMIC,2,{OA_BIT1,OA_BIT2,OA_NONE} },
       { "%cmp/cont", of_CMPCONT, 0, {OA_NONE,    OA_NONE,     OA_NONE} },

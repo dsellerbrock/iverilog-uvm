@@ -10531,7 +10531,10 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	    if (class_type->is_interface())
 		  return CP_EXPR_METHOD_STUB_INT0;
 
-	    perm_string class_name = class_type->get_name();
+	    const netclass_t*resource_type =
+		  builtin_class_resource_base(class_type);
+	    perm_string class_name = resource_type
+		  ? resource_type->get_name() : class_type->get_name();
 	      // The built-in process class has a REAL status()
 	      // implementation ($ivl_process$status, IEEE 1800-2017
 	      // 9.7) — never stub it to a constant.
@@ -11019,18 +11022,20 @@ static bool should_defer_type_parameter_expr_call_(
 	    if (class_type->is_interface())
 		  return false;
 
+	    const netclass_t*resource_type =
+		  builtin_class_resource_base(class_type);
+	    if (resource_type
+		&& ((resource_type->get_name() == perm_string::literal("mailbox")
+		     && (method_name == perm_string::literal("num")
+			 || method_name == perm_string::literal("try_get")
+			 || method_name == perm_string::literal("try_peek")
+			 || method_name == perm_string::literal("try_put")))
+		    || (resource_type->get_name() == perm_string::literal("semaphore")
+			&& method_name == perm_string::literal("try_get"))))
+		  return false;
 	    perm_string class_name = class_type->get_name();
 	    if (class_name == perm_string::literal("process")
 		&& method_name == perm_string::literal("status"))
-		  return false;
-	    if (class_name == perm_string::literal("mailbox")
-		&& (method_name == perm_string::literal("num")
-		    || method_name == perm_string::literal("try_get")
-		    || method_name == perm_string::literal("try_peek")
-		    || method_name == perm_string::literal("try_put")))
-		  return false;
-	    if (class_name == perm_string::literal("semaphore")
-		&& method_name == perm_string::literal("try_get"))
 		  return false;
 
 	    return true;
@@ -21208,11 +21213,13 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				class_type = visible_class;
 		    }
 
-		    // Handle mailbox/semaphore built-in function-returning methods
-		    // before attempting to resolve them as class methods (they won't
-		    // be found as real methods).
-		    {
-			perm_string cname = class_type->get_name();
+	    // Handle inherited mailbox/semaphore function methods before regular
+	    // class lookup. A user method declared in the derived hierarchy takes
+	    // precedence over the built-in method.
+	    const netclass_t*resource_type =
+		  builtin_class_resource_base(class_type);
+	    if (resource_type && !class_type->method_from_name(method_name)) {
+		perm_string cname = resource_type->get_name();
 			if (cname == perm_string::literal("mailbox")) {
 			    if (method_name == perm_string::literal("num")) {
 				  // mbx.num() — returns int count
@@ -21298,8 +21305,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 					  delete sys;
 					  return 0;
 				    }
-				    if (!typed_mailbox_type_equivalent_(
-						*this, des, class_type, method_name,
+					if (!typed_mailbox_type_equivalent_(
+						*this, des, resource_type, method_name,
 						netassign_type_for_equivalence(lval))) {
 					  delete lval;
 					  delete sys;
@@ -21310,14 +21317,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			      }
 			      NetExpr*a = elab_typed_mailbox_input(
 				    des, scope, method_name, message_args[0],
-				    class_type);
+				    resource_type);
 				  if (!a) {
 					delete sys;
 					return 0;
 				  }
-				  if (!typed_mailbox_put_compatible(class_type, a)
+			  if (!typed_mailbox_put_compatible(resource_type, a)
 				      && !typed_mailbox_argument_equivalent_(
-						*this, des, class_type,
+						*this, des, resource_type,
 						method_name, a)) {
 					delete a;
 					delete sys;

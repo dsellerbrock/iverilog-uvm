@@ -975,5 +975,6 @@ inline NetScope*netclass_t::definition_scope(void)
 
 extern netclass_t* builtin_class_type(perm_string name);
 extern netenum_t* builtin_process_state_type(Design*des = nullptr);
+extern const netclass_t* builtin_class_resource_base(const netclass_t*type);
 
 #endif /* IVL_netclass_H */

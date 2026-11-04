@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1511_builtin_class_inheritance.v",
+  "iverilog-args": ["-g2017", "-s", "tb"],
+  "output-contains": ["ISSUE1511 PASS"]
+}
