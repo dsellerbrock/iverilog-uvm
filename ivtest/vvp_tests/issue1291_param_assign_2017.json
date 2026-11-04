@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1291_param_assign.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1291_param_assign"],
+  "vpi-sources": ["vpi/issue1291_param_assign.c"],
+  "output-contains": ["PARAM_ASSIGN_PASS"]
+}

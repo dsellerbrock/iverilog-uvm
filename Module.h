@@ -254,7 +254,8 @@ class Module : public PScopeExtra, public PNamedItem {
       bool elaborate(Design*, NetScope*scope) const;
 
       typedef std::map<perm_string,PExpr*> replace_t;
-      bool elaborate_scope(Design*, NetScope*scope, const replace_t&rep);
+      bool elaborate_scope(Design*, NetScope*scope, const replace_t&rep,
+			   bool replacements_by_name = false);
 
       bool elaborate_sig(Design*, NetScope*scope) const;
 

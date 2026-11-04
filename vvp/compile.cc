@@ -3512,6 +3512,69 @@ void compile_param_real(char*label, const char*name, char*value,
       free(value);
 }
 
+static vpiHandle lookup_param_assign_lhs_(const char*label)
+{
+      symbol_value_t val = sym_get_value(sym_vpi, label);
+      if (!val.ptr) {
+	    fprintf(stderr,
+		    "vvp error: parameter assignment has unresolved LHS '%s'\n",
+		    label);
+	    compile_errors += 1;
+	    return 0;
+      }
+
+      __vpiHandle*handle = static_cast<__vpiHandle*>(val.ptr);
+      if (handle->get_type_code() != vpiParameter) {
+	    fprintf(stderr,
+		    "vvp error: parameter assignment LHS '%s' is not a parameter\n",
+		    label);
+	    compile_errors += 1;
+	    return 0;
+      }
+      return handle;
+}
+
+static void compile_param_assign_(char*label, char*lhs_label,
+				  bool conn_by_name, vpiHandle rhs)
+{
+      vpiHandle lhs = lookup_param_assign_lhs_(lhs_label);
+      if (lhs) {
+	    vpiHandle obj = vpip_make_param_assign(lhs, rhs, conn_by_name);
+	    compile_vpi_symbol(label, obj);
+	    vpip_attach_to_current_scope(obj);
+      } else {
+	    delete static_cast<__vpiHandle*>(rhs);
+	    free(label);
+      }
+      free(lhs_label);
+}
+
+void compile_param_assign_logic(char*label, char*lhs_label,
+				bool conn_by_name, char*value,
+				bool signed_flag)
+{
+      vvp_vector4_t bits = c4string_to_vector4(value);
+      vpiHandle rhs = vpip_make_binary_const(bits, signed_flag);
+      free(value);
+      compile_param_assign_(label, lhs_label, conn_by_name, rhs);
+}
+
+void compile_param_assign_string(char*label, char*lhs_label,
+				 bool conn_by_name, char*value)
+{
+      vpiHandle rhs = vpip_make_string_const(value, true);
+      compile_param_assign_(label, lhs_label, conn_by_name, rhs);
+}
+
+void compile_param_assign_real(char*label, char*lhs_label,
+			       bool conn_by_name, char*value)
+{
+      double real_value = crstring_to_double(value);
+      vpiHandle rhs = vpip_make_real_const(real_value);
+      free(value);
+      compile_param_assign_(label, lhs_label, conn_by_name, rhs);
+}
+
 void compile_island(char*label, char*type)
 {
       if (strcmp(type,"tran") == 0)

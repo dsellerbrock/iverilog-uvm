@@ -5188,7 +5188,8 @@ void elaborate_interface_declaration_classes(Design*des, NetScope*scope,
 }
 
 static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo&loc,
-				     const Module::replace_t&replacements)
+				     const Module::replace_t&replacements,
+				     bool replacements_by_name)
 {
       if (debug_scopes) {
 	    cerr << scope->get_fileline() << ": " << __func__ << ": "
@@ -5213,7 +5214,8 @@ static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo
 		  cerr << loc.get_fileline() << ":      : "
 		       << "Type=" << val->expr_type() << endl;
 	    }
-	    scope->replace_parameter(des, (*cur).first, val, scope->parent());
+	    scope->replace_parameter(des, (*cur).first, val, scope->parent(),
+			     false, true, replacements_by_name);
       }
 }
 
@@ -5512,7 +5514,8 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 }
 
 bool Module::elaborate_scope(Design*des, NetScope*scope,
-			     const replace_t&replacements)
+			     const replace_t&replacements,
+			     bool replacements_by_name)
 {
 	/* Create the interface-owned call scopes before elaborating task scopes. */
 	add_modport_provider_task_stubs_(this);
@@ -5600,7 +5603,8 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	// Run parameter replacements that were collected from the
 	// containing scope and meant for me.
 
-      replace_scope_parameters(des, scope, *this, replacements);
+      replace_scope_parameters(des, scope, *this, replacements,
+			       replacements_by_name);
 
 	// Type parameter overrides are now installed. Check restricted types
 	// before elaborating declarations that use those parameters.
@@ -6511,7 +6515,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // and sub-scopes that might occur. Parameters are also
 	      // created in that scope, as they exist. (I'll override them
 	      // later.)
-	    mod->elaborate_scope(des, my_scope, replace);
+	  mod->elaborate_scope(des, my_scope, replace, parms_ != 0);
 
       }
 	    delete[]attrib_list;

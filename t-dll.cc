@@ -809,6 +809,9 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
             assert(idx < param.size());
             ivl_parameter_t cur_par = &param[idx];
 	    cur_par->basename = cur_pit->first;
+            cur_par->assign_expr = 0;
+            cur_par->has_assign = false;
+            cur_par->assign_conn_by_name = false;
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
@@ -823,6 +826,28 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->signed_flag = cur_pit->second.ivl_type->get_signed();
 	    cur_par->scope = scop;
 	    FILE_NAME(cur_par, &(cur_pit->second));
+
+	      // Keep the supplied override expression separate from the final
+	      // parameter value. The target runs after elaboration, so this
+	      // independent constant evaluation cannot alter parameter solving.
+	    if (cur_pit->second.parameter_assign
+		&& !cur_pit->second.type_flag
+		&& cur_pit->second.parameter_assign_expr) {
+		  NetExpr*assign_expr = elab_and_eval(
+			const_cast<Design*>(des_.self),
+			cur_pit->second.parameter_assign_scope,
+			cur_pit->second.parameter_assign_expr, -1, true);
+		  if (assign_expr) {
+			assign_expr->expr_scan(this);
+			ivl_assert(*assign_expr, expr_);
+			cur_par->assign_expr = expr_;
+			expr_ = 0;
+			delete assign_expr;
+			cur_par->has_assign = true;
+			cur_par->assign_conn_by_name =
+			      cur_pit->second.conn_by_name;
+		  }
+	    }
 
 	      // Type parameters don't have a range or expression
 	    if (!cur_pit->second.type_flag) {

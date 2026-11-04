@@ -1502,6 +1502,7 @@ struct __vpiBinaryConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_binary_const(unsigned wid, const char*bits);
+vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag);
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
 				 long file_idx, long lineno);
@@ -1529,6 +1530,24 @@ class __vpiNullConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_null_const();
+
+class __vpiParamAssign : public __vpiHandle {
+    public:
+      __vpiParamAssign(vpiHandle lhs, vpiHandle rhs, bool conn_by_name);
+      ~__vpiParamAssign() override;
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      vpiHandle lhs_;
+      vpiHandle rhs_;
+      bool conn_by_name_;
+};
+
+vpiHandle vpip_make_param_assign(vpiHandle lhs, vpiHandle rhs,
+				 bool conn_by_name);
+void param_assign_delete(vpiHandle item);
 
 class __vpiNullOp : public __vpiHandle {
     public:

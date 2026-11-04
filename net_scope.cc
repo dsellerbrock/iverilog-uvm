@@ -663,7 +663,8 @@ static bool defparam_targets_other_genblock_instance(const NetScope*src,
 }
 
 void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
-			         NetScope*scope, bool defparam)
+				 NetScope*scope, bool defparam,
+				 bool parameter_assign, bool conn_by_name)
 {
       if (parameters.find(key) == parameters.end()) {
 	    cerr << val->get_fileline() << ": error: parameter `"
@@ -715,6 +716,12 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
       ref.val_scope = scope;
       ref.source_expr = val;
       ref.source_scope = scope;
+      if (parameter_assign) {
+	    ref.parameter_assign_expr = val;
+	    ref.parameter_assign_scope = scope;
+	    ref.parameter_assign = true;
+	    ref.conn_by_name = conn_by_name;
+      }
       if (defparam)
 	    ref.defparam_source_scopes.insert(scope);
 }

@@ -835,11 +835,14 @@ struct ivl_parameter_s {
       perm_string basename;
       ivl_scope_t scope;
       ivl_expr_t  value;
+      ivl_expr_t  assign_expr;
       long          msb;
       long          lsb;
       bool  signed_flag;
       bool        local;
       bool      is_type;
+      bool has_assign;
+      bool assign_conn_by_name;
       perm_string file;
       unsigned lineno;
 };

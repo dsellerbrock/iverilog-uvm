@@ -2455,6 +2455,24 @@ extern "C" ivl_expr_t ivl_parameter_expr(ivl_parameter_t net)
       return net->value;
 }
 
+extern "C" int ivl_parameter_has_assign(ivl_parameter_t net)
+{
+      assert(net);
+      return net->has_assign;
+}
+
+extern "C" ivl_expr_t ivl_parameter_assign_expr(ivl_parameter_t net)
+{
+      assert(net);
+      return net->assign_expr;
+}
+
+extern "C" int ivl_parameter_assign_conn_by_name(ivl_parameter_t net)
+{
+      assert(net);
+      return net->assign_conn_by_name;
+}
+
 extern "C" const char* ivl_parameter_file(ivl_parameter_t net)
 {
       assert(net);

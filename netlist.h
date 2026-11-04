@@ -1351,7 +1351,9 @@ class NetScope : public Definitions, public Attrib {
 	   range or signed_flag. Return false if the name does not
 	   exist. */
       void replace_parameter(Design *des, perm_string name, PExpr*val,
-			     NetScope*scope, bool defparam = false);
+			     NetScope*scope, bool defparam = false,
+			     bool parameter_assign = false,
+			     bool conn_by_name = false);
 
 	/* This is used to ensure the value of a parameter cannot be
 	   changed at run-time. This is required if a specparam is used
@@ -1716,10 +1718,12 @@ class NetScope : public Definitions, public Attrib {
 	/* After everything is all set up, the code generators like
 	   access to these things to make up the parameter lists. */
       struct param_expr_t : public LineInfo {
-	    param_expr_t() : val_expr(0), source_expr(0), val_type(0),
-			     val_scope(0), source_scope(0),
+	    param_expr_t() : val_expr(0), source_expr(0),
+			     parameter_assign_expr(0), parameter_assign_scope(0),
+			     val_type(0), val_scope(0), source_scope(0),
 			     solving(false), is_annotatable(false),
 			     local_flag(false),
+		             parameter_assign(false), conn_by_name(false),
 		             range(0), val(0), ivl_type(0) { }
 	    // Source expression and data type (before elaboration)
 	    PExpr*val_expr;
@@ -1727,6 +1731,10 @@ class NetScope : public Definitions, public Attrib {
 	    // Class-specialization identity may need to follow an evaluated
 	    // forwarding parameter back to the expression that supplied it.
 	    PExpr*source_expr;
+	    // Preserve a module-instantiation override independently of the
+	    // parameter's final value for VPI vpiParamAssign objects.
+	    PExpr*parameter_assign_expr;
+	    NetScope*parameter_assign_scope;
 	    data_type_t*val_type;
 	    // Scope information
             NetScope*val_scope;
@@ -1737,6 +1745,8 @@ class NetScope : public Definitions, public Attrib {
 	    bool is_annotatable;
 	    // Is this a localparam?
 	    bool local_flag;
+	    bool parameter_assign;
+	    bool conn_by_name;
 	    // Can it be overridden?
 	    bool overridable = false;
 	    // Preserve every defparam declaration scope after value evaluation.

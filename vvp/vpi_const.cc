@@ -438,6 +438,15 @@ vpiHandle vpip_make_binary_const(unsigned wid, const char*bits)
       return obj;
 }
 
+vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag)
+{
+      __vpiBinaryConst*obj = new __vpiBinaryConst;
+      obj->bits = bits;
+      obj->signed_flag = signed_flag;
+      obj->sized_flag = 1;
+      return obj;
+}
+
 vvp_vector4_t vector4_from_text(const char*bits, unsigned wid)
 {
       vvp_vector4_t res (wid);
@@ -895,6 +904,71 @@ int __vpiNullOp::vpi_get(int code)
 vpiHandle vpip_make_null_op()
 {
       return new __vpiNullOp;
+}
+
+__vpiParamAssign::__vpiParamAssign(vpiHandle lhs, vpiHandle rhs,
+				   bool conn_by_name)
+: lhs_(lhs), rhs_(rhs), conn_by_name_(conn_by_name)
+{
+      assert(lhs_ && lhs_->get_type_code() == vpiParameter);
+      assert(rhs_ && rhs_->get_type_code() == vpiConstant);
+}
+
+static void delete_param_assign_rhs_(vpiHandle rhs)
+{
+      __vpiHandle*handle = static_cast<__vpiHandle*>(rhs);
+      switch (handle->vpi_get(vpiConstType)) {
+	  case vpiStringConst:
+	    delete dynamic_cast<__vpiStringConst*>(handle);
+	    break;
+	  case vpiBinaryConst:
+	    delete dynamic_cast<__vpiBinaryConst*>(handle);
+	    break;
+	  case vpiRealConst:
+	    delete dynamic_cast<__vpiRealConst*>(handle);
+	    break;
+	  default:
+	    assert(0);
+	    break;
+      }
+}
+
+__vpiParamAssign::~__vpiParamAssign()
+{
+      delete_param_assign_rhs_(rhs_);
+}
+
+int __vpiParamAssign::get_type_code(void) const
+{ return vpiParamAssign; }
+
+int __vpiParamAssign::vpi_get(int code)
+{
+      if (code == vpiConnByName)
+	    return conn_by_name_;
+      return __vpiHandle::vpi_get(code);
+}
+
+vpiHandle __vpiParamAssign::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiLhs:
+	    return lhs_;
+	  case vpiRhs:
+	    return rhs_;
+	  default:
+	    return __vpiHandle::vpi_handle(code);
+      }
+}
+
+vpiHandle vpip_make_param_assign(vpiHandle lhs, vpiHandle rhs,
+				 bool conn_by_name)
+{
+      return new __vpiParamAssign(lhs, rhs, conn_by_name);
+}
+
+void param_assign_delete(vpiHandle item)
+{
+      delete dynamic_cast<__vpiParamAssign*>(item);
 }
 
 #ifdef CHECK_WITH_VALGRIND
