@@ -3415,6 +3415,8 @@ sv_randomize_global_queue_fail_2023 normal,-g2023,-s,main ivltests gold=sv_rando
 # Scope randomization of one local queue: exact sizing and explicit limits.
 sv_scope_randomize_local_queue_exact normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
 sv_scope_randomize_local_queue_exact_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
+issue1724_std_randomize_mixed_queue normal,-g2017,-s,issue1724_std_randomize_mixed_queue ivltests gold=issue1724_std_randomize_mixed_queue.gold
+issue1724_std_randomize_mixed_queue_2023 normal,-g2023,-s,issue1724_std_randomize_mixed_queue ivltests gold=issue1724_std_randomize_mixed_queue.gold
 sv_scope_randomize_local_queue_unsupported normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
 sv_scope_randomize_local_queue_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
 sv_scope_randomize_local_queue_open_ended_size normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_open_ended_size.gold
