@@ -18811,20 +18811,56 @@ static Z3_lbool scope_queue_absent_dependency_(Z3_context ctx, Z3_ast hard,
 
 bool vvp_z3_randomize_scope_queue(const string&ir,
 			    unsigned element_width, uint64_t declared_max,
+			    uint64_t current_size,
+			    const vector<unsigned>&scalar_widths,
+			    const vector<string>&scalar_targets,
 			    const vector<uint64_t>&slot_vals,
 			    const vector<vector<uint64_t> >&object_vals,
 			    const vector<vector<bool> >&object_known,
 			    uint64_t diversity_seed,
+			    vector<string>&scalar_values,
 			    vector<string>&elements)
 {
+	  scalar_values.clear();
       elements.clear();
-      if (!element_width || element_width > 65536) {
+      if (!element_width || element_width > 65536
+	  || scalar_widths.size() != scalar_targets.size()) {
 	    fprintf(stderr, "ERROR: scope queue element width is unsupported.\n");
 	    return false;
       }
+      for (unsigned width : scalar_widths)
+	    if (!width || width > 65536) {
+		  fprintf(stderr, "ERROR: scope randomization scalar width is unsupported.\n");
+		  return false;
+	    }
+
+      auto props_valid = [&](const Z3Builder&builder) {
+	    for (const auto&pv : builder.prop_vars)
+		  if (pv.idx >= scalar_widths.size()
+		      || pv.width != scalar_widths[pv.idx]) return false;
+	    return true;
+      };
 
       string sub = substitute_slots(ir, slot_vals);
       sub = substitute_scope_object_slots(sub, object_vals, object_known);
+      size_t size_refs = 0;
+      for (size_t pos = 0; pos < ir.size();) {
+	    if (ir.compare(pos, 11, "(dynforeach") == 0) {
+		  unsigned depth = 0;
+		  size_t end = pos;
+		  do {
+			if (ir[end] == '(') ++depth;
+			else if (ir[end] == ')') --depth;
+			++end;
+		  } while (end < ir.size() && depth);
+		  pos = end;
+		  continue;
+	    }
+	    if (ir.compare(pos, 4, "s:0:") == 0) {
+		  ++size_refs;
+		  pos += 4;
+	    } else ++pos;
+      }
       Z3_config cfg = Z3_mk_config();
       Z3_set_param_value(cfg, "model", "true");
       Z3_context ctx = Z3_mk_context(cfg);
@@ -18835,10 +18871,12 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       first.opt = opt;
       first.strict_ir = true;
       Z3_ast hard = parse_constraint_ir(sub, first);
+      for (unsigned i = 0; i < scalar_widths.size(); ++i)
+	    first.get_prop_var(i, scalar_widths[i]);
       bool valid = first.state_errors.empty() && first.state_checks.empty()
 	    && first.pending_soft.empty()
 	    && first.size_vars.size() == 1 && first.size_vars[0].idx == 0
-	    && first.prop_vars.empty();
+	    && props_valid(first);
       if (!valid) {
 	    fprintf(stderr, "ERROR: scope queue randomization requires one exact "
 		    "size and supported hard constraints.\n");
@@ -18846,6 +18884,23 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    Z3_del_context(ctx);
 	    return false;
       }
+	// Scope randomization follows the array randomization rule in 18.4: a
+	// dynamic-array/queue size without a size constraint stays unchanged, but
+	// all existing elements still participate in this shared solve. The two
+	// s:0 tokens in the generated tautology ensure the size variable exists;
+	// any additional occurrence outside a foreach body comes from the user's
+	// with-clause. A size read inside foreach is state, not a size constraint.
+	if (size_refs == 2) {
+	    string size_token = "s:0:" + first.size_vars[0].container_type;
+	    string fixed_size = "(eq " + size_token + " c:"
+		  + to_string(current_size) + ":32)";
+	    sub += " " + fixed_size;
+	    Z3_ast fixed = Z3_mk_eq(ctx, first.size_vars[0].var,
+		  Z3_mk_unsigned_int64(ctx, current_size,
+			Z3_mk_bv_sort(ctx, 32)));
+	    Z3_ast both[2] = { hard, fixed };
+	    hard = Z3_mk_and(ctx, 2, both);
+	}
       Z3_optimize_assert(ctx, opt, hard);
       Z3_lbool status = Z3_optimize_check(ctx, opt, 0, nullptr);
       if (status != Z3_L_TRUE) {
@@ -18916,7 +18971,7 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 			      && candidate.pending_soft.empty()
 			      && candidate.size_vars.size() == 1
 			      && candidate.size_vars[0].idx == 0
-			      && candidate.prop_vars.empty();
+			      && props_valid(candidate);
 			for (const auto&ev : candidate.elem_vars)
 			      valid_candidate = valid_candidate && ev.idx == 0
 				&& ev.width == element_width && ev.elem < v;
@@ -19094,9 +19149,12 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       sizes[make_pair(0u, 0u)] = size;
       final.dyn_sizes = &sizes;
       hard = parse_constraint_ir(sub, final);
+      for (unsigned i = 0; i < scalar_widths.size(); ++i)
+	    final.get_prop_var(i, scalar_widths[i]);
       valid = final.state_errors.empty() && final.state_checks.empty()
 	    && final.pending_soft.empty()
-	    && final.prop_vars.empty();
+	    && final.size_vars.size() == 1 && final.size_vars[0].idx == 0
+	    && props_valid(final);
       for (const auto&ev : final.elem_vars)
 	    valid = valid && ev.idx == 0 && ev.width == element_width
 		  && ev.elem < size;
@@ -19123,6 +19181,45 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
 	    return false;
       }
       Z3_optimize_assert(ctx, opt, exact);
+	// Keep scalar arguments in this same final model as the container's
+	// elements. This makes cross-argument with-constraints one solve and
+	// leaves all destination writes conditional on its success.
+      auto scalar_bv = [&](const string&bits) -> Z3_ast {
+	    size_t pos = 0;
+	    unsigned first_bits = (unsigned)(bits.size() % 64);
+	    if (first_bits == 0) first_bits = 64;
+	    Z3_ast out = nullptr;
+	    while (pos < bits.size()) {
+		  unsigned take = pos == 0 ? first_bits : 64;
+		  uint64_t chunk = 0;
+		  for (unsigned i = 0; i < take; ++i)
+			chunk = (chunk << 1) | (bits[pos + i] == '1' ? 1 : 0);
+		  Z3_ast atom = Z3_mk_unsigned_int64(ctx, chunk,
+						 Z3_mk_bv_sort(ctx, take));
+		  out = out ? Z3_mk_concat(ctx, out, atom) : atom;
+		  pos += take;
+	    }
+	    return out;
+      };
+      for (const auto&pv : final.prop_vars) {
+	    string target = scalar_targets[pv.idx];
+	    if (target.size() < pv.width)
+		  target.insert(target.begin(), pv.width - target.size(), '0');
+	    else if (target.size() > pv.width)
+		  target.erase(0, target.size() - pv.width);
+	    Z3_ast preferred = scalar_bv(target);
+	    if (pv.width <= 64)
+		  Z3_optimize_minimize(ctx, opt,
+			Z3_mk_bvxor(ctx, pv.var, preferred));
+	    else {
+		  Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+			Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, pv.var),
+			Z3_mk_extract(ctx, pv.width - 1, pv.width - 64, preferred)));
+		  Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx,
+			Z3_mk_extract(ctx, 63, 0, pv.var),
+			Z3_mk_extract(ctx, 63, 0, preferred)));
+	    }
+      }
       /* An element the constraints already pin (`dst[i] == src[i]') needs no
 	 diversity objective; each objective costs the optimizer a full lexicographic
 	 round, which made a few hundred pinned elements take minutes. */
@@ -19174,6 +19271,19 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       if (status == Z3_L_TRUE) {
 	    model = Z3_optimize_get_model(ctx, opt);
 	    Z3_model_inc_ref(ctx, model);
+	    scalar_values.assign(scalar_widths.size(), string());
+	    for (const auto&pv : final.prop_vars) {
+		  Z3_ast value = nullptr;
+		  if (!Z3_model_eval(ctx, model, pv.var, true, &value)) break;
+		  const char*bits = Z3_get_numeral_binary_string(ctx, value);
+		  if (!bits) break;
+		  string word(bits);
+		  if (word.size() < pv.width)
+			word.insert(word.begin(), pv.width - word.size(), '0');
+		  else if (word.size() > pv.width)
+			word.erase(0, word.size() - pv.width);
+		  scalar_values[pv.idx] = word;
+	    }
 	    for (uint64_t i = 0; i < size; ++i) {
 		  Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
 		  Z3_ast value = nullptr;
@@ -19189,7 +19299,10 @@ bool vvp_z3_randomize_scope_queue(const string&ir,
       } else if (status == Z3_L_UNDEF) {
 	    fprintf(stderr, "ERROR: scope queue element solver returned UNKNOWN.\n");
       }
-      bool ok = status == Z3_L_TRUE && elements.size() == size;
+      bool ok = status == Z3_L_TRUE && elements.size() == size
+	    && scalar_values.size() == scalar_widths.size();
+      for (const string&value : scalar_values)
+	    ok = ok && value.size() > 0;
       if (!ok) elements.clear();
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);

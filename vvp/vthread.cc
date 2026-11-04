@@ -6759,8 +6759,9 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 
 bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
 {
-      const unsigned n_vals = code->bit_idx[0];
-      const unsigned n_objs = code->bit_idx[1];
+	  const unsigned n_scalars = code->bit_idx[0] >> 16;
+	  const unsigned n_vals = code->bit_idx[0] & 0xffffu;
+	  const unsigned n_objs = code->bit_idx[1];
 	/* Caller queue/darray object slots (qelem reads) are read for their
 	 * current elements; they were once popped and rejected here. */
       vector<vvp_object_t> state_objects(n_objs);
@@ -6783,7 +6784,16 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       }
       vvp_object_t old;
       thr->pop_object(old);
+	  vvp_darray*old_array = old.peek<vvp_darray>();
+	  uint64_t current_size = old_array ? old_array->get_size() : 0;
+	  vector<unsigned> scalar_widths(n_scalars);
+	  vector<string> scalar_targets(n_scalars);
+	  for (unsigned i = n_scalars; i > 0; --i) {
+		vvp_vector4_t value = thr->pop_vec4();
+		scalar_widths[i - 1] = value.size();
+	  }
       thr->std_randomize_queue_result = vvp_object_t();
+      thr->std_randomize_results.clear();
 
       const char*meta = code->text ? code->text : "";
       char*end = nullptr;
@@ -6805,20 +6815,41 @@ bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
       vector<string> elements;
       vthread_t rng_owner = logical_process_thread_(thr);
       string rng_state = thread_rng_get_state_(rng_owner);
+	  for (unsigned i = 0; i < n_scalars; ++i) {
+		string bits(scalar_widths[i], '0');
+		for (unsigned b = 0; b < scalar_widths[i]; ++b)
+		      if (thread_rng_next_(rng_owner) & 1)
+			    bits[scalar_widths[i] - 1 - b] = '1';
+		scalar_targets[i] = bits;
+	  }
       uint64_t seed = ((uint64_t)thread_rng_next_(rng_owner) << 32)
 	    | thread_rng_next_(rng_owner);
       vector<vector<uint64_t> > state_vals;
       vector<vector<bool> > state_known;
+      vector<string> scalar_values;
       if (n_objs)
 	    object_slot_values_(state_objects, code->text, state_vals,
 				state_known);
       bool ok = meta_ok && wide_slots_ok && width > 0 && width <= 65536
 	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
-		  slot_vals, state_vals, state_known, seed, elements);
+		  current_size,
+		  scalar_widths, scalar_targets, slot_vals, state_vals, state_known,
+		  seed, scalar_values, elements);
       if (!meta_ok || width == 0 || width > 65536)
 	    fprintf(stderr, "ERROR: unsupported scope queue randomization metadata "
 		    "or object state operand.\n");
       if (ok) {
+	    thr->std_randomize_results.clear();
+	    thr->std_randomize_results.resize(n_scalars);
+	    for (unsigned i = 0; i < n_scalars; ++i) {
+		vvp_vector4_t value(scalar_widths[i], BIT4_0);
+		const string&bits = scalar_values[i];
+		for (unsigned b = 0; b < scalar_widths[i]; ++b)
+		      value.set_bit(b, b < bits.size()
+			    && bits[bits.size() - 1 - b] == '1'
+			    ? BIT4_1 : BIT4_0);
+		thr->std_randomize_results[i] = value;
+	    }
 	    vvp_queue_vec4*queue = new vvp_queue_vec4;
 	    for (unsigned i = 0; i < elements.size(); ++i) {
 		  vvp_vector4_t word((unsigned)width, BIT4_0);

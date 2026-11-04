@@ -142,10 +142,14 @@ std::string vvp_z3_substitute_object_value_slots(const std::string&ir,
       const std::vector<std::vector<vvp_vector4_t> >&object_words);
 bool vvp_z3_randomize_scope_queue(const std::string&ir,
 			    unsigned element_width, uint64_t declared_max,
+			    uint64_t current_size,
+			    const std::vector<unsigned>&scalar_widths,
+			    const std::vector<std::string>&scalar_targets,
 			    const std::vector<uint64_t>&slot_vals,
 			    const std::vector<std::vector<uint64_t> >&object_vals,
 			    const std::vector<std::vector<bool> >&object_known,
 			    uint64_t diversity_seed,
+			    std::vector<std::string>&scalar_values,
 			    std::vector<std::string>&elements);
 
 #endif /* IVL_vvp_z3_H */
