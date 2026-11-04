@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_foreach_declared_loop_rules.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_foreach_declared_loop_rules"
+}
