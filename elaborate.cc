@@ -922,7 +922,157 @@ static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
                                      des, scope);
 }
 
+struct pattern_capture_t {
+      perm_string name;
+      pform_pattern_path_t path;
+};
+
+static void collect_pattern_captures_(const PMatchPattern*pattern,
+                                      pform_pattern_path_t&path,
+                                      vector<pattern_capture_t>&captures)
+{
+      if (!pattern)
+            return;
+
+      switch (pattern->kind()) {
+          case PMatchPattern::VARIABLE: {
+            pattern_capture_t capture;
+            capture.name = pattern->name();
+            capture.path = path;
+            captures.push_back(capture);
+            break;
+          }
+          case PMatchPattern::TAGGED:
+            path.push_back(pform_pattern_path_component_t(pattern->name()));
+            if (!pattern->children().empty())
+                  collect_pattern_captures_(pattern->children().front(), path,
+                                            captures);
+            path.pop_back();
+            break;
+          case PMatchPattern::STRUCTURE:
+            for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
+                  const PMatchPattern*child = pattern->children()[idx];
+                  if (child->has_member_name())
+                        path.push_back(pform_pattern_path_component_t(
+                              child->member_name()));
+                  else
+                        path.push_back(pform_pattern_path_component_t(
+                              (unsigned)idx));
+                  collect_pattern_captures_(child, path, captures);
+                  path.pop_back();
+            }
+            break;
+          case PMatchPattern::CONSTANT:
+          case PMatchPattern::WILDCARD:
+            break;
+      }
+}
+
 } // namespace
+
+NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
+                                              const PBlock*block)
+{
+      if (!block)
+            return scope;
+
+      hname_t name(block->pscope_name());
+      NetScope*expression_scope = scope->child(name);
+      if (!expression_scope) {
+            block->elaborate_scope(des, scope);
+            expression_scope = scope->child(name);
+            if (expression_scope)
+                  block->elaborate_sig(des, scope);
+      }
+      if (!expression_scope) {
+            cerr << block->get_fileline()
+                 << ": internal error: Unable to elaborate pattern-expression scope."
+                 << endl;
+            des->errors += 1;
+      }
+      return expression_scope;
+}
+
+NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
+                                               Design*des,
+                                               NetScope*scope,
+                                               NetScope*expression_scope)
+{
+      if (!matches || !matches->pattern() || !expression_scope)
+            return nullptr;
+
+      vector<pattern_capture_t> captures;
+      pform_pattern_path_t path;
+      collect_pattern_captures_(matches->pattern(), path, captures);
+      if (captures.empty())
+            return nullptr;
+
+      pattern_subject_t subject;
+      if (!resolve_pattern_subject_(matches, matches->subject(), des, scope,
+                                    subject))
+            return nullptr;
+
+      NetExpr*result = nullptr;
+      set<perm_string> bound_names;
+      for (const pattern_capture_t&capture : captures) {
+            if (!bound_names.insert(capture.name).second)
+                  continue;
+
+            NetNet*destination = expression_scope->find_signal(capture.name);
+            if (!destination) {
+                  cerr << matches->get_fileline()
+                       << ": internal error: Pattern variable '"
+                       << capture.name
+                       << "' was not declared in its expression scope."
+                       << endl;
+                  des->errors += 1;
+                  delete result;
+                  return nullptr;
+            }
+
+            ivl_type_t selected_type = nullptr;
+            NetExpr*source = select_pattern_value_(matches, subject,
+                                                   capture.path, des,
+                                                   selected_type);
+            if (!source) {
+                  delete result;
+                  return nullptr;
+            }
+
+            if (!selected_type || !selected_type->packed()
+                || (destination->data_type() != IVL_VT_LOGIC
+                    && destination->data_type() != IVL_VT_BOOL)) {
+                  cerr << matches->get_fileline()
+                       << ": sorry: conditional pattern bindings currently "
+                       << "require packed integral member values."
+                       << endl;
+                  des->errors += 1;
+                  delete source;
+                  delete result;
+                  return nullptr;
+            }
+
+            NetESignal*left = new NetESignal(destination);
+            left->set_line(*matches);
+            NetEAssignExpr*assign = new NetEAssignExpr(
+                  "$ivl_assign_expr$=", destination->data_type(),
+                  destination->vector_width(), false);
+            assign->set_line(*matches);
+            assign->parm(0, left);
+            assign->parm(1, source);
+            destination->note_assignment_expression_write();
+
+            /* Logical OR evaluates the assignment first and always yields
+             * true because the right operand is one. This makes the capture
+             * an ordered, match-only part of the ternary predicate without
+             * allowing a zero-valued binding to suppress later captures. */
+            NetEBLogic*captured = new NetEBLogic('o', assign,
+                                                pattern_true_(matches));
+            captured->set_line(*matches);
+            result = pattern_and_(matches, result, captured);
+      }
+      return result;
+}
 
 static bool elaboration_perf_trace_enabled_()
 {

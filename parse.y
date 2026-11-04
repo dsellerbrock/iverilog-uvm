@@ -13060,12 +13060,24 @@ expression
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  | pattern_subject K_matches match_pattern '?' attribute_list_opt expression ':' expression
+  | pattern_subject K_matches match_pattern
       { pform_requires_sv(@2, "pattern-matching conditional expression");
+	/* Keep the pattern declarations active only while parsing the
+	 * consequent; its elaborator owns the block through expression lowering. */
+	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+	current_pattern_blocks.push(block);
+      }
+    '?' attribute_list_opt expression
+      { pform_pop_scope(); }
+    ':' expression
+      { assert(!current_pattern_blocks.empty());
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
 	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
 	FILE_NAME(condition, @2);
-	PETernary*tmp = new PETernary(condition, $6, $8);
-	FILE_NAME(tmp, @4);
+	PETernary*tmp = new PETernary(condition, $7, $10);
+	tmp->set_pattern_scope(block);
+	FILE_NAME(tmp, @5);
 	$$ = tmp;
       }
   ;

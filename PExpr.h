@@ -35,6 +35,7 @@ class Module;
 class LexicalScope;
 class NetNet;
 class PExpr;
+class PBlock;
 class PLet;
 class NetExpr;
 class NetScope;
@@ -1452,6 +1453,9 @@ class PETernary : public PExpr {
       explicit PETernary(PExpr*e, PExpr*t, PExpr*f);
       ~PETernary() override;
 
+      void set_pattern_scope(PBlock*scope) { pattern_scope_ = scope; }
+      PBlock* pattern_scope() const { return pattern_scope_; }
+
       inline PExpr* get_cond()  const { return expr_; }
       inline PExpr* get_true()  const { return tru_; }
       inline PExpr* get_false() const { return fal_; }
@@ -1488,6 +1492,7 @@ class PETernary : public PExpr {
       PExpr*expr_;
       PExpr*tru_;
       PExpr*fal_;
+      PBlock*pattern_scope_ = nullptr;
 };
 
 /*

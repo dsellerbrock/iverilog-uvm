@@ -27,6 +27,7 @@
 # include  "compiler.h"
 # include  "PExpr.h"
 # include  "pform.h"
+# include  "Statement.h"
 # include  "PWire.h"
 # include  "Module.h"
 # include  "ivl_assert.h"
@@ -925,7 +926,7 @@ const verinum& PEString::parsed_value() const
 }
 
 PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f)
-: expr_(e), tru_(t), fal_(f)
+: expr_(e), tru_(t), fal_(f), pattern_scope_(nullptr)
 {
 }
 
@@ -938,6 +939,7 @@ void PETernary::reloc_lexical_pos_bind(bool parameter_context)
 
 PETernary::~PETernary()
 {
+      delete pattern_scope_;
 }
 
 void PETernary::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
