@@ -6313,9 +6313,141 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       return 0;
 }
 
+static char *decode_immediate_assertion_path_(const char *text)
+{
+      size_t length = strlen(text);
+      char *result = malloc(length + 1);
+      size_t src = 0, dst = 0;
+      if (!result) return 0;
+      while (src < length) {
+	    if (text[src] == '\\' && src + 3 < length
+		&& text[src+1] >= '0' && text[src+1] <= '7'
+		&& text[src+2] >= '0' && text[src+2] <= '7'
+		&& text[src+3] >= '0' && text[src+3] <= '7') {
+		  result[dst++] = (char)((text[src+1] - '0') * 64
+				 + (text[src+2] - '0') * 8
+				 + (text[src+3] - '0'));
+		  src += 4;
+	    } else {
+		  result[dst++] = text[src++];
+	    }
+      }
+      result[dst] = 0;
+      return result;
+}
+
+static ivl_scope_t immediate_assertion_scope_(ivl_scope_t scope,
+					      const char *encoded_path)
+{
+      char *allocation = decode_immediate_assertion_path_(encoded_path);
+      char *path = allocation;
+      char *component = 0;
+      if (!allocation || !scope) {
+	    free(allocation);
+	    return 0;
+      }
+      while (*path) {
+	    char *end;
+	    unsigned long length;
+	    ivl_scope_t child = 0;
+	    if (*path < '0' || *path > '9') {
+		  free(allocation);
+		  return 0;
+	    }
+	    length = strtoul(path, &end, 10);
+	    if (end == path || *end != ':' || length > strlen(end + 1)) {
+		  free(allocation);
+		  return 0;
+	    }
+	    component = malloc(length + 1);
+	    if (!component) {
+		  free(allocation);
+		  return 0;
+	    }
+	    memcpy(component, end + 1, length);
+	    component[length] = 0;
+	    for (size_t idx = 0; idx < ivl_scope_childs(scope); idx += 1) {
+		  ivl_scope_t candidate = ivl_scope_child(scope, idx);
+		  const char *candidate_name = ivl_scope_basename(candidate);
+		  if (candidate_name && strlen(candidate_name) == length
+		      && memcmp(candidate_name, component, length) == 0) {
+			child = candidate;
+			break;
+		  }
+	    }
+	    free(component);
+	    component = 0;
+	    if (!child) {
+		  free(allocation);
+		  return 0;
+	    }
+	    scope = child;
+	    path = end + 1 + length;
+      }
+	    free(allocation);
+      return scope;
+}
+
+static int show_immediate_assertion_register_(ivl_statement_t net,
+					       ivl_scope_t sscope)
+{
+      ivl_expr_t source_expr, name_expr, kind_expr, path_expr;
+      long source_id, assertion_kind;
+      ivl_scope_t target_scope;
+      const char *name;
+      const char *path;
+      if (ivl_stmt_parm_count(net) != 4) goto malformed;
+      source_expr = ivl_stmt_parm(net, 0);
+      name_expr = ivl_stmt_parm(net, 1);
+      kind_expr = ivl_stmt_parm(net, 2);
+      path_expr = ivl_stmt_parm(net, 3);
+      if (!source_expr || ivl_expr_type(source_expr) != IVL_EX_NUMBER
+	  || !number_is_immediate(source_expr, 32, 0)
+	  || number_is_unknown(source_expr)
+	  || !kind_expr || ivl_expr_type(kind_expr) != IVL_EX_NUMBER
+	  || !number_is_immediate(kind_expr, 32, 0)
+	  || number_is_unknown(kind_expr)
+	  || !name_expr || ivl_expr_type(name_expr) != IVL_EX_STRING
+	  || !path_expr || ivl_expr_type(path_expr) != IVL_EX_STRING)
+	    goto malformed;
+      source_id = get_number_immediate(source_expr);
+      assertion_kind = get_number_immediate(kind_expr);
+      name = ivl_expr_string(name_expr);
+      path = ivl_expr_string(path_expr);
+      if (source_id <= 0 || !name || !*name || !path
+	  || (assertion_kind != 1 && assertion_kind != 4))
+	    goto malformed;
+      target_scope = immediate_assertion_scope_(sscope, path);
+      if (!target_scope) {
+	    fprintf(stderr,
+		    "%s:%u: vvp.tgt error: immediate assertion scope "
+		    "'%s' could not be resolved from '%s'.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net), path,
+		    ivl_scope_name(sscope));
+	    vvp_errors += 1;
+	    return 1;
+      }
+      fprintf(vvp_out, "    %%assert/register \"%ld,%ld,%u,%u,%s\", S_%p;\n",
+	      source_id, assertion_kind,
+	      ivl_file_table_index(ivl_stmt_file(net)), ivl_stmt_lineno(net),
+	      name, target_scope);
+      return 0;
+
+malformed:
+      fprintf(stderr,
+	      "%s:%u: vvp.tgt error: malformed internal immediate "
+	      "assertion registration.\n",
+	      ivl_stmt_file(net), ivl_stmt_lineno(net));
+      vvp_errors += 1;
+      return 1;
+}
+
 static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
+
+      if (strcmp(stmt_name, "$ivl_register_immediate_assertion") == 0)
+	    return show_immediate_assertion_register_(net, sscope);
 
       if (strcmp(stmt_name, "$ivl_wait_event_triggered_change") == 0) {
 	    if (ivl_stmt_parm_count(net) != 1

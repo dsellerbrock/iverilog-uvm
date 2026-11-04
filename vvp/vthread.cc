@@ -18506,6 +18506,11 @@ bool of_DEFER_REGISTER(vthread_t, vvp_code_t)
       return true;
 }
 
+bool of_ASSERT_REGISTER(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
 static void cancel_deferred_asserts_for_scope_(__vpiScope*scope)
 {
       for (std::set<vvp_process*>::iterator cur =
@@ -33724,6 +33729,34 @@ bool of_UNION_TAG(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
       cobj->activate_union_member(pid);
+      return true;
+}
+
+/*
+ * %union/gettag
+ *
+ * Read the active member index from an unpacked tagged-union value. The
+ * selected value is an object, so its tag travels with copies and nested
+ * aggregate members.
+ */
+bool of_UNION_GETTAG(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || !cobj->get_defn()->is_tagged_union_type()) {
+	    thr->push_vec4(vvp_vector4_t(32, BIT4_X));
+	    return true;
+      }
+
+      int active = cobj->union_active_member();
+      vvp_vector4_t tag(32, active < 0 ? BIT4_X : BIT4_0);
+      if (active >= 0) {
+	    unsigned value = (unsigned)active;
+	    for (unsigned bit = 0; bit < tag.size(); bit += 1)
+		  tag.set_bit(bit, (value >> bit) & 1u ? BIT4_1 : BIT4_0);
+      }
+      thr->push_vec4(tag);
       return true;
 }
 

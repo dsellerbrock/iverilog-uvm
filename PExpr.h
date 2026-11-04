@@ -32,6 +32,7 @@
 
 class Design;
 class Module;
+class PGenerate;
 class LexicalScope;
 class NetNet;
 class PExpr;
@@ -135,6 +136,23 @@ class PExpr : public LineInfo {
 
       PExpr();
       virtual ~PExpr() override;
+
+      // Named-sequence actuals retain the lexical scope of the call site
+      // while their expression tree is cloned into a declaration scope.
+      bool sva_actual_scope() const { return sva_actual_scope_; }
+      void sva_actual_scope(bool value) { sva_actual_scope_ = value; }
+      const Module* sva_actual_module() const { return sva_actual_module_; }
+      const PGenerate* sva_actual_generate() const
+      { return sva_actual_generate_; }
+      const std::vector<perm_string>& sva_actual_prefix() const
+      { return sva_actual_prefix_; }
+      void sva_actual_context(const Module*module, const PGenerate*generate,
+			      const std::vector<perm_string>&prefix)
+      {
+	    sva_actual_module_ = module;
+	    sva_actual_generate_ = generate;
+	    sva_actual_prefix_ = prefix;
+      }
 
       virtual void dump(std::ostream&) const;
 
@@ -278,6 +296,10 @@ class PExpr : public LineInfo {
       unsigned expr_width_;
       unsigned min_width_;
       bool signed_flag_;
+      bool sva_actual_scope_ = false;
+      const Module*sva_actual_module_ = nullptr;
+      const PGenerate*sva_actual_generate_ = nullptr;
+      std::vector<perm_string>sva_actual_prefix_;
 
     private: // not implemented
       PExpr(const PExpr&);

@@ -232,11 +232,21 @@ module aes_uarray_resolved_net_probe(output bit done);
   bit check_past = 0;
   int current_passes = 0, past_passes = 0, failures = 0, before_check;
 
-  // Opposing explicit-strength drivers make both words resolved vec8 nets.
-  assign (pull1, strong0) words[0] = drive0;
-  assign (weak1, weak0) words[0] = ~drive0;
-  assign (pull1, strong0) words[1] = drive1;
-  assign (weak1, weak0) words[1] = ~drive1;
+  // Opposing explicit-strength scalar drivers make both words resolved vec8 nets.
+  genvar word_index, bit_index;
+  generate
+    for (word_index = 0; word_index < 2; word_index = word_index + 1) begin : word_drivers
+      for (bit_index = 0; bit_index < 8; bit_index = bit_index + 1) begin : bit_drivers
+        if (word_index == 0) begin : first_word
+          assign (pull1, strong0) words[word_index][bit_index] = drive0[bit_index];
+          assign (weak1, weak0) words[word_index][bit_index] = ~drive0[bit_index];
+        end else begin : second_word
+          assign (pull1, strong0) words[word_index][bit_index] = drive1[bit_index];
+          assign (weak1, weak0) words[word_index][bit_index] = ~drive1[bit_index];
+        end
+      end
+    end
+  endgenerate
 
   always @(posedge clk) if (check_past) begin
     drive0 = 8'h9a;

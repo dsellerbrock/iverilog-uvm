@@ -852,14 +852,6 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   des->errors += 1;
                   return nullptr;
             }
-            if (!path.empty()) {
-                  cerr << pattern->get_fileline()
-                       << ": sorry: Nested tagged-union patterns are not yet "
-                          "supported because nested values do not yet carry "
-                          "independent runtime tag storage." << endl;
-                  des->errors += 1;
-                  return nullptr;
-            }
             unsigned tag_index = tagged->member_index(pattern->name());
             if (tag_index == (unsigned)-1) {
                   cerr << pattern->get_fileline() << ": error: Tagged union "
@@ -869,25 +861,55 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   return nullptr;
             }
 
-            perm_string companion_name = lex_strings.make(
-                  string(subject.net->name().str()) + "__tag_companion");
-            NetScope*declaration_scope = subject.net->scope()
-                  ? subject.net->scope() : scope;
-            NetNet*companion = declaration_scope->find_signal(companion_name);
-            if (!companion) {
-                  cerr << pattern->get_fileline() << ": error: Runtime tag "
-                       << "storage is missing for tagged-union variable '"
-                       << subject.net->name() << "'." << endl;
-                  des->errors += 1;
-                  return nullptr;
+            NetExpr*tag_value = nullptr;
+            if (tagged->packed()) {
+                  ivl_type_t selected_type = nullptr;
+                  NetExpr*union_value = select_pattern_value_(
+                        loc, subject, path, des, selected_type);
+                  if (!union_value)
+                        return nullptr;
+                  unsigned tag_width = tagged->tag_bits();
+                  long payload_width = tagged->packed_width() - tag_width;
+                  NetEConst*tag_offset = new NetEConst(
+                        verinum((uint64_t)payload_width, 32));
+                  tag_offset->set_line(*pattern);
+                  tag_value = new NetESelect(union_value, tag_offset,
+                        tag_width, &netvector_t::atom2u32);
+                  tag_value->set_line(*pattern);
+            } else if (!path.empty()) {
+                  ivl_type_t selected_type = nullptr;
+                  NetExpr*union_value = select_pattern_value_(
+                        loc, subject, path, des, selected_type);
+                  if (!union_value)
+                        return nullptr;
+                  NetEUnionTag*active_tag = new NetEUnionTag(union_value);
+                  active_tag->set_line(*pattern);
+                  tag_value = active_tag;
+            } else {
+                  perm_string companion_name = lex_strings.make(
+                        string(subject.net->name().str())
+                        + "__tag_companion");
+                  NetScope*declaration_scope = subject.net->scope()
+                        ? subject.net->scope() : scope;
+                  NetNet*companion =
+                        declaration_scope->find_signal(companion_name);
+                  if (!companion) {
+                        cerr << pattern->get_fileline()
+                             << ": error: Runtime tag storage is missing for "
+                                "tagged-union variable '"
+                             << subject.net->name() << "'." << endl;
+                        des->errors += 1;
+                        return nullptr;
+                  }
+                  tag_value = new NetESignal(companion);
+                  tag_value->set_line(*pattern);
             }
 
-            NetESignal*tag_value = new NetESignal(companion);
-            tag_value->set_line(*pattern);
             NetEConst*tag_literal = new NetEConst(
-                  verinum((uint64_t)tag_index, companion->vector_width()));
+                  verinum((uint64_t)tag_index, tag_value->expr_width()));
             tag_literal->set_line(*pattern);
-            NetEBComp*tag_match = new NetEBComp('E', tag_value, tag_literal);
+            NetEBComp*tag_match = new NetEBComp(
+                  pattern_compare_opcode_(case_type), tag_value, tag_literal);
             tag_match->set_line(*pattern);
 
             if (pattern->children().empty())
@@ -4466,6 +4488,24 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
         // A continuous assignment can drive a variable if the default strength is used.
       NetNet*lval = pin(0)->elaborate_lnet(des, scope, var_allowed_in_sv);
       if (lval == 0) {
+	    return;
+      }
+
+	/* Supply nets are lowered to wires with an attached supply-strength pull;
+	 * retain their declared type for the exception in IEEE 1800-2017/2023
+	 * 10.3.4. */
+      if (generation_flag >= GN_VER2017 && strength_specified()
+	  && lval->vector_width() > 1
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY0
+	  && lval->net_delay_declared_type() != NetNet::SUPPLY1) {
+	    cerr << get_fileline() << ": error: Drive strength may only be "
+		 << "specified for assignments to scalar nets, except for "
+		    "supply0 and supply1 nets (IEEE 1800-2017/2023 10.3.4)."
+		 << endl;
+	    des->errors += 1;
+	    if (lval->local_flag())
+		  delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
 	    return;
       }
 

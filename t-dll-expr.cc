@@ -568,6 +568,23 @@ void dll_target::expr_property(const NetEProperty*net)
       expr_->u_.property_.index = index;
 }
 
+void dll_target::expr_union_tag(const NetEUnionTag*net)
+{
+      net->value()->expr_scan(this);
+      ivl_expr_t value = expr_;
+      expr_ = 0;
+
+      expr_ = new struct ivl_expr_s();
+      expr_->width_ = net->expr_width();
+      expr_->signed_ = 0;
+      expr_->sized_ = 1;
+      expr_->type_ = IVL_EX_UNION_TAG;
+      expr_->value_ = IVL_VT_LOGIC;
+      expr_->net_type = net->net_type();
+      FILE_NAME(expr_, net);
+      expr_->u_.union_tag_.value = value;
+}
+
 void dll_target::expr_event(const NetEEvent*net)
 {
       assert(expr_ == 0);

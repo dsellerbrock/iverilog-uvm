@@ -24,6 +24,7 @@
 # include  "netdarray.h"
 # include  "netparray.h"
 # include  "netstruct.h"
+# include  "netvector.h"
 # include  "netscalar.h"
 # include  "compiler.h"
 # include  "netmisc.h"
@@ -542,6 +543,17 @@ NetEProperty::~NetEProperty()
 	    net_->decr_eref();
       delete expr_;
       delete index_;
+}
+
+NetEUnionTag::NetEUnionTag(NetExpr*value)
+: NetExpr(&netvector_t::atom2u32), value_(value)
+{
+      ivl_assert(*this, value_);
+}
+
+NetEUnionTag::~NetEUnionTag()
+{
+      delete value_;
 }
 
 bool NetEProperty::is_interface_member() const

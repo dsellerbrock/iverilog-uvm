@@ -15180,35 +15180,42 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			  // uses: read the container as an object (NetEProperty with
 			  // no index) and element-select it, which lowers to
 			  // %prop/obj + %load/qo/v.
-			if (const netdarray_t*member_da =
-				  dynamic_cast<const netdarray_t*>(member_type)) {
-			      if (member_comp.index.size() != 1) {
-				    cerr << li->get_fileline() << ": sorry: "
-					 << "Multi-index struct member access is not yet supported."
-					 << endl;
-				    des->errors += 1;
-				    delete base_expr;
-				    return 0;
-			      }
-			      NetEProperty*cprop =
+			if (dynamic_cast<const netdarray_t*>(member_type)) {
+			      NetExpr*cprop =
 				    new NetEProperty(base_expr, member_idx, nullptr);
 			      cprop->set_line(*li);
-			      NetExpr*idx_expr = elab_and_eval(des, scope,
-				    member_comp.index.front().msb, -1, false);
-			      if (!idx_expr) {
-				    delete cprop;
-				    return 0;
+			      ivl_type_t selected_type = member_type;
+			      for (const index_component_t&idx_comp : member_comp.index) {
+				    const netdarray_t*selected_array =
+					  dynamic_cast<const netdarray_t*>(selected_type);
+				    if (!selected_array) {
+					  cerr << li->get_fileline() << ": error: too many indices "
+					       << "for dynamic struct member " << member_comp.name
+					       << "." << endl;
+					  des->errors += 1;
+					  delete cprop;
+					  return 0;
+				    }
+				    NetExpr*idx_expr = elab_and_eval(des, scope,
+					  idx_comp.msb, -1, false);
+				    if (!idx_expr) {
+					  delete cprop;
+					  return 0;
+				    }
+				    ivl_type_t elem_type = selected_array->element_type();
+				    NetESelect*sel = make_container_member_element_select_(
+					  cprop, idx_expr, selected_type, elem_type);
+				    if (!sel) {
+					  delete idx_expr;
+					  delete cprop;
+					  return 0;
+				    }
+				    sel->set_line(*li);
+				    cprop = sel;
+				    selected_type = elem_type;
 			      }
-			      unsigned elem_width = member_da->element_width();
-			      if (elem_width == 0)
-				    elem_width = 1;
-			      ivl_type_t elem_type = member_da->element_type();
-			      NetESelect*sel = elem_type
-				    ? new NetESelect(cprop, idx_expr, elem_width, elem_type)
-				    : new NetESelect(cprop, idx_expr, elem_width);
-			      sel->set_line(*li);
-			      base_expr = sel;
-			      cur_type = elem_type;
+			      base_expr = cprop;
+			      cur_type = selected_type;
 			      continue;
 			}
 		  }
@@ -26440,20 +26447,17 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						base_expr = sel;
 						cur_type = sel_res;
 					  } else {
-						if (tail_comp.index.size() != 1) {
-						      delete base_expr;
-						      cerr << get_fileline() << ": sorry: "
-							   << "Multi-index struct member access is not yet supported."
-							   << endl;
-						      des->errors += 1;
-						      return nullptr;
+						ivl_type_t selected_type = member_type;
+						for (const index_component_t&idx_comp : tail_comp.index) {
+						      member_index_result_type = nullptr;
+						      base_expr = apply_member_index(base_expr, selected_type,
+									     idx_comp);
+						      if (!base_expr)
+							    return nullptr;
+						      if (member_index_result_type)
+							    selected_type = member_index_result_type;
 						}
-						base_expr = apply_member_index(base_expr, member_type,
-									       tail_comp.index.front());
-						if (!base_expr)
-						      return nullptr;
-						cur_type = member_index_result_type
-						      ? member_index_result_type : member_type;
+						cur_type = selected_type;
 					  }
 				    } else if (!indexed_fixed_property) {
 					  cur_type = member_type;
@@ -27768,16 +27772,17 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						base_expr = sel;
 						cur_type = sel_res;
 					  } else {
-						if (tail_comp.index.size() != 1) {
-						      delete base_expr;
-						      return make_nested_stub(cur_type);
+						ivl_type_t selected_type = member_type;
+						for (const index_component_t&idx_comp : tail_comp.index) {
+						      member_index_result_type = nullptr;
+						      base_expr = apply_member_index(base_expr, selected_type,
+									     idx_comp);
+						      if (!base_expr)
+							    return make_nested_stub(selected_type);
+						      if (member_index_result_type)
+							    selected_type = member_index_result_type;
 						}
-						base_expr = apply_member_index(base_expr, member_type,
-									       tail_comp.index.front());
-						if (!base_expr)
-						      return make_nested_stub(member_type);
-						cur_type = member_index_result_type
-						      ? member_index_result_type : member_type;
+						cur_type = selected_type;
 					  }
 				    } else if (!indexed_fixed_property) {
 					  cur_type = member_type;

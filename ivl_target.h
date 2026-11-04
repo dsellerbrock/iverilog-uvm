@@ -249,6 +249,7 @@ typedef enum ivl_expr_type_e {
       IVL_EX_NUMBER = 5,
       IVL_EX_ARRAY_PATTERN  = 26,
       IVL_EX_ARRAY_SLICE = 27,
+      IVL_EX_UNION_TAG = 28,
       IVL_EX_PROPERTY = 24,
       IVL_EX_REALNUM  = 16,
       IVL_EX_SCOPE  = 6,
@@ -998,6 +999,11 @@ extern unsigned ivl_event_lineno(ivl_event_t net);
  * returns the canonical expression for accessing the element of the
  * property.
  *
+ * - IVL_EX_UNION_TAG
+ * This expression returns the active member index of an unpacked
+ * tagged-union value. The ivl_expr_oper1() function returns that value
+ * expression.
+ *
  * - IVL_EX_NEW
  * This expression takes one or two operands. The first operand,
  * returned by ivl_expr_oper1() is the number of elements to create
@@ -1085,7 +1091,8 @@ extern const char* ivl_expr_name(ivl_expr_t net);
 extern ivl_nature_t ivl_expr_nature(ivl_expr_t net);
   /* IVL_EX_BINARY IVL_EX_UNARY */
 extern char        ivl_expr_opcode(ivl_expr_t net);
-  /* IVL_EX_BINARY  IVL_EX_UNARY, IVL_EX_MEMORY IVL_EX_NEW IVL_EX_TERNARY */
+  /* IVL_EX_BINARY  IVL_EX_UNARY, IVL_EX_MEMORY IVL_EX_NEW IVL_EX_TERNARY
+     IVL_EX_UNION_TAG */
 extern ivl_expr_t  ivl_expr_oper1(ivl_expr_t net);
   /* IVL_EX_BINARY IVL_EX_NEW IVL_EX_PROPERTY IVL_EX_TERNARY */
 extern ivl_expr_t  ivl_expr_oper2(ivl_expr_t net);

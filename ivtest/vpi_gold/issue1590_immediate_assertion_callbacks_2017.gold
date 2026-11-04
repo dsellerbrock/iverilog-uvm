@@ -1,0 +1,10 @@
+Compiling vpi/issue1590_immediate_assertion_callbacks.c...
+Making issue1590_immediate_assertion_callbacks_2017.vpi from  issue1590_immediate_assertion_callbacks.o...
+HANDLE_COUNT=6 types=665/665/665
+CALLBACK good success
+CALLBACK task_good success
+CALLBACK bad failure
+ASSERT_FAIL_TWO
+PASS: issue1590 immediate assertion callbacks
+PASSED
+vpi/issue1590_immediate_assertion_callbacks_2017.v:15: $finish called at 2 (1s)

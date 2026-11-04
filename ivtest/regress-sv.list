@@ -7,6 +7,8 @@ issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue1411_covergroup_ref_event_2017 normal,-g2017,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 issue1411_covergroup_ref_event_2023 normal,-g2023,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
+issue1515_vector_strength CE,-g2017 ivltests
+issue1515_supply_vector_strength normal,-g2017 ivltests gold=issue1515_supply_vector_strength.gold
 
 issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
@@ -14,6 +16,8 @@ issue2363_vif_nested_interface_member_2017 normal,-g2017,-s,tb ivltests gold=iss
 issue2363_vif_nested_interface_member_2023 normal,-g2023,-s,tb ivltests gold=issue2363_vif_nested_interface_member.gold
 issue2364_dynamic_array_bits_2017 normal,-g2017,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 issue2364_dynamic_array_bits_2023 normal,-g2023,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
+issue2471_struct_dynamic_nested_2017 normal,-g2017,-s,issue2471_struct_dynamic_nested ivltests gold=issue2471_struct_dynamic_nested-vvp-stdout.gold
+issue2471_struct_dynamic_nested_2023 normal,-g2023,-s,issue2471_struct_dynamic_nested ivltests gold=issue2471_struct_dynamic_nested-vvp-stdout.gold
 
 issue1569_down_hierarchy_interconnect_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
 issue1569_down_hierarchy_interconnect_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
@@ -2797,6 +2801,7 @@ sv_soft_packed_union_bad_member_2023 CE,-g2023 ivltests
 sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
 sv_pattern_matching_invalid_fail CE,-g2012 ivltests gold=sv_pattern_matching_invalid_fail.gold
 sv_pattern_matching_duplicate_fail CE,-g2012 ivltests gold=sv_pattern_matching_duplicate_fail.gold
+issue1500_nested_tagged_pattern normal,-g2017 ivltests gold=issue1500_nested_tagged_pattern.gold
 
 # IEEE 1800-2017 assignment-pattern replication and keyed forms
 sv_assignment_pattern_keys_replication normal,-g2012 ivltests gold=sv_assignment_pattern_keys_replication.gold
@@ -6557,6 +6562,7 @@ sv_if_violation_observed_2023 normal,-g2023,-s,sv_if_violation_observed ivltests
 issue1215_duplicate_extern_method_2017 CE,-g2017 ivltests gold=issue1215_duplicate_extern_method_2017.gold
 issue1215_duplicate_extern_method_2023 CE,-g2023 ivltests gold=issue1215_duplicate_extern_method_2023.gold
 issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_scope.gold
+issue1358_hierarchical_sequence normal,-g2017,-s,top ivltests gold=issue1358_hierarchical_sequence.gold
 issue1562_conditional_iopath_2017 normal,-g2017,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
 issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
 issue626_set_inst_name normal,-g2017,-s,top ivltests gold=issue626_set_inst_name.gold

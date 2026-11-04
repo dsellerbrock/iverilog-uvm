@@ -1015,8 +1015,8 @@ static void pform_check_attribute_instance(const YYLTYPE&loc)
  * These are some common strength pairs that are used as defaults when
  * the user is not otherwise specific.
  */
-static const struct str_pair_t pull_strength = { IVL_DR_PULL,  IVL_DR_PULL };
-static const struct str_pair_t str_strength = { IVL_DR_STRONG, IVL_DR_STRONG };
+static const struct str_pair_t pull_strength = { IVL_DR_PULL,  IVL_DR_PULL, false };
+static const struct str_pair_t str_strength = { IVL_DR_STRONG, IVL_DR_STRONG, false };
 
 static std::list<pform_port_t>* make_port_list(char*id, unsigned idn,
 					       std::list<pform_range_t>*udims,
@@ -10546,7 +10546,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      std::list<named_pexpr_t> arg_list;
 	      PCallTask*tmp1 = new PCallTask(lex_strings.make("$error"), arg_list);
 	      FILE_NAME(tmp1, @1);
-	      $$ = pform_make_immediate_assertion(@1, $3, $5, tmp1);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, $5, tmp1);
 	} else {
 	      delete $3;
 	      delete $5;
@@ -10556,7 +10556,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_immediate_assertion(@1, $3, 0, $6);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, 0, $6);
 	} else {
 	      delete $3;
 	      delete $6;
@@ -10566,7 +10566,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume '(' expression ')' statement_or_null K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_immediate_assertion(@1, $3, $5, $7);
+	      $$ = pform_make_immediate_assertion(@1, $1, $3, $5, $7);
 	} else {
 	      delete $3;
 	      delete $5;
@@ -12595,26 +12595,32 @@ drive_strength
   : '(' dr_strength0 ',' dr_strength1 ')'
       { $$.str0 = $2.str0;
 	$$.str1 = $4.str1;
+	$$.specified = true;
       }
   | '(' dr_strength1 ',' dr_strength0 ')'
       { $$.str0 = $4.str0;
 	$$.str1 = $2.str1;
+	$$.specified = true;
       }
   | '(' dr_strength0 ',' K_highz1 ')'
       { $$.str0 = $2.str0;
 	$$.str1 = IVL_DR_HiZ;
+	$$.specified = true;
       }
   | '(' dr_strength1 ',' K_highz0 ')'
       { $$.str0 = IVL_DR_HiZ;
 	$$.str1 = $2.str1;
+	$$.specified = true;
       }
   | '(' K_highz1 ',' dr_strength0 ')'
       { $$.str0 = $4.str0;
 	$$.str1 = IVL_DR_HiZ;
+	$$.specified = true;
       }
   | '(' K_highz0 ',' dr_strength1 ')'
       { $$.str0 = IVL_DR_HiZ;
 	$$.str1 = $4.str1;
+	$$.specified = true;
       }
   ;
 
@@ -12622,7 +12628,8 @@ drive_strength_opt
   : drive_strength
       { $$ = $1; }
   |
-      { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG; }
+      { $$.str0 = IVL_DR_STRONG; $$.str1 = IVL_DR_STRONG;
+	$$.specified = false; }
   ;
 
 dr_strength0

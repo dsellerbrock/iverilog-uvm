@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1358_hierarchical_sequence.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-s", "top"],
+  "gold": "issue1358_hierarchical_sequence"
+}

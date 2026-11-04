@@ -225,6 +225,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       void expr_null(const NetENull*) override;
       void expr_param(const NetEConstParam*) override;
       void expr_property(const NetEProperty*) override;
+      void expr_union_tag(const NetEUnionTag*) override;
       void expr_rparam(const NetECRealParam*) override;
       void expr_event(const NetEEvent*) override;
       void expr_scope(const NetEScope*) override;
@@ -499,6 +500,10 @@ struct ivl_expr_s {
 		  ivl_expr_t size;
 		  ivl_expr_t init_val;
 	    } new_;
+
+	    struct {
+		  ivl_expr_t value;
+	    } union_tag_;
 
 	    struct {
 		  union {

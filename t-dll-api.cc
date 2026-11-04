@@ -826,6 +826,9 @@ extern "C" ivl_expr_t ivl_expr_oper1(ivl_expr_t net)
 	  case IVL_EX_UNARY:
 	    return net->u_.unary_.sub_;
 
+	  case IVL_EX_UNION_TAG:
+	    return net->u_.union_tag_.value;
+
 	  case IVL_EX_MEMORY:
 	    return net->u_.memory_.idx_;
 

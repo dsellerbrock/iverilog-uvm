@@ -1,0 +1,14 @@
+{
+  "type": "normal",
+  "source": "issue1590_immediate_assertion_callbacks.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1590_immediate_assertion_callbacks_2017"],
+  "vpi-sources": ["vpi/issue1590_immediate_assertion_callbacks.c"],
+  "output-contains": [
+    "HANDLE_COUNT=6 types=665/665/665",
+    "CALLBACK good success",
+    "CALLBACK task_good success",
+    "CALLBACK bad failure",
+    "PASS: issue1590 immediate assertion callbacks"
+  ]
+}

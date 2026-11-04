@@ -5949,6 +5949,26 @@ class NetEProperty : public NetExpr {
       NetExpr*index_;
 };
 
+/* Read the active member index of an unpacked tagged-union value. Unlike
+ * packed tagged unions, unpacked union tags are object metadata rather than
+ * bits in the value. */
+class NetEUnionTag : public NetExpr {
+    public:
+      explicit NetEUnionTag(NetExpr*value);
+      ~NetEUnionTag() override;
+
+      const NetExpr*value() const { return value_; }
+
+      void expr_scan(struct expr_scan_t*) const override;
+      NetEUnionTag*dup_expr() const override;
+      NexusSet*nex_input(bool rem_out = true, bool always_sens = false,
+                         bool nested_func = false) const override;
+      void dump(std::ostream&os) const override;
+
+    private:
+      NetExpr*value_;
+};
+
 /*
  * This class is a special (and magical) expression node type that
  * represents scope names. These can only be found as parameters to
