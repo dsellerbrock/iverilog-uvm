@@ -312,6 +312,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 
       const char*tail = name + 12;
       int unpack = 0;
+      int bitstream_cast = 0;
       int fixed_array_cast = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
 	    tail += 5;
@@ -319,6 +320,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    /* A 6.24.3 bit-stream cast has the same source flattening and
 	       left-to-right order as a right-stream with slice size 1. The
 	       caller emits a strict target conversion after this pack. */
+	    bitstream_cast = 1;
 	    tail += 5;
 	    if (strcmp(tail, "struct$1") == 0) {
 		  if (ivl_expr_parms(expr) != 1) {
@@ -510,6 +512,13 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
 		  fprintf(vvp_out, "    %%stream/flatten/str;\n");
+		  break;
+		case IVL_VT_NO_TYPE:
+		  if (bitstream_cast) {
+			draw_eval_object(parm);
+			fprintf(vvp_out, "    %%stream/flatten/obj/cast 0;\n");
+		  } else
+			draw_eval_vec4(parm);
 		  break;
 		default:
 		  draw_eval_vec4(parm);
