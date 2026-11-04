@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2473_sdf_timescale_2023.v:24: $finish called at 15000 (1ps)

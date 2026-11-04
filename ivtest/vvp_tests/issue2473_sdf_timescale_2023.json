@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2473_sdf_timescale_2023.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "output-contains": ["PASSED"]
+}

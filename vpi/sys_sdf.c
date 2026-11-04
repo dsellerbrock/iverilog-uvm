@@ -23,6 +23,7 @@
 # include  <stdlib.h>
 # include  <string.h>
 # include  <strings.h>
+# include  <math.h>
 
 extern vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
                                                   vpiHandle load);
@@ -41,6 +42,30 @@ int sdf_flag_inform = 0;
 int sdf_min_typ_max;
 double sdf_scale_factors[3] = { 1.0, 1.0, 1.0 };
 int sdf_scale_type = SDF_SCALE_FROM_MTM;
+static double sdf_time_scale = 1.0;
+static int sdf_time_scale_defined = 0;
+
+void sdf_set_timescale(double magnitude, const char*unit)
+{
+      int exponent;
+      if (strcmp(unit, "s") == 0) exponent = 0;
+      else if (strcmp(unit, "ms") == 0) exponent = -3;
+      else if (strcmp(unit, "us") == 0) exponent = -6;
+      else if (strcmp(unit, "ns") == 0) exponent = -9;
+      else if (strcmp(unit, "ps") == 0) exponent = -12;
+      else if (strcmp(unit, "fs") == 0) exponent = -15;
+      else return;
+
+      sdf_time_scale = magnitude * pow(10.0, exponent);
+      sdf_time_scale_defined = 1;
+}
+
+static double sdf_delay_scale(vpiHandle path)
+{
+      if (!sdf_time_scale_defined) return 1.0;
+      vpiHandle scope = vpi_handle(vpiScope, path);
+      return sdf_time_scale / pow(10.0, vpi_get(vpiTimeUnit, scope));
+}
 
   /* Scope of the $sdf_annotate call. Annotation starts here. */
 static vpiHandle sdf_scope;
@@ -247,6 +272,7 @@ static void sdf_put_interconnect_delays(vpiHandle path,
       delays.mtm_flag = 0;
       delays.append_flag = 0;
       delays.pulsere_flag = 0;
+      double scale = sdf_delay_scale(path);
       vpi_get_delays(path, &delays);
       for (int idx = 0; idx < delval_list->count; idx += 1) {
             delay_vals[idx].type = vpiScaledRealTime;
@@ -254,7 +280,7 @@ static void sdf_put_interconnect_delays(vpiHandle path,
                   if (sdf_flag_inform)
                         vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
                                    sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-                  delay_vals[idx].real = delval_list->val[idx].value;
+                  delay_vals[idx].real = delval_list->val[idx].value * scale;
             }
       }
       vpi_put_delays(path, &delays);
@@ -600,12 +626,13 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	    delays.mtm_flag = 0;
 	    delays.append_flag = 0;
 	    delays.pulsere_flag = 0;
+            double scale = sdf_delay_scale(path);
 	    vpi_get_delays(path, &delays);
 
 	    for (idx = 0 ; idx < delval_list->count ; idx += 1) {
 		  delay_vals[idx].type = vpiScaledRealTime;
 		  if (delval_list->val[idx].defined) {
-			delay_vals[idx].real = delval_list->val[idx].value;
+			delay_vals[idx].real = delval_list->val[idx].value * scale;
 		  }
 	    }
 
@@ -696,12 +723,12 @@ static void sdf_apply_pathpulse_annotations(void)
 		  for (idx = 0 ; idx < 12 ; idx += 1) {
 			double delay = delay_vals[idx].real;
 			if (entry->reject.defined) {
-			      delay_vals[12+idx].real = entry->percent ?
-				    delay * entry->reject.value / 100.0 : entry->reject.value;
+				delay_vals[12+idx].real = entry->percent ?
+				      delay * entry->reject.value / 100.0 : entry->reject.value * sdf_delay_scale(path);
 			}
 			if (entry->error.defined) {
-			      delay_vals[24+idx].real = entry->percent ?
-				    delay * entry->error.value / 100.0 : entry->error.value;
+				delay_vals[24+idx].real = entry->percent ?
+				      delay * entry->error.value / 100.0 : entry->error.value * sdf_delay_scale(path);
 			} else if (entry->reject.defined) {
 			      delay_vals[24+idx].real = delay_vals[12+idx].real;
 			}
@@ -916,6 +943,8 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       sdf_cur_cell = 0;
       sdf_callh = callh;
+      sdf_time_scale = 1.0;
+      sdf_time_scale_defined = 0;
       sdf_process_file(sdf_fd, fname);
       sdf_apply_pathpulse_annotations();
       sdf_callh = 0;

@@ -1,0 +1,8 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 100ps)
+  (CELL (CELLTYPE "issue2473_sdf_timescale_dut")
+    (INSTANCE dut)
+    (DELAY (ABSOLUTE (IOPATH a y (40) (40))))
+  )
+)

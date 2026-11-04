@@ -248,12 +248,14 @@ temperature
 
 time_scale
   : '(' K_TIMESCALE REAL_NUMBER IDENTIFIER ')'
-      { if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Timescale: %f%s\n",
+      { sdf_set_timescale($3, $4);
+        if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Timescale: %f%s\n",
 	                                sdf_parse_path, @2.first_line, $3, $4);
 	free($4);
       }
   | '(' K_TIMESCALE INTEGER IDENTIFIER ')'
-      { if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Timescale: %lu%s\n",
+      { sdf_set_timescale((double)$3, $4);
+        if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Timescale: %lu%s\n",
 	                                sdf_parse_path, @2.first_line, $3, $4);
 	free($4);
       }
