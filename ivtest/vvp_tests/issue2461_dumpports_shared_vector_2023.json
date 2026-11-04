@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2461_dumpports_shared_vector_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue2461_dumpports_shared_vector_2023"
+}

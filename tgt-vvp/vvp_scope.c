@@ -3190,14 +3190,36 @@ static ivl_signal_t evcd_signal_on_nexus(ivl_scope_t scope,
 
 static ivl_signal_t evcd_port_component_signal(ivl_scope_t scope,
                                                 ivl_nexus_t nexus,
+                                                const char *port_name,
+                                                ivl_signal_port_t port_type,
+                                                unsigned port_width,
                                                 unsigned *component_width,
                                                 int *left, int *right)
 {
+      unsigned idx;
       ivl_signal_t port_sig = evcd_signal_on_nexus(scope, nexus, 1);
       ivl_nexus_t value_nexus = port_sig
                              ? ivl_signal_nex(port_sig, 0) : nexus;
       ivl_signal_t sig;
-      unsigned idx;
+
+      /* A nexus can include several module port signals when logic shares
+       * an input.  Prefer the declaration for this port over whichever
+       * same-scope port happens to be first on the nexus. */
+      if (port_name && *port_name) {
+            for (idx = 0; idx < ivl_scope_sigs(scope); idx += 1) {
+                  sig = ivl_scope_sig(scope, idx);
+                  if (ivl_signal_port(sig) != port_type ||
+                      ivl_signal_width(sig) != port_width ||
+                      strcmp(ivl_signal_basename(sig), port_name) != 0)
+                        continue;
+                  *component_width = ivl_signal_width(sig);
+                  *left = ivl_signal_packed_dimensions(sig)
+                        ? ivl_signal_packed_msb(sig, 0) : 0;
+                  *right = ivl_signal_packed_dimensions(sig)
+                         ? ivl_signal_packed_lsb(sig, 0) : 0;
+                  return sig;
+            }
+      }
 
       /* A selected non-ANSI port component is represented by a local
        * temporary on this nexus and either a PART_{VP,PV} node or one input
@@ -3766,7 +3788,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			      int left, right;
 			      const char *component_name;
 
-			      sig = evcd_port_component_signal(net, nexus,
+			      sig = evcd_port_component_signal(net, nexus, name,
+			                                       ptype, width,
 			                                       &component_width,
 			                                       &left, &right);
 
