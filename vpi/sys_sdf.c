@@ -47,7 +47,12 @@ static vpiHandle sdf_scope;
 static vpiHandle sdf_callh = 0;
   /* The cell in process. */
 static vpiHandle sdf_cur_cell;
+struct sdf_cell_s { struct sdf_cell_s* next; vpiHandle cell; };
+static struct sdf_cell_s* sdf_wildcard_cells;
+static int sdf_dispatching_wildcard;
 static char* sdf_fname = NULL;
+
+static void sdf_collect_cells(vpiHandle module, const char*celltype);
 
 static int sdf_string_is_blank(const char*value)
 {
@@ -119,14 +124,27 @@ void sdf_select_instance(const char*celltype, const char*cellinst, const int sdf
 {
       char buffer[128];
 
+	/* A wildcard selects every matching module instance below the annotation
+	 * scope. Keep the handles so each timing construct is applied to each
+	 * selected cell by the annotation entry points below. */
+      while (sdf_wildcard_cells) {
+	    struct sdf_cell_s* next = sdf_wildcard_cells->next;
+	    free(sdf_wildcard_cells);
+	    sdf_wildcard_cells = next;
+      }
+
 	/* Test for wildcard character */
       if (cellinst == NULL) {
-	    if (sdf_flag_warning) {
-		  vpi_printf("SDF WARNING: %s:%d: sorry: "
-		             "Wildcard cell instance specification (*) currently not supported.\n",
-		             sdf_fname, sdf_lineno);
+	    vpiHandle modules = vpi_iterate(vpiModule, sdf_scope);
+	    vpiHandle module;
+	    while (modules && (module = vpi_scan(modules))) {
+		  sdf_collect_cells(module, celltype);
 	    }
-	    sdf_cur_cell = 0;
+	    sdf_cur_cell = sdf_wildcard_cells ? sdf_wildcard_cells->cell : 0;
+	    if (!sdf_cur_cell)
+		  vpi_printf("SDF WARNING: %s:%d: INSTANCE * matched no %s cells in %s.\n",
+		             sdf_fname, sdf_lineno, celltype,
+		             vpi_get_str(vpiFullName, sdf_scope));
 	    return;
       }
 
@@ -178,6 +196,25 @@ void sdf_select_instance(const char*celltype, const char*cellinst, const int sdf
 	    vpi_printf("%s\n", vpi_get_str(vpiDefName, sdf_cur_cell));
       }
 
+}
+
+static void sdf_collect_cells(vpiHandle module, const char*celltype)
+{
+	const char*defname = vpi_get_str(vpiDefName, module);
+      if (defname && strcmp(celltype, defname) == 0) {
+	    struct sdf_cell_s* entry = malloc(sizeof *entry);
+	    if (entry) {
+		  entry->cell = module;
+		  entry->next = sdf_wildcard_cells;
+		  sdf_wildcard_cells = entry;
+	    } else {
+		  vpi_printf("SDF ERROR: %s: unable to allocate wildcard instance list.\n", sdf_fname);
+	    }
+      }
+      vpiHandle modules = vpi_iterate(vpiModule, module);
+      vpiHandle child;
+      while (modules && (child = vpi_scan(modules)))
+	    sdf_collect_cells(child, celltype);
 }
 
 static const char*edge_str(int vpi_edge)
@@ -264,6 +301,17 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
                              const struct sdf_delval_list_s*delval_list,
                              const int sdf_lineno)
 {
+      if (sdf_wildcard_cells && !sdf_dispatching_wildcard) {
+	    vpiHandle saved = sdf_cur_cell;
+	    sdf_dispatching_wildcard = 1;
+	    for (struct sdf_cell_s* cell = sdf_wildcard_cells; cell; cell = cell->next) {
+		  sdf_cur_cell = cell->cell;
+		  sdf_interconnect_delays(port1, port2, delval_list, sdf_lineno);
+	    }
+	    sdf_cur_cell = saved;
+	    sdf_dispatching_wildcard = 0;
+	    return;
+      }
 
 	// Get handles for both ports
 	// After calling get_port_handle, the name is invalid
@@ -437,6 +485,17 @@ void sdf_port_delays(struct interconnect_port_s port_spec,
                      const struct sdf_delval_list_s*delval_list,
                      const int sdf_lineno)
 {
+      if (sdf_wildcard_cells && !sdf_dispatching_wildcard) {
+	    vpiHandle saved = sdf_cur_cell;
+	    sdf_dispatching_wildcard = 1;
+	    for (struct sdf_cell_s* cell = sdf_wildcard_cells; cell; cell = cell->next) {
+		  sdf_cur_cell = cell->cell;
+		  sdf_port_delays(port_spec, delval_list, sdf_lineno);
+	    }
+	    sdf_cur_cell = saved;
+	    sdf_dispatching_wildcard = 0;
+	    return;
+      }
       if (!sdf_cur_cell) return;
       char*name = strdup(port_spec.name);
       if (!name) return;
@@ -490,6 +549,17 @@ void sdf_netdelay_delays(struct interconnect_port_s target,
                          const struct sdf_delval_list_s*delval_list,
                          const int sdf_lineno)
 {
+      if (sdf_wildcard_cells && !sdf_dispatching_wildcard) {
+	    vpiHandle saved = sdf_cur_cell;
+	    sdf_dispatching_wildcard = 1;
+	    for (struct sdf_cell_s* cell = sdf_wildcard_cells; cell; cell = cell->next) {
+		  sdf_cur_cell = cell->cell;
+		  sdf_netdelay_delays(target, delval_list, sdf_lineno);
+	    }
+	    sdf_cur_cell = saved;
+	    sdf_dispatching_wildcard = 0;
+	    return;
+      }
       if (!sdf_cur_cell) return;
 
       char*port_name = strdup(target.name);
@@ -538,6 +608,18 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
                        const struct sdf_delval_list_s*delval_list,
                        const int sdf_lineno)
 {
+      if (sdf_wildcard_cells && !sdf_dispatching_wildcard) {
+	    vpiHandle saved = sdf_cur_cell;
+	    sdf_dispatching_wildcard = 1;
+	    for (struct sdf_cell_s* cell = sdf_wildcard_cells; cell; cell = cell->next) {
+		  sdf_cur_cell = cell->cell;
+		  sdf_iopath_delays(vpi_edge, src, dst, condition, ifnone,
+		                    delval_list, sdf_lineno);
+	    }
+	    sdf_cur_cell = saved;
+	    sdf_dispatching_wildcard = 0;
+	    return;
+	  }
       vpiHandle iter, path;
       int match_count = 0;
 
@@ -626,6 +708,17 @@ void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
                           const struct sdf_delay_s*error,
                           const int sdf_lineno)
 {
+      if (sdf_wildcard_cells && !sdf_dispatching_wildcard) {
+	    vpiHandle saved = sdf_cur_cell;
+	    sdf_dispatching_wildcard = 1;
+	    for (struct sdf_cell_s* cell = sdf_wildcard_cells; cell; cell = cell->next) {
+		  sdf_cur_cell = cell->cell;
+		  sdf_pathpulse_delays(percent, src, dst, reject, error, sdf_lineno);
+	    }
+	    sdf_cur_cell = saved;
+	    sdf_dispatching_wildcard = 0;
+	    return;
+	  }
       if (sdf_cur_cell == 0)
 	    return;
 
@@ -918,6 +1011,12 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       sdf_callh = callh;
       sdf_process_file(sdf_fd, fname);
       sdf_apply_pathpulse_annotations();
+      while (sdf_wildcard_cells) {
+	    struct sdf_cell_s* next = sdf_wildcard_cells->next;
+	    free(sdf_wildcard_cells);
+	    sdf_wildcard_cells = next;
+      }
+      sdf_cur_cell = 0;
       sdf_callh = 0;
 
       fclose(sdf_fd);
