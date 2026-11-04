@@ -1,0 +1,4 @@
+OBSERVED: late-default=0 early-default=0 explicit=1 zero=1 property=0 child=1
+STANDARD: late-default=0 early-default=0 explicit=1 zero=1 property=0 child=1
+GENERATE: local-late-default failures=0
+ivltests/issue727_default_disable_order.v:63: $finish called at 16 (1s)

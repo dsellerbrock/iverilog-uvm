@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue727_default_disable_order.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue727_default_disable_order"
+}
