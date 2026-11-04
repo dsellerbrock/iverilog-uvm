@@ -14,7 +14,7 @@ module top;
     if ($size(s.arr) !== 4) begin fails++; $display("FAILED $size: %0d", $size(s.arr)); end
     // foreach over the member
     begin
-      int t = 0;
+      static int t = 0;
       foreach (s.arr[i]) t += s.arr[i];
       if (t !== 806) begin fails++; $display("FAILED foreach over the member: %0d want 806", t); end
     end

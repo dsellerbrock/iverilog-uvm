@@ -16,7 +16,7 @@ module m1_uvm_factory_by_name_test;
   initial begin
     uvm_object obj;
     m1_factory_obj mo;
-    int errors = 0;
+    static int errors = 0;
 
     obj = uvm_factory::get().create_object_by_name("m1_factory_obj", "", "inst1");
     if (obj == null) begin

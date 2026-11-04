@@ -12,7 +12,7 @@ module top;
   initial begin
     k = new();
     fork t(a); join_none                              // task call as the fork body
-    fork begin int loc=0; loc++; loc++; loc++; b=loc; end join_none  // inline block
+    fork begin static int loc=0; loc++; loc++; loc++; b=loc; end join_none  // inline block
     fork k.m(c); join_none                            // class method as the fork body
     fork begin t(d); end join_none                    // task call WRAPPED in a block
     #2;

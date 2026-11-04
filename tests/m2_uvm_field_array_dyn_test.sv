@@ -19,7 +19,7 @@ module m2_uvm_field_array_dyn_test;
   initial begin
     txn a, b;
     uvm_object o;
-    int errors = 0;
+    static int errors = 0;
 
     a = new("a");
     a.arr = new[4]; foreach (a.arr[i]) a.arr[i] = 10 * (i + 1);
