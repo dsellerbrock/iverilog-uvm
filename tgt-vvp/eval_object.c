@@ -3099,6 +3099,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
           strcmp(name, "$ivl_queue_method$pop_front")==0) {
 	    const char*fb = (strcmp(name, "$ivl_queue_method$pop_back")==0) ? "b" : "f";
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    if (draw_eval_assoc_queue_lvalue(arg)) {
+		  fprintf(vvp_out, "    %%qpop/o/%s/obj;\n", fb);
+		  return 0;
+	    }
 
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
 		&& ivl_expr_signal(arg)
@@ -4718,6 +4722,27 @@ int draw_eval_object(ivl_expr_t ex)
       int errors = draw_eval_object_core_(ex);
       event_expr_capture_object_result(ex);
       return errors;
+}
+
+/* Load an associative-array queue l-value for a mutating queue method.
+ * Returns nonzero after emitting the key and copy-on-write load. */
+int draw_eval_assoc_queue_lvalue(ivl_expr_t expr)
+{
+      if (!expr || ivl_expr_type(expr) != IVL_EX_SELECT)
+            return 0;
+
+      ivl_expr_t base = ivl_expr_oper1(expr);
+      ivl_expr_t key = ivl_expr_oper2(expr);
+      ivl_signal_t sig = (base && ivl_expr_type(base) == IVL_EX_SIGNAL)
+            ? ivl_expr_signal(base) : 0;
+      ivl_type_t net_type = sig ? ivl_signal_net_type(sig) : 0;
+      if (!sig || !net_type || ivl_type_base(net_type) != IVL_VT_QUEUE
+          || !ivl_type_queue_assoc_compat(net_type))
+            return 0;
+
+      const char*key_kind = draw_eval_assoc_key_(key, 0);
+      fprintf(vvp_out, "    %%aa/loadlv/sig/q/%s v%p_0;\n", key_kind, sig);
+      return 1;
 }
 
 /*

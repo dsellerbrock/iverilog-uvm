@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2474_assoc_queue_pop_default.v",
+  "iverilog-args": ["-g2023", "-sissue2474_assoc_queue_pop_default"],
+  "gold": "issue2474_assoc_queue_pop_default"
+}
