@@ -2634,6 +2634,26 @@ static void draw_ternary_vec4(ivl_expr_t expr)
       clr_flag(use_flag);
 }
 
+/*
+ * Select the part of the packed value on top of the vec4 stack that a
+ * ++/-- destination addresses with the run-time base select_base. The
+ * base index goes to select_index and its validity to select_flag for
+ * the matching store. what and value_note only label the emitted code.
+ */
+static void draw_inc_dec_select_part_(ivl_expr_t select_base, int select_index,
+				      int select_flag, unsigned wid,
+				      const char*what, const char*value_note)
+{
+      draw_eval_vec4(select_base);
+      fprintf(vvp_out, "    %%dup/vec4; preserve %s select base\n", what);
+      fprintf(vvp_out, "    %%ix/vec4%s %d; %s select base\n",
+	      ivl_expr_signed(select_base) ? "/s" : "", select_index, what);
+      fprintf(vvp_out, "    %%flag_mov %d, 4; preserve %s select validity\n",
+	      select_flag, what);
+      fprintf(vvp_out, "    %%part/%c %u; %s\n",
+	      ivl_expr_signed(select_base) ? 's' : 'u', wid, value_note);
+}
+
 static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 {
       ivl_variable_type_t destination_type = ivl_expr_value(sub);
@@ -2932,17 +2952,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    if (is_property_select) {
 		  select_index = allocate_word();
 		  select_flag = allocate_flag();
-		  draw_eval_vec4(select_base);
-		  fprintf(vvp_out, "    %%dup/vec4; preserve packed property select base\n");
-		  fprintf(vvp_out, ivl_expr_signed(select_base)
-		        ? "    %%ix/vec4/s %d; packed property select base\n"
-		        : "    %%ix/vec4 %d; packed property select base\n",
-		        select_index);
-		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed property select validity\n",
-		          select_flag);
-		  fprintf(vvp_out, ivl_expr_signed(select_base)
-		        ? "    %%part/s %u; increment selected property value\n"
-		        : "    %%part/u %u; increment selected property value\n", wid);
+		  draw_inc_dec_select_part_(select_base, select_index, select_flag,
+					    wid, "packed property",
+					    "increment selected property value");
 	    }
 	  } else if (is_nested_property_select) {
 	    carrier_index = calloc(1, sizeof *carrier_index);
@@ -2965,16 +2977,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, "    %%dup/obj/ref; preserve packed container receiver\n");
 	    fprintf(vvp_out, "    %%load/qo/v %u; nested packed container word\n",
 	            carrier_width[0]);
-	    draw_eval_vec4(select_base);
-	    fprintf(vvp_out, "    %%dup/vec4; preserve nested property select base\n");
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	          ? "    %%ix/vec4/s %d; nested property select base\n"
-	          : "    %%ix/vec4 %d; nested property select base\n", select_index);
-	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve nested property select validity\n",
-	            select_flag);
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	          ? "    %%part/s %u; nested property selected value\n"
-	          : "    %%part/u %u; nested property selected value\n", wid);
+	    draw_inc_dec_select_part_(select_base, select_index, select_flag, wid,
+				      "nested property",
+				      "nested property selected value");
 	  } else if (is_nested_signal_select) {
 	    select_index = allocate_word(); select_flag = allocate_flag();
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -3059,16 +3064,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    note_array_signal_use(sig);
 	    fprintf(vvp_out, "    %%load/vec4a v%p, %d; increment packed array word\n",
 	            sig, array_index);
-	    draw_eval_vec4(select_base);
-	    fprintf(vvp_out, "    %%dup/vec4; preserve packed select base\n");
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	            ? "    %%ix/vec4/s %d; packed select base\n"
-	            : "    %%ix/vec4 %d; packed select base\n", select_index);
-	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed select validity\n",
-	            select_flag);
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	            ? "    %%part/s %u; increment selected value\n"
-	            : "    %%part/u %u; increment selected value\n", wid);
+	    draw_inc_dec_select_part_(select_base, select_index, select_flag, wid,
+				      "packed", "increment selected value");
 	  } else if (is_array_word) {
 	    array_index = allocate_word();
 	    array_flag = allocate_flag();
@@ -3085,16 +3082,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    else
 	          fprintf(vvp_out, "    %%load/vec4 v%p_0; increment packed carrier\n",
 	                  sig);
-	    draw_eval_vec4(select_base);
-	    fprintf(vvp_out, "    %%dup/vec4; preserve packed select base\n");
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	            ? "    %%ix/vec4/s %d; packed select base\n"
-	            : "    %%ix/vec4 %d; packed select base\n", select_index);
-	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed select validity\n",
-	            select_flag);
-	    fprintf(vvp_out, ivl_expr_signed(select_base)
-	            ? "    %%part/s %u; increment selected value\n"
-	            : "    %%part/u %u; increment selected value\n", wid);
+	    draw_inc_dec_select_part_(select_base, select_index, select_flag, wid,
+				      "packed", "increment selected value");
 	  } else {
 	    draw_eval_vec4(sub);
       }
