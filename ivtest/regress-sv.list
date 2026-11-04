@@ -6564,3 +6564,5 @@ issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_l
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
 issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold
+issue2480_sdf_line_2017 normal,-g2017,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
+issue2480_sdf_line_2023 normal,-g2023,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold

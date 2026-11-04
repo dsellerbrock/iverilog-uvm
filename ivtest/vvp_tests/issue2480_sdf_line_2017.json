@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2480_sdf_line_2017.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2480_sdf_line"],
+  "gold": "issue2480_sdf_line"
+}
