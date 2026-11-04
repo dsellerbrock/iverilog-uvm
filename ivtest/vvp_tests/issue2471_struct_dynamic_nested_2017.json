@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2471_struct_dynamic_nested_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue2471_struct_dynamic_nested" ],
+    "gold"          : "issue2471_struct_dynamic_nested"
+}
