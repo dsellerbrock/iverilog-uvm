@@ -1144,6 +1144,7 @@ extern Statement* pform_make_immediate_cover(const struct vlltype&loc,
 				     PExpr*expr, Statement*pass_stmt);
 extern Statement* pform_make_immediate_assertion(
 					     const struct vlltype&loc,
+					     unsigned assertion_kind,
 					     PExpr*expr,
 					     Statement*pass_stmt,
 					     Statement*fail_stmt);

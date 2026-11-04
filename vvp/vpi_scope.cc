@@ -1400,6 +1400,12 @@ class __vpiAssertion : public __vpiHandle {
 	    if (success) successes_ += 1;
       }
 
+      void report_immediate_assertion(bool success)
+      {
+	    attempts_ += 1;
+	    fire(success ? cbAssertionSuccess : cbAssertionFailure);
+      }
+
       bool report_deferred_cover_failure(void)
       {
 	    if (!deferred_source_id_ || deferred_type_ != vpiImmediateCover)
@@ -1541,6 +1547,8 @@ static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
       deferred_assertion_by_key;
 static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
       immediate_cover_by_key;
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
+      immediate_assertion_by_key;
 static bool selector_path_prefix_(const char*path, const char*prefix)
 {
       size_t len;
@@ -1671,6 +1679,47 @@ void vpip_report_immediate_cover(PLI_INT32 source_id, PLI_INT32 success,
 	    immediate_cover_by_key.find(std::make_pair(sc, (int)source_id));
       if (it != immediate_cover_by_key.end())
 	    it->second->report_immediate_cover(success != 0);
+}
+
+void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
+				      const char*file, PLI_INT32 line,
+				      PLI_INT32 assertion_kind,
+				      vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      int immediate_type;
+      if (source_id <= 0 || !sc || !line) return;
+      switch (assertion_kind) {
+	    case 1: immediate_type = vpiImmediateAssert; break;
+	    case 4: immediate_type = vpiImmediateAssume; break;
+	    default: return;
+      }
+      std::pair<__vpiScope*,int>key(sc, (int)source_id);
+      if (immediate_assertion_by_key.find(key)
+	  != immediate_assertion_by_key.end())
+	    return;
+      __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
+						     immediate_type);
+      assertion_registry.push_back(obj);
+      immediate_assertion_by_key[key] = obj;
+      vpip_attach_to_scope(sc, obj);
+}
+
+void vpip_report_immediate_assertion(PLI_INT32 source_id, PLI_INT32 success,
+				     vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      while (sc) {
+	    std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
+		  immediate_assertion_by_key.find(
+			std::make_pair(sc, (int)source_id));
+	    if (it != immediate_assertion_by_key.end()) {
+		  it->second->report_immediate_assertion(success != 0);
+		  return;
+	    }
+	    sc = sc->scope;
+      }
 }
 
 PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
