@@ -3761,6 +3761,11 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
 	    draw_property_vec4(expr);
 	    return;
 
+	  case IVL_EX_UNION_TAG:
+	    draw_eval_object(ivl_expr_oper1(expr));
+	    fprintf(vvp_out, "    %%union/gettag;\n");
+	    return;
+
 	  case IVL_EX_NULL:
 	    /* Null/unsupported nested property in vec4 context.
 	     * Emit zero as a safe fallback (from nested property fallback). */

@@ -1961,6 +1961,11 @@ void NetEProperty::dump(ostream&o) const
 	    o << "[" << *index_ << "]";
 }
 
+void NetEUnionTag::dump(ostream&o) const
+{
+      o << "tagof(" << *value_ << ")";
+}
+
 void NetEScope::dump(ostream&o) const
 {
       o << "<scope=" << scope_path(scope_) << ">";

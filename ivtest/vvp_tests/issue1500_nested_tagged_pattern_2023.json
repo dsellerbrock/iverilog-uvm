@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1500_nested_tagged_pattern.v",
+    "iverilog-args" : [ "-g2023", "-s", "top" ],
+    "gold"          : "issue1500_nested_tagged_pattern"
+}

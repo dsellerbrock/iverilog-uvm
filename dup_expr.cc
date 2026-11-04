@@ -250,6 +250,13 @@ NetEProperty* NetEProperty::dup_expr() const
       return tmp;
 }
 
+NetEUnionTag* NetEUnionTag::dup_expr() const
+{
+      NetEUnionTag*res = new NetEUnionTag(value_->dup_expr());
+      res->set_line(*this);
+      return res;
+}
+
 NetEScope* NetEScope::dup_expr() const
 {
       NetEScope*tmp = new NetEScope(const_cast<NetScope*>(scope()), net_type());
