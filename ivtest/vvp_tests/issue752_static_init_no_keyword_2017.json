@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue752_static_init_no_keyword_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue752_static_init_no_keyword"],
+  "gold": "issue752_static_init_no_keyword_2017"
+}

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue752_static_init_explicit_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue752_static_init_explicit"],
+  "gold": "issue752_static_init_explicit"
+}

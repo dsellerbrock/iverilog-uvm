@@ -7709,9 +7709,8 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
   : IDENTIFIER dimensions_opt var_decl_initializer_opt
       { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
 	    && (var_lifetime == LexicalScope::INHERITED)) {
-	      cerr << @1 << ": warning: Static variable initialization requires "
-			    "explicit lifetime in this context." << endl;
-	      warn_count += 1;
+	      yyerror(@1, "error: Static variable initialization requires explicit "
+		      "lifetime in this context (IEEE 1800-2017/2023 6.21).");
 	}
 
 	decl_assignment_t*tmp = new decl_assignment_t;
@@ -7728,9 +7727,8 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
   | TYPE_IDENTIFIER dimensions_opt var_decl_initializer_opt
       { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
 	    && (var_lifetime == LexicalScope::INHERITED)) {
-	      cerr << @1 << ": warning: Static variable initialization requires "
-			    "explicit lifetime in this context." << endl;
-	      warn_count += 1;
+	      yyerror(@1, "error: Static variable initialization requires explicit "
+		      "lifetime in this context (IEEE 1800-2017/2023 6.21).");
 	}
 
 	decl_assignment_t*tmp = new decl_assignment_t;
@@ -7748,9 +7746,8 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
   | PACKAGE_IDENTIFIER dimensions_opt var_decl_initializer_opt
       { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
 	    && (var_lifetime == LexicalScope::INHERITED)) {
-	      cerr << @1 << ": warning: Static variable initialization requires "
-			    "explicit lifetime in this context." << endl;
-	      warn_count += 1;
+	      yyerror(@1, "error: Static variable initialization requires explicit "
+		      "lifetime in this context (IEEE 1800-2017/2023 6.21).");
 	}
 
 	decl_assignment_t*tmp = new decl_assignment_t;

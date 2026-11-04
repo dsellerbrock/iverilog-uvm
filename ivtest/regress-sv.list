@@ -6564,3 +6564,7 @@ issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_l
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
 issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold
+issue752_static_init_no_keyword_2017 CE,-g2017,-s,issue752_static_init_no_keyword ivltests gold=issue752_static_init_no_keyword_2017.gold
+issue752_static_init_no_keyword_2023 CE,-g2023,-s,issue752_static_init_no_keyword ivltests gold=issue752_static_init_no_keyword_2023.gold
+issue752_static_init_explicit_2017 normal,-g2017,-s,issue752_static_init_explicit ivltests gold=issue752_static_init_explicit.gold
+issue752_static_init_explicit_2023 normal,-g2023,-s,issue752_static_init_explicit ivltests gold=issue752_static_init_explicit.gold

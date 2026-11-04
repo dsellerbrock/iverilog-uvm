@@ -1,0 +1,1 @@
+./ivltests/issue752_static_init_no_keyword_2017.v:3: error: Static variable initialization requires explicit lifetime in this context (IEEE 1800-2017/2023 6.21).

@@ -11,8 +11,8 @@ module sv_constraint_unique;
   endclass
   int errors = 0;
   initial begin
-    ArrC  ac = new;
-    ScalC sc = new;
+    static ArrC  ac = new;
+    static ScalC sc = new;
     for (int t = 0; t < 25; t++) begin
       if (!ac.randomize()) begin $display("FAIL: array rand=0"); errors++; break; end
       for (int i = 0; i < 5; i++)
