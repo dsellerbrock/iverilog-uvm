@@ -185,6 +185,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_per_instance" { return K_COVGRP_PER_INSTANCE; }
 ".covgrp_type_weight" { return K_COVGRP_TYPE_WEIGHT; }
 ".covgrp_item_type_weight" { return K_COVGRP_ITEM_TYPE_WEIGHT; }
+".covgrp_item_type_weight_prop" { return K_COVGRP_ITEM_TYPE_WEIGHT_PROP; }
 ".covgrp_item_options" { return K_COVGRP_ITEM_OPTIONS; }
 ".covgrp_item_option_values" { return K_COVGRP_ITEM_OPTION_VALUES; }
 ".covgrp_item_guard" { return K_COVGRP_ITEM_GUARD; }

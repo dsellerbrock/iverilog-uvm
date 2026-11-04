@@ -537,6 +537,7 @@ ivl_type_covgrp_comment_prop
 ivl_type_covgrp_name_prop
 ivl_type_covgrp_items
 ivl_type_covgrp_item_type_weight
+ivl_type_covgrp_item_type_weight_prop
 ivl_type_covgrp_item_at_least
 ivl_type_covgrp_item_at_least_prop
 ivl_type_covgrp_item_weight
