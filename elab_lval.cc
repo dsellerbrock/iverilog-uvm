@@ -79,6 +79,22 @@ static unsigned unpacked_select_ranks_(const NetNet*reg)
       return rank;
 }
 
+/* A partly continuously assigned variable remains a REG so its unwritten
+ * bits keep their storage value. Its continuous driver mask still has to be
+ * checked against later procedural writes, just as for a variable promoted
+ * to an unresolved wire. */
+static bool tracks_single_driver_overlap_(NetNet*reg, bool is_force)
+{
+      if (is_force)
+	    return false;
+      if (reg->type() == NetNet::UNRESOLVED_WIRE) {
+	    ivl_assert(*reg, reg->coerced_to_uwire());
+	    return true;
+      }
+      return reg->attribute(perm_string::literal("_ivl_partial_cassign")).len()
+	    != 0;
+}
+
 static bool procedural_continuous_var_select_(NetNet*reg,
 					     const name_component_t&target,
 					     const pform_name_t&tail_path)
@@ -1814,8 +1830,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 
       ivl_assert(*this, use_sel == index_component_t::SEL_NONE);
 
-      if (reg->type()==NetNet::UNRESOLVED_WIRE && !is_force) {
-	    ivl_assert(*this, reg->coerced_to_uwire());
+      if (tracks_single_driver_overlap_(reg, is_force)) {
 	    report_mixed_assignment_conflict_("variable");
 	    des->errors += 1;
 	    return 0;
@@ -2508,8 +2523,7 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 					       all_indices, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
-		  if ((preg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-			ivl_assert(*this, preg->coerced_to_uwire());
+		  if (tracks_single_driver_overlap_(preg, is_force)) {
 			report_mixed_assignment_conflict_("bit select");
 			des->errors += 1;
 			delete pbase;
@@ -2642,8 +2656,7 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 			return true;
 		  }
 
-		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-			ivl_assert(*this, reg->coerced_to_uwire());
+		  if (tracks_single_driver_overlap_(reg, is_force)) {
 			if (reg->test_part_driven(loff+lwid-1, loff)) {
 			      report_mixed_assignment_conflict_("slice");
 			      des->errors += 1;
@@ -2659,8 +2672,7 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 		  mux = normalize_variable_slice_base(prefix_indices, mux,
 						      reg, lwid);
 
-		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-			ivl_assert(*this, reg->coerced_to_uwire());
+		  if (tracks_single_driver_overlap_(reg, is_force)) {
 			report_mixed_assignment_conflict_("slice");
 			des->errors += 1;
 			return false;
@@ -2705,8 +2717,7 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	    if (!exact_constant_mux)
 		  mux = normalize_variable_bit_base(prefix_indices, mux, reg);
 
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
+	    if (tracks_single_driver_overlap_(reg, is_force)) {
 		  if (exact_constant_mux) {
 			const NetEConst*canonical =
 			      dynamic_cast<const NetEConst*>(mux);
@@ -2759,8 +2770,7 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 		       << " is out of range." << endl;
 	    }
 
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
+	    if (tracks_single_driver_overlap_(reg, is_force)) {
 		  if (reg->test_part_driven(loff, loff)) {
 			report_mixed_assignment_conflict_("bit select");
 			des->errors += 1;
@@ -3031,8 +3041,7 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 	   comparable with that mask. Check only after sb_to_slice/sb_to_idx
 	   has produced canonical loff/moff. Clip an out-of-range select to
 	   the physical bits it can actually drive. */
-      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-	    ivl_assert(*this, reg->coerced_to_uwire());
+      if (tracks_single_driver_overlap_(reg, is_force)) {
 	    long driven_lo = std::max<long>(loff, 0);
 	    long driven_hi = std::min<long>(moff,
 					     (long)reg->vector_width() - 1);
@@ -3222,8 +3231,7 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 
 	    verinum_part_select_t overlap = verinum_part_select_overlap(
 		  canonical_base->value(), wid, reg->vector_width());
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
+	    if (tracks_single_driver_overlap_(reg, is_force)) {
 		  if (overlap.width > 0
 		      && reg->test_part_driven(
 			    static_cast<unsigned>(overlap.destination_base
@@ -3340,8 +3348,7 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 			rel_base = reg->sb_to_idx(prefix_indices,lsv) + offset;
 		  }
 		  delete base;
-		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-			ivl_assert(*this, reg->coerced_to_uwire());
+		  if (tracks_single_driver_overlap_(reg, is_force)) {
 			if (reg->test_part_driven(rel_base+wid-1, rel_base)) {
 			      report_mixed_assignment_conflict_("part select");
 			      des->errors += 1;
@@ -3391,8 +3398,7 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 		  des->errors += 1;
 		  return false;
 	    }
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
+	    if (tracks_single_driver_overlap_(reg, is_force)) {
 		  bool conflict = true;
 		  if (valid_constant_prefix) {
 			int word_index = 0;
@@ -5457,8 +5463,7 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    packed_base = 0;
       }
 
-      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-	    ivl_assert(*this, reg->coerced_to_uwire());
+      if (tracks_single_driver_overlap_(reg, is_force)) {
 	      /* IEEE 1800-2017 6.5 forbids mixing continuous and
 	         procedural assignment to the same VARIABLE, and 7.2.1
 	         stores a packed structure without gaps so a member IS a
