@@ -29,6 +29,8 @@ issue2269_clocking_end_label_2017 normal,-g2017,-s,issue2269_clocking_end_label 
 issue2269_clocking_end_label_2023 normal,-g2023,-s,issue2269_clocking_end_label ivltests gold=issue2269_clocking_end_label_2023.gold
 issue2177_negative_constant_delay_2017 normal,-g2017,-s,issue2177_negative_constant_delay ivltests gold=issue2177_negative_constant_delay.gold
 issue2177_negative_constant_delay_2023 normal,-g2023,-s,issue2177_negative_constant_delay ivltests gold=issue2177_negative_constant_delay.gold
+issue2450_real_delay_2017 normal,-g2017,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
+issue2450_real_delay_2023 normal,-g2023,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
 
 issue765_vector_range_unknown_2017 CE,-g2017 ivltests gold=issue765_vector_range_unknown_2017.gold
 issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range_unknown_2023.gold

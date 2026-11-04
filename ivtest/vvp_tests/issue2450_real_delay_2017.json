@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2450_real_delay_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2450_real_delay"],
+  "gold": "issue2450_real_delay"
+}
