@@ -22571,6 +22571,23 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	      return cast;
 	}
 
+	/* An unpacked struct is an object in VVP. Route it through the bit-stream
+	 * cast path before this typed array path sizes the target by the nominal
+	 * source width (IEEE 1800-2017/2023 6.24.3). */
+	const netstruct_t*struct_source =
+	      dynamic_cast<const netstruct_t*>(base->net_type());
+	if (struct_source && !struct_source->packed()
+	    && !struct_source->union_flag()
+	    && positional_container_integral_elements_(target_type_)
+	    && bitstream_cast_type_(struct_source, false)
+	    && bitstream_cast_type_(target_type_, true)) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					     target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
+	}
+
 	/* Do not let the enclosing assignment's legacy packed-vector-to-array
 	 * path bypass this explicit cast's own source/target validation. */
 	positional_container_cast_status_t container_cast_status;
