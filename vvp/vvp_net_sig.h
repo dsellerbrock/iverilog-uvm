@@ -696,6 +696,8 @@ class vvp_lvalue_ref : public vvp_object {
       unsigned value_width() const { return width_; }
       unsigned mailbox_value_width() const
       { return part_select_ ? part_width_ : width_; }
+      vvp_net_t* event_source_net() const
+      { return storage_kind_ == STORAGE_NET ? net_ : 0; }
       vvp_object_t mutation_receiver() const;
       bool read_vec4(vvp_vector4_t&value) const { return read_vec4_(value); }
       void set_part(int64_t base, bool valid, unsigned width);

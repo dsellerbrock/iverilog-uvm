@@ -5,6 +5,8 @@ issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_r
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
+issue1411_covergroup_ref_event_2017 normal,-g2017,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
+issue1411_covergroup_ref_event_2023 normal,-g2023,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 
 issue1374_sva_local_variable_selects_2017 normal,-g2017,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
 issue1374_sva_local_variable_selects_2023 normal,-g2023,-s,issue1374_sva_local_variable_selects ivltests gold=issue1374_sva_local_variable_selects-vvp-stdout.gold
@@ -31,6 +33,8 @@ issue2177_negative_constant_delay_2017 normal,-g2017,-s,issue2177_negative_const
 issue2177_negative_constant_delay_2023 normal,-g2023,-s,issue2177_negative_constant_delay ivltests gold=issue2177_negative_constant_delay.gold
 issue2450_real_delay_2017 normal,-g2017,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
 issue2450_real_delay_2023 normal,-g2023,-s,issue2450_real_delay ivltests gold=issue2450_real_delay-vvp-stdout.gold
+issue2461_dumpports_shared_vector_2017 normal,-g2017,-s,issue2461_dumpports_shared_vector ivltests gold=issue2461_dumpports_shared_vector-vvp-stdout.gold
+issue2461_dumpports_shared_vector_2023 normal,-g2023,-s,issue2461_dumpports_shared_vector ivltests gold=issue2461_dumpports_shared_vector-vvp-stdout.gold
 
 issue765_vector_range_unknown_2017 CE,-g2017 ivltests gold=issue765_vector_range_unknown_2017.gold
 issue765_vector_range_unknown_2023 CE,-g2023 ivltests gold=issue765_vector_range_unknown_2023.gold
@@ -6564,3 +6568,4 @@ issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_l
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
 issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold
+issue1366_action_past normal,-g2017,-gassertions,-s,issue1366_action_past ivltests gold=issue1366_action_past.gold

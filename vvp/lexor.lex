@@ -167,6 +167,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".implements"   { return K_IMPLEMENTS; }
 ".static_prop"  { return K_STATIC_PROP; }
 ".vpi_source_location" { return K_vpi_source_location; }
+".vpi_primitive" { return K_vpi_primitive; }
+".vpi_primterm" { return K_vpi_primterm; }
 ".constraint"   { return K_CONSTRAINT_DEF; }
 ".constraint_call" { return K_CONSTRAINT_CALL; }
 ".constraint_dep" { return K_CONSTRAINT_DEP; }

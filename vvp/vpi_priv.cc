@@ -548,6 +548,10 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiNetArray";
 	  case vpiNetBit:
 	    return "vpiNetBit";
+	  case vpiPrimTerm:
+	    return "vpiPrimTerm";
+	  case vpiPrimitive:
+	    return "vpiPrimitive";
 	  case vpiParameter:
 	    return "vpiParameter";
 	  case vpiPartSelect:
@@ -1656,7 +1660,7 @@ class __vpiUdpDefn : public __vpiHandle {
 
 static std::map<vvp_udp_s*, vpiHandle> vpip_udp_definitions;
 
-static vpiHandle vpip_get_udp_handle(vvp_udp_s *defn)
+vpiHandle vpip_get_udp_handle(vvp_udp_s *defn)
 {
       std::map<vvp_udp_s*, vpiHandle>::iterator found = vpip_udp_definitions.find(defn);
       if (found != vpip_udp_definitions.end()) return found->second;

@@ -78,6 +78,7 @@ extern void wide_inputs_connect(vvp_wide_fun_core*core,
 
 extern vvp_net_t* vvp_net_lookup(const char*label);
 extern vpiHandle vvp_lookup_handle(const char*label);
+extern vvp_net_t* create_constant_node(const char*value);
 extern void compile_vpi_source_location(char*label, uint64_t file_idx,
                                         uint64_t lineno);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
@@ -132,6 +133,12 @@ extern const char* module_path;
 extern void compile_load_vpi_module(char*name);
 
 extern void compile_vpi_time_precision(long pre);
+extern void compile_vpi_primitive(char*label, char*name, long prim_type,
+				  long input_count, long strength0,
+				  long strength1, char*udp_name);
+extern void compile_vpi_primitive_term(char*primitive_label,
+				       long direction, long term_index,
+				       long width, char*expression_label);
 
 /*
  * This function is called by the parser to compile a functor

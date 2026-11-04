@@ -312,6 +312,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 
       const char*tail = name + 12;
       int unpack = 0;
+      int bitstream_cast = 0;
       int fixed_array_cast = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
 	    tail += 5;
@@ -319,6 +320,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    /* A 6.24.3 bit-stream cast has the same source flattening and
 	       left-to-right order as a right-stream with slice size 1. The
 	       caller emits a strict target conversion after this pack. */
+	    bitstream_cast = 1;
 	    tail += 5;
 	    if (strcmp(tail, "struct$1") == 0) {
 		  if (ivl_expr_parms(expr) != 1) {
@@ -510,6 +512,13 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
 		  fprintf(vvp_out, "    %%stream/flatten/str;\n");
+		  break;
+		case IVL_VT_NO_TYPE:
+		  if (bitstream_cast) {
+			draw_eval_object(parm);
+			fprintf(vvp_out, "    %%stream/flatten/obj/cast 0;\n");
+		  } else
+			draw_eval_vec4(parm);
 		  break;
 		default:
 		  draw_eval_vec4(parm);
@@ -2644,10 +2653,11 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       static int warned_reduce_shape = 0;
 	/* A fixed receiver adds a materialized dynamic-array signal plus the
 	 * declared-index signal/expression used by iterator.index(). */
-      int is_fixed = parm_count == 7 || parm_count == 8;
+	int is_fixed = parm_count == 7 || parm_count == 8 || parm_count == 9;
 	/* The 8-parameter fixed shape materializes an arbitrary/property
 	 * receiver; a direct fixed signal uses the 7-parameter shape. */
-      int fixed_has_recv = parm_count == 8;
+	int fixed_has_recv = parm_count == 8;
+	int fixed_selected = parm_count == 9;
 
       ivl_expr_t a_arg = (parm_count > 4) ? ivl_expr_parm(expr, 0) : 0;
       ivl_expr_t iter_arg = (parm_count > 4) ? ivl_expr_parm(expr, 1) : 0;
@@ -2658,9 +2668,9 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 	    ? ivl_expr_parm(expr, 5)
 	    : (!is_fixed && parm_count > 5) ? ivl_expr_parm(expr, 5) : 0;
       ivl_expr_t declared_idx_arg = is_fixed
-	    ? ivl_expr_parm(expr, fixed_has_recv ? 6 : 5) : 0;
+	    ? ivl_expr_parm(expr, fixed_selected ? 7 : fixed_has_recv ? 6 : 5) : 0;
       ivl_expr_t declared_idx_expr = is_fixed
-	    ? ivl_expr_parm(expr, fixed_has_recv ? 7 : 6) : 0;
+	    ? ivl_expr_parm(expr, fixed_selected ? 8 : fixed_has_recv ? 7 : 6) : 0;
 
 	/* A whole-array receiver is IVL_EX_SIGNAL for queue/darray
 	 * object variables, IVL_EX_ARRAY for fixed-size arrays; other
@@ -2722,14 +2732,24 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%inv;\n");
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", acc_sig, wid);
 
-	/* idx = 0 */
-      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	/* idx = 0, or the selected fixed-array row's absolute starting word. */
+	if (fixed_selected) {
+	      draw_eval_vec4(ivl_expr_parm(expr, 5));
+	      if (ivl_expr_width(ivl_expr_parm(expr, 5)) < 32)
+		    fprintf(vvp_out, "    %%pad/u 32;\n");
+	} else
+	      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
 	/* if (!(idx < count)) goto end */
       fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
-      draw_array_size_push_(a_sig);
+	if (fixed_selected) {
+	      draw_eval_vec4(ivl_expr_parm(expr, 6));
+	      if (ivl_expr_width(ivl_expr_parm(expr, 6)) < 32)
+		    fprintf(vvp_out, "    %%pad/u 32;\n");
+	} else
+	      draw_array_size_push_(a_sig);
       fprintf(vvp_out, "    %%cmp/s;\n");
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n", thread_count, lab_end);
 

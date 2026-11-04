@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
 # include  <stdlib.h>
 # include  <math.h>
 # include  <string.h>
@@ -3189,14 +3190,36 @@ static ivl_signal_t evcd_signal_on_nexus(ivl_scope_t scope,
 
 static ivl_signal_t evcd_port_component_signal(ivl_scope_t scope,
                                                 ivl_nexus_t nexus,
+                                                const char *port_name,
+                                                ivl_signal_port_t port_type,
+                                                unsigned port_width,
                                                 unsigned *component_width,
                                                 int *left, int *right)
 {
+      unsigned idx;
       ivl_signal_t port_sig = evcd_signal_on_nexus(scope, nexus, 1);
       ivl_nexus_t value_nexus = port_sig
                              ? ivl_signal_nex(port_sig, 0) : nexus;
       ivl_signal_t sig;
-      unsigned idx;
+
+      /* A nexus can include several module port signals when logic shares
+       * an input.  Prefer the declaration for this port over whichever
+       * same-scope port happens to be first on the nexus. */
+      if (port_name && *port_name) {
+            for (idx = 0; idx < ivl_scope_sigs(scope); idx += 1) {
+                  sig = ivl_scope_sig(scope, idx);
+                  if (ivl_signal_port(sig) != port_type ||
+                      ivl_signal_width(sig) != port_width ||
+                      strcmp(ivl_signal_basename(sig), port_name) != 0)
+                        continue;
+                  *component_width = ivl_signal_width(sig);
+                  *left = ivl_signal_packed_dimensions(sig)
+                        ? ivl_signal_packed_msb(sig, 0) : 0;
+                  *right = ivl_signal_packed_dimensions(sig)
+                         ? ivl_signal_packed_lsb(sig, 0) : 0;
+                  return sig;
+            }
+      }
 
       /* A selected non-ANSI port component is represented by a local
        * temporary on this nexus and either a PART_{VP,PV} node or one input
@@ -3309,6 +3332,215 @@ int scope_needs_call_frame(ivl_scope_t net)
 		== IVL_VLT_AUTOMATIC)
 		  return 1;
       return 0;
+}
+
+static int vpi_primitive_type(ivl_logic_t type)
+{
+      switch (type) {
+	  case IVL_LO_AND: return vpiAndPrim;
+	  case IVL_LO_NAND: return vpiNandPrim;
+	  case IVL_LO_NOR: return vpiNorPrim;
+	  case IVL_LO_OR: return vpiOrPrim;
+	  case IVL_LO_XOR: return vpiXorPrim;
+	  case IVL_LO_XNOR: return vpiXnorPrim;
+	  case IVL_LO_BUF: return vpiBufPrim;
+	  case IVL_LO_NOT: return vpiNotPrim;
+	  case IVL_LO_BUFIF0: return vpiBufif0Prim;
+	  case IVL_LO_BUFIF1: return vpiBufif1Prim;
+	  case IVL_LO_NOTIF0: return vpiNotif0Prim;
+	  case IVL_LO_NOTIF1: return vpiNotif1Prim;
+	  case IVL_LO_NMOS: return vpiNmosPrim;
+	  case IVL_LO_PMOS: return vpiPmosPrim;
+	  case IVL_LO_CMOS: return vpiCmosPrim;
+	  case IVL_LO_RNMOS: return vpiRnmosPrim;
+	  case IVL_LO_RPMOS: return vpiRpmosPrim;
+	  case IVL_LO_RCMOS: return vpiRcmosPrim;
+	  case IVL_LO_PULLUP: return vpiPullupPrim;
+	  case IVL_LO_PULLDOWN: return vpiPulldownPrim;
+	  case IVL_LO_UDP: return vpiCombPrim;
+	  default: return 0;
+      }
+}
+
+static int vpi_switch_primitive_type(ivl_switch_type_t type)
+{
+      switch (type) {
+	  case IVL_SW_TRAN: return vpiTranPrim;
+	  case IVL_SW_TRANIF0: return vpiTranif0Prim;
+	  case IVL_SW_TRANIF1: return vpiTranif1Prim;
+	  case IVL_SW_RTRAN: return vpiRtranPrim;
+	  case IVL_SW_RTRANIF0: return vpiRtranif0Prim;
+	  case IVL_SW_RTRANIF1: return vpiRtranif1Prim;
+	  case IVL_SW_TRAN_VP: return 0;
+	  default: return 0;
+      }
+}
+
+static int vpi_primitive_strength(ivl_drive_t strength)
+{
+      switch (strength) {
+	  case IVL_DR_HiZ: return vpiHiZ;
+	  case IVL_DR_SMALL: return vpiSmallCharge;
+	  case IVL_DR_MEDIUM: return vpiMediumCharge;
+	  case IVL_DR_WEAK: return vpiWeakDrive;
+	  case IVL_DR_LARGE: return vpiLargeCharge;
+	  case IVL_DR_PULL: return vpiPullDrive;
+	  case IVL_DR_STRONG: return vpiStrongDrive;
+	  case IVL_DR_SUPPLY: return vpiSupplyDrive;
+	  default: return 0;
+      }
+}
+
+/* Built-in primitive nodes are named "instance<array-index.gate-index>"
+ * internally, even for the common non-array, single-gate case.  The suffix
+ * is an elaboration detail and is not part of the source-level VPI name. */
+static const char *vpi_primitive_name(const char *name)
+{
+      static char *source_name;
+      static size_t source_name_size;
+      const char *suffix = strrchr(name, '<');
+      size_t len = strlen(name);
+      if (suffix && !strcmp(suffix, "<0.0>")) {
+	    size_t source_len = len - strlen(suffix);
+	    if (source_name_size < source_len + 1) {
+		  char *next = realloc(source_name, source_len + 1);
+		  if (!next) return vvp_mangle_name(name);
+		  source_name = next;
+		  source_name_size = source_len + 1;
+	    }
+	    memcpy(source_name, name, source_len);
+	    source_name[source_len] = 0;
+	    return vvp_mangle_name(source_name);
+      }
+      return vvp_mangle_name(name);
+}
+
+static void emit_vpi_primitive_term_ref(const char *primitive_label,
+					int direction, unsigned index,
+					unsigned width,
+					const char *expression)
+{
+	  if (!expression) expression = "";
+      fprintf(vvp_out, "%s .vpi_primterm %d, %u, %u, \"%s\";\n",
+	      primitive_label, direction, index, width, expression);
+}
+
+static const char *draw_vpi_primitive_terminal(ivl_nexus_t nexus,
+					       ivl_scope_t scope)
+{
+	      const char *expression = draw_input_from_net(nexus, scope);
+	      struct vvp_nexus_data *data =
+		    (struct vvp_nexus_data*)ivl_nexus_get_private(nexus);
+	      if (!data || data->drivers_count != 0)
+		    return expression;
+
+	      /* draw_net_in_scope elides an undriven local net, so it has no
+	       * v<signal>_<word> functor for a VPI terminal to reference. Use the
+	       * island/nexus node in that case, just as draw_input_from_net does
+	       * for local automatic nets. */
+	      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nexus); idx += 1) {
+		    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nexus, idx);
+		    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+		    char signal_label[80];
+		    if (!sig || !ivl_signal_local(sig)
+			|| ivl_signal_dimensions(sig) != 0
+			|| ivl_signal_data_type(sig) == IVL_VT_CLASS)
+			  continue;
+		    snprintf(signal_label, sizeof signal_label, "v%p_%u",
+			     sig, ivl_nexus_ptr_pin(ptr));
+		    if (strcmp(expression, signal_label) == 0)
+			  return draw_net_input(nexus);
+	      }
+	      return expression;
+}
+
+static void emit_vpi_primitive_term(const char *primitive_label, int direction,
+				   unsigned index, ivl_nexus_t nexus,
+				   unsigned open_width, ivl_scope_t scope)
+{
+	  unsigned width = nexus ? width_of_nexus(nexus) : open_width;
+	  const char *expression = nexus
+		? draw_vpi_primitive_terminal(nexus, scope) : "";
+	  if (!nexus && direction == vpiInput) expression = "C4<z>";
+	  emit_vpi_primitive_term_ref(primitive_label, direction, index, width,
+				      expression);
+}
+
+static void emit_vpi_primitive_metadata(ivl_scope_t scope)
+{
+      unsigned idx;
+      for (idx = 0; idx < ivl_scope_logs(scope); idx += 1) {
+	    ivl_net_logic_t logic = ivl_scope_log(scope, idx);
+	    int prim_type = vpi_primitive_type(ivl_logic_type(logic));
+	    if (!prim_type || ivl_logic_is_cassign(logic)
+		|| ivl_logic_port_buffer(logic)) continue;
+
+	    unsigned pins = ivl_logic_pins(logic);
+	    if (pins == 0) continue;
+	    unsigned input_count = pins - 1;
+	    const char *udp_name = "";
+	    if (ivl_logic_type(logic) == IVL_LO_UDP) {
+		  ivl_udp_t udp = ivl_logic_udp(logic);
+		  if (!udp) continue;
+		  prim_type = ivl_udp_sequ(udp) ? vpiSeqPrim : vpiCombPrim;
+		  udp_name = vvp_mangle_name(ivl_udp_name(udp));
+	    }
+
+	    char primitive_label[80];
+	    snprintf(primitive_label, sizeof primitive_label, "VPI_PRIM_%p",
+		     logic);
+	    fprintf(vvp_out,
+		    "%s .vpi_primitive \"%s\", %d, %u, %d, %d, \"%s\";\n",
+		    primitive_label,
+		    vpi_primitive_name(ivl_logic_basename(logic)), prim_type,
+		    input_count,
+		    vpi_primitive_strength(ivl_logic_drive0(logic)),
+		    vpi_primitive_strength(ivl_logic_drive1(logic)), udp_name);
+
+	    for (unsigned pin = 0; pin < pins; pin += 1) {
+		  int direction = pin == 0 ? vpiOutput : vpiInput;
+		  emit_vpi_primitive_term(primitive_label, direction, pin,
+					  ivl_logic_pin(logic, pin),
+					  ivl_logic_width(logic),
+					  ivl_logic_scope(logic));
+	    }
+      }
+
+      for (idx = 0; idx < ivl_scope_switches(scope); idx += 1) {
+	    ivl_switch_t sw = ivl_scope_switch(scope, idx);
+	    int prim_type = vpi_switch_primitive_type(ivl_switch_type(sw));
+	    if (!prim_type) continue;
+
+	    ivl_nexus_t a = ivl_switch_a(sw);
+	    ivl_nexus_t b = ivl_switch_b(sw);
+	    ivl_nexus_t enable = ivl_switch_enable(sw);
+	    if (!a || !b) continue;
+	    unsigned input_count = enable ? 1 : 0;
+	    char primitive_label[80];
+	    snprintf(primitive_label, sizeof primitive_label, "VPI_PRIM_%p", sw);
+	    fprintf(vvp_out,
+		    "%s .vpi_primitive \"%s\", %d, %u, 0, 0, \"\";\n",
+		    primitive_label, vpi_primitive_name(ivl_switch_basename(sw)),
+		    prim_type, input_count);
+	    emit_vpi_primitive_term_ref(primitive_label, vpiInout, 0,
+					width_of_nexus(a),
+					 draw_vpi_primitive_terminal(a,
+							     ivl_switch_scope(sw)));
+	    emit_vpi_primitive_term_ref(primitive_label, vpiInout, 1,
+					width_of_nexus(b),
+					 draw_vpi_primitive_terminal(b,
+							     ivl_switch_scope(sw)));
+	    if (enable)
+		  emit_vpi_primitive_term(primitive_label, vpiInput, 2, enable,
+					  width_of_nexus(enable), ivl_switch_scope(sw));
+      }
+}
+
+int emit_vpi_primitive_metadata_scope(ivl_scope_t scope, void *unused)
+{
+      (void)unused;
+      emit_vpi_primitive_metadata(scope);
+      return ivl_scope_children(scope, emit_vpi_primitive_metadata_scope, 0);
 }
 
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
@@ -3556,7 +3788,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			      int left, right;
 			      const char *component_name;
 
-			      sig = evcd_port_component_signal(net, nexus,
+			      sig = evcd_port_component_signal(net, nexus, name,
+			                                       ptype, width,
 			                                       &component_width,
 			                                       &left, &right);
 

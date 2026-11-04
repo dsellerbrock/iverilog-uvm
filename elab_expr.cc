@@ -2423,13 +2423,15 @@ static NetExpr* make_array_reduction_expr_(
       NetExpr*array_expr, ivl_type_t container_type,
       ivl_type_t element_type, const char*kind,
       const std::vector<named_pexpr_t>&parms,
-      const std::vector<PExpr*>&with_exprs)
+      const std::vector<PExpr*>&with_exprs,
+      NetExpr*selected_start = nullptr, long selected_end = -1)
 {
       perm_string iter_name;
       perm_string index_name;
       if (!validate_array_locator_iterators_(li, des,
 		    perm_string::literal(kind), parms, iter_name, index_name)) {
 	    delete array_expr;
+	    delete selected_start;
 	    return nullptr;
       }
       if (with_exprs.size() > 1) {
@@ -2437,6 +2439,7 @@ static NetExpr* make_array_reduction_expr_(
 		 << "() takes exactly one with expression." << endl;
 	    des->errors += 1;
 	    delete array_expr;
+	    delete selected_start;
 	    return 0;
       }
       if (!parms.empty() && with_exprs.empty()) {
@@ -2444,6 +2447,7 @@ static NetExpr* make_array_reduction_expr_(
 		 << "() iterator argument requires a with clause." << endl;
 	    des->errors += 1;
 	    delete array_expr;
+	    delete selected_start;
 	    return 0;
       }
 
@@ -2463,6 +2467,7 @@ static NetExpr* make_array_reduction_expr_(
 		    "integral elements (IEEE 1800-2017 7.12.3)." << endl;
 	    des->errors += 1;
 	    delete array_expr;
+	    delete selected_start;
 	    return 0;
       }
 
@@ -2489,6 +2494,7 @@ static NetExpr* make_array_reduction_expr_(
 						   container_type, kind);
 	    if (!recv_net) {
 		  delete array_expr;
+		  delete selected_start;
 		  return 0;
 	    }
       }
@@ -2509,11 +2515,25 @@ static NetExpr* make_array_reduction_expr_(
 	    visible_idx_net->set_line(*li);
 	    visible_idx_net->local_flag(true);
 	    const netrange_t&range = fixed_type->static_dimensions().front();
+	    if (selected_start) {
+		  NetESignal*idx_ref = new NetESignal(idx_net);
+		  idx_ref->set_line(*li);
+		  NetEBAdd*ordinal = new NetEBAdd('-', idx_ref,
+						  selected_start->dup_expr(), 32, true);
+		  ordinal->set_line(*li);
+		  NetEConst*left = make_const_val_s(range.get_msb());
+		  left->set_line(*li);
+		  declared_idx_expr = new NetEBAdd(
+			range.get_msb() <= range.get_lsb() ? '+' : '-',
+			left, ordinal, 32, true);
+		  declared_idx_expr->set_line(*li);
+	    }
 	    declared_idx_expr = fixed_materialized
 		  ? make_fixed_array_method_declared_index_(
-			*li, idx_net, range)
+				*li, idx_net, range)
+		  : selected_start ? declared_idx_expr
 		  : make_fixed_array_method_canonical_index_(
-			*li, idx_net, range);
+				*li, idx_net, range);
       }
 
 	/* The per-element value: the with expression (evaluated with
@@ -2528,6 +2548,7 @@ static NetExpr* make_array_reduction_expr_(
 						    index_name);
 	    if (!val_expr) {
 		  delete array_expr;
+		  delete selected_start;
 		  return 0;
 	    }
 	    if (val_expr->expr_type() != IVL_VT_BOOL
@@ -2538,6 +2559,7 @@ static NetExpr* make_array_reduction_expr_(
 		  des->errors += 1;
 		  delete array_expr;
 		  delete val_expr;
+		  delete selected_start;
 		  return 0;
 	    }
       } else {
@@ -2559,7 +2581,8 @@ static NetExpr* make_array_reduction_expr_(
 
       string mangled = string("$ivl_darray_method$reduce|") + kind;
       NetESFunc*fn = new NetESFunc(mangled.c_str(), res_type,
-				   fixed_type ? (recv_net ? 8 : 7)
+				   selected_start ? 9
+					      : fixed_type ? (recv_net ? 8 : 7)
 					      : (recv_net ? 6 : 5));
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
@@ -2578,10 +2601,19 @@ static NetExpr* make_array_reduction_expr_(
 	    fn->parm(5, recv_ref);
       }
       if (fixed_type) {
+	    if (selected_start) {
+		  fn->parm(5, selected_start);
+		  NetEConst*end_expr = make_const_val(
+			(unsigned long)selected_end);
+		  end_expr->set_line(*li);
+		  fn->parm(6, end_expr);
+	    }
 	    NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
 	    visible_idx_ref->set_line(*li);
-	    fn->parm(recv_net ? 6 : 5, visible_idx_ref);
-	    fn->parm(recv_net ? 7 : 6, declared_idx_expr);
+	    fn->parm(selected_start ? 7 : recv_net ? 6 : 5,
+		      visible_idx_ref);
+	    fn->parm(selected_start ? 8 : recv_net ? 7 : 6,
+		      declared_idx_expr);
       }
       fn->set_line(*li);
       return fn;
@@ -20662,6 +20694,70 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  target_type = array_type;
 	  }
 
+	/* A constant prefix of a multidimensional fixed unpacked array leaves
+	 * the final declared dimension as a one-dimensional array receiver.
+	 * Preserve the original array signal and pass its canonical row offset
+	 * to the reduction loop instead of treating the prefix as a scalar
+	 * element selection. */
+	if (search_results.net && !method_path.empty()
+	    && is_array_reduction_name_(method_path.back().name)
+	    && search_results.net->unpacked_dimensions() > 1
+	    && !search_results.path_head.empty()) {
+	      NetNet*net = search_results.net;
+	      const netsarray_t*full_type = dynamic_cast<const netsarray_t*>(
+		    net->array_type());
+	      const list<index_component_t>&indices =
+		    search_results.path_head.back().index;
+	      if (full_type
+		  && indices.size() + 1 == full_type->static_dimensions().size()) {
+		    list<long>constant_indices;
+		    bool constant_prefix = true;
+		    for (const index_component_t&index : indices) {
+			  if (index.sel != index_component_t::SEL_BIT
+			      || !index.msb || index.lsb) {
+				constant_prefix = false;
+				break;
+			  }
+			  NetExpr*value = elab_and_eval(des, scope, index.msb, -1, false);
+			  NetEConst*constant = dynamic_cast<NetEConst*>(value);
+			  if (!constant) {
+				delete value;
+				constant_prefix = false;
+				break;
+			  }
+			  constant_indices.push_back(constant->value().as_long());
+			  delete value;
+		    }
+		    if (constant_prefix) {
+			  NetExpr*start = normalize_variable_unpacked(full_type,
+							     constant_indices);
+			  if (start) {
+				const NetEConst*start_const =
+				      dynamic_cast<const NetEConst*>(start);
+				long offset = start_const
+				      ? start_const->value().as_long() : -1;
+				if (offset >= 0) {
+				      const netrange_t&last_range =
+					    full_type->static_dimensions().back();
+				      netranges_t selected_dims(1, last_range);
+				      const netuarray_t*selected_type =
+					    new netuarray_t(selected_dims,
+							    full_type->element_type());
+				      delete sub_expr;
+				      sub_expr = new NetESignal(net);
+				      sub_expr->set_line(*this);
+				      return make_array_reduction_expr_(
+					    this, des, scope, sub_expr, selected_type,
+					    full_type->element_type(),
+					    method_path.back().name.str(), parms_,
+					    with_constraints(), start,
+					    offset + last_range.width());
+				}
+			  }
+		    }
+	      }
+	}
+
 	      while (method_path.size() > 1) {
 		    if (!sub_expr) {
 			  return 0;
@@ -22564,6 +22660,23 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	 * width into repeated byte stores (IEEE 1800-2017/2023 6.24.3). */
 	if (dynamic_cast<const netstring_t*>(base->net_type())
 	    && positional_container_integral_elements_(target_type_)) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
+					     target_type_, 1);
+	      cast->parm(0, base);
+	      cast->set_line(*this);
+	      return cast;
+	}
+
+	/* An unpacked struct is an object in VVP. Route it through the bit-stream
+	 * cast path before this typed array path sizes the target by the nominal
+	 * source width (IEEE 1800-2017/2023 6.24.3). */
+	const netstruct_t*struct_source =
+	      dynamic_cast<const netstruct_t*>(base->net_type());
+	if (struct_source && !struct_source->packed()
+	    && !struct_source->union_flag()
+	    && positional_container_integral_elements_(target_type_)
+	    && bitstream_cast_type_(struct_source, false)
+	    && bitstream_cast_type_(target_type_, true)) {
 	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$r$1",
 					     target_type_, 1);
 	      cast->parm(0, base);
