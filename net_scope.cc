@@ -570,6 +570,7 @@ void NetScope::release_parameters()
 		 ; cur != parameters.end() ; ++cur) {
 	    param_expr_t&param = cur->second;
 	    delete param.val;
+	    delete param.parameter_assign_value;
 
 	    range_t*range = param.range;
 	    while (range) {
@@ -717,8 +718,9 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
       ref.source_expr = val;
       ref.source_scope = scope;
       if (parameter_assign) {
+	    delete ref.parameter_assign_value;
+	    ref.parameter_assign_value = 0;
 	    ref.parameter_assign_expr = val;
-	    ref.parameter_assign_scope = scope;
 	    ref.parameter_assign = true;
 	    ref.conn_by_name = conn_by_name;
       }

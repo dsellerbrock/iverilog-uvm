@@ -828,25 +828,32 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    FILE_NAME(cur_par, &(cur_pit->second));
 
 	      // Keep the supplied override expression separate from the final
-	      // parameter value. The target runs after elaboration, so this
-	      // independent constant evaluation cannot alter parameter solving.
+	      // parameter value. It was elaborated in the parameter's normal
+	      // context, so do not re-elaborate the borrowed parse expression here.
 	    if (cur_pit->second.parameter_assign
 		&& !cur_pit->second.type_flag
-		&& cur_pit->second.parameter_assign_expr) {
-		  NetExpr*assign_expr = elab_and_eval(
-			const_cast<Design*>(des_.self),
-			cur_pit->second.parameter_assign_scope,
-			cur_pit->second.parameter_assign_expr, -1, true);
-		  if (assign_expr) {
-			assign_expr->expr_scan(this);
-			ivl_assert(*assign_expr, expr_);
-			cur_par->assign_expr = expr_;
-			expr_ = 0;
+		&& cur_pit->second.parameter_assign_value) {
+		  NetExpr*assign_expr =
+			cur_pit->second.parameter_assign_value->dup_expr();
+		  // A parameter reference can name a child scope that has not
+		  // reached the target yet (notably for a bound instance). At
+		  // this point the reference is already constant-valued; preserve
+		  // that RHS value without requiring a forward VPI parameter handle.
+		  if (const NetEConstParam*param_ref =
+			  dynamic_cast<const NetEConstParam*>(assign_expr)) {
+			NetEConst*constant = new NetEConst(param_ref->value());
+			constant->cast_signed(param_ref->has_sign());
 			delete assign_expr;
-			cur_par->has_assign = true;
-			cur_par->assign_conn_by_name =
-			      cur_pit->second.conn_by_name;
+			assign_expr = constant;
 		  }
+		  assign_expr->expr_scan(this);
+		  ivl_assert(*assign_expr, expr_);
+		  cur_par->assign_expr = expr_;
+		  expr_ = 0;
+		  delete assign_expr;
+		  cur_par->has_assign = true;
+		  cur_par->assign_conn_by_name =
+			cur_pit->second.conn_by_name;
 	    }
 
 	      // Type parameters don't have a range or expression

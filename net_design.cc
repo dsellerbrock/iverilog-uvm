@@ -2135,6 +2135,10 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
 	    des->errors += 1;
 
       } else {
+	    const bool parameter_assign_value =
+		  cur->second.parameter_assign
+		  && cur->second.parameter_assign_expr == cur->second.val_expr;
+	    const unsigned errors_before = des->errors;
             cur->second.solving = true;
             switch (use_type) {
                 case IVL_VT_NO_TYPE:
@@ -2170,6 +2174,17 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
                   break;
             }
             cur->second.solving = false;
+	    // Preserve a copy of the actual override expression's elaborated value
+	    // while its source expression still owns the parameter. VPI generation
+	    // must not re-elaborate the borrowed parse tree in a different context.
+	    if (parameter_assign_value && cur->second.val
+		&& des->errors == errors_before) {
+	      const NetEConst*constant =
+		    dynamic_cast<const NetEConst*>(cur->second.val);
+	      if (!constant || !constant->is_unbounded())
+		    cur->second.parameter_assign_value =
+			  cur->second.val->dup_expr();
+	    }
       }
 
         // If we have failed to evaluate the expression, create a dummy

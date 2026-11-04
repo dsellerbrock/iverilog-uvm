@@ -1719,7 +1719,7 @@ class NetScope : public Definitions, public Attrib {
 	   access to these things to make up the parameter lists. */
       struct param_expr_t : public LineInfo {
 	    param_expr_t() : val_expr(0), source_expr(0),
-			     parameter_assign_expr(0), parameter_assign_scope(0),
+			     parameter_assign_expr(0), parameter_assign_value(0),
 			     val_type(0), val_scope(0), source_scope(0),
 			     solving(false), is_annotatable(false),
 			     local_flag(false),
@@ -1734,7 +1734,9 @@ class NetScope : public Definitions, public Attrib {
 	    // Preserve a module-instantiation override independently of the
 	    // parameter's final value for VPI vpiParamAssign objects.
 	    PExpr*parameter_assign_expr;
-	    NetScope*parameter_assign_scope;
+	    // Contextually elaborated copy of that expression, captured while the
+	    // parameter is evaluated in its normal scope.
+	    NetExpr*parameter_assign_value;
 	    data_type_t*val_type;
 	    // Scope information
             NetScope*val_scope;
