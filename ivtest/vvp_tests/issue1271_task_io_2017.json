@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1271_task_io.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue1271_task_io_2017"],
+  "vpi-sources": ["vpi/issue1271_task_io.c"],
+  "output-contains": ["ISSUE1271 DECLS PASS", "ISSUE1271 ACTIVE REF PASS", "PASSED"]
+}

@@ -452,6 +452,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 {
       static char buf[32];
       switch (code) {
+	  case VPI_IODECL_TYPE: return "vpiIODecl";
+	  case VPI_REF_OBJ_TYPE: return "vpiRefObj";
 	  case vpiBegin: return "vpiBegin";
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";
@@ -2113,7 +2115,7 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    fprintf(vpi_trace, "vpi_handle_by_name: DONE\n");
       }
 
-      return out;
+      return vpip_wrap_refobj(out);
 }
 
 // Return tuple {x1, x2, x3} with:

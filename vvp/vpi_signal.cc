@@ -1262,6 +1262,71 @@ vpiHandle __vpiSignal::vpi_iterate(int code)
 vpiHandle __vpiSignal::vpi_index(int idx)
 { return signal_index(idx, this); }
 
+/* A task/function ref formal is a reference object in the VPI object model,
+   even though its signal handle remains the simulator's access path for
+   reads and writes. Keep that signal handle behind this VPI facade and
+   resolve vpiActual from the currently executing activation. */
+class __vpiRefObj : public __vpiHandle {
+    public:
+      explicit __vpiRefObj(vpiHandle formal) : formal_(formal) { }
+      int get_type_code(void) const override { return VPI_REF_OBJ_TYPE; }
+      vvp_net_t*backing_net(void) override
+      { return formal_ ? formal_->backing_net() : 0; }
+      int vpi_get(int code) override
+      {
+	    return formal_ ? formal_->vpi_get(code) : vpiUndefined;
+      }
+      int64_t vpi_get64(int code) override
+      { return formal_ ? formal_->vpi_get64(code) : vpiUndefined; }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiDefName) {
+		  vpiHandle actual = actual_();
+		  return actual ? actual->vpi_get_str(code) : 0;
+	    }
+	    return formal_ ? formal_->vpi_get_str(code) : 0;
+      }
+      void vpi_get_value(p_vpi_value val) override
+      { if (formal_) formal_->vpi_get_value(val); }
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override
+      { return formal_ ? formal_->vpi_put_value(val, flags) : 0; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == VPI_ACTUAL_RELATION) return actual_();
+	    if (code == vpiParent && formal_)
+		  return formal_->vpi_handle(vpiScope);
+	    return formal_ ? formal_->vpi_handle(code) : 0;
+      }
+      vpiHandle vpi_iterate(int code) override
+      { return formal_ ? formal_->vpi_iterate(code) : 0; }
+      vpiHandle vpi_index(int idx) override
+      { return formal_ ? formal_->vpi_index(idx) : 0; }
+
+    private:
+      vpiHandle actual_()
+      {
+	    vvp_net_t*net = formal_ ? formal_->backing_net() : 0;
+	    vvp_ref_signal_aa*ref = net
+		  ? dynamic_cast<vvp_ref_signal_aa*>(net->fil) : 0;
+	    return ref ? vpip_find_signal_by_net(ref->target()) : 0;
+      }
+      vpiHandle formal_;
+};
+
+vpiHandle vpip_wrap_refobj(vpiHandle formal)
+{
+      static std::map<vpiHandle, vpiHandle> refobjs;
+      if (!formal) return 0;
+      if (formal->get_type_code() == VPI_REF_OBJ_TYPE) return formal;
+      vvp_net_t*net = formal->backing_net();
+      if (!net || !dynamic_cast<vvp_ref_signal_aa*>(net->fil)) return formal;
+      std::map<vpiHandle, vpiHandle>::iterator found = refobjs.find(formal);
+      if (found != refobjs.end()) return found->second;
+      vpiHandle refobj = new __vpiRefObj(formal);
+      refobjs[formal] = refobj;
+      return refobj;
+}
+
 struct signal_reg : public __vpiSignal {
       inline signal_reg() { }
       int get_type_code(void) const override { return vpiReg; }
