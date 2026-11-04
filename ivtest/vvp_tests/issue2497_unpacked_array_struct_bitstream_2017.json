@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "issue2497_unpacked_array_struct_bitstream.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue2497_unpacked_array_struct_bitstream",
+    "vlog95"        : { "type" : "NI" }
+}

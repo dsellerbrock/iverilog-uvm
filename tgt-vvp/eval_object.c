@@ -2990,6 +2990,19 @@ static int eval_object_sfunc(ivl_expr_t expr)
          a queue or dynamic array of the result's element type. */
       if (strncmp(name, "$ivl_stream$", 12) == 0) {
 	    ivl_type_t net_type = ivl_expr_net_type(expr);
+	    if (strcmp(name, "$ivl_stream$cast$packed$1") == 0) {
+		  if (parm_count != 1 || !net_type
+		      || !ivl_type_is_packed_vector(net_type)) {
+			fprintf(stderr, "%s:%u: internal error: malformed packed bit-stream cast.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			return 1;
+		  }
+		  draw_eval_object(ivl_expr_parm(expr, 0));
+		  fprintf(vvp_out, "    %%stream/flatten/obj/cast 0; bit-stream cast source\n");
+		  if (ivl_type_base(net_type) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2; bit-stream cast to 2-state target\n");
+		  return 0;
+	    }
 	    if (strcmp(name, "$ivl_stream$cast$struct$1") == 0) {
 		  struct stream_struct_encoding_buf_s buf = { NULL, 0, 0 };
 		  if (!net_type || ivl_type_base(net_type) != IVL_VT_NO_TYPE
