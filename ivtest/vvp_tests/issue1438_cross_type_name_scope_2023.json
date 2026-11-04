@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1438_cross_type_name_scope.v",
+  "iverilog-args": ["-g2023", "-s", "issue1438_cross_type_name_scope"],
+  "output-contains": ["PASSED"]
+}

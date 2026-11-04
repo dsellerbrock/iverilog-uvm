@@ -4903,6 +4903,7 @@ sv_covergroup_cross_set_function_fail CE,-g2017 ivltests gold=sv_covergroup_cros
 sv_covergroup_cross_set_function_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_set_function_fail_2023.gold
 issue1437_cross_function_scope_2017 CE,-g2017,-s,issue1437_cross_function_scope ivltests gold=issue1437_cross_function_scope.gold
 issue1437_cross_function_scope_2023 CE,-g2023,-s,issue1437_cross_function_scope ivltests gold=issue1437_cross_function_scope_2023.gold
+issue1438_cross_type_name_scope normal,-g2017,-s,issue1438_cross_type_name_scope ivltests
 sv_covergroup_cross_wildcard_with normal,-g2017 ivltests gold=sv_covergroup_cross_wildcard_with.gold
 sv_covergroup_cross_wildcard_with_2023 normal,-g2023,-I./ivltests ivltests gold=sv_covergroup_cross_wildcard_with.gold
 sv_covergroup_wildcard_transition normal,-g2017 ivltests

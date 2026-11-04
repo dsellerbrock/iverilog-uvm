@@ -46745,6 +46745,48 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
                   }
                   return result;
             };
+            auto add_type_weight_prop = [&](const std::string&stem,
+					    unsigned initial_weight) -> int {
+                  NetScope*type_scope = const_cast<NetScope*>(
+                        cg_class->class_scope());
+                  // Embedded covergroups are synthesized properties of their
+                  // parent class and have no separately addressable type scope.
+                  // Their declared type weight remains in the covergroup
+                  // metadata; only named covergroup types need mutable static
+                  // storage for type-scoped assignments.
+                  if (!type_scope) return -1;
+                  std::string name = stem;
+                  unsigned suffix = 0;
+                  perm_string property_name = lex_strings.make(name.c_str());
+                  while (cg_class->property_idx_from_name(property_name) >= 0) {
+                        name = stem + "_" + std::to_string(++suffix);
+                        property_name = lex_strings.make(name.c_str());
+                  }
+                  if (!cg_class->set_property(property_name,
+                              property_qualifier_t::make_static(),
+                              &netvector_t::atom2s32)) {
+                        cerr << "internal error: unable to add covergroup type-weight property '"
+                             << property_name << "'." << endl;
+                        des->errors += 1;
+                        return -1;
+                  }
+                  NetNet*signal = type_scope->find_signal(property_name);
+                  if (!signal)
+                        signal = new NetNet(type_scope, property_name,
+                              NetNet::REG, &netvector_t::atom2s32);
+                  signal->set_const(false);
+
+		    NetBlock*initializer = new NetBlock(NetBlock::SEQU, nullptr);
+		    initializer->append(new NetAssign(new NetAssign_(signal),
+						      make_const_val_s(initial_weight)));
+		    NetProcTop*initializer_top = new NetProcTop(
+			  type_scope, IVL_PR_INITIAL, initializer);
+		    initializer_top->set_line(*pclass);
+		    initializer_top->attribute(
+			  perm_string::literal("_ivl_schedule_init"), verinum(1));
+		    des->add_process(initializer_top);
+                  return cg_class->property_idx_from_name(property_name);
+            };
             group_options.type_weight = type_weight(cgdef->options, "covergroup");
             auto merge_it = cgdef->options.find(
                   perm_string::literal("type_option.merge_instances"));
@@ -47295,6 +47337,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
+			  cg_class->set_covgrp_item_type_weight_prop(cp_idx,
+				add_type_weight_prop("__covgrp_item_"
+				      + std::to_string(cp_idx) + "_type_weight",
+				      cp_type_weight));
 			  cg_class->set_covgrp_item_type_comment(cp_idx,
 				cp_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
@@ -49696,6 +49742,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+			  cg_class->set_covgrp_item_type_weight_prop(item_idx,
+				add_type_weight_prop("__covgrp_item_"
+				      + std::to_string(item_idx) + "_type_weight",
+				      type_weight(cross.options, "cross")));
 			  cg_class->set_covgrp_item_type_comment(item_idx,
 				x_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,

@@ -13688,6 +13688,19 @@ parameterized_scoped_identifier
 	delete[]$3.text;
 	$$ = tmp;
       }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -15230,19 +15243,6 @@ expr_primary
 	delete[]$1;
 	delete[]$3.text;
 	delete[]$5.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
-	delete[]$1.text;
-	delete[]$3;
-	delete[]$5;
 	$$ = tmp;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER

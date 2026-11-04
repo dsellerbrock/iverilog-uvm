@@ -770,6 +770,44 @@ static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
 	  }
 	  result.class_type = class_type;
 
+	    // IEEE 1800-2017/2023 19.6/19.7.1: a covergroup item label is
+	    // pseudo hierarchy after the covergroup type scope. Its mutable
+	    // type_option.weight is backed by a static property on that type.
+	  if (class_type->is_covergroup() && path.name.size() == 4) {
+	    auto item_it = std::next(path.name.begin());
+	    auto option_it = std::next(item_it);
+	    auto member_it = std::next(option_it);
+	    if (item_it->index.empty() && option_it->index.empty()
+		&& member_it->index.empty()
+		&& option_it->name == perm_string::literal("type_option")
+		&& member_it->name == perm_string::literal("weight")) {
+	    result.property = item_it->name;
+	    int pidx = class_type->covgrp_item_type_weight_prop(item_it->name);
+	    if (pidx < 0) {
+	      result.status = SCOPED_LVALUE_RETARGET_ERROR_MISSING_PROPERTY;
+	      return result;
+	    }
+	    NetNet*target = class_type->get_prop_static_signal((size_t)pidx);
+	    if (!target) {
+	      result.status = SCOPED_LVALUE_RETARGET_ERROR_STATIC_STORAGE;
+	      return result;
+	    }
+	    sr.net = target;
+	    sr.scope = target->scope();
+	    sr.type = target->net_type();
+	    sr.par_val = nullptr;
+	    sr.eve = nullptr;
+	    sr.decl_after_use = nullptr;
+	    sr.path_head.clear();
+	    sr.path_head.push_back(prefix);
+	    sr.path_head.push_back(name_component_t(
+	          lex_strings.make(class_type->get_prop_name((size_t)pidx))));
+	    sr.path_tail.clear();
+	    result.status = SCOPED_LVALUE_RETARGETED;
+	    return result;
+	    }
+	  }
+
       /* This grammar shape has one class-scope prefix; the next component is
 	 the static property and any later components are instance members of
 	 that property. */

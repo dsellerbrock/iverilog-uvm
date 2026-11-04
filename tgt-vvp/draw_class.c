@@ -708,6 +708,8 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_item_guardsrc(classtype, idx) + 1);
                   fprintf(vvp_out, " .covgrp_item_type_weight %u %u\n", idx,
                           ivl_type_covgrp_item_type_weight(classtype, idx));
+		  fprintf(vvp_out, " .covgrp_item_type_weight_prop %u %d\n", idx,
+			  ivl_type_covgrp_item_type_weight_prop(classtype, idx) + 1);
 		    /* Keep mutable option-property metadata in a separate tagged
 		       record. Appending bare numbers to .covgrp_item is ambiguous
 		       with the numeric line that begins the next class property. */

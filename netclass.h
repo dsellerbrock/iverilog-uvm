@@ -513,6 +513,7 @@ class netclass_t : public ivl_type_s {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
             unsigned type_weight = 1;
+            int type_weight_prop = -1; // mutable covergroup-type option slot
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
@@ -689,6 +690,13 @@ class netclass_t : public ivl_type_s {
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       void set_covgrp_item_at_least_inherited(size_t idx, bool value)
       { covgrp_items_[idx].at_least_inherited = value; }
+      void set_covgrp_item_type_weight_prop(size_t idx, int prop)
+      { if (idx < covgrp_items_.size())
+              covgrp_items_[idx].type_weight_prop = prop; }
+      int covgrp_item_type_weight_prop(perm_string item_name) const
+      { for (const covgrp_item_t&item : covgrp_items_)
+              if (item.name == item_name) return item.type_weight_prop;
+        return -1; }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }

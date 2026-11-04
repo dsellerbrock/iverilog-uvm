@@ -321,6 +321,7 @@ class class_type : public __vpiHandle {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
             unsigned type_weight = 1;
+            int type_weight_prop = -1;
 	    std::string weight_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
@@ -403,6 +404,8 @@ class class_type : public __vpiHandle {
       { if (idx >= covgrp_items_.size()) return false;
         covgrp_items_[static_cast<size_t>(idx)].type_weight = weight;
         return true; }
+      bool set_covgrp_item_type_weight_prop(uint64_t idx, int prop);
+      unsigned covgrp_item_type_weight(size_t idx) const;
       bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
 					 int weight_prop)
       { if (idx >= covgrp_items_.size()) return false;
