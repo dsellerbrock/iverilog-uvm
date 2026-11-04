@@ -2821,6 +2821,8 @@ bool pform_module_is_checker(void)
       return !pform_cur_module.empty() && pform_cur_module.front()->is_checker;
 }
 
+static void sva_flush_pending_default_disable_assertions_(Module*owner);
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -2879,6 +2881,10 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   default even if that default was declared after the assertion. Keep
 	   the module active while retrying so the checker lands in its scope. */
       pform_sva_flush_pending_procedural();
+
+	/* Bind default disables after the scope declarations are known, while
+	   reinserting generated checker processes at their source-order markers. */
+      sva_flush_pending_default_disable_assertions_(cur_module);
 
 	/* M9: named property/sequence declarations and the default
 	   disable are module-scoped. */
@@ -8971,7 +8977,10 @@ static std::set<sva_scoped_name_t> sva_property_shaped_sequences;
    evaluated in the Observed region rather than through the procedural event. */
 static std::map<sva_scoped_name_t, perm_string> sva_sequence_trigger_events;
 static std::map<perm_string, sva_scoped_name_t> sva_sequence_trigger_sources;
-static PExpr* sva_default_disable = nullptr;
+/* Keep defaults keyed by the scope that declares them.  A default may be
+   declared after an assertion, so the expression must remain available until
+   that module's assertions have been bound. */
+static std::map<LexicalScope*, PExpr*> sva_default_disables;
 static unsigned sva_gensym_counter = 0;
 
 /* M9D: parameterized named property/sequence declarations. The formal
@@ -9005,6 +9014,39 @@ struct sva_param_prop_t {
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
 static std::set<const PGenerate*> sva_default_disable_scopes;
+
+static Module* sva_current_module_()
+{
+      return pform_cur_module.empty() ? nullptr : pform_cur_module.front();
+}
+
+static PExpr* sva_default_disable_for_scope_(LexicalScope*scope,
+						     Module*owner)
+{
+      while (scope) {
+	    std::map<LexicalScope*, PExpr*>::const_iterator found =
+		  sva_default_disables.find(scope);
+	    if (found != sva_default_disables.end()) return found->second;
+	    if (scope == owner) break;
+	    scope = scope->parent_scope();
+      }
+      return nullptr;
+}
+
+/* A visible default is not final while a closer generate scope might still
+   declare its own overriding default later in the source. */
+static bool sva_default_disable_binding_is_final_(LexicalScope*scope,
+							  Module*owner)
+{
+      if (!owner) return true;
+      while (scope && scope != owner) {
+	    if (dynamic_cast<PGenerate*>(scope))
+		  return sva_default_disables.find(scope)
+			!= sva_default_disables.end();
+	    scope = scope->parent_scope();
+      }
+      return sva_default_disables.find(owner) != sva_default_disables.end();
+}
 
 /* Sampled calls in a DECLARATION acquire their clock only when the named
    property/sequence is instantiated. They must not remain in the generic
@@ -9561,7 +9603,7 @@ void pform_sva_set_default_disable(const struct vlltype&loc, PExpr*expr)
 	    delete expr;
 	    return;
       }
-      sva_default_disable = expr;
+      sva_default_disables[lexical_scope] = expr;
 }
 
 void pform_sva_sorry(const struct vlltype&loc, const char*what)
@@ -10379,8 +10421,6 @@ void pform_sva_module_done(void)
       sva_sequence_trigger_events.clear();
       sva_sequence_trigger_sources.clear();
       sva_default_disable_scopes.clear();
-      delete sva_default_disable;
-      sva_default_disable = nullptr;
 }
 
 static PExpr* sva_clone_subst_(
@@ -18387,8 +18427,11 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 
 	/* disable iff: own, else the module default. */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable)
-	    disable = sva_clone_expr_(sva_default_disable);
+      if (!disable) {
+	    PExpr*default_disable = sva_default_disable_for_scope_(
+		  lexical_scope, sva_current_module_());
+	    if (default_disable) disable = sva_clone_expr_(default_disable);
+      }
 
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
@@ -22112,8 +22155,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* disable iff: own, else the module default (cloned). */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = !disable
+		? sva_default_disable_for_scope_(lexical_scope,
+						 sva_current_module_())
+		: nullptr;
+      if (default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -28086,13 +28133,40 @@ struct sva_pending_hier_assertion_t {
       sva_property_t*prop = nullptr;
       Statement*fail_stmt = nullptr;
       Statement*pass_stmt = nullptr;
-      PExpr*default_disable = nullptr;
       int kind = 0;
       perm_string label;
 };
 static std::vector<sva_pending_hier_assertion_t>
 	  sva_pending_hier_assertions_;
 static bool sva_hier_assertion_retry_active_ = false;
+
+/* Assertions that need a default from a scope which has not finished
+   parsing keep a behavior-list marker until the module's defaults are known.
+   The marker lets lowering happen later without moving the generated checker
+   processes from their source-order position. */
+struct sva_pending_default_disable_assertion_t {
+      struct vlltype loc;
+      Module*owner = nullptr;
+      LexicalScope*scope = nullptr;
+      PGenerate*generate = nullptr;
+      PProcess*marker = nullptr;
+      sva_property_t*prop = nullptr;
+      Statement*fail_stmt = nullptr;
+      Statement*pass_stmt = nullptr;
+      int kind = 0;
+      perm_string label;
+};
+static std::vector<sva_pending_default_disable_assertion_t>
+	  sva_pending_default_disable_assertions_;
+static bool sva_default_disable_retry_active_ = false;
+
+static bool sva_has_pending_default_disable_assertion_(Module*owner)
+{
+      for (const sva_pending_default_disable_assertion_t&item :
+		sva_pending_default_disable_assertions_)
+	    if (item.owner == owner) return true;
+      return false;
+}
 
 /* Assertions without an explicit clock are held until their enclosing
    procedural event control can supply rule (c), or module end can apply the
@@ -28637,7 +28711,9 @@ static bool sva_parameter_checker_preflight_(
 	   process. Pre-create both so neither semantic half can disappear after
 	   the checker has committed. */
       PExpr*disable_src = prop->disable_iff_expr
-	    ? prop->disable_iff_expr : sva_default_disable;
+	    ? prop->disable_iff_expr
+	    : sva_default_disable_for_scope_(lexical_scope,
+					     sva_current_module_());
       if (disable_src) {
 	    prep.disable_level = sva_clone_expr_(disable_src);
 	    prep.disable_event = sva_clone_expr_(disable_src);
@@ -30287,8 +30363,12 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       fail_action = sva_fail_action_(loc, inst, fail_action);
 
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = !disable
+		? sva_default_disable_for_scope_(lexical_scope,
+						 sva_current_module_())
+		: nullptr;
+      if (default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -30488,9 +30568,6 @@ static bool sva_defer_hierarchical_assertion_(
       LexicalScope*scope = lexical_scope;
       while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
 	    scope = scope->parent_scope();
-      PExpr*default_disable = sva_default_disable
-	    ? sva_clone_expr_(sva_default_disable) : nullptr;
-      if (sva_default_disable && !default_disable) return false;
 
       PNoop*marker_stmt = new PNoop;
       FILE_NAME(marker_stmt, loc);
@@ -30507,11 +30584,118 @@ static bool sva_defer_hierarchical_assertion_(
       pending.prop = prop;
       pending.fail_stmt = fail_stmt;
       pending.pass_stmt = pass_stmt;
-      pending.default_disable = default_disable;
       pending.kind = kind;
       pending.label = label;
       sva_pending_hier_assertions_.push_back(pending);
       return true;
+}
+
+static bool sva_defer_default_disable_assertion_(
+		const struct vlltype&loc, sva_property_t*prop,
+		Statement*fail_stmt, Statement*pass_stmt, int kind,
+		perm_string label, bool force = false)
+{
+      if (sva_default_disable_retry_active_ || !prop
+	  || pform_cur_module.empty()) return false;
+      Module*owner = pform_cur_module.front();
+
+	/* A pending earlier assertion can report a deferred error at module end.
+	   Keep later clocked assertions behind markers too so diagnostics and
+	   checker processes retain source order. */
+      if (!force
+	  && sva_default_disable_binding_is_final_(lexical_scope, owner))
+	    return false;
+
+      LexicalScope*scope = lexical_scope;
+      while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
+	    scope = scope->parent_scope();
+      PNoop*marker_stmt = new PNoop;
+      FILE_NAME(marker_stmt, loc);
+      PProcess*marker = new PProcess(IVL_PR_INITIAL, marker_stmt);
+      FILE_NAME(marker, loc);
+      scope->behaviors.push_back(marker);
+
+      sva_pending_default_disable_assertion_t pending;
+      pending.loc = loc;
+      pending.owner = owner;
+      pending.scope = scope;
+      pending.generate = pform_cur_generate;
+      pending.marker = marker;
+      pending.prop = prop;
+      pending.fail_stmt = fail_stmt;
+      pending.pass_stmt = pass_stmt;
+      pending.kind = kind;
+      pending.label = sva_active_assertion_label_.nil()
+	    ? label : sva_active_assertion_label_;
+      sva_pending_default_disable_assertions_.push_back(pending);
+      return true;
+}
+
+static void sva_flush_pending_default_disable_assertions_(Module*owner)
+{
+      std::vector<sva_pending_default_disable_assertion_t>pending;
+      std::vector<sva_pending_default_disable_assertion_t>keep;
+      pending.swap(sva_pending_default_disable_assertions_);
+      for (sva_pending_default_disable_assertion_t&item : pending) {
+	    if (item.owner == owner)
+		  keep.push_back(item);
+	    else
+		  sva_pending_default_disable_assertions_.push_back(item);
+      }
+      if (keep.empty()) return;
+
+      bool saved_disable_retry = sva_default_disable_retry_active_;
+      bool saved_named_retry = sva_named_prop_retry_active_;
+      bool saved_proc_retry = sva_proc_clock_retry_active_;
+      sva_default_disable_retry_active_ = true;
+      sva_named_prop_retry_active_ = true;
+      sva_proc_clock_retry_active_ = true;
+      for (sva_pending_default_disable_assertion_t&item : keep) {
+	    LexicalScope*scope = item.scope;
+	    std::list<PProcess*>::iterator marker = std::find(
+		  scope->behaviors.begin(), scope->behaviors.end(), item.marker);
+	    if (marker == scope->behaviors.end()) {
+		  cerr << item.loc << ": internal error: deferred default-disable "
+		       << "assertion lost its ordering marker." << endl;
+		  error_count += 1;
+		  delete item.marker;
+		  delete item.fail_stmt;
+		  delete item.pass_stmt;
+		  pform_sva_destroy_property(item.prop);
+		  continue;
+	    }
+	    std::list<PProcess*>::iterator insertion = marker;
+	    ++insertion;
+	    scope->behaviors.erase(marker);
+	    std::set<PProcess*>existing(scope->behaviors.begin(),
+				 scope->behaviors.end());
+
+	    LexicalScope*saved_scope = lexical_scope;
+	    PGenerate*saved_generate = pform_cur_generate;
+	    std::list<Module*>saved_modules = pform_cur_module;
+	    lexical_scope = scope;
+	    pform_cur_generate = item.generate;
+	    pform_cur_module.clear();
+	    pform_cur_module.push_front(item.owner);
+	    pform_make_assertion(item.loc, item.prop, item.fail_stmt,
+			 item.pass_stmt, item.kind, item.label);
+	    item.prop = nullptr;
+	    item.fail_stmt = item.pass_stmt = nullptr;
+	    pform_cur_module.swap(saved_modules);
+	    pform_cur_generate = saved_generate;
+	    lexical_scope = saved_scope;
+
+	    std::vector<PProcess*>created;
+	    for (PProcess*process : scope->behaviors)
+		  if (!existing.count(process)) created.push_back(process);
+	    for (PProcess*process : created)
+		  scope->behaviors.remove(process);
+	    scope->behaviors.insert(insertion, created.begin(), created.end());
+	    delete item.marker;
+      }
+      sva_proc_clock_retry_active_ = saved_proc_retry;
+      sva_named_prop_retry_active_ = saved_named_retry;
+      sva_default_disable_retry_active_ = saved_disable_retry;
 }
 
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -30554,16 +30738,31 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pass_stmt = nullptr;
       }
 
+	/* Do not let diagnostics from a later assertion overtake an earlier
+	   assertion whose default binding is deferred. */
+      if (prop && prop->clk_evt && !sva_default_disable_retry_active_
+	  && sva_has_pending_default_disable_assertion_(sva_current_module_())
+	  && sva_defer_default_disable_assertion_(loc, prop, fail_stmt,
+						   pass_stmt, kind, label, true))
+	    return;
+
 	/* IEEE 1800-2017/2023 16.6 explicitly excludes property locals and
 	   `matched' from disable expressions. Validate after named-property
 	   expansion as well as here, so each check sees the declaration's local
 	   names and the final combined disable condition. */
+      Module*owner = sva_current_module_();
+      bool default_binding_final = sva_default_disable_retry_active_
+	    || sva_hier_assertion_retry_active_
+	    || sva_default_disable_binding_is_final_(lexical_scope, owner);
       if (prop
 	  && (!sva_validate_disable_condition_(loc, prop->disable_iff_expr,
 					       prop->local_names)
-	      || (!prop->disable_iff_expr
-		  && !sva_validate_disable_condition_(loc, sva_default_disable,
-						      prop->local_names)))) {
+	      || (!prop->disable_iff_expr && default_binding_final
+		  && !sva_validate_disable_condition_(loc,
+				    sva_default_disable_for_scope_(
+					  lexical_scope,
+					  sva_current_module_()),
+					      prop->local_names)))) {
 	    delete fail_stmt;
 	    delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -30599,6 +30798,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   where its module-owned sequence table is available. */
       if (sva_defer_hierarchical_assertion_(loc, prop, fail_stmt,
 						    pass_stmt, kind, label))
+	    return;
+
+	/* A default in this module or an enclosing generate scope applies even
+	   when its declaration follows the assertion. If the nearest applicable
+	   declaration scope has not closed, retain the assertion at a behavior
+	   marker and bind it once all declarations are known. */
+      if (prop && !prop->disable_iff_expr
+	  && sva_defer_default_disable_assertion_(loc, prop, fail_stmt,
+						   pass_stmt, kind, label))
 	    return;
 
       /* Synthesize into the nearest non-block scope; see
@@ -31149,7 +31357,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      }
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
 				    pit->second.formals, cf->get_parms(), inferred_clock,
-				    sva_default_disable, subst,
+				    sva_default_disable_for_scope_(
+					  lexical_scope, sva_current_module_()), subst,
 				    event_subst,
 				    owned_subst, *formal_initializers, local_carriers,
 				    caller_locals, actual_local_reads))
@@ -31877,8 +32086,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* disable iff: own, else the module `default disable iff`
 	   (cloned so every assertion can use it). */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = !disable
+		? sva_default_disable_for_scope_(lexical_scope,
+						 sva_current_module_())
+		: nullptr;
+      if (default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -32923,7 +33136,6 @@ static void sva_flush_pending_hier_assertions_()
 		       << "sequence assertion lost its ordering marker." << endl;
 		  error_count += 1;
 		  delete item.marker;
-		  delete item.default_disable;
 		  delete item.fail_stmt;
 		  delete item.pass_stmt;
 		  pform_sva_destroy_property(item.prop);
@@ -32937,21 +33149,18 @@ static void sva_flush_pending_hier_assertions_()
 
 	    LexicalScope*saved_scope = lexical_scope;
 	    PGenerate*saved_generate = pform_cur_generate;
-	    PExpr*saved_disable = sva_default_disable;
 	    bool saved_retry = sva_hier_assertion_retry_active_;
 	    std::list<Module*>saved_modules = pform_cur_module;
 	    lexical_scope = scope;
 	    pform_cur_generate = item.generate;
 	    pform_cur_module.clear();
 	    pform_cur_module.push_front(item.owner);
-	    sva_default_disable = item.default_disable;
 	    sva_hier_assertion_retry_active_ = true;
 	    pform_make_assertion(item.loc, item.prop, item.fail_stmt,
 			 item.pass_stmt, item.kind, item.label);
 	    item.prop = nullptr;
 	    item.fail_stmt = item.pass_stmt = nullptr;
 	    sva_hier_assertion_retry_active_ = saved_retry;
-	    sva_default_disable = saved_disable;
 	    pform_cur_module.swap(saved_modules);
 	    pform_cur_generate = saved_generate;
 	    lexical_scope = saved_scope;
@@ -32963,7 +33172,6 @@ static void sva_flush_pending_hier_assertions_()
 		  scope->behaviors.remove(process);
 	    scope->behaviors.insert(insertion, created.begin(), created.end());
 	    delete item.marker;
-	    delete item.default_disable;
       }
 }
 
@@ -33010,6 +33218,10 @@ int pform_finish()
       // parsed after their assertion site. Expand them after the full module
       // set and bind-generated instances are available.
       sva_flush_pending_hier_assertions_();
+      for (std::map<LexicalScope*, PExpr*>::value_type&entry :
+		sva_default_disables)
+	    delete entry.second;
+      sva_default_disables.clear();
       sva_release_retained_module_sequences_();
 
       return error_count;

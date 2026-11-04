@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue727_late_default_disable_iff.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue727_late_default_disable_iff"],
+  "gold": "issue727_late_default_disable_iff"
+}

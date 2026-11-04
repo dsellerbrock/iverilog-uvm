@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue727_late_default_disable_iff.v:19: $finish called at 16 (1s)
