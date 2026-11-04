@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue917_clocking_sva_positive.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue917_clocking_sva_positive"],
+  "gold": "issue917_clocking_sva_positive"
+}

@@ -8286,6 +8286,11 @@ clocking_item
 	delete $3;
 	delete $5;
       }
+  /* IEEE 1800-2017/2023 14.3 and A.6.11: assertion_item_declaration
+     is also a clocking_item. The declaration handler associates its SVA
+     scope and implicit leading clock with this block. */
+  | property_declaration
+  | sequence_declaration
   ;
 
   /* IEEE 1800-2017 A.6.11:

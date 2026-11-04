@@ -1,0 +1,7 @@
+PROPERTY_FAIL 15
+SEQUENCE_FAIL 15
+PARAM_PROPERTY_FAIL 15
+PARAM_SEQUENCE_FAIL 15
+SAME_EVENT_FAIL 15
+PASSED
+ivltests/issue917_clocking_sva_positive.v:33: $finish called at 20 (1s)
