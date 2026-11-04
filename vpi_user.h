@@ -328,6 +328,7 @@ typedef struct t_vpi_delay  {
 #define vpiPathTerm    43
 #define vpiPort        44
 #define vpiPortBit     45
+#define vpiPrimTerm    46 /* primitive terminal */
 #define vpiRealVar     47
 #define vpiReg         48
 #define vpiRegBit      49
@@ -341,6 +342,7 @@ typedef struct t_vpi_delay  {
 #define vpiTimeQueue   64
 #define vpiRepeat      51 /* repeat statement */
 #define vpiUdpDefn     66
+#define vpiPrimitive  103 /* primitive (gate, switch, UDP) */
 #define vpiUserSystf   67
 #define vpiWhile       70 /* while statement */
 #define vpiBreak       684
@@ -417,10 +419,42 @@ typedef struct t_vpi_delay  {
 #   define vpiMixedIO 4 /* Not currently output */
 #   define vpiNoDirection 5
 
+#define vpiTermIndex 30 /* index of a primitive terminal */
+#define vpiStrength0 31 /* 0-strength of net or gate */
+#define vpiStrength1 32 /* 1-strength of net or gate */
+
 /* Primitive subtype properties. */
 #define vpiPrimType 33
 #   define vpiSeqPrim 27
 #   define vpiCombPrim 28
+
+/* Primitive subtype values returned by vpi_get(vpiPrimType, primitive). */
+#   define vpiAndPrim       1
+#   define vpiNandPrim      2
+#   define vpiNorPrim       3
+#   define vpiOrPrim        4
+#   define vpiXorPrim       5
+#   define vpiXnorPrim      6
+#   define vpiBufPrim       7
+#   define vpiNotPrim       8
+#   define vpiBufif0Prim    9
+#   define vpiBufif1Prim   10
+#   define vpiNotif0Prim   11
+#   define vpiNotif1Prim   12
+#   define vpiNmosPrim     13
+#   define vpiPmosPrim     14
+#   define vpiCmosPrim     15
+#   define vpiRnmosPrim    16
+#   define vpiRpmosPrim   17
+#   define vpiRcmosPrim    18
+#   define vpiRtranPrim    19
+#   define vpiRtranif0Prim 20
+#   define vpiRtranif1Prim 21
+#   define vpiTranPrim     22
+#   define vpiTranif0Prim  23
+#   define vpiTranif1Prim  24
+#   define vpiPullupPrim   25
+#   define vpiPulldownPrim 26
 
 #define vpiNetType       22
 #define vpiNetTypedefAlias 705

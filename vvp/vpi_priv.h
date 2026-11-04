@@ -45,6 +45,7 @@ class vvp_darray;
 class vvp_fun_arrayport;
 class vvp_fun_force_array;
 class vvp_fun_signal_base;
+struct vvp_udp_s;
 
 typedef struct __vpiArray* vvp_array_t;
 
@@ -1642,6 +1643,7 @@ extern vvp_time64_t vpip_scaled_real_to_time64(double val, const __vpiScope*sc);
  */
 extern const char* vpip_string(const char*str);
 extern const char* vpip_name_string(const char*str);
+extern vpiHandle vpip_get_udp_handle(vvp_udp_s*defn);
 
 
 /*

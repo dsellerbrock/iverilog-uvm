@@ -20,6 +20,7 @@
 # include  "compile.h"
 # include  "vpi_priv.h"
 # include  "class_type.h"
+# include  "udp.h"
 # include  "symbols.h"
 # include  "statistics.h"
 # include  "schedule.h"
@@ -140,6 +141,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  break;
 		case vpiArrayVar:
 		  array_delete(item);
+		  break;
+		case vpiPrimitive:
+		  delete item;
 		  break;
 		case vpiBegin:
 		case vpiAssignment:
@@ -333,6 +337,234 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
       }
 
       return 0;
+}
+
+class __vpiPrimitive;
+
+class __vpiPrimitiveTerm : public __vpiHandle {
+    public:
+      __vpiPrimitiveTerm(__vpiPrimitive *primitive, int direction,
+			 unsigned index, vpiHandle expression)
+	      : primitive_(primitive), direction_(direction), index_(index),
+		expression_(expression) { }
+      int get_type_code(void) const override { return vpiPrimTerm; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiDirection: return direction_;
+		case vpiTermIndex: return static_cast<int>(index_);
+		case vpiSize:
+		    return expression_ ? ::vpi_get(vpiSize, expression_) : 0;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+      void vpi_get_value(p_vpi_value value) override
+      {
+	    if (expression_) expression_->vpi_get_value(value);
+      }
+      vpiHandle vpi_handle(int code) override;
+      __vpiPrimitive *primitive() const { return primitive_; }
+      vpiHandle expression() const { return expression_; }
+    private:
+      __vpiPrimitive *primitive_;
+      int direction_;
+      unsigned index_;
+      vpiHandle expression_;
+};
+
+class __vpiPrimitive : public __vpiHandle {
+    public:
+      __vpiPrimitive(__vpiScope *scope, const char *name, int prim_type,
+		     unsigned input_count, int strength0, int strength1,
+		     vpiHandle udp_definition)
+	      : scope_(scope), name_(vpip_name_string(name)),
+		prim_type_(prim_type), input_count_(input_count),
+		strength0_(strength0), strength1_(strength1),
+		udp_definition_(udp_definition) { }
+      ~__vpiPrimitive() override
+      {
+	    for (std::vector<vpiHandle>::iterator cur = terms_.begin();
+		 cur != terms_.end(); ++cur)
+		  delete *cur;
+      }
+      int get_type_code(void) const override { return vpiPrimitive; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize: return static_cast<int>(input_count_);
+		case vpiPrimType: return prim_type_;
+		case vpiStrength0:
+		    return strength0_ ? strength0_ : vpiUndefined;
+		case vpiStrength1:
+		    return strength1_ ? strength1_ : vpiUndefined;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+      char *vpi_get_str(int code) override
+      {
+	    if (code == vpiName || code == vpiFullName)
+		  return generic_get_str(code, scope_, name_, NULL);
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      void vpi_get_value(p_vpi_value value) override
+      {
+	    if (!terms_.empty()) terms_[0]->vpi_get_value(value);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiScope:
+		case vpiParent: return scope_;
+		case vpiUdpDefn: return udp_definition_;
+		default: return __vpiHandle::vpi_handle(code);
+	    }
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiPrimTerm || terms_.empty()) return 0;
+	    vpiHandle *args = static_cast<vpiHandle*>(
+		  calloc(terms_.size(), sizeof(vpiHandle)));
+	    for (size_t idx = 0; idx < terms_.size(); idx += 1)
+		  args[idx] = terms_[idx];
+	    return vpip_make_iterator(terms_.size(), args, true);
+      }
+      bool add_term(int direction, unsigned index, vpiHandle expression)
+      {
+	    if (index > 1024U*1024U) return false;
+	    if (terms_.size() <= index)
+		  terms_.resize(index + 1, 0);
+	    if (terms_[index]) return false;
+	    terms_[index] = new __vpiPrimitiveTerm(this, direction, index,
+						  expression);
+	    return true;
+      }
+      __vpiScope *scope() const { return scope_; }
+    private:
+      __vpiScope *scope_;
+      const char *name_;
+      int prim_type_;
+      unsigned input_count_;
+      int strength0_;
+      int strength1_;
+      vpiHandle udp_definition_;
+      std::vector<vpiHandle> terms_;
+};
+
+class __vpiPrimitiveTermResolve : public resolv_list_s {
+    public:
+	  __vpiPrimitiveTermResolve(char *label, __vpiPrimitive *primitive,
+				    int direction, unsigned index, unsigned width)
+		  : resolv_list_s(label), primitive_(primitive), direction_(direction),
+		    index_(index), width_(width) { }
+	  bool resolve(bool mes) override
+	  {
+		vpiHandle expression = 0;
+		if (*label()) {
+		      vvp_net_t *node = vvp_net_lookup(label());
+		      if (!node) node = create_constant_node(label());
+		      if (!node) {
+			    if (!mes) return false;
+			    yyerror(".vpi_primterm references an unknown expression");
+			    compile_errors += 1;
+			    return true;
+		      }
+		      if (width_ == 0) {
+			    if (!mes) return false;
+			    yyerror(".vpi_primterm has zero width");
+			    compile_errors += 1;
+			    return true;
+		      }
+		      char term_name[80];
+		      snprintf(term_name, sizeof term_name, "$ivl_primterm_%p_%u",
+			       static_cast<void*>(primitive_), index_);
+		      expression = vpip_make_net4(primitive_->scope(), term_name,
+					   static_cast<int>(width_-1), 0, false,
+					   node);
+		}
+		if (!primitive_->add_term(direction_, index_, expression)) {
+		      if (!mes) return false;
+		      yyerror("duplicate .vpi_primterm index");
+		      compile_errors += 1;
+		}
+		return true;
+	  }
+    private:
+	  __vpiPrimitive *primitive_;
+	  int direction_;
+	  unsigned index_;
+	  unsigned width_;
+};
+
+vpiHandle __vpiPrimitiveTerm::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiExpr: return expression_;
+	  case vpiParent:
+	  case vpiPrimitive: return primitive_;
+	  case vpiScope: return primitive_->scope();
+	  default: return __vpiHandle::vpi_handle(code);
+      }
+}
+
+void compile_vpi_primitive(char *label, char *name, long prim_type,
+			   long input_count, long strength0, long strength1,
+			   char *udp_name)
+{
+      vpiHandle udp_definition = 0;
+      if (!label || !name || !udp_name || prim_type < 1 || prim_type > 28
+	  || input_count < 0 || input_count > 1024L*1024L) {
+	    yyerror("invalid .vpi_primitive metadata");
+	    compile_errors += 1;
+	    free(label);
+	    delete[] name;
+	    delete[] udp_name;
+	    return;
+      }
+      if (*udp_name) {
+	    vvp_udp_s *definition = udp_find_name(udp_name);
+	    if (!definition) {
+		  yyerror(".vpi_primitive references an unknown UDP definition");
+		  compile_errors += 1;
+	    } else {
+		  udp_definition = vpip_get_udp_handle(definition);
+	    }
+      }
+      __vpiPrimitive *primitive = new __vpiPrimitive(
+	    vpip_peek_current_scope(), name, static_cast<int>(prim_type),
+	    static_cast<unsigned>(input_count), static_cast<int>(strength0),
+	    static_cast<int>(strength1), udp_definition);
+      compile_vpi_symbol(label, primitive);
+      vpip_attach_to_current_scope(primitive);
+      free(label);
+      delete[] name;
+      delete[] udp_name;
+}
+
+void compile_vpi_primitive_term(char *primitive_label, long direction,
+				long term_index, long width,
+				char *expression_label)
+{
+      __vpiPrimitive *primitive = primitive_label
+	    ? dynamic_cast<__vpiPrimitive*>(vvp_lookup_handle(primitive_label))
+	    : 0;
+      bool valid = primitive && expression_label
+	    && primitive->scope() == vpip_peek_current_scope()
+	    && (direction == vpiInput || direction == vpiOutput
+		|| direction == vpiInout)
+	    && term_index >= 0 && term_index <= 1024L*1024L
+	    && width >= 0 && width <= 1024L*1024L;
+	  if (!valid) {
+	    yyerror("invalid .vpi_primterm metadata");
+	    compile_errors += 1;
+	  } else {
+	    char *resolve_label = strdup(expression_label);
+	    resolv_submit(new __vpiPrimitiveTermResolve(resolve_label, primitive,
+						       static_cast<int>(direction),
+						       static_cast<unsigned>(term_index),
+						       static_cast<unsigned>(width)));
+      }
+      free(primitive_label);
+      delete[] expression_label;
 }
 
 class __vpiStmtNode : public __vpiHandle {
