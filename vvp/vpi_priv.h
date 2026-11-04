@@ -164,6 +164,8 @@ class __vpiHandle {
       virtual free_object_fun_t free_object_fun(void);
 };
 
+class __vpiScope;
+
 
 /*
  * The vpiHandle for an iterator has this structure. The definition of
@@ -257,6 +259,11 @@ class value_callback : public __vpiCallback {
 };
 
 extern void callback_execute(struct __vpiCallback*cur);
+extern struct __vpiCallback* vpip_make_stmt_callback(p_cb_data data);
+extern void vpip_run_stmt_callbacks(vpiHandle stmt);
+extern bool vpip_is_stmt_node(vpiHandle obj);
+extern bool vpip_stmt_node_callback_capable(vpiHandle obj);
+extern __vpiScope* vpip_stmt_node_scope(vpiHandle obj);
 
 struct __vpiSystemTime : public __vpiHandle {
       __vpiSystemTime();

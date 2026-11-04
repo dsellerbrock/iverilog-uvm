@@ -1074,6 +1074,116 @@ static simulator_callback* make_prepost(p_cb_data data)
       return obj;
 }
 
+static unsigned active_stmt_callback_count = 0;
+
+class stmt_callback : public __vpiCallback {
+    public:
+      explicit stmt_callback(p_cb_data data) : active_(true)
+      {
+	    cb_data = *data;
+	    if (data->time)
+		  cb_time_ = *data->time;
+	    else
+		  cb_time_.type = vpiSuppressTime;
+	    cb_data.reason = cbStmt;
+	    cb_data.time = cb_time_.type == vpiSuppressTime ? 0 : &cb_time_;
+	    cb_data.value = 0;
+	    cb_data.index = 0;
+      }
+
+      PLI_INT32 remove() override
+      {
+	    if (active_) {
+		  active_ = false;
+		  active_stmt_callback_count -= 1;
+	    }
+	    cb_data.cb_rtn = 0;
+	    return 1;
+      }
+
+      void run(vpiHandle stmt)
+      {
+	    if (!active_ || !cb_data.cb_rtn) return;
+	    cb_data.obj = stmt;
+	    cb_data.reason = cbStmt;
+	    cb_data.value = 0;
+	    cb_data.index = 0;
+	    cb_data.time = cb_time_.type == vpiSuppressTime ? 0 : &cb_time_;
+	    if (cb_data.time) set_callback_time(&cb_data);
+	    const vpi_mode_t save_mode = vpi_mode_flag;
+	    vpi_mode_flag = VPI_MODE_RWSYNC;
+	    (cb_data.cb_rtn)(&cb_data);
+	    vpi_mode_flag = save_mode;
+      }
+
+    private:
+      struct t_vpi_time cb_time_;
+      bool active_;
+};
+
+static std::map<vpiHandle, std::vector<stmt_callback*> > stmt_callback_map;
+static std::map<__vpiScope*, std::vector<stmt_callback*> >
+      module_stmt_callback_map;
+
+struct __vpiCallback* vpip_make_stmt_callback(p_cb_data data)
+{
+      if (!data || !data->cb_rtn || !check_callback_time(data, true))
+	    return 0;
+
+      vpiHandle stmt = 0;
+      __vpiScope*module = 0;
+      if (vpip_is_stmt_node(data->obj)) {
+	    if (!vpip_stmt_node_callback_capable(data->obj)) {
+		  fprintf(stderr, "vpi error: cbStmt is not supported for this statement type\n");
+		  return 0;
+	    }
+	    stmt = data->obj;
+      } else {
+	    module = dynamic_cast<__vpiScope*>(data->obj);
+	    if (!module || module->get_type_code() != vpiModule) {
+		  fprintf(stderr, "vpi error: cbStmt requires a statement or module object\n");
+		  return 0;
+	    }
+      }
+
+      stmt_callback*obj = new stmt_callback(data);
+      if (stmt)
+	    stmt_callback_map[stmt].push_back(obj);
+      else
+	    module_stmt_callback_map[module].push_back(obj);
+      active_stmt_callback_count += 1;
+      return obj;
+}
+
+bool vpip_stmt_callbacks_active(void)
+{
+      return active_stmt_callback_count != 0;
+}
+
+void vpip_run_stmt_callbacks(vpiHandle stmt)
+{
+      std::vector<stmt_callback*> callbacks;
+      std::map<vpiHandle, std::vector<stmt_callback*> >::const_iterator by_stmt =
+	    stmt_callback_map.find(stmt);
+      if (by_stmt != stmt_callback_map.end())
+	    callbacks.insert(callbacks.end(), by_stmt->second.begin(),
+			      by_stmt->second.end());
+
+      __vpiScope*owner = vpip_stmt_node_scope(stmt);
+      while (owner && owner->get_type_code() != vpiModule)
+	    owner = owner->scope;
+      if (owner) {
+	    std::map<__vpiScope*, std::vector<stmt_callback*> >::const_iterator
+		  by_module = module_stmt_callback_map.find(owner);
+	    if (by_module != module_stmt_callback_map.end())
+		  callbacks.insert(callbacks.end(), by_module->second.begin(),
+				    by_module->second.end());
+      }
+
+      for (size_t idx = 0; idx < callbacks.size(); idx += 1)
+	    callbacks[idx]->run(stmt);
+}
+
 vpiHandle vpi_register_cb(p_cb_data data)
 {
       struct __vpiCallback*obj = 0;
@@ -1083,6 +1193,10 @@ vpiHandle vpi_register_cb(p_cb_data data)
 
 	  case cbValueChange:
 	    obj = make_value_change(data);
+	    break;
+
+	  case cbStmt:
+	    obj = vpip_make_stmt_callback(data);
 	    break;
 
 	  case cbForce:

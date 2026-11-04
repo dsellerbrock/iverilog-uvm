@@ -42,6 +42,7 @@
 # include  "ufunc.h"
 # include  "event.h"
 # include  "vpi_priv.h"
+# include  "vvp_vpi_callback.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
@@ -12178,6 +12179,8 @@ void vthread_run(vthread_t thr)
 			     trampoline switch. Run those back to back. */
 			do {
 			      cp = thr->pc;
+			      if (vpip_stmt_callbacks_active())
+				    vpip_execute_stmt_callbacks(cp);
 			      thr->pc += 1;
 #ifdef VVP_PERF_STATS
                               if (stats_last_thread != thr)
@@ -12195,6 +12198,8 @@ void vthread_run(vthread_t thr)
 				    ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
 			      trace_step = step_trace_enabled_(step_scope_name);
 			}
+			if (vpip_stmt_callbacks_active())
+			      vpip_execute_stmt_callbacks(cp);
 			thr->pc += 1;
 #ifdef VVP_PERF_STATS
                         if (stats_last_thread != thr)

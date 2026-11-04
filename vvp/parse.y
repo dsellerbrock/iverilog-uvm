@@ -120,7 +120,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
-%token K_SCOPE K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_SCOPE K_STMT_NODE K_STMT_PC K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
@@ -938,6 +938,9 @@ statement
 
 	| K_STMT_NODE T_NUMBER T_NUMBER T_NUMBER T_STRING ';'
 		{ compile_stmt_node($2, $3, $4, $5); }
+
+	| K_STMT_PC T_NUMBER ';'
+		{ compile_stmt_pc($2); }
 
 
   /* Port information for scopes... currently this is just meta-data for VPI queries */

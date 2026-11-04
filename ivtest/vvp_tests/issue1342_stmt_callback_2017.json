@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1342_stmt_callback.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1342_stmt_callback"],
+  "vpi-sources": ["vpi/issue1342_stmt_callback.c"],
+  "output-contains": ["MODULE_STMT_REGISTER=non-null", "ISSUE1342 callbacks=3 removed=1 PASSED"]
+}

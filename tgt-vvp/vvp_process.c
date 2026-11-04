@@ -40,6 +40,7 @@ unsigned transient_id = 0;
    control, force/release, or dynamic-object access leaves the process on the
    ordinary IEEE event path. */
 static ivl_statement_t pure_comb_top_wait_ = 0;
+static void emit_vpi_process_stmt_tree_(ivl_statement_t stmt);
 
 static int pure_comb_expr_(ivl_expr_t expr)
 {
@@ -8254,6 +8255,9 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
             }
       }
 
+      if (code != IVL_ST_FOREVER && code != IVL_ST_WHILE)
+	    show_vpi_stmt_location(net);
+
       switch (code) {
 
 	  case IVL_ST_ALLOC:
@@ -8494,6 +8498,7 @@ int draw_process(ivl_process_t net, void*x)
 
       local_count = 0;
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
+      emit_vpi_process_stmt_tree_(stmt);
 
       if (ivl_process_type(net) == IVL_PR_ALWAYS_COMB
 	  && !ivl_scope_is_auto(scope)
@@ -8598,10 +8603,12 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
 {
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_NOOP: return vpiNullStmt;
-          case IVL_ST_BLOCK: return vpiBegin;
+          case IVL_ST_BLOCK:
+            return ivl_stmt_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
           case IVL_ST_FORK:
           case IVL_ST_FORK_JOIN_ANY:
-          case IVL_ST_FORK_JOIN_NONE: return vpiFork;
+          case IVL_ST_FORK_JOIN_NONE:
+            return ivl_stmt_block_scope(stmt) ? vpiNamedFork : vpiFork;
           case IVL_ST_ASSIGN:
           case IVL_ST_ASSIGN_NB: return vpiAssignment;
           case IVL_ST_CASSIGN: return vpiAssignStmt;
@@ -8639,6 +8646,86 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_CONTRIB: return vpiContAssign;
           default: return vpiNullStmt;
       }
+}
+
+/* Keep AST IDs unique across process/task scopes: VVP code may switch scope
+ * while lowering a statement, but its callback node stays with its owner. */
+static unsigned vpi_stmt_next_id_ = 0;
+struct vpi_stmt_record_s {
+      ivl_statement_t stmt;
+      unsigned id;
+};
+static struct vpi_stmt_record_s *vpi_stmt_records_ = 0;
+static size_t vpi_stmt_record_count_ = 0;
+static size_t vpi_stmt_record_capacity_ = 0;
+
+static void vpi_stmt_records_reset_(void)
+{
+      vpi_stmt_record_count_ = 0;
+}
+
+static void vpi_stmt_record_(ivl_statement_t stmt, unsigned id)
+{
+      if (vpi_stmt_record_count_ == vpi_stmt_record_capacity_) {
+	    size_t capacity = vpi_stmt_record_capacity_ ?
+		  2 * vpi_stmt_record_capacity_ : 32;
+	    struct vpi_stmt_record_s *records = realloc(vpi_stmt_records_,
+		  capacity * sizeof(*records));
+	    if (!records) abort();
+	    vpi_stmt_records_ = records;
+	    vpi_stmt_record_capacity_ = capacity;
+      }
+      vpi_stmt_records_[vpi_stmt_record_count_].stmt = stmt;
+      vpi_stmt_records_[vpi_stmt_record_count_].id = id;
+      vpi_stmt_record_count_ += 1;
+}
+
+static unsigned vpi_stmt_id_(ivl_statement_t stmt)
+{
+      size_t idx;
+      for (idx = 0; idx < vpi_stmt_record_count_; idx += 1)
+	    if (vpi_stmt_records_[idx].stmt == stmt)
+		  return vpi_stmt_records_[idx].id;
+      return 0;
+}
+
+static int vpi_stmt_callback_capable_(unsigned type)
+{
+      switch (type) {
+	  case vpiBegin:
+	  case vpiNamedBegin:
+	  case vpiFork:
+	  case vpiNamedFork:
+	  case vpiIf:
+	  case vpiIfElse:
+	  case vpiWhile:
+	  case vpiRepeat:
+	  case vpiFor:
+	  case vpiForever:
+	  case vpiWait:
+	  case vpiCase:
+	  case vpiAssignment:
+	  case vpiAssignStmt:
+	  case vpiDeassign:
+	  case vpiDisable:
+	  case vpiForce:
+	  case vpiRelease:
+	  case vpiEventStmt:
+	  case vpiDelayControl:
+	  case vpiEventControl:
+	  case vpiTaskCall:
+	  case vpiSysTaskCall:
+		return 1;
+	  default:
+		return 0;
+      }
+}
+
+void show_vpi_stmt_location(ivl_statement_t stmt)
+{
+      unsigned id = vpi_stmt_id_(stmt);
+      if (id && vpi_stmt_callback_capable_(vpi_statement_type_(stmt)))
+	    fprintf(vvp_out, "    .stmt_pc %u;\n", id);
 }
 
 static void emit_vpi_stmt_name_(const char *name)
@@ -8681,6 +8768,7 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, unsigned parent,
       if (!vpi_statement_visible_(stmt)) return;
       id = ++*next_id;
       type = vpi_statement_type_(stmt);
+      vpi_stmt_record_(stmt, id);
       if (ivl_statement_type(stmt) == IVL_ST_STASK && ivl_stmt_name(stmt))
             name = ivl_stmt_name(stmt);
       else if (ivl_statement_type(stmt) == IVL_ST_UTASK
@@ -8714,11 +8802,17 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, unsigned parent,
             break;
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX:
+          case IVL_ST_DO_WHILE:
           case IVL_ST_FOREVER:
           case IVL_ST_REPEAT:
           case IVL_ST_WAIT:
           case IVL_ST_WHILE:
             emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, next_id);
+            break;
+          case IVL_ST_WAIT_ORDER:
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, next_id);
+            emit_vpi_stmt_tree_(ivl_stmt_wait_order_fail_stmt(stmt), id,
+                                next_id);
             break;
           case IVL_ST_FORLOOP:
             emit_vpi_stmt_tree_(ivl_stmt_init_stmt(stmt), id, next_id);
@@ -8732,8 +8826,9 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, unsigned parent,
 
 static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 {
-      unsigned count = 0, idx, next_id = 0;
+      unsigned count = 0, idx, next_id = vpi_stmt_next_id_;
       ivl_statement_t only_stmt = 0;
+      vpi_stmt_records_reset_();
       if (!def || !vpi_statement_visible_(def)) return;
       if (ivl_statement_type(def) == IVL_ST_BLOCK) {
 	    for (idx = 0; idx < ivl_stmt_block_count(def); idx += 1) {
@@ -8745,10 +8840,21 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 	    if (count == 0) return;
 	    if (count == 1) {
 		  emit_vpi_stmt_tree_(only_stmt, 0, &next_id);
+		  vpi_stmt_next_id_ = next_id;
 		  return;
 	    }
       }
       emit_vpi_stmt_tree_(def, 0, &next_id);
+      vpi_stmt_next_id_ = next_id;
+}
+
+static void emit_vpi_process_stmt_tree_(ivl_statement_t stmt)
+{
+      unsigned next_id = vpi_stmt_next_id_;
+      vpi_stmt_records_reset_();
+      if (stmt && vpi_statement_visible_(stmt))
+	    emit_vpi_stmt_tree_(stmt, 0, &next_id);
+      vpi_stmt_next_id_ = next_id;
 }
 
 int draw_task_definition(ivl_scope_t scope)

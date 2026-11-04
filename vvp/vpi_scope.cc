@@ -18,6 +18,7 @@
  */
 
 # include  "compile.h"
+# include  "codes.h"
 # include  "vpi_priv.h"
 # include  "class_type.h"
 # include  "symbols.h"
@@ -28,6 +29,7 @@
 # include  "config.h"
 # include  <map>
 # include  <utility>
+# include  <algorithm>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -340,8 +342,8 @@ static vpiHandle scope_get_handle(int code, vpiHandle obj)
 
 class __vpiStmtNode : public __vpiHandle {
     public:
-      __vpiStmtNode(int type, const char*name)
-      : type_(type), name_(vpip_name_string(name)), parent_(0) { }
+      __vpiStmtNode(__vpiScope*owner, int type, const char*name)
+      : owner_(owner), type_(type), name_(vpip_name_string(name)), parent_(0) { }
       int get_type_code(void) const override { return type_; }
       char* vpi_get_str(int code) override
       {
@@ -352,6 +354,7 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_handle(int code) override
       {
 	    if (code == vpiParent) return parent_;
+	    if (code == vpiScope) return owner_;
 	    return __vpiHandle::vpi_handle(code);
       }
       vpiHandle vpi_iterate(int code) override
@@ -365,12 +368,72 @@ class __vpiStmtNode : public __vpiHandle {
       }
       void add_child(__vpiStmtNode*child)
       { children_.push_back(child); child->parent_ = this; }
+      __vpiScope* owner_scope() const { return owner_; }
     private:
+      __vpiScope*owner_;
       int type_;
       const char*name_;
       __vpiStmtNode*parent_;
       std::vector<__vpiStmtNode*> children_;
 };
+
+bool vpip_is_stmt_node(vpiHandle obj)
+{
+      return dynamic_cast<__vpiStmtNode*>(obj) != 0;
+}
+
+bool vpip_stmt_node_callback_capable(vpiHandle obj)
+{
+      __vpiStmtNode*node = dynamic_cast<__vpiStmtNode*>(obj);
+      if (!node) return false;
+      switch (node->get_type_code()) {
+	  case vpiBegin:
+	  case vpiNamedBegin:
+	  case vpiFork:
+	  case vpiNamedFork:
+	  case vpiIf:
+	  case vpiIfElse:
+	  case vpiWhile:
+	  case vpiRepeat:
+	  case vpiFor:
+	  case vpiForever:
+	  case vpiWait:
+	  case vpiCase:
+	  case vpiAssignment:
+	  case vpiAssignStmt:
+	  case vpiDeassign:
+	  case vpiDisable:
+	  case vpiForce:
+	  case vpiRelease:
+	  case vpiEventStmt:
+	  case vpiDelayControl:
+	  case vpiEventControl:
+	  case vpiTaskCall:
+	  case vpiSysTaskCall:
+		return true;
+	  default:
+		return false;
+      }
+}
+
+__vpiScope* vpip_stmt_node_scope(vpiHandle obj)
+{
+      __vpiStmtNode*node = dynamic_cast<__vpiStmtNode*>(obj);
+      return node ? node->owner_scope() : 0;
+}
+
+static std::map<vvp_code_t, std::vector<vpiHandle> > stmt_nodes_by_pc;
+static std::map<uint64_t, vpiHandle> stmt_nodes_by_id;
+
+void vpip_execute_stmt_callbacks(vvp_code_t code)
+{
+      std::map<vvp_code_t, std::vector<vpiHandle> >::const_iterator found =
+	    stmt_nodes_by_pc.find(code);
+      if (found == stmt_nodes_by_pc.end()) return;
+      const std::vector<vpiHandle> nodes = found->second;
+      for (size_t idx = 0; idx < nodes.size(); idx += 1)
+	    vpip_run_stmt_callbacks(nodes[idx]);
+}
 
 /* compares vpiType's considering object classes */
 static int compare_types(int code, int type, bool is_typedef = false)
@@ -1819,15 +1882,18 @@ void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
 {
       __vpiScope*scope = vpip_peek_current_scope();
-      assert(scope && (scope->get_type_code() == vpiTask
-		       || scope->get_type_code() == vpiFunction));
+      assert(scope);
       assert(id != 0 && type <= INT_MAX);
-      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name);
+      __vpiStmtNode*obj = new __vpiStmtNode(scope, static_cast<int>(type), name);
       assert(scope->statement_node_by_id.find(id)
 	     == scope->statement_node_by_id.end());
+      assert(stmt_nodes_by_id.find(id) == stmt_nodes_by_id.end());
       if (parent == 0) {
-	    assert(scope->statement_root == 0);
-	    scope->statement_root = obj;
+	    if (scope->get_type_code() == vpiTask
+		|| scope->get_type_code() == vpiFunction) {
+		  assert(scope->statement_root == 0);
+		  scope->statement_root = obj;
+	    }
       } else {
 	    std::map<uint64_t, vpiHandle>::iterator par =
 		  scope->statement_node_by_id.find(parent);
@@ -1835,8 +1901,25 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
 	    static_cast<__vpiStmtNode*>(par->second)->add_child(obj);
       }
       scope->statement_node_by_id[id] = obj;
+      stmt_nodes_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
       delete[] name;
+}
+
+void compile_stmt_pc(uint64_t id)
+{
+	  std::map<uint64_t, vpiHandle>::const_iterator found =
+		stmt_nodes_by_id.find(id);
+	  if (found == stmt_nodes_by_id.end()) {
+	    fprintf(stderr, "vvp error: statement PC references unknown id %llu\n",
+		    (unsigned long long)id);
+	    compile_errors += 1;
+	    return;
+      }
+      vvp_code_t code = codespace_next();
+      std::vector<vpiHandle>&nodes = stmt_nodes_by_pc[code];
+      if (std::find(nodes.begin(), nodes.end(), found->second) == nodes.end())
+	    nodes.push_back(found->second);
 }
 
 /*

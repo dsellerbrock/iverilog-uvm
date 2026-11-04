@@ -150,6 +150,7 @@ int show_stmt_forever(ivl_statement_t net, ivl_scope_t sscope)
       ivl_scope_t save_break_scope, save_continue_scope;
       PUSH_JUMPS(lab_out, lab_top, sscope);
 
+      show_vpi_stmt_location(net);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
       rc += show_statement(stmt, sscope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
@@ -207,6 +208,7 @@ int show_stmt_forloop(ivl_statement_t net, ivl_scope_t scope)
 
       fprintf(vvp_out, "T_%u.%u ; for-loop step statement\n",
 	      thread_count, cont_label);
+      show_vpi_stmt_location(net);
       if (ivl_stmt_step_stmt(net))
 	    rc += show_statement(ivl_stmt_step_stmt(net), scope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, top_label);
@@ -246,6 +248,7 @@ int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
 	/* This adds -1 (all ones in 2's complement) to the count. */
       fprintf(vvp_out, "    %%subi 1, 0, %u;\n",  ivl_expr_width(expr));
 
+      show_vpi_stmt_location(net);
       rc += show_statement(ivl_stmt_sub_stmt(net), sscope);
 
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
@@ -273,6 +276,7 @@ int show_stmt_while(ivl_statement_t net, ivl_scope_t sscope)
 	/* Start the loop. The top of the loop starts a basic block
 	   because it can be entered from above or from the bottom of
 	   the loop. */
+      show_vpi_stmt_location(net);
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, top_label);
 
 

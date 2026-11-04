@@ -277,6 +277,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".scope"        { return K_SCOPE; }
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
+".stmt_pc"      { return K_STMT_PC; }
 ".sfunc"        { return K_SFUNC; }
 ".sfunc/e"      { return K_SFUNC_E; }
 ".shift/l"      { return K_SHIFTL; }
