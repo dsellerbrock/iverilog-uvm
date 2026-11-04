@@ -14025,8 +14025,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			vector<Z3_ast> tuple;
 			const char*reason = nullptr;
 			bool limit_exceeded = false;
-			size_t tuple_cap = wide_direct_scalars
-			      ? SPARSE_JOINT_TUPLE_CAP : 0;
+			/* Keep failed bounded sampling from falling back to exhaustive
+			 * enumeration of a potentially enormous joint solution set. */
+			size_t tuple_cap = SPARSE_JOINT_TUPLE_CAP;
 			z3_rng_stream_t&rng = property_rng(
 			      uniform_joint_property.at(component.front()));
 			Z3_lbool sampled = z3_sample_joint_(ctx, base, component,

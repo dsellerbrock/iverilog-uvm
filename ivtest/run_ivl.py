@@ -138,7 +138,8 @@ def compare_files(log_path, gold_path):
 
 
 def run_cmd(cmd: list, env: dict = None,
-            address_space_limit: int = None) -> subprocess.CompletedProcess:
+            address_space_limit: int = None,
+            timeout: int = None) -> subprocess.CompletedProcess:
     '''Run the given command'''
     run_env = os.environ.copy()
     if env:
@@ -152,21 +153,24 @@ def run_cmd(cmd: list, env: dict = None,
         preexec_fn = set_address_space_limit
     try:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             check=False, env=run_env, timeout=TIMEOUT,
+                             check=False, env=run_env,
+                             timeout=TIMEOUT if timeout is None else timeout,
                              preexec_fn=preexec_fn)
     except subprocess.TimeoutExpired as err:
+        timeout_value = TIMEOUT if timeout is None else timeout
         # 256 makes CE/RE report an execution error; callers check timed_out
         # so expected-fail (EF/TE) tests do not pass on a hang.
         res = subprocess.CompletedProcess(cmd, 256, err.stdout or b'',
                                           (err.stderr or b'') +
-                                          f'\nTIMEOUT: killed after {TIMEOUT} s\n'.encode())
+                                          f'\nTIMEOUT: killed after {timeout_value} s\n'.encode())
         res.timed_out = True
+        res.timeout = timeout_value
     return res
 
 def timed_out(res: subprocess.CompletedProcess, what: str) -> list:
     '''Return a failure if the run was killed by the timeout.'''
     if getattr(res, 'timed_out', False):
-        return [1, f"Failed - {what} timed out after {TIMEOUT} s."]
+        return [1, f"Failed - {what} timed out after {res.timeout} s."]
     return []
 
 def max_child_rss_bytes() -> int:
@@ -403,7 +407,7 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
     if cfg['vlog95']:
         options['iverilog_args'].extend(["-tvlog95", "-pfileline=1", "-pspacing=4"])
         ivl_tcmd = assemble_iverilog_cmd(options, cfg, 'vlog95.v')
-        ivl_tres = run_cmd(ivl_tcmd)
+        ivl_tres = run_cmd(ivl_tcmd, timeout=options.get('timeout'))
 
         log_results(it_key, "iverilog", ivl_tres)
         if ivl_tres.returncode != 0:
@@ -419,7 +423,7 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     # Run the iverilog command
     ivl_cmd = assemble_iverilog_cmd(options, cfg, 'a.out')
-    ivl_res = run_cmd(ivl_cmd)
+    ivl_res = run_cmd(ivl_cmd, timeout=options.get('timeout'))
 
     if cfg['vlog95']:
         log_results(it_key, "iverilog-vlog95", ivl_res)
@@ -437,7 +441,8 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
 
     # run the vvp command
     vvp_cmd = assemble_vvp_cmd(options, cfg)
-    vvp_res = run_cmd(vvp_cmd, options.get('vvp_env'))
+    vvp_res = run_cmd(vvp_cmd, options.get('vvp_env'),
+                      timeout=options.get('timeout'))
     log_results(it_key, "vvp", vvp_res)
     vvp_rtn = timed_out(vvp_res, "vvp")
     if vvp_rtn:
