@@ -385,8 +385,23 @@ static PLI_INT32 sys_value_plusargs_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  vpiHandle dest = vpi_scan(argv);
 		  PLI_INT32 dtype = vpi_get(vpiType, dest);
 		  /* Constants and parameters cannot receive a value — skip write. */
-		  if (dtype != vpiConstant && dtype != vpiParameter)
+		  if (dtype != vpiConstant && dtype != vpiParameter) {
+			/* A four-state X value converts to zero on assignment to a
+			 * two-state integral type. VPI string formats otherwise leave
+			 * the X in the destination's packed vector. */
+			if ((res.format == vpiDecStrVal ||
+			     res.format == vpiOctStrVal ||
+			     res.format == vpiHexStrVal ||
+			     res.format == vpiBinStrVal) &&
+			    strcmp(res.value.str, "x") == 0 &&
+			    (dtype == vpiBitVar || dtype == vpiByteVar ||
+			     dtype == vpiShortIntVar || dtype == vpiIntVar ||
+			     dtype == vpiLongIntVar)) {
+			      res.format = vpiIntVal;
+			      res.value.integer = 0;
+			}
 		        vpi_put_value(dest, &res, 0, vpiNoDelay);
+		  }
 	    }
 	    flag = 1;
 	    break;
