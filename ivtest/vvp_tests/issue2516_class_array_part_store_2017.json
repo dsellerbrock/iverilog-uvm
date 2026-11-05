@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2516_class_array_part_store.sv",
+  "iverilog-args": ["-g2017", "-sissue2516_class_array_part_store"],
+  "gold": "issue2516_class_array_part_store"
+}

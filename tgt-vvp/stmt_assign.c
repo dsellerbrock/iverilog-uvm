@@ -5804,19 +5804,16 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  }
 
 		  /* Element index PLUS a bit/part-select on the element
-		     (c.arr[i][m:l] = v): read-modify-write the ELEMENT via
-		     %prop/v/i, merge with %setbits, store back. */
+		     (c.arr[i][m:l] = v): update only the selected bits of the
+		     current element. The RHS can call a method that writes a
+		     different part of this same element, so snapshotting the
+		     whole element before the RHS and writing it back would lose
+		     that write. */
 		  if (idx_expr && part_off_ex && ivl_stmt_opcode(net) == 0) {
-			ivl_type_t elem_t = ivl_type_element(prop_type);
-			unsigned elem_wid = elem_t
-			      ? ivl_type_packed_width(elem_t)
-			      : ivl_type_packed_width(prop_type);
 			prop_word_idx = fixed_scalar_slot
 			      ? fixed_slot_word : allocate_word();
 			if (!fixed_scalar_slot)
 			      draw_eval_expr_into_integer(idx_expr, prop_word_idx);
-			fprintf(vvp_out, "    %%prop/v/i %d, %d;\n",
-				prop_idx, prop_word_idx);
 			int off_word = allocate_word();
 			int off_flag = allocate_flag();
 			draw_eval_expr_into_integer(part_off_ex, off_word);
@@ -5824,13 +5821,14 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			draw_eval_vec4(rval);
 			resize_property_vec4_wid(rval, lwid);
 			fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
-			fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
-				off_word, lwid);
+			fprintf(vvp_out,
+				ivl_expr_signed(part_off_ex)
+				      ? "    %%store/prop/v/i/bits/x %d, %d, %d;"
+				      : "    %%store/prop/v/i/bits/ux %d, %d, %d;",
+				prop_idx, prop_word_idx, off_word);
 			clr_word(off_word);
 			clr_flag(off_flag);
-			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
-				" RMW element part of property %s\n",
-				prop_idx, prop_word_idx, elem_wid,
+			fprintf(vvp_out, " Store part of property %s element\n",
 				ivl_type_prop_name(sig_type, prop_idx));
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
