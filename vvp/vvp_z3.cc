@@ -8804,7 +8804,17 @@ static bool rand_member_elem_active_(const class_type*defn,
 
 bool z3_object_graph_t::active(unsigned idx) const
 {
-      for (const auto&binding : properties.at(idx).bindings)
+      const property_t&property = properties.at(idx);
+	// Struct leaves are interned as canonical graph properties when a
+	// constraint references them, but the synthetic struct object is not a
+	// selected class scope and therefore has no bindings. Its own member mode
+	// is the authoritative activation state (18.8).
+	if (property.bindings.empty()
+	    && property.object->get_defn()->is_struct_type()
+	    && !property.object->get_defn()->is_union_type())
+	      return property.object->get_defn()->property_is_rand(property.pid)
+		    && property.object->rand_mode_any(property.pid);
+      for (const auto&binding : property.bindings)
             if (rand_active_(binding.scope->object->get_defn(),
                   binding.scope->object, binding.scope->selection(), binding.pid)
                 && (!binding.scope->staged_selection

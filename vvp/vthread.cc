@@ -4900,6 +4900,28 @@ static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
       return cobj->rand_mode_any(pid);
 }
 
+/* A whole-struct rand_mode call propagates to the members. A later member
+ * call overrides that member only, so a struct property with any active
+ * rand member still needs its member traversal even if its aggregate mode
+ * remains off. */
+static bool rand_struct_member_active_(const class_type*defn,
+				       vvp_cobject*cobj, size_t pid)
+{
+      if (!defn->property_is_rand(pid)) return false;
+      vvp_object_t object;
+      cobj->get_object(pid, object, 0);
+      vvp_cobject*record = object.peek<vvp_cobject>();
+      if (!record || !record->get_defn()->is_struct_type()
+	  || record->get_defn()->is_union_type()) return false;
+      const class_type*record_type = record->get_defn();
+      for (size_t member = 0; member < record_type->property_count(); ++member)
+	    if ((record_type->property_is_rand(member)
+		 || record_type->property_is_randc(member))
+		&& record->rand_mode_any(member))
+		  return true;
+      return false;
+}
+
 static bool rand_leaf_active_(const class_type*defn, vvp_cobject*cobj,
 			      const std::vector<bool>*sel, size_t pid,
 			      size_t leaf)
@@ -5680,8 +5702,10 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
       const std::function<bool(const vvp_object_t&, size_t)>&visit)
 {
       const class_type*defn = cobj->get_defn();
-      if (!rand_call_active_(defn, cobj, sel, pid)) return true;
       const std::string&bt = defn->property_base_type(pid);
+      if (!rand_call_active_(defn, cobj, sel, pid)
+	  && (bt.compare(0, 3, "oc:") != 0
+	      || !rand_struct_member_active_(defn, cobj, pid))) return true;
       if (!(bt == "o" || bt.compare(0, 3, "oc:") == 0
             || bt == "Do" || bt == "Qo" || bt == "Mo")) return true;
       uint64_t count = defn->property_array_size(pid);
@@ -5707,7 +5731,9 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
                   [&](const vvp_object_t&elem) { return visit(elem, 0); });
       }
       for (uint64_t adr = 0; adr < count; ++adr) {
-            if (!rand_leaf_active_(defn, cobj, sel, pid, (size_t)adr)) continue;
+	    if (!rand_leaf_active_(defn, cobj, sel, pid, (size_t)adr)
+		&& (bt.compare(0, 3, "oc:") != 0
+		    || !rand_struct_member_active_(defn, cobj, pid))) continue;
             vvp_object_t obj;
             cobj->get_object(pid, obj, adr);
             if (!visit(obj, (size_t)adr)) return false;
@@ -5903,13 +5929,15 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
       for (size_t pid = 0 ; solve_ok && pid < defn->property_count() ;
 	   pid += 1) {
 
-	    if (!rand_call_active_(defn, cobj, sel, pid))
+	    const std::string&bt = defn->property_base_type(pid);
+	    bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+	    if (!rand_call_active_(defn, cobj, sel, pid)
+		&& (!is_struct_prop
+		    || !rand_struct_member_active_(defn, cobj, pid)))
 		  continue;
 
             if (!session.prefill_property(defn, pid)) continue;
 
-            const std::string&bt = defn->property_base_type(pid);
-            bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
             if (is_struct_prop || bt == "o" || bt == "Do"
                 || bt == "Qo" || bt == "Mo") {
                   bool deferred_dirty = false;
