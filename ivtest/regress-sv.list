@@ -6616,3 +6616,5 @@ issue715_sva_local_decl_init_2017 normal,-g2017,-s,issue715_sva_local_decl_init 
 issue715_sva_local_decl_init_2023 normal,-g2023,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold
 issue2480_sdf_line_2017 normal,-g2017,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
 issue2480_sdf_line_2023 normal,-g2023,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
+issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546_invalid_distribute_option_2017.gold
+issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2546_invalid_distribute_option_2017.v",
+  "iverilog-args": ["-g2017", "-s", "tb"],
+  "gold": "issue2546_invalid_distribute_option_2017"
+}

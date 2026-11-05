@@ -46451,6 +46451,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					      des->errors += 1;
 					      continue;
 					}
+					if (kv.first == "distribute_first") {
+					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
+					      cerr << "error: distribute_first is a type_option, "
+						      "not an option." << endl;
+					      des->errors += 1;
+					      continue;
+					}
 					if (kv.first == "cross_retain_auto_bins"
 					    && strcmp(where, "coverpoint") == 0) {
 					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
