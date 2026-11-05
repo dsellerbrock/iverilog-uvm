@@ -18838,10 +18838,6 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					  array_type->static_dimensions();
 				    size_t used = field_comp.index.size();
 				    if (used > dims.size()) {
-					  if (dynamic_cast<const netvector_t*>(
-						array_type->element_type()))
-						used = dims.size();
-					  else {
 						cerr << get_fileline() << ": error: Got "
 						     << field_comp.index.size()
 						     << " indices, expecting at most "
@@ -18852,7 +18848,6 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						delete obj_expr;
 						obj_expr = nullptr;
 						field_diagnostic = true;
-					  }
 				    }
 				    std::list<index_component_t> word_indices;
 				    auto wi = field_comp.index.begin();
@@ -18937,7 +18932,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						leaf_count = 1;
 					  }
 				    }
-			      } else if (!dynamic_cast<const netvector_t*>(prop_type)) {
+			      } else {
 				    cerr << get_fileline() << ": error: rand_mode() "
 					 << "index is only valid for an unpacked array "
 					 << "property." << endl;
