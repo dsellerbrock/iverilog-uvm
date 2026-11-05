@@ -1236,6 +1236,12 @@ bool pform_sva_nfa_build_implication(
       nfa.accept = boff + B.accept;
       if (nonoverlap) {
 	    nfa.eps(A.accept, boff + B.start);
+	    /* `empty ##1 seq' starts seq at the current tick, per 16.9.2.1.
+	       A followed-by `#=#' has the same explicit empty-match rule in
+	       16.12.9. Keep that branch even when the antecedent has no
+	       tick-ending edge (for example, `1'b1[*0]'). */
+	    if (A.accepts_empty)
+		  nfa.eps(A.start, boff + B.start);
 	    /* For sequence concatenation with a positive delay, an empty match
 	       of the suffix ends one tick before its start (16.9.2.1). Preserve
 	       that alternative on each prefix endpoint.  The epsilon-only
@@ -1282,7 +1288,8 @@ bool pform_sva_nfa_build_implication(
 		  return false;
 	    boundary[i].from = remap[boundary[i].from];
       }
-      return !boundary.empty() && pform_sva_nfa_first_match_cuts_ok(nfa);
+      return (!boundary.empty() || (nonoverlap && A.accepts_empty))
+	    && pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 
 void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,

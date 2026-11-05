@@ -1,6 +1,8 @@
 
 # Test list files are a list of test names and the json that
 # describes the test.
+issue722_followed_by_2017 vvp_tests/issue722_followed_by_2017.json
+issue722_followed_by_2023 vvp_tests/issue722_followed_by_2023.json
 issue2409_class_property_display_2017 vvp_tests/issue2409_class_property_display_2017.json
 issue2476_value_plusargs_2state_2017 vvp_tests/issue2476_value_plusargs_2state_2017.json
 issue2476_value_plusargs_2state_2023 vvp_tests/issue2476_value_plusargs_2state_2023.json
