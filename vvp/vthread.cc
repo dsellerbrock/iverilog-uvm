@@ -19519,6 +19519,15 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	    assert(! res);
 	  }
 
+	/* A named begin/end block is a continuation of its enclosing process,
+	 * but it has its own vthread. If that block's child process terminates,
+	 * its detached descendants are reparented onto the block thread. Include
+	 * those continuation frames when locating the calling process's remaining
+	 * descendants. */
+	  for (set<vthread_t>::iterator cur = owner->children.begin()
+	       ; cur != owner->children.end() ; ++cur)
+	    disable_fork_detached_descendants_(*cur, thr);
+
       return true;
 }
 
