@@ -1,0 +1,9 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue1563_sdf_device_no_specify_dut")
+    (INSTANCE u)
+    (DELAY (ABSOLUTE (DEVICE Y (4) (6))))
+  )
+)

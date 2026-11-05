@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue1563_sdf_device.v:49: $finish called at 54000 (1ps)
