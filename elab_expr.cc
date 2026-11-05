@@ -9877,8 +9877,12 @@ NetExpr*PEBLeftWidth::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
 
         // The left operand is always context determined, so propagate
-        // down the expression type (signed/unsigned).
-      left_->cast_signed(signed_flag_);
+        // down the expression type (signed/unsigned). Shift operators
+        // retain the left operand's own signed type; the enclosing context
+        // converts the shift result, not the source value.
+      if (!((op_ == 'l' || op_ == 'r' || op_ == 'R')
+	    && left_->has_sign()))
+	    left_->cast_signed(signed_flag_);
 
       unsigned r_width = right_->expr_width();
 
@@ -34421,6 +34425,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    if (!inc_lval) return 0;
       }
 
+      const bool signed_operand = expr_->has_sign();
       unsigned sub_width = expr_wid;
       switch (op_) {
 	  case 'i':
@@ -34447,7 +34452,10 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
             // Other operators have context determined operands, so propagate
             // the expression type (signed/unsigned) down to the operands.
 	  default:
-            expr_->cast_signed(signed_flag_);
+	    /* Keep a signed source visible to the unary operation. An enclosing
+	     * context converts the unary result, not the source value. */
+	    if (!(signed_operand && (op_ == '+' || op_ == '-' || op_ == '~')))
+		  expr_->cast_signed(signed_flag_);
 	    break;
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
@@ -34588,7 +34596,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case '-':
 	    if (const NetEConst*ipc = dynamic_cast<NetEConst*>(ip)) {
 
-		  verinum val = - ipc->value();
+		  verinum val = ipc->value();
+		  if (val.has_sign() && !val.is_defined())
+			val = verinum(verinum::Vx, expr_wid);
+		  else
+			val = - val;
 		  tmp = new NetEConst(val);
 		  tmp->cast_signed(signed_flag_);
 		  tmp->set_line(*this);
@@ -34610,7 +34622,8 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	    tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+	    tmp->set_line(*this);
 	    break;
 
 	  case '!': // Logical NOT

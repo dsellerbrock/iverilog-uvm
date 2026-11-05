@@ -14073,6 +14073,48 @@ bool of_AND_S(vthread_t thr, vvp_code_t)
 }
 
 /*
+ * %sxz/check <signed operand mask>, <flag>
+ *
+ * The low mask bit checks the top vector stack item; the next bit checks
+ * the vector immediately below it. The target emits this only for signed
+ * operands of a nonlogical operation.
+ */
+bool of_SXZ_CHECK(vthread_t thr, vvp_code_t cp)
+{
+      unsigned mask = cp->bit_idx[0];
+      unsigned flag = cp->number;
+      bool has_xz = false;
+
+      assert(flag < vthread_s::FLAGS_COUNT);
+      for (unsigned depth = 0 ; depth < 2 ; depth += 1) {
+	    if ((mask & (1U << depth)) && thr->peek_vec4(depth).has_xz()) {
+		  has_xz = true;
+		  break;
+	    }
+      }
+
+      thr->flags[flag] = has_xz ? BIT4_1 : BIT4_0;
+      return true;
+}
+
+/*
+ * %sxz/result <result width>, <flag>
+ *
+ * Apply the saved signed-X/Z decision after the ordinary operation has
+ * evaluated, preserving the normal result for unsigned or defined inputs.
+ */
+bool of_SXZ_RESULT(vthread_t thr, vvp_code_t cp)
+{
+      unsigned width = cp->number;
+      unsigned flag = cp->bit_idx[0];
+
+      assert(flag < vthread_s::FLAGS_COUNT);
+      if (thr->flags[flag] == BIT4_1)
+	    thr->peek_vec4() = vvp_vector4_t(width, BIT4_X);
+      return true;
+}
+
+/*
  * This function must ALWAYS be called with the val set to the right
  * size, and initialized with BIT4_0 bits. Certain optimizations rely
  * on that.
