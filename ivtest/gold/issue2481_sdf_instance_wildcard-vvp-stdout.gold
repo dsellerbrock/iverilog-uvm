@@ -1,0 +1,5 @@
+Y2 1000 0
+Y1 1000 0
+Y2 9000 1
+Y1 9000 1
+ivltests/issue2481_sdf_instance_wildcard.v:20: $finish called at 15000 (1ps)

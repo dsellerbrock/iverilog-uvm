@@ -74,6 +74,7 @@ struct interconnect_port_s {
 
 extern void sdf_select_instance(const char*celltype, const char*inst,
                                 const int sdf_lineno);
+extern void sdf_clear_instance_selection(void);
 
 extern void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
                               const char*condition, int ifnone,
