@@ -23,6 +23,8 @@ issue2364_dynamic_array_bits_2017 normal,-g2017,-s,top ivltests gold=issue2364_d
 issue2364_dynamic_array_bits_2023 normal,-g2023,-s,top ivltests gold=issue2364_dynamic_array_bits-vvp-stdout.gold
 issue2471_struct_dynamic_nested_2017 normal,-g2017,-s,issue2471_struct_dynamic_nested ivltests gold=issue2471_struct_dynamic_nested-vvp-stdout.gold
 issue2471_struct_dynamic_nested_2023 normal,-g2023,-s,issue2471_struct_dynamic_nested ivltests gold=issue2471_struct_dynamic_nested-vvp-stdout.gold
+issue2506_nested_dynamic_array_reduction_2017 normal,-g2017,-s,issue2506_nested_dynamic_array_reduction ivltests gold=issue2506_nested_dynamic_array_reduction-vvp-stdout.gold
+issue2506_nested_dynamic_array_reduction_2023 normal,-g2023,-s,issue2506_nested_dynamic_array_reduction ivltests gold=issue2506_nested_dynamic_array_reduction-vvp-stdout.gold
 
 issue1616_cross_constructor_arg_2017 normal,-g2017,-s,tb ivltests gold=issue1616_cross_constructor_arg-vvp-stdout.gold
 issue1616_cross_constructor_arg_2023 normal,-g2023,-s,tb ivltests gold=issue1616_cross_constructor_arg-vvp-stdout.gold
