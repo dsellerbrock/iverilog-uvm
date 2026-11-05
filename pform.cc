@@ -445,6 +445,7 @@ static bool pform_pending_modport_tf_is_function = false;
 static data_type_t*pform_pending_modport_tf_return_type = nullptr;
 static vector<pform_tf_port_t>*pform_pending_modport_tf_ports = nullptr;
 static Module::PClocking*pform_cur_clocking = 0;
+static const Module::PClocking*sva_active_clocking_scope_ = nullptr;
 static bool pform_cur_clocking_is_global = false;
 static const char* pform_cur_clocking_name = nullptr;
 
@@ -8948,10 +8949,14 @@ struct sva_scoped_name_t {
       const PGenerate*gen;   // nullptr == module scope
       const PPackage*package; // nullptr unless declared in a package
       const PPackage*unit; // compilation-unit declarations outlive modules
+      const Module::PClocking*clocking = nullptr;
 
       bool operator< (const sva_scoped_name_t&that) const
       {
 	    if (name != that.name) return name < that.name;
+	    if (clocking != that.clocking)
+		  return std::less<const Module::PClocking*>()(clocking,
+							       that.clocking);
 	    if (package != that.package) return package < that.package;
 	    if (unit != that.unit) return unit < that.unit;
 	    return gen < that.gen;
@@ -9085,6 +9090,7 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
       sva_scoped_name_t k;
       k.name = nm;
       k.gen  = pform_cur_generate;
+	  k.clocking = pform_cur_clocking;
 	  k.unit = pform_in_compilation_unit_scope()
 		? dynamic_cast<const PPackage*>(pform_peek_scope()) : nullptr;
 	  k.package = k.unit ? nullptr
@@ -9107,12 +9113,30 @@ template <class MAP>
 static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
                                           const PGenerate*scope = pform_cur_generate)
 {
+	  const Module::PClocking*clocking_context = pform_cur_clocking
+		? pform_cur_clocking : sva_active_clocking_scope_;
+      if (clocking_context) {
+	    for (const PGenerate*g = scope ; ; ) {
+		  sva_scoped_name_t k;
+		  k.name = nm;
+		  k.gen = g;
+		  k.package = nullptr;
+		  k.unit = nullptr;
+		  k.clocking = clocking_context;
+		  typename MAP::iterator it = m.find(k);
+		  if (it != m.end()) return it;
+		  if (!g) break;
+		  const LexicalScope*up = g->parent_scope();
+		  g = dynamic_cast<const PGenerate*>(up);
+	    }
+      }
       for (const PGenerate*g = scope ; ; ) {
 	    sva_scoped_name_t k;
 	    k.name = nm;
 	    k.gen  = g;
 	    k.package = nullptr;
 	    k.unit = nullptr;
+	    k.clocking = nullptr;
 	    typename MAP::iterator it = m.find(k);
 	    if (it != m.end()) return it;
 	    if (!g) break;
@@ -9126,6 +9150,7 @@ static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
       unit_key.unit = !pform_cur_module.empty()
 		? dynamic_cast<const PPackage*>(pform_cur_module.front()->parent_scope())
 		: nullptr;
+	  unit_key.clocking = nullptr;
       if (!unit_key.unit) return m.end();
       typename MAP::iterator unit_it = m.find(unit_key);
       if (unit_it != m.end()) return unit_it;
@@ -10141,11 +10166,176 @@ static bool sva_validate_sequence_local_visibility_(
       return true;
 }
 
+/* A clocking-block SVA declaration has one implicit leading clock: the
+   block's clocking event. Explicit event controls and clock-flow boundaries
+   in declarations are prohibited by 16.16(b)(1)-(2). */
+static bool sva_event_controls_identical_(const PEventStatement*left,
+					  const PEventStatement*right)
+{
+      if (!left || !right) return false;
+      ostringstream lhs, rhs;
+      left->dump_inline(lhs);
+      right->dump_inline(rhs);
+      return lhs.str() == rhs.str();
+}
+
+static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
+					      sva_property_t*prop,
+					      const char*kind,
+					      const char*name)
+{
+      if (!pform_cur_clocking) return true;
+      bool has_multiple_clocks = prop->seq_clk_evt || prop->mc_prefix
+		    || prop->mc_boundary != -1
+		    || (prop->mc_more && !prop->mc_more->empty());
+      if (prop->clk_evt || has_multiple_clocks) {
+	    cerr << loc << ": error: " << kind << " declaration `" << name
+		 << "' in a clocking block shall not specify a clocking event"
+		 << " or be multiclocked (IEEE 1800-2017/2023 16.16(b)(1)-(2))."
+		 << endl;
+	    error_count += 1;
+	    return false;
+      }
+      if (!pform_cur_clocking->event) {
+	    cerr << loc << ": error: " << kind << " declaration `" << name
+		 << "' is in a clocking block without a clocking event."
+		 << endl;
+	    error_count += 1;
+	    return false;
+      }
+
+	  /* Rule (b)(3) constrains an outside declaration when it is instantiated
+	     from a clocking-block declaration. A plain, unclocked sequence
+	     inherits this block's event; an explicit clock is legal only when the
+	     event expression is identical. Multiclock declarations are rejected
+	     even when their first event happens to match. */
+	  auto check_reference = [&](perm_string reference) {
+		std::map<sva_scoped_name_t,sva_property_t*>::iterator declared =
+		      sva_resolve_(sva_module_properties, reference);
+		if (declared != sva_module_properties.end()) {
+		      if (declared->first.clocking == pform_cur_clocking)
+			    return true;
+		      const char*reference_kind =
+			    sva_property_shaped_sequences.count(declared->first)
+			    ? "sequence" : "property";
+		      const sva_property_t*target = declared->second;
+		      if (!target) return true;
+		      bool multiclocked = target->seq_clk_evt || target->mc_prefix
+			    || target->mc_boundary != -1
+			    || (target->mc_more && !target->mc_more->empty());
+		      if (multiclocked || (target->clk_evt
+			    && !sva_event_controls_identical_(target->clk_evt,
+							 pform_cur_clocking->event))) {
+			    cerr << loc << ": error: named " << reference_kind << " `"
+				 << reference << "' instantiated in clocking block `"
+				 << pform_cur_clocking->name
+				 << "' shall be singly clocked by the block's identical event "
+				 << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
+			    error_count += 1;
+			    return false;
+		      }
+		      return true;
+		}
+		std::map<sva_scoped_name_t,sva_param_prop_t>::iterator parameterized =
+		      sva_resolve_(sva_param_properties, reference);
+		if (parameterized != sva_param_properties.end()
+		    && parameterized->first.clocking != pform_cur_clocking
+		    && parameterized->second.body) {
+		      const sva_property_t*target = parameterized->second.body;
+		      bool multiclocked = target->seq_clk_evt || target->mc_prefix
+			    || target->mc_boundary != -1
+			    || (target->mc_more && !target->mc_more->empty());
+		      if (multiclocked || (target->clk_evt
+			   && !sva_event_controls_identical_(target->clk_evt,
+						 pform_cur_clocking->event))) {
+			    cerr << loc << ": error: named property `" << reference
+				 << "' instantiated in clocking block `"
+				 << pform_cur_clocking->name
+				 << "' shall be singly clocked by the block's identical event "
+				 << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
+			    error_count += 1;
+			    return false;
+	      }
+	}
+		std::map<sva_scoped_name_t,std::vector<sva_seq_step_t>*>::iterator plain =
+		      sva_resolve_(sva_module_sequences, reference);
+		if (plain != sva_module_sequences.end()
+		    && plain->first.clocking != pform_cur_clocking)
+		      return true;
+		std::set<sva_scoped_name_t>::iterator shaped =
+		      sva_resolve_(sva_property_shaped_sequences, reference);
+		if (shaped != sva_property_shaped_sequences.end()
+		    && shaped->clocking != pform_cur_clocking) {
+		      std::map<sva_scoped_name_t,sva_property_t*>::iterator target =
+			    sva_module_properties.find(*shaped);
+		      if (target != sva_module_properties.end() && target->second) {
+			    const sva_property_t*body = target->second;
+			    bool multiclocked = body->seq_clk_evt || body->mc_prefix
+				  || body->mc_boundary != -1
+				  || (body->mc_more && !body->mc_more->empty());
+			    if (multiclocked || (body->clk_evt
+						 && !sva_event_controls_identical_(body->clk_evt,
+								pform_cur_clocking->event))) {
+				  cerr << loc << ": error: named sequence `" << reference
+				       << "' instantiated in clocking block `"
+				       << pform_cur_clocking->name
+				       << "' shall be singly clocked by the block's identical event "
+				       << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
+				  error_count += 1;
+				  return false;
+			    }
+		      }
+		}
+		return true;
+	  };
+	  auto check_chain = [&](const std::vector<sva_seq_step_t>*chain) {
+		if (!chain) return true;
+		for (const sva_seq_step_t&step : *chain) {
+		      if (PEIdent*id = dynamic_cast<PEIdent*>(step.expr)) {
+			    if (!id->path().package && id->path().name.size() == 1
+				&& id->path().name.front().index.empty()
+				&& !check_reference(id->path().name.front().name))
+				  return false;
+		      } else if (PECallFunction*call =
+				 dynamic_cast<PECallFunction*>(step.expr)) {
+			    if (!call->path().package && call->path().name.size() == 1
+				&& !check_reference(call->path().name.front().name))
+				  return false;
+		      }
+		}
+		return true;
+	  };
+	  if (!check_chain(prop->seq) || !check_chain(prop->antecedent)
+	      || !check_chain(prop->mc_prefix)) return false;
+	  std::function<bool(const sva_stree_t*)> check_tree =
+		[&](const sva_stree_t*tree) {
+		      return !tree || (check_chain(tree->chain)
+				       && check_tree(tree->a)
+				       && check_tree(tree->b));
+		};
+	  if (!check_tree(prop->tree) || !check_tree(prop->ante_tree))
+		return false;
+      prop->clk_evt = sva_clone_event_control_(pform_cur_clocking->event, loc);
+      if (!prop->clk_evt) {
+	    cerr << loc << ": error: unable to copy the clocking event for "
+		 << kind << " declaration `" << name << "'." << endl;
+	    error_count += 1;
+	    return false;
+      }
+	  prop->clocking_scope = pform_cur_clocking;
+      return true;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
+	  if (!prop || !sva_prepare_clocking_declaration_(loc, prop,
+							"property", name)) {
+		if (prop) pform_sva_destroy_property(prop);
+		return;
+	  }
       perm_string use_name = lex_strings.make(name);
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_properties.count(key)
@@ -10198,8 +10388,22 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 		  return;
 	    }
       }
-      sva_decl_sequence_forget_sampled_(steps);
-      sva_module_sequences[key] = steps;
+	  if (pform_cur_clocking) {
+		sva_property_t*body = new sva_property_t;
+		body->op_type = 0;
+		body->seq = steps;
+		if (!sva_prepare_clocking_declaration_(loc, body, "sequence",
+							name)) {
+		      pform_sva_destroy_property(body);
+		      return;
+		}
+		sva_decl_property_forget_sampled_(body);
+		sva_module_properties[key] = body;
+		sva_property_shaped_sequences.insert(key);
+	  } else {
+		sva_decl_sequence_forget_sampled_(steps);
+		sva_module_sequences[key] = steps;
+	  }
 }
 
 void pform_sva_declare_sequence_spec(const struct vlltype&loc,
@@ -10232,6 +10436,10 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
 	    pform_sva_destroy_property(body);
 	    return;
       }
+	  if (!sva_prepare_clocking_declaration_(loc, body, "sequence", name)) {
+		pform_sva_destroy_property(body);
+		return;
+	  }
 
       if (sva_module_sequences.count(key)
 	  || sva_module_properties.count(key)) {
@@ -10302,6 +10510,16 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 			prop->local_names.push_back(formal.name);
 	    }
       }
+	  if (prop && !sva_prepare_clocking_declaration_(loc, prop,
+							"property", name)) {
+		if (formals) {
+		      for (sva_property_formal_t&formal : *formals)
+			    delete formal.default_expr;
+		      delete formals;
+		}
+		pform_sva_destroy_property(prop);
+		return;
+	  }
       if (sva_param_properties.count(sva_decl_key_(use_name))
 	  || sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
@@ -17163,7 +17381,28 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			sva_hier_seq_scope_t target_scope;
 			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit;
 			sva_retained_module_sequences_t*retained = nullptr;
-			if (!hierarchical_call) {
+			bool clocking_qualified_call = false;
+			if (call_path.size() == 2 && !expr_retained_scope
+			    && !expr_hier_prefix && !call_path.front().index.size()
+			    && !call_path.back().index.size() && expr_module) {
+			      std::map<perm_string,Module::PClocking*>::const_iterator cb =
+				    expr_module->clocking_blocks.find(call_path.front().name);
+			      if (cb != expr_module->clocking_blocks.end()) {
+				    sva_scoped_name_t key;
+				    key.name = nm;
+				    key.gen = nullptr;
+				    key.package = nullptr;
+				    key.unit = nullptr;
+				    key.clocking = cb->second;
+				    pit = sva_param_sequences.find(key);
+				    clocking_qualified_call = true;
+				    hierarchical_call = false;
+			      }
+			}
+			if (clocking_qualified_call) {
+			      /* A clocking-block qualifier names a declaration in the current
+				 module, not a hierarchical module instance. */
+			} else if (!hierarchical_call) {
 			      pit = sva_resolve_(sva_param_sequences, nm, expr_scope);
 			} else if (call_path.size() == 1) {
 			      retained = sva_retained_sequences_for_(decl_module);
@@ -28598,19 +28837,52 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    return false;
       PExpr*e = (*prop->seq)[0].expr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
-	    if (id->path().package || id->path().name.size() != 1
-		|| !id->path().name.front().index.empty())
+	    if (id->path().package) return false;
+	    const pform_name_t&path = id->path().name;
+	    if (path.size() == 1 && path.front().index.empty()) {
+		  perm_string nm = path.front().name;
+		  return sva_in_scope_(sva_module_properties, nm)
+			|| sva_in_scope_(sva_module_sequences, nm);
+	    }
+	    if (path.size() != 2 || !path.front().index.empty()
+		|| !path.back().index.empty() || pform_cur_module.empty())
 		  return false;
-	    perm_string nm = id->path().name.front().name;
-	    return sva_in_scope_(sva_module_properties, nm)
-		|| sva_in_scope_(sva_module_sequences, nm);
+	    Module*module = pform_cur_module.front();
+	    std::map<perm_string,Module::PClocking*>::const_iterator cb =
+		  module->clocking_blocks.find(path.front().name);
+	    if (cb == module->clocking_blocks.end()) return false;
+	    sva_scoped_name_t key;
+	    key.name = path.back().name;
+	    key.gen = nullptr;
+	    key.package = nullptr;
+	    key.unit = nullptr;
+	    key.clocking = cb->second;
+	    return sva_module_properties.count(key)
+		  || sva_module_sequences.count(key);
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    if (cf->path().package || cf->path().name.size() != 1)
+	    if (cf->path().package) return false;
+	    const pform_name_t&path = cf->path().name;
+	    if (path.size() == 1) {
+		  perm_string nm = peek_tail_name(path);
+		  return sva_in_scope_(sva_param_properties, nm)
+			|| sva_in_scope_(sva_param_sequences, nm);
+	    }
+	    if (path.size() != 2 || !path.front().index.empty()
+		|| !path.back().index.empty() || pform_cur_module.empty())
 		  return false;
-	    perm_string nm = peek_tail_name(cf->path().name);
-	    return sva_in_scope_(sva_param_properties, nm)
-		|| sva_in_scope_(sva_param_sequences, nm);
+	    Module*module = pform_cur_module.front();
+	    std::map<perm_string,Module::PClocking*>::const_iterator cb =
+		  module->clocking_blocks.find(path.front().name);
+	    if (cb == module->clocking_blocks.end()) return false;
+	    sva_scoped_name_t key;
+	    key.name = path.back().name;
+	    key.gen = nullptr;
+	    key.package = nullptr;
+	    key.unit = nullptr;
+	    key.clocking = cb->second;
+	    return sva_param_properties.count(key)
+		  || sva_param_sequences.count(key);
       }
       return false;
 }
@@ -30703,12 +30975,59 @@ static bool sva_defer_hierarchical_assertion_(
       return true;
 }
 
+static bool sva_named_property_ref_(const PEIdent*id,
+				    perm_string&name,
+				    std::map<sva_scoped_name_t,
+				    sva_property_t*>::iterator&found)
+{
+      if (!id || id->path().package) return false;
+      const pform_name_t&path = id->path().name;
+      if (path.size() == 1 && path.front().index.empty()) {
+	    name = path.front().name;
+	    found = sva_resolve_(sva_module_properties, name);
+	    return true;
+      }
+      if (path.size() != 2 || !path.front().index.empty()
+	  || !path.back().index.empty() || pform_cur_module.empty())
+	    return false;
+
+      Module*module = pform_cur_module.front();
+      std::map<perm_string,Module::PClocking*>::const_iterator cb =
+	    module->clocking_blocks.find(path.front().name);
+      if (cb == module->clocking_blocks.end()) return false;
+
+      name = path.back().name;
+      sva_scoped_name_t key;
+      key.name = name;
+      key.gen = nullptr;
+      key.package = nullptr;
+      key.unit = nullptr;
+      key.clocking = cb->second;
+      found = sva_module_properties.find(key);
+      return true;
+}
+
+class sva_clocking_scope_guard_t {
+    public:
+      explicit sva_clocking_scope_guard_t(const sva_property_t*prop)
+	  : saved_(sva_active_clocking_scope_)
+      {
+	    if (prop && prop->clocking_scope)
+		  sva_active_clocking_scope_ = prop->clocking_scope;
+      }
+      ~sva_clocking_scope_guard_t()
+      { sva_active_clocking_scope_ = saved_; }
+    private:
+      const Module::PClocking*saved_;
+};
+
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
 			  perm_string label)
 {
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind);
+      sva_clocking_scope_guard_t clocking_scope(prop);
 
 	/* `else ;' is an explicit null failure action, whereas a null
 	   fail_stmt pointer means there was no else arm and requests the LRM
@@ -31009,10 +31328,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	  && !prop->seq_clk_evt && !prop->mc_prefix
 	  && prop->mc_boundary == -1) {
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
-		  if (!id->path().package && id->path().name.size() == 1
-		      && id->path().name.front().index.empty()) {
-			std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
-			      sva_resolve_(sva_module_properties, id->path().name.front().name);
+		  perm_string property_name;
+		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
+		  if (sva_named_property_ref_(id, property_name, pit)) {
 			if (pit != sva_module_properties.end() && !pit->second) {
 			        /* The declaration existed but was consumed by a
 			           prior instantiation of a shape we cannot clone
@@ -31020,7 +31338,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			           identifier resolution and the assertion went
 			           SILENTLY dead (recovery C5). */
 			      cerr << loc << ": sorry: named property `"
-				   << id->path().name.front().name
+				   << property_name
 				   << "' uses a form that supports only one"
 				   << " instantiation; this additional assertion"
 				   << " is dropped." << endl;
@@ -31094,11 +31412,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			   * sequence-splicing path immediately, while the scope is
 			   * still correct. */
 			if (pit == sva_module_properties.end()
+			    && id->path().name.size() == 1
 			    && !sva_named_prop_retry_active_
 			    && !pform_get_wire_in_scope(
-				  id->path().name.front().name)
+				  property_name)
 			    && !sva_in_scope_(sva_module_sequences,
-				  id->path().name.front().name)) {
+				  property_name)) {
 			      sva_pending_named_property_t pend;
 			      pend.loc = loc;
 			      pend.prop = prop;
@@ -31130,6 +31449,36 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				      return;
 				}
 			      bool has_outer_context = outer_clk || outer_disable;
+			      const Module::PClocking*outer_clocking_scope =
+				    prop->clocking_scope;
+			      bool named_multiclocked = named->seq_clk_evt
+				    || named->mc_prefix || named->mc_boundary != -1
+				    || (named->mc_more && !named->mc_more->empty());
+			      if (outer_clocking_scope
+				  && pit->first.clocking != outer_clocking_scope
+				  && (named_multiclocked
+				      || (named->clk_evt
+					  && !sva_event_controls_identical_(
+						named->clk_evt,
+							outer_clocking_scope->event)))) {
+				    const char*reference_kind =
+					  sva_property_shaped_sequences.count(pit->first)
+					  ? "sequence" : "property";
+				    cerr << loc << ": error: named " << reference_kind << " `"
+					 << property_name << "' instantiated in clocking block `"
+					 << outer_clocking_scope->name
+					 << "' shall be singly clocked by the block's identical event "
+					 << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
+				    error_count += 1;
+				    delete outer_clk;
+				    delete outer_disable;
+				    delete id;
+				    delete prop->seq;
+				    delete prop;
+				    delete fail_stmt;
+				    delete pass_stmt;
+				    return;
+			      }
 			        /* Deep-clone the declaration per instantiation
 			           (recovery C5): the old transfer-and-null
 			           "consume once" made every SECOND assert of
@@ -31146,6 +31495,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				  || (named->mc_more && !named->mc_more->empty())) {
 				    inst = named;
 				    pit->second = nullptr;  /* consume once */
+				    if (outer_clk && inst->clk_evt
+					&& outer_clocking_scope
+					&& sva_event_controls_identical_(outer_clk,
+									inst->clk_evt)) {
+					  delete outer_clk;
+					  outer_clk = nullptr;
+				    }
 				    if (outer_clk && inst->clk_evt) {
 					  cerr << loc << ": sorry: a named property with "
 					       << "its own leading clock cannot also be "
@@ -31179,6 +31535,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    bool ok = true;
 				    inst = new sva_property_t;
 				    inst->local_names = named->local_names;
+				    inst->clocking_scope = named->clocking_scope
+					  ? named->clocking_scope : outer_clocking_scope;
 			    inst->local_input_actual_names =
 				  named->local_input_actual_names;
 				    inst->op_type = named->op_type;
@@ -31195,13 +31553,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    outer_disable = nullptr;
 				    if (named->clk_evt) {
 					  if (inst->clk_evt) {
-						cerr << loc << ": sorry: a named property with "
-						     << "its own leading clock cannot also be "
-						     << "instantiated under another explicit "
-						     << "clock yet; the assertion is dropped."
-						     << endl;
-						error_count += 1;
-						ok = false;
+						if (outer_clocking_scope
+						    && sva_event_controls_identical_(
+							  inst->clk_evt, named->clk_evt)) {
+						      /* Both spell the block clock. Keep the outer
+						         owned copy and do not add another event. */
+						} else {
+						      cerr << loc << ": sorry: a named property with "
+							   << "its own leading clock cannot also be "
+							   << "instantiated under another explicit "
+							   << "clock yet; the assertion is dropped."
+							   << endl;
+						      error_count += 1;
+						      ok = false;
+						}
 					  } else {
 						inst->clk_evt = sva_clone_event_control_(
 						      named->clk_evt, loc, &subst);
@@ -31262,6 +31627,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  }
 				    }
 			      }
+			      if (inst && !inst->clocking_scope)
+				    inst->clocking_scope = outer_clocking_scope;
 			      delete id;
 			      delete prop->seq;
 			      delete prop;
@@ -31287,11 +31654,60 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	  && prop->mc_boundary == -1
 	  && (*prop->seq)[0].delay_lo == 0 && (*prop->seq)[0].delay_hi == 0
 	  && (*prop->seq)[0].rep_tail == 0) {
+	    if (PECallFunction*seq_call =
+		  dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
+		  const pform_name_t&path = seq_call->path().name;
+		  if (!seq_call->path().package && path.size() == 2
+		      && path.front().index.empty() && path.back().index.empty()
+		      && !pform_cur_module.empty()) {
+			Module*module = pform_cur_module.front();
+			std::map<perm_string,Module::PClocking*>::const_iterator cb =
+			      module->clocking_blocks.find(path.front().name);
+			if (cb != module->clocking_blocks.end()) {
+			      sva_scoped_name_t key;
+			      key.name = path.back().name;
+			      key.gen = nullptr;
+			      key.package = nullptr;
+			      key.unit = nullptr;
+			      key.clocking = cb->second;
+			      if (sva_param_sequences.find(key)
+				  != sva_param_sequences.end()) {
+				    prop->clocking_scope = cb->second;
+				    prop->clk_evt = sva_clone_event_control_(
+					  cb->second->event, loc);
+			      }
+			}
+		  }
+	    }
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
-		  if (!cf->path().package && cf->path().name.size() == 1) {
-			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<sva_scoped_name_t, sva_param_prop_t>::iterator pit =
-			      sva_resolve_(sva_param_properties, nm);
+		  if (!cf->path().package
+		      && (cf->path().name.size() == 1
+			  || cf->path().name.size() == 2)) {
+			const pform_name_t&path = cf->path().name;
+			perm_string nm = peek_tail_name(path);
+			std::map<sva_scoped_name_t, sva_param_prop_t>::iterator pit;
+			if (path.size() == 1) {
+			      pit = sva_resolve_(sva_param_properties, nm);
+			} else if (!path.front().index.empty()
+				   || !path.back().index.empty()
+				   || pform_cur_module.empty()) {
+			      pit = sva_param_properties.end();
+			} else {
+			      Module*module = pform_cur_module.front();
+			      std::map<perm_string,Module::PClocking*>::const_iterator cb =
+				    module->clocking_blocks.find(path.front().name);
+			      if (cb == module->clocking_blocks.end()) {
+				    pit = sva_param_properties.end();
+			      } else {
+				    sva_scoped_name_t key;
+				    key.name = nm;
+				    key.gen = nullptr;
+				    key.package = nullptr;
+				    key.unit = nullptr;
+				    key.clocking = cb->second;
+				    pit = sva_param_properties.find(key);
+			      }
+			}
 			if (pit != sva_param_properties.end() && pit->second.body) {
 			      sva_property_t*decl = pit->second.body;
 			      bool fatal = false;
@@ -31347,6 +31763,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      if (!fatal) {
 				    inst = new sva_property_t;
 				    inst->local_names = decl->local_names;
+			    inst->clocking_scope = decl->clocking_scope
+				  ? decl->clocking_scope : prop->clocking_scope;
 				    for (perm_string&local : inst->local_names) {
 					  std::map<perm_string,perm_string>::const_iterator carrier =
 						local_carriers.find(local);
