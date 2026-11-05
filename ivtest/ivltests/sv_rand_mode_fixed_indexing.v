@@ -32,10 +32,9 @@ module test;
         || item.ascending[4].rand_mode() !== 1
         || item.ascending[5].rand_mode() !== 1)
       $fatal(1, "ascending fixed-array index mapped to the wrong leaf");
-    if (item.matrix[2].rand_mode() !== 0
-        || item.matrix[2][4].rand_mode() !== 0
+    if (item.matrix[2][4].rand_mode() !== 0
         || item.matrix[2][3].rand_mode() !== 0
-        || item.matrix[1].rand_mode() !== 1)
+        || item.matrix[1][4].rand_mode() !== 1)
       $fatal(1, "multidimensional subarray mode mapped to the wrong leaves");
 
     // A runtime out-of-range word select is a no-op for the setter and
@@ -62,9 +61,9 @@ module test;
     item.descending.rand_mode(1);
     item.ascending.rand_mode(1);
     item.matrix.rand_mode(1);
-    if (item.descending.rand_mode() !== 1
-        || item.ascending.rand_mode() !== 1
-        || item.matrix.rand_mode() !== 1)
+    if (item.descending[5].rand_mode() !== 1
+        || item.ascending[3].rand_mode() !== 1
+        || item.matrix[2][4].rand_mode() !== 1)
       $fatal(1, "whole-array setter did not restore every fixed leaf");
 
     $display("PASSED");

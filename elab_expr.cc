@@ -18837,6 +18837,18 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    const netranges_t&dims =
 					  array_type->static_dimensions();
 				    size_t used = field_comp.index.size();
+				    if (used != dims.size()) {
+					  cerr << get_fileline() << ": error: rand_mode() query on "
+					       << "unpacked-array property `" << fname
+					       << "' requires selecting one element (IEEE 1800-2017 "
+					       << "18.8)." << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  NetEConst*zero = new NetEConst(
+						verinum((uint64_t)0, 1));
+					  zero->set_line(*this);
+					  return zero;
+				    }
 				    if (used > dims.size()) {
 					  if (dynamic_cast<const netvector_t*>(
 						array_type->element_type()))
@@ -18946,7 +18958,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    obj_expr = nullptr;
 				    field_diagnostic = true;
 			      }
-			} else if (dynamic_cast<const netdarray_t*>(prop_type)) {
+			} else if (dynamic_cast<const netuarray_t*>(prop_type)
+				   || dynamic_cast<const netdarray_t*>(prop_type)) {
 			      cerr << get_fileline() << ": error: rand_mode() query on "
 				   << "unpacked-array property `" << fname
 				   << "' requires selecting one element (IEEE 1800-2017 "

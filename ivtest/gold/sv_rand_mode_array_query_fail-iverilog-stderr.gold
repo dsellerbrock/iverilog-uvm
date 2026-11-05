@@ -1,0 +1,2 @@
+ivltests/sv_rand_mode_array_query_fail.v:9: error: rand_mode() query on unpacked-array property `m' requires selecting one element (IEEE 1800-2017 18.8).
+1 error(s) during elaboration.
