@@ -46589,6 +46589,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  delete value;
 		    };
+		    auto uses_ctor_formal = [&](const PExpr*expr) -> bool {
+			  if (!expr) return false;
+			  for (perm_string formal : cgdef->ctor_formals)
+				if (expr->refs_name(formal)) return true;
+			  return false;
+		    };
+		    std::set<const PExpr*> runtime_option_exprs;
 
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
@@ -46596,22 +46603,47 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					const char*optname, unsigned dflt) -> unsigned {
 			  auto it = opts.find(lex_strings.make(optname));
 			  if (it == opts.end() || !it->second) return dflt;
-		  bool embedded_option = optname == std::string("at_least")
-			&& &opts == &cgdef->options
-			&& is_direct_embedded_member(it->second);
-		  NetExpr*e = (is_direct_ctor_formal(it->second) || embedded_option) ? nullptr
+			  bool embedded_option = optname == std::string("at_least")
+				&& &opts == &cgdef->options
+				&& is_direct_embedded_member(it->second);
+			  bool per_instance_option = optname == std::string("at_least")
+				|| optname == std::string("auto_bin_max");
+			  bool ctor_dependent = uses_ctor_formal(it->second);
+			  NetExpr*e = (ctor_dependent || embedded_option) ? nullptr
 				: elab_and_eval(des, class_scope_, it->second,
 						-1, false, false);
 			  unsigned r = dflt;
 			  if (NetEConst*c = dynamic_cast<NetEConst*>(e))
 				r = (unsigned)c->value().as_ulong64();
-		  else if (!embedded_option)
+			  else if (per_instance_option)
+				runtime_option_exprs.insert(it->second);
+			  else if (!embedded_option)
 				cerr << "sorry: covergroup option '" << optname
 				     << "' is not a constant; using default "
 				     << dflt << "." << endl;
 			  delete e;
 			  return r;
 		    };
+	    auto runtime_option_expr = [&](const std::map<perm_string,PExpr*>&opts,
+					   const char*optname) -> PExpr* {
+		  auto it = opts.find(lex_strings.make(optname));
+		  return it != opts.end() && it->second
+			&& runtime_option_exprs.count(it->second) ? it->second : nullptr;
+	    };
+	    std::map<const PExpr*,std::string> runtime_option_irs;
+	    auto runtime_option_ir = [&](PExpr*expr, const char*optname) -> std::string {
+		  if (!expr) return std::string();
+		  auto found = runtime_option_irs.find(expr);
+		  if (found != runtime_option_irs.end()) return found->second;
+		  std::string ir = pexpr_to_constraint_ir(
+			expr, cg_class, nullptr, class_scope_);
+		  if (ir.empty())
+			cerr << expr->get_fileline() << ": sorry: covergroup option '"
+			     << optname << "' cannot be evaluated per instance; using default."
+			     << endl;
+		  runtime_option_irs[expr] = ir;
+		  return ir;
+	    };
 		      // option.weight may depend on a covergroup constructor
 		      // formal (19.7).  Preserve such an expression as compact
 		      // property IR and evaluate it against the particular object;
@@ -48505,8 +48537,26 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
+		  PExpr*cp_at_least_expr = cp.options.count(
+			perm_string::literal("at_least"))
+			? runtime_option_expr(cp.options, "at_least")
+			: runtime_option_expr(cgdef->options, "at_least");
+		  if (cp_at_least_expr
+		      && is_direct_embedded_member(cp_at_least_expr))
+			cp_at_least_expr = nullptr;
+		  std::string cp_at_least_ir = runtime_option_ir(
+			cp_at_least_expr, "at_least");
+		  PExpr*cp_auto_bin_max_expr = cp.options.count(
+			perm_string::literal("auto_bin_max"))
+			? runtime_option_expr(cp.options, "auto_bin_max")
+			: runtime_option_expr(cgdef->options, "auto_bin_max");
+		  std::string cp_auto_bin_max_ir = runtime_option_ir(
+			cp_auto_bin_max_expr, "auto_bin_max");
 			  std::string cp_option_stem = "__covgrp_item_" + std::to_string(cp_idx);
 			  std::pair<int,int> cp_option_props = add_option_props(cp_option_stem);
+		  int cp_auto_bin_max_prop = !cp_auto_bin_max_ir.empty()
+			? add_unique_cov_counter(cp_option_stem + "_option_auto_bin_max")
+			: -1;
 			  auto cp_goal_it = cp.options.find(perm_string::literal("goal"));
 			  auto cp_comment_it = cp.options.find(perm_string::literal("comment"));
 		  std::pair<unsigned,PExpr*>cp_goal = opt_goal(
@@ -48528,6 +48578,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cp_goal_comment_props[cp_idx].second,
 						cp_goal.second, cp_comment.second,
 						cp_goal.first, cp_comment.first);
+		  cg_class->set_covgrp_item_option_irs(cp_idx,
+			cp_at_least_ir, cp_auto_bin_max_prop,
+			cp_auto_bin_max_ir);
 			  cg_class->set_covgrp_item_type_comment(cp_idx,
 				cp_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(cp_idx,
@@ -50644,12 +50697,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << ": error: automatic bins for this wide coverpoint "
 						    "type are not represented." << endl;
 					    des->errors += 1;
-				      } else if (nb > wide_auto_bin_limit) {
-					    nb = wide_auto_bin_limit;
+				      } else if (cp_auto_bin_max_prop >= 0) {
+					    unsigned family = dyn_family++;
+					    cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+						  2048u, family,
+						  (uint64_t)cp_auto_bin_max_prop + 1,
+						  "auto", "c:0", "c:0",
+						  cp_value_width, false);
+					    xbin_desc_t d;
+					    d.name = lex_strings.make("auto");
+					    d.wildcard = false;
+					    d.dyn_family = (int)family;
+					    vbins.push_back(d);
+					    has_value_bins = true;
+				      } else {
+					    if (nb > wide_auto_bin_limit)
+						  nb = wide_auto_bin_limit;
+					    // Wide auto bins use equal ranges; the final bin
+					    // receives any remainder, as required by 19.5.3.
 				      }
-			      // Wide auto bins use equal ranges; the final bin receives
-			      // any remainder, as required by 19.5.3.
-				      if (cp_wide_auto_supported && nb <= wide_auto_bin_limit) {
+				      if (cp_wide_auto_supported && cp_auto_bin_max_prop < 0
+					  && nb <= wide_auto_bin_limit) {
 						  uint64_t meta = ((uint64_t)cp_value_width << 32)
 							| nb;
 						  for (uint64_t k = 0; k < nb; k++) {
@@ -50672,6 +50740,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 						  has_value_bins = true;
 				      }
+				} else if (cp_auto_bin_max_prop >= 0 && w <= 64) {
+				uint64_t max_value = w == 64 ? UINT64_MAX
+				      : (UINT64_C(1) << w) - 1;
+				unsigned family = dyn_family++;
+				std::string lo_ir = "c:0:" + std::to_string(w);
+				std::string hi_ir = "c:" + std::to_string(max_value)
+				      + ":" + std::to_string(w);
+				cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 2048u,
+				      family, (uint64_t)cp_auto_bin_max_prop + 1,
+				      "auto", lo_ir, hi_ir, w, cp_value_signed);
+				xbin_desc_t d;
+				d.name = lex_strings.make("auto");
+				d.wildcard = false;
+				d.dyn_family = (int)family;
+				vbins.push_back(d);
+				has_value_bins = true;
 				} else {
 				uint64_t nb = cp_abm;
 				if (w < 32 && ((uint64_t)1 << w) < nb)
@@ -50879,6 +50963,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
+			  PExpr*x_at_least_expr = cross.options.count(
+				perm_string::literal("at_least"))
+				? runtime_option_expr(cross.options, "at_least")
+				: runtime_option_expr(cgdef->options, "at_least");
+			  if (x_at_least_expr
+			      && is_direct_embedded_member(x_at_least_expr))
+				x_at_least_expr = nullptr;
+		  std::string x_at_least_ir = runtime_option_ir(
+			x_at_least_expr, "at_least");
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1, "cross");
 				  unsigned retain_auto = cg_retain_auto;
@@ -50952,6 +51045,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						cross_goal_comment_props[cross_idx].second,
 					x_goal.second, x_comment.second,
 					x_goal.first, x_comment.first);
+		  cg_class->set_covgrp_item_option_irs(item_idx,
+			x_at_least_ir, -1, std::string());
 			  cg_class->set_covgrp_item_type_comment(item_idx,
 				x_type_comment);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,

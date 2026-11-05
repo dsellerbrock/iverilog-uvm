@@ -1,4 +1,3 @@
-sorry: covergroup option 'at_least' is not a constant; using default 1.
 ivltests/sv_covergroup_procedural_item_options_unsupported.v:38: sorry: procedural read of coverpoint/cross option `cp.option.bogus' is not supported; supported options are option.at_least, option.weight, option.goal, and option.comment.
 ivltests/sv_covergroup_procedural_item_options_unsupported.v:41: sorry: procedural write of coverpoint/cross option `cp.option.bogus' is not supported; supported options are option.at_least, option.weight, option.goal, and option.comment.
 2 error(s) during elaboration.

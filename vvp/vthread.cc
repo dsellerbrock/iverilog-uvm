@@ -7887,6 +7887,57 @@ static uint64_t covgrp_wide_auto_bin_(const vvp_vector4_t&value,
 	  return low;
 }
 
+static std::vector<uint64_t> covgrp_wide_auto_step_(unsigned width,
+						    unsigned bins)
+{
+	  size_t words = (width + 63) / 64;
+	  std::vector<uint64_t> per_bin(words, 0);
+	  uint64_t remainder = 0;
+	  for (unsigned pos = width + 1; pos-- > 0;) {
+		uint64_t next = (remainder << 1) | (pos == width ? 1 : 0);
+		remainder = next % bins;
+		if (pos < width && next / bins)
+		      per_bin[pos / 64] |= UINT64_C(1) << (pos % 64);
+	  }
+	  return per_bin;
+}
+
+static std::pair<std::vector<uint64_t>,std::vector<uint64_t>>
+covgrp_wide_auto_bounds_(unsigned width, unsigned bins, unsigned index,
+			 const std::vector<uint64_t>&per_bin)
+{
+	  size_t words = per_bin.size();
+	  auto multiply = [&](unsigned count) {
+		std::vector<uint64_t> result(words, 0);
+		unsigned __int128 carry = 0;
+		for (size_t word = 0; word < words; word += 1) {
+		      unsigned __int128 value =
+			    (unsigned __int128)per_bin[word] * count + carry;
+		      result[word] = (uint64_t)value;
+		      carry = value >> 64;
+		}
+		return result;
+	  };
+	  std::vector<uint64_t> low = multiply(index);
+	  std::vector<uint64_t> high(words, UINT64_MAX);
+	  if (index + 1 != bins) {
+		high = multiply(index + 1);
+		for (size_t word = 0; word < words; word += 1) {
+		      if (high[word] != 0) {
+			    high[word] -= 1;
+			    break;
+		      }
+		      high[word] = UINT64_MAX;
+		}
+	  }
+	  if (width & 63) {
+		uint64_t mask = (UINT64_C(1) << (width & 63)) - 1;
+		low.back() &= mask;
+		high.back() &= mask;
+	  }
+	  return std::make_pair(low, high);
+}
+
 // One record's value predicate ('kind & 8' = wildcard).
 static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
 				     uint64_t val,
@@ -8218,8 +8269,52 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 				     "family metadata." << std::endl;
 		  continue;
 	    }
-	    if (!state.meta) state.meta = &rec;
+	    if (!state.meta) {
+		  state.meta = &rec;
+		  state.is_auto_bins = (rec.kind & class_type::COV_DYN_AUTO_BINS) != 0;
+		  state.array_size = rec.array_size;
+		  if (state.is_auto_bins) {
+			if (rec.array_size == 0
+			    || rec.array_size - 1 >= defn->property_count()) {
+			      state.valid = false;
+			} else {
+			      vvp_vector4_t option;
+			      cobj->get_vec4((size_t)(rec.array_size - 1), option);
+			      uint64_t value = 0;
+			      bool defined = option.size() == 32;
+			      for (unsigned bit = 0; defined && bit < 32; bit += 1) {
+				    vvp_bit4_t digit = option.value(bit);
+				    if (digit == BIT4_X || digit == BIT4_Z)
+					  defined = false;
+				    else if (digit == BIT4_1)
+					  value |= UINT64_C(1) << bit;
+			      }
+			      if (!defined) {
+				    state.valid = false;
+				    if (cobj->cov_dyn_warn_once(rec.family)) {
+					  std::cerr << "ERROR: covergroup option 'auto_bin_max' "
+						       "has an X/Z or invalid constructor-time value."
+						    << std::endl;
+					  vpip_set_return_value(1);
+					  if (!schedule_finished()) schedule_finish(0);
+				    }
+			      } else {
+				    state.array_size = value ? value : 1;
+			      }
+			}
+	  }
+	    }
 	    if (!state.valid) continue;
+	    if (state.is_auto_bins && rec.value_width > 64) {
+		  state.is_wide_auto_bins = rec.value_width <= 4096
+			&& !rec.value_signed;
+		  if (!state.is_wide_auto_bins) {
+			state.valid = false;
+			continue;
+		  }
+		  state.total = 1;
+		  continue;
+	    }
 	      // A set-covergroup expression backed by a direct container is
 	      // encoded without extending the public IVL type ABI. setc:N:[su]W
 	      // reads property N of the covergroup object; setp:N:[su]W reads
@@ -8645,6 +8740,125 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 			- (unsigned __int128)range.first + 1;
       }
 
+	// Constructor-dependent auto bins partition the complete source domain
+	// into instance-specific ranges. Ignore bins remove values from those
+	// ranges and make an auto bin with no remaining values uncountable.
+	for (auto&entry : out) {
+	      covgrp_dyn_state_t&state = entry.second;
+	      if (!state.valid || !state.meta || !state.is_auto_bins
+		  || state.total == 0) continue;
+	      // IEEE 1800 19.5.3 permits an implementation limit on auto bins.
+	      static const uint64_t auto_bin_limit = 65536;
+	      if (state.array_size > auto_bin_limit) {
+		    if (cobj->cov_dyn_warn_once(entry.first))
+			  std::cerr << "WARNING: covergroup option 'auto_bin_max' exceeds "
+				       "the implementation limit of " << auto_bin_limit
+				    << " bins; using the implementation limit." << std::endl;
+		    state.array_size = auto_bin_limit;
+	      }
+	      if (state.is_wide_auto_bins) {
+		    uint64_t requested = state.array_size;
+		    if (requested == 0) requested = 1;
+		    state.array_size = requested;
+		    std::vector<uint64_t> per_bin = covgrp_wide_auto_step_(
+			(unsigned)state.meta->value_width, (unsigned)requested);
+		    for (uint64_t idx = 0; idx < requested; idx += 1) {
+			  auto bounds = covgrp_wide_auto_bounds_(
+				(unsigned)state.meta->value_width,
+				(unsigned)requested, (unsigned)idx, per_bin);
+			  covgrp_dyn_state_t::auto_bin_t bin;
+			  bin.wide_low.swap(bounds.first);
+			  bin.wide_high.swap(bounds.second);
+			  state.auto_bins.push_back(std::move(bin));
+	    }
+	    state.type_bins.reserve(state.auto_bins.size());
+	    for (const auto&bin : state.auto_bins)
+		  state.type_bins.push_back(defn->dyn_type_register_auto_bin(
+			entry.first, bin.wide_low, bin.wide_high));
+	    continue;
+	      }
+	      unsigned __int128 requested = state.array_size ? state.array_size : 1;
+	      if (requested > state.total) requested = state.total;
+	      unsigned __int128 per_bin = state.total / requested;
+	      if (per_bin == 0) per_bin = 1;
+
+	      std::vector<std::pair<uint64_t,uint64_t>> ignored;
+	      for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi += 1) {
+		    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		    if ((bin.kind & 7) != 1 || bin.cp_idx != state.meta->cp_idx
+			|| (bin.kind & (8u | 128u | 1024u))) continue;
+		    ignored.push_back(std::make_pair(bin.lo, bin.hi));
+	      }
+	      std::sort(ignored.begin(), ignored.end());
+	      std::vector<std::pair<uint64_t,uint64_t>> ignored_union;
+	      for (const auto&range : ignored) {
+		    if (ignored_union.empty()
+			|| (ignored_union.back().second != UINT64_MAX
+			    && range.first > ignored_union.back().second + 1))
+			  ignored_union.push_back(range);
+		    else
+			  ignored_union.back().second = std::max(
+				ignored_union.back().second, range.second);
+	      }
+
+	      auto slice = [&](unsigned __int128 first,
+			       unsigned __int128 last) {
+		    std::vector<std::pair<uint64_t,uint64_t>> values;
+		    unsigned __int128 ordinal = 0;
+		    for (const auto&range : state.ranges) {
+			  unsigned __int128 length = (unsigned __int128)range.second
+				- range.first + 1;
+			  unsigned __int128 range_last = ordinal + length - 1;
+			  if (range_last >= first && ordinal <= last) {
+				unsigned __int128 begin = std::max(first, ordinal);
+				unsigned __int128 end = std::min(last, range_last);
+				values.push_back(std::make_pair(
+				      range.first + (uint64_t)(begin - ordinal),
+				      range.first + (uint64_t)(end - ordinal)));
+			  }
+			  if (range_last >= last) break;
+			  ordinal += length;
+		    }
+		    return values;
+	      };
+	      for (uint64_t idx = 0; idx < (uint64_t)requested; idx += 1) {
+		    unsigned __int128 first = (unsigned __int128)idx * per_bin;
+		    unsigned __int128 last = idx + 1 == requested
+			  ? state.total - 1
+			  : (unsigned __int128)(idx + 1) * per_bin - 1;
+		    std::vector<std::pair<uint64_t,uint64_t>> values = slice(first, last);
+		    if (values.empty()) continue;
+		    covgrp_dyn_state_t::auto_bin_t bin;
+		    bin.low = values.front().first;
+		    bin.high = values.back().second;
+		    for (const auto&carve : ignored_union) {
+			  std::vector<std::pair<uint64_t,uint64_t>> remaining;
+			  for (const auto&value : values) {
+				if (carve.second < value.first || carve.first > value.second) {
+				      remaining.push_back(value);
+				      continue;
+				}
+				if (carve.first > value.first)
+				      remaining.push_back(std::make_pair(
+					    value.first, carve.first - 1));
+				if (carve.second < value.second)
+				      remaining.push_back(std::make_pair(
+					    carve.second + 1, value.second));
+			  }
+			  values.swap(remaining);
+			  if (values.empty()) break;
+		    }
+		    if (!values.empty()) {
+			  bin.values.swap(values);
+			  state.auto_bins.push_back(std::move(bin));
+		    }
+	      }
+	      state.type_bins.reserve(state.auto_bins.size());
+	      for (const auto&bin : state.auto_bins)
+		    state.type_bins.push_back(defn->dyn_type_register_auto_bin(
+			  entry.first, bin.low, bin.high));
+	}
+
 	// Publish each resolved family's logical bin count to the type view.
 	// type_coverage() has no instance to resolve against, so without this
 	// a constructor-dependent value family contributed neither hits nor a
@@ -8656,6 +8870,7 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.valid || !state.meta) continue;
 		  if ((state.meta->kind & 7) != 0) continue;
+		  if (state.is_auto_bins) continue;
 		  if (state.meta->array_size == 0)
                         defn->dyn_type_register_ranges(entry.first, state.ranges);
                   else
@@ -8690,7 +8905,8 @@ static unsigned __int128 covgrp_dyn_logical_count_(
       const covgrp_dyn_state_t&state)
 {
 	      if (!state.valid || !state.meta || state.total == 0) return 0;
-      uint64_t requested = state.meta->array_size;
+	      if (state.is_auto_bins) return state.auto_bins.size();
+	      uint64_t requested = state.array_size;
       if (requested == ~(uint64_t)0) return 1;
       if (requested == 0) return state.total;
       unsigned __int128 bins = requested;
@@ -8703,11 +8919,31 @@ static unsigned __int128 covgrp_dyn_logical_count_(
  * floor(total/N), but at least one, values to each bin in order and put every
  * remainder value in the last nonempty bin. */
 static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
+			      const vvp_vector4_t*wide_value,
 			      std::vector<uint64_t>&bin_indexes,
 			      unsigned __int128&logical_count)
 {
 	      if (!state.valid || !state.meta || state.total == 0) return false;
-      uint64_t requested = state.meta->array_size;
+	      if (state.is_auto_bins) {
+		    if (state.is_wide_auto_bins) {
+			  if (!wide_value || wide_value->size() != state.meta->value_width
+			      || wide_value->has_xz() || state.auto_bins.empty())
+				return false;
+			  uint64_t idx = covgrp_wide_auto_bin_(*wide_value,
+				(unsigned)state.auto_bins.size());
+			  if (idx >= state.auto_bins.size()) return false;
+			  bin_indexes.push_back(idx);
+			  logical_count = state.auto_bins.size();
+			  return true;
+		    }
+		    for (size_t idx = 0; idx < state.auto_bins.size(); idx += 1)
+			  for (const auto&range : state.auto_bins[idx].values)
+				if (value >= range.first && value <= range.second)
+				      bin_indexes.push_back((uint64_t)idx);
+		    logical_count = state.auto_bins.size();
+		    return !bin_indexes.empty();
+	      }
+	      uint64_t requested = state.array_size;
       logical_count = covgrp_dyn_logical_count_(state);
 
       auto logical_index = [&](unsigned __int128 ordinal) -> uint64_t {
@@ -8886,7 +9122,30 @@ static bool covgrp_cross_dyn_member_overlap_(const covgrp_dyn_state_t&state,
 	 const std::vector<std::pair<uint64_t,uint64_t>>&select_ranges)
 {
 	      if (!state.valid || !state.meta) return false;
-	      uint64_t requested = state.meta->array_size;
+	      if (state.is_auto_bins) {
+		    if (logical >= state.auto_bins.size()) return false;
+		    const auto&bin = state.auto_bins[logical];
+		    if (!bin.wide_low.empty() && !bin.wide_high.empty()) {
+			  auto compare_scalar = [](const std::vector<uint64_t>&value,
+					   uint64_t scalar) -> int {
+				    for (size_t word = value.size(); word > 1; word -= 1)
+					  if (value[word - 1] != 0) return 1;
+				    if (value.empty() || value[0] < scalar) return -1;
+				    if (value[0] > scalar) return 1;
+				    return 0;
+			  };
+			  for (const auto&range : select_ranges)
+				if (compare_scalar(bin.wide_low, range.second) <= 0
+				    && compare_scalar(bin.wide_high, range.first) >= 0)
+				      return true;
+			  return false;
+		    }
+		    for (const auto&range : state.auto_bins[logical].values)
+			  if (covgrp_cross_ranges_overlap_(range.first, range.second,
+						 select_ranges)) return true;
+		    return false;
+	      }
+	      uint64_t requested = state.array_size;
 		// An unsized integral bin array is value-keyed. Its logical identity
 		// can therefore be any resolved 64-bit value, not a dense ordinal less
 		// than the number of bins (for example bins each[] = {[100:101]}).
@@ -8973,7 +9232,21 @@ static uint64_t covgrp_cross_choice_value_count_(
 		|| !found->second.meta || found->second.total == 0)
 		  return 0;
 	    const covgrp_dyn_state_t&state = found->second;
-	    uint64_t requested = state.meta->array_size;
+	    if (state.is_auto_bins) {
+		  if (choice.logical_idx >= state.auto_bins.size()) return 0;
+		  const auto&bin = state.auto_bins[choice.logical_idx];
+		  if (!bin.wide_low.empty() && !bin.wide_high.empty()) {
+			for (size_t word = 1; word < bin.wide_high.size(); word += 1)
+			      if (bin.wide_high[word] != 0) return limit + 1;
+			uint64_t difference = bin.wide_high[0] - bin.wide_low[0];
+			return difference >= limit ? limit + 1 : difference + 1;
+		  }
+		  unsigned __int128 count = 0;
+		  for (const auto&range : bin.values)
+			count += (unsigned __int128)range.second - range.first + 1;
+		  return count > limit ? limit + 1 : (uint64_t)count;
+	    }
+	    uint64_t requested = state.array_size;
 	    unsigned __int128 count = 0;
 	    if (requested == 0) {
 		  count = 1;
@@ -9228,6 +9501,8 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			  reserved_coverage_props.insert((unsigned)item.at_least_prop);
 		    if (item.weight_prop >= 0)
 			  reserved_coverage_props.insert((unsigned)item.weight_prop);
+		    if (item.auto_bin_max_prop >= 0)
+			  reserved_coverage_props.insert((unsigned)item.auto_bin_max_prop);
 		      }
 		      if (defn->covgrp_parent_prop() >= 0)
 		    reserved_coverage_props.insert((unsigned)defn->covgrp_parent_prop());
@@ -9599,8 +9874,10 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 						  auto found = dyn_states.find(choice.source_id);
 						  if (found != dyn_states.end()
 						      && found->second.meta
-						      && found->second.meta->array_size != 0)
-							predicates = found->second.ranges.size();
+						      && found->second.array_size != 0)
+							predicates = found->second.is_auto_bins
+							      ? found->second.auto_bins.size()
+							      : found->second.ranges.size();
 					    }
 					    uint64_t scan = selector_capped_mul(
 						  predicates, op.ranges.size());
@@ -9709,7 +9986,15 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
                   for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
                         const covgrp_cross_choice_t&choice =
                               state.dimensions[dim][route.choices[dim]];
-                        name.emplace_back(choice.term_idx, choice.logical_idx);
+                        uint64_t identity = choice.logical_idx;
+                        if (choice.kind == 1) {
+                              auto source = dyn_states.find(choice.source_id);
+                              if (source != dyn_states.end()
+				  && source->second.is_auto_bins
+				  && choice.logical_idx < source->second.type_bins.size())
+				    identity = source->second.type_bins[choice.logical_idx];
+                        }
+                        name.emplace_back(choice.term_idx, identity);
                   }
                   state.type_bins[route.auto_bin] =
                         defn->cross_type_register_bin(meta.family, name);
@@ -9787,7 +10072,7 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 				    std::vector<uint64_t> logical;
 				    unsigned __int128 logical_count = 0;
 				    if (covgrp_dyn_match_(found->second,
-					  cp_vals[choice.cp_idx], logical,
+					  cp_vals[choice.cp_idx], &wide_vals[choice.cp_idx], logical,
 					  logical_count))
 					  dyn_hits[choice.source_id].insert(
 						logical.begin(), logical.end());
@@ -10351,7 +10636,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp] && !wide_vals[cp].has_xz()
-		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
+		&& covgrp_dyn_match_(state, cp_vals[cp], &wide_vals[cp], logical, count)) {
 		  std::cerr << "ERROR: covergroup dynamic illegal_bin matched"
 			    << " (family=" << entry.first << ")" << std::endl;
 		  for (uint64_t bin : logical)
@@ -10415,7 +10700,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp] && !wide_vals[cp].has_xz()
-		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count))
+		&& covgrp_dyn_match_(state, cp_vals[cp], &wide_vals[cp], logical, count))
 		  cp_suppressed[cp] = true;
       }
 
@@ -10572,9 +10857,14 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp] && !cp_suppressed[cp]
 		&& !wide_vals[cp].has_xz()
-		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
-		  for (uint64_t bin : logical)
-			cobj->cov_dyn_bump(entry.first, bin);
+		&& covgrp_dyn_match_(state, cp_vals[cp], &wide_vals[cp], logical, count)) {
+		  for (uint64_t bin : logical) {
+			if (state.is_auto_bins && bin < state.type_bins.size())
+			      cobj->cov_dyn_bump(entry.first, bin,
+					 state.type_bins[bin]);
+			else
+			      cobj->cov_dyn_bump(entry.first, bin);
+		  }
 		  item_matched[state.meta->item_idx] = true;
 	    }
       }
@@ -11017,15 +11307,7 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.valid || !state.meta
 		      || (state.meta->kind & 7) != 0) continue;
-		  unsigned __int128 logical = state.meta->array_size;
-		  if (state.total == 0)
-			logical = 0;
-		  else if (state.meta->array_size == ~(uint64_t)0)
-			logical = 1;
-		  else if (state.meta->array_size == 0)
-			logical = state.total;
-		  else if (logical > state.total)
-			logical = state.total;
+		  unsigned __int128 logical = covgrp_dyn_logical_count_(state);
 		  item_dyn_total[state.meta->item_idx] += (long double)logical;
 		  unsigned at_least = 1;
 		  if (state.meta->item_idx < defn->covgrp_item_count())

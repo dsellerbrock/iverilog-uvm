@@ -320,6 +320,9 @@ class class_type : public __vpiHandle {
       };
 	static const unsigned COV_REAL_BIN = 0x100;
 	static const unsigned COV_WIDE_RANGE_BIN = 0x1000;
+	// Dynamic-bin kind flag: array_size encodes the per-instance
+	// auto_bin_max property index plus one.
+	static const unsigned COV_DYN_AUTO_BINS = 2048;
 	struct cov_wide_range_t {
 	    unsigned width = 0;
 	    std::vector<uint64_t> low;
@@ -332,7 +335,10 @@ class class_type : public __vpiHandle {
 	    int type_weight_prop = -1;
 	    std::string weight_ir;
 	    int at_least_prop = -1;
+	    std::string at_least_ir;
 	    int weight_prop = -1;
+	    int auto_bin_max_prop = -1;
+	    std::string auto_bin_max_ir;
 	    unsigned goal = 100;
 	    std::string comment;
 	    std::string type_comment;
@@ -422,6 +428,15 @@ class class_type : public __vpiHandle {
 	covgrp_items_[idx].at_least_prop = at_least_prop;
 	covgrp_items_[idx].weight_prop = weight_prop;
 	return true; }
+      bool set_covgrp_item_option_irs(size_t idx,
+				      int auto_bin_max_prop,
+				      const std::string&at_least_ir,
+				      const std::string&auto_bin_max_ir)
+      { if (idx >= covgrp_items_.size()) return false;
+	 covgrp_items_[idx].auto_bin_max_prop = auto_bin_max_prop;
+	 covgrp_items_[idx].at_least_ir = at_least_ir;
+	 covgrp_items_[idx].auto_bin_max_ir = auto_bin_max_ir;
+	 return true; }
       bool set_covgrp_item_option_values(size_t idx, int goal_prop,
 					 unsigned goal, int comment_prop,
 					 const std::string&comment)
@@ -554,6 +569,11 @@ class class_type : public __vpiHandle {
         if (logical > slot) slot = logical; }
       void dyn_type_register_ranges(unsigned family,
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
+      uint64_t dyn_type_register_auto_bin(unsigned family,
+            uint64_t low, uint64_t high) const;
+      uint64_t dyn_type_register_auto_bin(unsigned family,
+            const std::vector<uint64_t>&low,
+            const std::vector<uint64_t>&high) const;
       uint64_t cross_type_register_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
       uint64_t trans_type_register_bin(unsigned family,
@@ -676,6 +696,10 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      mutable std::map<unsigned,
+            std::map<std::pair<std::vector<uint64_t>,
+                               std::vector<uint64_t>>,uint64_t>>
+            covgrp_dyn_auto_type_bins_;
       mutable std::map<unsigned,std::map<std::vector<uint64_t>,uint64_t>>
             covgrp_trans_type_bins_;
       struct cov_cross_type_t {
