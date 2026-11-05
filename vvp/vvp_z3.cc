@@ -10022,6 +10022,98 @@ struct z3_t1_hull_plan_t {
       size_t boundary_queries = 0;
 };
 
+/* Sample a conjunction that fixes selected bits of VAR and leaves every
+ * other bit unconstrained. Such a cube has a simple exact uniform sampler;
+ * walking its one-value intervals can take work proportional to the number
+ * of free low-order combinations. */
+static bool z3_sample_isolated_bit_cube_(Z3_context ctx, Z3_ast formula,
+                                         Z3_ast var, unsigned width,
+                                         z3_rng_stream_t&rng,
+                                         Z3_ast&sample)
+{
+      if (!formula || !var || !width || width > WIDE_INTERVAL_MAX_WIDTH)
+            return false;
+
+      vector<Z3_ast> clauses;
+      z3_flatten_conjunction_(ctx, formula, clauses);
+      vector<bool> fixed(width, false);
+      vector<bool> value(width, false);
+      bool saw_constraint = false;
+      for (Z3_ast clause : clauses) {
+            if (Z3_get_ast_kind(ctx, clause) != Z3_APP_AST) return false;
+            Z3_app app = Z3_to_app(ctx, clause);
+            if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) != Z3_OP_EQ
+                || Z3_get_app_num_args(ctx, app) != 2)
+                  return false;
+            Z3_ast left = Z3_get_app_arg(ctx, app, 0);
+            Z3_ast right = Z3_get_app_arg(ctx, app, 1);
+            Z3_ast selected = nullptr;
+            Z3_ast numeral = nullptr;
+            if (Z3_is_numeral_ast(ctx, right)) {
+                  selected = left;
+                  numeral = right;
+            } else if (Z3_is_numeral_ast(ctx, left)) {
+                  selected = right;
+                  numeral = left;
+            } else {
+                  return false;
+            }
+
+            unsigned low = 0;
+            unsigned selected_width = width;
+            if (selected != var) {
+                  if (Z3_get_ast_kind(ctx, selected) != Z3_APP_AST)
+                        return false;
+                  Z3_app selection = Z3_to_app(ctx, selected);
+                  Z3_func_decl decl = Z3_get_app_decl(ctx, selection);
+                  if (Z3_get_decl_kind(ctx, decl) != Z3_OP_EXTRACT
+                      || Z3_get_decl_num_parameters(ctx, decl) != 2
+                      || Z3_get_app_num_args(ctx, selection) != 1
+                      || Z3_get_app_arg(ctx, selection, 0) != var)
+                        return false;
+                  int high = Z3_get_decl_int_parameter(ctx, decl, 0);
+                  int first = Z3_get_decl_int_parameter(ctx, decl, 1);
+                  if (first < 0 || high < first
+                      || (unsigned)high >= width)
+                        return false;
+                  low = (unsigned)first;
+                  selected_width = (unsigned)(high - first + 1);
+            }
+            Z3_sort numeral_sort = Z3_get_sort(ctx, numeral);
+            if (Z3_get_sort_kind(ctx, numeral_sort) != Z3_BV_SORT
+                || Z3_get_bv_sort_size(ctx, numeral_sort) != selected_width)
+                  return false;
+            dist_wide_uint_t bits;
+            if (!dist_wide_uint_t::from_numeral(ctx, numeral, bits))
+                  return false;
+            for (unsigned bit = 0; bit < selected_width; ++bit) {
+                  unsigned position = low + bit;
+                  if (fixed[position] && value[position] != bits.bit(bit))
+                        return false;
+                  fixed[position] = true;
+                  value[position] = bits.bit(bit);
+            }
+            saw_constraint = true;
+      }
+      if (!saw_constraint) return false;
+
+      dist_wide_uint_t free_space;
+      unsigned free_bits = 0;
+      for (unsigned bit = 0; bit < width; ++bit)
+            if (!fixed[bit]) free_space.set_bit(free_bits++);
+      dist_wide_uint_t draw = dist_wide_uint_t::uniform_below(
+            rng, dist_wide_uint_t::add(free_space,
+                                       dist_wide_uint_t::from_u64(1)));
+      dist_wide_uint_t result;
+      unsigned free_index = 0;
+      for (unsigned bit = 0; bit < width; ++bit) {
+            bool one = fixed[bit] ? value[bit] : draw.bit(free_index++);
+            if (one) result.set_bit(bit);
+      }
+      sample = result.numeral(ctx, width);
+      return sample != nullptr;
+}
+
 /* Sample a wide scalar uniformly from a bounded union of feasible intervals.
  * Dense domains use exact uniform rejection; sparse domains use boundary
  * counting. ponytail: cap boundary work and rejection; use exact counting to
@@ -10046,6 +10138,9 @@ static wide_interval_sampling_t z3_sample_wide_single_var_intervals_(Z3_context 
       Z3_ast formula = isolated_factor;
       if (!formula && !z3_isolated_subject_factor_(ctx, base, var, formula))
             return WIDE_INTERVAL_NOT_APPLICABLE;
+      if (z3_sample_isolated_bit_cube_(ctx, formula, var, width, rng,
+                                       sample))
+            return WIDE_INTERVAL_SAMPLED;
       if (Z3_get_bool_value(ctx, formula) == Z3_L_TRUE) {
             big domain;
             domain.set_bit(width);
