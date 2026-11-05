@@ -992,6 +992,9 @@ class pattern_binding_type_t : public data_type_t {
                              unsigned lexical_pos,
                              const pform_pattern_path_t&path)
       : subject_(subject), lexical_pos_(lexical_pos), path_(path) { }
+      pattern_binding_type_t(const PExpr*subject,
+                             const pform_pattern_path_t&path)
+      : subject_expr_(subject), path_(path) { }
 
       std::ostream& debug_dump(std::ostream&out) const override;
 
@@ -1000,6 +1003,7 @@ class pattern_binding_type_t : public data_type_t {
 
       pform_scoped_name_t subject_;
       unsigned lexical_pos_;
+      const PExpr*subject_expr_ = nullptr;
       pform_pattern_path_t path_;
 };
 

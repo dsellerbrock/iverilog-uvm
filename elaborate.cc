@@ -571,6 +571,7 @@ namespace {
 struct pattern_subject_t {
       NetNet*net = nullptr;
       ivl_type_t type = nullptr;
+      bool temporary = false;
 };
 
 static bool resolve_pattern_subject_(const LineInfo*loc, PExpr*subject,
@@ -885,6 +886,12 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   NetEUnionTag*active_tag = new NetEUnionTag(union_value);
                   active_tag->set_line(*pattern);
                   tag_value = active_tag;
+            } else if (subject.temporary) {
+                  NetESignal*union_value = new NetESignal(subject.net);
+                  union_value->set_line(*pattern);
+                  NetEUnionTag*active_tag = new NetEUnionTag(union_value);
+                  active_tag->set_line(*pattern);
+                  tag_value = active_tag;
             } else {
                   perm_string companion_name = lex_strings.make(
                         string(subject.net->name().str())
@@ -931,6 +938,17 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
       return nullptr;
 }
 
+static NetExpr* elaborate_pattern_match_(const LineInfo*loc,
+                                         const pattern_subject_t&subject,
+                                         const PMatchPattern*pattern,
+                                         NetCase::TYPE case_type,
+                                         Design*des, NetScope*scope)
+{
+      pform_pattern_path_t path;
+      return elaborate_pattern_node_(loc, subject, pattern, path, case_type,
+                                     des, scope);
+}
+
 static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
                                          const PMatchPattern*pattern,
                                          NetCase::TYPE case_type,
@@ -939,9 +957,8 @@ static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
       pattern_subject_t subject;
       if (!resolve_pattern_subject_(loc, subject_expr, des, scope, subject))
             return nullptr;
-      pform_pattern_path_t path;
-      return elaborate_pattern_node_(loc, subject, pattern, path, case_type,
-                                     des, scope);
+      return elaborate_pattern_match_(loc, subject, pattern, case_type, des,
+                                      scope);
 }
 
 struct pattern_capture_t {
@@ -15120,6 +15137,65 @@ static bool pattern_filter_fallback_(NetProc*body, NetProc*fallback)
       return true;
 }
 
+static void bind_case_pattern_assignments_(Statement*statement,
+                                          const pattern_subject_t&subject)
+{
+      if (!subject.temporary)
+            return;
+      PBlock*block = dynamic_cast<PBlock*>(statement);
+      if (!block)
+            return;
+      for (Statement*child : block->statements()) {
+            if (PPatternAssign*assign = dynamic_cast<PPatternAssign*>(child))
+                  assign->set_subject_temporary(subject.net, subject.type);
+      }
+}
+
+static bool elaborate_case_pattern_subject_(const LineInfo*loc,
+                                            PExpr*subject_expr,
+                                            Design*des, NetScope*scope,
+                                            pattern_subject_t&subject,
+                                            NetProc*&evaluate_once)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(subject_expr);
+      if (ident && !ident->leading_type_args()
+          && ident->path().name.size() == 1
+          && ident->path().name.front().index.empty())
+            return resolve_pattern_subject_(loc, subject_expr, des, scope,
+                                            subject);
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      unsigned width = subject_expr->test_width(des, scope, mode);
+      NetExpr*value = subject_expr->elaborate_expr(
+            des, scope, width, PExpr::NO_FLAGS);
+      if (!value)
+            return false;
+
+      ivl_type_t type = value->net_type();
+      if (!type) {
+            cerr << loc->get_fileline()
+                 << ": error: Pattern-matching case subject expression has "
+                    "no known type (IEEE 1800-2017/2023 12.6.1)."
+                 << endl;
+            des->errors += 1;
+            delete value;
+            return false;
+      }
+
+      NetNet*temporary = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::REG, type);
+      temporary->set_line(*loc);
+      temporary->local_flag(true);
+
+      NetAssign*assign = new NetAssign(new NetAssign_(temporary), value);
+      assign->set_line(*loc);
+      subject.net = temporary;
+      subject.type = type;
+      subject.temporary = true;
+      evaluate_once = assign;
+      return true;
+}
+
 /* Elaborate `case (X) matches` to an if-else cascade. The shared matcher
  * validates and lowers each complete typed pattern; the item's implicit block
  * performs pattern-variable copies before its user statement. Invalid
@@ -15129,6 +15205,12 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
       ivl_assert(*this, scope);
       if (!expr_)
             return new NetBlock(NetBlock::SEQU, nullptr);
+
+      pattern_subject_t subject;
+      NetProc*evaluate_once = nullptr;
+      if (!elaborate_case_pattern_subject_(this, expr_, des, scope, subject,
+                                           evaluate_once))
+            return nullptr;
 
       unsigned default_count = 0;
       if (items_) {
@@ -15168,8 +15250,9 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   NetExpr*match = elaborate_pattern_match_(
                         item->pattern ? static_cast<const LineInfo*>(item->pattern)
                                       : static_cast<const LineInfo*>(this),
-                        expr_, item->pattern, case_type_, des, scope);
+                        subject, item->pattern, case_type_, des, scope);
                   if (!match) continue;
+                  bind_case_pattern_assignments_(item->stat, subject);
                   NetProc*body = item->stat
                         ? item->stat->elaborate(des, scope) : nullptr;
                   if (item->has_filter
@@ -15181,7 +15264,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   }
                   res->set_case(idx, match, body, idx);
             }
-            return res;
+            if (!evaluate_once)
+                  return res;
+            NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+            result->set_line(*this);
+            result->append(evaluate_once);
+            result->append(res);
+            return result;
       }
 
       NetProc*cascade = nullptr;
@@ -15200,9 +15289,10 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   NetExpr*match = elaborate_pattern_match_(
                         it->pattern ? static_cast<const LineInfo*>(it->pattern)
                                     : static_cast<const LineInfo*>(this),
-                        expr_, it->pattern, case_type_, des, scope);
+                        subject, it->pattern, case_type_, des, scope);
                   if (!match)
                         continue;
+                  bind_case_pattern_assignments_(it->stat, subject);
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
                   if (it->has_filter
                       && !pattern_filter_fallback_(body, cascade)) {
@@ -15217,6 +15307,13 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             }
       }
       if (!cascade) cascade = new NetBlock(NetBlock::SEQU, nullptr);
+      if (evaluate_once) {
+            NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+            result->set_line(*this);
+            result->append(evaluate_once);
+            result->append(cascade);
+            return result;
+      }
       return cascade;
 }
 
@@ -15238,16 +15335,32 @@ void PCaseMatches::elaborate_sig(Design*des, NetScope*scope) const
 
 NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
 {
-      PEIdent subject_expr(subject_.package, subject_.name, lexical_pos_);
-      subject_expr.set_line(*this);
       pattern_subject_t subject;
-      // The destination lives in this implicit match-arm scope, but the
-      // subject was parsed before that scope existed and must resolve in the
-      // enclosing scope even when the binding shadows its name.
-      NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
-      if (!resolve_pattern_subject_(this, &subject_expr, des, subject_scope,
-                                    subject))
-            return nullptr;
+      if (subject_temporary_) {
+            subject.net = subject_temporary_;
+            subject.type = subject_type_;
+            subject.temporary = true;
+      } else {
+            if (subject_expr_) {
+                  cerr << get_fileline()
+                       << ": sorry: pattern variables currently require an "
+                          "identifier-valued match subject."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            PEIdent subject_expr(subject_.package, subject_.name,
+                                 lexical_pos_);
+            subject_expr.set_line(*this);
+            // The destination lives in this implicit match-arm scope, but
+            // the subject was parsed before that scope existed and must
+            // resolve in the enclosing scope even when the binding shadows
+            // its name.
+            NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
+            if (!resolve_pattern_subject_(this, &subject_expr, des,
+                                          subject_scope, subject))
+                  return nullptr;
+      }
 
       ivl_type_t selected_type = nullptr;
       NetExpr*source = select_pattern_value_(

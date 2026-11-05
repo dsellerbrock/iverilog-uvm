@@ -586,6 +586,13 @@ class PPatternAssign : public Statement {
                      perm_string destination)
       : subject_(subject), lexical_pos_(lexical_pos), path_(path),
         destination_(destination) { }
+      PPatternAssign(const PExpr*subject,
+                     const pform_pattern_path_t&path,
+                     perm_string destination)
+      : subject_expr_(subject), path_(path), destination_(destination) { }
+
+      void set_subject_temporary(NetNet*net, ivl_type_t type)
+      { subject_temporary_ = net; subject_type_ = type; }
 
       NetProc* elaborate(Design*des, NetScope*scope) const override;
       void dump(std::ostream&out, unsigned ind) const override;
@@ -593,6 +600,9 @@ class PPatternAssign : public Statement {
     private:
       pform_scoped_name_t subject_;
       unsigned lexical_pos_;
+      const PExpr*subject_expr_ = nullptr;
+      NetNet*subject_temporary_ = nullptr;
+      ivl_type_t subject_type_ = nullptr;
       pform_pattern_path_t path_;
       perm_string destination_;
 };

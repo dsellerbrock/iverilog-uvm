@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue1501_case_expression_subject.v",
+    "iverilog-args" : [ "-g2023", "-s", "top" ],
+    "gold"          : "issue1501_case_expression_subject"
+}

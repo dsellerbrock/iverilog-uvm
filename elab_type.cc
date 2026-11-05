@@ -1730,13 +1730,26 @@ ostream& pattern_binding_type_t::debug_dump(ostream&out) const
 ivl_type_t pattern_binding_type_t::elaborate_type_raw(Design*des,
                                                        NetScope*scope) const
 {
-      PEIdent subject(subject_.package, subject_.name, lexical_pos_);
-      subject.set_line(*this);
       // The binding is declared in the match arm's implicit scope. Resolve
       // the already-parsed subject from the enclosing scope so a binding with
       // the same spelling cannot create a circular self-type dependency.
       NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
-      ivl_type_t type = subject.test_type_of_ident(des, subject_scope);
+      ivl_type_t type = nullptr;
+      if (subject_expr_) {
+            PExpr*expr = const_cast<PExpr*>(subject_expr_);
+            PExpr::width_mode_t mode = PExpr::SIZED;
+            unsigned width = expr->test_width(des, subject_scope, mode);
+            NetExpr*value = expr->elaborate_expr(
+                  des, subject_scope, width, PExpr::NO_FLAGS);
+            if (value) {
+                  type = value->net_type();
+                  delete value;
+            }
+      } else {
+            PEIdent subject(subject_.package, subject_.name, lexical_pos_);
+            subject.set_line(*this);
+            type = subject.test_type_of_ident(des, subject_scope);
+      }
       if (!type) {
             cerr << get_fileline() << ": error: Unable to determine the type "
                  << "of the pattern-matching subject." << endl;

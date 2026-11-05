@@ -1216,28 +1216,29 @@ static void collect_pattern_bindings_(const PMatchPattern*pattern,
       }
 }
 
-static bool pattern_subject_path_(const struct vlltype&loc,
-                                  const PExpr*subject,
+static bool pattern_subject_path_(const PExpr*subject,
                                   pform_scoped_name_t&path,
-                                  unsigned&lexical_pos)
+                                  unsigned&lexical_pos,
+                                  bool&is_identifier)
 {
       const PEIdent*ident = dynamic_cast<const PEIdent*>(subject);
-      if (!ident || ident->leading_type_args()) {
-            VLerror(loc, "sorry: pattern variables currently require an "
-                         "identifier-valued match subject.");
-            return false;
-      }
-
-      for (const name_component_t&component : ident->path().name) {
-            if (!component.index.empty()) {
-                  VLerror(loc, "sorry: pattern variables currently require an "
-                               "unindexed match subject.");
-                  return false;
+      is_identifier = ident && !ident->leading_type_args();
+      if (is_identifier) {
+            for (const name_component_t&component : ident->path().name) {
+                  if (!component.index.empty()) {
+                        is_identifier = false;
+                        break;
+                  }
             }
       }
 
-      path = ident->path();
-      lexical_pos = ident->lexical_pos();
+      if (is_identifier) {
+            path = ident->path();
+            lexical_pos = ident->lexical_pos();
+      } else {
+            path = pform_scoped_name_t();
+            lexical_pos = 0;
+      }
       return true;
 }
 
@@ -1282,15 +1283,19 @@ PBlock* pform_pattern_push_scope(const struct vlltype&loc,
 
       pform_scoped_name_t subject_path;
       unsigned lexical_pos = 0;
-      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+      bool subject_is_identifier = false;
+      if (!pattern_subject_path_(subject, subject_path, lexical_pos,
+                                 subject_is_identifier))
             return block;
 
       for (const pattern_binding_t&binding : bindings) {
             PWire*wire = pform_makewire(
                   loc, pform_ident_t(binding.name, loc.lexical_pos),
                   NetNet::IMPLICIT_REG, nullptr);
-            pattern_binding_type_t*type = new pattern_binding_type_t(
-                  subject_path, lexical_pos, binding.path);
+            pattern_binding_type_t*type = subject_is_identifier
+                  ? new pattern_binding_type_t(subject_path, lexical_pos,
+                                               binding.path)
+                  : new pattern_binding_type_t(subject, binding.path);
             FILE_NAME(type, loc);
             wire->set_data_type(type);
       }
@@ -1317,13 +1322,17 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
 
       pform_scoped_name_t subject_path;
       unsigned lexical_pos = 0;
-      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+      bool subject_is_identifier = false;
+      if (!pattern_subject_path_(subject, subject_path, lexical_pos,
+                                 subject_is_identifier))
             return block;
 
       for (vector<pattern_binding_t>::reverse_iterator it = bindings.rbegin();
            it != bindings.rend(); ++it) {
-            PPatternAssign*assign = new PPatternAssign(
-                  subject_path, lexical_pos, it->path, it->name);
+            PPatternAssign*assign = subject_is_identifier
+                  ? new PPatternAssign(subject_path, lexical_pos, it->path,
+                                       it->name)
+                  : new PPatternAssign(subject, it->path, it->name);
             FILE_NAME(assign, loc);
             block->push_statement_front(assign);
       }
