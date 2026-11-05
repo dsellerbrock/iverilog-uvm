@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2520_disable_fork_named_block.v",
+  "iverilog-args": ["-g2023", "-s", "issue2520_disable_fork_named_block"],
+  "output-contains": [
+    "PASS disable fork terminates descendants in a named block"
+  ]
+}
