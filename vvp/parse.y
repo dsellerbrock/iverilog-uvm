@@ -1404,8 +1404,8 @@ class_property
       { compile_class_covgrp_item($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_OPTIONS T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_options($2, $3, $4, $5, $6); }
-  | K_COVGRP_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING
-      { compile_class_covgrp_option_values($2, $3, $4, $5, $6); }
+  | K_COVGRP_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING
+      { compile_class_covgrp_option_values($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_PER_INSTANCE T_NUMBER T_NUMBER
       { compile_class_covgrp_per_instance($2, $3); }
   | K_COVGRP_TYPE_WEIGHT T_NUMBER

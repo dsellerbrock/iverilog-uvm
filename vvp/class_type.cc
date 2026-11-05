@@ -3341,7 +3341,7 @@ void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
 
 void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
 					uint64_t comment_prop, uint64_t name_prop,
-					char*comment)
+					char*comment, char*name)
 {
       assert(compile_class);
       if (goal > std::numeric_limits<unsigned>::max()
@@ -3350,6 +3350,7 @@ void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
 	  || !compile_class_covgrp_string_property_valid_(name_prop)) {
 	    yyerror("invalid .covgrp_option_values metadata value");
 	    delete[]comment;
+	    delete[]name;
 	    return;
       }
       class_type::covgrp_options_t options = compile_class->covgrp_options();
@@ -3357,10 +3358,12 @@ void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
       options.goal = (unsigned)goal;
       options.comment_prop = comment_prop ? (int)(comment_prop - 1) : -1;
 	options.name_prop = name_prop ? (int)(name_prop - 1) : -1;
+	options.name = name ? name : "";
       compile_class_covgrp_split_comment_(comment, options.type_comment,
 					  options.comment);
       compile_class->set_covgrp_options(options);
       delete[]comment;
+	delete[]name;
 }
 
 void compile_class_covgrp_per_instance(uint64_t value, uint64_t property)
@@ -4096,7 +4099,7 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
       if (covgrp_options_.name_prop >= 0
 	  && (size_t)covgrp_options_.name_prop < property_count()) {
 	    obj->set_string((size_t)covgrp_options_.name_prop,
-		    "covergroup_" + std::to_string(obj->object_id()));
+		    covgrp_options_.name.empty() ? "covergroup_" + std::to_string(obj->object_id()) : covgrp_options_.name);
       }
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
