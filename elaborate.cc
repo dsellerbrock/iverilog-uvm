@@ -41528,6 +41528,91 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * the solver leaves free in the size pass and expands over the
 	       * solved size in the element pass (18.5.8.2 order). It covers a
 	       * class property and a local array of std::randomize(). */
+	      /* The same staged reduction applies to a selected row of a rand
+	       * dynamic array of dynamic arrays. The enclosing dynrows template
+	       * binds the row selector R; encode the row as a nested leaf so the
+	       * runtime can fold its solved element set after the row sizes pass. */
+	    if (cls && dynforeach_emit_ctx_ && !dynforeach_emit_ctx_->rows_var.nil()
+		&& !call->path().package && cpath.size() == 2
+		&& call->get_parms().size() <= 1
+		&& call->with_constraints().size() <= 1) {
+	      pform_name_t::const_iterator prop = cpath.begin();
+	      pform_name_t::const_iterator method = std::next(prop);
+	      const char*dop = method->name == perm_string::literal("sum") ? "add"
+		: method->name == perm_string::literal("product") ? "mul"
+		: method->name == perm_string::literal("and") ? "band"
+		: method->name == perm_string::literal("or") ? "bor"
+		: method->name == perm_string::literal("xor") ? "bxor" : nullptr;
+	      int pidx = cls->property_idx_from_name(prop->name);
+	      ivl_type_t dtype = pidx >= 0
+		    ? cls->get_prop_type((size_t)pidx) : nullptr;
+	      ivl_type_t delem = constraint_dyn2_inner_type_(dtype);
+	      if (dop && delem && prop->index.size() == 1
+		  && method->index.empty() && !prop->local_scope) {
+		    string row = constraint_dyn2_row_leaf_(prop->index.front(), cls,
+			  value_slots, scope, loop_env);
+		    if (row == "R" && dynforeach_emit_ctx_->prop_idx == pidx) {
+			  unsigned ewid = delem->packed_width();
+			  string esfx = delem->get_signed() ? ":s" : "";
+			  string header = to_string(pidx) + ":#R:"
+				+ to_string(ewid) + esfx;
+			  if (call->get_parms().size() > 1
+			      || (!call->get_parms().empty()
+				  && (!call->get_parms().front().name.nil()
+				      || !dynamic_cast<const PEIdent*>(
+					 call->get_parms().front().parm))))
+			      return "";
+			  if (call->with_constraints().empty())
+			      return "(dsum2 " + header + " " + dop + ")";
+			  const PEIdent*iter_ident = call->get_parms().empty() ? nullptr
+				: dynamic_cast<const PEIdent*>(call->get_parms().front().parm);
+			  if (iter_ident && (iter_ident->path().size() != 1
+			      || !iter_ident->path().back().index.empty())) return "";
+			  perm_string iter_name = iter_ident
+				? iter_ident->path().back().name
+				: perm_string::literal("item");
+			  NetScope*mutable_scope = const_cast<NetScope*>(scope);
+			  NetNet*iter_net = new NetNet(mutable_scope,
+				mutable_scope->local_symbol(), NetNet::REG, delem);
+			  iter_net->set_line(*call);
+			  iter_net->local_flag(true);
+			  NetNet*index_net = new NetNet(mutable_scope,
+				mutable_scope->local_symbol(), NetNet::REG,
+				&netvector_t::atom2s32);
+			  index_net->set_line(*call);
+			  index_net->local_flag(true);
+			  NetNet*previous = mutable_scope->set_signal_alias(iter_name, iter_net);
+			  push_array_method_iter_ctx(iter_net, index_net);
+			  PExpr*with_expr = call->with_constraints().front();
+			  PExpr::width_mode_t mode = PExpr::SIZED;
+			  unsigned rwidth = with_expr->test_width(
+				constraint_ir_design_ctx_, mutable_scope, mode);
+			  bool rsigned = with_expr->has_sign();
+			  ivl_variable_type_t rtype = with_expr->expr_type();
+			  pop_array_method_iter_ctx();
+			  mutable_scope->restore_signal_alias(iter_name, previous);
+			  if ((rtype != IVL_VT_BOOL && rtype != IVL_VT_LOGIC)
+			      || rwidth == 0 || rwidth > 64) return "";
+			  constraint_reduction_iter_ctx_t iter_ctx;
+			  iter_ctx.name = iter_name;
+			  iter_ctx.value_ir = "(delem " + header + " L)";
+			  iter_ctx.index_ir = "L";
+			  iter_ctx.value_type = delem;
+			  const constraint_reduction_iter_ctx_t*saved =
+				constraint_reduction_iter_ctx_;
+			  iter_ctx.parent = saved;
+			  constraint_reduction_iter_ctx_ = &iter_ctx;
+			  string value = pexpr_to_constraint_ir(with_expr, cls,
+				value_slots, scope, loop_env);
+			  constraint_reduction_iter_ctx_ = saved;
+			  if (value.empty()) return "";
+			  string rsfx = rsigned ? ":s" : "";
+			  value = "(trunc:" + to_string(rwidth) + rsfx + " " + value + ")";
+			  return "(dsum2w " + to_string(pidx) + ":#R:"
+				+ to_string(rwidth) + rsfx + " " + dop + " " + value + ")";
+		    }
+	      }
+	    }
 	    if (!call->path().package && (cpath.size() == 2 || cpath.size() == 3)
 		&& call->get_parms().size() <= 1 && call->with_constraints().size() <= 1
 		&& (call->get_parms().empty() || !call->with_constraints().empty())) {

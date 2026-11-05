@@ -783,7 +783,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
       if (op == "fsel" || op == "psel" || op == "delem" || op == "qmelem"
           || op == "qfield" || op == "qkeymember" || op == "hselectfield"
           || op == "qkeyelem" || op == "skelem" || op == "dsum"
-          || op == "dsumw" || op == "qsel") {
+          || op == "dsumw" || op == "dsum2" || op == "dsum2w"
+          || op == "qsel") {
             string header = par.read_token();
             vector<string> fields;
             string field;
@@ -794,7 +795,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
             size_t wi = op == "psel" ? 0 : op == "qmelem" ? 2
                   : op == "delem" && fields.size() > 1
                         && !fields[1].empty() && fields[1][0] == '#' ? 2
-                  : op == "hselectfield" ? 1 : op == "qfield" ? 3 : 1;
+                  : op == "hselectfield" ? 1 : op == "qfield" ? 3
+                  : (op == "dsum2" || op == "dsum2w") ? 2 : 1;
             if (wi >= n) return false;
             char*end = nullptr;
             unsigned long width = strtoul(fields[wi].c_str(), &end, 10);
@@ -3821,6 +3823,54 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			+ to_string(rwid);
 	    }
 	    string text = "(trunc:" + to_string(rwid) + (rsig ? ":s " : " ")
+		  + chain + ")";
+	    IRParser sub(text);
+	    return build_z3_atom(sub, b);
+      }
+
+	/* A reduction over one row of a rand dynamic array of dynamic arrays.
+	 * Its row is selected by the enclosing dynrows expansion. Row sizes are
+	 * chosen in the row-size pass; the reduction is folded only in the final
+	 * element pass when both the row and its solved size are available. */
+      if (op == "dsum2" || op == "dsum2w") {
+	    string hdr = par.read_token();
+	    unsigned pidx = 0, leaf = 0, width = 0; bool sign = false;
+	    if (!parse_nested_pws_header_(hdr, pidx, leaf, width, sign)
+		|| !selected_queue_leaf_(b, pidx, leaf)) {
+		  b.state_errors.push_back("malformed selected dynamic-array reduction header");
+		  capture_balanced_form(par);
+		  return b.mk_true();
+	    }
+	    string red = par.read_token();
+	    string body;
+	    if (op == "dsum2w") body = capture_balanced_form(par);
+	    par.skip_ws(); par.expect(')');
+	    if (!b.dyn_sizes || b.row_pass) {
+		  Z3_ast free_value = Z3_mk_fresh_const(
+			b.ctx, op == "dsum2w" ? "dsum2w" : "dsum2",
+			Z3_mk_bv_sort(b.ctx, width));
+		  if (sign) b.signed_vars.insert(free_value);
+		  return free_value;
+	    }
+	    uint64_t count = 0;
+	    auto found = b.dyn_sizes->find(make_pair(pidx, leaf));
+	    if (found != b.dyn_sizes->end()) count = found->second;
+	    string chain;
+	    for (uint64_t i = 0; i < count; ++i) {
+		  string item;
+		  if (op == "dsum2w") item = subst_loop_token(body, i);
+		  else item = "(delem " + hdr + " c:" + to_string(i) + ":32)";
+		  chain = chain.empty() ? item
+			: "(" + red + " " + chain + " " + item + ")";
+	    }
+	    if (chain.empty()) {
+		  uint64_t identity = red == "mul" ? 1
+			: red == "band" ? (width >= 64 ? ~(uint64_t)0
+					       : (((uint64_t)1 << width) - 1)) : 0;
+		  chain = "c:" + to_string((unsigned long long)identity) + ":"
+			+ to_string(width);
+	    }
+	    string text = "(trunc:" + to_string(width) + (sign ? ":s " : " ")
 		  + chain + ")";
 	    IRParser sub(text);
 	    return build_z3_atom(sub, b);
