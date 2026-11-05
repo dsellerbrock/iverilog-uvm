@@ -8980,6 +8980,29 @@ static bool rand_size_active_(const Z3Builder&builder,
 static bool rand_nested_elem_active_(const Z3Builder&builder,
       const vector<bool>*selection, unsigned idx, unsigned leaf, unsigned elem)
 {
+	// A fixed-array leaf that is a queue has two independently selectable
+	// rand_mode levels. The queue's element state already reflects calls on
+	// the containing word (which set every element) and subsequent overrides
+	// on individual queue elements. Do not gate such an override a second
+	// time through the containing word's mode.
+	const class_type*type = builder.type(idx);
+	unsigned pid = builder.local_index(idx);
+	if (type && pid < type->property_count()
+	    && !type->property_dimensions(pid).empty()) {
+	      const std::string&bt = type->property_base_type(pid);
+	      if (!bt.empty() && bt[0] == 'Q') {
+		if (selection && idx < selection->size() && (*selection)[idx])
+		      return true;
+		if (!type->property_is_rand(pid)) return false;
+		vvp_object_t object;
+		get_leaf_object_(builder.object(idx), builder.local_index(idx),
+				 leaf, object);
+		vvp_darray*array = object.peek<vvp_darray>();
+		if (!array) return true; // The size pass may create this queue.
+		return elem < array->get_size() ? array->rand_mode(elem)
+		      : array->rand_mode_default();
+	      }
+	}
       if (!rand_size_active_(builder, selection, idx, leaf)) return false;
       if (leaf > 0
 	  && builder.type(idx)->property_is_dyn2(builder.local_index(idx))

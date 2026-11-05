@@ -5978,8 +5978,6 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 		  uint64_t count = defn->property_array_size(pid);
 		  bool all_active = sel && pid < sel->size() && (*sel)[pid];
 		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
-			if (!rand_leaf_active_(defn, cobj, sel, pid,
-					   (size_t)leaf)) continue;
 			vvp_object_t object;
 			cobj->get_object(pid, object, (size_t)leaf);
 			vvp_darray*array = object.peek<vvp_darray>();

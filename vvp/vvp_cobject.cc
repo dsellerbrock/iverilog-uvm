@@ -325,6 +325,21 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 			aggregate->set_all_rand_mode(mode);
 	    }
       }
+	// A fixed array of queues stores each queue's element modes separately
+	// from the fixed-array leaf mode. A property-wide call covers both levels.
+      if (pid < defn_->property_count()
+	  && !defn_->property_dimensions(pid).empty()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    if (!bt.empty() && bt[0] == 'Q') {
+		  uint64_t count = defn_->property_array_size(pid);
+		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
+			vvp_object_t obj;
+			get_object(pid, obj, (size_t)leaf);
+			if (vvp_darray*array = obj.peek<vvp_darray>())
+			      array->set_all_rand_mode(mode);
+		  }
+	    }
+      }
 }
 
 void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
@@ -343,17 +358,30 @@ void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
       }
       if (pid < defn_->property_count() && defn_->property_is_static(pid)) {
 	    defn_->set_static_rand_mode(pid, leaf, mode);
-	    return;
+	} else {
+	      if (pid >= rand_mode_.size()) return;
+	      uint64_t count = defn_->property_array_size(pid);
+	      if (count < 1) count = 1;
+	      if (leaf >= count) return;
+	      randc_key_t key(pid, leaf);
+	      if (mode == rand_mode_[pid])
+		    rand_mode_leaves_.erase(key);
+	      else
+		    rand_mode_leaves_[key] = mode;
+	}
+	// An indexed fixed-array selection of a queue applies to every queue
+	// element in that selected word. Later queue-element calls can override
+	// those per-element modes independently.
+      if (pid < defn_->property_count()
+	  && !defn_->property_dimensions(pid).empty()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    if (!bt.empty() && bt[0] == 'Q') {
+		  vvp_object_t obj;
+		  get_object(pid, obj, leaf);
+		  if (vvp_darray*array = obj.peek<vvp_darray>())
+			array->set_all_rand_mode(mode);
+	    }
       }
-      if (pid >= rand_mode_.size()) return;
-      uint64_t count = defn_->property_array_size(pid);
-      if (count < 1) count = 1;
-      if (leaf >= count) return;
-      randc_key_t key(pid, leaf);
-      if (mode == rand_mode_[pid])
-	    rand_mode_leaves_.erase(key);
-      else
-	    rand_mode_leaves_[key] = mode;
 }
 
 bool vvp_cobject::rand_mode(size_t pid, const std::string&key) const
