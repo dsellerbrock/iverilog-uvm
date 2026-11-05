@@ -511,6 +511,7 @@ extern bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SUSPEND_2023(vthread_t thr, vvp_code_t code);
 /* Mailbox opcodes */
 extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_NEW_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_GET(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PEEK(vthread_t thr, vvp_code_t code);
@@ -529,6 +530,7 @@ extern bool of_UNBOX_STR(vthread_t thr, vvp_code_t code);
 extern bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t code);
 /* Semaphore opcodes */
 extern bool of_SEM_NEW(vthread_t thr, vvp_code_t code);
+extern bool of_SEM_NEW_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_SEM_GET(vthread_t thr, vvp_code_t code);
 extern bool of_SEM_PUT(vthread_t thr, vvp_code_t code);
 extern bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t code);

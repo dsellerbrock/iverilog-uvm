@@ -3086,8 +3086,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    long bound = 0;
 	    if (parm_count > 0) {
 		  ivl_expr_t bexpr = ivl_expr_parm(expr, 0);
-		  if (bexpr && ivl_expr_type(bexpr) == IVL_EX_NUMBER)
+		  if (bexpr && ivl_expr_type(bexpr) == IVL_EX_NUMBER) {
 			bound = (long)ivl_expr_uvalue(bexpr);
+		  } else if (bexpr) {
+			draw_eval_vec4(bexpr);
+			fprintf(vvp_out, "    %%mbx/new/vec4;\n");
+			return 0;
+		  }
 	    }
 	    fprintf(vvp_out, "    %%mbx/new %ld;\n", bound);
 	    return 0;
@@ -3098,8 +3103,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    long cnt = 0;
 	    if (parm_count > 0) {
 		  ivl_expr_t cexpr = ivl_expr_parm(expr, 0);
-		  if (cexpr && ivl_expr_type(cexpr) == IVL_EX_NUMBER)
+		  if (cexpr && ivl_expr_type(cexpr) == IVL_EX_NUMBER) {
 			cnt = (long)ivl_expr_uvalue(cexpr);
+		  } else if (cexpr) {
+			draw_eval_vec4(cexpr);
+			fprintf(vvp_out, "    %%sem/new/vec4;\n");
+			return 0;
+		  }
 	    }
 	    fprintf(vvp_out, "    %%sem/new %ld;\n", cnt);
 	    return 0;

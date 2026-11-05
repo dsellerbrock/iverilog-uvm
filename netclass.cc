@@ -318,6 +318,74 @@ bool netclass_t::implements_interface(const netclass_t*interface_type) const
       return implements_interface_(this, interface_type, seen);
 }
 
+perm_string netclass_t::builtin_resource_delegate_property_name()
+{
+      return perm_string::literal("$ivl_resource_delegate");
+}
+
+bool netclass_t::is_builtin_resource_type() const
+{
+      return this == builtin_class_type(perm_string::literal("semaphore"))
+	|| this == builtin_class_type(perm_string::literal("mailbox"))
+	|| is_typed_mailbox();
+}
+
+const netclass_t* netclass_t::builtin_resource_type() const
+{
+      for (const netclass_t*cur = this; cur; cur = cur->get_super())
+	    if (cur->is_builtin_resource_type())
+		  return cur;
+      return nullptr;
+}
+
+const netclass_t* netclass_t::builtin_resource_method_type(
+	    perm_string method) const
+{
+      const netclass_t*resource = builtin_resource_type();
+      if (!resource)
+	    return nullptr;
+
+      if (resource == builtin_class_type(perm_string::literal("semaphore"))) {
+	    if (method == perm_string::literal("get")
+		|| method == perm_string::literal("put")
+		|| method == perm_string::literal("try_get"))
+		  return resource;
+	    return nullptr;
+      }
+
+      if (resource == builtin_class_type(perm_string::literal("mailbox"))
+	  || resource->is_typed_mailbox()) {
+	    if (method == perm_string::literal("num")
+		|| method == perm_string::literal("put")
+		|| method == perm_string::literal("try_put")
+		|| method == perm_string::literal("get")
+		|| method == perm_string::literal("try_get")
+		|| method == perm_string::literal("peek")
+		|| method == perm_string::literal("try_peek"))
+		  return resource;
+	      }
+      return nullptr;
+}
+
+int netclass_t::builtin_resource_delegate_index() const
+{
+      for (const netclass_t*child = this;
+	   child && child->get_super(); child = child->get_super()) {
+	    if (child->get_super()->is_builtin_resource_type())
+		  return child->property_idx_from_name(
+			builtin_resource_delegate_property_name());
+      }
+      return -1;
+}
+
+void netclass_t::add_builtin_resource_delegate_property()
+{
+      if (super_ && super_->is_builtin_resource_type())
+	    set_property(builtin_resource_delegate_property_name(),
+			 property_qualifier_t::make_none(),
+			 const_cast<netclass_t*>(super_));
+}
+
 bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
 				      ivl_type_t ptype,
 				      perm_string interface_modport,

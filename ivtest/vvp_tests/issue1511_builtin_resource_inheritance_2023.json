@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1511_builtin_resource_inheritance_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue1511_builtin_resource_inheritance"],
+  "output-contains": ["PASSED"]
+}
