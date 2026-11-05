@@ -1306,6 +1306,9 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
       vpiHandle get_left_range() override;
       vpiHandle get_right_range() override;
       __vpiScope*get_scope() const override { return scope_; }
+      // Internal coverage resolution reads a module-scope array at the
+      // covergroup's construction point, then stores only its bin snapshot.
+      vvp_darray*get_vvp_darray_value() const { return get_vvp_darray(); }
 
       int get_word_size() const override;
       char*get_word_str(struct __vpiArrayWord*word, int code) override;

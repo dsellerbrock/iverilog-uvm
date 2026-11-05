@@ -6,6 +6,8 @@ issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=is
 
 issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
+issue1198_dynamic_set_2017 normal,-g2017,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
+issue1198_dynamic_set_2023 normal,-g2023,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
 issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue1824_rand_inside_part_select_2017 normal,-g2017,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold

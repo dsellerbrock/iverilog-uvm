@@ -48885,6 +48885,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      const PEIdent*sid = dynamic_cast<const PEIdent*>(bin.set_expr);
 				      int set_prop = -1;
 				      bool set_on_parent = false;
+				      bool set_on_module = false;
+				      std::string set_module_name;
 				      bool set_ctor_formal = false;
 				      ivl_type_t set_type = nullptr;
 				      if (sid && sid->path().size() == 1) {
@@ -48902,6 +48904,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  if (set_prop >= 0) {
 							set_on_parent = true;
 							set_type = get_prop_type((size_t)set_prop);
+						  }
+					    }
+					    if (set_prop < 0 && cg_standalone
+						&& class_scope_->parent()
+						&& class_scope_->parent()->type() == NetScope::MODULE) {
+						  NetNet*module_signal =
+							class_scope_->parent()->find_signal(set_name);
+						  if (module_signal) {
+							set_on_module = true;
+							set_module_name = module_signal->name().str();
+							set_type = module_signal->net_type();
 						  }
 					    }
 				      }
@@ -48939,7 +48952,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  set_array_size = sc->value().as_ulong64();
 					    delete se;
 				      }
-				      if (!integral_set || set_prop < 0) {
+				      if (!integral_set || (set_prop < 0 && !set_on_module)) {
 					    cerr << "sorry: covergroup bin '" << bin.name
 						 << "' set expression must be a direct integral "
 						 << "dynamic-array or queue property; the bin is "
@@ -48947,8 +48960,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    continue;
 				      }
 				      unsigned family = dyn_family++;
-				      std::string set_ir = set_on_parent ? "setp:" : "setc:";
-				      set_ir += std::to_string(set_prop);
+				      std::string set_ir;
+				      if (set_on_module) {
+					    static const char hex[] = "0123456789abcdef";
+					    set_ir = "setm:";
+					    for (unsigned char ch : set_module_name) {
+						  set_ir.push_back(hex[ch >> 4]);
+						  set_ir.push_back(hex[ch & 0x0f]);
+					    }
+				      } else {
+					    set_ir = set_on_parent ? "setp:" : "setc:";
+					    set_ir += std::to_string(set_prop);
+				      }
 				      set_ir += set_value_signed ? ":s" : ":u";
 				      set_ir += std::to_string(set_value_width);
 				      cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, kindval,
