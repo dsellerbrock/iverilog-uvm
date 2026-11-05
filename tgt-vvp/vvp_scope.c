@@ -892,6 +892,18 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    return;
       }
       if (ivl_signal_port(sig) == IVL_SIP_REF) {
+	    ivl_type_t ref_type = ivl_signal_net_type(sig);
+	    if (ref_type && ivl_type_base(ref_type) == IVL_VT_QUEUE) {
+		  ivl_type_t element_type = ivl_type_element(ref_type);
+		  fprintf(vvp_out, "v%p_0 .ref/queue %s\"%s\", %u %u;\n",
+			  sig, local_flag_str(sig),
+			  vvp_mangle_name(ivl_signal_basename(sig)),
+			  element_type ? ivl_type_packed_width(element_type) : 0,
+			  element_type ? !!ivl_type_signed(element_type) : 0);
+		  return;
+	    }
+      }
+      if (ivl_signal_port(sig) == IVL_SIP_REF) {
 	    fprintf(vvp_out, "v%p_0 %s %s\"%s\", %d %d;\n",
 		    sig, ivl_signal_data_type(sig) == IVL_VT_BOOL ? ".ref/2s" : ".ref",
 		    local_flag_str(sig),

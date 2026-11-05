@@ -734,6 +734,31 @@ void compile_ref_variable_string(char*label, char*name, bool local_flag)
       delete[] name;
 }
 
+void compile_ref_variable_queue(char*label, char*name, bool local_flag,
+                                unsigned element_width,
+                                bool element_signed)
+{
+      vvp_net_t*net = new vvp_net_t;
+      vvp_ref_signal_aa*tmp = new vvp_ref_signal_aa(1);
+      net->fil = tmp;
+      net->fun = tmp;
+
+      define_functor_symbol(label, net);
+
+      if (!local_flag && name) {
+            vpiHandle obj = vpip_make_queue_var(
+                  name, net, vpip_peek_current_scope()->is_automatic(),
+                  element_signed, element_width, 0, false);
+            if (obj) {
+                  compile_vpi_symbol(label, obj);
+                  vpip_attach_to_current_scope(obj);
+            }
+      }
+
+      free(label);
+      delete[] name;
+}
+
 vvp_net_t* create_constant_node(const char*val_str)
 {
       if (c4string_test(val_str)) {

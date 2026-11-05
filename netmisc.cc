@@ -4711,12 +4711,20 @@ bool ref_formal_is_bound(const NetNet*port)
 	  && owner->task_pform()->is_dpi_import())
 	    return false;
 
-      if (port->unpacked_dimensions() > 0)
-	    return false;
-
       ivl_type_t ptype = port->net_type();
-      if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array, queue
+      if (dynamic_cast<const netdarray_t*>(ptype)) {  // dynamic array, queue
+	    // Queue objects are accessed through the same object interface as the
+	    // existing ref binding supports. Keep dynamic and associative arrays
+	    // on the legacy copy path; queue element references must attach to the
+	    // caller's queue so they retain element identity across queue methods
+	    // (7.10.3).
+	    const netqueue_t*q = port->queue_type();
+	    if (!q || q->assoc_compat()) return false;
+      } else if (port->unpacked_dimensions() > 0) {
 	    return false;
+      }
+      if (port->queue_type())
+	    return true;
       if (dynamic_cast<const netarray_t*>(ptype))     // fixed array
 	    return false;
 
@@ -4826,8 +4834,9 @@ void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
 	    return;
 
 	/* Only the shapes ref_formal_is_bound() leaves copy-bound because
-	   of TYPE are in scope here -- a class handle is bound, a packed
-	   integral formal is bound, and neither is the residual. Figure
+	   of TYPE are in scope here -- packed integral, class handle and
+	   queue formals are bound, while the residual includes dynamic and
+	   associative arrays. Figure
 	   out the human-readable label the same way ref_formal_is_bound()
 	   figures out the exclusion, so the two can never drift apart. */
       const char*what = 0;

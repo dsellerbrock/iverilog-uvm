@@ -640,6 +640,10 @@ extern void compile_ref_variable_2state(char*label, char*name,
  */
 extern void compile_ref_variable_real(char*label, char*name, bool local_flag);
 extern void compile_ref_variable_string(char*label, char*name, bool local_flag);
+extern void compile_ref_variable_queue(char*label, char*name,
+                                      bool local_flag,
+                                      unsigned element_width,
+                                      bool element_signed);
 
 extern void compile_var_real(char*label, char*name, int lifetime_flag);
 extern void compile_var_string(char*label, char*name, int lifetime_flag);
