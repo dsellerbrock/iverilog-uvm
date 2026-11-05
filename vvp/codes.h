@@ -482,6 +482,7 @@ extern bool of_RAND_MODE_P_LAST(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_P_Q(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t code);
+extern bool of_RAND_MODE_GET_Q(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE_GET_LAST(vthread_t thr, vvp_code_t code);
 extern bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t code);

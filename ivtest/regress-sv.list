@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2571_rand_mode_fixed_queue_query_2017 normal,-g2017,-s,issue2571_rand_mode_fixed_queue_query ivltests gold=issue2571_rand_mode_fixed_queue_query-legacy.gold
+issue2571_rand_mode_fixed_queue_query_2023 normal,-g2023,-s,issue2571_rand_mode_fixed_queue_query ivltests gold=issue2571_rand_mode_fixed_queue_query-legacy.gold
+
 issue722_followed_by_2017 normal,-g2017,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 

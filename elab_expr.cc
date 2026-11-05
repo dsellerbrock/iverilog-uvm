@@ -18799,6 +18799,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
 		  NetExpr*leaf_expr = nullptr;
 		  uint64_t leaf_count = 0;
+		  NetExpr*queue_index_expr = nullptr;
+		  bool queue_element = false;
 		  bool assoc_index = false;
 		  bool last_index = false;
 		  bool field_diagnostic = false;
@@ -18837,8 +18839,13 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    const netranges_t&dims =
 					  array_type->static_dimensions();
 				    size_t used = field_comp.index.size();
+				    const netqueue_t*queue_type =
+					  dynamic_cast<const netqueue_t*>(
+					      array_type->element_type());
+				    queue_element = queue_type && !queue_type->assoc_compat()
+					  && used == dims.size() + 1;
 				    if (used > dims.size()) {
-					  if (dynamic_cast<const netvector_t*>(
+					  if (queue_element || dynamic_cast<const netvector_t*>(
 						array_type->element_type()))
 						used = dims.size();
 					  else {
@@ -18886,6 +18893,22 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						for (size_t dim = used ; dim < dims.size();
 						     dim += 1)
 						      leaf_count *= dims[dim].width();
+					if (queue_element) {
+					      const index_component_t&qidx =
+						*std::next(field_comp.index.begin(), used);
+					      if (qidx.sel == index_component_t::SEL_BIT)
+						queue_index_expr = elab_and_eval(des, scope,
+						      qidx.msb, -1, false);
+					      if (!queue_index_expr) {
+						cerr << get_fileline() << ": error: rand_mode() "
+						     << "requires an indexed queue element."
+						     << endl;
+						des->errors += 1;
+						delete obj_expr;
+						obj_expr = nullptr;
+						field_diagnostic = true;
+					      }
+					}
 					  }
 				    }
 			      } else if (const netdarray_t*container_type =
@@ -18969,7 +18992,9 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      verinum((uint64_t)pid, 32));
 			pe->set_line(*this);
 			NetESFunc*tmp = new NetESFunc(
-			      last_index
+			      queue_index_expr
+				? "$ivl_class_method$rand_mode_get_nested"
+			      : last_index
 				? "$ivl_class_method$rand_mode_get_last"
 			      : assoc_index
 				? "$ivl_class_method$rand_mode_get_assoc"
@@ -18980,10 +19005,14 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			tmp->parm(1, pe);
 			if (leaf_expr) {
 			      tmp->parm(2, leaf_expr);
-			      NetExpr*count_expr = new NetEConst(
-				    verinum(leaf_count, 64));
-			      count_expr->set_line(*this);
-			      tmp->parm(3, count_expr);
+			      if (queue_index_expr) {
+				    tmp->parm(3, queue_index_expr);
+			      } else {
+				    NetExpr*count_expr = new NetEConst(
+					  verinum(leaf_count, 64));
+				    count_expr->set_line(*this);
+				    tmp->parm(3, count_expr);
+			      }
 			}
 			return tmp;
 		  }
