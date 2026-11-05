@@ -18,6 +18,8 @@
  */
 
 # include  "compile.h"
+# include  "codes.h"
+# include  "vvp_vpi_callback.h"
 # include  "vpi_priv.h"
 # include  "class_type.h"
 # include  "udp.h"
@@ -570,39 +572,39 @@ void compile_vpi_primitive_term(char *primitive_label, long direction,
       delete[] expression_label;
 }
 
-class __vpiStmtNode : public __vpiHandle {
-    public:
-      __vpiStmtNode(int type, const char*name)
-      : type_(type), name_(vpip_name_string(name)), parent_(0) { }
-      int get_type_code(void) const override { return type_; }
-      char* vpi_get_str(int code) override
-      {
-	    if (code == vpiName && name_ && *name_)
-		  return const_cast<char*>(name_);
-	    return __vpiHandle::vpi_get_str(code);
-      }
-      vpiHandle vpi_handle(int code) override
-      {
-	    if (code == vpiParent) return parent_;
-	    return __vpiHandle::vpi_handle(code);
-      }
-      vpiHandle vpi_iterate(int code) override
-      {
-	    if (code != vpiStmt || children_.empty()) return 0;
-	    vpiHandle*args = static_cast<vpiHandle*>(
-		  calloc(children_.size(), sizeof(vpiHandle)));
-	    for (size_t idx = 0; idx < children_.size(); idx += 1)
-		  args[idx] = children_[idx];
-	    return vpip_make_iterator(children_.size(), args, true);
-      }
-      void add_child(__vpiStmtNode*child)
-      { children_.push_back(child); child->parent_ = this; }
-    private:
-      int type_;
-      const char*name_;
-      __vpiStmtNode*parent_;
-      std::vector<__vpiStmtNode*> children_;
-};
+__vpiStmtNode::__vpiStmtNode(int type, const char*name, __vpiScope*scope)
+: scope_(scope), type_(type), name_(vpip_name_string(name)), parent_(0)
+{ }
+
+int __vpiStmtNode::get_type_code(void) const
+{ return type_; }
+
+char* __vpiStmtNode::vpi_get_str(int code)
+{
+      if (code == vpiName && name_ && *name_)
+	    return const_cast<char*>(name_);
+      return __vpiHandle::vpi_get_str(code);
+}
+
+vpiHandle __vpiStmtNode::vpi_handle(int code)
+{
+      if (code == vpiParent) return parent_;
+      if (code == vpiScope) return scope_;
+      return __vpiHandle::vpi_handle(code);
+}
+
+vpiHandle __vpiStmtNode::vpi_iterate(int code)
+{
+      if (code != vpiStmt || children_.empty()) return 0;
+      vpiHandle*args = static_cast<vpiHandle*>(
+	    calloc(children_.size(), sizeof(vpiHandle)));
+      for (size_t idx = 0; idx < children_.size(); idx += 1)
+	    args[idx] = children_[idx];
+      return vpip_make_iterator(children_.size(), args, true);
+}
+
+void __vpiStmtNode::add_child(__vpiStmtNode*child)
+{ children_.push_back(child); child->parent_ = this; }
 
 /* compares vpiType's considering object classes */
 static int compare_types(int code, int type, bool is_typedef = false)
@@ -2100,15 +2102,20 @@ void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
 {
       __vpiScope*scope = vpip_peek_current_scope();
-      assert(scope && (scope->get_type_code() == vpiTask
-		       || scope->get_type_code() == vpiFunction));
       assert(id != 0 && type <= INT_MAX);
-      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name);
+      assert(scope);
+      __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name,
+						       scope);
       assert(scope->statement_node_by_id.find(id)
 	     == scope->statement_node_by_id.end());
-      if (parent == 0) {
-	    assert(scope->statement_root == 0);
-	    scope->statement_root = obj;
+      if (parent == UINT64_MAX) {
+	    /* Hidden task/function entry block: it has an execution handle, but
+	       the established vpiStmt relation exposes its only child as root. */
+	  } else if (parent == 0) {
+	    if ((scope->get_type_code() == vpiTask
+		 || scope->get_type_code() == vpiFunction)
+		&& scope->statement_root == 0)
+		  scope->statement_root = obj;
       } else {
 	    std::map<uint64_t, vpiHandle>::iterator par =
 		  scope->statement_node_by_id.find(parent);
@@ -2118,6 +2125,32 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       scope->statement_node_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
       delete[] name;
+}
+
+void compile_stmt_at(uint64_t id)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      __vpiStmtNode*node = 0;
+      while (scope) {
+	    std::map<uint64_t, vpiHandle>::iterator found =
+		  scope->statement_node_by_id.find(id);
+	    if (found != scope->statement_node_by_id.end()) {
+		  node = dynamic_cast<__vpiStmtNode*>(found->second);
+		  break;
+	    }
+	    scope = scope->scope;
+      }
+      if (!node) {
+	    yyerror("invalid .stmt_at metadata");
+	    compile_errors += 1;
+	    return;
+      }
+
+      vvp_code_t code = codespace_next();
+      for (size_t idx = 0; idx < node->code_addresses_.size(); idx += 1)
+	    if (node->code_addresses_[idx] == code) return;
+      node->code_addresses_.push_back(code);
+      vpip_note_statement_code(code, node);
 }
 
 /*

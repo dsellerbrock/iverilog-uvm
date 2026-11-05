@@ -65,6 +65,105 @@ class __vpiForceReleaseStmt : public __vpiHandle {
 static thread_local vpiHandle current_force_statement = 0;
 static std::unordered_map<vvp_code_t, vpiHandle> force_statements;
 
+class statement_callback : public __vpiCallback {
+    public:
+      statement_callback(p_cb_data data, __vpiScope*module,
+			 __vpiStmtNode*stmt)
+	  : module_scope(module), stmt_node(stmt)
+      {
+	    cb_data = *data;
+	    cb_time = *data->time;
+	    cb_data.time = &cb_time;
+	    cb_data.value = 0;
+      }
+      PLI_INT32 remove() override;
+
+      __vpiScope*module_scope;
+      __vpiStmtNode*stmt_node;
+      struct t_vpi_time cb_time;
+};
+
+struct statement_dispatch_s {
+      statement_callback*callback;
+      __vpiStmtNode*statement;
+};
+
+bool vpip_statement_callbacks_active = false;
+static std::vector<statement_callback*> statement_callbacks;
+static std::unordered_map<vvp_code_t, std::vector<__vpiStmtNode*> >
+      statement_code_nodes;
+static std::unordered_map<vvp_code_t, std::vector<statement_dispatch_s> >
+      statement_dispatch;
+
+static bool stmt_callback_capable_(int type)
+{
+      switch (type) {
+	  case vpiBegin:
+	  case vpiNamedBegin:
+	  case vpiFork:
+	  case vpiNamedFork:
+	  case vpiIf:
+	  case vpiIfElse:
+	  case vpiWhile:
+	  case vpiRepeat:
+	  case vpiFor:
+	  case vpiForever:
+	  case vpiWait:
+	  case vpiCase:
+	  case vpiAssignment:
+	  case vpiAssignStmt:
+	  case vpiDeassign:
+	  case vpiDisable:
+	  case vpiForce:
+	  case vpiRelease:
+	  case vpiEventStmt:
+	  case vpiDelayControl:
+	  case vpiEventControl:
+	  case vpiTaskCall:
+	  case vpiSysTaskCall:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static __vpiScope* stmt_module_scope_(__vpiScope*scope)
+{
+      for (; scope; scope = scope->scope) {
+	    int type = scope->get_type_code();
+	    if (type == vpiModule) return scope;
+	    if (type == vpiProgram || type == vpiInterface) return 0;
+      }
+      return 0;
+}
+
+static void append_statement_dispatch_(vvp_code_t code,
+				      statement_callback*callback,
+				      __vpiStmtNode*statement)
+{
+      statement_dispatch_s entry = { callback, statement };
+      statement_dispatch[code].push_back(entry);
+}
+
+void vpip_note_statement_code(vvp_code_t code, vpiHandle handle)
+{
+      __vpiStmtNode*statement = dynamic_cast<__vpiStmtNode*>(handle);
+      assert(code && statement);
+      statement_code_nodes[code].push_back(statement);
+}
+
+PLI_INT32 statement_callback::remove()
+{
+      PLI_INT32 result = __vpiCallback::remove();
+      vpip_statement_callbacks_active = false;
+      for (size_t idx = 0; idx < statement_callbacks.size(); idx += 1)
+	    if (statement_callbacks[idx]->cb_data.cb_rtn) {
+		  vpip_statement_callbacks_active = true;
+		  break;
+	    }
+      return result;
+}
+
 void vpip_note_force_statement(vvp_code_t code, vpiHandle statement)
 {
       force_statements[code] = statement;
@@ -1074,6 +1173,108 @@ static simulator_callback* make_prepost(p_cb_data data)
       return obj;
 }
 
+static statement_callback* make_statement_callback(p_cb_data data)
+{
+      __vpiScope*module = dynamic_cast<__vpiScope*>(data->obj);
+      __vpiStmtNode*statement = dynamic_cast<__vpiStmtNode*>(data->obj);
+      if (!data->cb_rtn) {
+	    fprintf(stderr, "VPI error: cbStmt callback has no callback routine\n");
+	    return 0;
+      }
+      if (!data->time) {
+	    fprintf(stderr, "VPI error: null value passed in cb_data.time "
+		    "when registering cbStmt callback\n");
+	    return 0;
+      }
+      if (!check_callback_time(data, true)) return 0;
+
+      if (module && module->get_type_code() == vpiModule) {
+	    statement = 0;
+      } else if (statement && stmt_callback_capable_(
+			  statement->get_type_code())) {
+	    module = 0;
+      } else {
+	    fprintf(stderr, "VPI error: cbStmt requires a statement or module "
+		    "object\n");
+	    return 0;
+      }
+
+      statement_callback*callback = new statement_callback(data, module,
+							  statement);
+      statement_callbacks.push_back(callback);
+      vpip_statement_callbacks_active = true;
+
+      if (statement) {
+	    for (size_t idx = 0; idx < statement->code_addresses_.size(); idx += 1)
+		  append_statement_dispatch_(statement->code_addresses_[idx],
+					     callback, statement);
+      } else {
+	    for (std::unordered_map<vvp_code_t,
+			     std::vector<__vpiStmtNode*> >::const_iterator cur =
+			     statement_code_nodes.begin();
+		 cur != statement_code_nodes.end(); ++cur) {
+		  for (size_t idx = 0; idx < cur->second.size(); idx += 1) {
+			__vpiStmtNode*node = cur->second[idx];
+			if (!stmt_callback_capable_(node->get_type_code())
+			    || stmt_module_scope_(node->scope_) != module)
+			      continue;
+			append_statement_dispatch_(cur->first, callback, node);
+		  }
+	    }
+      }
+
+      return callback;
+}
+
+static void execute_statement_callback_(statement_callback*callback,
+					__vpiStmtNode*statement)
+{
+      if (!callback->cb_data.cb_rtn) return;
+
+      struct t_cb_data call_data = callback->cb_data;
+      call_data.reason = cbStmt;
+      call_data.obj = statement;
+      call_data.value = 0;
+      call_data.index = 0;
+
+      if (callback->cb_time.type == vpiSuppressTime) {
+	    call_data.time = 0;
+      } else {
+	    callback->cb_time.low = 0;
+	    callback->cb_time.high = 0;
+	    callback->cb_time.real = 0.0;
+	    if (callback->cb_time.type == vpiSimTime)
+		  vpip_time_to_timestruct(&callback->cb_time,
+					  schedule_simtime());
+	    else if (callback->cb_time.type == vpiScaledRealTime)
+		  callback->cb_time.real = vpip_scaled_time_from_handle(
+				schedule_simtime(), statement);
+	    call_data.time = &callback->cb_time;
+      }
+
+      const vpi_mode_t save_mode = vpi_mode_flag;
+      vpi_mode_flag = VPI_MODE_RWSYNC;
+      callback->cb_data.cb_rtn(&call_data);
+      vpi_mode_flag = save_mode;
+}
+
+void vpip_run_statement_callbacks(vvp_code_t code)
+{
+      if (!vpip_statement_callbacks_active) return;
+      std::unordered_map<vvp_code_t,
+	    std::vector<statement_dispatch_s> >::const_iterator found =
+	    statement_dispatch.find(code);
+      if (found == statement_dispatch.end()) return;
+
+	  /* A callback may add or remove registrations; retain this PC's original
+	     entries while that callback runs. */
+      std::vector<statement_dispatch_s> dispatch = found->second;
+      for (size_t idx = 0; idx < dispatch.size(); idx += 1)
+	    if (dispatch[idx].callback->cb_data.cb_rtn)
+		  execute_statement_callback_(dispatch[idx].callback,
+					      dispatch[idx].statement);
+}
+
 vpiHandle vpi_register_cb(p_cb_data data)
 {
       struct __vpiCallback*obj = 0;
@@ -1083,6 +1284,10 @@ vpiHandle vpi_register_cb(p_cb_data data)
 
 	  case cbValueChange:
 	    obj = make_value_change(data);
+	    break;
+
+	  case cbStmt:
+	    obj = make_statement_callback(data);
 	    break;
 
 	  case cbForce:
