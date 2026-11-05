@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "sv_packed_indexed_runtime_prefix_bounds.v",
+  "iverilog-args": ["-g2023", "-s", "sv_packed_indexed_runtime_prefix_bounds"]
+}
