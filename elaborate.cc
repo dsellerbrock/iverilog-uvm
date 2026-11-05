@@ -40970,7 +40970,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						return "";
 					  if (!symbolic_index) {
 						uint64_t position = range.get_msb() >= range.get_lsb()
-						      ? range.width() - 1 - digit : digit;
+						      ? digit : range.width() - 1 - digit;
 						if (position > UINT_MAX
 						    || offset > (UINT_MAX - position) / range.width())
 						      return "";

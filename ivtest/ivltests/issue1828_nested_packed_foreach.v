@@ -18,8 +18,8 @@ module test;
     if (!item.randomize()) $fatal(1, "nested packed foreach randomize failed");
     if (item.two_level !== 8'h5a)
       $fatal(1, "two packed dimensions: got %h expected 5a", item.two_level);
-    if (item.three_level !== 8'h69)
-      $fatal(1, "three packed dimensions: got %h expected 69", item.three_level);
+    if (item.three_level !== 8'h96)
+      $fatal(1, "three packed dimensions: got %h expected 96", item.three_level);
     $display("%h %h", item.two_level, item.three_level);
   end
 endmodule
