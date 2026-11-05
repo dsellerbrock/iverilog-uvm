@@ -25,8 +25,13 @@ module test;
         $fatal(1, "ascending row[%0d]=%h", i, ascending[1][i]);
       if (whole[i] !== (8'd48 + i))
         $fatal(1, "whole array[%0d]=%h", i, whole[i]);
-      if (descending[1][i] !== 8'hzz || ascending[0][i] !== 8'hzz)
-        $fatal(1, "output drove an unselected row at element %0d", i);
+      // IEEE 1800-2017/2023 6.5 treats unpacked array elements as
+      // independent variable elements, and 6.8 gives an unassigned
+      // four-state variable its default 'x value. The output-port
+      // assignment in 23.3.3.2 drives only the selected row.
+      if (descending[1][i] !== 8'hxx || ascending[0][i] !== 8'hxx)
+        $fatal(1, "unselected variable row[%0d]=%h %h", i,
+               descending[1][i], ascending[0][i]);
     end
     $display("PASSED");
   end

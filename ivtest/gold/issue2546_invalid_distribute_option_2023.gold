@@ -1,0 +1,2 @@
+./ivltests/issue2546_invalid_distribute_option_2023.v:4: error: distribute_first is a type_option, not an option.
+1 error(s) during elaboration.

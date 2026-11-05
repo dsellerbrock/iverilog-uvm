@@ -70,6 +70,10 @@ class class_type : public __vpiHandle {
 	    { is_struct_type_ = true; is_union_type_ = true;
 	      is_tagged_union_type_ = tagged; }
       inline const std::string&scope_path(void) const { return scope_path_; }
+      void set_covgrp_decl_scope(__vpiScope*scope)
+      { covgrp_decl_scope_ = scope; }
+      inline __vpiScope*covgrp_decl_scope(void) const
+      { return covgrp_decl_scope_; }
       inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
       inline const std::string&super_dispatch_prefix(void) const { return super_dispatch_prefix_; }
       inline const std::vector<std::string>&interface_dispatch_prefixes(void) const
@@ -229,6 +233,10 @@ class class_type : public __vpiHandle {
       bool is_union_type_ = false;
       bool is_tagged_union_type_ = false;
       std::string scope_path_;
+      // The elaborated declaration scope is instance-specific for classes
+      // synthesized inside module instances. Covergroup set expressions use
+      // it to capture module-scope arrays when each object is constructed.
+      __vpiScope*covgrp_decl_scope_ = nullptr;
       std::string dispatch_prefix_;
       std::string super_dispatch_prefix_;
       std::vector<std::string> interface_dispatch_prefixes_;
@@ -565,6 +573,7 @@ class class_type : public __vpiHandle {
             unsigned weight = 1, get_inst_coverage = 1;
             unsigned goal = 100;
             std::string comment;
+            std::string name;
             std::string type_comment;
             int weight_prop = -1, get_inst_coverage_prop = -1;
             int per_instance_prop = -1;

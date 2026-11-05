@@ -1722,9 +1722,41 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
 
       void vpi_get_value(p_vpi_value val) override
       {
-            vvp_vector4_t current(width_, BIT4_X);
             vvp_object_t obj = resolve_container_();
-            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+            vvp_cobject*cobj = obj.peek<vvp_cobject>();
+            if (cobj && val->format == vpiDecStrVal) {
+                  const class_type*defn = cobj->get_defn();
+                  const size_t pid = prop_path_.back();
+                  const std::vector<std::pair<int,int> >&dims =
+                        defn->property_dimensions(pid);
+                  if (!dims.empty()) {
+                        const unsigned elem_width =
+                              defn->property_vec4_width(pid);
+                        const bool elem_signed =
+                              !defn->property_base_type(pid).empty()
+                              && defn->property_base_type(pid)[0] == 's';
+                        std::string result = "'{";
+                        for (uint64_t idx = 0 ;
+                             idx < defn->property_array_size(pid) ; idx += 1) {
+                              if (idx) result += ", ";
+                              vvp_vector4_t element(elem_width, BIT4_X);
+                              cobj->get_vec4(pid, element, idx);
+                              s_vpi_value element_value;
+                              element_value.format = vpiDecStrVal;
+                              vpip_vec4_get_value(element, elem_width,
+                                                  elem_signed, &element_value);
+                              result += element_value.value.str;
+                        }
+                        result += "}";
+                        char*rbuf = static_cast<char *>(
+                              need_result_buf(result.size()+1, RBUF_VAL));
+                        strcpy(rbuf, result.c_str());
+                        val->value.str = rbuf;
+                        return;
+                  }
+            }
+            vvp_vector4_t current(width_, BIT4_X);
+            if (cobj)
                   cobj->get_vec4(prop_path_.back(), current);
             else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
                   vif->get_vec4(prop_path_.back(), current);

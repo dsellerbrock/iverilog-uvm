@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1198_dynamic_set.sv",
+  "iverilog-args": ["-g2017", "-s", "issue1198_dynamic_set"],
+  "gold": "issue1198_dynamic_set"
+}

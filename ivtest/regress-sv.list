@@ -1,11 +1,16 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2428_class_property_array_percent_p_2017 normal,-g2017,-s,issue2428_class_property_array_percent_p_2017 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
+issue2428_class_property_array_percent_p_2023 normal,-g2023,-s,issue2428_class_property_array_percent_p_2023 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
+
 issue722_followed_by_2017 normal,-g2017,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 
 issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
+issue1198_dynamic_set_2017 normal,-g2017,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
+issue1198_dynamic_set_2023 normal,-g2023,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
 issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue1824_rand_inside_part_select_2017 normal,-g2017,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold
@@ -63,6 +68,8 @@ issue1807_constraint_nested_sum_2017 normal,-g2017,-s,top ivltests gold=issue180
 issue1807_constraint_nested_sum_2023 normal,-g2023,-s,top ivltests gold=issue1807_constraint_nested_sum-vvp-stdout.gold
 issue2206_inferred_defaults_2017 normal,-g2017,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
 issue2206_inferred_defaults_2023 normal,-g2023,-s,issue2206_inferred_defaults ivltests gold=issue2206_inferred_defaults.gold
+issue2200_variable_array_output_port_2017 normal,-g2017,-s,test ivltests gold=issue2200_variable_array_output_port.gold
+issue2200_variable_array_output_port_2023 normal,-g2023,-s,test ivltests gold=issue2200_variable_array_output_port.gold
 issue801_assoc_struct_p normal,-g2017,-s,issue801_assoc_struct_p ivltests gold=issue801_assoc_struct_p.gold
 
 issue1709_array_slice_snapshot_2017 normal,-g2017,-s,test ivltests gold=issue1709_array_slice_snapshot_2017.gold
@@ -6609,3 +6616,5 @@ issue715_sva_local_decl_init_2017 normal,-g2017,-s,issue715_sva_local_decl_init 
 issue715_sva_local_decl_init_2023 normal,-g2023,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold
 issue2480_sdf_line_2017 normal,-g2017,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
 issue2480_sdf_line_2023 normal,-g2023,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
+issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546_invalid_distribute_option_2017.gold
+issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold

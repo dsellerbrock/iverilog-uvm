@@ -3099,7 +3099,8 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	   // legacy raw-set semantics despite carrying a typed coverpoint.
 	 bool set_ir = lo_ir && hi_ir && strcmp(lo_ir, hi_ir) == 0
 	       && (strncmp(lo_ir, "setc:", 5) == 0
-		   || strncmp(lo_ir, "setp:", 5) == 0);
+		   || strncmp(lo_ir, "setp:", 5) == 0
+		   || strncmp(lo_ir, "setm:", 5) == 0);
 	 bool typed_set_ir = set_ir && strchr(lo_ir + 5, ':');
 	 if ((!value_type && typed_set_ir) || (value_type && set_ir && !typed_set_ir))
 	       bad_type = true;
@@ -3340,7 +3341,7 @@ void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
 
 void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
 					uint64_t comment_prop, uint64_t name_prop,
-					char*comment)
+					char*comment, char*name)
 {
       assert(compile_class);
       if (goal > std::numeric_limits<unsigned>::max()
@@ -3349,6 +3350,7 @@ void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
 	  || !compile_class_covgrp_string_property_valid_(name_prop)) {
 	    yyerror("invalid .covgrp_option_values metadata value");
 	    delete[]comment;
+	    delete[]name;
 	    return;
       }
       class_type::covgrp_options_t options = compile_class->covgrp_options();
@@ -3356,10 +3358,12 @@ void compile_class_covgrp_option_values(uint64_t goal_prop, uint64_t goal,
       options.goal = (unsigned)goal;
       options.comment_prop = comment_prop ? (int)(comment_prop - 1) : -1;
 	options.name_prop = name_prop ? (int)(name_prop - 1) : -1;
+	options.name = name ? name : "";
       compile_class_covgrp_split_comment_(comment, options.type_comment,
 					  options.comment);
       compile_class->set_covgrp_options(options);
       delete[]comment;
+	delete[]name;
 }
 
 void compile_class_covgrp_per_instance(uint64_t value, uint64_t property)
@@ -4095,7 +4099,7 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
       if (covgrp_options_.name_prop >= 0
 	  && (size_t)covgrp_options_.name_prop < property_count()) {
 	    obj->set_string((size_t)covgrp_options_.name_prop,
-		    "covergroup_" + std::to_string(obj->object_id()));
+		    covgrp_options_.name.empty() ? "covergroup_" + std::to_string(obj->object_id()) : covgrp_options_.name);
       }
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
@@ -4585,6 +4589,7 @@ void compile_class_done(void)
       if (compile_class_covgrp_parent_required
 	  && !compile_class_covgrp_parent_seen)
 	yyerror("parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata");
+      compile_class->set_covgrp_decl_scope(scope);
       compile_class->set_scope_path(build_scope_path_(scope));
       if (compile_class->dispatch_prefix().empty()) {
             string prefix = compile_class->scope_path();

@@ -672,6 +672,7 @@ class netclass_t : public ivl_type_s {
             PExpr* get_inst_coverage_expr = nullptr;
             unsigned goal = 100;
             std::string comment;
+            std::string name;
             std::string type_comment;
             PExpr* goal_expr = nullptr;
             PExpr* comment_expr = nullptr;

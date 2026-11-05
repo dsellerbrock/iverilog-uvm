@@ -1,0 +1,2 @@
+PASS: declared covergroup name is preserved
+ivltests/issue2527_covergroup_declared_name.sv:12: $finish called at 0 (1s)

@@ -226,6 +226,10 @@ struct sva_mc_seg_t {
       int boundary = -1;
       PEventStatement* clk_evt = nullptr;
       std::vector<sva_seq_step_t>* chain = nullptr;
+      // A nested parenthesized sequence does not let its final clock flow
+      // back to the enclosing sequence. Resolve this to the active property
+      // clock when the property is lowered.
+      bool inherit_property_clock = false;
 };
 
 struct sva_property_t {
