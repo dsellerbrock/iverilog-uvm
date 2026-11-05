@@ -564,6 +564,13 @@ static int signal_get(int code, vpiHandle ref)
 	    return rfp->is_netarray != 0;
 
 	  case vpiPackedArrayMember:
+	    if (rfp->packed_parent &&
+	        rfp->packed_parent->get_vpi_type_code() == vpiPackedArrayVar &&
+	        (rfp->get_vpi_type_code() == vpiPackedArrayVar ||
+	         rfp->get_vpi_type_code() == vpiStructVar ||
+	         rfp->get_vpi_type_code() == vpiUnionVar ||
+	         rfp->get_vpi_type_code() == vpiEnumVar))
+	      return 1;
 	    if (rfp->get_type_code() != vpiNet &&
 		rfp->get_type_code() != vpiNetBit)
 		  return 0;
@@ -576,6 +583,12 @@ static int signal_get(int code, vpiHandle ref)
 		         type == vpiEnumTypespec;
 	    }
 	    return 0;
+
+	  case vpiPacked:
+	    return rfp->get_vpi_type_code() == vpiPackedArrayVar ||
+	           rfp->get_vpi_type_code() == vpiStructVar ||
+	           rfp->get_vpi_type_code() == vpiUnionVar ||
+	           rfp->get_vpi_type_code() == vpiEnumVar;
 
 	  case vpiIndex: // This only works while we have a single index.
 	    if (rfp->is_netarray) {
@@ -603,8 +616,18 @@ static int signal_get(int code, vpiHandle ref)
             return rfp->lsb.get_value();
 
 	  case vpiScalar:
+	    if (rfp->get_vpi_type_code() == vpiPackedArrayVar ||
+	        rfp->get_vpi_type_code() == vpiStructVar ||
+	        rfp->get_vpi_type_code() == vpiUnionVar ||
+	        rfp->get_vpi_type_code() == vpiEnumVar)
+	      return 0;
 	    return (rfp->msb.get_value() == 0 && rfp->lsb.get_value() == 0);
 	  case vpiVector:
+	    if (rfp->get_vpi_type_code() == vpiPackedArrayVar ||
+	        rfp->get_vpi_type_code() == vpiStructVar ||
+	        rfp->get_vpi_type_code() == vpiUnionVar ||
+	        rfp->get_vpi_type_code() == vpiEnumVar)
+	      return 1;
 	    return (rfp->msb.get_value() != rfp->lsb.get_value());
 
           case vpiAutomatic:
@@ -725,6 +748,24 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
 
+      if (code == vpiElement) {
+	    if (rfp->get_vpi_type_code() != vpiPackedArrayVar ||
+	        rfp->packed_depth >= rfp->packed_ranges.size())
+	      return 0;
+	    const __vpiSignal::packed_range_t&range =
+		  rfp->packed_ranges[rfp->packed_depth];
+	    int64_t left = range.left;
+	    int64_t right = range.right;
+	    uint64_t count = static_cast<uint64_t>(
+		  left >= right ? left - right : right - left) + 1;
+	    if (count > UINT_MAX) return 0;
+	    vpiHandle*args = new vpiHandle[static_cast<size_t>(count)];
+	    int64_t step = left <= right ? 1 : -1;
+	    for (uint64_t idx = 0; idx < count; idx += 1)
+		  args[idx] = rfp->get_index(static_cast<int>(left + step * idx));
+	    return vpip_make_iterator(static_cast<unsigned>(count), args, true);
+      }
+
       if (code == vpiRange) {
 	    const std::vector<__vpiSignal::packed_range_t>&ranges =
 		  rfp->declared_packed_ranges.empty()
@@ -816,7 +857,8 @@ vpiHandle __vpiSignal::get_index(int idx)
                   packed_children.resize(static_cast<size_t>(count), nullptr);
             }
             if (!packed_children[norm_idx]) {
-                  unsigned remaining = 1;
+                  unsigned remaining = packed_base_width
+			? packed_base_width : 1;
                   for (size_t dim = packed_depth + 1;
                        dim < packed_ranges.size(); dim += 1) {
                         const packed_range_t&range = packed_ranges[dim];
@@ -989,6 +1031,28 @@ unsigned __vpiSignal::width(void) const
 	    : (lsb.get_value() - msb.get_value() + 1);
 
       return wid;
+}
+
+void vpip_trim_packed_base_dimension(__vpiSignal*sig)
+{
+      if (!sig || !sig->typespec || !sig->packed_base_width ||
+          sig->declared_packed_ranges.empty())
+	    return;
+
+      int type = sig->typespec->get_type_code();
+      if (type != vpiStructTypespec && type != vpiUnionTypespec &&
+	  type != vpiEnumTypespec)
+	    return;
+
+      const __vpiSignal::packed_range_t&last =
+	    sig->declared_packed_ranges.back();
+      unsigned last_width = static_cast<unsigned>(
+	    labs(static_cast<long>(last.left) - last.right) + 1);
+      if (last_width != sig->packed_base_width) return;
+
+      sig->declared_packed_ranges.pop_back();
+      sig->packed_ranges = sig->declared_packed_ranges;
+      sig->packed_depth = 0;
 }
 
 /*
@@ -1250,6 +1314,21 @@ char* __vpiSignal::vpi_get_str(int code)
 void __vpiSignal::vpi_get_value(p_vpi_value val)
 { signal_get_value(this, val); }
 
+int __vpiSignal::get_vpi_type_code(void) const
+{
+      if (!typespec || !packed_base_width) return get_type_code();
+      int type = typespec->get_type_code();
+      int object_type;
+      switch (type) {
+	  case vpiStructTypespec: object_type = vpiStructVar; break;
+	  case vpiUnionTypespec: object_type = vpiUnionVar; break;
+	  case vpiEnumTypespec: object_type = vpiEnumVar; break;
+	  default: return get_type_code();
+      }
+      if (packed_depth < packed_ranges.size()) return vpiPackedArrayVar;
+      return object_type;
+}
+
 vpiHandle __vpiSignal::vpi_put_value(p_vpi_value val, int flags)
 { return signal_put_value(this, val, flags); }
 
@@ -1388,10 +1467,20 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       __vpiSignal*obj = 0;
       unsigned next_depth = parent->packed_depth + 1;
       if (next_depth == parent->packed_ranges.size()) {
-            int type = parent->get_type_code();
-            bool net = type == vpiNet || type == vpiNetBit;
-            obj = net ? static_cast<__vpiSignal*>(new signal_packed_net_bit)
-                      : static_cast<__vpiSignal*>(new signal_packed_reg_bit);
+	    if (parent->packed_base_width && parent->typespec &&
+		(parent->typespec->get_type_code() == vpiStructTypespec ||
+		 parent->typespec->get_type_code() == vpiUnionTypespec ||
+		 parent->typespec->get_type_code() == vpiEnumTypespec)) {
+		  int type = parent->get_type_code();
+		  bool net = type == vpiNet || type == vpiNetBit;
+		  obj = net ? static_cast<__vpiSignal*>(new signal_net)
+			    : static_cast<__vpiSignal*>(new signal_reg);
+	    } else {
+		  int type = parent->get_type_code();
+		  bool net = type == vpiNet || type == vpiNetBit;
+		  obj = net ? static_cast<__vpiSignal*>(new signal_packed_net_bit)
+			    : static_cast<__vpiSignal*>(new signal_packed_reg_bit);
+	    }
       } else switch (parent->get_type_code()) {
           case vpiNet: obj = new signal_net; break;
           case vpiBitVar: obj = new signal_bitvar; break;
@@ -1414,9 +1503,11 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       obj->automatic_storage = parent->automatic_storage;
       obj->packed_ranges = parent->packed_ranges;
       obj->packed_depth = next_depth;
+      obj->packed_base_width = parent->packed_base_width;
       obj->value_base = base;
       obj->value_width = width;
       obj->packed_view_parent = parent;
+      obj->typespec = parent->typespec;
       obj->packed_index = __vpiDecConst(index);
       obj->has_packed_index = true;
       obj->packed_parent = parent->packed_parent

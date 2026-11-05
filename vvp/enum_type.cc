@@ -352,15 +352,39 @@ class vartype_resolv_t : public resolv_list_s {
 	    bool missing = false;
 	    vpiHandle spec = (sig || array)
 		  ? parse_vartype(cp, width, missing) : 0;
+	    bool aggregate_type = spec &&
+	          (spec->get_type_code() == vpiStructTypespec ||
+	           spec->get_type_code() == vpiUnionTypespec ||
+	           spec->get_type_code() == vpiEnumTypespec);
+	    bool signal_width_matches = sig && width == sig->width();
+	    bool packed_aggregate_width_candidate = sig && aggregate_type &&
+	          width > 0 && sig->width() > width && sig->width() % width == 0;
+	    if (packed_aggregate_width_candidate &&
+	        sig->declared_packed_ranges.empty() && !message_flag)
+	      return false;
+	    bool packed_base_dimension_matches = sig &&
+	          sig->declared_packed_ranges.size() > 1 && width > 0 &&
+	          static_cast<unsigned>(labs(static_cast<long>(
+	                sig->declared_packed_ranges.back().left) -
+	                sig->declared_packed_ranges.back().right) + 1) == width;
+	    bool packed_aggregate_width_matches =
+	          packed_aggregate_width_candidate &&
+	          packed_base_dimension_matches;
 	    if (((!sig && !array) || missing) && !message_flag) return false;
 	    if ((!sig && !array) || !spec || *cp ||
-	        width != (sig ? sig->width() : array->get_word_size())) {
+	        !(signal_width_matches || packed_aggregate_width_matches ||
+	          (!sig && width == static_cast<unsigned>(array->get_word_size())))) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
 	    }
-	    if (sig) sig->typespec = spec;
-	    else array->typespec = spec;
+	    if (sig) {
+		  sig->typespec = spec;
+		  if (packed_aggregate_width_matches) {
+			sig->packed_base_width = width;
+			vpip_trim_packed_base_dimension(sig);
+		  }
+	    } else array->typespec = spec;
 	    return true;
       }
 

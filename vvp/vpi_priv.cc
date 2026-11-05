@@ -440,6 +440,8 @@ static const char* vpi_property_str(PLI_INT32 code)
 	    return "vpiTimePrecision";
           case vpiSize:
 	    return "vpiSize";
+	  case vpiElement:
+	    return "vpiElement";
           case _vpiNexusId:
 	    return "_vpiNexusId";
 	  default:
@@ -490,6 +492,14 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiArrayType";
 	  case vpiBitVar:
 	    return "vpiBitVar";
+	  case vpiEnumVar:
+	    return "vpiEnumVar";
+	  case vpiStructVar:
+	    return "vpiStructVar";
+	  case vpiUnionVar:
+	    return "vpiUnionVar";
+	  case vpiPackedArrayVar:
+	    return "vpiPackedArrayVar";
 	  case vpiByteVar:
 	    return "vpiByteVar";
 	  case vpiClassVar:
@@ -600,7 +610,7 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
 
       if (property == vpiType) {
-	    int type = ref->get_type_code();
+	    int type = ref->get_vpi_type_code();
 	    if (type == vpiAssertion) {
 		  int assertion_type = ref->vpi_get(property);
 		  if (assertion_type != vpiUndefined) type = assertion_type;

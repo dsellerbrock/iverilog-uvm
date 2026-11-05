@@ -662,6 +662,10 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	      type == vpiStringVar   ||
 	      type == vpiClassVar    ||
 	      type == vpiVirtualInterfaceVar ||
+	      type == vpiEnumVar     ||
+	      type == vpiStructVar   ||
+	      type == vpiUnionVar    ||
+	      type == vpiPackedArrayVar ||
 	      type == vpiArrayVar))
 	    return 1;
 
@@ -681,7 +685,7 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       };
 
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code(),
+	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
 			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
 		     && is_vif_array_word(table[idx])))
@@ -692,7 +696,7 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 
       args = static_cast<vpiHandle*>(calloc(mcnt, sizeof(vpiHandle)));
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_type_code(),
+	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
 			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
 		     && is_vif_array_word(table[idx])))
