@@ -1,5 +1,5 @@
 `celldefine
-//`timescale 1ns / 1ps
+`timescale 1ns / 1ns
 
 // Description : 2 input XOR
 

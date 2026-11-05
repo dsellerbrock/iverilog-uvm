@@ -20,6 +20,7 @@
 # include  "sys_priv.h"
 # include  "sdf_priv.h"
 # include  <ctype.h>
+# include  <math.h>
 # include  <stdlib.h>
 # include  <string.h>
 # include  <strings.h>
@@ -41,13 +42,51 @@ int sdf_flag_inform = 0;
 int sdf_min_typ_max;
 double sdf_scale_factors[3] = { 1.0, 1.0, 1.0 };
 int sdf_scale_type = SDF_SCALE_FROM_MTM;
-
   /* Scope of the $sdf_annotate call. Annotation starts here. */
 static vpiHandle sdf_scope;
 static vpiHandle sdf_callh = 0;
   /* The cell in process. */
 static vpiHandle sdf_cur_cell;
 static char* sdf_fname = NULL;
+static int sdf_timescale_set;
+static int sdf_timescale_exponent;
+static double sdf_timescale_value;
+
+void sdf_reset_timescale(void)
+{
+      sdf_timescale_set = 0;
+      sdf_timescale_value = 1.0;
+      sdf_timescale_exponent = 0;
+}
+
+void sdf_set_timescale(double value, const char*unit, int sdf_lineno)
+{
+      static const struct { const char*name; int exponent; } units[] = {
+	    { "s", 0 }, { "ms", -3 }, { "us", -6 },
+	    { "ns", -9 }, { "ps", -12 }, { "fs", -15 }
+      };
+      unsigned idx;
+
+      for (idx = 0; idx < sizeof units / sizeof units[0]; idx += 1) {
+	    if (strcmp(unit, units[idx].name) == 0) {
+		  sdf_timescale_set = 1;
+		  sdf_timescale_value = value;
+		  sdf_timescale_exponent = units[idx].exponent;
+		  return;
+	    }
+      }
+
+      vpi_printf("SDF WARNING: %s:%d: Unknown TIMESCALE unit '%s'; "
+	         "using module time unit.\n", sdf_fname, sdf_lineno, unit);
+      sdf_timescale_set = 0;
+}
+
+double sdf_time_scale(void)
+{
+      if (!sdf_timescale_set || !sdf_cur_cell) return 1.0;
+      return sdf_timescale_value *
+	     pow(10.0, sdf_timescale_exponent - vpi_get(vpiTimeUnit, sdf_cur_cell));
+}
 
 static int sdf_string_is_blank(const char*value)
 {
@@ -968,6 +1007,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       sdf_cur_cell = 0;
       sdf_callh = callh;
+      sdf_reset_timescale();
       sdf_process_file(sdf_fd, fname);
       sdf_apply_pathpulse_annotations();
       sdf_callh = 0;
