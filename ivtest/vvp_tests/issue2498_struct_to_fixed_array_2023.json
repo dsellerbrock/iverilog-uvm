@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2498_struct_to_fixed_array_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue2498_struct_to_fixed_array"],
+  "gold": "issue2498_struct_to_fixed_array"
+}

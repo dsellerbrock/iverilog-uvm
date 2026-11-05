@@ -8721,6 +8721,9 @@ static bool fixed_uarray_bitstream_shape_(ivl_type_t type,
       return true;
 }
 
+static bool bitstream_cast_type_(ivl_type_t type, bool destination);
+static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width);
+
 static bool fixed_array_cast_source_supported_(NetExpr*source)
 {
       if (!source)
@@ -8743,6 +8746,16 @@ static bool fixed_array_cast_source_supported_(NetExpr*source)
 	    return element && element->packed()
 		  && type_is_vectorable(element->base_type())
 		  && element->packed_width() > 0;
+      }
+
+      /* An unpacked struct is a fixed-size bit stream when all of its
+       * members are fixed-size bit-stream types. Its VVP object layout can
+       * then use the same flatten-and-materialize path as array sources. */
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (record && !record->packed() && !record->union_flag()) {
+	    uint64_t width = 0;
+	    return bitstream_cast_type_(type, false)
+		  && fixed_bitstream_width_(type, width);
       }
 
       uint64_t count = 0, width = 0;
