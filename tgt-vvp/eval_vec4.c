@@ -45,6 +45,49 @@ static void resize_vec4_wid_from_(unsigned pushed, unsigned wid)
 	    fprintf(vvp_out, "    %%pad/u %u;\n", wid);
 }
 
+/* A signed operand that can hold X/Z: a two-state value never needs the
+ * 11.8.4 check, so keep int arithmetic free of it. */
+static int sxz_operand_(ivl_expr_t expr)
+{
+      return ivl_expr_signed(expr) && ivl_expr_value(expr) == IVL_VT_LOGIC;
+}
+
+static int draw_signed_xz_check_(unsigned operand_mask)
+{
+      if (operand_mask == 0)
+	    return -1;
+
+      int flag = allocate_flag();
+      fprintf(vvp_out, "    %%sxz/check %u, %d;\n", operand_mask, flag);
+      return flag;
+}
+
+static void draw_signed_xz_result_(unsigned width, int flag)
+{
+      if (flag < 0)
+	    return;
+
+      fprintf(vvp_out, "    %%sxz/result %u, %d;\n", width, flag);
+      clr_flag(flag);
+}
+
+static int expr_has_xz_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) != IVL_EX_NUMBER)
+	    return 0;
+
+      const char*bits = ivl_expr_bits(expr);
+      if (!bits)
+	    return 0;
+
+      for (unsigned idx = 0 ; idx < ivl_expr_width(expr) ; idx += 1)
+	    if (bits[idx] == 'x' || bits[idx] == 'X'
+		|| bits[idx] == 'z' || bits[idx] == 'Z')
+		  return 1;
+
+      return 0;
+}
+
 void resize_vec4_wid(ivl_expr_t expr, unsigned wid)
 {
       if (ivl_expr_width(expr) == wid)
@@ -156,17 +199,32 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
 	   immediate operand, and the instruction supports it, then
 	   generate an immediate instruction instead of the generic
 	   version. */
-      if (rwid==ewid && test_immediate_vec4_ok(re)) {
+	/* Signed unknown constants must be present on the stack so the
+	 * operand guard can observe them. Defined immediates remain optimized. */
+      if (rwid==ewid && test_immediate_vec4_ok(re)
+	  && !(ivl_expr_signed(re) && expr_has_xz_(re))) {
 	    switch (ivl_expr_opcode(expr)) {
 		case '+':
+		  {
+		    int xz_flag = draw_signed_xz_check_(sxz_operand_(le) ? 1 : 0);
 		  draw_immediate_vec4(re, "%addi");
+		  draw_signed_xz_result_(ewid, xz_flag);
 		  return;
+		  }
 		case '-':
+		  {
+		    int xz_flag = draw_signed_xz_check_(sxz_operand_(le) ? 1 : 0);
 		  draw_immediate_vec4(re, "%subi");
+		  draw_signed_xz_result_(ewid, xz_flag);
 		  return;
+		  }
 		case '*':
+		  {
+		    int xz_flag = draw_signed_xz_check_(sxz_operand_(le) ? 1 : 0);
 		  draw_immediate_vec4(re, "%muli");
+		  draw_signed_xz_result_(ewid, xz_flag);
 		  return;
+		  }
 		default:
 		  break;
 	    }
@@ -176,6 +234,10 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
       if ((rwid != ewid) && !is_power_op) {
 	    fprintf(vvp_out, "    %%pad/%c %u;\n", ivl_expr_signed(re)? 's' : 'u', ewid);
       }
+
+      int xz_flag = draw_signed_xz_check_(
+	    (sxz_operand_(re) ? 1 : 0)
+	    | (sxz_operand_(le) ? 2 : 0));
 
       switch (ivl_expr_opcode(expr)) {
 	  case '+':
@@ -204,6 +266,8 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
 	    assert(0);
 	    break;
       }
+
+      draw_signed_xz_result_(ewid, xz_flag);
 }
 
 static void draw_binary_vec4_bitwise(ivl_expr_t expr)
@@ -211,14 +275,15 @@ static void draw_binary_vec4_bitwise(ivl_expr_t expr)
       draw_eval_vec4(ivl_expr_oper1(expr));
       draw_eval_vec4(ivl_expr_oper2(expr));
 
-      /* IEEE 1800-2017 11.8.4: a nonlogical operation on a signed
-       * operand containing X/Z produces an all-X result. */
-      const char *sx = ivl_expr_signed(ivl_expr_oper1(expr))
-          || ivl_expr_signed(ivl_expr_oper2(expr)) ? "/s" : "";
+	  /* IEEE 1800-2017/2023 11.8.4: signed X/Z operands poison the
+	   * entire result of a nonlogical operation. */
+      int xz_flag = draw_signed_xz_check_(
+	    (sxz_operand_(ivl_expr_oper2(expr)) ? 1 : 0)
+	    | (sxz_operand_(ivl_expr_oper1(expr)) ? 2 : 0));
 
       switch (ivl_expr_opcode(expr)) {
 	  case '&':
-	    fprintf(vvp_out, "    %%and%s;\n", sx);
+	    fprintf(vvp_out, "    %%and;\n");
 	    break;
 	  case '|':
 	    fprintf(vvp_out, "    %%or;\n");
@@ -239,6 +304,8 @@ static void draw_binary_vec4_bitwise(ivl_expr_t expr)
 	    assert(0);
 	    break;
       }
+
+      draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
 }
 
 static void draw_binary_vec4_compare_real(ivl_expr_t expr)
@@ -776,16 +843,28 @@ static void draw_binary_vec4_le(ivl_expr_t expr)
       draw_eval_vec4(le);
       resize_vec4_wid(le, use_wid);
 
-      if (ivl_expr_width(re)==use_wid && test_immediate_vec4_ok(re)) {
+	/* Relational comparisons are nonlogical operations for §11.8.4.
+	 * Equality and case-equality retain their defined comparison semantics. */
+      int relop = use_opcode == 'L' || use_opcode == '<';
+      int xz_flag = -1;
+
+      if (ivl_expr_width(re)==use_wid && test_immediate_vec4_ok(re)
+	  && !(relop && ivl_expr_signed(re) && expr_has_xz_(re))) {
 	      /* Special case: If the right operand can be handled as
 		 an immediate operand, then use that instead. */
 	    char opcode[8];
 	    snprintf(opcode, sizeof opcode, "%%cmpi/%c", s_flag);
+	    if (relop)
+		  xz_flag = draw_signed_xz_check_(sxz_operand_(le) ? 1 : 0);
 	    draw_immediate_vec4(re, opcode);
 
       } else {
 	    draw_eval_vec4(re);
 	    resize_vec4_wid(re, use_wid);
+	    if (relop)
+		  xz_flag = draw_signed_xz_check_(
+			(sxz_operand_(re) ? 1 : 0)
+			| (sxz_operand_(le) ? 2 : 0));
 
 	    fprintf(vvp_out, "    %%cmp/%c;\n", s_flag);
       }
@@ -803,6 +882,8 @@ static void draw_binary_vec4_le(ivl_expr_t expr)
 	    assert(0);
 	    break;
       }
+
+      draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
 }
 
 static void draw_binary_vec4_lrs(ivl_expr_t expr)
@@ -817,6 +898,8 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
       int use_index_reg = allocate_word();
       assert(use_index_reg >= 0);
       draw_eval_expr_into_integer(re, use_index_reg);
+
+      int xz_flag = draw_signed_xz_check_(sxz_operand_(le) ? 1 : 0);
 
 	// Emit the actual shift instruction. This will pop the top of
 	// the stack and replace it with the result of the shift.
@@ -837,6 +920,8 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
 	    assert(0);
 	    break;
       }
+
+      draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
 
       clr_word(use_index_reg);
 }
@@ -3532,19 +3617,40 @@ static void draw_unary_vec4(ivl_expr_t expr)
       }
 
       switch (ivl_expr_opcode(expr)) {
+	  case '+':
+	    draw_eval_vec4(sub);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
+	    break;
+
 	  case '&':
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%and/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%and/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case '|':
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%or/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%or/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case '^':
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%xor/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%xor/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case '~':
@@ -3555,7 +3661,11 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	         expression width before the operation so the bytecode stack
 	         contains the width promised by ivl_expr_width(expr). */
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
-	    fprintf(vvp_out, "    %%inv;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%inv;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case '!':
@@ -3566,13 +3676,21 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	  case '-':
 	    draw_eval_vec4(sub);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
-	    fprintf(vvp_out, "    %%inv;\n");
-	    fprintf(vvp_out, "    %%addi 1, 0, %u;\n", ivl_expr_width(expr));
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%inv;\n");
+		  fprintf(vvp_out, "    %%addi 1, 0, %u;\n", ivl_expr_width(expr));
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case 'A': /* nand (~&) */
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%nand/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%nand/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case 'D': /* pre-decrement (--x) */
@@ -3597,18 +3715,28 @@ static void draw_unary_vec4(ivl_expr_t expr)
 
 	  case 'N': /* nor (~|) */
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%nor/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%nor/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case 'X': /* xnor (~^) */
 	    draw_eval_vec4(sub);
-	    fprintf(vvp_out, "    %%xnor/r;\n");
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
+		  fprintf(vvp_out, "    %%xnor/r;\n");
+		  draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case 'm': /* abs(m) */
 	    draw_eval_vec4(sub);
 	    if (! ivl_expr_signed(sub))
 		  break;
+	    {
+		  int xz_flag = draw_signed_xz_check_(sxz_operand_(sub) ? 1 : 0);
 
 	      /* Test if (m) < 0 */
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
@@ -3619,6 +3747,8 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%addi 1, 0, %u;\n", ivl_expr_width(sub));
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, local_count);
 	    local_count += 1;
+	    draw_signed_xz_result_(ivl_expr_width(expr), xz_flag);
+	    }
 	    break;
 
 	  case 'v': /* Cast expression to vec4 */
