@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2494_string_character_write.v",
+  "iverilog-args": ["-g2017", "-sissue2494_string_character_write"],
+  "gold": "issue2494_string_character_write"
+}
