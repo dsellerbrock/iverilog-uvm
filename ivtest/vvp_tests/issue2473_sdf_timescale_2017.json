@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue2473_sdf_timescale.sv","iverilog-args":["-g2017","-gspecify","-s","issue2473_sdf_timescale"],"gold":"issue2473_sdf_timescale"}

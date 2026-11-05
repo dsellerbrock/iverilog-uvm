@@ -89,6 +89,8 @@ sub execute_regression {
         sv_randomize_global_uniform
         sv_randomize_global_uniform_2023
     );
+    $test_timeout{issue1824_rand_inside_part_select_2017} = 60;
+    $test_timeout{issue1824_rand_inside_part_select_2023} = 60;
 
     foreach $tname (@testlist) {
         $len = length($tname) if (length($tname) > $len);

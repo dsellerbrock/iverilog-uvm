@@ -8,6 +8,8 @@ issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_r
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
+issue1824_rand_inside_part_select_2017 normal,-g2017,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold
+issue1824_rand_inside_part_select_2023 normal,-g2023,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold
 issue1411_covergroup_ref_event_2017 normal,-g2017,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 issue1411_covergroup_ref_event_2023 normal,-g2023,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 issue1515_vector_strength CE,-g2017 ivltests
@@ -6577,6 +6579,8 @@ issue1357_sequence_scope normal,-g2017,-s,top ivltests gold=issue1357_sequence_s
 issue1358_hierarchical_sequence normal,-g2017,-s,top ivltests gold=issue1358_hierarchical_sequence.gold
 issue1562_conditional_iopath_2017 normal,-g2017,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
 issue1562_conditional_iopath_2023 normal,-g2023,-gspecify,-s,issue1562_conditional_iopath ivltests gold=issue1562_conditional_iopath.gold
+issue1563_sdf_device normal,-g2017,-gspecify,-s,issue1563_sdf_device ivltests gold=issue1563_sdf_device-legacy.gold
+issue1563_sdf_device_no_specify normal,-g2017,-gspecify,-s,issue1563_sdf_device_no_specify ivltests gold=issue1563_sdf_device_no_specify-legacy.gold
 issue626_set_inst_name normal,-g2017,-s,top ivltests gold=issue626_set_inst_name.gold
 issue2339_numeric_input_skew_initializer_2017 normal,-g2017,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
 issue2339_numeric_input_skew_initializer_2023 normal,-g2023,-s,issue2339_numeric_input_skew_initializer ivltests gold=issue2339_numeric_input_skew_initializer-vvp-stdout.gold
@@ -6586,6 +6590,8 @@ issue843_large_joint_uniform_2017 normal,-g2017,-s,main ivltests gold=issue843_l
 issue843_large_joint_uniform_2023 normal,-g2023,-s,main ivltests gold=issue843_large_joint_uniform-vvp-stdout.gold
 issue420_randc_cycle_width_2017 normal,-g2017,-s,test ivltests gold=issue420_randc_cycle_width.gold
 issue420_randc_cycle_width_2023 normal,-g2023,-s,test ivltests gold=issue420_randc_cycle_width_2023.gold
+issue781_pattern_conditional_2017 normal,-g2017,-s,issue781_pattern_conditional ivltests gold=issue781_pattern_conditional-vvp-stdout.gold
+issue781_pattern_conditional_2023 normal,-g2023,-s,issue781_pattern_conditional ivltests gold=issue781_pattern_conditional-vvp-stdout.gold
 issue1366_action_past normal,-g2017,-gassertions,-s,issue1366_action_past ivltests gold=issue1366_action_past.gold
 issue715_sva_local_decl_init_2017 normal,-g2017,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold
 issue715_sva_local_decl_init_2023 normal,-g2023,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold

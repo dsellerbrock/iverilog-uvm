@@ -2300,7 +2300,7 @@ void pform_make_foreach_declarations(const struct vlltype&loc,
 		  ? static_cast<data_type_t*>(new foreach_index_type_t(
 			*array_name, index_depth, loc.lexical_pos))
 		  : static_cast<data_type_t*>(new atom_type_t(atom_type_t::INT, true));
-	    pform_make_var(loc, &assign_list, index_type);
+	    pform_make_var(loc, &assign_list, index_type, 0, true);
       }
 }
 

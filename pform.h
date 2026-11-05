@@ -759,7 +759,8 @@ extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 				     PBlock::BL_TYPE tt);
 
 /* Create/finalize the implicit lexical block that owns pattern variables for
- * one case item or the true arm of a pattern conditional. */
+ * one case item, the true arm of a pattern statement, or the consequent of a
+ * pattern conditional expression. */
 extern PBlock*pform_pattern_push_scope(const struct vlltype&loc,
                                        const PExpr*subject,
                                        const PMatchPattern*pattern);

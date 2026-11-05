@@ -35,6 +35,9 @@ extern int sdf_flag_inform;
 extern int sdf_min_typ_max;
 extern double sdf_scale_factors[3];
 extern int sdf_scale_type;
+extern void sdf_reset_timescale(void);
+extern void sdf_set_timescale(double value, const char*unit, int sdf_lineno);
+extern double sdf_time_scale(void);
 
 enum sdf_scale_type_e {
       SDF_SCALE_FROM_MTM,
@@ -74,6 +77,10 @@ extern void sdf_select_instance(const char*celltype, const char*inst,
 
 extern void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
                               const char*condition, int ifnone,
+                              const struct sdf_delval_list_s*delval,
+                              const int sdf_lineno);
+
+extern void sdf_device_delays(const char*dst,
                               const struct sdf_delval_list_s*delval,
                               const int sdf_lineno);
 

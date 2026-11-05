@@ -66,6 +66,54 @@ bool pform_type_operator_context = false;
 
 using namespace std;
 
+extern NetScope* elaborate_pattern_expression_scope(Design*des,
+						   NetScope*scope,
+						   const PBlock*block);
+extern NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
+						       Design*des,
+						       NetScope*scope,
+						       NetScope*expression_scope);
+
+static NetScope* ternary_pattern_scope_(Design*des, NetScope*scope,
+					const PETernary*ternary)
+{
+      if (!ternary->pattern_scope())
+	    return scope;
+      return elaborate_pattern_expression_scope(
+	    des, scope, ternary->pattern_scope());
+}
+
+static NetExpr* ternary_pattern_capture_(Design*des, NetScope*scope,
+					 const PETernary*ternary,
+					 NetScope*expression_scope)
+{
+      if (!ternary->pattern_scope())
+	    return nullptr;
+
+      const PEMatches*matches =
+	    dynamic_cast<const PEMatches*>(ternary->get_cond());
+      if (!matches) {
+	    cerr << ternary->get_fileline()
+		 << ": internal error: Pattern-expression scope has no matches predicate."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      return elaborate_pattern_expression_capture(matches, des, scope,
+						 expression_scope);
+}
+
+static NetExpr* ternary_capture_before_true_(const LineInfo&loc,
+					     NetExpr*condition,
+					     NetExpr*capture)
+{
+      if (!capture)
+	    return condition;
+      NetEBLogic*guarded = new NetEBLogic('a', condition, capture);
+      guarded->set_line(loc);
+      return condition_reduce(guarded);
+}
+
 /* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
  * 1800-2023, nonsingular arguments use assignment compatibility instead.
  * Packed arrays and packed records are singular; unpacked arrays and
@@ -33678,8 +33726,14 @@ unsigned PETernary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	// The condition of the ternary is self-determined, so
 	// we will test its width when we elaborate it.
 
+	// A pattern conditional gives its implicitly declared variables only to
+	// the consequent. Elaborate that lexical scope before sizing the true arm.
+      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      if (!true_scope)
+	    return 0;
+
         // Test the width of the true and false clauses.
-      unsigned tru_width = tru_->test_width(des, scope, mode);
+      unsigned tru_width = tru_->test_width(des, true_scope, mode);
 
       width_mode_t saved_mode = mode;
 
@@ -33688,7 +33742,7 @@ unsigned PETernary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
         // If the width mode changed, retest the true clause, as it
         // may choose a different width if it is in a lossless context.
       if ((mode >= LOSSLESS) && (saved_mode < LOSSLESS)) {
-	    tru_width = tru_->test_width(des, scope, mode);
+	    tru_width = tru_->test_width(des, true_scope, mode);
       }
 
 	// If either of the alternatives is IVL_VT_REAL, then the
@@ -33791,6 +33845,10 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       if (type == 0)
 	    return elaborate_expr(des, scope, 1u, flags);
 
+      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      if (!true_scope)
+	    return nullptr;
+
 	/* The full-type elab_and_eval entry point deliberately skips test_width:
 	 * assignment patterns obtain their shape from the target type and do not
 	 * need a self-determined sizing pass. A string conditional is different:
@@ -33806,9 +33864,9 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    unsigned error_count = des->errors;
 	    width_mode_t tru_mode = SIZED;
 	    if (PEConcat*concat = dynamic_cast<PEConcat*>(tru_))
-		  concat->test_width_string_context(des, scope, tru_mode);
+		  concat->test_width_string_context(des, true_scope, tru_mode);
 	    else
-		  tru_->test_width(des, scope, tru_mode);
+		  tru_->test_width(des, true_scope, tru_mode);
 
 	    width_mode_t fal_mode = SIZED;
 	    if (PEConcat*concat = dynamic_cast<PEConcat*>(fal_))
@@ -33833,6 +33891,11 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       con = condition_reduce(con);
 
+      NetExpr*capture = ternary_pattern_capture_(des, scope, this,
+						     true_scope);
+      if (capture)
+	    con = ternary_capture_before_true_(*this, con, capture);
+
 	// Short-circuit on a constant condition, as the width form
 	// does -- but keep elaborating the dead arm so its errors are
 	// still reported.
@@ -33843,18 +33906,20 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		  bool take_true = (cval.get(0) == verinum::V1);
 		  PExpr*live = take_true ? tru_ : fal_;
 		  PExpr*dead = take_true ? fal_ : tru_;
+		  NetScope*live_scope = take_true ? true_scope : scope;
+		  NetScope*dead_scope = take_true ? scope : true_scope;
 		  /* Both arms are assignment-like contexts even when the condition
 		   * is constant. The outer context can otherwise validate only the
 		   * selected arm after this fold; in particular an associative value
 		   * hidden in the dead arm could escape the exact container boundary.
 		   * Running the ordinary typed checker here does not evaluate the dead
 		   * arm at run time. */
-		  NetExpr*dead_expr = elab_and_eval(des, scope, dead, type,
+		  NetExpr*dead_expr = elab_and_eval(des, dead_scope, dead, type,
 					       (flags & NEED_CONST) != 0,
 					       flags & ~NEED_CONST);
 		  delete dead_expr;
 		  delete con;
-		  return elab_and_eval(des, scope, live, type,
+		  return elab_and_eval(des, live_scope, live, type,
 				       (flags & NEED_CONST) != 0,
 				       flags & ~NEED_CONST);
 	    }
@@ -33863,9 +33928,9 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 
       const bool vif_context = virtual_interface_type_(type);
       NetExpr*tru = vif_context
-	    ? elab_and_eval(des, scope, tru_, type,
+	    ? elab_and_eval(des, true_scope, tru_, type,
 			    (flags & NEED_CONST) != 0, flags & ~NEED_CONST)
-	    : tru_->elaborate_expr(des, scope, type, flags);
+	    : tru_->elaborate_expr(des, true_scope, type, flags);
       if (tru == 0) { delete con; return 0; }
 
       NetExpr*fal = vif_context
@@ -34031,6 +34096,10 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, tru_);
       ivl_assert(*this, fal_);
 
+      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      if (!true_scope)
+	    return nullptr;
+
       const PExpr*stream = dynamic_cast<const PEStreaming*>(expr_);
       if (!stream) stream = dynamic_cast<const PEStreaming*>(tru_);
       if (!stream) stream = dynamic_cast<const PEStreaming*>(fal_);
@@ -34052,6 +34121,11 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	/* Make sure the condition expression reduces to a single bit. */
       con = condition_reduce(con);
 
+      NetExpr*capture = ternary_pattern_capture_(des, scope, this,
+						     true_scope);
+      if (capture)
+	    con = ternary_capture_before_true_(*this, con, capture);
+
 	// Verilog doesn't say that we must do short circuit evaluation
 	// of ternary expressions, but it doesn't disallow it.
       if (const NetEConst*tmp = dynamic_cast<NetEConst*> (con)) {
@@ -34072,7 +34146,7 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		  delete dmy;
 
 		  delete con;
-		  return elab_and_eval_alternative_(des, scope, tru_,
+		  return elab_and_eval_alternative_(des, true_scope, tru_,
                                                     expr_wid, flags, true);
 	    }
 
@@ -34085,7 +34159,7 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 			<< endl;
 
 		    // Evaluate the alternate expression to find any errors.
-		  NetExpr*dmy = elab_and_eval_alternative_(des, scope, tru_,
+		  NetExpr*dmy = elab_and_eval_alternative_(des, true_scope, tru_,
 		                                           expr_wid, flags,
 		                                           true);
 		  delete dmy;
@@ -34099,7 +34173,7 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	      // can't short-circuit.
       }
 
-      NetExpr*tru = elab_and_eval_alternative_(des, scope, tru_,
+	NetExpr*tru = elab_and_eval_alternative_(des, true_scope, tru_,
 					       expr_wid, flags, false);
       if (tru == 0) {
 	    delete con;
@@ -34131,7 +34205,8 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    if (gn_system_verilog()
 		&& ((tru_str && fal_boolish) || (fal_str && tru_boolish))) {
 		  PExpr*reelab_pe = tru_str ? fal_ : tru_;
-		  NetExpr*reelab = reelab_pe->elaborate_expr(des, scope,
+		  NetScope*reelab_scope = tru_str ? scope : true_scope;
+		  NetExpr*reelab = reelab_pe->elaborate_expr(des, reelab_scope,
 						       &netstring_t::type_string, flags);
 		  if (reelab && reelab->expr_type() == IVL_VT_STRING) {
 			if (tru_str) {

@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1824_rand_inside_part_select_2017.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue1824_rand_inside_part_select",
+  "timeout": 60
+}

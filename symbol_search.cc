@@ -24,6 +24,7 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  "PPackage.h"
+# include  "PExpr.h"
 # include  "PTask.h"
 # include  "PWire.h"
 # include  "pform_types.h"
@@ -342,6 +343,33 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		  }
 
 		  if (NetNet*net = scope->find_signal(path_tail.name)) {
+		    /* IEEE 1800-2017/2023 13.5.3 evaluates a default argument in
+		     * the scope containing its subroutine declaration. If that scope
+		     * declares the same name as a formal, resolve the declaration-scope
+		     * name first. Keep the formal as a fallback when the containing
+		     * scope has no such name, as existing subroutine defaults may use
+		     * an earlier formal. Restrict this lookup rule to the unqualified
+		     * root name while elaborating a default expression. */
+		    if (pform_default_argument_context && path.empty()
+			&& !prefix_scope
+			&& (scope->type() == NetScope::FUNC
+			    || scope->type() == NetScope::TASK)
+			&& net->port_type() != NetNet::NOT_A_PORT
+			&& scope->parent()) {
+			  pform_name_t declaration_path;
+			  declaration_path.push_back(path_tail);
+			  symbol_search_results declaration_result;
+			  bool old_default_context = pform_default_argument_context;
+			  pform_default_argument_context = false;
+			  bool declaration_found = symbol_search(
+				li, des, scope->parent(), declaration_path,
+				lexical_pos, &declaration_result, start_scope, false);
+			  pform_default_argument_context = old_default_context;
+			  if (declaration_found && declaration_result.is_found()) {
+				*res = declaration_result;
+				return true;
+			  }
+		    }
 			if (prefix_scope || (net->lexical_pos() <= lexical_pos)) {
 			      path.push_back(path_tail);
 			      res->scope = scope;
@@ -828,7 +856,8 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
       NetScope *search_scope = scope;
       bool prefix_scope = false;
       symbol_search_cache_key_t cache_key;
-      bool use_cache = (lexical_pos == UINT_MAX);
+      bool use_cache = (lexical_pos == UINT_MAX
+			&& !pform_default_argument_context);
 
       if (path.package) {
 	    search_scope = des->find_package(path.package->pscope_name());

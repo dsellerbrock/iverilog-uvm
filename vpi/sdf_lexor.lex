@@ -156,6 +156,7 @@ static struct {
       { "CONDELSE",     K_CONDELSE },
       { "DELAY",        K_DELAY },
       { "DELAYFILE",    K_DELAYFILE },
+      { "DEVICE",       K_DEVICE },
       { "DESIGN",       K_DESIGN },
       { "DIVIDER",      K_DIVIDER },
       { "HOLD",         K_HOLD },

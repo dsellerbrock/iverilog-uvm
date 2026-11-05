@@ -20,6 +20,7 @@
 # include  "sys_priv.h"
 # include  "sdf_priv.h"
 # include  <ctype.h>
+# include  <math.h>
 # include  <stdlib.h>
 # include  <string.h>
 # include  <strings.h>
@@ -41,13 +42,51 @@ int sdf_flag_inform = 0;
 int sdf_min_typ_max;
 double sdf_scale_factors[3] = { 1.0, 1.0, 1.0 };
 int sdf_scale_type = SDF_SCALE_FROM_MTM;
-
   /* Scope of the $sdf_annotate call. Annotation starts here. */
 static vpiHandle sdf_scope;
 static vpiHandle sdf_callh = 0;
   /* The cell in process. */
 static vpiHandle sdf_cur_cell;
 static char* sdf_fname = NULL;
+static int sdf_timescale_set;
+static int sdf_timescale_exponent;
+static double sdf_timescale_value;
+
+void sdf_reset_timescale(void)
+{
+      sdf_timescale_set = 0;
+      sdf_timescale_value = 1.0;
+      sdf_timescale_exponent = 0;
+}
+
+void sdf_set_timescale(double value, const char*unit, int sdf_lineno)
+{
+      static const struct { const char*name; int exponent; } units[] = {
+	    { "s", 0 }, { "ms", -3 }, { "us", -6 },
+	    { "ns", -9 }, { "ps", -12 }, { "fs", -15 }
+      };
+      unsigned idx;
+
+      for (idx = 0; idx < sizeof units / sizeof units[0]; idx += 1) {
+	    if (strcmp(unit, units[idx].name) == 0) {
+		  sdf_timescale_set = 1;
+		  sdf_timescale_value = value;
+		  sdf_timescale_exponent = units[idx].exponent;
+		  return;
+	    }
+      }
+
+      vpi_printf("SDF WARNING: %s:%d: Unknown TIMESCALE unit '%s'; "
+	         "using module time unit.\n", sdf_fname, sdf_lineno, unit);
+      sdf_timescale_set = 0;
+}
+
+double sdf_time_scale(void)
+{
+      if (!sdf_timescale_set || !sdf_cur_cell) return 1.0;
+      return sdf_timescale_value *
+	     pow(10.0, sdf_timescale_exponent - vpi_get(vpiTimeUnit, sdf_cur_cell));
+}
 
 static int sdf_string_is_blank(const char*value)
 {
@@ -542,6 +581,30 @@ void sdf_netdelay_delays(struct interconnect_port_s target,
                        sdf_fname, sdf_lineno, target.name);
 }
 
+static void sdf_put_modpath_delays(vpiHandle path,
+                                   const struct sdf_delval_list_s*delval_list)
+{
+      s_vpi_delay delays;
+      struct t_vpi_time delay_vals[12];
+      int idx;
+
+      delays.da = delay_vals;
+      delays.no_of_delays = delval_list->count;
+      delays.time_type = vpiScaledRealTime;
+      delays.mtm_flag = 0;
+      delays.append_flag = 0;
+      delays.pulsere_flag = 0;
+      vpi_get_delays(path, &delays);
+
+      for (idx = 0 ; idx < delval_list->count ; idx += 1) {
+	    delay_vals[idx].type = vpiScaledRealTime;
+	    if (delval_list->val[idx].defined)
+		  delay_vals[idx].real = delval_list->val[idx].value;
+      }
+
+      vpi_put_delays(path, &delays);
+}
+
 void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
                        const char*condition, int ifnone,
                        const struct sdf_delval_list_s*delval_list,
@@ -559,10 +622,6 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	   for the modpath that uses the same ports as the ports that
 	   the parser has found. */
       if (iter) while ( (path = vpi_scan(iter)) ) {
-	    s_vpi_delay delays;
-	    struct t_vpi_time delay_vals[12];
-	    int idx;
-
 	    vpiHandle path_t_in = vpi_handle(vpiModPathIn,path);
 	    vpiHandle path_t_out = vpi_handle(vpiModPathOut,path);
 
@@ -603,22 +662,7 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	    }
 
 	      /* Ah, this must be a match! */
-	    delays.da = delay_vals;
-	    delays.no_of_delays = delval_list->count;
-	    delays.time_type = vpiScaledRealTime;
-	    delays.mtm_flag = 0;
-	    delays.append_flag = 0;
-	    delays.pulsere_flag = 0;
-	    vpi_get_delays(path, &delays);
-
-	    for (idx = 0 ; idx < delval_list->count ; idx += 1) {
-		  delay_vals[idx].type = vpiScaledRealTime;
-		  if (delval_list->val[idx].defined) {
-			delay_vals[idx].real = delval_list->val[idx].value;
-		  }
-	    }
-
-	    vpi_put_delays(path, &delays);
+	    sdf_put_modpath_delays(path, delval_list);
 	    match_count += 1;
       }
 
@@ -627,6 +671,44 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
 	               sdf_fname, sdf_lineno,
 	               edge_str(vpi_edge), src, dst,
 	               vpi_get_str(vpiFullName, sdf_cur_cell));
+      }
+}
+
+void sdf_device_delays(const char*dst,
+                       const struct sdf_delval_list_s*delval_list,
+                       const int sdf_lineno)
+{
+      vpiHandle iter, path;
+      int match_count = 0;
+
+      if (sdf_cur_cell == 0)
+	    return;
+
+      iter = vpi_iterate(vpiModPath, sdf_cur_cell);
+      if (iter) while ((path = vpi_scan(iter))) {
+	    vpiHandle path_t_out = vpi_handle(vpiModPathOut, path);
+	    vpiHandle path_out = vpi_handle(vpiExpr, path_t_out);
+	    const char*path_name = vpi_get_str(vpiName, path_out);
+
+	    if (dst && (!path_name || strcmp(dst, path_name) != 0))
+		  continue;
+
+	    sdf_put_modpath_delays(path, delval_list);
+	    match_count += 1;
+      }
+
+      if (match_count == 0) {
+	    if (dst) {
+		  vpi_printf("SDF ERROR: %s:%d: DEVICE output %s has no specify "
+		             "paths: primitive annotation unsupported in %s.\n",
+		             sdf_fname, sdf_lineno, dst,
+		             vpi_get_str(vpiFullName, sdf_cur_cell));
+	    } else {
+		  vpi_printf("SDF ERROR: %s:%d: DEVICE with no specify paths: "
+		             "primitive annotation unsupported in %s.\n",
+		             sdf_fname, sdf_lineno,
+		             vpi_get_str(vpiFullName, sdf_cur_cell));
+	    }
       }
 }
 
@@ -925,6 +1007,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       sdf_cur_cell = 0;
       sdf_callh = callh;
+      sdf_reset_timescale();
       sdf_process_file(sdf_fd, fname);
       sdf_apply_pathpulse_annotations();
       sdf_callh = 0;

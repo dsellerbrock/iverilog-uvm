@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue905_default_argument_scope.v:28: $finish called at 0 (1s)

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue781_pattern_conditional_2017.v",
+    "iverilog-args" : [ "-g2017", "-s", "issue781_pattern_conditional" ],
+    "gold"          : "issue781_pattern_conditional"
+}
