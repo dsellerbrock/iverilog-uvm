@@ -183,10 +183,12 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 
       std::string out = "'{";
       int active = defn->is_tagged_union_type()
-	    ? cobj->union_active_member() : -1;
+	    ? cobj->union_active_member()
+	    : defn->is_union_type() ? 0 : -1;
       bool first = true;
       for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
-	    if (defn->is_tagged_union_type() && active != (int)i)
+	    if ((defn->is_tagged_union_type() && active != (int)i)
+		|| (defn->is_union_type() && i != 0))
 		  continue;
 	    if (!first) out += ", ";
 	    first = false;

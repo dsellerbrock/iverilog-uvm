@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue2544_union_p.sv","iverilog-args":["-g2023","-s","issue2544_union_p"],"gold":"issue2544_union_p"}
