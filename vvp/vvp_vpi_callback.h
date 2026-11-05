@@ -25,6 +25,11 @@
 class value_callback;
 class vvp_vector2_t;
 
+/* cbStmt metadata and the thread-dispatch fast path. */
+extern bool vpip_statement_callbacks_active;
+extern void vpip_note_statement_code(struct vvp_code_s*code, vpiHandle stmt);
+extern void vpip_run_statement_callbacks(struct vvp_code_s*code);
+
 extern vpiHandle vpip_set_force_statement(vpiHandle statement);
 extern void vpip_note_force_statement(struct vvp_code_s*code, vpiHandle statement);
 extern vpiHandle vpip_force_statement_for(struct vvp_code_s*code);

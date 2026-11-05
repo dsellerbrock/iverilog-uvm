@@ -42,6 +42,7 @@
 # include  "ufunc.h"
 # include  "event.h"
 # include  "vpi_priv.h"
+# include  "vvp_vpi_callback.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
@@ -12470,6 +12471,8 @@ void vthread_run(vthread_t thr)
 			do {
 			      cp = thr->pc;
 			      thr->pc += 1;
+			      if (vpip_statement_callbacks_active)
+				    vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS
                               if (stats_last_thread != thr)
                                     stats_last_opcode = 0;
@@ -12487,6 +12490,8 @@ void vthread_run(vthread_t thr)
 			      trace_step = step_trace_enabled_(step_scope_name);
 			}
 			thr->pc += 1;
+			if (vpip_statement_callbacks_active)
+			      vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS
                         if (stats_last_thread != thr)
                               stats_last_opcode = 0;
