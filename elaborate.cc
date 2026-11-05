@@ -36669,18 +36669,19 @@ static string constraint_dyn2_row_leaf_(
       return to_string(row.value + 1);
 }
 
-/* The inner element type of a rand dynamic array of dynamic arrays, or null
- * when TYPE is not one (associative arrays and queues are excluded). */
+/* The inner element type of a rand dynamic array/queue of dynamic
+ * arrays/queues, or null when TYPE is not one (associative arrays are
+ * excluded). */
 static ivl_type_t constraint_dyn2_inner_type_(ivl_type_t type)
 {
       const netdarray_t*outer = dynamic_cast<const netdarray_t*>(type);
       const netqueue_t*outer_q = dynamic_cast<const netqueue_t*>(type);
-      if (!outer || outer_q) return nullptr;
+      if (!outer || (outer_q && outer_q->assoc_compat())) return nullptr;
       const netdarray_t*row = dynamic_cast<const netdarray_t*>(
 	    outer->element_type());
       const netqueue_t*row_q = dynamic_cast<const netqueue_t*>(
 	    outer->element_type());
-      if (!row || row_q) return nullptr;
+      if (!row || (row_q && row_q->assoc_compat())) return nullptr;
       ivl_type_t leaf = row->element_type();
       ivl_variable_type_t base = leaf ? leaf->base_type() : IVL_VT_NO_TYPE;
       if (!leaf || !leaf->packed() || !leaf->packed_width()
@@ -43731,7 +43732,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // iterative constraints), so emit a template the runtime
 	      // expands after the size is known. One level only.
 	    if (!ua) {
-		    /* A rand dynamic array of dynamic arrays. The rows iterator is
+		    /* A rand dynamic array/queue of dynamic arrays/queues. The rows iterator is
 		     * the token R of a (dynrows) template (the outer size is
 		     * solved first, then each row's size, then the elements);
 		     * `foreach (f[ch][i])' inside it iterates the elements of row
