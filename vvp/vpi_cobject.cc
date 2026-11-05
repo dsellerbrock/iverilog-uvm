@@ -119,6 +119,47 @@ static void report_null_property_container_write_()
 
 }
 
+static std::string format_cobject_property_(vvp_cobject* cobj,
+					    const class_type* defn,
+					    size_t prop, size_t leaf, int depth)
+{
+	const std::string& bt = defn->property_base_type(prop);
+	if (bt == "r") {
+		char b[64];
+		snprintf(b, sizeof b, "%g", cobj->get_real(prop, leaf));
+		return b;
+	}
+	if (bt == "S") {
+		std::string out = "\"";
+		out += cobj->get_string(prop, leaf);
+		out += "\"";
+		return out;
+	}
+	if (!bt.empty() && (bt[0] == 'o' || bt[0] == 'Q' || bt[0] == 'D')) {
+		vvp_object_t sub;
+		cobj->get_object(prop, sub, leaf);
+		return vvp_format_cobject_p(sub, depth+1);
+	}
+	vvp_vector4_t v;
+	cobj->get_vec4(prop, v, leaf);
+	if (defn->property_is_enum(prop)) {
+		const std::vector<vvp_vector4_t>& values = defn->property_enum_values(prop);
+		const std::vector<std::string>& names = defn->property_enum_names(prop);
+		for (size_t ei = 0; ei < values.size(); ei += 1) {
+			if (values[ei].size() != v.size()) continue;
+			bool equal = true;
+			for (unsigned bit = 0; bit < v.size(); bit += 1)
+				if (v.value(bit) != values[ei].value(bit)) { equal = false; break; }
+			if (equal && ei < names.size() && !names[ei].empty())
+				return names[ei];
+		}
+	}
+	bool is_signed = !bt.empty() && bt[0] == 's';
+	char b[256];
+	vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
+	return b;
+}
+
 /* Shared object -> `'{name:value, ...}` renderer for %p and object string
    value fetches (see vpi_priv.h). Used by the static-array element path
    (array.cc), the dynamic-array/queue element path (the thread object stack
@@ -194,53 +235,19 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 	    if (defn->property_is_void(i))
 		  continue;
 	    out += ":";
-	    const std::string&bt = defn->property_base_type(i);
-	    if (bt == "r") {
-		  char b[64];
-		  snprintf(b, sizeof b, "%g", cobj->get_real(i));
-		  out += b;
-	    } else if (bt == "S") {
-		  out += "\"";
-		  out += cobj->get_string(i);
-		  out += "\"";
-	    } else if (!bt.empty()
-		       && (bt[0] == 'o' || bt[0] == 'Q' || bt[0] == 'D')) {
-		  vvp_object_t sub;
-		  cobj->get_object(i, sub, 0);
-		  out += vvp_format_cobject_p(sub, depth+1);
-	    } else if (!bt.empty() && bt[0] == 'M') {
+	    if (defn->property_base_type(i) == "V") continue;
+	    if (!defn->property_base_type(i).empty()
+		&& defn->property_base_type(i)[0] == 'M') {
 		  out += "<container>";
-	    } else {
-		  // Enum properties print their declared name when the stored
-		  // value matches a member; invalid values use the base type.
-		  vvp_vector4_t v;
-		  cobj->get_vec4(i, v);
-		  bool enum_named = false;
-		  if (defn->property_is_enum(i)) {
-			const std::vector<vvp_vector4_t>&values = defn->property_enum_values(i);
-			const std::vector<std::string>&names = defn->property_enum_names(i);
-			for (size_t ei = 0; ei < values.size(); ei += 1) {
-			      if (values[ei].size() != v.size()) continue;
-			      bool equal = true;
-			      for (unsigned bit = 0; bit < v.size(); bit += 1) {
-				    if (v.value(bit) != values[ei].value(bit)) {
-					  equal = false;
-					  break;
-				    }
-			      }
-			      if (equal && ei < names.size() && !names[ei].empty()) {
-				    out += names[ei];
-				    enum_named = true;
-				    break;
-			      }
-			}
-		  }
-		  if (enum_named) continue;
-		  bool is_signed = (!bt.empty() && bt[0] == 's');
-		  char b[256];
-		  vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
-		  out += b;
+		  continue;
 	    }
+	    uint64_t count = defn->property_array_size(i);
+	    if (count > 1) out += "'{";
+	    for (uint64_t leaf = 0; leaf < count; leaf += 1) {
+		  if (leaf) out += ", ";
+		  out += format_cobject_property_(cobj, defn, i, (size_t)leaf, depth);
+	    }
+	    if (count > 1) out += "}";
       }
       out += "}";
       return out;
