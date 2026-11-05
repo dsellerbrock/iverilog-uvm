@@ -32372,15 +32372,13 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    return elem_sel;
       }
 
-	// IEEE 1800-2017 11.5.2: a run-time index is legal in ANY packed
-	// dimension. evaluate_index_prefix below can only fold CONSTANT
-	// leading indices into a slice offset, so `t[i][j]' with a variable
-	// i has to take the general computed-base path. This test is false
-	// for every shape the prefix path already handles, so that path
-	// stays in charge of them.
+	// IEEE 1800-2017 11.5.2: a run-time index is legal in any packed
+	// dimension. A final indexed part-select is handled below; keep it out
+	// of the flattened-prefix path so its own dimension bounds are retained.
+	// This includes non-leaf dimensions, whose select has a shorter prefix.
       const bool final_indexed_packed =
 	    !path_.back().index.empty()
-	    && path_.back().index.size() == node->sig()->packed_dimensions()
+	    && path_.back().index.size() <= node->sig()->packed_dimensions()
 	    && (path_.back().index.back().sel == index_component_t::SEL_IDX_UP
 		|| path_.back().index.back().sel == index_component_t::SEL_IDX_DO);
       if (!final_indexed_packed && node->sig()->unpacked_dimensions() == 0
