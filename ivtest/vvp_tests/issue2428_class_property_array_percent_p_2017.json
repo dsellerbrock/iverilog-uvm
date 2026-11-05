@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2428_class_property_array_percent_p_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2428_class_property_array_percent_p_2017"],
+  "gold": "issue2428_class_property_array_percent_p"
+}
