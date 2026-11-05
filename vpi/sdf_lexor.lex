@@ -253,6 +253,12 @@ void sdf_process_file(FILE*fd, const char*path)
 {
       yyrestart(fd);
 
+      /* The parser location is global, so start each SDF file at line 1. */
+      sdflloc.first_line = 1;
+      sdflloc.last_line = 1;
+      sdflloc.first_column = 1;
+      sdflloc.last_column = 1;
+
       sdf_parse_path = path;
       sdfparse();
       destroy_sdf_lexor();

@@ -1,0 +1,2 @@
+issue722_followed_by_2017 normal,-g2017,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
+issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold

@@ -310,6 +310,10 @@ TU [munpf]
 "->" { return K_TRIGGER; }
 "->>" { return K_NB_TRIGGER; }
 "|->" { return K_PIPE_IMPL_OV; }
+  /* IEEE 1800-2017/2023 16.12.9: the two followed-by operators have
+     distinct tokens so their overlap timing is explicit in the grammar. */
+"#-#" { return K_FOLLOWED_BY_OV; }
+"#=#" { return K_FOLLOWED_BY_NOV; }
   /* M9: SVA consecutive repetition opener. `[*` is not valid in any
      other context (no prefix `*` operator), so lexing it as one token
      lets the parser keep bit/part selects unambiguous. */

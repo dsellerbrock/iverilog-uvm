@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue722_followed_by.v",
+  "iverilog-args": ["-g2023", "-s", "issue722_followed_by"],
+  "gold": "issue722_followed_by_2023"
+}
