@@ -31408,6 +31408,9 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!obuf || !opend || !raw)
 			continue;
+		  if (raw->type() == NetNet::REG
+		      || raw->type() == NetNet::IMPLICIT_REG)
+			ivl_register_clocking_output_variable(raw, cb->name);
 		  std::unique_ptr<NetAssign_> target_shape;
 		  auto da = cb->decl_assigns.find(*sig_it);
 		  if (da != cb->decl_assigns.end()) {

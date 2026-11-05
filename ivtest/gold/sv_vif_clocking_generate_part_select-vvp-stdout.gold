@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_vif_clocking_generate_part_select.v:26: $finish called at 6 (1ns)

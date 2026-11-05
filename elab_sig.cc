@@ -1170,6 +1170,52 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 
 		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw) {
+			/* Generate-block targets are elaborated after this signal pass.
+			   For a selected output, the declaration still gives the
+			   clockvar type needed to allocate its buffer. The later sampler
+			   pass resolves the target and applies its variable/net semantics. */
+			if (is_out && !is_in) {
+			  auto da = cb->decl_assigns.find(*sig_it);
+			  const PEIdent*id = da == cb->decl_assigns.end() ? nullptr
+				: dynamic_cast<const PEIdent*>(da->second);
+			  ivl_type_t output_type = nullptr;
+			  if (id && !id->path().name.empty()
+			      && id->path().name.back().index.size() == 1
+			      && id->path().name.back().index.front().sel
+				   == index_component_t::SEL_PART)
+				output_type = id->test_type_of_ident(des, scope);
+			  if (!output_type && id && !id->path().name.empty()
+			      && id->path().name.back().index.size() == 1
+			      && id->path().name.back().index.front().sel
+				   == index_component_t::SEL_PART) {
+			    PExpr::width_mode_t mode = PExpr::SIZED;
+			    unsigned width = da->second->test_width(des, scope, mode);
+			    if (width)
+				  output_type = new netvector_t(IVL_VT_LOGIC,
+							width-1, 0, false);
+			  }
+			  if (output_type) {
+			    string bname = string("_ivl_obuf$") + cb->name.str()
+				  + "$" + sig_it->str();
+			    perm_string obuf_name = lex_strings.make(bname.c_str());
+			    if (!scope->find_signal(obuf_name)) {
+				NetNet*obuf = new NetNet(scope, obuf_name, NetNet::REG,
+						 output_type);
+				obuf->set_line(*cb);
+			    }
+			    string pname = string("_ivl_opend$") + cb->name.str()
+				  + "$" + sig_it->str();
+			    perm_string opend_name = lex_strings.make(pname.c_str());
+			    if (!scope->find_signal(opend_name)) {
+				NetNet*opend = new NetNet(scope, opend_name, NetNet::REG,
+						  output_type);
+				opend->set_line(*cb);
+			    }
+			    any_output = true;
+			    any = true;
+			    continue;
+			  }
+		    }
 			if (cb->decl_assigns.count(*sig_it))
 			      cerr << cb->get_fileline() << ": sorry: "
 				   << "clocking_decl_assign for `" << *sig_it
