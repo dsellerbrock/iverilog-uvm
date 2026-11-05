@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2558_wide_part_select_randomize_2023.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2558_wide_part_select_randomize"
+}
