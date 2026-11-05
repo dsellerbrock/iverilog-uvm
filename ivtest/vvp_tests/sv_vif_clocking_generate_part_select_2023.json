@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_vif_clocking_generate_part_select.v",
+  "iverilog-args": ["-g2023", "-s", "sv_vif_clocking_generate_part_select"],
+  "gold": "sv_vif_clocking_generate_part_select"
+}

@@ -812,6 +812,18 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 			      rt = wt->second->elaborate_sig_type(des, member_scope);
 			else {
 			      rt = id->test_type_of_ident(des, member_scope);
+			  /* A hierarchical packed select into a generate scope may not
+			     resolve to a NetNet until the interface instance is elaborated.
+			     Its expression width is nevertheless known here and is the
+			     clockvar type needed by the virtual-interface properties. */
+			  if (!rt && id->path().name.back().index.size() == 1
+			      && id->path().name.back().index.front().sel
+				   == index_component_t::SEL_PART) {
+			    PExpr::width_mode_t mode = PExpr::SIZED;
+			    unsigned width = da->second->test_width(des, member_scope, mode);
+			    if (width)
+				  rt = new netvector_t(IVL_VT_LOGIC, width-1, 0, false);
+			  }
 			      if (!rt) {
 				    wt = mod->wires.find(*sig_it);
 				    if (wt != mod->wires.end())
