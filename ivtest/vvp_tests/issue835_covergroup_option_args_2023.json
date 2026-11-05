@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue835_covergroup_option_args.v",
+  "iverilog-args": ["-g2023", "-gno-icarus-misc", "-gno-xtypes", "-s", "issue835_covergroup_option_args"],
+  "gold": "issue835_covergroup_option_args"
+}

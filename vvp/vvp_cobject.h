@@ -39,7 +39,19 @@ static const unsigned VVP_RANDC_PERMUTATION_ROUNDS = 8;
 struct covgrp_dyn_state_t {
       const class_type::cov_dyn_bin_t*meta = 0;
       std::vector<std::pair<uint64_t,uint64_t>> ranges;
+      struct auto_bin_t {
+	    uint64_t low = 0;
+	    uint64_t high = 0;
+	    std::vector<std::pair<uint64_t,uint64_t>> values;
+	    std::vector<uint64_t> wide_low;
+	    std::vector<uint64_t> wide_high;
+      };
+      std::vector<auto_bin_t> auto_bins;
+      std::vector<uint64_t> type_bins;
       unsigned __int128 total = 0;
+      uint64_t array_size = 0;
+      bool is_auto_bins = false;
+      bool is_wide_auto_bins = false;
       bool valid = true;
 };
 

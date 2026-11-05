@@ -482,6 +482,8 @@ class netclass_t : public ivl_type_s {
 	    unsigned kind = 0;
 	    unsigned family = 0;
 	    uint64_t array_size = 0;
+	    // For auto bins, array_size stores the constructor-object property
+	    // index plus one; kind bit 2048 distinguishes that encoding.
 	    std::string name;
 	    std::string lo_ir;
 	    std::string hi_ir;
@@ -530,7 +532,10 @@ class netclass_t : public ivl_type_s {
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
+	    std::string at_least_ir;
 	    int weight_prop = -1;   // mutable per-instance option slot
+	    int auto_bin_max_prop = -1;
+	    std::string auto_bin_max_ir;
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    unsigned goal = 100;
@@ -704,6 +709,15 @@ class netclass_t : public ivl_type_s {
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       void set_covgrp_item_at_least_inherited(size_t idx, bool value)
       { covgrp_items_[idx].at_least_inherited = value; }
+      void set_covgrp_item_option_irs(size_t idx,
+					  const std::string&at_least_ir,
+					  int auto_bin_max_prop,
+					  const std::string&auto_bin_max_ir)
+      { if (idx < covgrp_items_.size()) {
+	 covgrp_items_[idx].at_least_ir = at_least_ir;
+	 covgrp_items_[idx].auto_bin_max_prop = auto_bin_max_prop;
+	 covgrp_items_[idx].auto_bin_max_ir = auto_bin_max_ir;
+	} }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }

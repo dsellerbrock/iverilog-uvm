@@ -720,6 +720,15 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  fprintf(vvp_out, " .covgrp_item_options %u %d %d\n", idx,
 			  ivl_type_covgrp_item_at_least_prop(classtype, idx) + 1,
 			  ivl_type_covgrp_item_weight_prop(classtype, idx) + 1);
+	    const char*at_least_ir = ivl_type_covgrp_item_at_least_ir(classtype, idx);
+	    const char*auto_bin_max_ir = ivl_type_covgrp_item_auto_bin_max_ir(classtype, idx);
+	    int auto_bin_max_prop = ivl_type_covgrp_item_auto_bin_max_prop(classtype, idx);
+	    if (auto_bin_max_prop >= 0 || (at_least_ir && at_least_ir[0])
+		|| (auto_bin_max_ir && auto_bin_max_ir[0]))
+		  fprintf(vvp_out,
+			  " .covgrp_item_option_irs %u %d \"%s\" \"%s\"\n",
+			  idx, auto_bin_max_prop + 1,
+			  at_least_ir, auto_bin_max_ir);
           fprintf(vvp_out,
                   " .covgrp_item_option_values %u %d %u %d \"%s\"\n", idx,
                   ivl_type_covgrp_item_goal_prop(classtype, idx) + 1,

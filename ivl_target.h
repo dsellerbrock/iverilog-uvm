@@ -2913,6 +2913,9 @@ extern int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx);
      (-1 for legacy metadata without materialized runtime state). */
 extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_at_least_ir(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_auto_bin_max_prop(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_auto_bin_max_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);
