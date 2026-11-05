@@ -242,6 +242,7 @@ struct sva_property_t {
       // property's own locals after the formal instantiation is expanded.
       std::vector<perm_string> local_input_actual_names;
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
+      const Module::PClocking* clocking_scope = nullptr;
       // M9-NFA stage D.1: consequent clocking event for a multiclocked
       // implication `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3). When
       // set, clk_evt clocks the antecedent and seq_clk_evt clocks the

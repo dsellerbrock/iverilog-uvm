@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue917_clocking_sva_invalid.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue917_clocking_sva_invalid"],
+  "gold": "issue917_clocking_sva_invalid_2023"
+}

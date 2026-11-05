@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2486_class_property_packed_incdec.v",
+  "iverilog-args": ["-g2023", "-s", "issue2486_class_property_packed_incdec"],
+  "output-contains": ["PASSED"]
+}

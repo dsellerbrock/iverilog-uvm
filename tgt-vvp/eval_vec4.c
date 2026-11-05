@@ -1327,7 +1327,10 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    assert(wid==8);
 	    draw_eval_string(subexpr);
 	    int base_idx = allocate_word();
-	    draw_eval_expr_into_integer(base, base_idx);
+	    draw_eval_vec4(base);
+	    resize_vec4_wid(base, 32);
+	    fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; string character selector\n", base_idx);
 	    fprintf(vvp_out, "    %%substr/vec4 %d, %u;\n", base_idx, wid);
 	    fprintf(vvp_out, "    %%pop/str 1;\n");
 	    clr_word(base_idx);
@@ -2703,6 +2706,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       bool is_string_character = false;
       bool is_nested_signal_select = false;
       bool is_nested_property_select = false;
+      bool is_nested_fixed_property_select = false;
       bool is_array_word_select = false;
       bool is_array_string_character = false;
       ivl_expr_t array_word = 0;
@@ -2820,6 +2824,50 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			    lab_out = local_count++;
 			    break;
 		      }
+	      if (root_prop_type && carrier_count > 0
+	          && ivl_expr_oper1(root)
+	          && property_selects_fixed_uarray_slot_(root)
+	          && (ivl_expr_value(root) == IVL_VT_LOGIC
+	              || ivl_expr_value(root) == IVL_VT_BOOL)) {
+		    pidx = ivl_expr_property_idx(root);
+		    prop_sig = ivl_expr_signal(root);
+		    prop_base = ivl_expr_oper2(root);
+		    prop_word = ivl_expr_oper1(root);
+		    prop_type = root_prop_type;
+		    prop_carrier_width = ivl_expr_width(root);
+		    if (pidx == (unsigned)-1 || (!prop_sig && !prop_base)) {
+			  fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+			          "property ++/-- destination.\n", ivl_expr_file(sub),
+			          ivl_expr_lineno(sub));
+			  vvp_errors += 1; draw_eval_vec4(sub); return;
+		    }
+		    carrier_index = calloc(carrier_count, sizeof *carrier_index);
+		    carrier_flag = calloc(carrier_count, sizeof *carrier_flag);
+		    carrier_width = calloc(carrier_count, sizeof *carrier_width);
+		    carrier_base = calloc(carrier_count, sizeof *carrier_base);
+		    ivl_expr_t node = e1;
+		    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			  carrier_base[idx] = ivl_expr_oper2(node);
+			  carrier_width[idx] = ivl_expr_width(node);
+			  if (!carrier_base[idx] || !carrier_width[idx]) {
+				free(carrier_index); free(carrier_flag);
+				free(carrier_width); free(carrier_base);
+				fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+				        "property ++/-- destination.\n", ivl_expr_file(sub),
+				        ivl_expr_lineno(sub));
+				vvp_errors += 1; draw_eval_vec4(sub); return;
+			  }
+			  node = ivl_expr_oper1(node);
+		    }
+		    wid = ivl_expr_width(sub);
+		    is_nested_fixed_property_select = true;
+		    lab_null = local_count++;
+		    lab_invalid = local_count++;
+		    lab_value = local_count++;
+		    lab_skip_store = local_count++;
+		    lab_after_store = local_count++;
+		    break;
+	      }
 		      if (!root || ivl_expr_type(root) != IVL_EX_SIGNAL
 		          || !ivl_expr_signal(root)
 		          || ivl_signal_dimensions(ivl_expr_signal(root)) != 0) {
@@ -3000,13 +3048,38 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    draw_inc_dec_select_part_(select_base, select_index, select_flag, wid,
 				      "nested property",
 				      "nested property selected value");
-	  } else if (is_nested_signal_select) {
+	  } else if (is_nested_signal_select || is_nested_fixed_property_select) {
 	    select_index = allocate_word(); select_flag = allocate_flag();
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
 	          carrier_index[idx] = allocate_word();
 	          carrier_flag[idx] = allocate_flag();
 	    }
-	    if (signal_is_return_value(sig))
+	    if (is_nested_fixed_property_select) {
+		  prop_index = allocate_word();
+		  if (prop_sig)
+			fprintf(vvp_out, "    %%load/obj v%p_0; nested fixed property receiver\n",
+			        prop_sig);
+		  else
+			draw_eval_object(prop_base);
+		  fprintf(vvp_out, "    %%test_nul/obj;\n");
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+		  draw_fixed_uarray_slot_index_(prop_word, prop_type, prop_index,
+					       &prop_x_flag, &prop_range_flag);
+		  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; invalid fixed property slot\n",
+			  thread_count, lab_invalid, prop_x_flag);
+		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; fixed property slot out of range\n",
+			  thread_count, lab_invalid, prop_range_flag);
+		  fprintf(vvp_out, "    %%prop/v/i %u, %d; nested fixed property element\n",
+			  pidx, prop_index);
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_invalid);
+		  if (destination_type == IVL_VT_LOGIC)
+			draw_pushi_all_x(prop_carrier_width);
+		  else
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", prop_carrier_width);
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_value);
+	    } else if (signal_is_return_value(sig))
 	          fprintf(vvp_out, "    %%retload/vec4 0; nested packed return carrier\n");
 	    else
 	          fprintf(vvp_out, "    %%load/vec4 v%p_0; nested packed carrier\n", sig);
@@ -3159,6 +3232,31 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		          carrier_flag[0]);
 		  fprintf(vvp_out, "    %%set/dar/obj/vec4/off %d, %d, %u;\n",
 		          carrier_index[0], select_index, wid);
+	    } else if (is_nested_fixed_property_select) {
+		  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; suppress invalid fixed property slot\n",
+			  thread_count, lab_skip_store, prop_x_flag);
+		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range fixed property slot\n",
+			  thread_count, lab_skip_store, prop_range_flag);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested property select validity\n",
+			  select_flag);
+		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine property carrier validity\n",
+			        carrier_flag[idx]);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; property carrier width\n",
+			        carrier_width[idx]);
+			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded property nested store\n",
+			        select_index, carrier_index[idx]);
+		  }
+		  fprintf(vvp_out, ivl_expr_signed(select_base)
+		          ? "    %%store/prop/v/i/bits/x %u, %d, %d;\n"
+		          : "    %%store/prop/v/i/bits/ux %u, %d, %d;\n",
+		          pidx, prop_index, select_index);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; discard fixed property receiver\n");
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_after_store);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_skip_store);
+		  fprintf(vvp_out, "    %%pop/vec4 1; discard invalid fixed property update\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; discard fixed property receiver\n");
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 	    } else if (is_nested_signal_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
 		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -3257,6 +3355,31 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		          carrier_flag[0]);
 		  fprintf(vvp_out, "    %%set/dar/obj/vec4/off %d, %d, %u;\n",
 		          carrier_index[0], select_index, wid);
+	    } else if (is_nested_fixed_property_select) {
+		  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; suppress invalid fixed property slot\n",
+			  thread_count, lab_skip_store, prop_x_flag);
+		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range fixed property slot\n",
+			  thread_count, lab_skip_store, prop_range_flag);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested property select validity\n",
+			  select_flag);
+		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine property carrier validity\n",
+			        carrier_flag[idx]);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; property carrier width\n",
+			        carrier_width[idx]);
+			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded property nested store\n",
+			        select_index, carrier_index[idx]);
+		  }
+		  fprintf(vvp_out, ivl_expr_signed(select_base)
+		          ? "    %%store/prop/v/i/bits/x %u, %d, %d;\n"
+		          : "    %%store/prop/v/i/bits/ux %u, %d, %d;\n",
+		          pidx, prop_index, select_index);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; discard fixed property receiver\n");
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_after_store);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_skip_store);
+		  fprintf(vvp_out, "    %%pop/vec4 1; discard invalid fixed property update\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; discard fixed property receiver\n");
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 	    } else if (is_nested_signal_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
 		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -3338,6 +3461,22 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    clr_word(select_index); clr_flag(select_flag);
 	    free(carrier_index); free(carrier_flag);
 	    free(carrier_width); free(carrier_base);
+	  } else if (is_nested_fixed_property_select) {
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; discard null fixed property receiver\n");
+	    if (destination_type == IVL_VT_LOGIC)
+		  draw_pushi_all_x(wid);
+	    else
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    clr_word(prop_index); clr_flag(prop_x_flag); clr_flag(prop_range_flag);
+	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+		  clr_word(carrier_index[idx]); clr_flag(carrier_flag[idx]);
+	    }
+	    free(carrier_index); free(carrier_flag);
+	    free(carrier_width); free(carrier_base);
+	    clr_word(select_index); clr_flag(select_flag);
 	  } else if (is_nested_signal_select) {
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
 	          clr_word(carrier_index[idx]); clr_flag(carrier_flag[idx]);

@@ -8721,6 +8721,9 @@ static bool fixed_uarray_bitstream_shape_(ivl_type_t type,
       return true;
 }
 
+static bool bitstream_cast_type_(ivl_type_t type, bool destination);
+static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width);
+
 static bool fixed_array_cast_source_supported_(NetExpr*source)
 {
       if (!source)
@@ -8743,6 +8746,16 @@ static bool fixed_array_cast_source_supported_(NetExpr*source)
 	    return element && element->packed()
 		  && type_is_vectorable(element->base_type())
 		  && element->packed_width() > 0;
+      }
+
+      /* An unpacked struct is a fixed-size bit stream when all of its
+       * members are fixed-size bit-stream types. Its VVP object layout can
+       * then use the same flatten-and-materialize path as array sources. */
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (record && !record->packed() && !record->union_flag()) {
+	    uint64_t width = 0;
+	    return bitstream_cast_type_(type, false)
+		  && fixed_bitstream_width_(type, width);
       }
 
       uint64_t count = 0, width = 0;
@@ -23186,6 +23199,20 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
        * applying the packed destination conversion (IEEE 1800-2017/2023 6.24.3). */
       if (target_type_ && target_type_->packed()) {
 	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(sub->net_type());
+	    /* Fixed unpacked-array members are valid bit-stream components too.
+	       Let VVP recursively flatten the object so arrays follow their
+	       declared index order instead of treating an array property as a
+	       scalar unary cast. */
+	    uint64_t record_stream_width = 0;
+	    if (record && !record->packed() && !record->union_flag()
+		&& fixed_bitstream_width_(record, record_stream_width)
+		&& record_stream_width == static_cast<unsigned>(target_type_->packed_width())) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$packed$1",
+					     target_type_, 1);
+	      cast->parm(0, sub);
+	      cast->set_line(*this);
+	      return cast;
+	    }
 	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
 		  || dynamic_cast<const NetEProperty*>(sub);
 	    if (record && !record->packed() && !record->union_flag()

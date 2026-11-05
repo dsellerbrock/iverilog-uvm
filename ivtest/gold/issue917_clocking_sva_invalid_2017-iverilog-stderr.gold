@@ -1,0 +1,5 @@
+ivltests/issue917_clocking_sva_invalid.v:20: error: sequence declaration `bad_explicit' in a clocking block shall not specify a clocking event or be multiclocked (IEEE 1800-2017/2023 16.16(b)(1)-(2)).
+ivltests/issue917_clocking_sva_invalid.v:26: error: property declaration `bad_multiclock' in a clocking block shall not specify a clocking event or be multiclocked (IEEE 1800-2017/2023 16.16(b)(1)-(2)).
+ivltests/issue917_clocking_sva_invalid.v:32: error: named property `outside_other' instantiated in clocking block `cb_external' shall be singly clocked by the block's identical event (IEEE 1800-2017/2023 16.16(b)(3)).
+ivltests/issue917_clocking_sva_invalid.v:38: error: named sequence `outside_sequence_other' instantiated in clocking block `cb_external_sequence' shall be singly clocked by the block's identical event (IEEE 1800-2017/2023 16.16(b)(3)).
+ivltests/issue917_clocking_sva_invalid.v:44: error: named property `outside_multiclock' instantiated in clocking block `cb_external_multiclock' shall be singly clocked by the block's identical event (IEEE 1800-2017/2023 16.16(b)(3)).
