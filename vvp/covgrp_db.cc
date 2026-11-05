@@ -415,6 +415,22 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 			add_line(record.str());
 		  }
 	    }
+	    for (const auto&family : ct->covgrp_dyn_type_auto_bins_) {
+		  const cov_dyn_bin_t*meta = dyn_meta(family.first);
+		  if (!meta || !(meta->kind & cov_dyn_bin_t::AUTO_BIN)
+		      || !dyn_families.count(family.first)) {
+			err = "covergroup " + ct->dispatch_prefix_
+			      + " has named ranges for a non-automatic dynamic family";
+			return false;
+		  }
+		  for (const auto&bin : family.second) {
+			ostringstream record;
+			record << "autorange " << family.first << ' '
+			       << bin.second << ' ' << bin.first.first << ' '
+			       << bin.first.second;
+			add_line(record.str());
+		  }
+	    }
 	    for (const auto&entry : ct->covgrp_dyn_type_totals_) {
 		  if (cross_families.count(entry.first)
 		      || trans_families.count(entry.first)) continue;
@@ -603,6 +619,7 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 	    map<unsigned, uint32_t> props;
 	    map<unsigned, unsigned __int128> totals;
 	    map<unsigned, vector<pair<uint64_t,uint64_t>>> ranges;
+	    map<unsigned, map<uint64_t,pair<uint64_t,uint64_t>>> auto_ranges;
 	    map<pair<unsigned,uint64_t>, uint32_t> dyn_counts;
 	    map<unsigned, map<vector<pair<unsigned,uint64_t>>,uint32_t>> cross_bins;
 	    map<unsigned, set<unsigned>> cross_named;
@@ -865,6 +882,38 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			}
 	  }
 	  ranges.push_back(make_pair(lo, hi));
+	    } else if (tag == "autorange") {
+		  string family_text, id_text, lo_text, hi_text, trailing;
+		  if (!(record >> family_text >> id_text >> lo_text >> hi_text)
+		      || (record >> trailing)
+		      || current_type == numeric_limits<size_t>::max()) {
+			err = "line " + to_string(line_number)
+			      + ": malformed automatic-bin range record";
+			return false;
+		  }
+		  uint64_t family64 = 0, id = 0, lo = 0, hi = 0;
+		  if (!covgrp_db_parse_u64_(family_text, family64)
+		      || family64 > UINT_MAX || !covgrp_db_parse_u64_(id_text, id)
+		      || !covgrp_db_parse_u64_(lo_text, lo)
+		      || !covgrp_db_parse_u64_(hi_text, hi) || hi < lo) {
+			err = "line " + to_string(line_number)
+			      + ": invalid automatic-bin range";
+			return false;
+		  }
+		  unsigned family = static_cast<unsigned>(family64);
+		  const class_type*ct = staged[current_type].type;
+		  const cov_dyn_bin_t*meta = find_dyn_meta(ct, family);
+		  auto&bins = staged[current_type].auto_ranges[family];
+		  bool duplicate = bins.count(id) != 0;
+		  for (const auto&bin : bins)
+			if (bin.second == make_pair(lo, hi)) duplicate = true;
+		  if (!meta || !(meta->kind & cov_dyn_bin_t::AUTO_BIN)
+		      || is_cross_family(ct, family) || duplicate) {
+			err = "line " + to_string(line_number)
+			      + ": automatic-bin range family or identity is invalid";
+			return false;
+		  }
+		  bins[id] = make_pair(lo, hi);
 	    } else if (tag == "total") {
 		  string family_text, total_text, trailing;
 		  if (!(record >> family_text >> total_text) || (record >> trailing)
@@ -884,8 +933,10 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 		  const cov_dyn_bin_t*meta = find_dyn_meta(ct, family);
 		  if (!meta || meta->array_size == 0 || (meta->kind & 7) == 4
 		      || is_cross_family(ct, family)
-		      || total > (unsigned __int128)meta->array_size
-		      || (meta->array_size == UINT64_MAX && total != 1)) {
+	      || ((meta->kind & cov_dyn_bin_t::AUTO_BIN)
+		  ? total != staged[current_type].auto_ranges[family].size()
+		  : (total > (unsigned __int128)meta->array_size
+		      || (meta->array_size == UINT64_MAX && total != 1)))) {
 			err = "line " + to_string(line_number)
 			      + ": total family or value is invalid";
 			return false;
@@ -913,7 +964,9 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 		  const class_type*ct = staged[current_type].type;
 		  const cov_dyn_bin_t*meta = find_dyn_meta(ct, family);
 		  if (!meta || (meta->kind & 7) == 4 || is_cross_family(ct, family)
-		      || (meta->array_size != 0 && key >= meta->array_size)) {
+	      || ((meta->kind & cov_dyn_bin_t::AUTO_BIN)
+		  ? !staged[current_type].auto_ranges[family].count(key)
+		  : (meta->array_size != 0 && key >= meta->array_size))) {
 			err = "line " + to_string(line_number)
 			      + ": dyn family or key is invalid";
 			return false;
@@ -1162,6 +1215,13 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			      err = "database has an unsized value outside its saved ranges";
 			      return false;
 			}
+		  } else if (meta->kind & cov_dyn_bin_t::AUTO_BIN) {
+			auto bins = entry.auto_ranges.find(family);
+			if (bins == entry.auto_ranges.end()
+			    || !bins->second.count(key)) {
+			      err = "database has an automatic bin outside its saved ranges";
+			      return false;
+			}
 		  } else {
 			auto total = entry.totals.find(family);
 			if (total == entry.totals.end()
@@ -1214,6 +1274,10 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 						auto ranges = entry.ranges.find(term->source_id);
 						valid = ranges != entry.ranges.end()
 						      && range_contains(ranges->second, logical);
+					  } else if (meta->kind & cov_dyn_bin_t::AUTO_BIN) {
+						auto bins = entry.auto_ranges.find(term->source_id);
+						valid = bins != entry.auto_ranges.end()
+						      && bins->second.count(logical);
 					  } else {
 						auto total = entry.totals.find(term->source_id);
 						valid = total != entry.totals.end()
@@ -1267,6 +1331,14 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 		  if (ct->type_counts_.size() <= prop.first)
 			ct->type_counts_.resize(static_cast<size_t>(prop.first) + 1, 0);
 		  add_count(ct->type_counts_[prop.first], prop.second);
+	    }
+	    for (const auto&family : entry.auto_ranges) {
+		  for (const auto&bin : family.second)
+			if (!ct->dyn_type_restore_auto_bin(family.first,
+			      bin.first, bin.second)) {
+			      err = "database has conflicting automatic-bin identities";
+			      return false;
+			}
 	    }
 	    for (const auto&total : entry.totals)
 		  ct->dyn_type_register_total(total.first, total.second);

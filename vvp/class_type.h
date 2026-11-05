@@ -323,6 +323,7 @@ class class_type : public __vpiHandle {
             unsigned type_weight = 1;
 	    int type_weight_prop = -1;
 	    std::string weight_ir;
+	    std::string at_least_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
 	    unsigned goal = 100;
@@ -336,6 +337,7 @@ class class_type : public __vpiHandle {
 	    int has_guard = -1; // unset preserves old VVP behavior
       };
       struct cov_dyn_bin_t {
+	    static const unsigned AUTO_BIN = 2048;
 	    unsigned cp_idx = 0;
 	    unsigned item_idx = 0;
 	    unsigned kind = 0;
@@ -427,6 +429,10 @@ class class_type : public __vpiHandle {
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].type_comment = comment;
 	return true; }
+      bool set_covgrp_item_at_least_ir(size_t idx, const std::string&ir)
+      { if (idx >= covgrp_items_.size()) return false;
+        covgrp_items_[idx].at_least_ir = ir;
+        return true; }
       bool set_covgrp_item_guard(size_t idx, bool has_guard)
       { if (idx >= covgrp_items_.size()) return false;
 	covgrp_items_[idx].has_guard = has_guard ? 1 : 0;
@@ -546,6 +552,13 @@ class class_type : public __vpiHandle {
         if (logical > slot) slot = logical; }
       void dyn_type_register_ranges(unsigned family,
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
+      uint64_t dyn_type_register_auto_bin(unsigned family,
+					  const std::pair<uint64_t,uint64_t>&range) const;
+      bool dyn_type_restore_auto_bin(unsigned family, uint64_t id,
+				     const std::pair<uint64_t,uint64_t>&range) const;
+      const std::map<unsigned,
+	    std::map<std::pair<uint64_t,uint64_t>,uint64_t>>&
+	    dyn_type_auto_bins() const { return covgrp_dyn_type_auto_bins_; }
       uint64_t cross_type_register_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
       uint64_t trans_type_register_bin(unsigned family,
@@ -665,6 +678,9 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      mutable std::map<unsigned,
+	    std::map<std::pair<uint64_t,uint64_t>,uint64_t>>
+	    covgrp_dyn_type_auto_bins_;
       mutable std::map<unsigned,std::map<std::vector<uint64_t>,uint64_t>>
             covgrp_trans_type_bins_;
       struct cov_cross_type_t {

@@ -3435,6 +3435,18 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 	    yyerror("invalid .covgrp_item_options metadata value");
 }
 
+void compile_class_covgrp_item_at_least_ir(uint64_t item_idx, char*ir)
+{
+      assert(compile_class);
+      const uint64_t size_max = std::numeric_limits<size_t>::max();
+      bool bad = item_idx > size_max || !ir || !*ir;
+      if (!bad)
+	    bad = !compile_class->set_covgrp_item_at_least_ir(
+		  static_cast<size_t>(item_idx), ir);
+      if (bad) yyerror("invalid .covgrp_item_at_least_ir metadata value");
+      free(ir);
+}
+
 void compile_class_covgrp_item_option_values(uint64_t item_idx,
 					     uint64_t goal_prop,
 					     uint64_t goal,
@@ -4097,7 +4109,16 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
-	    store(item.at_least_prop, item.at_least);
+	    unsigned at_least = item.at_least;
+	    if (!item.at_least_ir.empty()) {
+		  uint64_t value = 0;
+		  if (covgrp_eval_ir(obj, item.at_least_ir, value))
+			at_least = static_cast<unsigned>(value);
+		  else
+			std::cerr << "ERROR: constructor-dependent covergroup at_least "
+				  << "expression could not be evaluated." << std::endl;
+	    }
+	    store(item.at_least_prop, at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
 	    store(item.goal_prop, item.goal);
 	    if (item.comment_prop >= 0
@@ -4243,6 +4264,40 @@ void class_type::dyn_type_register_ranges(unsigned family,
       for (const auto&range : universe)
             total += (unsigned __int128)range.second - range.first + 1;
       covgrp_dyn_type_totals_[family] = total;
+}
+
+uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
+	const std::pair<uint64_t,uint64_t>&range) const
+{
+      auto&bins = covgrp_dyn_type_auto_bins_[family];
+      auto found = bins.find(range);
+      if (found != bins.end()) return found->second;
+      uint64_t id = 0;
+      for (;;) {
+	    bool used = false;
+	    for (const auto&entry : bins)
+		  if (entry.second == id) { used = true; break; }
+	    if (!used) break;
+	    if (id == UINT64_MAX) return id;
+	    id += 1;
+      }
+      bins[range] = id;
+      dyn_type_register_total(family, bins.size());
+      return id;
+}
+
+bool class_type::dyn_type_restore_auto_bin(unsigned family, uint64_t id,
+	const std::pair<uint64_t,uint64_t>&range) const
+{
+      if (range.second < range.first || id == UINT64_MAX) return false;
+      auto&bins = covgrp_dyn_type_auto_bins_[family];
+      auto found = bins.find(range);
+      if (found != bins.end()) return found->second == id;
+      for (const auto&entry : bins)
+	    if (entry.second == id) return false;
+      bins[range] = id;
+      dyn_type_register_total(family, bins.size());
+      return true;
 }
 
 uint64_t class_type::cross_type_register_bin(unsigned family,

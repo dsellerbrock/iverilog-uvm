@@ -706,6 +706,9 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_item_name(classtype, idx),
 			  ivl_type_covgrp_item_weight_ir(classtype, idx),
 			  ivl_type_covgrp_item_guardsrc(classtype, idx) + 1);
+		  if (*ivl_type_covgrp_item_at_least_ir(classtype, idx))
+			fprintf(vvp_out, " .covgrp_item_at_least_ir %u \"%s\"\n",
+				idx, ivl_type_covgrp_item_at_least_ir(classtype, idx));
                   fprintf(vvp_out, " .covgrp_item_type_weight %u %u\n", idx,
                           ivl_type_covgrp_item_type_weight(classtype, idx));
 	    int type_weight_prop =

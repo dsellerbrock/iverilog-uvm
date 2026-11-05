@@ -39,7 +39,10 @@ static const unsigned VVP_RANDC_PERMUTATION_ROUNDS = 8;
 struct covgrp_dyn_state_t {
       const class_type::cov_dyn_bin_t*meta = 0;
       std::vector<std::pair<uint64_t,uint64_t>> ranges;
+      std::vector<std::pair<uint64_t,uint64_t>> auto_ranges;
+      std::vector<uint64_t> type_bins;
       unsigned __int128 total = 0;
+      bool auto_bins = false;
       bool valid = true;
 };
 
@@ -60,6 +63,7 @@ struct covgrp_cross_choice_t {
       unsigned source_aux = 0;
       unsigned cp_idx = 0;
       uint64_t logical_idx = 0;
+      uint64_t type_idx = 0;
       std::vector<const class_type::cov_bin_t*> records;
 };
 

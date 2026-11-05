@@ -477,6 +477,7 @@ class netclass_t : public ivl_type_s {
 	// bin per value), UINT64_MAX means a non-arrayed bin, and any other
 	// value partitions the union into that many logical bins.
       struct covgrp_dyn_bin_t {
+	    static const unsigned AUTO_BIN = 2048;
 	    unsigned cp_idx = 0;
 	    unsigned item_idx = 0;
 	    unsigned kind = 0;
@@ -528,6 +529,7 @@ class netclass_t : public ivl_type_s {
             unsigned type_weight = 1;
 	    int type_weight_prop = -1; // mutable type-wide option slot
 	    std::string weight_ir; // per-instance constructor expression
+	    std::string at_least_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
 	    int weight_prop = -1;   // mutable per-instance option slot
@@ -703,6 +705,8 @@ class netclass_t : public ivl_type_s {
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       void set_covgrp_item_at_least_inherited(size_t idx, bool value)
       { covgrp_items_[idx].at_least_inherited = value; }
+      void set_covgrp_item_at_least_ir(size_t idx, const std::string&ir)
+      { if (idx < covgrp_items_.size()) covgrp_items_[idx].at_least_ir = ir; }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }
