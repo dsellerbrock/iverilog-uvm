@@ -1,0 +1,4 @@
+ivltests/sv_foreach_declared_loop_rules.v:13: error: Assignment to const signal `i` is not allowed.
+ivltests/sv_foreach_declared_loop_rules.v:8: error: Foreach loop variable `a' has the same name as array `a'.
+ivltests/sv_foreach_declared_loop_rules.v:3: error: Number of foreach loop variables(2) must not exceed number of array dimensions (1).
+3 error(s) during elaboration.

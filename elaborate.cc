@@ -28263,6 +28263,18 @@ static NetProc* prepend_foreach_path_selector_evaluation_(Design*des,
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
       loop_context_guard_t loop_context(des);
+      if (!array_path_.empty()) {
+	    perm_string array_name = array_path_.back().name;
+	    for (perm_string loop_var : index_vars_) {
+		  if (!loop_var.nil() && loop_var == array_name) {
+			cerr << get_fileline() << ": error: Foreach loop variable `"
+			     << loop_var << "' has the same name as array `"
+			     << array_name << "'." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+	    }
+      }
       if (foreach_target_is_non_simple_(array_path_)) {
 	      /* A hierarchical target may name an ordinary SIGNAL in
 		 another scope -- an array member of an interface
@@ -28444,7 +28456,7 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    if (const netvector_t*vec = dynamic_cast<const netvector_t*>(ptype)) {
 		  // foreach over packed vector: iterate over bits/dims
 		  const netranges_t&dims = vec->packed_dims();
-		  if (!dims.empty()) {
+		  if (foreach_parameter_packed_vector_(vec) && !dims.empty()) {
 			delete array_expr;
 			return elaborate_static_array_(des, scope, dims);
 		  }
@@ -28604,7 +28616,7 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    if (const netvector_t*vec = dynamic_cast<const netvector_t*>(ptype)) {
 		  // foreach over packed-vector class property: iterate over its bits
 		  const netranges_t&dims = vec->packed_dims();
-		  if (!dims.empty())
+		  if (foreach_parameter_packed_vector_(vec) && !dims.empty())
 			return elaborate_static_array_(des, scope, dims);
 	    }
 
@@ -28722,7 +28734,10 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
       }
 
       netranges_t dims = array_sig->unpacked_dims();
-      if (array_sig->packed_dimensions() > 0) {
+      const netvector_t*packed_vec =
+	    dynamic_cast<const netvector_t*>(array_sig->net_type());
+      if (array_sig->packed_dimensions() > 0
+	  && (!packed_vec || foreach_parameter_packed_vector_(packed_vec))) {
             dims.insert(dims.end(), array_sig->packed_dims().begin(), array_sig->packed_dims().end());
       }
 
