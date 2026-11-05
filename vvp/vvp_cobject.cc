@@ -33,6 +33,8 @@
 using namespace std;
 
 extern void vvp_covgrp_finalize_parent_bins(vvp_cobject*cobj);
+extern void vvp_covgrp_parent_property_changed(vvp_cobject*parent,
+					       unsigned property);
 
 static uint64_t next_class_object_id_()
 {
@@ -1115,6 +1117,7 @@ void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
                   if (old_bit != new_bit)
                         touch((unsigned)pid, (unsigned)idx, bit);
             }
+	    vvp_covgrp_parent_property_changed(this, (unsigned)pid);
       }
 }
 
@@ -1185,8 +1188,10 @@ void vvp_cobject::set_real(size_t pid, double val, size_t idx)
             touch();
             return;
       }
-      if (old != stored)
-            touch((unsigned)pid, (unsigned)idx);
+      if (old != stored) {
+	    touch((unsigned)pid, (unsigned)idx);
+	    vvp_covgrp_parent_property_changed(this, (unsigned)pid);
+      }
 }
 
 double vvp_cobject::get_real(size_t pid, size_t idx)
@@ -1210,8 +1215,10 @@ void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
             touch();
             return;
       }
-      if (old != stored)
-            touch((unsigned)pid, (unsigned)idx);
+      if (old != stored) {
+	    touch((unsigned)pid, (unsigned)idx);
+	    vvp_covgrp_parent_property_changed(this, (unsigned)pid);
+      }
 }
 
 string vvp_cobject::get_string(size_t pid, size_t idx)
@@ -1268,8 +1275,10 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
             touch();
             return;
       }
-      if (old != stored)
-            touch((unsigned)pid, (unsigned)idx);
+      if (old != stored) {
+	    touch((unsigned)pid, (unsigned)idx);
+	    vvp_covgrp_parent_property_changed(this, (unsigned)pid);
+      }
 }
 
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)

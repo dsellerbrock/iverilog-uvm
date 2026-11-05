@@ -739,6 +739,9 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    int pprop = ivl_type_covgrp_parent_prop(classtype);
 	    if (pprop >= 0) {
 		  fprintf(vvp_out, " .covgrp_parent %d\n", pprop);
+		  int eprop = ivl_type_covgrp_event_prop(classtype);
+		  if (eprop >= 0)
+			fprintf(vvp_out, " .covgrp_event %d\n", eprop + 1);
 		  int ncp = ivl_type_covgrp_ncoverpoints(classtype);
 		  for (idx = 0 ; idx < ncp ; idx += 1) {
 			fprintf(vvp_out, " .covgrp_src %d %d\n",

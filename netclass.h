@@ -955,6 +955,8 @@ class netclass_t : public ivl_type_s {
       }
       void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+      void set_covgrp_event_prop(int p) { covgrp_event_prop_ = p; }
+      int covgrp_event_prop() const { return covgrp_event_prop_; }
       void set_covgrp_owner_prop(int p) { covgrp_owner_prop_ = p; }
       int covgrp_owner_prop() const { return covgrp_owner_prop_; }
 
@@ -993,6 +995,7 @@ class netclass_t : public ivl_type_s {
       std::vector<int> covgrp_cp_guardsrcs_;
       std::vector<std::string> covgrp_cp_sample_irs_;
       int covgrp_parent_prop_ = -1;
+      int covgrp_event_prop_ = -1;
       int covgrp_owner_prop_ = -1;
       bool is_covergroup_ = false;
       bool has_embedded_cgs_ = false;

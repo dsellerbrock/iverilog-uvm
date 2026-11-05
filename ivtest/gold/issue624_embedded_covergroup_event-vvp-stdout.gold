@@ -1,0 +1,4 @@
+PASS embedded_event_initial
+PASS embedded_event_same_value
+PASS embedded_event_owner
+PASS embedded_event_second_change

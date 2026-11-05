@@ -30864,6 +30864,25 @@ static bool covergroup_local_task_end_events_supported_(NetScope*scope,
 	return true;
 }
 
+/* A bare member change event on an embedded covergroup belongs to each
+   parent object, not to the module process that performs automatic sampling.
+   Keep its property index on the synthesized covergroup type so runtime
+   mutations of that parent can sample the owning instance. */
+static int embedded_covergroup_direct_event_prop_(
+	const netclass_t*parent_ct,
+	const class_type_t::pform_covergroup_t*cgdef)
+{
+	if (!parent_ct || !cgdef || cgdef->sample_events.size() != 1)
+	      return -1;
+	const PEEvent*event = cgdef->sample_events.front();
+	if (!event || event->type() != PEEvent::ANYEDGE) return -1;
+	const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr());
+	if (!id || id->path().package || id->path().name.size() != 1
+	    || !id->path().name.front().index.empty())
+	      return -1;
+	return parent_ct->property_idx_from_name(id->path().name.front().name);
+}
+
 static void report_unsupported_covergroup_block_event_(NetScope*scope,
 					       const PClass*pcl,
 					       const class_type_t::pform_covergroup_t*cgdef)
@@ -30938,6 +30957,12 @@ static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
 		  const netclass_t*cgct = dynamic_cast<const netclass_t*>(
 			parent_ct->get_prop_type(cgp));
 		  if (!cgct || cgct->covgrp_parent_prop() < 0) continue;
+		  int event_prop = embedded_covergroup_direct_event_prop_(
+			parent_ct, cgdef);
+		  if (event_prop >= 0) {
+			const_cast<netclass_t*>(cgct)->set_covgrp_event_prop(event_prop);
+			continue;
+		  }
 
 		    // The argument exists only to carry the covergroup
 		    // class type to code generation; it is never
