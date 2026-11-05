@@ -91,6 +91,21 @@ static int ref_actual_is_fixed_array_word_(ivl_signal_t port,
 	  && ivl_expr_oper1(expr);
 }
 
+/* A non-void function ref actual can retain a queue element as a signal word
+   select. Bind that selected element directly so the callee and caller share
+   the element cell, including queue index-shift behavior. */
+static int ref_actual_is_queue_word_(ivl_signal_t port, ivl_expr_t expr)
+{
+      if (!port || !expr || ivl_expr_type(expr) != IVL_EX_SIGNAL
+	  || !ivl_expr_oper1(expr))
+	    return 0;
+      ivl_signal_t sig = ivl_expr_signal(expr);
+      if (!sig || ivl_signal_dimensions(sig) != 0)
+	    return 0;
+      ivl_variable_type_t dtype = ivl_signal_data_type(sig);
+      return dtype == IVL_VT_QUEUE;
+}
+
 /* True when a `ref' actual is a whole class property of a type the runtime can
    bind as a true reference (%ref/bind/pr, IEEE 1800-2017/2023 13.5.2): the
    callee then sees and makes every write at once, so a write to the property
@@ -175,6 +190,12 @@ static int function_port_is_native_output_(ivl_signal_t port)
    copies it back through the same binding. */
 static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
 {
+      if (ref_actual_is_queue_word_(port, expr)) {
+	    draw_eval_vec4(ivl_expr_oper1(expr));
+	    fprintf(vvp_out, "    %%ref/bind/el v%p_0, v%p_0;\n",
+		    port, ivl_expr_signal(expr));
+	    return;
+      }
       if (ref_actual_is_fixed_array_word_(port, expr)) {
 	    draw_eval_vec4(ivl_expr_oper1(expr));
 	    fprintf(vvp_out, "    %%ref/bind/w v%p, v%p_0;\n",
@@ -1778,6 +1799,7 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 	  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx))
 	      || ref_actual_is_bound_property_(port, ivl_expr_parm(expr, idx))
 	      || ref_actual_is_bound_property_word_(port, ivl_expr_parm(expr, idx))
+	      || ref_actual_is_queue_word_(port, ivl_expr_parm(expr, idx))
 	      || ref_actual_is_fixed_array_word_(port,
 						  ivl_expr_parm(expr, idx)))
 		continue;

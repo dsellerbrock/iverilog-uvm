@@ -20061,6 +20061,20 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			      continue;
 			}
 			actual_lval_type = lval->net_type();
+			/* A non-void function call keeps its arguments as expressions,
+			   but a ref to a queue element must retain its selected identity
+			   for the VVP reference binding. The
+			   ordinary r-value elaboration below turns this into a value
+			   select and loses that l-value identity. Preserve the already
+			   validated container and index as a signal word select. */
+			if (formal->port_type() == NetNet::PREF
+			    && !lval->nest() && lval->word()
+			    && lval->sig()->queue_type()
+			    && !lval->sig()->queue_type()->assoc_compat()) {
+			      parms[pidx] = new NetESignal(lval->sig(),
+				    lval->word()->dup_expr());
+			      parms[pidx]->set_line(*tmp);
+			}
 			const netclass_t*formal_vif =
 			      virtual_interface_type_(formal_type);
 			const netclass_t*actual_vif =
