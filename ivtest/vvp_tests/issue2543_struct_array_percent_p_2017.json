@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2543_struct_array_percent_p.sv",
+  "iverilog-args": ["-g2017", "-sissue2543_struct_array_percent_p"],
+  "gold": "issue2543_struct_array_percent_p"
+}
