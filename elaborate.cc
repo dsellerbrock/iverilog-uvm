@@ -46962,6 +46962,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto per_instance_it = cgdef->options.find(perm_string::literal("per_instance"));
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
+            group_options.name.clear();
+            auto name_it = cgdef->options.find(perm_string::literal("name"));
+            if (name_it != cgdef->options.end()) {
+                  NetExpr*value = elab_and_eval(des, class_scope_, name_it->second,
+					&netstring_t::type_string, false);
+                  if (NetECString*constant = dynamic_cast<NetECString*>(value))
+			group_options.name = constant->value().as_string();
+                  else {
+			cerr << name_it->second->get_fileline()
+			     << ": error: covergroup option.name requires a constant string expression."
+			     << endl;
+			des->errors += 1;
+                  }
+                  delete value;
+            }
             group_options.goal = 100;
             group_options.goal_expr = nullptr;
             auto goal_it = cgdef->options.find(perm_string::literal("goal"));

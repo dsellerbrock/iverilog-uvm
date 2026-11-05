@@ -5131,6 +5131,12 @@ extern "C" const char* ivl_type_covgrp_comment(ivl_type_t net)
 	  return class_type->covgrp_options().comment.c_str();
 }
 
+extern "C" const char* ivl_type_covgrp_name(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().name.c_str() : "";
+}
+
 extern "C" const char* ivl_type_covgrp_type_comment(ivl_type_t net)
 {
 	  const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

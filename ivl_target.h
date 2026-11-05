@@ -2896,6 +2896,7 @@ extern int ivl_type_covgrp_per_instance_prop(ivl_type_t net);
 extern unsigned ivl_type_covgrp_goal(ivl_type_t net);
 extern int ivl_type_covgrp_goal_prop(ivl_type_t net);
 extern const char* ivl_type_covgrp_comment(ivl_type_t net);
+extern const char* ivl_type_covgrp_name(ivl_type_t net);
 extern const char* ivl_type_covgrp_type_comment(ivl_type_t net);
 extern int ivl_type_covgrp_comment_prop(ivl_type_t net);
 extern int ivl_type_covgrp_name_prop(ivl_type_t net);

@@ -684,14 +684,15 @@ void draw_class_in_scope(ivl_type_t classtype)
       if (ivl_type_covgrp_goal_prop(classtype) >= 0
 	  || ivl_type_covgrp_comment_prop(classtype) >= 0
 	  || ivl_type_covgrp_name_prop(classtype) >= 0)
-	    fprintf(vvp_out, " .covgrp_option_values %d %u %d %d \"%s\"\n",
+	    fprintf(vvp_out, " .covgrp_option_values %d %u %d %d \"%s\" \"%s\"\n",
 		  ivl_type_covgrp_goal_prop(classtype) + 1,
 		  ivl_type_covgrp_goal(classtype),
 		  ivl_type_covgrp_comment_prop(classtype) + 1,
 		  ivl_type_covgrp_name_prop(classtype) + 1,
 		  vvp_mangle_name(covgrp_comment_metadata(
 			ivl_type_covgrp_type_comment(classtype),
-			ivl_type_covgrp_comment(classtype))));
+			ivl_type_covgrp_comment(classtype))),
+		  vvp_mangle_name(ivl_type_covgrp_name(classtype)));
       fprintf(vvp_out, " .covgrp_type_weight %u\n",
             ivl_type_covgrp_type_weight(classtype));
 	    int ni = ivl_type_covgrp_items(classtype);

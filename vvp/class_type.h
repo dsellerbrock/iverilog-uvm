@@ -565,6 +565,7 @@ class class_type : public __vpiHandle {
             unsigned weight = 1, get_inst_coverage = 1;
             unsigned goal = 100;
             std::string comment;
+            std::string name;
             std::string type_comment;
             int weight_prop = -1, get_inst_coverage_prop = -1;
             int per_instance_prop = -1;
