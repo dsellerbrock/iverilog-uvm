@@ -321,6 +321,7 @@ class class_type : public __vpiHandle {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
             unsigned type_weight = 1;
+	    int type_weight_prop = -1;
 	    std::string weight_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
@@ -402,6 +403,10 @@ class class_type : public __vpiHandle {
       bool set_covgrp_item_type_weight(uint64_t idx, unsigned weight)
       { if (idx >= covgrp_items_.size()) return false;
         covgrp_items_[static_cast<size_t>(idx)].type_weight = weight;
+        return true; }
+      bool set_covgrp_item_type_weight_prop(uint64_t idx, int prop)
+      { if (idx >= covgrp_items_.size()) return false;
+        covgrp_items_[static_cast<size_t>(idx)].type_weight_prop = prop;
         return true; }
       bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
 					 int weight_prop)
@@ -499,6 +504,7 @@ class class_type : public __vpiHandle {
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       unsigned covgrp_item_at_least(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_item_weight(class vvp_cobject*obj, size_t idx) const;
+      unsigned covgrp_item_type_weight(size_t idx) const;
 	// Initialize constant/default at_least and weight slots after constructor
 	// formals are stored, so a constructor-dependent weight expression is
 	// evaluated against the completed instance.

@@ -2901,6 +2901,7 @@ extern int ivl_type_covgrp_comment_prop(ivl_type_t net);
 extern int ivl_type_covgrp_name_prop(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_type_weight(ivl_type_t net, int idx);
+extern int ivl_type_covgrp_item_type_weight_prop(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx);
 extern int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx);

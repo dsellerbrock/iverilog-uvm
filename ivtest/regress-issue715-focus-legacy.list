@@ -1,0 +1,2 @@
+issue715_sva_local_decl_init_2017 normal,-g2017,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold
+issue715_sva_local_decl_init_2023 normal,-g2023,-s,issue715_sva_local_decl_init ivltests gold=issue715_sva_local_decl_init-legacy-vvp-stdout.gold

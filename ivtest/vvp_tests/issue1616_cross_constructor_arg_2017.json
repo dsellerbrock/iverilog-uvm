@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1616_cross_constructor_arg.sv",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "issue1616_cross_constructor_arg"
+}

@@ -1570,6 +1570,11 @@ static void draw_darray_pop(ivl_expr_t expr)
 	    fb = "f";
 
       ivl_expr_t arg = ivl_expr_parm(expr, 0);
+	    if (draw_eval_assoc_queue_lvalue(arg)) {
+		  fprintf(vvp_out, "    %%qpop/o/%s/v %u;\n",
+			  fb, pop_width ? pop_width : 1);
+		  return;
+	    }
 	    if (ivl_expr_type(arg) != IVL_EX_SIGNAL
 		|| expr_selects_fixed_container_slot_(arg)) {
 	    if (expr_is_queue_container_(arg)) {
@@ -2115,22 +2120,36 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
 	    const char*ir = rest;
-	    ivl_expr_t first = n_rand ? ivl_expr_parm(expr, 0) : 0;
-	    ivl_type_t dest_type = first ? ivl_expr_net_type(first) : 0;
-	    if (!dest_type && first && ivl_expr_signal(first))
-		  dest_type = ivl_signal_net_type(ivl_expr_signal(first));
+	    int queue_index = -1;
+	    ivl_type_t dest_type = 0;
+	    for (unsigned i = 0; i < n_rand; ++i) {
+		ivl_expr_t var = ivl_expr_parm(expr, i);
+		ivl_type_t type = var ? ivl_expr_net_type(var) : 0;
+		if (!type && var && ivl_expr_signal(var))
+		      type = ivl_signal_net_type(ivl_expr_signal(var));
+		if (type && ((ivl_type_base(type) == IVL_VT_QUEUE
+			      && !ivl_type_queue_assoc_compat(type))
+			     || ivl_type_base(type) == IVL_VT_DARRAY)) {
+		      if (queue_index >= 0 || i + 1 != n_rand) {
+			    fprintf(stderr, "%s:%u: vvp.tgt error: mixed scope "
+				    "randomization requires one final queue/dynamic-array "
+				    "destination.\\n", ivl_expr_file(expr),
+				    ivl_expr_lineno(expr));
+			    return;
+		      }
+		      queue_index = (int)i;
+		      dest_type = type;
+		}
+	    }
 	      /* A dynamic array uses the same container solver as a
 	       * queue, with no declared maximum (IEEE 1800-2017 18.12). */
-	    int queue_dest = dest_type
-		&& ((ivl_type_base(dest_type) == IVL_VT_QUEUE
-		     && !ivl_type_queue_assoc_compat(dest_type))
-		    || ivl_type_base(dest_type) == IVL_VT_DARRAY);
+	    int queue_dest = queue_index >= 0;
 	    ivl_type_t elem_type = queue_dest
 		? ivl_type_element(dest_type) : 0;
 
 	    for (unsigned i = 0 ; i < n_rand ; i++) {
 		  ivl_expr_t var = ivl_expr_parm(expr, i);
-		  if (queue_dest) draw_eval_object(var);
+		  if (queue_dest && (int)i == queue_index) draw_eval_object(var);
 		  else draw_eval_vec4(var);
 	    }
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -2148,7 +2167,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		    ivl_type_packed_width(elem_type),
 		    (unsigned long long)(ivl_type_base(dest_type) == IVL_VT_QUEUE
 					 ? ivl_type_queue_max_size(dest_type) : 0),
-		    ir, n_vals, n_objs);
+		    ir, ((n_rand - 1) << 16) | (n_vals & 0xffffu), n_objs);
 	    else
 		  fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
 		    ir, n_rand, packed_slots);
@@ -2174,12 +2193,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 				ivl_expr_file(expr), ivl_expr_lineno(expr));
 			continue;
 		  }
-		  fprintf(vvp_out, queue_dest
-		    ? "    %%std/randomize/load/obj %u;\n"
-		    : "    %%std/randomize/load %u;\n", i);
-		  if (queue_dest)
+		  if (queue_dest && (int)i == queue_index) {
+			fprintf(vvp_out, "    %%std/randomize/load/obj 0;\n");
 		    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
-		  else if (signal_is_return_value(sig))
+		  } else {
+			fprintf(vvp_out, "    %%std/randomize/load %u;\n", i);
+		  if (signal_is_return_value(sig))
 			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
 		  else {
 			ivl_expr_t word_ex = ivl_expr_oper1(var);
@@ -2197,6 +2216,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 			} else
 			      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 				      sig, wid);
+		  }
 		  }
 	    }
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);

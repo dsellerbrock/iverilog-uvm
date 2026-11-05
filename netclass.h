@@ -517,6 +517,7 @@ class netclass_t : public ivl_type_s {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
             unsigned type_weight = 1;
+	    int type_weight_prop = -1; // mutable type-wide option slot
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    bool at_least_inherited = false;
@@ -698,6 +699,7 @@ class netclass_t : public ivl_type_s {
         covgrp_items_[idx].comment_prop = comment_prop; }
       void set_covgrp_item_type_comment(size_t idx, const std::string&comment)
       { if (idx < covgrp_items_.size()) covgrp_items_[idx].type_comment = comment; }
+      int ensure_covgrp_item_type_weight_prop(size_t idx);
 	// Resolve the IEEE hierarchical pseudo-members
 	//   <coverpoint-or-cross>.option.{at_least,weight,goal,comment}
 	// to the synthesized scalar property that carries the mutable value on
@@ -720,6 +722,9 @@ class netclass_t : public ivl_type_s {
 	    }
 	    return -1;
       }
+      int covgrp_item_type_weight_prop(size_t idx) const
+      { return idx < covgrp_items_.size()
+	      ? covgrp_items_[idx].type_weight_prop : -1; }
       bool has_covgrp_item(perm_string item_name) const {
 	    for (const covgrp_item_t&item : covgrp_items_)
 		  if (item.name == item_name)
@@ -770,6 +775,18 @@ class netclass_t : public ivl_type_s {
       { return covgrp_ctor_method_endpoints_; }
       const std::vector<covgrp_ctor_method_endpoint_t>& covgrp_ctor_method_endpoints() const
       { return covgrp_ctor_method_endpoints_; }
+      struct covgrp_ctor_cross_set_t {
+	    const PExpr* expr;
+	    unsigned prop;
+      };
+      void add_covgrp_ctor_cross_set(const PExpr*expr, unsigned prop)
+      { covgrp_ctor_cross_sets_.push_back({expr, prop}); }
+      const std::vector<covgrp_ctor_cross_set_t>& covgrp_ctor_cross_sets() const
+      { return covgrp_ctor_cross_sets_; }
+      int covgrp_ctor_cross_set_prop(const PExpr*expr) const
+      { for (const auto&entry : covgrp_ctor_cross_sets_)
+	      if (entry.expr == expr) return static_cast<int>(entry.prop);
+	return -1; }
 
 	// Semantic binding for direct identifiers used in covergroup range
 	// expressions. A found-but-illegal symbol is retained here so later
@@ -943,6 +960,7 @@ class netclass_t : public ivl_type_s {
 	std::vector<PExpr*> covgrp_ctor_defaults_;
 	std::vector<bool> covgrp_ctor_is_ref_;
       std::vector<covgrp_ctor_method_endpoint_t> covgrp_ctor_method_endpoints_;
+	std::vector<covgrp_ctor_cross_set_t> covgrp_ctor_cross_sets_;
 	std::map<const PExpr*,covgrp_range_ref_t> covgrp_range_refs_;
 	std::vector<covgrp_parent_const_dep_t> covgrp_parent_const_dependencies_;
 	bool covgrp_range_bindings_complete_ = false;

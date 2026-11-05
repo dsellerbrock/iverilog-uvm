@@ -103,6 +103,10 @@ struct sva_match_item_t {
       perm_string lv_name;
       PExpr* lv_rhs = nullptr;
       bool lv_selected = false;
+      // A declaration assignment or local formal input initialization is
+      // evaluated at the start of the corresponding sequence/property
+      // attempt, before its first sampled expression.
+      bool lv_initialization = false;
       PCallTask* call = nullptr;
 };
 

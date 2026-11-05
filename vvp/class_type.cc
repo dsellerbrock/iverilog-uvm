@@ -3261,6 +3261,22 @@ static bool compile_class_covgrp_string_property_valid_(uint64_t encoded)
             && !compile_class->property_is_static(prop);
 }
 
+static bool compile_class_covgrp_static_weight_property_valid_(
+	uint64_t encoded)
+{
+      if (encoded == 0) return true;
+      if (encoded > (uint64_t)std::numeric_limits<int>::max() + 1)
+	    return false;
+      size_t prop = static_cast<size_t>(encoded - 1);
+	if (prop >= compile_class->property_count()) return false;
+      const string&base_type = compile_class->property_base_type(prop);
+	return (base_type == "sb32" || base_type == "sL32")
+	    && compile_class->property_vec4_width(prop) == 32
+	    && compile_class->property_array_size(prop) == 1
+	    && compile_class->property_dimensions(prop).empty()
+	    && compile_class->property_is_static(prop);
+}
+
 static void compile_class_covgrp_split_comment_(const char*encoded,
 						std::string&type,
 						std::string&instance)
@@ -3369,8 +3385,19 @@ void compile_class_covgrp_item_type_weight(uint64_t item_idx, uint64_t weight)
 {
       assert(compile_class);
       if (weight > INT32_MAX
-            || !compile_class->set_covgrp_item_type_weight(item_idx, (unsigned)weight))
+	    || !compile_class->set_covgrp_item_type_weight(item_idx,
+							(unsigned)weight))
             yyerror("invalid .covgrp_item_type_weight metadata value");
+}
+
+void compile_class_covgrp_item_type_weight_prop(uint64_t item_idx,
+						uint64_t property)
+{
+      assert(compile_class);
+      if (!compile_class_covgrp_static_weight_property_valid_(property)
+	  || !compile_class->set_covgrp_item_type_weight_prop(
+		item_idx, property ? static_cast<int>(property - 1) : -1))
+	    yyerror("invalid .covgrp_item_type_weight_prop metadata value");
 }
 
 void compile_class_covgrp_item_options(uint64_t item_idx,
@@ -3898,6 +3925,27 @@ unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
       return covgrp_option_prop_value_(this, obj, item.weight_prop, declared);
 }
 
+unsigned class_type::covgrp_item_type_weight(size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 1;
+      const cov_item_t&item = covgrp_items_[idx];
+      if (item.type_weight_prop < 0
+	  || !property_is_static(static_cast<size_t>(item.type_weight_prop)))
+	    return item.type_weight;
+
+      vvp_vector4_t value;
+      get_vec4(nullptr, static_cast<size_t>(item.type_weight_prop), value);
+      uint64_t bits = 0;
+      for (unsigned bit = 0; bit < value.size() && bit < 32; bit += 1) {
+	    vvp_bit4_t state = value.value(bit);
+	    if (state == BIT4_X || state == BIT4_Z)
+		  return item.type_weight;
+	    if (state == BIT4_1)
+		  bits |= (uint64_t)1 << bit;
+      }
+      return static_cast<unsigned>(bits);
+}
+
 unsigned class_type::covgrp_cumulative_at_least_(size_t idx) const
 {
       if (idx >= covgrp_items_.size()) return 1;
@@ -4344,7 +4392,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    unsigned at_least = 1, weight = 1;
 	    if (item_idx < covgrp_items_.size()) {
 		  at_least = covgrp_cumulative_at_least_(item_idx);
-		  weight = covgrp_items_[item_idx].type_weight;
+		  weight = covgrp_item_type_weight(item_idx);
 	    }
 	    unsigned __int128 total = item_trans_total[item_idx];
 	    unsigned __int128 hits = 0;
@@ -4367,7 +4415,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
       }
       if (contributes) *contributes = wsum > 0.0;
 	if (selected_item >= 0
-	    && covgrp_items_[static_cast<size_t>(selected_item)].type_weight == 0)
+	    && covgrp_item_type_weight(static_cast<size_t>(selected_item)) == 0)
 	    return 100.0;
       return (wsum > 0.0) ? (wcov / wsum) : 0.0;
 }

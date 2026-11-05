@@ -2830,7 +2830,8 @@ static Module::port_t *module_declare_explicit_port(
 		{ delete formal.default_expr; } delete $$; } <sva_property_formals>
 %type <sva_formals> sva_sequence_formal_list
 %destructor { delete $$; } <sva_formals>
-%type <perm_strings> sva_local_ident_list
+%type <sva_items> sva_local_ident_list
+%destructor { sva_destroy_parser_match_items_($$); } sva_local_ident_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
 
 %type <decl_assignments> net_decl_assigns
@@ -6859,7 +6860,11 @@ function_declaration /* IEEE1800-2005: A.2.6 */
 function_declaration_header
   : K_function lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2,
+	LexicalScope::lifetime_t lifetime = $2;
+	if (pending_cross_scope_active_
+	    && lifetime == LexicalScope::INHERITED)
+	      lifetime = LexicalScope::AUTOMATIC;
+	current_function = pform_push_function_scope(@1, $4, lifetime,
 					      pending_cross_scope_active_);
 	pform_cross_bind_function_types_(current_function);
 	current_function->set_return($3);
@@ -6868,7 +6873,11 @@ function_declaration_header
       }
   | method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
-	current_function = pform_push_function_scope(@1, $4, $2,
+	LexicalScope::lifetime_t lifetime = $2;
+	if (pending_cross_scope_active_
+	    && lifetime == LexicalScope::INHERITED)
+	      lifetime = LexicalScope::AUTOMATIC;
+	current_function = pform_push_function_scope(@1, $4, lifetime,
 					      pending_cross_scope_active_);
 	current_function->set_method_override_specifiers($1);
 	pform_cross_bind_function_types_(current_function);
@@ -9425,59 +9434,92 @@ sva_sequence_formal_list
      which call sites consume it. */
 sva_local_ident_list
   : sva_local_ident_list ',' IDENTIFIER
-      { $1->push_back(lex_strings.make($3)); delete[]$3; $$ = $1; }
+      { sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($3);
+	$1->push_back(item); delete[]$3; $$ = $1; }
+  | sva_local_ident_list ',' IDENTIFIER '=' expression
+      { sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($3);
+	item.lv_rhs = $5;
+	$1->push_back(item); delete[]$3; $$ = $1; }
+  | IDENTIFIER '=' expression
+      { std::vector<sva_match_item_t>*l = new std::vector<sva_match_item_t>;
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($1);
+	item.lv_rhs = $3;
+	l->push_back(item); delete[]$1; $$ = l; }
   | IDENTIFIER
-      { std::list<perm_string>*l = new std::list<perm_string>;
-	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
+      { std::vector<sva_match_item_t>*l = new std::vector<sva_match_item_t>;
+	sva_match_item_t item;
+	item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
+	item.lv_name = lex_strings.make($1);
+	l->push_back(item); delete[]$1; $$ = l; }
   ;
 
 sva_int_local_declarations
   : K_int sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	for (std::list<perm_string>::iterator it = $2->begin();
+	for (std::vector<sva_match_item_t>::iterator it = $2->begin();
 	     it != $2->end(); ++it)
-	      pform_sva_declare_int_local(@1, it->str());
-	delete $2; $$ = 0; }
+	      { pform_sva_declare_int_local(@1, it->lv_name.str(), it->lv_rhs);
+		it->lv_rhs = nullptr; }
+	sva_destroy_parser_match_items_($2); $$ = 0; }
   | K_sva_logic_local dimensions sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	for (std::list<perm_string>::iterator it = $3->begin();
+	for (std::vector<sva_match_item_t>::iterator it = $3->begin();
 	     it != $3->end(); ++it) {
-	      std::list<perm_string>::iterator next = it; ++next;
-	      pform_sva_declare_logic_local(@1, it->str(), $2,
-					     next == $3->end());
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_logic_local(@1, it->lv_name.str(), $2,
+					     next == $3->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
 	}
-	delete $3;
+	sva_destroy_parser_match_items_($3);
 	$$ = 0; }
   | K_sva_logic_local sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	for (std::list<perm_string>::iterator it = $2->begin();
-	     it != $2->end(); ++it)
-	      pform_sva_declare_logic_local(@1, it->str(), nullptr);
-	delete $2;
+	for (std::vector<sva_match_item_t>::iterator it = $2->begin();
+	     it != $2->end(); ++it) {
+	      pform_sva_declare_logic_local(@1, it->lv_name.str(), nullptr,
+					     true, it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($2);
 	$$ = 0; }
   | K_sva_bit_local sva_local_ident_list ';'
-      { for (std::list<perm_string>::iterator it = $2->begin();
-	     it != $2->end(); ++it)
-	      pform_sva_declare_bit_local(@1, it->str());
-	delete $2; $$ = 0; }
-  | sva_int_local_declarations K_int sva_local_ident_list ';'
-      { for (std::list<perm_string>::iterator it = $3->begin();
-	     it != $3->end(); ++it)
-	      pform_sva_declare_int_local(@2, it->str());
-	delete $3; $$ = 0; }
-  | sva_int_local_declarations K_sva_logic_local dimensions sva_local_ident_list ';'
-      { for (std::list<perm_string>::iterator it = $4->begin();
-	     it != $4->end(); ++it) {
-	      std::list<perm_string>::iterator next = it; ++next;
-	      pform_sva_declare_logic_local(@2, it->str(), $3,
-					     next == $4->end());
+      { pform_sva_begin_local_declarations();
+	for (std::vector<sva_match_item_t>::iterator it = $2->begin();
+	     it != $2->end(); ++it) {
+	      pform_sva_declare_bit_local(@1, it->lv_name.str(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
 	}
-	delete $4; $$ = 0; }
+	sva_destroy_parser_match_items_($2); $$ = 0; }
+  | sva_int_local_declarations K_int sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      pform_sva_declare_int_local(@2, it->lv_name.str(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
+  | sva_int_local_declarations K_sva_logic_local dimensions sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it) {
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_logic_local(@2, it->lv_name.str(), $3,
+					     next == $4->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($4); $$ = 0; }
   | sva_int_local_declarations K_sva_logic_local sva_local_ident_list ';'
-      { for (std::list<perm_string>::iterator it = $3->begin();
-	     it != $3->end(); ++it)
-	      pform_sva_declare_logic_local(@2, it->str(), nullptr);
-	delete $3; $$ = 0; }
+      { for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      pform_sva_declare_logic_local(@2, it->lv_name.str(), nullptr,
+					     true, it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
   ;
 
   /* IEEE 1800-2017/2023 A.2.10: cycle_delay_range's constant_primary
@@ -20781,6 +20823,25 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 
   /* Various assignment statements */
+
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+    '.' IDENTIFIER '=' expression ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	hident.push_back(name_component_t(lex_strings.make($7)));
+	PEIdent*lhs = pform_new_ident(@1, hident);
+	FILE_NAME(lhs, @1);
+	lhs->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete[]$7;
+	PAssign*tmp = new PAssign(lhs, $9);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
 
   /* `Class#(...)::property' is already a complete expression primary, so
      routing it through lpvalue introduces an expression/lvalue ambiguity on

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1724_std_randomize_mixed_queue.v",
+  "iverilog-args": ["-g2017", "-s", "issue1724_std_randomize_mixed_queue"],
+  "gold": "issue1724_std_randomize_mixed_queue"
+}

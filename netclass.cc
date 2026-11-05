@@ -23,6 +23,7 @@
 # include  "PTask.h"
 # include  "pform_types.h"
 # include  "netmisc.h"
+# include  "netvector.h"
 # include  <cassert>
 # include  <cstdlib>
 # include  <iostream>
@@ -30,6 +31,25 @@
 using namespace std;
 
 const unsigned netclass_t::COVGRP_NO_PROP;
+
+int netclass_t::ensure_covgrp_item_type_weight_prop(size_t idx)
+{
+      if (!is_covergroup() || idx >= covgrp_items_.size() || !class_scope_)
+	    return -1;
+
+      covgrp_item_t&item = covgrp_items_[idx];
+      if (item.type_weight_prop >= 0)
+	    return item.type_weight_prop;
+
+      perm_string name = class_scope_->local_symbol();
+      ivl_type_t type = netvector_t::integer_type(true);
+      if (!set_property(name, property_qualifier_t::make_static(), type))
+	    return -1;
+
+      new NetNet(class_scope_, name, NetNet::REG, type);
+      item.type_weight_prop = property_idx_from_name(name);
+      return item.type_weight_prop;
+}
 
 namespace {
 

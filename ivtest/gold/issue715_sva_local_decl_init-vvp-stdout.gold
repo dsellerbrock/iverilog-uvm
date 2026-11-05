@@ -1,0 +1,2 @@
+issue715 assertion variable initialization PASS
+ivltests/issue715_sva_local_decl_init.v:40: $finish called at 40 (1s)

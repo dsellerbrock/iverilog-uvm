@@ -536,8 +536,13 @@ bool std_randomize_args_need_solver(const vector<named_pexpr_t>&parms,
 	    bool is_return = owner && owner->type() == NetScope::FUNC
 		  && owner->func_def()
 		  && owner->func_def()->return_sig() == sig->sig();
+	    const netqueue_t*queue = sig
+		  ? dynamic_cast<const netqueue_t*>(sig->sig()->net_type()) : nullptr;
+	    const netdarray_t*darray = sig && !queue
+		  ? dynamic_cast<const netdarray_t*>(sig->sig()->net_type()) : nullptr;
+	    bool is_container = (queue && !queue->assoc_compat()) || darray;
 	    delete ne;
-	    if (is_enum || is_return) return true;
+	    if (is_enum || is_return || is_container) return true;
       }
       return false;
 }
@@ -725,6 +730,9 @@ NetESFunc* make_std_randomize_with_expr(
       }
 
       vector<NetExpr*> random_vars;
+      NetExpr*queue_arg = nullptr;
+      string queue_token;
+      uint64_t queue_max_size = 0;
       map<perm_string,string> random_tokens;
       map<perm_string,ivl_type_t> random_types;
       vector<string> enum_domains;
@@ -762,6 +770,7 @@ NetESFunc* make_std_randomize_with_expr(
 		       << endl;
 		  des->errors += 1;
 		  for (NetExpr*old : random_vars) delete old;
+		  delete queue_arg;
 		  return nullptr;
 	    }
 
@@ -774,9 +783,18 @@ NetESFunc* make_std_randomize_with_expr(
 	      // usbdev: std::randomize(tx_data) with { tx_data.size() <= N; }).
 	    const netdarray_t*darray = se && !queue
 		  ? dynamic_cast<const netdarray_t*>(se->sig()->net_type()) : nullptr;
-	    if ((queue || darray) && parms.size() == 1
-		&& !(queue && queue->assoc_compat())
-		&& !se->word_index()) {
+	    if ((queue || darray) && !se->word_index()) {
+		  if ((queue && queue->assoc_compat()) || queue_arg) {
+			cerr << pe->get_fileline() << ": sorry: "
+			     << "scope randomization currently supports at most one "
+			     << "packed queue or dynamic-array argument in a solver call."
+			     << endl;
+			des->errors += 1;
+			delete ne;
+			for (NetExpr*old : random_vars) delete old;
+			delete queue_arg;
+			return nullptr;
+		  }
 		  const netdarray_t*container = queue ? queue : darray;
 		  ivl_type_t elem = container->element_type();
 		  unsigned ewid = elem ? elem->packed_width() : 0;
@@ -788,15 +806,15 @@ NetESFunc* make_std_randomize_with_expr(
 			string etype = (elem->get_signed() ? "sv" : "v")
 			    + to_string(ewid);
 			if (queue) {
-			      uint64_t max_size = queue->max_idx() < 0 ? 0
+			      queue_max_size = queue->max_idx() < 0 ? 0
 				  : (uint64_t)queue->max_idx() + 1;
-			      random_tokens[id->path().back().name] =
-				  "s:0:Q" + to_string(max_size) + ":" + etype;
-			} else {
-			      random_tokens[id->path().back().name] = "s:0:" + etype;
 			}
+			queue_token = "s:0:" + (queue
+			      ? "Q" + to_string(queue_max_size) + ":" + etype
+			      : etype);
+			random_tokens[id->path().back().name] = queue_token;
 			random_types[id->path().back().name] = se->sig()->net_type();
-			random_vars.push_back(ne);
+			queue_arg = ne;
 			if (const netenum_t*eenum =
 				  dynamic_cast<const netenum_t*>(elem)) {
 			      string w = to_string(ewid);
@@ -816,6 +834,7 @@ NetESFunc* make_std_randomize_with_expr(
 		  des->errors += 1;
 		  delete ne;
 		  for (NetExpr*old : random_vars) delete old;
+			delete queue_arg;
 		  return nullptr;
 	    }
 
@@ -828,10 +847,12 @@ NetESFunc* make_std_randomize_with_expr(
 		  des->errors += 1;
 		  delete ne;
 		  for (NetExpr*old : random_vars) delete old;
+		  delete queue_arg;
 		  return nullptr;
 	    }
 
-	    string token = "p:" + to_string(idx) + ":" + to_string(wid);
+	    string token = "p:" + to_string(random_vars.size()) + ":"
+		  + to_string(wid);
 	    if (se->sig()->get_signed()) token += ":s";
 	    random_tokens[id->path().back().name] = token;
 	    random_types[id->path().back().name] = se->sig()->net_type();
@@ -844,6 +865,19 @@ NetESFunc* make_std_randomize_with_expr(
       string combined_ir;
       for (const string&domain : enum_domains)
 	    combined_ir += (combined_ir.empty() ? "" : " ") + domain;
+
+      // A queue/dynamic-array argument is a random variable even when the
+      // with-clause does not mention its size or elements. Keep it after the
+      // scalar destinations so the VVP queue opcode can commit both result
+      // kinds only after the single solve succeeds.
+      if (queue_arg) {
+	    random_vars.push_back(queue_arg);
+	    queue_arg = nullptr;
+	    const string size = queue_token;
+	    string implicit = "(eq " + size + " " + size + ")";
+	    if (!combined_ir.empty()) combined_ir += " ";
+	    combined_ir += implicit;
+      }
       vector<const PExpr*> value_slots;
       vector<NetNet*> signal_slots;
       vector<NetExpr*> object_slots;
@@ -859,6 +893,7 @@ NetESFunc* make_std_randomize_with_expr(
 		       << "the solver; the call was not weakened." << endl;
 		  des->errors += 1;
 		  for (NetExpr*old : random_vars) delete old;
+		  delete queue_arg;
 		  return nullptr;
 	    }
 	    if (!combined_ir.empty()) combined_ir += " ";
@@ -32776,7 +32811,8 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  for (size_t k = 0; k < nformals; ++k)
 			if (ctype->covgrp_ctor_formal_is_ref(k))
 			      has_ref_ctor_formal = true;
-		  if (!ctype->covgrp_ctor_method_endpoints().empty()
+	  if (!ctype->covgrp_ctor_method_endpoints().empty()
+	      || !ctype->covgrp_ctor_cross_sets().empty()
 		      || has_ref_ctor_formal) {
 			// %new/cobj resolves its dynamic bins before returning. Capture
 			// each endpoint in the initializer itself, after the constructor
@@ -32892,6 +32928,33 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 			      body->append(known);
 			      values.push_back(new NetESignal(slot));
 			}
+		    for (const auto&set : ctype->covgrp_ctor_cross_sets()) {
+			  ivl_type_t slot_type = ctype->get_prop_type(set.prop);
+			  perm_string slot_name;
+			  do { slot_name = wrapper->local_symbol(); }
+			  while (slot_name == wrapper->basename());
+			  NetNet*slot = new NetNet(wrapper, slot_name, NetNet::REG,
+					   slot_type);
+			  NetExpr*value = elab_and_eval(des, wrapper,
+				const_cast<PExpr*>(set.expr), -1, false, false);
+			  const NetEUFunc*function = dynamic_cast<const NetEUFunc*>(value);
+			  const netqueue_t*queue = value
+				? dynamic_cast<const netqueue_t*>(value->net_type()) : nullptr;
+			  if (!function || !queue
+			      || value->net_type() != slot_type) {
+				cerr << set.expr->get_fileline()
+				     << ": error: covergroup cross set function changed "
+					"CrossQueueType during construction." << endl;
+				des->errors += 1;
+				delete value;
+				values.push_back(new NetESignal(slot));
+				continue;
+			  }
+			  NetAssign*assign = new NetAssign(new NetAssign_(slot), value);
+			  assign->set_line(*set.expr);
+			  body->append(assign);
+			  values.push_back(new NetESignal(slot));
+		    }
 			NetEArrayPattern*inits = new NetEArrayPattern(ctype, values);
 			NetENew*cg_new = new NetENew(ctype, nullptr, inits);
 			cg_new->set_line(*this);
