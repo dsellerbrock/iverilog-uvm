@@ -68,6 +68,15 @@ static int sdf_string_arg_is_blank(vpiHandle arg)
       return value.value.str && sdf_string_is_blank(value.value.str);
 }
 
+/* The default annotation scope is the module containing the call, even when
+ * the call appears in a named/unnamed block or task scope. */
+static vpiHandle sdf_containing_module(vpiHandle scope)
+{
+      while (scope && vpi_get(vpiType, scope) != vpiModule)
+            scope = vpi_handle(vpiScope, scope);
+      return scope;
+}
+
 /* Percent limits depend on the final IOPATH delays, so apply pulse records after parsing. */
 struct sdf_pathpulse_annotation_s {
       struct sdf_pathpulse_annotation_s*next;
@@ -856,7 +865,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	(void)log_arg;
 	sdf_scope = scope_arg;
 	if (!sdf_scope || sdf_string_arg_is_blank(sdf_scope))
-	      sdf_scope = vpi_handle(vpiScope, callh);
+	      sdf_scope = sdf_containing_module(vpi_handle(vpiScope, callh));
 
 	/* Select which delay to use. */
       sdf_min_typ_max = vpi_get(_vpiDelaySelection, 0);

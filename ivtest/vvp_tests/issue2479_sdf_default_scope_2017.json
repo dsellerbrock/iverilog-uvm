@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2479_sdf_default_scope.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2479_sdf_default_scope"],
+  "gold": "issue2479_sdf_default_scope"
+}

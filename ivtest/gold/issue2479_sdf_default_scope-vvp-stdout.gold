@@ -1,0 +1,3 @@
+Y 1000 0
+Y 9000 1
+ivltests/issue2479_sdf_default_scope.v:17: $finish called at 15000 (1ps)
