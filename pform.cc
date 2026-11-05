@@ -19691,6 +19691,8 @@ PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
 			for (const sva_mc_seg_t&source : *body->mc_more) {
 			      sva_mc_seg_t segment;
 			      segment.boundary = source.boundary;
+			      segment.inherit_property_clock =
+				    source.inherit_property_clock;
 			      segment.clk_evt = source.clk_evt
 				    ? sva_clone_event_control_(source.clk_evt, loc)
 				    : nullptr;
@@ -19912,12 +19914,14 @@ sva_property_t* pform_sva_multiclock_sequence_implication(
 					const struct vlltype&loc, int op_type,
 					 sva_property_t*ante, PEventStatement*clk,
 					 std::vector<sva_seq_step_t>*conseq,
-					 std::vector<sva_mc_seg_t>*tail)
+					 std::vector<sva_mc_seg_t>*tail,
+					 bool inherit_property_clock)
 {
 	(void)loc;
 	if (!ante || !ante->mc_prefix || ante->mc_prefix->empty()
 	    || !ante->seq || ante->seq->empty() || !ante->seq_clk_evt
-	    || ante->antecedent || ante->tree || !clk || !conseq
+	    || ante->antecedent || ante->tree
+	    || (!clk && !inherit_property_clock) || !conseq
 	    || conseq->empty()) {
 	      pform_sva_destroy_property(ante);
 	      delete clk;
@@ -19931,6 +19935,7 @@ sva_property_t* pform_sva_multiclock_sequence_implication(
 	seg.boundary = (op_type == 1) ? 0 : 1;
 	seg.clk_evt = clk;
 	seg.chain = conseq;
+	seg.inherit_property_clock = inherit_property_clock;
 	ante->mc_more->push_back(seg);
 	if (tail) {
 	      ante->mc_more->insert(ante->mc_more->end(), tail->begin(), tail->end());
@@ -19941,6 +19946,47 @@ sva_property_t* pform_sva_multiclock_sequence_implication(
 	ante->mc_prefix = nullptr;
 	ante->op_type = op_type;
 	return ante;
+}
+
+/* Compose a multiclocked subsequence enclosed by parentheses with the
+   enclosing fixed prefix, then let the implication resume on the enclosing
+   property clock. The inherited event is resolved after property_spec (or
+   default-clock inference) supplies that clock. */
+sva_property_t* pform_sva_multiclock_grouped_sequence_implication(
+					const struct vlltype&loc, int op_type,
+					std::vector<sva_seq_step_t>*prefix,
+					PExpr*prefix_delay,
+					sva_property_t*grouped,
+					std::vector<sva_seq_step_t>*conseq)
+{
+	if (!grouped || !grouped->mc_prefix || grouped->mc_prefix->empty()) {
+	      pform_sva_destroy_sequence(prefix);
+	      delete prefix_delay;
+	      pform_sva_destroy_property(grouped);
+	      pform_sva_destroy_sequence(conseq);
+	      return nullptr;
+	}
+
+	if (prefix) {
+	      if (prefix->empty()) {
+		    pform_sva_destroy_sequence(prefix);
+		    delete prefix_delay;
+		    pform_sva_destroy_property(grouped);
+		    pform_sva_destroy_sequence(conseq);
+		    return nullptr;
+	      }
+	      pform_sva_single_delay(loc, grouped->mc_prefix->front(), prefix_delay);
+	      prefix->insert(prefix->end(), grouped->mc_prefix->begin(),
+			     grouped->mc_prefix->end());
+	      grouped->mc_prefix->clear();
+	      delete grouped->mc_prefix;
+	      grouped->mc_prefix = prefix;
+	} else {
+	      delete prefix_delay;
+	}
+
+	return pform_sva_multiclock_sequence_implication(
+	      loc, op_type, grouped, nullptr, conseq, nullptr, true);
 }
 
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
@@ -31416,6 +31462,35 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   change in the same sequence (`@(c1) a ##1 @(c2) b ##1 @(c3) c')
 	   generalizes that handoff to an N-domain chain instead. */
       if (prop->seq_clk_evt) {
+	    if (prop->mc_more) {
+		  for (sva_mc_seg_t&segment : *prop->mc_more) {
+			if (!segment.inherit_property_clock) continue;
+			if (!prop->clk_evt) {
+			      cerr << loc << ": sorry: a parenthesized multiclocked "
+				   << "sequence needs an enclosing property clock to "
+				   << "resume clock flow after the parentheses."
+				   << endl;
+			      error_count += 1;
+			      delete fail_stmt;
+			      delete pass_stmt;
+			      pform_sva_destroy_property(prop);
+			      return;
+			}
+			segment.clk_evt = sva_clone_event_control_(prop->clk_evt, loc);
+			if (!segment.clk_evt) {
+			      cerr << loc << ": sorry: cannot preserve the enclosing "
+				   << "property clock after a parenthesized multiclocked "
+				   << "sequence."
+				   << endl;
+			      error_count += 1;
+			      delete fail_stmt;
+			      delete pass_stmt;
+			      pform_sva_destroy_property(prop);
+			      return;
+			}
+			segment.inherit_property_clock = false;
+		  }
+	    }
 	    if (prop->mc_more && !prop->mc_more->empty())
 		  pform_make_multiclock_chain_assertion_(loc, prop, fail_stmt,
 							 pass_stmt, kind);

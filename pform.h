@@ -661,7 +661,14 @@ pform_sva_multiclock_sequence_implication(const struct vlltype&loc,
 			   int op_type, sva_property_t*ante,
 			   PEventStatement*clk,
 			   std::vector<sva_seq_step_t>*conseq,
-			   std::vector<sva_mc_seg_t>*tail);
+			   std::vector<sva_mc_seg_t>*tail,
+			   bool inherit_property_clock = false);
+extern sva_property_t*
+pform_sva_multiclock_grouped_sequence_implication(
+			   const struct vlltype&loc, int op_type,
+			   std::vector<sva_seq_step_t>*prefix,
+			   PExpr*prefix_delay, sva_property_t*grouped,
+			   std::vector<sva_seq_step_t>*conseq);
 extern sva_property_t*
 pform_sva_clocked_leaf_prop(const struct vlltype&loc, PEventStatement*clk,
 			    std::vector<sva_seq_step_t>*chain);

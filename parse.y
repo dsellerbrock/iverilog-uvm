@@ -9596,6 +9596,23 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = $3; }
   | sva_multiclock_seq
       { $$ = $1; }
+  /* IEEE 1800-2017/2023 16.13.3: a clocked subsequence keeps its internal
+     clock flow within its parentheses. An enclosing implication resumes
+     with the property clock after the group closes. */
+  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@4, 1, nullptr, nullptr, $2, $5); }
+  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@4, 2, nullptr, nullptr, $2, $5); }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
+	'(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@7, 1, $1, $3, $5, $8); }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
+	'(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@7, 2, $1, $3, $5, $8); }
   /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully
      parenthesized property is the shape emitted by every macro that wraps
      its argument -- e.g. OpenTitan's `ASSERT' expands to
