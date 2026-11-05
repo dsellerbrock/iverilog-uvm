@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2481_sdf_instance_wildcard.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2481_sdf_instance_wildcard"],
+  "gold": "issue2481_sdf_instance_wildcard"
+}

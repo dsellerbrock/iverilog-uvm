@@ -47,6 +47,8 @@ static vpiHandle sdf_scope;
 static vpiHandle sdf_callh = 0;
   /* The cell in process. */
 static vpiHandle sdf_cur_cell;
+static vpiHandle* sdf_cells;
+static size_t sdf_cell_count;
 static char* sdf_fname = NULL;
 static int sdf_timescale_set;
 static int sdf_timescale_exponent;
@@ -150,6 +152,38 @@ static vpiHandle find_scope(vpiHandle scope, const char*name)
       return 0;
 }
 
+static int sdf_add_cell(vpiHandle cell, const char*celltype)
+{
+      if (strcmp(celltype, vpi_get_str(vpiDefName, cell)) != 0)
+            return 1;
+      vpiHandle* cells = realloc(sdf_cells, (sdf_cell_count + 1) * sizeof(*cells));
+      if (!cells) return 0;
+      sdf_cells = cells;
+      sdf_cells[sdf_cell_count++] = cell;
+      return 1;
+}
+
+static int sdf_collect_cells(vpiHandle scope, const char*celltype)
+{
+      vpiHandle iter = vpi_iterate(vpiModule, scope);
+      vpiHandle cell;
+      while (iter && (cell = vpi_scan(iter))) {
+            if (!sdf_add_cell(cell, celltype) ||
+                !sdf_collect_cells(cell, celltype)) {
+                  return 0;
+            }
+      }
+      return 1;
+}
+
+void sdf_clear_instance_selection(void)
+{
+      free(sdf_cells);
+      sdf_cells = NULL;
+      sdf_cell_count = 0;
+      sdf_cur_cell = NULL;
+}
+
 void sdf_warn_file_line(const int sdf_lineno)
 {
       vpi_printf("SDF WARNING: %s:%d: loaded from %s:%d: ",
@@ -167,14 +201,17 @@ void sdf_select_instance(const char*celltype, const char*cellinst, const int sdf
 {
       char buffer[128];
 
+      sdf_clear_instance_selection();
+
 	/* Test for wildcard character */
       if (cellinst == NULL) {
-	    if (sdf_flag_warning) {
-		  vpi_printf("SDF WARNING: %s:%d: sorry: "
-		             "Wildcard cell instance specification (*) currently not supported.\n",
+	    if (!sdf_collect_cells(sdf_scope, celltype)) {
+		  vpi_printf("SDF ERROR: %s:%d: Unable to allocate wildcard instance list.\n",
 		             sdf_fname, sdf_lineno);
+		  sdf_clear_instance_selection();
 	    }
-	    sdf_cur_cell = 0;
+	    if (sdf_cell_count)
+		  sdf_cur_cell = sdf_cells[0];
 	    return;
       }
 
@@ -210,6 +247,17 @@ void sdf_select_instance(const char*celltype, const char*cellinst, const int sdf
       if (sdf_cur_cell == 0) {
 	    vpi_printf("SDF ERROR: %s:%d: Unable to find %s in scope %s.\n",
 	               sdf_fname, sdf_lineno, src, vpi_get_str(vpiFullName, scope));
+	    return;
+      }
+
+      sdf_cells = malloc(sizeof(*sdf_cells));
+      if (sdf_cells) {
+	    sdf_cells[0] = sdf_cur_cell;
+	    sdf_cell_count = 1;
+      } else {
+	    vpi_printf("SDF ERROR: %s:%d: Unable to allocate instance list.\n",
+	               sdf_fname, sdf_lineno);
+	    sdf_cur_cell = NULL;
 	    return;
       }
 
@@ -308,9 +356,9 @@ static void sdf_put_interconnect_delays(vpiHandle path,
       vpi_put_delays(path, &delays);
 }
 
-void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconnect_port_s port2,
-                             const struct sdf_delval_list_s*delval_list,
-                             const int sdf_lineno)
+static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct interconnect_port_s port2,
+                                        const struct sdf_delval_list_s*delval_list,
+                                        const int sdf_lineno)
 {
 
 	// Get handles for both ports
@@ -440,6 +488,17 @@ void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconne
       }
 }
 
+void sdf_interconnect_delays(struct interconnect_port_s port1, struct interconnect_port_s port2,
+                             const struct sdf_delval_list_s*delval_list,
+                             const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_interconnect_delays_one(port1, port2, delval_list, sdf_lineno);
+      }
+}
+
 static vpiHandle get_port_bit(vpiHandle port, struct interconnect_port_s spec,
                               const int sdf_lineno)
 {
@@ -481,9 +540,9 @@ static int sdf_apply_sources_to_load(vpiHandle scope, vpiHandle load,
       return matches;
 }
 
-void sdf_port_delays(struct interconnect_port_s port_spec,
-                     const struct sdf_delval_list_s*delval_list,
-                     const int sdf_lineno)
+static void sdf_port_delays_one(struct interconnect_port_s port_spec,
+                                const struct sdf_delval_list_s*delval_list,
+                                const int sdf_lineno)
 {
       if (!sdf_cur_cell) return;
       char*name = strdup(port_spec.name);
@@ -511,6 +570,17 @@ void sdf_port_delays(struct interconnect_port_s port_spec,
       }
 }
 
+void sdf_port_delays(struct interconnect_port_s port_spec,
+                     const struct sdf_delval_list_s*delval_list,
+                     const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_port_delays_one(port_spec, delval_list, sdf_lineno);
+      }
+}
+
 static int sdf_apply_netdelay_to_loads(vpiHandle scope, vpiHandle net,
                                       const struct sdf_delval_list_s*delval_list,
                                       const int sdf_lineno)
@@ -534,9 +604,9 @@ static int sdf_apply_netdelay_to_loads(vpiHandle scope, vpiHandle net,
       return matches;
 }
 
-void sdf_netdelay_delays(struct interconnect_port_s target,
-                         const struct sdf_delval_list_s*delval_list,
-                         const int sdf_lineno)
+static void sdf_netdelay_delays_one(struct interconnect_port_s target,
+                                    const struct sdf_delval_list_s*delval_list,
+                                    const int sdf_lineno)
 {
       if (!sdf_cur_cell) return;
 
@@ -581,6 +651,17 @@ void sdf_netdelay_delays(struct interconnect_port_s target,
                        sdf_fname, sdf_lineno, target.name);
 }
 
+void sdf_netdelay_delays(struct interconnect_port_s target,
+                         const struct sdf_delval_list_s*delval_list,
+                         const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_netdelay_delays_one(target, delval_list, sdf_lineno);
+      }
+}
+
 static void sdf_put_modpath_delays(vpiHandle path,
                                    const struct sdf_delval_list_s*delval_list)
 {
@@ -605,10 +686,10 @@ static void sdf_put_modpath_delays(vpiHandle path,
       vpi_put_delays(path, &delays);
 }
 
-void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
-                       const char*condition, int ifnone,
-                       const struct sdf_delval_list_s*delval_list,
-                       const int sdf_lineno)
+static void sdf_iopath_delays_one(int vpi_edge, const char*src, const char*dst,
+                                  const char*condition, int ifnone,
+                                  const struct sdf_delval_list_s*delval_list,
+                                  const int sdf_lineno)
 {
       vpiHandle iter, path;
       int match_count = 0;
@@ -674,9 +755,22 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
       }
 }
 
-void sdf_device_delays(const char*dst,
+void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
+                       const char*condition, int ifnone,
                        const struct sdf_delval_list_s*delval_list,
                        const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_iopath_delays_one(vpi_edge, src, dst, condition, ifnone,
+                                  delval_list, sdf_lineno);
+      }
+}
+
+static void sdf_device_delays_one(const char*dst,
+                                  const struct sdf_delval_list_s*delval_list,
+                                  const int sdf_lineno)
 {
       vpiHandle iter, path;
       int match_count = 0;
@@ -712,10 +806,21 @@ void sdf_device_delays(const char*dst,
       }
 }
 
-void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
-                          const struct sdf_delay_s*reject,
-                          const struct sdf_delay_s*error,
-                          const int sdf_lineno)
+void sdf_device_delays(const char*dst,
+                       const struct sdf_delval_list_s*delval_list,
+                       const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_device_delays_one(dst, delval_list, sdf_lineno);
+      }
+}
+
+static void sdf_pathpulse_delays_one(int percent, const char*src, const char*dst,
+                                     const struct sdf_delay_s*reject,
+                                     const struct sdf_delay_s*error,
+                                     const int sdf_lineno)
 {
       if (sdf_cur_cell == 0)
 	    return;
@@ -750,6 +855,18 @@ void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
       else
 	    sdf_pathpulse_head = entry;
       sdf_pathpulse_tail = entry;
+}
+
+void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
+                          const struct sdf_delay_s*reject,
+                          const struct sdf_delay_s*error,
+                          const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_pathpulse_delays_one(percent, src, dst, reject, error, sdf_lineno);
+      }
 }
 
 static void sdf_apply_pathpulse_annotations(void)
@@ -1010,6 +1127,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       sdf_reset_timescale();
       sdf_process_file(sdf_fd, fname);
       sdf_apply_pathpulse_annotations();
+      sdf_clear_instance_selection();
       sdf_callh = 0;
 
       fclose(sdf_fd);
