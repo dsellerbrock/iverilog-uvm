@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2521_packed_constraint_foreach_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue2521_packed_constraint_foreach"
+}
