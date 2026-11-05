@@ -1327,7 +1327,10 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    assert(wid==8);
 	    draw_eval_string(subexpr);
 	    int base_idx = allocate_word();
-	    draw_eval_expr_into_integer(base, base_idx);
+	    draw_eval_vec4(base);
+	    resize_vec4_wid(base, 32);
+	    fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; string character selector\n", base_idx);
 	    fprintf(vvp_out, "    %%substr/vec4 %d, %u;\n", base_idx, wid);
 	    fprintf(vvp_out, "    %%pop/str 1;\n");
 	    clr_word(base_idx);
