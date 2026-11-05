@@ -3050,6 +3050,16 @@ struct pending_variable_continuous_driver_t {
 static vector<pending_variable_continuous_driver_t>
       pending_variable_continuous_drivers_;
 
+struct pending_variable_bit_continuous_driver_t {
+      NetNet*signal;
+      unsigned msb;
+      unsigned lsb;
+      const LineInfo*location;
+};
+
+static vector<pending_variable_bit_continuous_driver_t>
+      pending_variable_bit_continuous_drivers_;
+
 /* The commercial-unsafe compatibility path is deliberately closed-world:
  * only a write in an uncalled task body of the SAME concrete interface
  * instance may be ignored. Keep provenance while statements are elaborated;
@@ -3811,6 +3821,21 @@ static void finalize_interface_continuous_drivers_(Design*des)
       }
       pending_variable_continuous_drivers_.clear();
 
+      for (const pending_variable_bit_continuous_driver_t&pending :
+	   pending_variable_bit_continuous_drivers_) {
+	    if (pending.signal->test_part_procedurally_driven(
+		  pending.msb, pending.lsb, 0)) {
+		  if (clocking_output_variables_.count(pending.signal))
+			continue;
+		  cerr << pending.location->get_fileline() << ": error: Variable '"
+		       << pending.signal->name()
+		       << "' cannot have continuous and procedural drivers on the "
+			  "same bits." << endl;
+		  des->errors += 1;
+	    }
+      }
+      pending_variable_bit_continuous_drivers_.clear();
+
       for (const pending_clocking_output_continuous_write_t&pending :
 	   pending_clocking_output_continuous_writes_) {
 	    auto clockvar = clocking_output_variables_.find(pending.signal);
@@ -4097,6 +4122,167 @@ static bool elaborate_string_variable_continuous_(
                   verinum(1));
             des->add_process(always);
       }
+      return true;
+}
+
+/* A selected packed variable is a storage write to the selected bits. Keep
+ * the variable as storage and lower each continuous driver to a process so
+ * bits with no driver retain their Table 6-7 initial value instead of
+ * inheriting the high-impedance fill used by a structural partial net
+ * driver. */
+static bool elaborate_packed_variable_continuous_(
+      Design*des, NetScope*scope, const PGAssign*assignment,
+      NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+      bool default_strength)
+{
+      bool selected = false;
+      NetNet*signal = direct_identifier_net_(
+	    assignment, des, scope, assignment->pin(0), selected);
+      if (!signal || !selected || signal->unpacked_dimensions() > 0
+	  || signal->pin_count() != 1
+	  || (signal->type() != NetNet::REG
+	      && signal->type() != NetNet::IMPLICIT_REG)
+	  || !type_is_vectorable(signal->data_type()))
+	    return false;
+
+      bool unsupported_delay = assignment->delay_count() > 0
+	    && !(is_defined_zero_delay_(rise_time)
+		 && is_defined_zero_delay_(fall_time)
+		 && is_defined_zero_delay_(decay_time));
+      if (unsupported_delay || !default_strength) {
+	    cerr << assignment->get_fileline() << ": sorry: Nonzero/dynamic delay "
+		    "and non-default drive strength on a continuous assignment to "
+		    "a selected packed variable are not currently supported."
+		 << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return true;
+      }
+      delete_unique_delays_(rise_time, fall_time, decay_time);
+
+      PAssign store(const_cast<PExpr*>(assignment->pin(0)),
+		    const_cast<PExpr*>(assignment->pin(1)));
+      store.set_line(*assignment);
+      NetProc*initial_assignment = store.elaborate(des, scope);
+      store.replace_lval_rval(0, 0);
+      NetAssignBase*store_assignment =
+	    dynamic_cast<NetAssignBase*>(initial_assignment);
+      if (!store_assignment || store_assignment->l_val_count() == 0) {
+	    delete initial_assignment;
+	    cerr << assignment->get_fileline() << ": error: Unable to elaborate "
+		    "continuous assignment to selected packed variable '"
+		 << signal->name() << "'." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      for (unsigned idx = 0; idx < store_assignment->l_val_count();
+	   idx += 1)
+	    store_assignment->l_val(idx)->mark_force_lval();
+
+      vector<pair<unsigned,unsigned> > driven_ranges;
+      for (unsigned idx = 0; idx < store_assignment->l_val_count();
+	   idx += 1) {
+	    const NetAssign_*lval = store_assignment->l_val(idx);
+	    if (!lval || lval->sig() != signal || lval->nest()
+		|| lval->word() || lval->is_array_slice()) {
+		delete initial_assignment;
+		cerr << assignment->get_fileline() << ": sorry: A continuous "
+			"assignment to a selected packed variable requires a "
+			"direct packed-bit l-value."
+		     << endl;
+		des->errors += 1;
+		return true;
+	    }
+
+	    unsigned width = lval->lwidth();
+	    if (width == 0)
+		  continue;
+
+	    bool dynamic_base = lval->has_dynamic_part_carrier();
+	    long base = 0;
+	    const NetExpr*base_expr = lval->get_base();
+	    if (base_expr) {
+		  const NetEConst*constant = dynamic_cast<const NetEConst*>(base_expr);
+		  if (!constant || !constant->value().is_defined())
+			dynamic_base = true;
+		  else
+			base = constant->value().as_long();
+	    }
+
+	    unsigned lo = 0;
+	    unsigned hi = signal->vector_width() - 1;
+	    if (!dynamic_base && base_expr) {
+		  long last = base + static_cast<long>(width) - 1;
+		  long clipped_lo = std::max<long>(base, 0);
+		  long clipped_hi = std::min<long>(last,
+					      signal->vector_width() - 1);
+		  if (clipped_lo > clipped_hi)
+			continue;
+		  lo = static_cast<unsigned>(clipped_lo);
+		  hi = static_cast<unsigned>(clipped_hi);
+	    }
+	    driven_ranges.push_back(make_pair(hi, lo));
+      }
+
+      if (driven_ranges.empty()) {
+	    delete initial_assignment;
+	    return true;
+      }
+
+      for (const pair<unsigned,unsigned>&range : driven_ranges) {
+	    if (signal->test_part_driven(range.first, range.second, 0)) {
+		delete initial_assignment;
+		cerr << assignment->get_fileline() << ": error: Variable '"
+		     << signal->name()
+		     << "' cannot have multiple continuous drivers."
+		     << endl;
+		des->errors += 1;
+		return true;
+	    }
+      }
+
+      PEventStatement wait(true);
+      wait.set_line(*assignment);
+      NetProc*body = wait.elaborate_st(des, scope, initial_assignment);
+      if (!body) {
+	    delete initial_assignment;
+	    cerr << assignment->get_fileline() << ": error: Unable to derive "
+		    "sensitivity for continuous assignment to selected packed "
+		    "variable '" << signal->name() << "'." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      for (const pair<unsigned,unsigned>&range : driven_ranges) {
+	    bool overlap = signal->test_and_set_part_driver(
+		  range.first, range.second, 0);
+	    ivl_assert(*assignment, !overlap);
+	    pending_variable_bit_continuous_driver_t pending = {
+		  signal, range.first, range.second, assignment
+	    };
+	    pending_variable_bit_continuous_drivers_.push_back(pending);
+      }
+      ivl_note_clocking_output_continuous_write(signal, assignment);
+
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(*assignment);
+      top->attribute(perm_string::literal("_ivl_function_background_ok"),
+		     verinum(1));
+      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	    if (event_wait->nevents() == 1) {
+		  NetEvent*event = event_wait->event(0);
+		  bool anyedge = event->nprobe() != 0;
+		  for (unsigned idx = 0; anyedge && idx < event->nprobe();
+		       idx += 1)
+			if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
+			      anyedge = false;
+		  if (anyedge)
+			top->attribute(perm_string::literal("_ivl_schedule_push"),
+				       verinum(1));
+	    }
+      }
+      des->add_process(top);
       return true;
 }
 
@@ -4622,6 +4808,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	/* An unpacked-union member is a property read with no structural
 	   expression net. Use the variable continuous-assignment process path. */
       if (elaborate_unpacked_union_read_continuous_(
+		des, scope, this, rise_time, fall_time, decay_time,
+		var_allowed_in_sv))
+	    return;
+
+	/* A selected packed variable is storage, not a resolved net: preserve
+	 * its default value in every bit outside the continuous l-value. */
+      if (elaborate_packed_variable_continuous_(
 		des, scope, this, rise_time, fall_time, decay_time,
 		var_allowed_in_sv))
 	    return;
@@ -52958,6 +53151,7 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       pending_variable_continuous_drivers_.clear();
+      pending_variable_bit_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
