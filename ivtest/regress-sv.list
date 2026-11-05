@@ -2288,6 +2288,7 @@ issue1897_dpi_sized_array_always_comb_2017 normal,-g2017,-s,issue1897_dpi_sized_
 issue1897_dpi_sized_array_always_comb_2023 normal,-g2023,-s,issue1897_dpi_sized_array_always_comb ivltests gold=issue1897_dpi_sized_array_always_comb.gold
 sv_uarray_const_ternary normal,-g2012 ivltests
 sv_default_disable_iff normal,-g2012 ivltests
+issue727_default_disable_order normal,-g2017,-s,issue727_default_disable_order ivltests gold=issue727_default_disable_order-legacy-vvp-stdout.gold
 sv_disable_iff_past_sampling_unconditional normal,-g2012 ivltests
 sva_throughout_goto_repeat normal,-g2012 ivltests
 sva_clocking_member_assert normal,-g2012 ivltests
