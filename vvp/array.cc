@@ -1611,8 +1611,14 @@ vvp_vector4_t __vpiArray::get_word_raw_(unsigned address)
       if (vals) {
 	    assert(nets == 0);
 	    assert(vals4== 0);
-	    if (address >= vals->get_size())
-		  return vvp_vector4_t(vals_width, BIT4_X);
+	    if (address >= vals->get_size()) {
+		  /* Integral variable arrays are 2-state. Their storage may use
+		   * atom-specialized implementations whose generic out-of-range
+		   * read is X, so apply the declared array type's default here. */
+		  vvp_bit4_t bit = owner->value_kind == ARRAY_VALUE_INTEGRAL
+			? BIT4_0 : BIT4_X;
+		  return vvp_vector4_t(vals_width, bit);
+	    }
 
 	    vvp_vector4_t val;
 	    vals->get_word(address, val);

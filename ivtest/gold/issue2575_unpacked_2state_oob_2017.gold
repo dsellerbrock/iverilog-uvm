@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2575_unpacked_2state_oob_2017.v:19: $finish called at 0 (1s)

@@ -31021,10 +31021,19 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 	    canon_index = normalize_variable_unpacked(net, unpacked_indices_const);
 
 	    if (canon_index == 0) {
-		  cerr << get_fileline() << ": warning: "
-		       << "returning 'bx for out of bounds array access "
-		       << net->name() << as_indices(unpacked_indices_const)
-		       << "." << endl;
+		  /* A fixed-array read can use the normal runtime read port with
+		   * the first canonical address beyond the array. The array storage
+		   * supplies the element type's Table 7-1 default value. */
+		  if (net->unpacked_count() > 0
+		      && !net->darray_type() && !net->queue_type()) {
+			canon_index = new NetEConst(verinum(
+			      (uint64_t)net->unpacked_count(), 32));
+		  } else {
+			cerr << get_fileline() << ": warning: "
+			     << "returning 'bx for out of bounds array access "
+			     << net->name() << as_indices(unpacked_indices_const)
+			     << "." << endl;
+		  }
 	    }
       }
 

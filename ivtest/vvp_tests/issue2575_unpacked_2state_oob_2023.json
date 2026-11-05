@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2575_unpacked_2state_oob_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue2575_unpacked_2state_oob"],
+  "output-contains": ["PASSED"]
+}
