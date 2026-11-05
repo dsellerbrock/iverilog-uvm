@@ -3096,7 +3096,8 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	   // legacy raw-set semantics despite carrying a typed coverpoint.
 	 bool set_ir = lo_ir && hi_ir && strcmp(lo_ir, hi_ir) == 0
 	       && (strncmp(lo_ir, "setc:", 5) == 0
-		   || strncmp(lo_ir, "setp:", 5) == 0);
+		   || strncmp(lo_ir, "setp:", 5) == 0
+		   || strncmp(lo_ir, "setm:", 5) == 0);
 	 bool typed_set_ir = set_ir && strchr(lo_ir + 5, ':');
 	 if ((!value_type && typed_set_ir) || (value_type && set_ir && !typed_set_ir))
 	       bad_type = true;
@@ -4582,6 +4583,7 @@ void compile_class_done(void)
       if (compile_class_covgrp_parent_required
 	  && !compile_class_covgrp_parent_seen)
 	yyerror("parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata");
+      compile_class->set_covgrp_decl_scope(scope);
       compile_class->set_scope_path(build_scope_path_(scope));
       if (compile_class->dispatch_prefix().empty()) {
             string prefix = compile_class->scope_path();

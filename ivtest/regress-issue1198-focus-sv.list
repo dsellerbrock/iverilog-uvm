@@ -1,0 +1,2 @@
+issue1198_dynamic_set_2017 normal,-g2017,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
+issue1198_dynamic_set_2023 normal,-g2023,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold

@@ -8183,22 +8183,47 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	    }
 	    if (!state.meta) state.meta = &rec;
 	    if (!state.valid) continue;
-	      // A set-covergroup expression backed by a direct class
-	      // container is encoded without extending the public IVL type ABI.
-	      // setc:N:[su]W reads property N of the covergroup object;
-	      // setp:N:[su]W reads property N of its enclosing class through
-	      // __covgrp_parent. The type suffix retains the set element's own
-	      // signedness and width for IEEE 1800 19.5.7 value resolution.
-	      // A suffix-less record is legacy VVP and keeps its raw-bit behavior.
+	      // A set-covergroup expression backed by a direct container is
+	      // encoded without extending the public IVL type ABI. setc:N:[su]W
+	      // reads property N of the covergroup object; setp:N:[su]W reads
+	      // property N of its enclosing class through __covgrp_parent;
+	      // setm:HEX:[su]W reads a module-scope array from the declaration
+	      // scope retained by this covergroup type. The type suffix retains
+	      // the set element's signedness and width for IEEE 1800 19.5.7 value
+	      // resolution. A suffix-less record keeps legacy raw-bit behavior.
 	    bool set_current = rec.lo_ir.compare(0, 5, "setc:") == 0;
 	    bool set_parent = rec.lo_ir.compare(0, 5, "setp:") == 0;
-	    if ((set_current || set_parent) && rec.lo_ir == rec.hi_ir) {
+	    bool set_module = rec.lo_ir.compare(0, 5, "setm:") == 0;
+	    if ((set_current || set_parent || set_module)
+		&& rec.lo_ir == rec.hi_ir) {
 		  char*end = 0;
-		  errno = 0;
-		  unsigned long raw_prop = std::strtoul(rec.lo_ir.c_str() + 5,
-						       &end, 10);
-		  if (!end || end == rec.lo_ir.c_str() + 5 || errno == ERANGE)
-			continue;
+		  unsigned long raw_prop = 0;
+		  std::string module_name;
+		  if (set_module) {
+			const char*encoded = rec.lo_ir.c_str() + 5;
+			const char*separator = std::strchr(encoded, ':');
+			if (!separator || separator == encoded
+			    || (separator - encoded) % 2 != 0)
+			      continue;
+			auto nibble = [](char ch) -> int {
+			      if (ch >= '0' && ch <= '9') return ch - '0';
+			      if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+			      if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+			      return -1;
+			};
+			for (const char*cur = encoded; cur < separator; cur += 2) {
+			      int hi = nibble(cur[0]), lo = nibble(cur[1]);
+			      if (hi < 0 || lo < 0) { module_name.clear(); break; }
+			      module_name.push_back(static_cast<char>((hi << 4) | lo));
+			}
+			if (module_name.empty()) continue;
+			end = const_cast<char*>(separator);
+		  } else {
+			errno = 0;
+			raw_prop = std::strtoul(rec.lo_ir.c_str() + 5, &end, 10);
+			if (!end || end == rec.lo_ir.c_str() + 5 || errno == ERANGE)
+			      continue;
+		  }
 		  bool typed_set = false;
 		  bool set_signed = false;
 		  unsigned set_width = 0;
@@ -8219,20 +8244,36 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  } else if (*end != 0) {
 			continue;
 		  }
-		  vvp_cobject*owner = cobj;
-		  if (set_parent) {
-			int pprop = defn->covgrp_parent_prop();
-			if (pprop < 0) { deferred = true; continue; }
-			vvp_object_t parent_obj;
-			cobj->get_object((size_t)pprop, parent_obj, 0);
-			owner = parent_obj.peek<vvp_cobject>();
-			if (!owner) { deferred = true; continue; }
+		  vvp_darray*set = 0;
+		  if (set_module) {
+			__vpiScope*decl_scope = defn->covgrp_decl_scope();
+			if (!decl_scope) continue;
+			for (vpiHandle item : decl_scope->intern) {
+			      __vpiDarrayVar*array =
+				    dynamic_cast<__vpiDarrayVar*>(item);
+			      if (!array) continue;
+			      const char*name = array->vpi_get_str(vpiName);
+			      if (name && module_name == name) {
+				    set = array->get_vvp_darray_value();
+				    break;
+			      }
+			}
+		  } else {
+			vvp_cobject*owner = cobj;
+			if (set_parent) {
+			      int pprop = defn->covgrp_parent_prop();
+			      if (pprop < 0) { deferred = true; continue; }
+			      vvp_object_t parent_obj;
+			      cobj->get_object((size_t)pprop, parent_obj, 0);
+			      owner = parent_obj.peek<vvp_cobject>();
+			      if (!owner) { deferred = true; continue; }
+			}
+			if (!owner || raw_prop >= owner->get_defn()->property_count())
+			      continue;
+			vvp_object_t set_obj;
+			owner->get_object((size_t)raw_prop, set_obj, 0);
+			set = set_obj.peek<vvp_darray>();
 		  }
-		  if (!owner || raw_prop >= owner->get_defn()->property_count())
-			continue;
-		  vvp_object_t set_obj;
-		  owner->get_object((size_t)raw_prop, set_obj, 0);
-		  vvp_darray*set = set_obj.peek<vvp_darray>();
 		  if (!set) continue;
 		  for (size_t idx = 0; idx < set->get_size(); idx += 1) {
 			vvp_vector4_t word;
