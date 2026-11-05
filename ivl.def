@@ -532,6 +532,7 @@ ivl_type_covgrp_weight_prop
 ivl_type_covgrp_goal
 ivl_type_covgrp_goal_prop
 ivl_type_covgrp_comment
+ivl_type_covgrp_name
 ivl_type_covgrp_type_comment
 ivl_type_covgrp_comment_prop
 ivl_type_covgrp_name_prop

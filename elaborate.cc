@@ -46965,17 +46965,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             group_options.name.clear();
             auto name_it = cgdef->options.find(perm_string::literal("name"));
             if (name_it != cgdef->options.end()) {
-                  NetExpr*value = elab_and_eval(des, class_scope_, name_it->second,
-					&netstring_t::type_string, false);
-                  if (NetECString*constant = dynamic_cast<NetECString*>(value))
-			group_options.name = constant->value().as_string();
-                  else {
-			cerr << name_it->second->get_fileline()
-			     << ": error: covergroup option.name requires a constant string expression."
-			     << endl;
-			des->errors += 1;
-                  }
-                  delete value;
+                  // A literal name can be carried in the covergroup type
+                  // metadata. Other expressions may refer to constructor
+                  // formals, so they must not be evaluated in class scope.
+                  if (PEString*literal = dynamic_cast<PEString*>(name_it->second))
+			group_options.name = literal->value();
             }
             group_options.goal = 100;
             group_options.goal_expr = nullptr;
