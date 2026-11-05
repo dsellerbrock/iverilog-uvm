@@ -151,6 +151,7 @@ int show_stmt_forever(ivl_statement_t net, ivl_scope_t sscope)
       PUSH_JUMPS(lab_out, lab_top, sscope);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	  draw_stmt_callback_entry(net);
       rc += show_statement(stmt, sscope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
 
@@ -207,6 +208,7 @@ int show_stmt_forloop(ivl_statement_t net, ivl_scope_t scope)
 
       fprintf(vvp_out, "T_%u.%u ; for-loop step statement\n",
 	      thread_count, cont_label);
+	  draw_stmt_callback_entry(net);
       if (ivl_stmt_step_stmt(net))
 	    rc += show_statement(ivl_stmt_step_stmt(net), scope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, top_label);
@@ -222,7 +224,8 @@ int show_stmt_forloop(ivl_statement_t net, ivl_scope_t scope)
 int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
 {
       int rc = 0;
-      unsigned lab_top = local_count++, lab_out = local_count++;
+      unsigned lab_top = local_count++, lab_body = local_count++;
+      unsigned lab_out = local_count++;
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
       const char *sign = ivl_expr_signed(expr) ? "s" : "u";
 
@@ -231,20 +234,32 @@ int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
       PUSH_JUMPS(lab_out, lab_top, sscope);
 
       show_stmt_file_line(net, "Repeat statement.");
+	  draw_stmt_callback_entry(net);
 
 	/* Calculate the repeat count onto the top of the vec4 stack. */
       draw_eval_vec4(expr);
 
-	/* Test that 0 < expr, escape if expr <= 0. If the expr is
-	   unsigned, then we only need to try to escape if expr==0 as
-	   it will never be <0. */
-      fprintf(vvp_out, "T_%u.%u %%dup/vec4;\n", thread_count, lab_top);
+	/* Test the first iteration. If the repeat count is nonzero,
+	   decrement it and enter the body without another callback. */
+	  fprintf(vvp_out, "    %%dup/vec4;\n");
       fprintf(vvp_out, "    %%cmpi/%s 0, 0, %u;\n", sign, ivl_expr_width(expr));
 	/* An X/Z count compares as unknown, so it must not enter the loop. */
       fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, 5;\n", thread_count, lab_out);
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
 	/* This adds -1 (all ones in 2's complement) to the count. */
       fprintf(vvp_out, "    %%subi 1, 0, %u;\n",  ivl_expr_width(expr));
+	  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_body);
+
+	/* Later iterations test the remaining count first, so no callback
+	   occurs for the terminating check. */
+	  fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	  fprintf(vvp_out, "    %%dup/vec4;\n");
+	  fprintf(vvp_out, "    %%cmpi/%s 0, 0, %u;\n", sign, ivl_expr_width(expr));
+	  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, 5;\n", thread_count, lab_out);
+	  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
+	  fprintf(vvp_out, "    %%subi 1, 0, %u;\n", ivl_expr_width(expr));
+	  draw_stmt_callback_entry(net);
+	  fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_body);
 
       rc += show_statement(ivl_stmt_sub_stmt(net), sscope);
 
@@ -274,6 +289,7 @@ int show_stmt_while(ivl_statement_t net, ivl_scope_t sscope)
 	   because it can be entered from above or from the bottom of
 	   the loop. */
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, top_label);
+	  draw_stmt_callback_entry(net);
 
 
 	/* Draw the evaluation of the condition expression, and test

@@ -1,0 +1,3 @@
+PASS disable fork terminates descendants in a named block
+PASSED
+./ivltests/issue2520_disable_fork_named_block.v:19: $finish called at 21 (1s)

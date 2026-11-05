@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue2506_nested_dynamic_array_reduction.sv","iverilog-args":["-g2023","-s","issue2506_nested_dynamic_array_reduction"],"gold":"issue2506_nested_dynamic_array_reduction"}

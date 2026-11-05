@@ -42,6 +42,7 @@
 # include  "ufunc.h"
 # include  "event.h"
 # include  "vpi_priv.h"
+# include  "vvp_vpi_callback.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
@@ -12470,6 +12471,8 @@ void vthread_run(vthread_t thr)
 			do {
 			      cp = thr->pc;
 			      thr->pc += 1;
+			      if (vpip_statement_callbacks_active)
+				    vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS
                               if (stats_last_thread != thr)
                                     stats_last_opcode = 0;
@@ -12487,6 +12490,8 @@ void vthread_run(vthread_t thr)
 			      trace_step = step_trace_enabled_(step_scope_name);
 			}
 			thr->pc += 1;
+			if (vpip_statement_callbacks_active)
+			      vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS
                         if (stats_last_thread != thr)
                               stats_last_opcode = 0;
@@ -19513,6 +19518,15 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	    bool res = do_disable(child, thr);
 	    assert(! res);
 	  }
+
+	/* A named begin/end block is a continuation of its enclosing process,
+	 * but it has its own vthread. If that block's child process terminates,
+	 * its detached descendants are reparented onto the block thread. Include
+	 * those continuation frames when locating the calling process's remaining
+	 * descendants. */
+	  for (set<vthread_t>::iterator cur = owner->children.begin()
+	       ; cur != owner->children.end() ; ++cur)
+	    disable_fork_detached_descendants_(*cur, thr);
 
       return true;
 }

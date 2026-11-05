@@ -381,6 +381,26 @@ class __vpiScope : public __vpiHandle {
       bool shares_parent_frame_ = false;
 };
 
+/* An elaborated source statement. Statement code addresses are side-table
+   entries used by cbStmt dispatch; they do not occupy VVP instructions. */
+class __vpiStmtNode : public __vpiHandle {
+    public:
+      __vpiStmtNode(int type, const char*name, __vpiScope*scope);
+      int get_type_code(void) const override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
+      void add_child(__vpiStmtNode*child);
+
+      __vpiScope*scope_;
+      std::vector<struct vvp_code_s*> code_addresses_;
+    private:
+      int type_;
+      const char*name_;
+      __vpiStmtNode*parent_;
+      std::vector<__vpiStmtNode*> children_;
+};
+
 /* Deferred-report selectors use module/cell hierarchy depth, not the number
    of lexical scope components in a VPI full name. */
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,

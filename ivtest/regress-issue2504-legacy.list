@@ -1,0 +1,2 @@
+issue2504_rand_queue_of_queues_foreach_2017 normal,-g2017,-s,issue2504_rand_queue_of_queues_foreach ivltests gold=issue2504_rand_queue_of_queues_foreach.gold
+issue2504_rand_queue_of_queues_foreach_2023 normal,-g2023,-s,issue2504_rand_queue_of_queues_foreach ivltests gold=issue2504_rand_queue_of_queues_foreach.gold
