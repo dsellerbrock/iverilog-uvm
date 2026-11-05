@@ -5555,9 +5555,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			"unsupported typed unary expression in constraint cast");
 	    Z3_ast arg = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
-	    if (b.is_real(arg))
-		  return z3_from_real_(b, Z3_mk_fpa_neg(b.ctx,
-						    z3_to_real_(b, arg)));
+	    if (b.is_real(arg)) {
+		  double constant;
+		  Z3_ast result = z3_from_real_(b, Z3_mk_fpa_neg(b.ctx,
+							    z3_to_real_(b, arg)));
+		  if (b.real_constant(arg, constant))
+			b.real_constants[Z3_get_ast_id(b.ctx, result)] = -constant;
+		  return result;
+	    }
 	    unsigned width = b.sv_of(arg);
 	    if (b.integral_context_width > width)
 		  width = b.integral_context_width;
