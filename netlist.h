@@ -1056,6 +1056,12 @@ class NetNet  : public NetObj, public PortType {
 	// index if this is an unpacked array.
       bool test_part_driven(unsigned msb, unsigned lsb, int widx =0);
 
+	// True when this unresolved wire was a variable that became one
+	// because continuous assignments drive it (6.5). Its undriven bits
+	// still hold the variable's initial value, not z.
+      void set_variable_uwire() { variable_uwire_ = true; }
+      bool is_variable_uwire() const { return variable_uwire_; }
+
 	// Treating this node as a uwire, this function tests whether
 	// any bits in the canonical part are already driven and sets
 	// them if not. This is only useful for UNRESOLVED_WIRE objects.
@@ -1143,6 +1149,7 @@ class NetNet  : public NetObj, public PortType {
 	// which bits are assigned. This mask is true for each bit
 	// that is known to be driven.
       std::vector<bool> lref_mask_;
+      bool variable_uwire_ = false;
 
 	// The behavioural l-values that target this signal. lref_count_
 	// only says HOW MANY there are; these say WHICH BITS, which is

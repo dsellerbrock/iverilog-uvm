@@ -892,6 +892,8 @@ struct_field_left_right		vvp_tests/struct_field_left_right.json
 struct_nested1			vvp_tests/struct_nested1.json
 struct_packed_value_list	vvp_tests/struct_packed_value_list.json
 struct_packed_write_read	vvp_tests/struct_packed_write_read.json
+issue2337_partial_variable_2017 vvp_tests/issue2337_partial_variable_2017.json
+issue2337_partial_variable_2023 vvp_tests/issue2337_partial_variable_2023.json
 struct_packed_write_read2	vvp_tests/struct_packed_write_read2.json
 sv_2state_array_init_prop	vvp_tests/sv_2state_array_init_prop.json
 sv_ap_uarray1			vvp_tests/sv_ap_uarray1.json

@@ -1381,6 +1381,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       if (gn_var_can_be_uwire() && var_allowed_in_sv
 	  && (sig->type() == NetNet::REG)) {
 	    sig->type(NetNet::UNRESOLVED_WIRE);
+	    sig->set_variable_uwire();
       }
 
 	/* Don't allow registers as assign l-values. */
