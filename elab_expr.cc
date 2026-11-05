@@ -23199,6 +23199,20 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
        * applying the packed destination conversion (IEEE 1800-2017/2023 6.24.3). */
       if (target_type_ && target_type_->packed()) {
 	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(sub->net_type());
+	    /* Fixed unpacked-array members are valid bit-stream components too.
+	       Let VVP recursively flatten the object so arrays follow their
+	       declared index order instead of treating an array property as a
+	       scalar unary cast. */
+	    uint64_t record_stream_width = 0;
+	    if (record && !record->packed() && !record->union_flag()
+		&& fixed_bitstream_width_(record, record_stream_width)
+		&& record_stream_width == static_cast<unsigned>(target_type_->packed_width())) {
+	      NetESFunc*cast = new NetESFunc("$ivl_stream$cast$packed$1",
+					     target_type_, 1);
+	      cast->parm(0, sub);
+	      cast->set_line(*this);
+	      return cast;
+	    }
 	    bool stable_source = dynamic_cast<const NetESignal*>(sub)
 		  || dynamic_cast<const NetEProperty*>(sub);
 	    if (record && !record->packed() && !record->union_flag()
