@@ -20226,7 +20226,24 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 	     && !prop->disable_iff_expr && prop->strength == 0;
 }
 
-static sva_stree_t* sva_prop_take_tree_(sva_property_t*p);
+static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p);
+static bool sva_prop_is_property_shaped_(const sva_property_t*p);
+static bool sva_leaf_names_property_(const sva_property_t*p);
+
+/* A property-level `and'/`or' is a legal implication consequent
+   (A.2.10), but the per-attempt lowering does not host one inside an
+   obligation yet. Consumes conseq when it says so. */
+static bool sva_composite_conseq_sorry_(const struct vlltype&loc,
+					sva_property_t*conseq)
+{
+      if (!conseq || !conseq->pa) return false;
+      cerr << loc << ": sorry: a property-level `and'/`or' as an "
+	   << "implication consequent is not supported yet; the "
+	   << "assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_property(conseq);
+      return true;
+}
 
 static PEventStatement* sva_clone_event_control_(
 				 const PEventStatement*src,
@@ -20491,7 +20508,7 @@ sva_property_t* pform_sva_comb_antecedent_sorry(
 					std::vector<sva_seq_step_t>*conseq,
 					bool strong_eventually)
 {
-      sva_stree_t*at = sva_prop_take_tree_(ante);
+      sva_stree_t*at = sva_prop_take_tree_(loc, ante);
       sva_stree_t*ct = sva_chain_take_tree_(conseq);
       if (!at || !ct) {
 	    sva_tree_delete_(at, true);
@@ -20533,9 +20550,12 @@ sva_property_t* pform_sva_tree_implication(
 					sva_property_t*ante,
 					sva_property_t*conseq)
 {
-      (void)loc;
-      sva_stree_t*at = sva_prop_take_tree_(ante);
-      sva_stree_t*ct = sva_prop_take_tree_(conseq);
+      if (sva_composite_conseq_sorry_(loc, conseq)) {
+	    pform_sva_destroy_property(ante);
+	    return nullptr;
+      }
+      sva_stree_t*at = sva_prop_take_tree_(loc, ante);
+      sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
       if (!at || !ct) {
 	    sva_tree_delete_(at, true);
 	    sva_tree_delete_(ct, true);
@@ -20558,7 +20578,7 @@ sva_property_t* pform_sva_multiclock_comb_antecedent(
 					std::vector<sva_mc_seg_t>*tail)
 {
 	(void)loc;
-	sva_stree_t*at = sva_prop_take_tree_(ante);
+	sva_stree_t*at = sva_prop_take_tree_(loc, ante);
 	if (!at || !clk || !conseq || !tail || tail->empty()) {
 	      sva_tree_delete_(at, true);
 	      delete clk;
@@ -20669,8 +20689,12 @@ sva_property_t* pform_sva_comb_consequent_sorry(
 					std::vector<sva_seq_step_t>*ante,
 					sva_property_t*conseq)
 {
+      if (sva_composite_conseq_sorry_(loc, conseq)) {
+	    pform_sva_destroy_sequence(ante);
+	    return nullptr;
+      }
       sva_stree_t*at = sva_chain_take_tree_(ante);
-      sva_stree_t*ct = sva_prop_take_tree_(conseq);
+      sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
       if (!at || !ct) {
 	    sva_tree_delete_(at, true);
 	    sva_tree_delete_(ct, true);
@@ -20726,6 +20750,10 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 		  "inside an implication property are not supported yet");
 	    pform_sva_destroy_sequence(ante);
 	    pform_sva_destroy_property(conseq);
+	    return nullptr;
+      }
+      if (sva_composite_conseq_sorry_(loc, conseq)) {
+	    pform_sva_destroy_sequence(ante);
 	    return nullptr;
       }
       if (sva_prop_is_plain_seq_(conseq)) {
@@ -21061,6 +21089,9 @@ void pform_sva_destroy_property(sva_property_t*prop)
       pform_sva_destroy_mc_segments(prop->mc_more);
       sva_tree_delete_(prop->ante_tree, true);
       sva_tree_delete_(prop->tree, true);
+      pform_sva_destroy_property(prop->pa);
+      pform_sva_destroy_property(prop->pb);
+      delete prop->pcond;
       delete prop;
 }
 
@@ -21457,9 +21488,19 @@ sva_property_t* pform_sva_clocked_leaf_prop(const struct vlltype&loc,
    chain-bearing property (legacy fixed-intersect result) to a leaf.
    Consumes the property shell (clk/disable/antecedent are always null
    on a combinator operand). */
-static sva_stree_t* sva_prop_take_tree_(sva_property_t*p)
+static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p)
 {
       if (!p) return nullptr;
+	/* A full property (implication, `not', a property `and'/`or', ...)
+	   is not a sequence; only `and'/`or' accept one (16.12.4/16.12.5). */
+      if (sva_prop_is_property_shaped_(p)) {
+	    cerr << loc << ": error: a property is used where this operator "
+		 << "requires a sequence operand (IEEE 1800-2023 16.9, 16.12)."
+		 << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
       sva_stree_t*t = nullptr;
       if (p->tree) {
 	    t = p->tree;
@@ -21482,6 +21523,11 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 				    sva_property_t*a, sva_property_t*b)
 {
+	/* IEEE 1800-2023 16.12.4/16.12.5: with a full property (or a named
+	   property) operand this is the property-level operator. */
+      if (sva_prop_is_property_shaped_(a) || sva_prop_is_property_shaped_(b)
+	  || sva_leaf_names_property_(a) || sva_leaf_names_property_(b))
+	    return pform_sva_prop_compose(loc, op == 'o' ? 21 : 20, a, b);
 	/* For equal-length fixed operands with exactly one local assignment,
 	   `and' and `intersect' have the same per-cycle boolean conjunction.
 	   Preserve the match item in the linear chain so the variable flows
@@ -21499,8 +21545,8 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 		  && !sva_chain_has_match_calls_(s2)) {
 		    a->tree->chain = nullptr;
 		    b->tree->chain = nullptr;
-		    sva_tree_delete_(sva_prop_take_tree_(a), false);
-		    sva_tree_delete_(sva_prop_take_tree_(b), false);
+		    sva_tree_delete_(sva_prop_take_tree_(loc, a), false);
+		    sva_tree_delete_(sva_prop_take_tree_(loc, b), false);
 		    std::vector<sva_seq_step_t>*seq =
 			  pform_sva_intersect(loc, s1, s2);
 		    if (!seq) return nullptr;
@@ -21536,8 +21582,8 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 	    clk = b->clk_evt;
 	    b->clk_evt = nullptr;
       }
-      sva_stree_t*ta = sva_prop_take_tree_(a);
-      sva_stree_t*tb = sva_prop_take_tree_(b);
+      sva_stree_t*ta = sva_prop_take_tree_(loc, a);
+      sva_stree_t*tb = sva_prop_take_tree_(loc, b);
       if (!ta || !tb) {
 	    sva_tree_delete_(ta, true);
 	    sva_tree_delete_(tb, true);
@@ -21566,12 +21612,12 @@ sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
 	    a->tree->chain = nullptr;
 	    std::vector<sva_seq_step_t>*c2 = b->tree->chain;
 	    b->tree->chain = nullptr;
-	    sva_tree_delete_(sva_prop_take_tree_(a), false);
-	    sva_tree_delete_(sva_prop_take_tree_(b), false);
+	    sva_tree_delete_(sva_prop_take_tree_(loc, a), false);
+	    sva_tree_delete_(sva_prop_take_tree_(loc, b), false);
 	    return pform_sva_seq_intersect(loc, c1, c2);
       }
-      sva_stree_t*ta = sva_prop_take_tree_(a);
-      sva_stree_t*tb = sva_prop_take_tree_(b);
+      sva_stree_t*ta = sva_prop_take_tree_(loc, a);
+      sva_stree_t*tb = sva_prop_take_tree_(loc, b);
       if (!ta || !tb) {
 	    sva_tree_delete_(ta, true);
 	    sva_tree_delete_(tb, true);
@@ -21631,7 +21677,7 @@ sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
 			  delete prefix;
 		    } else {
 			  prefix->tree->chain = nullptr;
-			  sva_tree_delete_(sva_prop_take_tree_(prefix), false);
+			  sva_tree_delete_(sva_prop_take_tree_(loc, prefix), false);
 		    }
 		    suffix->front().delay_lo += cycles;
 		    suffix->front().delay_hi += cycles;
@@ -21644,7 +21690,7 @@ sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
 	      }
 	}
 
-      sva_stree_t*left = sva_prop_take_tree_(prefix);
+      sva_stree_t*left = sva_prop_take_tree_(loc, prefix);
       if (!left) {
 	    pform_sva_destroy_sequence(suffix);
 	    return nullptr;
@@ -21727,8 +21773,8 @@ sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
       int tree_sorry = ante->tree_sorry ? ante->tree_sorry : conseq->tree_sorry;
 	/* The tree_sorry value is a deferred diagnostic attached to the complete
 	   sequence tree. Preserve either operand's reason through composition. */
-      sva_stree_t*left = sva_prop_take_tree_(ante);
-      sva_stree_t*right = sva_prop_take_tree_(conseq);
+      sva_stree_t*left = sva_prop_take_tree_(loc, ante);
+      sva_stree_t*right = sva_prop_take_tree_(loc, conseq);
       if (!left || !right) {
 	    sva_tree_delete_(left, true);
 	    sva_tree_delete_(right, true);
@@ -22945,6 +22991,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       if (sub && sub->plan) {
 	    sub->K = K;
+	    sub->built = true;
+	    pform_sva_destroy_property(prop);
 	    return true;
       }
 
@@ -23984,6 +24032,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sub->body = body;
 	    sub->post = post;
 	    sub->init = init_zero;
+	    sub->built = true;
 	    delete pass_stmt;
 	    delete fail_stmt;
 	    release_property();
@@ -31678,6 +31727,616 @@ class sva_clocking_scope_guard_t {
       const Module::PClocking*saved_;
 };
 
+/*
+ * Property-level composition (IEEE 1800-2023 16.12.4 or, 16.12.5 and; the
+ * per-attempt design is ~/codex-supervisor/swarm/notes/sva-attempts-design.md).
+ *
+ * Each operand is lowered by the ordinary assertion pipeline, but with
+ * sva_sub_request_ set: pform_make_assertion hands the normalized operand
+ * to the slot synthesizer in sub-monitor mode and refuses every engine
+ * that cannot report a verdict per attempt. The composite owns one
+ * clocked block. Slot k of every operand belongs to attempt k of the
+ * composite, so operand verdicts combine slot by slot.
+ */
+static sva_nfa_sub_t*sva_sub_request_ = nullptr;
+
+static bool sva_prop_is_composite_(const sva_property_t*p)
+{
+      return p && p->pa;
+}
+
+/* A property that a sequence operator (intersect, ##, implication
+   antecedent, ...) cannot take: anything but a plain or clocked sequence. */
+static bool sva_prop_is_property_shaped_(const sva_property_t*p)
+{
+      return p && (p->pa || p->op_type != 0 || p->antecedent || p->ante_tree
+		   || p->seq_clk_evt || p->mc_prefix
+		   || (p->mc_more && !p->mc_more->empty())
+		   || p->strength != 0 || p->disable_iff_expr);
+}
+
+/* Deep copy of a property, used to instantiate a named property operand
+   and to plan an operand without consuming it; subst/event_subst bind the
+   formals of a parameterized property. Returns nullptr when some part has
+   no clone recipe. */
+static sva_property_t* sva_clone_property_(const struct vlltype&loc,
+		const sva_property_t*src,
+		const std::map<perm_string,PExpr*>*subst = nullptr,
+		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr)
+{
+      if (!src) return nullptr;
+      std::map<perm_string,PExpr*> no_subst;
+      const std::map<perm_string,PExpr*>&steps_subst = subst ? *subst : no_subst;
+      sva_property_t*p = new sva_property_t;
+      bool ok = true;
+      p->sequence_cover = src->sequence_cover;
+      p->local_names = src->local_names;
+      p->local_input_actual_names = src->local_input_actual_names;
+      p->clocking_scope = src->clocking_scope;
+      p->mc_boundary = src->mc_boundary;
+      p->mc_antecedent_domains = src->mc_antecedent_domains;
+      p->tree_sorry = src->tree_sorry;
+      p->strength = src->strength;
+      p->op_type = src->op_type;
+      p->forbidden_consequent = src->forbidden_consequent;
+      p->win_lo = src->win_lo;
+      p->win_hi = src->win_hi;
+      if (src->clk_evt && !(p->clk_evt = sva_clone_event_control_(src->clk_evt, loc, subst, event_subst)))
+	    ok = false;
+      if (src->seq_clk_evt
+	  && !(p->seq_clk_evt = sva_clone_event_control_(src->seq_clk_evt, loc, subst, event_subst)))
+	    ok = false;
+      if (src->mc_prefix
+	  && !(p->mc_prefix = sva_clone_steps_subst_(loc, src->mc_prefix, steps_subst)))
+	    ok = false;
+      if (src->mc_more && !src->mc_more->empty())
+	    ok = false;
+      if (src->disable_iff_expr
+	  && !(p->disable_iff_expr = sva_clone_subst_(src->disable_iff_expr, subst)))
+	    ok = false;
+      if (src->antecedent
+	  && !(p->antecedent = sva_clone_steps_subst_(loc, src->antecedent, steps_subst)))
+	    ok = false;
+      if (src->seq && !(p->seq = sva_clone_steps_subst_(loc, src->seq, steps_subst)))
+	    ok = false;
+      if ((src->ante_tree || src->tree) && subst && !subst->empty())
+	    ok = false;   // sva_tree_clone_ has no formal substitution
+      if (ok && src->ante_tree
+	  && !(p->ante_tree = sva_tree_clone_(loc, src->ante_tree)))
+	    ok = false;
+      if (ok && src->tree && !(p->tree = sva_tree_clone_(loc, src->tree)))
+	    ok = false;
+      if (src->abort_cond && !(p->abort_cond = sva_clone_subst_(src->abort_cond, subst)))
+	    ok = false;
+      if (src->pcond && !(p->pcond = sva_clone_subst_(src->pcond, subst)))
+	    ok = false;
+      if (src->pa && !(p->pa = sva_clone_property_(loc, src->pa, subst, event_subst)))
+	    ok = false;
+      if (src->pb && !(p->pb = sva_clone_property_(loc, src->pb, subst, event_subst)))
+	    ok = false;
+      if (!ok) {
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
+      return p;
+}
+
+/* Build a property-level and/or. An operand that is a bare reference to a
+   declared property stays a reference; the composite lowering expands it. */
+sva_property_t* pform_sva_prop_compose(const struct vlltype&loc, int op_type,
+				       sva_property_t*a, sva_property_t*b)
+{
+      (void)loc;
+      if (!a || !b) {
+	    pform_sva_destroy_property(a);
+	    pform_sva_destroy_property(b);
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->op_type = op_type;
+      p->pa = a;
+      p->pb = b;
+      return p;
+}
+
+/* A single-step leaf chain that names a declared (non-sequence) property:
+   `p1 and p2' combines two properties, not two sequences. */
+static bool sva_leaf_names_property_(const sva_property_t*p)
+{
+      if (!p || !p->tree || p->tree->kind != sva_stree_t::LEAF
+	  || !p->tree->chain || p->tree->chain->size() != 1)
+	    return false;
+      const sva_seq_step_t&st = p->tree->chain->front();
+      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
+	  || st.rep_kind != 0 || !st.items.empty())
+	    return false;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr);
+      if (!id || id->path().package || id->path().name.size() != 1
+	  || !id->path().name.front().index.empty())
+	    return false;
+      perm_string nm = id->path().name.front().name;
+      if (sva_in_scope_(sva_module_sequences, nm)) return false;
+      std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+	    sva_resolve_(sva_module_properties, nm);
+      return pit != sva_module_properties.end()
+	  && !sva_property_shaped_sequences.count(pit->first);
+}
+
+/* Normalize a leaf-tree reference to the plain named-reference shape that
+   pform_make_assertion expands. */
+static sva_property_t* sva_leaf_to_named_ref_(sva_property_t*p)
+{
+      if (!sva_leaf_names_property_(p)) return p;
+      p->seq = p->tree->chain;
+      p->tree->chain = nullptr;
+      sva_tree_delete_(p->tree, false);
+      p->tree = nullptr;
+      return p;
+}
+
+struct sva_comp_ctx_t {
+      const struct vlltype*loc;
+      PEventStatement*clk;        // the composite's resolved clock (borrowed)
+};
+
+static void sva_comp_sorry_(const struct vlltype&loc, const char*what)
+{
+      cerr << loc << ": sorry: " << what << "; the assertion is dropped."
+	   << endl;
+      error_count += 1;
+}
+
+/* An operand may restate the composite's own leading clock. Any other
+   operand clock is a multiclocked property (16.13), which this per-slot
+   lowering does not schedule yet. */
+static bool sva_comp_check_leaf_clock_(const sva_comp_ctx_t&ctx,
+				       sva_property_t*leaf)
+{
+      if (!leaf->clk_evt) return true;
+      if (ctx.clk && sva_event_controls_identical_(leaf->clk_evt, ctx.clk)) {
+	    delete leaf->clk_evt;
+	    leaf->clk_evt = nullptr;
+	    return true;
+      }
+      sva_comp_sorry_(*ctx.loc, "an operand of a property-level `and'/`or' "
+		      "with its own, different leading clock (a multiclocked "
+		      "property, IEEE 1800-2023 16.13) is not supported yet");
+      return false;
+}
+
+/* Lower one leaf operand through the ordinary pipeline in sub-monitor
+   mode. The leaf is consumed. */
+static bool sva_comp_leaf_(const sva_comp_ctx_t&ctx, sva_property_t*leaf,
+			   sva_nfa_sub_t&req)
+{
+      if (!sva_comp_check_leaf_clock_(ctx, leaf)) {
+	    pform_sva_destroy_property(leaf);
+	    return false;
+      }
+      sva_nfa_sub_t*saved = sva_sub_request_;
+      unsigned errors = error_count;
+      sva_sub_request_ = &req;
+      pform_make_assertion(*ctx.loc, leaf, nullptr, nullptr, 0);
+      sva_sub_request_ = saved;
+      if (req.built && error_count == errors) return true;
+      if (!req.error && error_count == errors)
+	    sva_comp_sorry_(*ctx.loc, "this operand of a property-level "
+			    "`and'/`or' cannot be evaluated per attempt yet");
+      return false;
+}
+
+/* Plan pass: the slot count every operand needs. Operands are planned on
+   copies, so nothing is consumed. */
+static bool sva_comp_plan_(const sva_comp_ctx_t&ctx, const sva_property_t*p,
+			   long&K)
+{
+      if (sva_prop_is_composite_(p))
+	    return sva_comp_plan_(ctx, p->pa, K)
+		&& (!p->pb || sva_comp_plan_(ctx, p->pb, K));
+      sva_property_t*copy = sva_clone_property_(*ctx.loc, p);
+      if (!copy) {
+	    sva_comp_sorry_(*ctx.loc, "an operand of a property-level "
+			    "`and'/`or' cannot be copied for analysis");
+	    return false;
+      }
+      sva_nfa_sub_t req;
+      req.plan = true;
+      if (!sva_comp_leaf_(ctx, copy, req)) return false;
+      if (req.K > K) K = req.K;
+      return true;
+}
+
+static void sva_comp_append_(std::vector<Statement*>&to,
+			     std::vector<Statement*>&from)
+{
+      to.insert(to.end(), from.begin(), from.end());
+      from.clear();
+}
+
+static PExpr* sva_comp_eq_(const struct vlltype&loc, perm_string reg, int v)
+{
+      PEBComp*eq = new PEBComp('e', sva_id_(loc, reg), sva_num32_(loc, v));
+      FILE_NAME(eq, loc);
+      return eq;
+}
+
+/* Emit pass: build the monitor for p with K slots into m (consumes p). */
+static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
+			   unsigned inst, unsigned&serial, sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+      if (!sva_prop_is_composite_(p)) {
+	    m.K = K;
+	    return sva_comp_leaf_(ctx, p, m);
+      }
+      sva_nfa_sub_t ma, mb;
+      sva_property_t*pa = p->pa;
+      sva_property_t*pb = p->pb;
+      int op = p->op_type;
+      p->pa = p->pb = nullptr;
+      pform_sva_destroy_property(p);
+      bool ok = sva_comp_emit_(ctx, pa, K, inst, serial, ma);
+      if (ok) ok = sva_comp_emit_(ctx, pb, K, inst, serial, mb);
+      else pform_sva_destroy_property(pb);
+      if (!ok) return false;
+
+      unsigned node = serial++;
+      m.vd.resize(K);
+      m.inject.resize(K);
+      m.kill.resize(K);
+      sva_comp_append_(m.pre, ma.pre);
+      sva_comp_append_(m.pre, mb.pre);
+      sva_comp_append_(m.body, ma.body);
+      sva_comp_append_(m.body, mb.body);
+      sva_comp_append_(m.post, ma.post);
+      sva_comp_append_(m.post, mb.post);
+      sva_comp_append_(m.init, ma.init);
+      sva_comp_append_(m.init, mb.init);
+      for (long k = 0 ; k < K ; k += 1) {
+	    char what[32];
+	    snprintf(what, sizeof what, "c%uvd", node);
+	    m.vd[k] = sva_make_reg_(loc, inst, what, (unsigned)k, true);
+	    m.init.push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    sva_comp_append_(m.inject[k], ma.inject[k]);
+	    sva_comp_append_(m.inject[k], mb.inject[k]);
+	    sva_comp_append_(m.kill[k], ma.kill[k]);
+	    sva_comp_append_(m.kill[k], mb.kill[k]);
+	    m.kill[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+
+	    perm_string A = ma.vd[k], B = mb.vd[k];
+	    auto set = [&](int v) { return sva_assign_(loc, m.vd[k], sva_num32_(loc, v)); };
+	    auto passed = [&](perm_string r) {
+		  return sva_logic_(loc, 'o', sva_comp_eq_(loc, r, 1),
+				    sva_comp_eq_(loc, r, 2));
+	    };
+	    auto nonvacuous = [&]() {
+		  return sva_logic_(loc, 'o', sva_comp_eq_(loc, A, 1),
+				    sva_comp_eq_(loc, B, 1));
+	    };
+	    Statement*combine;
+	    if (op == 20) {
+		  /* 16.12.5: false as soon as either operand is false; true
+		     when both are true, nonvacuous iff either is (16.14.8 f). */
+		  combine = sva_if_(loc, sva_logic_(loc, 'o', sva_comp_eq_(loc, A, 3),
+						       sva_comp_eq_(loc, B, 3)),
+			set(3),
+			sva_if_(loc, sva_logic_(loc, 'a', passed(A), passed(B)),
+				sva_if_(loc, nonvacuous(), set(1), set(2)),
+				set(0)));
+	    } else {
+		  /* 16.12.4: true as soon as either operand is true; false when
+		     both are false. Nonvacuity counts the operands that have
+		     finished (16.14.8 e; OPEN ruling in the design note). */
+		  combine = sva_if_(loc, sva_logic_(loc, 'o', passed(A), passed(B)),
+			sva_if_(loc, nonvacuous(), set(1), set(2)),
+			sva_if_(loc, sva_logic_(loc, 'a', sva_comp_eq_(loc, A, 3),
+						       sva_comp_eq_(loc, B, 3)),
+				set(3), set(0)));
+	    }
+	    m.body.push_back(combine);
+      }
+      m.built = true;
+      return true;
+}
+
+/* Expand bare named-property references among the operands, in place. */
+static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
+{
+      if (!sva_prop_is_composite_(p)) return true;
+      sva_property_t**ops[2] = { &p->pa, &p->pb };
+      for (int i = 0 ; i < 2 ; i += 1) {
+	    sva_property_t*&o = *ops[i];
+	    if (!o) continue;
+	    o = sva_leaf_to_named_ref_(o);
+	    if (o->op_type == 0 && o->seq && o->seq->size() == 1 && !o->tree) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(o->seq->front().expr);
+		  perm_string nm;
+		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
+		  if (id && id->path().name.size() == 1 && !id->path().package
+		      && id->path().name.front().index.empty()
+		      && !sva_in_scope_(sva_module_sequences,
+					id->path().name.front().name)) {
+			nm = id->path().name.front().name;
+			pit = sva_resolve_(sva_module_properties, nm);
+			if (pit != sva_module_properties.end() && pit->second
+			    && !sva_property_shaped_sequences.count(pit->first)) {
+			      if (pit->second->disable_iff_expr) {
+				    cerr << loc << ": error: a property instance with a "
+					 << "`disable iff' clause cannot be an operand of "
+					 << "another property (IEEE 1800-2017/2023 "
+					 << "16.12.1)." << endl;
+				    error_count += 1;
+				    return false;
+			      }
+			      sva_property_t*body = sva_clone_property_(loc, pit->second);
+			      if (!body) {
+				    sva_comp_sorry_(loc, "a named property operand "
+						    "cannot be instantiated here");
+				    return false;
+			      }
+			      pform_sva_destroy_property(o);
+			      o = body;
+			}
+		  }
+	    }
+	    if (!sva_comp_expand_refs_(loc, o)) return false;
+      }
+      return true;
+}
+
+static void pform_make_composite_assertion_(const struct vlltype&loc,
+					    sva_property_t*prop,
+					    Statement*fail_stmt,
+					    Statement*pass_stmt, int kind)
+{
+      if (sva_sub_request_) {
+	    /* A nested composite reaches here only through a named operand
+	       that expanded to one; sva_comp_expand_refs_ inlines those. */
+	    sva_comp_sorry_(loc, "a nested property-level `and'/`or' could not "
+			    "be expanded");
+	    sva_sub_request_->error = true;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+      if (kind == 2) {
+	    sva_comp_sorry_(loc, "`cover property' of a property-level "
+			    "`and'/`or' is not supported yet");
+	    delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+      if (!sva_comp_expand_refs_(loc, prop)) {
+	    delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+
+	/* Clock: explicit, else the default clocking (as for a plain
+	   assertion; the deferral in pform_make_assertion has already given
+	   a procedural context its chance to supply one). */
+      PEventStatement*clk = prop->clk_evt;
+      prop->clk_evt = nullptr;
+      if (!clk) {
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
+	    if (!mod || mod->default_clocking.nil()) {
+		  cerr << loc << ": error: concurrent assertion has no clocking "
+		       << "event (IEEE 1800-2017 16.14.6)." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  pform_sva_destroy_property(prop);
+		  return;
+	    }
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    std::vector<PEEvent*> evs;
+	    evs.push_back(new PEEvent(PEEvent::ANYEDGE, mark));
+	    clk = new PEventStatement(evs);
+	    FILE_NAME(clk, loc);
+      }
+      PExpr*disable = prop->disable_iff_expr;
+      prop->disable_iff_expr = nullptr;
+      PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
+      if (!disable && default_disable) {
+	    disable = sva_clone_expr_(default_disable);
+	    if (!disable)
+		  cerr << loc << ": sorry: the `default disable iff` expression "
+		       << "is too complex to copy; this assertion runs without "
+		       << "it." << endl;
+      }
+
+      sva_comp_ctx_t ctx;
+      ctx.loc = &loc;
+      ctx.clk = clk;
+      long K = 1;
+      if (!sva_comp_plan_(ctx, prop, K)) {
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned serial = 0;
+      sva_nfa_sub_t m;
+      if (!sva_comp_emit_(ctx, prop, K, inst, serial, m)) {
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    return;
+      }
+
+      std::vector<Statement*>&init = m.init;
+      std::vector<perm_string> live (K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    live[k] = sva_make_reg_(loc, inst, "live", (unsigned)k);
+	    init.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
+      }
+      perm_string r_p = sva_make_reg_(loc, inst, "p", 0, true);
+      perm_string r_vac = sva_make_reg_(loc, inst, "vac", 0, true);
+      perm_string r_f = sva_make_reg_(loc, inst, "f", 0, true);
+      perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+      perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
+      perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
+      perm_string regs0[] = { r_p, r_vac, r_f, pass_req, vac_req };
+      for (perm_string r : regs0)
+	    init.push_back(sva_assign_(loc, r, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
+
+      auto clear_all = [&]() -> Statement* {
+	    std::vector<Statement*> clr;
+	    for (long k = 0 ; k < K ; k += 1) {
+		  for (Statement*s : m.kill[k]) {
+			Statement*c = sva_clone_stmt_(s);
+			assert(c);
+			clr.push_back(c);
+		  }
+		  clr.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
+	    }
+	    clr.push_back(sva_assign_(loc, r_p, sva_num32_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_vac, sva_num32_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_f, sva_num32_(loc, 0)));
+	    return sva_block_(loc, clr);
+      };
+
+      std::vector<Statement*> body;
+      perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init);
+      body.push_back(sva_kill_reset_stmt_(loc, inst, r_kill, clear_all()));
+
+	/* A new attempt every enabled tick, into the first free slot of every
+	   operand at once. The pool is exact for acyclic operands; the
+	   terminal else is the loud overflow backstop of the slot engine. */
+      {
+	    char msg[512];
+	    snprintf(msg, sizeof msg, "%s:%u: SVA: property attempt pool "
+		     "overflow (%ld slots) -- attempts are being dropped; raise "
+		     "IVL_SVA_NFA_SLOTS", loc.text ? loc.text : "?",
+		     (unsigned)loc.first_line, K);
+	    std::list<named_pexpr_t> dargs;
+	    named_pexpr_t darg;
+	    darg.parm = new PEString(strdup(msg));
+	    dargs.push_back(darg);
+	    PCallTask*warn = new PCallTask(lex_strings.make("$display"), dargs);
+	    FILE_NAME(warn, loc);
+	    std::vector<Statement*> once;
+	    once.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 1)));
+	    once.push_back(warn);
+	    Statement*inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_ovf)),
+				    sva_block_(loc, once), nullptr);
+	    for (long k = K-1 ; k >= 0 ; k -= 1) {
+		  std::vector<Statement*> take = m.inject[k];
+		  take.insert(take.begin(), sva_assign_(loc, live[k], sva_bit_(loc, 1)));
+		  inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, live[k])),
+				sva_block_(loc, take), inj);
+	    }
+	    body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst), inj, nullptr));
+      }
+      sva_comp_append_(body, m.body);
+
+	/* Decide: each live attempt reports once, then every operand's slot
+	   is retired so nothing can revive the attempt. */
+      for (long k = 0 ; k < K ; k += 1) {
+	    std::vector<Statement*> done;
+	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    FILE_NAME(inc_p, loc);
+	    PEBinary*inc_v = new PEBinary('+', sva_id_(loc, r_vac), sva_bit_(loc, 1));
+	    FILE_NAME(inc_v, loc);
+	    PEBinary*inc_f = new PEBinary('+', sva_id_(loc, r_f), sva_bit_(loc, 1));
+	    FILE_NAME(inc_f, loc);
+	    std::vector<Statement*> vac;
+	    vac.push_back(sva_assign_(loc, r_p, inc_p));
+	    vac.push_back(sva_assign_(loc, r_vac, inc_v));
+	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    FILE_NAME(inc_p1, loc);
+	    done.push_back(sva_if_(loc, sva_comp_eq_(loc, m.vd[k], 3),
+		  sva_assign_(loc, r_f, inc_f),
+		  sva_if_(loc, sva_comp_eq_(loc, m.vd[k], 2),
+			  sva_block_(loc, vac), sva_assign_(loc, r_p, inc_p1))));
+	    for (Statement*s : m.kill[k]) {
+		  Statement*c = sva_clone_stmt_(s);
+		  assert(c);
+		  done.push_back(c);
+	    }
+	    done.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
+	    PExpr*decided = sva_logic_(loc, 'a', sva_id_(loc, live[k]),
+				       sva_not_(loc, sva_comp_eq_(loc, m.vd[k], 0)));
+	    body.push_back(sva_if_(loc, decided, sva_block_(loc, done), nullptr));
+      }
+
+	/* Pass (nonvacuous and vacuous, via the shared Reactive dispatcher)
+	   then fail, once per decided attempt, in the order of the slot
+	   engine. */
+      {
+	    std::vector<Statement*> hit;
+	    PExpr*nonvac = new PEBinary('-', sva_id_(loc, r_p), sva_id_(loc, r_vac));
+	    hit.push_back(sva_assign_(loc, pass_req,
+		  new PEBinary('+', sva_id_(loc, pass_req), nonvac)));
+	    hit.push_back(sva_assign_(loc, vac_req,
+		  new PEBinary('+', sva_id_(loc, vac_req), sva_id_(loc, r_vac))));
+	    hit.push_back(sva_assign_(loc, r_vac, sva_num32_(loc, 0)));
+	    hit.push_back(sva_assign_(loc, r_p, sva_num32_(loc, 0)));
+	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
+	    PEBComp*any = new PEBComp('N', sva_id_(loc, r_p), sva_num32_(loc, 0));
+	    FILE_NAME(any, loc);
+	    body.push_back(sva_if_(loc, any, sva_block_(loc, hit), nullptr));
+      }
+      {
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
+				      sva_fail_action_(loc, inst, action)));
+	    hit.push_back(sva_assign_(loc, r_f, sva_num32_(loc, 0)));
+	    PEBComp*any = new PEBComp('N', sva_id_(loc, r_f), sva_num32_(loc, 0));
+	    FILE_NAME(any, loc);
+	    body.push_back(sva_if_(loc, any, sva_block_(loc, hit), nullptr));
+      }
+
+      std::vector<Statement*> full = m.pre;
+      full.push_back(sva_observed_wait_(loc));
+      full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
+      Statement*core = sva_block_(loc, body);
+      if (disable) {
+	    PCondit*dc = new PCondit(disable, clear_all(), core);
+	    FILE_NAME(dc, loc);
+	    full.push_back(dc);
+      } else {
+	    full.push_back(core);
+      }
+      sva_comp_append_(full, m.post);
+      if (disable) sva_disable_abort_(loc, inst, disable, clear_all());
+      for (long k = 0 ; k < K ; k += 1)
+	    for (Statement*s : m.kill[k]) delete s;
+
+      clk->set_statement(sva_block_(loc, full));
+      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
+      FILE_NAME(pp, loc);
+      init.push_back(sva_register_stmt_(loc, inst, -1, false));
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, sva_block_(loc, init),
+					nullptr);
+      FILE_NAME(ip, loc);
+}
+
+/* An operand reached an assertion engine other than the slot synthesizer.
+   That engine builds a free-standing checker with no per-attempt verdict,
+   so refuse loudly instead of lowering the operand on its own. */
+static void sva_sub_refuse_(const struct vlltype&loc, sva_property_t*prop,
+			    Statement*fail_stmt, Statement*pass_stmt)
+{
+      cerr << loc << ": sorry: this operand of a property-level `and'/`or' "
+	   << "needs an assertion engine that cannot report a verdict per "
+	   << "attempt yet; the assertion is dropped." << endl;
+      error_count += 1;
+      sva_sub_request_->error = true;
+      delete fail_stmt;
+      delete pass_stmt;
+      pform_sva_destroy_property(prop);
+}
+
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
 			  perm_string label)
@@ -31740,7 +32399,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   event control can supply rule (c), or module end can bind the default
 	   clock under rule (a). See pform_sva_infer_procedural_clock. */
 	if (prop && !prop->clk_evt && !sva_proc_clock_retry_active_
-	    && !sva_prop_is_named_ref_(prop)) {
+	    && !sva_sub_request_ && !sva_prop_is_named_ref_(prop)) {
 	    Module*mod = pform_cur_module.empty() ? nullptr
 			 : pform_cur_module.front();
 	    sva_pending_proc_t pend;
@@ -31765,13 +32424,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* The target module for a hierarchical sequence may be declared later
 	   in the compilation unit. Hold this assertion until pform_finish(),
 	   where its module-owned sequence table is available. */
-      if (sva_defer_hierarchical_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_
+	  && sva_defer_hierarchical_assertion_(loc, prop, fail_stmt,
 						    pass_stmt, kind, label))
 	    return;
 
       /* Synthesize into the nearest non-block scope; see
 	   sva_hoist_out_of_block_t. */
       sva_hoist_out_of_block_t sva_scope_guard;
+
+	/* IEEE 1800-2023 16.12.4/16.12.5: property-level and/or. */
+      if (sva_prop_is_composite_(prop)) {
+	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
+					    kind);
+	    return;
+      }
 
       /* Catch directly visible 16.11 calls before any specialized property
 	 engine can consume their surrounding sequence while ignoring the
@@ -31787,24 +32454,24 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   variable-antecedent promotion below: that promotion deliberately
 	   erases the flat-chain shape and builds a parse-time NFA tree, while
 	   this path defers the bound to ordinary instance elaboration. */
-      if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_ && sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
 
-      if (sva_parameter_consequent_repeat_try_assertion_(
+      if (!sva_sub_request_ && sva_parameter_consequent_repeat_try_assertion_(
             loc, prop, fail_stmt, pass_stmt, kind)) return;
 
 	/* A symbolic bounded consequence behind an otherwise fixed antecedent
 	   uses the same per-instance window engine. This also handles an
 	   equal-span sequence OR/AND antecedent before generic tree dispatch. */
-      if (sva_parameter_window_try_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_ && sva_parameter_window_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
 
 	/* The general bounded-window probe may splice a named antecedent while
 	   checking whether it has a fixed endpoint. That can expose a supported
 	   parameter-valued repetition which was hidden from the first offer. */
-      if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_ && sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
 
@@ -31903,7 +32570,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
 	    if (pform_sva_nfa_enabled()
 		&& pform_sva_nfa_try_assertion(loc, prop, fail_stmt,
-					       pass_stmt, kind))
+					       pass_stmt, kind, sva_sub_request_))
 		  return;
 	    if (prop->tree_sorry == 1)
 		  cerr << loc << ": sorry: `intersect' is supported "
@@ -32151,10 +32818,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			           keep transfer semantics; their re-use is the
 			           loud refusal above instead of silence. */
 			      sva_property_t*inst = nullptr;
-			      if (named->tree
+			      if (named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = named;
-				    pit->second = nullptr;  /* consume once */
+				    inst = named->pa
+					  ? sva_clone_property_(loc, named) : nullptr;
+				    if (!inst) {
+					  inst = named;
+					  pit->second = nullptr;  /* consume once */
+				    }
 				    if (outer_clk && inst->clk_evt
 					&& outer_clocking_scope
 					&& sva_event_controls_identical_(outer_clk,
@@ -32512,6 +33183,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						loc, decl->mc_prefix, subst);
 					  if (!inst->mc_prefix) ok = false;
 				    }
+				    if (ok && decl->pa) {
+					  inst->pa = sva_clone_property_(loc, decl->pa,
+						&subst, &event_subst);
+					  inst->pb = decl->pb ? sva_clone_property_(
+						loc, decl->pb, &subst, &event_subst) : nullptr;
+					  inst->pcond = decl->pcond
+						? sva_clone_subst_(decl->pcond, &subst) : nullptr;
+					  if (!inst->pa || (decl->pb && !inst->pb)
+					      || (decl->pcond && !inst->pcond))
+						ok = false;
+				    }
 				    if (ok && !sva_prepend_property_formal_inits_(
 					  loc, inst, *formal_initializers))
 					  ok = false;
@@ -32549,7 +33231,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   within) do not fit the linear token pipeline; dispatch them to
 	   a dedicated lowering now that `kind` is known. */
       if (prop->op_type >= 4) {
-	    pform_make_temporal_assertion_(loc, prop, fail_stmt, pass_stmt, kind);
+	    if (sva_sub_request_)
+		  sva_sub_refuse_(loc, prop, fail_stmt, pass_stmt);
+	    else
+		  pform_make_temporal_assertion_(loc, prop, fail_stmt, pass_stmt, kind);
 	    return;
       }
 
@@ -32558,6 +33243,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   request/ack handoff. M9-7 residual: more than one clock-flow
 	   change in the same sequence (`@(c1) a ##1 @(c2) b ##1 @(c3) c')
 	   generalizes that handoff to an N-domain chain instead. */
+      if (prop->seq_clk_evt && sva_sub_request_) {
+	    sva_sub_refuse_(loc, prop, fail_stmt, pass_stmt);
+	    return;
+      }
       if (prop->seq_clk_evt) {
 	    if (prop->mc_more) {
 		  for (sva_mc_seg_t&segment : *prop->mc_more) {
@@ -32642,10 +33331,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   antecedent sequence. The first offer near function entry necessarily
 	   runs before that reference is expanded; offer the now-spliced shape
 	   once more before the generic NFA sees rep_kind 4. */
-      if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_ && sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
-      if (sva_parameter_consequent_repeat_try_assertion_(
+      if (!sva_sub_request_ && sva_parameter_consequent_repeat_try_assertion_(
             loc, prop, fail_stmt, pass_stmt, kind)) return;
 
 	/* M9-NFA stage C.3: lower `seq.triggered'/`seq.matched' endpoint
@@ -32780,7 +33469,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    return;
       }
 
-      if (sva_genvar_delay_try_assertion_(loc, prop, fail_stmt,
+      if (!sva_sub_request_ && sva_genvar_delay_try_assertion_(loc, prop, fail_stmt,
 					  pass_stmt, kind))
 	    return;
 
@@ -32789,7 +33478,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	 multiplies memory on assertion-dense SoCs. Keep deterministic fixed
 	 chains on the linear pipeline and reserve NFA storage for constructs the
 	 linear engine cannot represent. */
-      bool flat_needs_nfa = slot_lv || match_item_state == 1
+      bool flat_needs_nfa = sva_sub_request_ || slot_lv || match_item_state == 1
 			 || prop->strength == 1 || prop->forbidden_consequent;
       bool flat_group_repeat = false;
       auto scan_nfa_only = [&](const std::vector<sva_seq_step_t>*steps,
@@ -32814,8 +33503,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       scan_nfa_only(prop->seq, false);
 
       if (flat_needs_nfa && pform_sva_nfa_enabled()
-	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
+	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind,
+					 sva_sub_request_))
 	    return;
+      if (sva_sub_request_) {
+	    sva_sub_refuse_(loc, prop, fail_stmt, pass_stmt);
+	    return;
+      }
 
       if (flat_group_repeat) {
 	    cerr << loc << ": sorry: finite grouped consecutive repetition "

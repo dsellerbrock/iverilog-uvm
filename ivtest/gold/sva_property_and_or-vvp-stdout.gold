@@ -1,0 +1,2 @@
+PASSED
+ivltests/sva_property_and_or.sv:119: $finish called at 636 (1s)

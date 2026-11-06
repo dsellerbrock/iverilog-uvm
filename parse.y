@@ -10043,6 +10043,13 @@ sva_comb_atom
       { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
+  /* IEEE 1800-2023 16.12.4/16.12.5: `or'/`and' also combine full
+     properties, e.g. `(a |-> b) and (c |-> d)'. A parenthesized sequence
+     or sequence combinator still takes the two sequence atoms above (the
+     shift on `)' is preferred), so only property structure reaches this
+     atom, and pform_sva_tree_comb then builds a property-level operator. */
+  | '(' property_expr ')'
+      { $$ = $2; }
   ;
 
 /* At a property boundary, a complete parenthesized combinator may be the
