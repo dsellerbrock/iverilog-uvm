@@ -17,6 +17,9 @@
 #
 #ver:test name   type   C/C++ file    gold log file       compiler options
 #
+
+issue1268_vpi_import_2017 normal,-g2017 issue1268_vpi_import.c issue1268_vpi_import_2017.gold
+issue1268_vpi_import_2023 normal,-g2023 issue1268_vpi_import.c issue1268_vpi_import_2023.gold
 # The compiler option field is optional and when present will contain
 # all subsequent fields.
 #==========

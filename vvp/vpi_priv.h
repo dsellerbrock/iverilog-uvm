@@ -363,6 +363,7 @@ class __vpiScope : public __vpiHandle {
       int dpi_context = 0;
       int dpi_cstr = vpiUndefined;
       const char*dpi_c_identifier = 0;
+      std::vector<std::pair<const char*, const char*> > imports;
 
     protected:
       __vpiScope(const char*nam, const char*tnam, bool is_auto_flag =false);
