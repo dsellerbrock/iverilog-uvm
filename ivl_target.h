@@ -2608,6 +2608,7 @@ extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
      the object-handle expression and the per-class event slot. */
 extern ivl_expr_t  ivl_stmt_evobj_expr(ivl_statement_t net);
 extern unsigned    ivl_stmt_evobj_slot(ivl_statement_t net);
+extern int         ivl_stmt_evobj_is_handle(ivl_statement_t net);
   /* IVL_ST_TRIGGER_ARR IVL_ST_NB_TRIGGER_ARR IVL_ST_WAIT_ARR:
      the run-time element index expression, the array's design-global
      base slot, and its element count (for bounds checking). */

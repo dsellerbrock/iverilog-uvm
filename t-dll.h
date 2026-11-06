@@ -1126,6 +1126,7 @@ struct ivl_statement_s {
 			IVL_ST_WAIT_OBJ */
 		  ivl_expr_t obj;      /* object-handle expression */
 		  unsigned ev_slot;    /* per-class event slot */
+		  bool event_handle;   /* event-valued task formal */
 		  ivl_expr_t delay;    /* NB trigger delay, else 0 */
 		  ivl_statement_t stmt_; /* wait body, else 0 */
 	    } evobj_;

@@ -20194,6 +20194,58 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %event/handle/load <event-label>
+ * Construct the value passed through an event task formal. An automatic
+ * named event handle also retains the activation that owns its wait list. */
+bool of_EVENT_HANDLE_LOAD(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "%event/handle/load references a non-event net");
+
+      vvp_context_t context = nullptr;
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    context = automatic_event->capture_context(vthread_get_wt_context());
+	    if (!context)
+		  return event_expr_runtime_error_(thr,
+			"event task argument has no live automatic event activation");
+      }
+
+      thr->push_object(vvp_object_t(new vvp_event_handle(net, context)));
+      return true;
+}
+
+/* %evt/handle -- trigger the event value passed through a task formal. */
+bool of_EVT_HANDLE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t value;
+      thr->pop_object(value);
+      vvp_event_handle*handle = value.peek<vvp_event_handle>();
+      vvp_net_t*net = handle ? handle->net() : nullptr;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "trigger through a null or invalid event task formal");
+
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    if (!handle->context())
+		  return event_expr_runtime_error_(thr,
+			"automatic event task formal has no live activation");
+	    automatic_event->recv_vec4(vvp_net_ptr_t(net, 0),
+		  vvp_vector4_t(1, BIT4_X), handle->context());
+      } else {
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), vvp_vector4_t(1, BIT4_X),
+			  ensure_write_context_(thr, "event-handle-trigger"));
+      }
+      return true;
+}
+
 /*
  * %evt/obj <slot>
  * Per-instance class event trigger (IEEE 1800-2017 15.5.1: `->obj.ev`).
@@ -36693,6 +36745,42 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
       thr->wait_next = ep->add_waiting_thread(thr);
 
 	/* Return false to suspend this thread. */
+      return false;
+}
+
+/* %wait/handle -- wait on the event value passed through a task formal. */
+bool of_WAIT_HANDLE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t value;
+      thr->pop_object(value);
+      vvp_event_handle*handle = value.peek<vvp_event_handle>();
+      vvp_net_t*net = handle ? handle->net() : nullptr;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "wait on a null or invalid event task formal");
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+      assert(!thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+      thr->in_region_drain = 0;
+
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    if (!handle->context()
+		|| !automatic_event->add_waiting_thread_at_context(
+		      thr, handle->context(), thr->wait_next))
+		  return event_expr_runtime_error_(thr,
+			"automatic event task formal has no live wait list");
+      } else {
+	    waitable_hooks_s*waitable = event->as_waitable();
+	    if (!waitable)
+		  return event_expr_runtime_error_(thr,
+			"event task formal is not waitable");
+	    thr->wait_next = waitable->add_waiting_thread(thr);
+      }
       return false;
 }
 

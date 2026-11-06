@@ -3916,6 +3916,20 @@ extern "C" unsigned ivl_stmt_evobj_slot(ivl_statement_t net)
       }
 }
 
+extern "C" int ivl_stmt_evobj_is_handle(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_OBJ:
+	  case IVL_ST_NB_TRIGGER_OBJ:
+	  case IVL_ST_WAIT_OBJ:
+	    return net->u_.evobj_.event_handle;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
 extern "C" ivl_expr_t ivl_stmt_evarr_index(ivl_statement_t net)
 {
       assert(net);

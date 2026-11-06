@@ -377,6 +377,7 @@ ivl_stmt_evarr_count
 ivl_stmt_evarr_index
 ivl_stmt_events
 ivl_stmt_evobj_expr
+ivl_stmt_evobj_is_handle
 ivl_stmt_evobj_slot
 ivl_stmt_file
 ivl_stmt_flow_control

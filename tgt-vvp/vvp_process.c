@@ -3587,6 +3587,11 @@ static int show_stmt_trigger_obj(ivl_statement_t net)
       draw_eval_object(ivl_stmt_evobj_expr(net));
 
       if (is_nb) {
+	    if (ivl_stmt_evobj_is_handle(net)) {
+		  fprintf(stderr,
+			  "%%vvp error: nonblocking trigger through an event formal is unsupported\n");
+		  return 1;
+	    }
 	    ivl_expr_t expr = ivl_stmt_delay_expr(net);
 	    int use_idx = allocate_word();
 	    if (expr)
@@ -3596,7 +3601,10 @@ static int show_stmt_trigger_obj(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%evt/obj/nb %u, %d;\n", slot, use_idx);
 	    clr_word(use_idx);
       } else {
-	    fprintf(vvp_out, "    %%evt/obj %u;\n", slot);
+	    if (ivl_stmt_evobj_is_handle(net))
+		  fprintf(vvp_out, "    %%evt/handle;\n");
+	    else
+		  fprintf(vvp_out, "    %%evt/obj %u;\n", slot);
       }
       return 0;
 }
@@ -3613,7 +3621,10 @@ static int show_stmt_wait_obj(ivl_statement_t net, ivl_scope_t sscope)
       show_stmt_file_line(net, "Per-instance class event wait (@).");
 
       draw_eval_object(ivl_stmt_evobj_expr(net));
-      fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
+	  if (ivl_stmt_evobj_is_handle(net))
+	    fprintf(vvp_out, "    %%wait/handle;\n");
+	  else
+	    fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
 
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
 }
