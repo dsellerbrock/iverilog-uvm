@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue872_dpi_struct_open_array_fail.sv",
+  "iverilog-args": ["-g2017"]
+}

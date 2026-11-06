@@ -2,6 +2,7 @@
 #define IVL_vvp_dpi_H
 
 # include  <cstdint>
+# include  <string>
 # include  <vector>
 # include  "ivl_dlfcn.h"
 
@@ -79,6 +80,13 @@ struct vvp_dpi_open_array_t {
 	// exposes C float elements. These call-scoped buffers convert both ways.
       bool shortreal_scratch;
       std::vector<vvp_dpi_shortreal_buffer_t> shortreal_buffers;
+	// IEEE 1800-2017/2023 Annex H.7.4: a string element is a C
+	// `const char*`. The marshaler builds a call-scoped pointer array
+	// (data) over copies of the elements; an output/inout element whose
+	// pointer the callee replaced is copied back after the call.
+      bool string_scratch;
+      std::vector<std::string> string_values;
+      std::vector<const char*> string_ptrs;
 	// The live simulator container. Unlike data, this is also available
 	// for packed vector elements whose canonical DPI representation must
 	// be copied with svGet/Put{Bit,Logic}ArrElem*VecVal.

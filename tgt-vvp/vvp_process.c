@@ -9161,21 +9161,29 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	       Materialize the inline word array before the call and copy it
 	       back below for output/inout directions. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
-		  int elem_ok = (ptype == IVL_VT_REAL)
+		    /* IEEE 1800-2017/2023 H.7.4: a string element is a
+		       const char*, passed through the same container path. */
+		  int string_elems = ptype == IVL_VT_STRING
+			&& ivl_signal_dimensions(port) == 1;
+		  int elem_ok = string_elems || (ptype == IVL_VT_REAL)
 			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
 			    && pwid > 0);
 		  if (!elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"fixed unpacked array argument '%s' must have "
-				"packed bit/logic or real elements; the call is "
-				"skipped.\n",
+				"packed bit/logic, real or string elements "
+				"(IEEE 1800 Annex H.7.8 aggregate element "
+				"layouts are not supported yet).\n",
 				ivl_scope_def_file(scope),
 				ivl_scope_def_lineno(scope), c_name,
 				ivl_signal_basename(port));
 			unsupported = 1;
+			vvp_errors += 1;
 			break;
 		  }
-		  if (nt && ivl_type_is_packed_vector(nt)) {
+		  if (string_elems) {
+			letter = 'O';
+		  } else if (nt && ivl_type_is_packed_vector(nt)) {
 			letter = (ptype == IVL_VT_LOGIC) ? 'Y' : 'X';
 		  } else if (ptype == IVL_VT_REAL
 			     && ivl_type_is_shortreal(nt)) {
@@ -9209,21 +9217,29 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
-		  int elem_ok = (ebase == IVL_VT_REAL)
+		    /* IEEE 1800-2017/2023 H.7.4: a one-dimensional string
+		       open array exposes const char* elements. */
+		  int string_elems = ebase == IVL_VT_STRING
+			&& et == (nt ? ivl_type_element(nt) : 0);
+		  int elem_ok = string_elems || (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
 			    && ewid > 0);
 		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"open array argument '%s' must have packed "
-				"bit/logic or real elements; the "
-				"call is skipped.\n",
+				"bit/logic, real or one-dimensional string "
+				"elements (IEEE 1800 Annex H.7.8 aggregate "
+				"element layouts are not supported yet).\n",
 				ivl_scope_def_file(scope),
 				ivl_scope_def_lineno(scope),
 				c_name, ivl_signal_basename(port));
 			unsupported = 1;
+			vvp_errors += 1;
 			break;
 		  }
-		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
+		  if (string_elems)
+			letter = 'o';
+		  else if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
 			letter = 'q';
 		  else if (et && ivl_type_is_packed_vector(et))
 			letter = (ebase == IVL_VT_LOGIC) ? 'y' : 'x';

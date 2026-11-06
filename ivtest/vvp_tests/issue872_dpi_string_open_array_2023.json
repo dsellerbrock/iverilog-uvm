@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue872_dpi_string_open_array.sv",
+  "iverilog-args": ["-g2023", "-s", "issue872_dpi_string_open_array"],
+  "vpi-modules": ["issue872_dpi_string_open_array"],
+  "vpi-sources": ["vpi/issue872_dpi_string_open_array.c"],
+  "output-contains": ["ISSUE872_PASS", "PASSED"]
+}
