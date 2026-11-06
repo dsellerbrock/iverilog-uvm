@@ -1417,7 +1417,9 @@ class_property
   | K_COVGRP_ITEM_OPTIONS T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item_options($2, $3, $4); }
   | K_COVGRP_ITEM_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING
-      { compile_class_covgrp_item_option_values($2, $3, $4, $5, $6); }
+      { compile_class_covgrp_item_option_values($2, $3, $4, $5, 0, $6); }
+  | K_COVGRP_ITEM_OPTION_VALUES T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING
+      { compile_class_covgrp_item_option_values($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_ITEM_GUARD T_NUMBER T_NUMBER
       { compile_class_covgrp_item_guard($2, $3); }
   | K_COVGRP_PARENT T_NUMBER
