@@ -1,0 +1,2 @@
+issue2572_fixed_queue_rand_mode_2017 normal,-g2017,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold
+issue2572_fixed_queue_rand_mode_2023 normal,-g2023,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold

@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2572_fixed_queue_rand_mode.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue2572_fixed_queue_rand_mode",
+  "timeout": 60
+}
