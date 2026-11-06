@@ -6643,3 +6643,5 @@ issue2586_inline_randomize_method_arg_2017 normal,-g2017,-s,top ivltests gold=is
 issue2586_inline_randomize_method_arg_2023 normal,-g2023,-s,top ivltests gold=issue2586_inline_randomize_method_arg-vvp-stdout.gold
 issue2571_rand_mode_fixed_array_queue_2017 normal,-g2017,-s,test ivltests gold=issue2571_rand_mode_fixed_array_queue.gold
 issue2571_rand_mode_fixed_array_queue_2023 normal,-g2023,-s,test ivltests gold=issue2571_rand_mode_fixed_array_queue.gold
+issue2587_inside_2d_array_2017 normal,-g2017,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
+issue2587_inside_2d_array_2023 normal,-g2023,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold

@@ -8106,6 +8106,9 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 		     Queue and dynamic-array values keep using the runtime
 		     $ivl_inside_arr helper below. */
 		  NetNet*fixed_array = nullptr;
+		  NetNet*fixed_array_base = nullptr;
+		  int fixed_array_property = -1;
+		  const netuarray_t*fixed_property_type = nullptr;
 		  bool is_param_array = false;
 		  NetEArrayPattern*param_array = nullptr;
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(r.hi)) {
@@ -8119,6 +8122,50 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 			    && sr.net->darray_type() == nullptr
 			    && sr.net->queue_type() == nullptr)
 			      fixed_array = sr.net;
+			/* A class property is represented by the receiver handle plus
+			 * a path tail, rather than by a NetNet for the property itself.
+			 * Resolve that shape here so an unpacked property in a set is
+			 * traversed just like a fixed array signal (11.4.13). */
+			if (found && sr.net && sr.path_head.size() == 1
+			    && sr.path_tail.size() == 1
+			    && sr.path_tail.front().index.empty()) {
+			      const netclass_t*ct = dynamic_cast<const netclass_t*>(
+				    sr.net->net_type());
+			      if (ct) {
+				    int pidx = ct->property_idx_from_name(
+					  sr.path_tail.front().name);
+				    bool readable = pidx >= 0;
+				    if (readable && ct->get_prop_qual(pidx).test_local()
+					&& !ct->get_prop_declaring_class(pidx)
+					      ->test_scope_is_method(scope)) {
+					  cerr << r.hi->get_fileline() << ": error: Local property "
+					       << ct->get_prop_name(pidx)
+					       << " is not accessible in this context." << endl;
+					  des->errors += 1;
+					  readable = false;
+				    }
+				    if (readable && ct->get_prop_qual(pidx).test_protected()
+					&& !ct->get_prop_declaring_class(pidx)
+					      ->test_scope_is_protected_access(scope)) {
+					  cerr << r.hi->get_fileline() << ": error: Protected property "
+					       << ct->get_prop_name(pidx)
+					       << " is not accessible in this context." << endl;
+					  des->errors += 1;
+					  readable = false;
+				    }
+				    if (!readable) continue;
+				    if (readable && !ct->get_prop_qual(pidx).test_static()) {
+					  fixed_property_type = dynamic_cast<const netuarray_t*>(
+						ct->get_prop_type(pidx));
+					  if (fixed_property_type
+					      && fixed_property_type->static_dimensions().size()
+						   > 0) {
+						fixed_array_base = sr.net;
+						fixed_array_property = pidx;
+					  }
+				    }
+			      }
+			}
 			/* Constant unpacked array parameters elaborate to an
 			 * ArrayPattern. In an inside set, that pattern represents the
 			 * array's elements (IEEE 1800-2017 11.4.13), so expand its leaves
@@ -8181,13 +8228,22 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 					term = combined;
 				  }
 			    }
-		  } else if (fixed_array) {
-			for (unsigned word = 0;
-			     word < fixed_array->unpacked_count(); word += 1) {
+		  } else if (fixed_array || fixed_array_base) {
+			unsigned count = fixed_array
+			      ? fixed_array->unpacked_count()
+			      : netrange_width(fixed_property_type->static_dimensions());
+			for (unsigned word = 0; word < count; word += 1) {
 			      NetEConst*word_index = make_const_val_s(word);
 			      word_index->set_line(*r.hi);
-			      NetESignal*item = new NetESignal(fixed_array,
-							 word_index);
+			      NetExpr*item;
+			      if (fixed_array) {
+				    item = new NetESignal(fixed_array, word_index);
+			      } else {
+				    NetESignal*receiver = new NetESignal(fixed_array_base);
+				    receiver->set_line(*r.hi);
+				    item = new NetEProperty(receiver,
+					  fixed_array_property, word_index);
+			      }
 			      item->set_line(*r.hi);
 
 			      char op = type_is_vectorable(base->expr_type())

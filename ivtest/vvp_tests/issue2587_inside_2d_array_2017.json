@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2587_inside_2d_array_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2587_inside_2d_array"],
+  "gold": "issue2587_inside_2d_array",
+  "timeout": 60
+}
