@@ -2778,6 +2778,8 @@ sv_rand_mode_invalid_field_fail CE,-g2012 ivltests gold=sv_rand_mode_invalid_fie
 sv_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_rand_mode_dynamic_indexing.gold
 sv_static_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_static_rand_mode_dynamic_indexing.gold
 sv_rand_mode_dynamic_whole_query_fail CE,-g2012 ivltests gold=sv_rand_mode_dynamic_whole_query_fail.gold
+sv_rand_mode_fixed_array_query_fail_2017 CE,-g2017 ivltests gold=sv_rand_mode_fixed_array_query_fail_2017.gold
+sv_rand_mode_fixed_array_query_fail_2023 CE,-g2023 ivltests gold=sv_rand_mode_fixed_array_query_fail_2023.gold
 
 # Randc constraint qualifier provenance (strict Slang differential polarity)
 sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold

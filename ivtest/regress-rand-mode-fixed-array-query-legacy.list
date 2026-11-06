@@ -1,0 +1,2 @@
+sv_rand_mode_fixed_array_query_fail_2017 CE,-g2017 ivltests gold=sv_rand_mode_fixed_array_query_fail_2017.gold
+sv_rand_mode_fixed_array_query_fail_2023 CE,-g2023 ivltests gold=sv_rand_mode_fixed_array_query_fail_2023.gold

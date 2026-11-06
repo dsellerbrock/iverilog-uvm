@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_rand_mode_fixed_array_query_fail_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_rand_mode_fixed_array_query_fail_2017"
+}

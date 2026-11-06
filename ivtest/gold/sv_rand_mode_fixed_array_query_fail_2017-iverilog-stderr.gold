@@ -1,0 +1,3 @@
+ivltests/sv_rand_mode_fixed_array_query_fail_2017.v:11: error: rand_mode() query on unpacked-array property `matrix' requires selecting one element (IEEE 1800-2017 18.8).
+ivltests/sv_rand_mode_fixed_array_query_fail_2017.v:12: error: rand_mode() query on unpacked-array property `values' requires selecting one element (IEEE 1800-2017 18.8).
+2 error(s) during elaboration.
