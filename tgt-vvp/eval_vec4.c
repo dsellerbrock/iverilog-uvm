@@ -3704,8 +3704,67 @@ static void draw_unary_vec4(ivl_expr_t expr)
       }
 }
 
+/* Only static module/package/block events have a queue binding. */
+static int event_has_static_queue_(ivl_event_t ev)
+{
+      for (ivl_scope_t cur = ivl_event_scope(ev); cur; cur = ivl_scope_parent(cur)) {
+	    if (ivl_scope_is_auto(cur) || ivl_scope_type(cur) == IVL_SCT_CLASS)
+		  return 0;
+	    if (ivl_scope_type(cur) == IVL_SCT_MODULE
+		|| ivl_scope_type(cur) == IVL_SCT_PACKAGE)
+		  return 1;
+      }
+      return 1;
+}
+
+/* IEEE 1800-2017/2023 15.5.5.3: an event variable compares by its
+ * synchronization queue with another event or with null; === and !== have
+ * the same meaning as == and !=. */
+static int draw_event_compare_vec4_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) != IVL_EX_BINARY)
+	    return 0;
+      char op = ivl_expr_opcode(expr);
+      if (op != 'e' && op != 'n' && op != 'E' && op != 'N')
+	    return 0;
+      ivl_expr_t left = ivl_expr_oper1(expr);
+      ivl_expr_t right = ivl_expr_oper2(expr);
+      if (ivl_expr_type(left) != IVL_EX_EVENT) {
+	    ivl_expr_t tmp = left;
+	    left = right;
+	    right = tmp;
+      }
+      if (ivl_expr_type(left) != IVL_EX_EVENT)
+	    return 0;
+
+      ivl_event_t lev = ivl_expr_event(left);
+      ivl_event_t rev = ivl_expr_type(right) == IVL_EX_EVENT
+	    ? ivl_expr_event(right) : 0;
+      if ((!rev && ivl_expr_type(right) != IVL_EX_NULL)
+	  || !event_has_static_queue_(lev)
+	  || (rev && !event_has_static_queue_(rev))) {
+	    fprintf(stderr, "%s:%u: sorry: this event comparison is not "
+		    "supported; only static named events compare with each "
+		    "other or with null.\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 1, 1;\n");
+	    return 1;
+      }
+      if (rev)
+	    fprintf(vvp_out, "    %%event/cmp E_%p, E_%p;\n", lev, rev);
+      else
+	    fprintf(vvp_out, "    %%event/isnull E_%p;\n", lev);
+      if (op == 'n' || op == 'N')
+	    fprintf(vvp_out, "    %%inv;\n");
+      return 1;
+}
+
 static void draw_eval_vec4_core_(ivl_expr_t expr)
 {
+      if (draw_event_compare_vec4_(expr))
+	    return;
+
       static unsigned char warned_unexpected_vec4_type[32];
       static int warned_unexpected_vec4_type_oob = 0;
 

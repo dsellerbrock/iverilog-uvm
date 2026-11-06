@@ -6523,6 +6523,19 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+	/* IEEE 1800-2017/2023 15.5.5: share the source event's queue, or
+	 * detach the destination from its queue for null. */
+      if (strcmp(stmt_name, "$ivl_event_assign") == 0) {
+	    ivl_event_t dst = ivl_expr_event(ivl_stmt_parm(net, 0));
+	    show_stmt_file_line(net, "Event variable assignment.");
+	    if (ivl_stmt_parm_count(net) > 1)
+		  fprintf(vvp_out, "    %%event/assign E_%p, E_%p;\n", dst,
+			  ivl_expr_event(ivl_stmt_parm(net, 1)));
+	    else
+		  fprintf(vvp_out, "    %%event/assign/null E_%p;\n", dst);
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_deferred_enqueue") == 0
           || strcmp(stmt_name, "$ivl_deferred_final_enqueue") == 0)
             return show_deferred_assert_enqueue_(net, sscope);

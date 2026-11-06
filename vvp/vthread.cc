@@ -20186,6 +20186,45 @@ bool of_EVTEST(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %event/assign <dst>, <src>  and  %event/assign/null <dst>
+ * IEEE 1800-2017/2023 15.5.5: point the destination event variable at the
+ * source's synchronization queue, or at none.
+ */
+bool of_EVENT_ASSIGN(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event_sa::assign(cp->net, cp->net2);
+      return true;
+}
+
+bool of_EVENT_ASSIGN_NULL(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event_sa::assign(cp->net, nullptr);
+      return true;
+}
+
+static vvp_net_t* event_queue_(vvp_net_t*net)
+{
+      vvp_named_event_sa*fun = dynamic_cast<vvp_named_event_sa*>(net->fun);
+      return fun ? fun->queue(net) : nullptr;
+}
+
+/* %event/cmp <a>, <b> pushes 1 when both name the same queue (15.5.5.3);
+ * %event/isnull <a> pushes 1 when it names none. */
+bool of_EVENT_CMP(vthread_t thr, vvp_code_t cp)
+{
+      bool same = event_queue_(cp->net) == event_queue_(cp->net2);
+      thr->push_vec4(vvp_vector4_t(1, same ? BIT4_1 : BIT4_0));
+      return true;
+}
+
+bool of_EVENT_ISNULL(vthread_t thr, vvp_code_t cp)
+{
+      bool null = event_queue_(cp->net) == nullptr;
+      thr->push_vec4(vvp_vector4_t(1, null ? BIT4_1 : BIT4_0));
+      return true;
+}
+
 bool of_EVENT(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_ptr_t ptr (cp->net, 0);

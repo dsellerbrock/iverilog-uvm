@@ -42,8 +42,11 @@ static int draw_condition_binary_compare(ivl_expr_t expr)
       ivl_expr_t le = ivl_expr_oper1(expr);
       ivl_expr_t re = ivl_expr_oper2(expr);
 
+	/* Event comparisons (15.5.5.3) are drawn by draw_eval_vec4. */
       if ((ivl_expr_value(le) == IVL_VT_REAL)
-	  || (ivl_expr_value(re) == IVL_VT_REAL)) {
+	  || (ivl_expr_value(re) == IVL_VT_REAL)
+	  || ivl_expr_type(le) == IVL_EX_EVENT
+	  || ivl_expr_type(re) == IVL_EX_EVENT) {
 	    return draw_condition_fallback(expr);
       }
 

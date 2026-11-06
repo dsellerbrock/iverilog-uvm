@@ -2269,9 +2269,44 @@ vvp_named_event_sa::~vvp_named_event_sa()
             vthread_cancel_event_wait(triggered_change_threads_);
 }
 
-vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
+vvp_named_event_sa* vvp_named_event_sa::queue_owner_(vvp_net_t*net)
+{
+      return net ? dynamic_cast<vvp_named_event_sa*>(net->fun) : nullptr;
+}
+
+/* A later wait or trigger follows the assignment; a process already
+ * waiting stays on the queue it waited on (15.5.5.1). */
+void vvp_named_event_sa::assign(vvp_net_t*dst, vvp_net_t*src)
+{
+      vvp_named_event_sa*dfun = queue_owner_(dst);
+      if (!dfun)
+            return;
+      vvp_named_event_sa*sfun = queue_owner_(src);
+      vvp_net_t*queue = sfun ? sfun->queue(src) : nullptr;
+      dfun->detached_ = queue == nullptr;
+      dfun->alias_ = queue == dst ? nullptr : queue;
+}
+
+vthread_t vvp_named_event_sa::add_local_waiter_(vthread_t thread)
 {
       return vthread_add_event_wait(thread, &threads_);
+}
+
+/* Waiting on a null event is undefined (15.5.5.2): it blocks forever. */
+vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
+{
+      if (vvp_named_event_sa*owner = queue_owner_(alias_))
+            return owner->add_local_waiter_(thread);
+      return add_local_waiter_(thread);
+}
+
+bool vvp_named_event_sa::triggered_now(void) const
+{
+      if (detached_)
+            return false;
+      if (vvp_named_event_sa*owner = queue_owner_(alias_))
+            return owner->vvp_named_event::triggered_now();
+      return vvp_named_event::triggered_now();
 }
 
 void vvp_named_event_sa::collect_waiting_threads(
@@ -2282,6 +2317,9 @@ void vvp_named_event_sa::collect_waiting_threads(
 
 vthread_t vvp_named_event_sa::add_triggered_change_waiter(vthread_t thread)
 {
+      if (vvp_named_event_sa*owner = queue_owner_(alias_))
+            return vthread_add_event_wait(thread,
+                                          &owner->triggered_change_threads_);
       return vthread_add_event_wait(thread, &triggered_change_threads_);
 }
 
@@ -2327,10 +2365,22 @@ bool vvp_named_event::triggered_now(void) const
       return ever_triggered_ && last_trigger_time_ == schedule_simtime();
 }
 
+/* Triggering a null event has no effect (15.5.5.2). */
 void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
-      bool first_trigger = !triggered_now();
+      if (detached_)
+            return;
+      if (vvp_named_event_sa*owner = queue_owner_(alias_)) {
+            owner->deliver_(vvp_net_ptr_t(alias_, 0), bit);
+            return;
+      }
+      deliver_(port, bit);
+}
+
+void vvp_named_event_sa::deliver_(vvp_net_ptr_t port, const vvp_vector4_t&bit)
+{
+      bool first_trigger = !vvp_named_event::triggered_now();
       note_triggered();
       notify_wait_order_observers(0);
       if (first_trigger) {

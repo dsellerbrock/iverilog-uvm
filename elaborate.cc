@@ -12892,6 +12892,83 @@ class procedural_process_type_guard_t {
       ivl_process_type_t previous_;
 };
 
+/* A plain identifier naming a named event, or nullptr. */
+static NetEvent* find_named_event_(Design*des, NetScope*scope,
+				   const PExpr*expr)
+{
+	// symbol_search reports errors of its own (e.g. hierarchical
+	// references to automatic items), so only probe a plain name.
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() != 1
+	  || !id->path().name.back().index.empty())
+	    return nullptr;
+      perm_string name = id->path().name.back().name;
+      bool declared = false;
+      for (NetScope*cur = scope; cur && !declared; cur = cur->parent())
+	    declared = cur->find_event(name) != nullptr;
+      if (!declared)
+	    return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.eve || sr.net || !sr.path_tail.empty())
+	    return nullptr;
+      return sr.eve;
+}
+
+/* Only a static module/package/block event has a queue binding here; class
+ * and automatic events keep their existing lowering. */
+static bool event_has_static_queue_(const NetEvent*event)
+{
+      for (const NetScope*cur = event->scope(); cur; cur = cur->parent()) {
+	    if (cur->is_auto() || cur->type() == NetScope::CLASS)
+		  return false;
+	    if (cur->type() == NetScope::MODULE
+		|| cur->type() == NetScope::PACKAGE)
+		  return true;
+      }
+      return true;
+}
+
+/* IEEE 1800-2017/2023 15.5.5: "When one event is assigned to another, the
+ * synchronization queue of the source event is shared by both the source
+ * and the destination event", and assigning null breaks the association
+ * (15.5.5.2). HANDLED is false when the l-value is not a named event. */
+static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
+					const PAssign_&assign, bool&handled)
+{
+      handled = false;
+      NetEvent*dst = find_named_event_(des, scope, assign.lval());
+      if (!dst || !event_has_static_queue_(dst))
+	    return nullptr;
+      handled = true;
+      NetEvent*src = find_named_event_(des, scope, assign.rval());
+      bool null_src = dynamic_cast<const PENull*>(assign.rval()) != nullptr;
+      if (!src && !null_src) {
+	    cerr << assign.get_fileline() << ": error: an event variable can "
+		 << "only be assigned another event or null (IEEE 1800-2017/"
+		 << "2023 15.5.5)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      if (src && !event_has_static_queue_(src)) {
+	    cerr << assign.get_fileline() << ": sorry: assignment of an "
+		 << "automatic event variable is not supported yet." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      vector<NetExpr*>argv(src ? 2 : 1);
+      argv[0] = new NetEEvent(dst);
+      argv[0]->set_line(assign);
+      if (src) {
+	    argv[1] = new NetEEvent(src);
+	    argv[1]->set_line(assign);
+      }
+      NetSTask*task = new NetSTask("$ivl_event_assign",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+      task->set_line(assign);
+      return task;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -12907,6 +12984,14 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	        "in a checker always_ff procedure." << endl;
 	des->errors += 1;
 	return nullptr;
+      }
+
+      if (!delay_ && !event_ && !count_) {
+	    bool handled = false;
+	    NetProc*event_assign = elaborate_event_assign_(des, scope, *this,
+							   handled);
+	    if (handled)
+		  return event_assign;
       }
 
       NetProc*result = elaborate_unwrapped_(des, scope);
@@ -16409,6 +16494,15 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// If the condition expression is more than 1 bits, then
 	// generate a comparison operator to get the result down to
 	// one bit. Turn <e> into <e> != 0;
+
+	// IEEE 1800-2017/2023 15.5.5.3: an event's Boolean value "shall be 0
+	// if the event is null and 1 otherwise".
+      if (NetEEvent*event = dynamic_cast<NetEEvent*>(expr)) {
+	    NetENull*null = new NetENull(nullptr);
+	    null->set_line(*this);
+	    expr = new NetEBComp('n', event, null);
+	    expr->set_line(*this);
+      }
 
       if (expr->expr_width() < 1) {
 	    // Compile-progress: class-typed expressions (e.g. foreach index
