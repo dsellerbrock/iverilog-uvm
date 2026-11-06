@@ -319,6 +319,13 @@ struct sva_property_t {
       // their sync_ variants, op_type 14..17). abort_cond is the abort
       // condition expression; null for every non-abort op.
       PExpr* abort_cond = nullptr;
+      // IEEE 1800-2023 16.12.4/16.12.5: a property-level `pa or pb'
+      // (op_type 21) or `pa and pb' (op_type 20) whose operands are full
+      // properties. Owned. Lowered per attempt by the slot synthesizer's
+      // sub-monitor mode (pform_make_composite_assertion_).
+      sva_property_t* pa = nullptr;
+      sva_property_t* pb = nullptr;
+      PExpr* pcond = nullptr;
 };
 
 /*

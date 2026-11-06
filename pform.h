@@ -398,6 +398,9 @@ extern sva_property_t* pform_sva_apply_property_context(
 				       PEventStatement*clk,
 				       PExpr*disable_iff);
 extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
+extern sva_property_t* pform_sva_prop_compose(const struct vlltype&loc,
+					      int op_type, sva_property_t*a,
+					      sva_property_t*b);
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
@@ -1076,6 +1079,7 @@ struct sva_nfa_sub_t {
       std::vector< std::vector<Statement*> > inject;  // per slot
       std::vector< std::vector<Statement*> > kill;    // per slot
       std::vector<perm_string> vd;                    // per slot
+      bool built = false;   // the synthesizer accepted the operand
 };
 
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
