@@ -770,12 +770,14 @@ extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
  * pattern conditional expression. */
 extern PBlock*pform_pattern_push_scope(const struct vlltype&loc,
                                        const PExpr*subject,
-                                       const PMatchPattern*pattern);
+                                       const PMatchPattern*pattern,
+                                       bool expression_subject = false);
 extern PBlock*pform_pattern_finish_scope(const struct vlltype&loc,
                                          PBlock*block,
                                          Statement*statement,
                                          const PExpr*subject,
-                                         const PMatchPattern*pattern);
+                                         const PMatchPattern*pattern,
+                                         bool expression_subject = false);
 
 extern void pform_put_behavior_in_scope(AProcess*proc);
 

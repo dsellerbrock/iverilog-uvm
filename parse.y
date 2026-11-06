@@ -12269,7 +12269,7 @@ case_matches_item
   : match_pattern
       { assert(!current_case_match_subjects.empty());
 	PBlock*block = pform_pattern_push_scope(
-	      @1, current_case_match_subjects.top(), $1);
+	      @1, current_case_match_subjects.top(), $1, true);
 	current_pattern_blocks.push(block);
       }
 	case_matches_filter_opt ':' statement_or_null
@@ -12286,7 +12286,7 @@ case_matches_item
 	      body = guard;
 	}
 	it->stat = pform_pattern_finish_scope(
-	      @1, block, body, current_case_match_subjects.top(), $1);
+	      @1, block, body, current_case_match_subjects.top(), $1, true);
 	$$ = it;
       }
   | K_default ':' statement_or_null
