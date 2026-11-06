@@ -1,0 +1,2 @@
+x -1 1 -1
+ivltests/issue2584_signed_wide_power_negative_exponent.v:7: $finish called at 0 (1s)
