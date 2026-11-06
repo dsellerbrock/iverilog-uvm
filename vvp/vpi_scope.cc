@@ -138,6 +138,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  string_delete(item);
 		  break;
 		case VPI_IODECL_TYPE:
+		case vpiParamAssign:
 		  delete item;
 		  break;
 		case vpiClassVar:
@@ -811,6 +812,36 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       }
 
       return make_subset_iterator_(code, ref->intern);
+}
+
+class __vpiParamAssign : public __vpiHandle {
+    public:
+      __vpiParamAssign(__vpiScope*scope, vpiHandle lhs, vpiHandle rhs)
+      : scope_(scope), lhs_(lhs), rhs_(rhs) { }
+      ~__vpiParamAssign() override { delete rhs_; }
+      int get_type_code(void) const override { return vpiParamAssign; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiLhs: return lhs_;
+		case vpiRhs: return rhs_;
+		case vpiParent:
+		case vpiScope: return scope_;
+		default: return __vpiHandle::vpi_handle(code);
+	    }
+      }
+    private:
+      __vpiScope*scope_;
+      vpiHandle lhs_;
+      vpiHandle rhs_;
+};
+
+vpiHandle vpip_make_param_assign(__vpiScope*scope, vpiHandle lhs,
+				 vpiHandle rhs)
+{
+      if (!scope || !lhs || !rhs)
+	    return 0;
+      return new __vpiParamAssign(scope, lhs, rhs);
 }
 
 static vpiHandle find_signal_by_net_(__vpiScope*scope, vvp_net_t*net)
