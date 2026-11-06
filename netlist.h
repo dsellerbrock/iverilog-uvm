@@ -860,6 +860,8 @@ class NetNet  : public NetObj, public PortType {
       bool get_const() const { return is_const_; }
       void set_ref_static(bool value) { is_ref_static_ = value; }
       bool get_ref_static() const { return is_ref_static_; }
+      bool is_event_formal() const { return is_event_formal_; }
+      void set_event_formal(bool value) { is_event_formal_ = value; }
       void set_virtual_interface(bool value) { is_virtual_interface_ = value; }
       bool is_virtual_interface() const { return is_virtual_interface_; }
 
@@ -1126,6 +1128,7 @@ class NetNet  : public NetObj, public PortType {
         // Whether the net is variable declared with the const keyword.
       bool is_const_ = false;
       bool is_ref_static_ = false;
+      bool is_event_formal_ = false;
       bool is_virtual_interface_ = false;
 
 	/* Packed slice dimensions are retained for index conversion. Slice
@@ -4515,8 +4518,10 @@ class NetEvNBTrig  : public NetProc {
 class NetEvTrigObj : public NetProc {
 
     public:
-      explicit NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly);
+      explicit NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly,
+                            bool event_handle = false);
       ~NetEvTrigObj() override;
+      bool is_event_handle() const { return event_handle_; }
 
       const NetExpr*obj() const { return obj_; }
       unsigned slot() const { return slot_; }
@@ -4530,6 +4535,7 @@ class NetEvTrigObj : public NetProc {
       NetExpr*obj_;
       unsigned slot_;
       bool nb_;
+      bool event_handle_;
       NetExpr*dly_;
 };
 
@@ -4541,8 +4547,10 @@ class NetEvTrigObj : public NetProc {
 class NetEvWaitObj : public NetProc {
 
     public:
-      explicit NetEvWaitObj(NetExpr*obj, unsigned slot);
+      explicit NetEvWaitObj(NetExpr*obj, unsigned slot,
+                            bool event_handle = false);
       ~NetEvWaitObj() override;
+      bool is_event_handle() const { return event_handle_; }
 
       const NetExpr*obj() const { return obj_; }
       unsigned slot() const { return slot_; }
@@ -4559,6 +4567,7 @@ class NetEvWaitObj : public NetProc {
     private:
       NetExpr*obj_;
       unsigned slot_;
+      bool event_handle_;
       NetProc*statement_ = nullptr;
 };
 

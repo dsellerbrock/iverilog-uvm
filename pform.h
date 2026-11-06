@@ -1233,7 +1233,8 @@ extern std::vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&l
 				     std::list<pform_port_t>*ports,
 				     bool allow_implicit = false,
 				     bool is_const = false,
-				     bool is_ref_static = false);
+                                     bool is_ref_static = false,
+                                     bool is_event_formal = false);
 
 /*
  * The parser uses this function to convert a unary
