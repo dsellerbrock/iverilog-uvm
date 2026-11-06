@@ -142,6 +142,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".arith/pow"    { return K_ARITH_POW; }
 ".arith/pow.r"  { return K_ARITH_POW_R; }
 ".arith/pow.s"  { return K_ARITH_POW_S; }
+".arith/pow.s.u" { return K_ARITH_POW_SU; }
 ".arith/sub"    { return K_ARITH_SUB; }
 ".arith/sub.r"  { return K_ARITH_SUB_R; }
 ".arith/sum"    { return K_ARITH_SUM; }

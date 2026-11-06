@@ -1,0 +1,2 @@
+PASSED: signedness-aware negative integer powers
+ivltests/issue2583_unsigned_power_negative_exponent.v:14: $finish called at 0 (1s)

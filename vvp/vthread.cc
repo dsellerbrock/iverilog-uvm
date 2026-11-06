@@ -30387,7 +30387,7 @@ bool of_POP_VEC4(vthread_t thr, vvp_code_t cp)
  * %pow
  * %pow/s
  */
-static bool of_POW_base(vthread_t thr, bool signed_flag)
+static bool of_POW_base(vthread_t thr, bool signed_flag, bool base_signed)
 {
       vvp_vector4_t valb = thr->pop_vec4();
       vvp_vector4_t vala = thr->pop_vec4();
@@ -30410,7 +30410,7 @@ static bool of_POW_base(vthread_t thr, bool signed_flag)
       if (signed_flag && yv2.value(yv2.size()-1)) {
 	    int a_val;
 	    vvp_bit4_t pad = BIT4_0, lsb = BIT4_0;
-	    if (vector2_to_value(xv2, a_val, true)) {
+	    if (vector2_to_value(xv2, a_val, base_signed)) {
 		  if (a_val == 0) {
 			pad = BIT4_X; lsb = BIT4_X;
 		  }
@@ -30448,12 +30448,17 @@ static bool of_POW_base(vthread_t thr, bool signed_flag)
 
 bool of_POW(vthread_t thr, vvp_code_t)
 {
-      return of_POW_base(thr, false);
+	  return of_POW_base(thr, false, false);
 }
 
 bool of_POW_S(vthread_t thr, vvp_code_t)
 {
-      return of_POW_base(thr, true);
+	  return of_POW_base(thr, true, true);
+}
+
+bool of_POW_S_U(vthread_t thr, vvp_code_t)
+{
+	  return of_POW_base(thr, true, false);
 }
 
 bool of_POW_WR(vthread_t thr, vvp_code_t)

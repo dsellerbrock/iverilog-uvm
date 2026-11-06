@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2583_unsigned_power_negative_exponent.v",
+  "iverilog-args": ["-g2023", "-s", "issue2583_unsigned_power_negative_exponent"],
+  "gold": "issue2583_unsigned_power_negative_exponent_2023"
+}
