@@ -2608,6 +2608,7 @@ extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
      the object-handle expression and the per-class event slot. */
 extern ivl_expr_t  ivl_stmt_evobj_expr(ivl_statement_t net);
 extern unsigned    ivl_stmt_evobj_slot(ivl_statement_t net);
+extern int         ivl_stmt_evobj_is_handle(ivl_statement_t net);
   /* IVL_ST_TRIGGER_ARR IVL_ST_NB_TRIGGER_ARR IVL_ST_WAIT_ARR:
      the run-time element index expression, the array's design-global
      base slot, and its element count (for bounds checking). */
@@ -2909,6 +2910,8 @@ extern unsigned ivl_type_covgrp_item_type_weight(ivl_type_t net, int idx);
 extern int ivl_type_covgrp_item_type_weight_prop(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_cross_num_print_missing(
+	ivl_type_t net, int idx);
 extern int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_comment(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_type_comment(ivl_type_t net, int idx);

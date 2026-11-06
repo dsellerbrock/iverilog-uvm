@@ -377,6 +377,7 @@ ivl_stmt_evarr_count
 ivl_stmt_evarr_index
 ivl_stmt_events
 ivl_stmt_evobj_expr
+ivl_stmt_evobj_is_handle
 ivl_stmt_evobj_slot
 ivl_stmt_file
 ivl_stmt_flow_control
@@ -548,6 +549,7 @@ ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_weight_ir
 ivl_type_covgrp_item_weight_prop
 ivl_type_covgrp_item_goal
+ivl_type_covgrp_item_cross_num_print_missing
 ivl_type_covgrp_item_goal_prop
 ivl_type_covgrp_item_comment
 ivl_type_covgrp_item_type_comment

@@ -4954,6 +4954,28 @@ static assoc_pattern_key_result_t assoc_pattern_key_identity_(
 	    return ASSOC_PATTERN_KEY_OK;
       }
 
+	/* IEEE 1800-2017/2023 7.8.5: an unpacked-struct index compares by
+	 * value, and x/z in any member makes it invalid, so a constant struct
+	 * pattern is identified by its members' identities. */
+      if (const NetEArrayPattern*pattern =
+		dynamic_cast<const NetEArrayPattern*>(expr)) {
+	    if (integral_index || pattern->union_active_member() >= 0)
+		  return ASSOC_PATTERN_KEY_NOT_CONSTANT;
+	    ostringstream out;
+	    out << "p:" << pattern->item_size() << "(";
+	    for (size_t idx = 0 ; idx < pattern->item_size() ; idx += 1) {
+		  string item;
+		  assoc_pattern_key_result_t result =
+			assoc_pattern_key_identity_(pattern->item(idx), true, item);
+		  if (result != ASSOC_PATTERN_KEY_OK)
+			return result;
+		  out << item << ",";
+	    }
+	    out << ")";
+	    identity = out.str();
+	    return ASSOC_PATTERN_KEY_OK;
+      }
+
       const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
       if (!constant)
 	    return ASSOC_PATTERN_KEY_NOT_CONSTANT;
@@ -27223,7 +27245,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       } else if (idx_flags.undefined) {
 	    cerr << get_fileline() << ": warning: "
-		 << "returning 'bx for undefined array access "
+		 << (net->array_type()->base_type() == IVL_VT_BOOL
+		     ? "returning 'b0 for undefined array access "
+		     : "returning 'bx for undefined array access ")
 		 << net->name() << as_indices(unpacked_indices)
 		 << "." << endl;
 
@@ -31137,16 +31161,20 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
 	    if (canon_index == 0) {
 		  cerr << get_fileline() << ": warning: "
-		       << "returning 'bx for out of bounds array access "
+		       << (net->array_type()->base_type() == IVL_VT_BOOL
+			   ? "returning 'b0 for out of bounds array access "
+			   : "returning 'bx for out of bounds array access ")
 		       << net->name() << as_indices(unpacked_indices_const)
 		       << "." << endl;
 	    }
       }
 
       if (canon_index == 0) {
-	    NetEConst*xxx = make_const_x(net->vector_width());
-	    xxx->set_line(*this);
-	    return xxx;
+	    NetEConst*invalid = net->array_type()->base_type() == IVL_VT_BOOL
+		  ? make_const_0(net->vector_width())
+		  : make_const_x(net->vector_width());
+	    invalid->set_line(*this);
+	    return invalid;
       }
       canon_index->set_line(*this);
 

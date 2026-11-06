@@ -17180,7 +17180,7 @@ static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
 			      logical = exact = BIT4_0;
 			      return;
 			}
-		  } else if (type.compare(0, 5, "oc:C") == 0) {
+		  } else if (type.compare(0, 3, "oc:") == 0) {
 			vvp_object_t lobj, robj;
 			left->get_object(pid, lobj, idx);
 			right->get_object(pid, robj, idx);
@@ -17230,6 +17230,57 @@ static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
 		  }
 	    }
       }
+}
+
+/* IEEE 1800-2017/2023 7.8.5: an associative array indexed by an unpacked
+ * struct uses that type's equality operator, so two equal struct values name
+ * one entry. Every other object index (class handle, virtual interface,
+ * container) keeps handle identity. Keys containing x/z are invalid, so ===
+ * decides key equality. */
+bool vvp_assoc_value_key(const vvp_object*key)
+{
+      const vvp_cobject*obj = dynamic_cast<const vvp_cobject*>(key);
+      return obj && obj->get_defn()->is_struct_type()
+	  && !obj->get_defn()->is_union_type();
+}
+
+bool vvp_assoc_object_keys_equal(const vvp_object*left, const vvp_object*right)
+{
+      if (left == right) return true;
+      if (!vvp_assoc_value_key(left) || !vvp_assoc_value_key(right)) return false;
+      vvp_bit4_t logical, exact;
+      struct_equality_(const_cast<vvp_cobject*>(dynamic_cast<const vvp_cobject*>(left)),
+		       const_cast<vvp_cobject*>(dynamic_cast<const vvp_cobject*>(right)),
+		       logical, exact);
+      return exact == BIT4_1;
+}
+
+/* True when a struct-valued key holds x or z in any 4-state member,
+ * including nested struct members (IEEE 1800-2017/2023 7.8.5). */
+static bool struct_key_has_xz_(const vvp_cobject*obj)
+{
+      const class_type*defn = obj->get_defn();
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    const std::string&type = defn->property_base_type(pid);
+	    size_t count = (size_t)defn->property_array_size(pid);
+	    if (count == 0) count = 1;
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  if (type == "S" || type == "r") continue;
+		  if (!type.empty() && (type[0] == 'o' || type[0] == 'D'
+					|| type[0] == 'Q' || type[0] == 'M')) {
+			vvp_object_t child;
+			const_cast<vvp_cobject*>(obj)->get_object(pid, child, idx);
+			if (vvp_assoc_value_key(child.peek<vvp_object>())
+			    && struct_key_has_xz_(child.peek<vvp_cobject>()))
+			      return true;
+			continue;
+		  }
+		  vvp_vector4_t val;
+		  const_cast<vvp_cobject*>(obj)->get_vec4(pid, val, idx);
+		  if (val.has_xz()) return true;
+	    }
+      }
+      return false;
 }
 
 /* Associative arrays are equal when they hold the same keys with equal
@@ -17325,6 +17376,14 @@ static void container_equality_(const vvp_object_t&lobj, const vvp_object_t&robj
 		      || lv.peek<vvp_assoc_base>() || rv.peek<vvp_assoc_base>()) {
 			vvp_bit4_t sub_logical, sub_exact;
 			container_equality_(lv, rv, sub_logical, sub_exact);
+			if (sub_logical == BIT4_0) { logical = exact = BIT4_0; return; }
+			if (sub_logical != BIT4_1) logical = BIT4_X;
+			if (sub_exact != BIT4_1) exact = BIT4_0;
+		  } else if (vvp_assoc_value_key(lv.peek<vvp_object>())
+			     && vvp_assoc_value_key(rv.peek<vvp_object>())) {
+			vvp_bit4_t sub_logical, sub_exact;
+			struct_equality_(lv.peek<vvp_cobject>(), rv.peek<vvp_cobject>(),
+					 sub_logical, sub_exact);
 			if (sub_logical == BIT4_0) { logical = exact = BIT4_0; return; }
 			if (sub_logical != BIT4_1) logical = BIT4_X;
 			if (sub_exact != BIT4_1) exact = BIT4_0;
@@ -20191,6 +20250,58 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
       vvp_net_ptr_t ptr (cp->net, 0);
       vvp_vector4_t tmp (1, BIT4_X);
       vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "assign-vec4"));
+      return true;
+}
+
+/* %event/handle/load <event-label>
+ * Construct the value passed through an event task formal. An automatic
+ * named event handle also retains the activation that owns its wait list. */
+bool of_EVENT_HANDLE_LOAD(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "%event/handle/load references a non-event net");
+
+      vvp_context_t context = nullptr;
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    context = automatic_event->capture_context(vthread_get_wt_context());
+	    if (!context)
+		  return event_expr_runtime_error_(thr,
+			"event task argument has no live automatic event activation");
+      }
+
+      thr->push_object(vvp_object_t(new vvp_event_handle(net, context)));
+      return true;
+}
+
+/* %evt/handle -- trigger the event value passed through a task formal. */
+bool of_EVT_HANDLE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t value;
+      thr->pop_object(value);
+      vvp_event_handle*handle = value.peek<vvp_event_handle>();
+      vvp_net_t*net = handle ? handle->net() : nullptr;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "trigger through a null or invalid event task formal");
+
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    if (!handle->context())
+		  return event_expr_runtime_error_(thr,
+			"automatic event task formal has no live activation");
+	    automatic_event->recv_vec4(vvp_net_ptr_t(net, 0),
+		  vvp_vector4_t(1, BIT4_X), handle->context());
+      } else {
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), vvp_vector4_t(1, BIT4_X),
+			  ensure_write_context_(thr, "event-handle-trigger"));
+      }
       return true;
 }
 
@@ -23711,6 +23822,11 @@ static bool aa_read_warning_enabled_(vthread_t thr, vvp_net_t*net)
 
 static bool aa_index_has_xz_(const vvp_vector4_t&key)
 { return key.has_xz(); }
+static bool aa_index_has_xz_(const vvp_object_t&key)
+{
+      return vvp_assoc_value_key(key.peek<vvp_object>())
+	  && struct_key_has_xz_(key.peek<vvp_cobject>());
+}
 template <class KEY>
 static bool aa_index_has_xz_(const KEY&)
 { return false; }
@@ -26547,10 +26663,13 @@ bool of_LOAD_PREPONED_AV(vthread_t thr, vvp_code_t cp)
       vvp_array_t array = resolve_runtime_array_(cp, "%load/preponed/av");
 
       long adr = thr->words[adr_index].w_int;
+	const bool two_state = array
+	      && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL;
 
 	/* Same out-of-range convention as %load/vec4a. */
       if (thr->flags[4] == BIT4_1) {
-	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1,
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
@@ -26605,12 +26724,15 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
       vvp_array_t array = resolve_runtime_array_(cp, "%load/vec4a");
 
       int64_t adr = thr->words[adr_index].w_int;
+	const bool two_state = array
+	      && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL;
 
 	// If flag[3] is set, then the calculation of the address
 	// failed, and this load should return X instead of the actual
 	// value.
       if (thr->flags[4] != BIT4_0) {
-	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1,
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
@@ -26621,7 +26743,8 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
       }
 
       if (adr < 0 || uint64_t(adr) >= array->get_size()) {
-	    vvp_vector4_t tmp (array->get_word_size(), BIT4_X);
+	    vvp_vector4_t tmp (array->get_word_size(),
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
@@ -36693,6 +36816,42 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
       thr->wait_next = ep->add_waiting_thread(thr);
 
 	/* Return false to suspend this thread. */
+      return false;
+}
+
+/* %wait/handle -- wait on the event value passed through a task formal. */
+bool of_WAIT_HANDLE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t value;
+      thr->pop_object(value);
+      vvp_event_handle*handle = value.peek<vvp_event_handle>();
+      vvp_net_t*net = handle ? handle->net() : nullptr;
+      vvp_named_event*event = net && net->fun
+	    ? dynamic_cast<vvp_named_event*>(net->fun) : nullptr;
+      if (!event)
+	    return event_expr_runtime_error_(thr,
+		  "wait on a null or invalid event task formal");
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+      assert(!thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+      thr->in_region_drain = 0;
+
+      if (vvp_named_event_aa*automatic_event =
+		  dynamic_cast<vvp_named_event_aa*>(event)) {
+	    if (!handle->context()
+		|| !automatic_event->add_waiting_thread_at_context(
+		      thr, handle->context(), thr->wait_next))
+		  return event_expr_runtime_error_(thr,
+			"automatic event task formal has no live wait list");
+      } else {
+	    waitable_hooks_s*waitable = event->as_waitable();
+	    if (!waitable)
+		  return event_expr_runtime_error_(thr,
+			"event task formal is not waitable");
+	    thr->wait_next = waitable->add_waiting_thread(thr);
+      }
       return false;
 }
 
